@@ -46,6 +46,8 @@ mvn clean install
 
 The Java-only modules can also be worked on independently. The NetBeans module uses `RELEASE300` APIs.
 
+For version highlights and installation instructions, see the [0.1.1 release notes](docs/RELEASE_NOTES_0.1.1.md). The complete release history is in [CHANGELOG.md](CHANGELOG.md).
+
 ## Configure Flutter and Dart
 
 The plugin adds a dedicated `Flutter` category to `Tools > Options`. On its first start it imports a valid Flutter SDK from `flutter.sdk`, `FLUTTER_HOME`, `FLUTTER_ROOT`, or `PATH`. For Dart it respects `dart.sdk`, `DART_HOME`, and `DART_SDK`, then uses Flutter's bundled Dart SDK when available, and finally checks `PATH`.
@@ -98,7 +100,7 @@ mvn nbm:cluster
 mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
-The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The generated plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.1-SNAPSHOT.nbm`.
+The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The stable 0.1.1 plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.1.nbm`.
 
 ## License
 

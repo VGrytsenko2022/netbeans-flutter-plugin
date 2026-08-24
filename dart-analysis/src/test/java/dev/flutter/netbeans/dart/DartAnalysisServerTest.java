@@ -42,7 +42,7 @@ class DartAnalysisServerTest {
                 "language-server",
                 "--protocol=lsp",
                 "--client-id=netbeans-flutter",
-                "--client-version=0.1.0"), factory.command);
+                "--client-version=0.1.1"), factory.command);
         assertEquals(project.toAbsolutePath().normalize(), factory.workingDirectory);
         server.close();
     }

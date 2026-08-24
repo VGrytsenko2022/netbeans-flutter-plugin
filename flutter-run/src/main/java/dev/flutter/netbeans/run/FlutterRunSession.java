@@ -16,6 +16,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -101,6 +102,16 @@ public final class FlutterRunSession implements AutoCloseable {
 
     public CompletableFuture<URI> vmServiceUri() {
         return vmServiceUri.copy();
+    }
+
+    /** Returns the VM Service URI only after Flutter has supplied it successfully. */
+    public Optional<URI> currentVmServiceUri() {
+        if (!vmServiceUri.isDone()
+                || vmServiceUri.isCompletedExceptionally()
+                || vmServiceUri.isCancelled()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(vmServiceUri.getNow(null));
     }
 
     public CompletableFuture<Integer> exitCode() {

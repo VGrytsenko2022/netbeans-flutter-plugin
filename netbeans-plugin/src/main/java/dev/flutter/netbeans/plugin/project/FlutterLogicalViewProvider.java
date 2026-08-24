@@ -162,6 +162,12 @@ final class FlutterLogicalViewProvider implements LogicalViewProvider {
             actions.add(projectCommand(
                     FlutterProjectActionProvider.COMMAND_HOT_RESTART,
                     "Hot Restart"));
+            actions.add(projectCommand(
+                    FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS,
+                    "Open DevTools"));
+            actions.add(projectCommand(
+                    FlutterProjectActionProvider.COMMAND_STOP_DEVTOOLS,
+                    "Stop DevTools"));
             actions.add(projectCommand(FlutterProjectActionProvider.COMMAND_STOP, "Stop"));
             actions.add(null);
             actions.add(CommonProjectActions.setAsMainProjectAction());

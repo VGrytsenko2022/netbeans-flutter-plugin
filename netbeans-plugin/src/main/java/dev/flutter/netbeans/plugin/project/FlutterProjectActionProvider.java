@@ -14,6 +14,8 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     public static final String COMMAND_LAUNCH_EMULATOR = "flutter.launch.emulator";
     public static final String COMMAND_HOT_RELOAD = "flutter.hot.reload";
     public static final String COMMAND_HOT_RESTART = "flutter.hot.restart";
+    public static final String COMMAND_OPEN_DEVTOOLS = "flutter.devtools.open";
+    public static final String COMMAND_STOP_DEVTOOLS = "flutter.devtools.stop";
     public static final String COMMAND_STOP = "flutter.stop";
     public static final String COMMAND_PUB_GET = "flutter.pub.get";
     public static final String COMMAND_ANALYZE = "flutter.analyze";
@@ -27,6 +29,8 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         COMMAND_DEBUG,
         COMMAND_HOT_RELOAD,
         COMMAND_HOT_RESTART,
+        COMMAND_OPEN_DEVTOOLS,
+        COMMAND_STOP_DEVTOOLS,
         COMMAND_STOP,
         COMMAND_PUB_GET,
         COMMAND_ANALYZE,
@@ -77,6 +81,8 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                  COMMAND_LAUNCH_EMULATOR,
                  COMMAND_HOT_RELOAD,
                  COMMAND_HOT_RESTART,
+                 COMMAND_OPEN_DEVTOOLS,
+                 COMMAND_STOP_DEVTOOLS,
                  COMMAND_STOP -> runController.invoke(command);
             case COMMAND_PUB_GET,
                  COMMAND_ANALYZE,
@@ -118,6 +124,8 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                  COMMAND_DEBUG,
                  COMMAND_HOT_RELOAD,
                  COMMAND_HOT_RESTART,
+                 COMMAND_OPEN_DEVTOOLS,
+                 COMMAND_STOP_DEVTOOLS,
                  COMMAND_STOP -> true;
             default -> false;
         };

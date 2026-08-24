@@ -14,9 +14,10 @@ The current usable workflow is:
 4. Discover and select Desktop, Mobile, or Web run targets.
 5. Create and manage Android Virtual Devices, or launch an already configured iOS simulator.
 6. Run or debug a Flutter application.
-7. Use Hot Reload, Hot Restart, Stop, and the NetBeans Output window.
-8. Resolve packages, analyze sources, and run all/file/single tests through native NetBeans tooling UI.
-9. Edit `pubspec.yaml` with Flutter-aware completion and semantic diagnostics.
+7. Open Flutter DevTools for the active application from NetBeans.
+8. Use Hot Reload, Hot Restart, Stop, and the NetBeans Output window.
+9. Resolve packages, analyze sources, and run all/file/single tests through native NetBeans tooling UI.
+10. Edit `pubspec.yaml` with Flutter-aware completion and semantic diagnostics.
 
 Only after these are stable do we build the Matisse-like Flutter Designer.
 
@@ -26,7 +27,7 @@ Only after these are stable do we build the Matisse-like Flutter Designer.
 - `dart-analysis` — lifecycle-safe Dart Language Server process and raw LSP transport.
 - `flutter-sdk` — SDK discovery, validation and Flutter CLI process execution.
 - `flutter-project` — Flutter project recognition and project metadata.
-- `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, immutable one-shot tooling commands, and Analyze/Test protocol parsers.
+- `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, DevTools process integration, immutable one-shot tooling commands, and Analyze/Test protocol parsers.
 - `netbeans-plugin` — NetBeans UI integration and actions.
 - `flutter-designer` — reserved boundary for the future native Flutter designer.
 
@@ -67,6 +68,9 @@ Flutter execution actions are available from the top-level `Flutter` menu and fr
 4. Choose `Run Flutter Project` or `Debug Flutter Project`. Run uses a managed `flutter run --machine` session. Debug starts the app paused, waits for its VM service, starts Flutter's debug adapter, and attaches the NetBeans DAP debugger. NetBeans shows native progress for the complete session, including its Starting, Running, and Stopping phases; Cancel in the progress indicator requests an orderly Stop.
 5. Invoking Run or Debug again while the current application is Starting or Running asks whether to stop that session and restart in the requested mode and toolbar target. Declining leaves the current session untouched. Changing the toolbar target does not move an already running session; it selects the destination for the next Run, Debug, or confirmed restart.
 6. While the app is running, use `Hot Reload`, `Hot Restart`, or `Stop Flutter Application`. Flutter logs, lifecycle messages, emulator progress, and debugger diagnostics are written to a named NetBeans Output tab.
+7. After the running application publishes its VM Service URI, choose `Flutter > Open DevTools`. The plugin starts DevTools with the configured Dart SDK on `127.0.0.1` and an automatically assigned port, connects it to that exact application, and opens the resulting URL in the browser configured in NetBeans. Choosing Open again reopens the current URL instead of starting a duplicate server. `Flutter > Stop DevTools` stops only the DevTools server; stopping or replacing the Flutter session, or closing the project, also stops its server automatically.
+
+This integration launches the SDK-provided browser DevTools with native NetBeans actions, Output, and cancellable progress. An embedded DevTools surface and Flutter Inspector/widget-tree UI are separate future work.
 
 Dart files are registered as `text/x-dart` with an incremental lexer, theme-aware syntax categories, a NetBeans EditorKit, a Fonts & Colors preview, and lexer-aware two-space typing indentation. The lexer handles Dart keywords, built-in types, numbers, nested comments, raw and triple strings, interpolation, malformed input recovery, and Unicode identifiers. Enter between `{}` expands an indented body and a leading `}` is aligned without treating delimiters inside strings or comments as code. Typing support reads the live incremental token hierarchy and affected line text instead of copying and re-lexing the whole document for each keystroke.
 
@@ -102,4 +106,4 @@ This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ## Status
 
-This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, application and Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Deeper editor polish remains a future milestone.
+This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, application and Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Embedded DevTools/Inspector UI and deeper editor polish remain future milestones.

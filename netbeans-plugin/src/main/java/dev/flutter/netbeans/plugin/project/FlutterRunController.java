@@ -1,10 +1,13 @@
 package dev.flutter.netbeans.plugin.project;
 
+import dev.flutter.netbeans.api.DartSdk;
 import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.api.RunState;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
+import dev.flutter.netbeans.run.DevToolsLauncher;
+import dev.flutter.netbeans.run.DevToolsSession;
 import dev.flutter.netbeans.run.FlutterDeviceService;
 import dev.flutter.netbeans.run.FlutterEmulator;
 import dev.flutter.netbeans.run.FlutterEmulatorDeviceMatcher;
@@ -47,6 +50,7 @@ import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ActionProgress;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
+import org.openide.awt.HtmlBrowser;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.ChangeSupport;
 import org.openide.util.NbPreferences;
@@ -71,6 +75,7 @@ public final class FlutterRunController implements AutoCloseable {
     private volatile Preferences preferences;
     private final Object lock = new Object();
     private final Object outputLock = new Object();
+    private final Object devToolsOutputLock = new Object();
     private final Object targetLock = new Object();
     private final ReentrantLock targetDiscoveryLock = new ReentrantLock();
     private final Set<ActionProgressCompletion> pendingActionProgress = new HashSet<>();
@@ -81,6 +86,10 @@ public final class FlutterRunController implements AutoCloseable {
     private volatile FlutterRunSession dapSession;
     private volatile SessionProgress sessionProgress;
     private volatile InputOutput output;
+    private volatile DevToolsSession devToolsSession;
+    private volatile FlutterRunSession devToolsOwner;
+    private volatile DevToolsProgress devToolsProgress;
+    private volatile InputOutput devToolsOutput;
     private volatile PendingOperation pendingOperation;
     private volatile boolean closed;
     private volatile List<FlutterDevice> availableTargets = List.of();
@@ -107,7 +116,10 @@ public final class FlutterRunController implements AutoCloseable {
                  ActionProvider.COMMAND_DEBUG ->
                 pendingOperation == null && (isTerminal(state) || isRestartable(state));
             case FlutterProjectActionProvider.COMMAND_HOT_RELOAD,
-                 FlutterProjectActionProvider.COMMAND_HOT_RESTART -> state == RunState.RUNNING;
+                  FlutterProjectActionProvider.COMMAND_HOT_RESTART -> state == RunState.RUNNING;
+            case FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS ->
+                canOpenDevTools(current, state);
+            case FlutterProjectActionProvider.COMMAND_STOP_DEVTOOLS -> devToolsProgress != null;
             case FlutterProjectActionProvider.COMMAND_STOP ->
                 state == RunState.STARTING || state == RunState.RUNNING;
             default -> false;
@@ -130,8 +142,8 @@ public final class FlutterRunController implements AutoCloseable {
             finishActionProgress(actionProgress, false);
             showMessage(
                     "Flutter action unavailable",
-                    "Cannot perform " + actionName(command) + " for " + projectRoot
-                    + ": " + unavailableReason() + ".",
+                     "Cannot perform " + actionName(command) + " for " + projectRoot
+                    + ": " + unavailableReason(command) + ".",
                     NotifyDescriptor.WARNING_MESSAGE);
             return;
         }
@@ -148,6 +160,8 @@ public final class FlutterRunController implements AutoCloseable {
                 control("Hot Reload", FlutterRunSession::hotReload);
             case FlutterProjectActionProvider.COMMAND_HOT_RESTART ->
                 control("Hot Restart", FlutterRunSession::hotRestart);
+            case FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS -> openDevTools();
+            case FlutterProjectActionProvider.COMMAND_STOP_DEVTOOLS -> stopDevTools();
             case FlutterProjectActionProvider.COMMAND_STOP -> stop();
             default -> throw new IllegalArgumentException("Unsupported Flutter run command: " + command);
         }
@@ -496,7 +510,12 @@ public final class FlutterRunController implements AutoCloseable {
         created.addStateListener(state -> onSessionState(created, progress, state));
         fireChange();
         created.exitCode().whenComplete(
-                (code, error) -> onSessionExit(created, progress, code, error));
+                 (code, error) -> onSessionExit(created, progress, code, error));
+        created.vmServiceUri().whenComplete((uri, error) -> {
+            if (!closed && session == created) {
+                fireChange();
+            }
+        });
         if (debug) {
             attachDebugger(created, sdk, target.id());
         }
@@ -783,6 +802,407 @@ public final class FlutterRunController implements AutoCloseable {
         control("Stop", current, FlutterRunSession::quit);
     }
 
+    private boolean canOpenDevTools(FlutterRunSession current, RunState state) {
+        if (current == null || state != RunState.RUNNING
+                || current.currentVmServiceUri().isEmpty()) {
+            return false;
+        }
+        DevToolsProgress progress = devToolsProgress;
+        if (progress == null) {
+            return true;
+        }
+        DevToolsSession server = devToolsSession;
+        return devToolsOwner == current
+                && !progress.stopRequested()
+                && server != null
+                && server.isAlive()
+                && readyBrowserUri(server).isPresent();
+    }
+
+    private void openDevTools() {
+        FlutterRunSession owner = session;
+        URI vmServiceUri = owner == null
+                ? null
+                : owner.currentVmServiceUri().orElse(null);
+        URI existingBrowser = null;
+        DevToolsSession existingServer = null;
+        DevToolsProgress existingProgress = null;
+        DevToolsProgress createdProgress = null;
+        String unavailable = null;
+        synchronized (lock) {
+            if (!isActiveRunSessionLocked(owner, vmServiceUri)) {
+                unavailable = devToolsUnavailableReason(owner);
+            } else if (devToolsProgress != null) {
+                DevToolsSession existing = devToolsSession;
+                if (devToolsOwner == owner && !devToolsProgress.stopRequested()
+                        && existing != null && existing.isAlive()) {
+                    existingBrowser = readyBrowserUri(existing).orElse(null);
+                    existingServer = existing;
+                    existingProgress = devToolsProgress;
+                    if (existingBrowser == null) {
+                        unavailable = "DevTools is still starting for " + projectInfo.name();
+                    }
+                } else {
+                    unavailable = "the previous DevTools process is still stopping";
+                }
+            } else {
+                createdProgress = new DevToolsProgress(owner);
+                devToolsOwner = owner;
+                devToolsProgress = createdProgress;
+            }
+        }
+        if (existingBrowser != null) {
+            writeDevToolsLine("Reopening DevTools for " + projectInfo.name() + " at "
+                    + existingBrowser + ".");
+            showDevToolsBrowser(owner, existingServer, existingProgress, existingBrowser);
+            return;
+        }
+        if (unavailable != null) {
+            showMessage(
+                    "Flutter DevTools unavailable",
+                    "Cannot open DevTools for Flutter project " + projectRoot + ": "
+                    + unavailable + ".",
+                    NotifyDescriptor.WARNING_MESSAGE);
+            return;
+        }
+
+        DevToolsProgress progress = createdProgress;
+        openDevToolsOutput();
+        writeDevToolsLine("Starting DevTools for " + projectInfo.name()
+                + " and VM Service " + vmServiceUri + "...");
+        progress.start();
+        fireChange();
+        WORKER.post(() -> startDevTools(owner, vmServiceUri, progress));
+    }
+
+    private void startDevTools(
+            FlutterRunSession owner,
+            URI vmServiceUri,
+            DevToolsProgress progress) {
+        DevToolsSession created = null;
+        try {
+            ensureDevToolsStartCurrent(owner, vmServiceUri, progress);
+            DartSdk dartSdk = requireDartSdk("start Flutter DevTools");
+            writeDevToolsLine("Launching " + dartSdk.dartExecutable()
+                    + " devtools --machine on an automatic loopback port...");
+            created = new DevToolsLauncher(dartSdk).start(projectRoot, vmServiceUri);
+            created.addOutputListener(this::writeDevToolsLine);
+            synchronized (lock) {
+                ensureDevToolsStartCurrentLocked(owner, vmServiceUri, progress);
+                devToolsSession = created;
+            }
+            DevToolsSession server = created;
+            server.browserUri()
+                    .orTimeout(30, TimeUnit.SECONDS)
+                    .whenCompleteAsync((browserUri, error) -> onDevToolsReady(
+                            owner, server, progress, browserUri, error), WORKER);
+            server.exitCode().whenComplete(
+                    (code, error) -> onDevToolsExit(owner, server, progress, code, error));
+            fireChange();
+        } catch (OperationCancelledException ex) {
+            if (created != null) {
+                created.close();
+            }
+            finishCancelledDevToolsStart(owner, progress);
+        } catch (Exception ex) {
+            if (created != null) {
+                created.close();
+            }
+            if (progress.markFailed()) {
+                reportDevToolsFailure("start DevTools", messageOf(ex));
+            }
+            finishFailedDevToolsStart(owner, progress);
+        }
+    }
+
+    private void onDevToolsReady(
+            FlutterRunSession owner,
+            DevToolsSession server,
+            DevToolsProgress progress,
+            URI browserUri,
+            Throwable error) {
+        if (!isCurrentDevTools(owner, server, progress)) {
+            server.close();
+            return;
+        }
+        if (progress.stopRequested() || server.stopRequested()) {
+            progress.stopping();
+            fireChange();
+            return;
+        }
+        if (error != null) {
+            progress.stopping();
+            if (progress.markFailed()) {
+                reportDevToolsFailure("connect DevTools to the running Flutter application",
+                        messageOf(error));
+            }
+            server.stop();
+            fireChange();
+            return;
+        }
+        if (!isActiveRunSession(owner, progress.vmServiceUri())) {
+            progress.requestStop();
+            progress.stopping();
+            server.stop();
+            fireChange();
+            return;
+        }
+        if (!progress.running(browserUri)) {
+            return;
+        }
+        writeDevToolsLine("DevTools is serving " + projectInfo.name() + " at " + browserUri + ".");
+        fireChange();
+        showDevToolsBrowser(owner, server, progress, browserUri);
+    }
+
+    private void showDevToolsBrowser(
+            FlutterRunSession owner,
+            DevToolsSession server,
+            DevToolsProgress progress,
+            URI browserUri) {
+        EventQueue.invokeLater(() -> {
+            if (!isCurrentDevTools(owner, server, progress)
+                    || !isActiveRunSession(owner, progress.vmServiceUri())) {
+                return;
+            }
+            try {
+                HtmlBrowser.URLDisplayer.getDefault().showURL(browserUri.toURL());
+            } catch (Exception ex) {
+                writeDevToolsLine("Could not open the configured NetBeans browser at "
+                        + browserUri + ": " + messageOf(ex));
+                showMessage(
+                        "Cannot open Flutter DevTools browser",
+                        "DevTools for Flutter project " + projectRoot + " is running at "
+                        + browserUri + ", but NetBeans could not open the configured browser: "
+                        + messageOf(ex) + ".",
+                        NotifyDescriptor.ERROR_MESSAGE);
+            }
+        });
+    }
+
+    private void stopDevTools() {
+        DevToolsSession server;
+        DevToolsProgress progress;
+        synchronized (lock) {
+            server = devToolsSession;
+            progress = devToolsProgress;
+        }
+        if (progress == null) {
+            return;
+        }
+        if (progress.requestStop()) {
+            progress.stopping();
+            writeDevToolsLine("Stopping DevTools for " + projectInfo.name() + "...");
+        }
+        if (server != null) {
+            server.stop();
+        } else {
+            finishCancelledDevToolsStart(devToolsOwner, progress);
+        }
+        fireChange();
+    }
+
+    private boolean requestDevToolsStopFromProgress(DevToolsProgress source) {
+        DevToolsSession server;
+        synchronized (lock) {
+            if (devToolsProgress != source) {
+                return false;
+            }
+            if (!source.requestStop()) {
+                return false;
+            }
+            source.stopping();
+            server = devToolsSession;
+        }
+        writeDevToolsLine("Stop requested from the NetBeans progress indicator for DevTools and "
+                + projectInfo.name() + ".");
+        if (server != null) {
+            server.stop();
+        } else {
+            finishCancelledDevToolsStart(devToolsOwner, source);
+        }
+        fireChange();
+        return true;
+    }
+
+    private void stopDevToolsFor(FlutterRunSession owner, String reason) {
+        DevToolsSession server;
+        DevToolsProgress progress;
+        synchronized (lock) {
+            if (devToolsOwner != owner || devToolsProgress == null) {
+                return;
+            }
+            server = devToolsSession;
+            progress = devToolsProgress;
+            if (!progress.requestStop()) {
+                return;
+            }
+            progress.stopping();
+        }
+        writeDevToolsLine(reason);
+        if (server != null) {
+            server.stop();
+        } else {
+            finishCancelledDevToolsStart(owner, progress);
+        }
+        fireChange();
+    }
+
+    private void onDevToolsExit(
+            FlutterRunSession owner,
+            DevToolsSession server,
+            DevToolsProgress progress,
+            Integer code,
+            Throwable error) {
+        synchronized (lock) {
+            if (devToolsSession != server || devToolsOwner != owner
+                    || devToolsProgress != progress) {
+                return;
+            }
+            devToolsSession = null;
+            devToolsOwner = null;
+            devToolsProgress = null;
+        }
+        progress.finish();
+        if (progress.stopRequested() || server.stopRequested()) {
+            writeDevToolsLine("DevTools stopped for " + projectInfo.name() + ".");
+        } else if (!progress.failureReported()) {
+            String reason;
+            if (error != null) {
+                reason = messageOf(error);
+            } else if (!progress.ready()) {
+                reason = "the DevTools process exited with code " + code
+                        + " before its server became ready";
+            } else if (code != null && code != 0) {
+                reason = "the DevTools process exited unexpectedly with code " + code;
+            } else {
+                writeDevToolsLine("DevTools process finished with exit code " + code + ".");
+                fireChange();
+                return;
+            }
+            progress.markFailed();
+            reportDevToolsFailure("keep DevTools running", reason);
+        }
+        fireChange();
+    }
+
+    private void ensureDevToolsStartCurrent(
+            FlutterRunSession owner,
+            URI vmServiceUri,
+            DevToolsProgress progress) throws OperationCancelledException {
+        synchronized (lock) {
+            ensureDevToolsStartCurrentLocked(owner, vmServiceUri, progress);
+        }
+    }
+
+    private void ensureDevToolsStartCurrentLocked(
+            FlutterRunSession owner,
+            URI vmServiceUri,
+            DevToolsProgress progress) throws OperationCancelledException {
+        if (devToolsOwner != owner || devToolsProgress != progress
+                || progress.stopRequested()
+                || !isActiveRunSessionLocked(owner, vmServiceUri)) {
+            throw new OperationCancelledException();
+        }
+    }
+
+    private boolean isActiveRunSession(FlutterRunSession owner, URI vmServiceUri) {
+        synchronized (lock) {
+            return isActiveRunSessionLocked(owner, vmServiceUri);
+        }
+    }
+
+    private boolean isActiveRunSessionLocked(FlutterRunSession owner, URI vmServiceUri) {
+        return !closed
+                && owner != null
+                && session == owner
+                && owner.state() == RunState.RUNNING
+                && vmServiceUri != null
+                && owner.currentVmServiceUri().filter(vmServiceUri::equals).isPresent();
+    }
+
+    private boolean isCurrentDevTools(
+            FlutterRunSession owner,
+            DevToolsSession server,
+            DevToolsProgress progress) {
+        synchronized (lock) {
+            return !closed
+                    && devToolsOwner == owner
+                    && devToolsSession == server
+                    && devToolsProgress == progress;
+        }
+    }
+
+    private static Optional<URI> readyBrowserUri(DevToolsSession server) {
+        try {
+            return Optional.ofNullable(server.browserUri().getNow(null));
+        } catch (RuntimeException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private String devToolsUnavailableReason(FlutterRunSession owner) {
+        if (closed || !project.getProjectDirectory().isValid()) {
+            return "the Flutter project is closed or unavailable";
+        }
+        if (owner == null || owner.state() != RunState.RUNNING) {
+            return "the Flutter application is not running";
+        }
+        if (owner.currentVmServiceUri().isEmpty()) {
+            return "Flutter has not supplied a VM Service URI for the running application";
+        }
+        return "the active Flutter session changed before DevTools could start";
+    }
+
+    private DartSdk requireDartSdk(String operation) throws IOException {
+        var status = new FlutterToolchainService().resolve();
+        if (status.dartSdk().isEmpty()) {
+            throw new IOException("cannot " + operation + ": " + status.dartMessage()
+                    + " Configure it in Tools > Options > Flutter.");
+        }
+        return status.dartSdk().get();
+    }
+
+    private void finishCancelledDevToolsStart(
+            FlutterRunSession owner,
+            DevToolsProgress progress) {
+        synchronized (lock) {
+            if (devToolsOwner != owner || devToolsProgress != progress
+                    || devToolsSession != null) {
+                return;
+            }
+            devToolsOwner = null;
+            devToolsProgress = null;
+        }
+        progress.finish();
+        writeDevToolsLine("DevTools start was cancelled for " + projectInfo.name() + ".");
+        fireChange();
+    }
+
+    private void finishFailedDevToolsStart(
+            FlutterRunSession owner,
+            DevToolsProgress progress) {
+        synchronized (lock) {
+            if (devToolsOwner != owner || devToolsProgress != progress
+                    || devToolsSession != null) {
+                return;
+            }
+            devToolsOwner = null;
+            devToolsProgress = null;
+        }
+        progress.finish();
+        fireChange();
+    }
+
+    private void reportDevToolsFailure(String operation, String reason) {
+        writeDevToolsLine("Cannot " + operation + " for " + projectRoot + ": " + reason + ".");
+        showMessage(
+                "Flutter DevTools failed",
+                "Cannot " + operation + " for Flutter project " + projectRoot + ": "
+                + reason + ".",
+                NotifyDescriptor.ERROR_MESSAGE);
+    }
+
     private void failPendingAction(FlutterRunSession source) {
         SessionProgress progress = sessionProgress;
         if (progress != null && progress.session == source) {
@@ -795,6 +1215,10 @@ public final class FlutterRunController implements AutoCloseable {
             SessionProgress progress,
             RunState state) {
         progress.update(state);
+        if (state == RunState.STOPPING || isTerminal(state)) {
+            stopDevToolsFor(source, "Stopping DevTools because the Flutter application is "
+                    + state.name().toLowerCase(java.util.Locale.ROOT) + ".");
+        }
         if (session != source) {
             return;
         }
@@ -806,7 +1230,7 @@ public final class FlutterRunController implements AutoCloseable {
             FlutterRunSession source,
             SessionProgress progress,
             Integer code,
-        Throwable error) {
+            Throwable error) {
         progress.finish(error == null && code != null && code == 0);
         FlutterDapLauncher launcher = null;
         synchronized (lock) {
@@ -1017,6 +1441,20 @@ public final class FlutterRunController implements AutoCloseable {
         }
     }
 
+    private void openDevToolsOutput() {
+        synchronized (devToolsOutputLock) {
+            devToolsOutput = IOProvider.getDefault().getIO(
+                    "Flutter DevTools: " + projectInfo.name(), false);
+            try {
+                devToolsOutput.getOut().reset();
+            } catch (IOException ex) {
+                devToolsOutput.getOut().println(
+                        "Could not clear previous DevTools output: " + messageOf(ex));
+            }
+            devToolsOutput.select();
+        }
+    }
+
     private void writeLine(String line) {
         if (line == null || line.isBlank()) {
             return;
@@ -1027,6 +1465,20 @@ public final class FlutterRunController implements AutoCloseable {
             }
             output.getOut().println(line);
             output.getOut().flush();
+        }
+    }
+
+    private void writeDevToolsLine(String line) {
+        if (line == null || line.isBlank()) {
+            return;
+        }
+        synchronized (devToolsOutputLock) {
+            if (devToolsOutput == null) {
+                devToolsOutput = IOProvider.getDefault().getIO(
+                        "Flutter DevTools: " + projectInfo.name(), false);
+            }
+            devToolsOutput.getOut().println(line);
+            devToolsOutput.getOut().flush();
         }
     }
 
@@ -1079,13 +1531,26 @@ public final class FlutterRunController implements AutoCloseable {
         return current == null ? RunState.STOPPED : current.state();
     }
 
-    private String unavailableReason() {
+    private String unavailableReason(String command) {
         PendingOperation currentOperation = pendingOperation;
         if (currentOperation != null) {
             return "the operation '" + currentOperation.name() + "' is already in progress";
         }
         if (closed || !project.getProjectDirectory().isValid()) {
             return "the Flutter project is closed or its directory is no longer available";
+        }
+        if (FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS.equals(command)) {
+            FlutterRunSession current = session;
+            if (current == null || current.state() != RunState.RUNNING) {
+                return "the Flutter application is not running";
+            }
+            if (current.currentVmServiceUri().isEmpty()) {
+                return "Flutter has not supplied a VM Service URI for the running application";
+            }
+            return "DevTools is currently starting or stopping";
+        }
+        if (FlutterProjectActionProvider.COMMAND_STOP_DEVTOOLS.equals(command)) {
+            return "DevTools is not running for this Flutter project";
         }
         return "the current Flutter session state is " + currentState();
     }
@@ -1136,6 +1601,8 @@ public final class FlutterRunController implements AutoCloseable {
             case FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR -> "Launch Mobile Emulator";
             case FlutterProjectActionProvider.COMMAND_HOT_RELOAD -> "Hot Reload";
             case FlutterProjectActionProvider.COMMAND_HOT_RESTART -> "Hot Restart";
+            case FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS -> "Open DevTools";
+            case FlutterProjectActionProvider.COMMAND_STOP_DEVTOOLS -> "Stop DevTools";
             case FlutterProjectActionProvider.COMMAND_STOP -> "Stop";
             default -> command;
         };
@@ -1155,8 +1622,11 @@ public final class FlutterRunController implements AutoCloseable {
         FlutterDapLauncher launcher;
         FlutterRunSession current;
         SessionProgress progress;
+        DevToolsSession devTools;
+        DevToolsProgress devProgress;
         PendingOperation operation;
         InputOutput previousOutput;
+        InputOutput previousDevToolsOutput;
         List<ActionProgressCompletion> actionCompletions;
         synchronized (lock) {
             if (closed) {
@@ -1173,6 +1643,11 @@ public final class FlutterRunController implements AutoCloseable {
             session = null;
             progress = sessionProgress;
             sessionProgress = null;
+            devTools = devToolsSession;
+            devToolsSession = null;
+            devToolsOwner = null;
+            devProgress = devToolsProgress;
+            devToolsProgress = null;
             actionCompletions = List.copyOf(pendingActionProgress);
             pendingActionProgress.clear();
         }
@@ -1182,6 +1657,10 @@ public final class FlutterRunController implements AutoCloseable {
         synchronized (outputLock) {
             previousOutput = output;
             output = null;
+        }
+        synchronized (devToolsOutputLock) {
+            previousDevToolsOutput = devToolsOutput;
+            devToolsOutput = null;
         }
         if (operation != null) {
             operation.cancel();
@@ -1196,11 +1675,20 @@ public final class FlutterRunController implements AutoCloseable {
             if (current != null) {
                 current.close();
             }
+            if (devTools != null) {
+                devTools.close();
+            }
             if (progress != null) {
                 progress.finish(false);
             }
+            if (devProgress != null) {
+                devProgress.finish();
+            }
             if (previousOutput != null) {
                 previousOutput.getOut().close();
+            }
+            if (previousDevToolsOutput != null) {
+                previousDevToolsOutput.getOut().close();
             }
             fireChange();
         });
@@ -1274,6 +1762,89 @@ public final class FlutterRunController implements AutoCloseable {
         private String progressName(String phase) {
             String target = emulator == null ? "" : " / " + emulator.name();
             return "Flutter Emulator — " + phase + ": " + projectInfo.name() + target;
+        }
+    }
+
+    private final class DevToolsProgress {
+        private final URI vmServiceUri;
+        private final ProgressHandle handle;
+        private final AtomicBoolean finished = new AtomicBoolean();
+        private final AtomicBoolean stopRequested = new AtomicBoolean();
+        private final AtomicBoolean failureReported = new AtomicBoolean();
+        private final AtomicBoolean ready = new AtomicBoolean();
+        private boolean handleStarted;
+
+        DevToolsProgress(FlutterRunSession owner) {
+            this.vmServiceUri = owner.currentVmServiceUri().orElseThrow();
+            this.handle = ProgressHandle.createHandle(
+                    progressName("Starting"),
+                    () -> requestDevToolsStopFromProgress(this));
+            this.handle.setInitialDelay(0);
+        }
+
+        URI vmServiceUri() {
+            return vmServiceUri;
+        }
+
+        synchronized void start() {
+            if (finished.get()) {
+                return;
+            }
+            handle.start();
+            handleStarted = true;
+            handle.switchToIndeterminate();
+            handle.progress("Starting the Dart DevTools server");
+        }
+
+        synchronized boolean running(URI browserUri) {
+            if (finished.get() || stopRequested.get()) {
+                return false;
+            }
+            ready.set(true);
+            handle.setDisplayName(progressName("Running"));
+            handle.progress("Serving " + browserUri);
+            return true;
+        }
+
+        synchronized void stopping() {
+            if (finished.get()) {
+                return;
+            }
+            handle.setDisplayName(progressName("Stopping"));
+            handle.progress("Stopping the Dart DevTools server");
+        }
+
+        boolean requestStop() {
+            return stopRequested.compareAndSet(false, true);
+        }
+
+        boolean stopRequested() {
+            return stopRequested.get();
+        }
+
+        boolean markFailed() {
+            return failureReported.compareAndSet(false, true);
+        }
+
+        boolean failureReported() {
+            return failureReported.get();
+        }
+
+        boolean ready() {
+            return ready.get();
+        }
+
+        synchronized void finish() {
+            if (!finished.compareAndSet(false, true)) {
+                return;
+            }
+            if (handleStarted) {
+                handle.finish();
+            }
+        }
+
+        private String progressName(String phase) {
+            return "Flutter DevTools — " + phase + ": " + projectInfo.name();
         }
     }
 

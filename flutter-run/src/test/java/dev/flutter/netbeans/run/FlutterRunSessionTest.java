@@ -41,6 +41,8 @@ class FlutterRunSessionTest {
         await(() -> session.state() == RunState.RUNNING);
         assertEquals(URI.create("ws://127.0.0.1:4321/token/ws"),
                 session.vmServiceUri().get(2, TimeUnit.SECONDS));
+        assertEquals(URI.create("ws://127.0.0.1:4321/token/ws"),
+                session.currentVmServiceUri().orElseThrow());
         await(() -> output.contains("hello from app") && output.contains("native diagnostic"));
         assertTrue(output.contains("Launching lib/main.dart on Windows..."));
         assertEquals(List.of(RunState.STARTING, RunState.RUNNING), states);
@@ -50,6 +52,50 @@ class FlutterRunSessionTest {
         assertEquals(0, session.exitCode().get(2, TimeUnit.SECONDS));
         assertEquals(RunState.STOPPED, session.state());
         assertEquals(List.of(RunState.STARTING, RunState.RUNNING, RunState.STOPPED), states);
+    }
+
+    @Test
+    void publishesVmServiceWhenDebugPortArrivesAfterAppStarted() throws Exception {
+        TestFlutterProcess process = new TestFlutterProcess();
+        FlutterRunSession session = new FlutterRunSession(process, "windows", true);
+
+        process.emitStdout("[{\"event\":\"app.start\",\"params\":{\"appId\":\"app-1\"}}]");
+        process.emitStdout("[{\"event\":\"app.started\",\"params\":{\"appId\":\"app-1\"}}]");
+
+        await(() -> session.state() == RunState.RUNNING);
+        assertTrue(session.currentVmServiceUri().isEmpty());
+
+        URI expected = URI.create("ws://127.0.0.1:4321/token/ws");
+        process.emitStdout("[{\"event\":\"app.debugPort\",\"params\":{\"appId\":\"app-1\","
+                + "\"wsUri\":\"" + expected + "\"}}]");
+
+        assertEquals(expected, session.vmServiceUri().get(2, TimeUnit.SECONDS));
+        assertEquals(expected, session.currentVmServiceUri().orElseThrow());
+        process.finish(0);
+        assertEquals(0, session.exitCode().get(2, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void ignoresInvalidVmServiceUriAndAcceptsLaterValidValue() throws Exception {
+        TestFlutterProcess process = new TestFlutterProcess();
+        FlutterRunSession session = new FlutterRunSession(process, "windows", true);
+        List<String> output = new CopyOnWriteArrayList<>();
+        session.addOutputListener(output::add);
+
+        process.emitStdout("[{\"event\":\"app.debugPort\",\"params\":{\"appId\":\"app-1\","
+                + "\"wsUri\":\"ws://[invalid\"}}]");
+
+        await(() -> output.stream().anyMatch(line -> line.contains("invalid VM service URI")));
+        assertTrue(session.currentVmServiceUri().isEmpty());
+
+        URI expected = URI.create("ws://127.0.0.1:4321/token/ws");
+        process.emitStdout("[{\"event\":\"app.debugPort\",\"params\":{\"appId\":\"app-1\","
+                + "\"wsUri\":\"" + expected + "\"}}]");
+
+        assertEquals(expected, session.vmServiceUri().get(2, TimeUnit.SECONDS));
+        assertEquals(expected, session.currentVmServiceUri().orElseThrow());
+        process.finish(0);
+        assertEquals(0, session.exitCode().get(2, TimeUnit.SECONDS));
     }
 
     @Test
@@ -114,6 +160,8 @@ class FlutterRunSessionTest {
     void rejectsHotCommandsBeforeAppIsRunning() throws Exception {
         TestFlutterProcess process = new TestFlutterProcess();
         FlutterRunSession session = new FlutterRunSession(process, "windows", false);
+
+        assertTrue(session.currentVmServiceUri().isEmpty());
 
         IOException reloadFailure = assertThrows(IOException.class, session::hotReload);
         IOException restartFailure = assertThrows(IOException.class, session::hotRestart);

@@ -52,7 +52,8 @@
 - [x] `flutter analyze` with clickable Dart source locations
 - [x] `flutter test` for project/file/test with machine-protocol Test Results and rerun
 - [x] Android Device Manager with SDK discovery, AVD creation and lifecycle management
-- [ ] DevTools launcher/embedding
+- [x] Project-scoped DevTools launcher connected to the active VM Service
+- [ ] Embedded DevTools panel
 - [ ] Flutter Inspector / widget tree
 - [ ] Direct Dart VM Service tooling beyond the implemented DAP handoff
 

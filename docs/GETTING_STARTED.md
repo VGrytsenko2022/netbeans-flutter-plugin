@@ -72,6 +72,12 @@ If you choose Run or Debug again while the application is still Starting or Runn
 
 While the Flutter app is running, `Hot Reload`, `Hot Restart`, and `Stop Flutter Application` become available. Flutter application output, session state, emulator progress, errors, progress cancellation, restart activity, and debugger diagnostics appear in a named NetBeans Output tab.
 
+When the running application has published its VM Service URI, choose `Flutter > Open DevTools`. The action uses the Dart SDK saved in `Tools > Options > Flutter` to run DevTools on loopback (`127.0.0.1`) with an automatically selected port, connects it to that exact Flutter session, and opens the connected URL with NetBeans' configured browser. Until an active Run or Debug session and its VM Service URI are available, Open DevTools remains unavailable and reports the concrete missing state.
+
+DevTools startup and server output appear in a separate `Flutter DevTools: <project>` Output tab, and a native cancellable progress indicator remains visible for the server lifetime. Choosing `Flutter > Open DevTools` again reopens the already running server URL; it does not launch another server. Choose `Flutter > Stop DevTools` to stop DevTools without stopping the application. DevTools is also stopped automatically when its owning Flutter session stops or is replaced, or when the project closes. Hot Reload and Hot Restart keep the same DevTools session.
+
+The current integration opens the SDK-provided browser DevTools. A DevTools panel embedded inside NetBeans and a native Flutter Inspector/widget tree are not implemented yet.
+
 The selector is the same project-configuration combo used by Java projects. It follows NetBeans' main/active project rules and standard Run and Debug actions reuse its selected Flutter target without opening an extra dialog.
 
 ## 6. Resolve packages, analyze, and test

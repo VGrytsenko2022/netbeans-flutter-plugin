@@ -9,10 +9,13 @@ import java.beans.PropertyChangeListener;
 import javax.swing.AbstractAction;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ui.OpenProjects;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
+import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
@@ -23,6 +26,8 @@ abstract class FlutterProjectCommandAction extends AbstractAction
         implements LookupListener, ChangeListener, PropertyChangeListener {
     private final String command;
     private final Lookup.Result<Project> contextProjects;
+    private final Lookup.Result<FileObject> contextFiles;
+    private final Lookup.Result<DataObject> contextDataObjects;
     private volatile FlutterRunController observedController;
 
     FlutterProjectCommandAction(String displayName, String command) {
@@ -30,6 +35,10 @@ abstract class FlutterProjectCommandAction extends AbstractAction
         this.command = command;
         contextProjects = Utilities.actionsGlobalContext().lookupResult(Project.class);
         contextProjects.addLookupListener(this);
+        contextFiles = Utilities.actionsGlobalContext().lookupResult(FileObject.class);
+        contextFiles.addLookupListener(this);
+        contextDataObjects = Utilities.actionsGlobalContext().lookupResult(DataObject.class);
+        contextDataObjects.addLookupListener(this);
         OpenProjects.getDefault().addPropertyChangeListener(this);
         refresh();
     }
@@ -96,6 +105,18 @@ abstract class FlutterProjectCommandAction extends AbstractAction
     private FlutterProject activeProject() {
         for (Project project : contextProjects.allInstances()) {
             if (project instanceof FlutterProject flutterProject) {
+                return flutterProject;
+            }
+        }
+        Lookup globalContext = Utilities.actionsGlobalContext();
+        FileObject activeFile = globalContext.lookup(FileObject.class);
+        if (activeFile == null) {
+            DataObject dataObject = globalContext.lookup(DataObject.class);
+            activeFile = dataObject == null ? null : dataObject.getPrimaryFile();
+        }
+        if (activeFile != null) {
+            Project owner = FileOwnerQuery.getOwner(activeFile);
+            if (owner instanceof FlutterProject flutterProject) {
                 return flutterProject;
             }
         }

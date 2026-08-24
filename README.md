@@ -94,7 +94,7 @@ mvn nbm:cluster
 mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
-The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The generated plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.0.nbm`.
+The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The generated plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.1-SNAPSHOT.nbm`.
 
 ## Status
 

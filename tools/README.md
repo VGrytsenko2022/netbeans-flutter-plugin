@@ -22,7 +22,7 @@ The checks cover:
   Apache 2.0 license;
 - the module configuration and module JAR entries inside the NBM;
 - every Maven `*Test.java`/`*IT.java` source having a corresponding
-  Surefire/Failsafe XML report, zero recorded failures/errors, only the three
+  Surefire/Failsafe XML report, zero recorded failures/errors, only the four
   known optional real-SDK tests being skipped, and a passing
   `PluginPackageMetadataIT` report;
 - the SHA-256, optionally against a previously recorded expected value;
@@ -40,7 +40,8 @@ pwsh -NoProfile -File tools/verify-release.ps1 `
 ```
 
 Require the optional real Flutter, Dart, and Android SDK tests to have run
-instead of being skipped:
+instead of being skipped. This also requires the assembled-NetBeans Dart
+editor E2E test, which uses the configured `dart.executable`:
 
 ```powershell
 pwsh -NoProfile -File tools/verify-release.ps1 -RequireOptionalSdkTests

@@ -18,7 +18,8 @@ $ExpectedModuleCategory = 'Flutter'
 $OptionalSdkTestClasses = @(
     'dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest',
     'dev.flutter.netbeans.project.FlutterProjectCreatorRealSdkTest',
-    'dev.flutter.netbeans.run.AndroidSdkAvdRealSdkTest'
+    'dev.flutter.netbeans.run.AndroidSdkAvdRealSdkTest',
+    'dev.flutter.netbeans.runtime.DartEditorEndToEndIT'
 )
 $Failures = New-Object 'System.Collections.Generic.List[string]'
 

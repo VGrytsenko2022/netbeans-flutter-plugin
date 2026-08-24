@@ -97,6 +97,18 @@ function New-ReleaseFixture {
   </testcase>
 </testsuite>
 "@
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\DartEditorEndToEndIT.java') `
+            'package dev.flutter.netbeans.runtime; class DartEditorEndToEndIT {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.DartEditorEndToEndIT.xml') @"
+<testsuite name="dev.flutter.netbeans.runtime.DartEditorEndToEndIT"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.runtime.DartEditorEndToEndIT" name="editorSmoke">
+    <skipped message="Dart SDK was not configured"/>
+  </testcase>
+</testsuite>
+"@
     }
 
     $nbmPath = Join-Path $Root 'netbeans-plugin\target\netbeans-plugin-0.1.2.nbm'
@@ -316,6 +328,7 @@ Describe 'verify-release.ps1' {
 
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional SDK skips'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.DartEditorEndToEndIT'
         $required.ExitCode | Should Be 1
         $required.Text | Should Match 'RequireOptionalSdkTests was set'
     }

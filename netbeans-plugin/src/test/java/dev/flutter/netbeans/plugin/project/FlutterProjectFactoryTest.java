@@ -3,8 +3,10 @@ package dev.flutter.netbeans.plugin.project;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.plugin.tooling.FlutterToolingController;
 import java.nio.file.Files;
@@ -70,12 +72,21 @@ class FlutterProjectFactoryTest {
         assertNotNull(actions);
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_RUN));
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_DEBUG));
+        assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_BUILD));
+        assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_REBUILD));
+        assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_CLEAN));
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(ActionProvider.COMMAND_TEST));
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(
                 FlutterProjectActionProvider.COMMAND_PUB_GET));
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(
                 FlutterProjectActionProvider.COMMAND_ANALYZE));
         assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_RUN, org.openide.util.Lookup.EMPTY));
+        assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_CLEAN, org.openide.util.Lookup.EMPTY));
+        assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_BUILD, org.openide.util.Lookup.EMPTY));
+        assertTrue(actions.isActionEnabled(
+                ActionProvider.COMMAND_BUILD,
+                org.openide.util.lookup.Lookups.singleton(new FlutterTargetConfiguration(
+                        new FlutterDevice("windows", "Windows", "windows-x64", false)))));
         assertTrue(!actions.isActionEnabled(
                 FlutterProjectActionProvider.COMMAND_HOT_RELOAD,
                 org.openide.util.Lookup.EMPTY));
@@ -89,6 +100,15 @@ class FlutterProjectFactoryTest {
         var rootNode = view.createLogicalView();
         assertEquals("sample_app", rootNode.getDisplayName());
         assertNotNull(view.findPath(rootNode, directory.getFileObject("lib/main.dart")));
+        javax.swing.Action[] popup = rootNode.getActions(false);
+        assertNull(popup[1]);
+        assertEquals("projectCommand:build", popup[2].getValue(javax.swing.Action.NAME));
+        assertEquals("projectCommand:rebuild", popup[3].getValue(javax.swing.Action.NAME));
+        assertEquals("projectCommand:clean", popup[4].getValue(javax.swing.Action.NAME));
+        assertEquals("Build", FlutterLogicalViewProvider.BUILD_ACTION_LABEL);
+        assertEquals("Clean and Build", FlutterLogicalViewProvider.REBUILD_ACTION_LABEL);
+        assertEquals("Clean", FlutterLogicalViewProvider.CLEAN_ACTION_LABEL);
+        assertNull(popup[5]);
 
         runController.close();
         toolingController.close();

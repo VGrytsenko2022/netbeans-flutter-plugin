@@ -41,7 +41,8 @@ public final class FlutterProject implements Project {
         FlutterProjectActionProvider actions = new FlutterProjectActionProvider(
                 this,
                 runController,
-                toolingController);
+                toolingController,
+                configurations);
         FlutterProjectLifecycle lifecycle = new FlutterProjectLifecycle(
                 configurations,
                 runController,

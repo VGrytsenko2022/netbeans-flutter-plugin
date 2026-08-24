@@ -16,7 +16,7 @@ NetBeans UI
    +--> Project integration ------> flutter-project
    +--> SDK settings -------------> flutter-sdk
    +--> Run/Debug/DevTools -------> flutter-run + NetBeans DAP/browser
-   +--> Pub/Analyze/Test ---------> flutter-run + NetBeans execution/Test Results
+   +--> Build/Clean/Tooling ------> flutter-run + NetBeans execution/Test Results
    +--> Editor integration -------> dart-analysis
    +--> Pubspec editor -----------> NetBeans YAML + plugin semantic layer
    |
@@ -78,7 +78,9 @@ The controller creates a named NetBeans Output tab for each launched target and 
 
 ## One-shot Flutter tooling
 
-Each loaded project also publishes a separate `FlutterToolingController`; long-lived application state remains owned by `FlutterRunController`. Immutable command values in `flutter-run` describe `pub get`, `analyze --no-pub`, and `test --no-pub --reporter=json` without shell quoting. The NetBeans edge starts them with `ExecutionService` and the local external-execution `ProcessBuilder`, which supplies named Output, native progress, Stop, streaming stdout/stderr, and process-tree termination. One tooling process is active per project. Lifecycle generation tokens prevent a completion from a closed/reopened project from finishing or clearing a newer operation.
+Each loaded project also publishes a separate `FlutterToolingController`; long-lived application state remains owned by `FlutterRunController`. Immutable command values in `flutter-run` describe `clean`, target-specific `build`, `pub get`, `analyze --no-pub`, and `test --no-pub --reporter=json` without shell quoting. Standard NetBeans Build and Clean actions use this controller. Build captures the active cached toolbar configuration and maps its device platform to `windows`, `linux`, `macos`, `web`, `apk`, or `ios`; Clean and Build validates that complete plan before starting and then executes `clean` followed by `build` under one action lifecycle. A nonzero exit, cancellation, project close, or stale generation stops the sequence before another process can start.
+
+The NetBeans edge starts each stage with `ExecutionService` and the local external-execution `ProcessBuilder`, which supplies named Output, native progress, Stop, streaming stdout/stderr, and process-tree termination. One tooling operation is active per project. A captured immutable build target prevents a toolbar change from redirecting an in-flight operation, while lifecycle generation tokens prevent a completion from a closed/reopened project from finishing or clearing a newer operation.
 
 Analyze output is parsed in both current and legacy Flutter formats and source locations become Output listeners. Test stdout remains separate from stderr so the newline-JSON protocol cannot be corrupted. An ID-based model accepts interleaved suite/test events, late errors, skipped/hidden tests, and abnormal EOF, then builds the public GSF `TestSession`, `TestSuite`, `Testcase`, `Trouble`, and `Report` models. The UI is reached through a registered public `CoreManager`; the plugin does not link the friend-only `gsf.testrunner.ui` implementation packages.
 

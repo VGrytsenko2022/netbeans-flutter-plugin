@@ -20,6 +20,10 @@ import org.openide.util.lookup.ProxyLookup;
 
 /** Project tree shown in the NetBeans Projects window. */
 final class FlutterLogicalViewProvider implements LogicalViewProvider {
+    static final String BUILD_ACTION_LABEL = "Build";
+    static final String REBUILD_ACTION_LABEL = "Clean and Build";
+    static final String CLEAN_ACTION_LABEL = "Clean";
+
     private final FlutterProject project;
     private final FlutterProjectInformation information;
 
@@ -131,6 +135,16 @@ final class FlutterLogicalViewProvider implements LogicalViewProvider {
         public Action[] getActions(boolean context) {
             List<Action> actions = new ArrayList<>();
             actions.add(CommonProjectActions.newFileAction());
+            actions.add(null);
+            actions.add(projectCommand(
+                    org.netbeans.spi.project.ActionProvider.COMMAND_BUILD,
+                    BUILD_ACTION_LABEL));
+            actions.add(projectCommand(
+                    org.netbeans.spi.project.ActionProvider.COMMAND_REBUILD,
+                    REBUILD_ACTION_LABEL));
+            actions.add(projectCommand(
+                    org.netbeans.spi.project.ActionProvider.COMMAND_CLEAN,
+                    CLEAN_ACTION_LABEL));
             actions.add(null);
             actions.add(projectCommand(
                     FlutterProjectActionProvider.COMMAND_SELECT_TARGET,

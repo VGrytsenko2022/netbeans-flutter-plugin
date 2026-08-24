@@ -20,6 +20,8 @@ import javax.swing.event.ChangeListener;
 import org.junit.jupiter.api.Test;
 import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ProjectConfigurationProvider;
+import org.openide.util.Lookup;
+import org.openide.util.lookup.Lookups;
 
 class FlutterProjectConfigurationProviderTest {
     private static final FlutterDevice WINDOWS =
@@ -437,13 +439,28 @@ class FlutterProjectConfigurationProviderTest {
     }
 
     @Test
-    void declaresThatTargetSelectionAffectsRunAndDebug() {
+    void declaresThatTargetSelectionAffectsRunDebugAndBuildArtifacts() {
         FlutterProjectConfigurationProvider provider = provider(
                 new FakeBackend(List.of(), ""));
 
         assertTrue(provider.configurationsAffectAction(ActionProvider.COMMAND_RUN));
         assertTrue(provider.configurationsAffectAction(ActionProvider.COMMAND_DEBUG));
-        assertFalse(provider.configurationsAffectAction(ActionProvider.COMMAND_BUILD));
+        assertTrue(provider.configurationsAffectAction(ActionProvider.COMMAND_BUILD));
+        assertTrue(provider.configurationsAffectAction(ActionProvider.COMMAND_REBUILD));
+        assertFalse(provider.configurationsAffectAction(ActionProvider.COMMAND_CLEAN));
+    }
+
+    @Test
+    void buildTargetResolutionUsesContextSnapshotBeforeCachedToolbarSelection() {
+        FakeBackend backend = new FakeBackend(List.of(WINDOWS, CHROME), WINDOWS.id());
+        FlutterProjectConfigurationProvider provider = provider(backend);
+        provider.start();
+        FlutterTargetConfiguration contextual = new FlutterTargetConfiguration(CHROME);
+
+        assertSame(CHROME, FlutterProjectActionProvider.resolveBuildTarget(
+                Lookups.singleton(contextual), provider));
+        assertSame(WINDOWS, FlutterProjectActionProvider.resolveBuildTarget(
+                Lookup.EMPTY, provider));
     }
 
     private static FlutterProjectConfigurationProvider provider(FakeBackend backend) {

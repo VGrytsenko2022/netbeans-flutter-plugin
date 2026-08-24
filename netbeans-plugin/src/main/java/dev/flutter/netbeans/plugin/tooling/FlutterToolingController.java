@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.tooling;
 
+import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
@@ -10,6 +11,7 @@ import dev.flutter.netbeans.run.FlutterToolCommandType;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -70,39 +72,50 @@ public final class FlutterToolingController implements AutoCloseable {
     }
 
     public boolean isCommandEnabled(String command) {
-        if (!isToolingCommand(command)) {
-            return false;
-        }
-        return !closed
+        return isToolingCommand(command)
+                && !closed
                 && project.getProjectDirectory().isValid()
                 && active == null;
     }
 
+    public boolean isCommandEnabled(String command, FlutterDevice buildTarget) {
+        return isCommandEnabled(command)
+                && (!requiresBuildTarget(command) || supportsBuildTarget(buildTarget));
+    }
+
     public void invoke(String command, Lookup context, ActionProgress progress) {
+        invoke(command, context, progress, null);
+    }
+
+    public void invoke(
+            String command,
+            Lookup context,
+            ActionProgress progress,
+            FlutterDevice buildTarget) {
         Lookup safeContext = context == null ? Lookup.EMPTY : context;
-        if (!isCommandEnabled(command)) {
+        if (!isCommandEnabled(command, buildTarget)) {
             finishProgress(progress, false);
             showMessage(
                     "Flutter action unavailable",
                     "Cannot perform " + displayName(command) + " for " + projectRoot + ": "
-                    + unavailableReason() + ".",
+                    + unavailableReason(command, buildTarget) + ".",
                     NotifyDescriptor.WARNING_MESSAGE);
             return;
         }
 
-        final FlutterToolCommand toolCommand;
+        final ToolingPlan plan;
         try {
-            toolCommand = commandFor(command, safeContext);
+            plan = planFor(command, safeContext, buildTarget);
         } catch (IllegalArgumentException ex) {
             finishProgress(progress, false);
             showMessage(
-                    "Flutter test selection unavailable",
+                    "Flutter action unavailable",
                     "Cannot perform " + displayName(command) + " for " + projectRoot + ": "
                     + ex.getMessage() + ".",
                     NotifyDescriptor.WARNING_MESSAGE);
             return;
         }
-        start(toolCommand, progress);
+        start(plan, progress);
     }
 
     public void open() {
@@ -146,11 +159,21 @@ public final class FlutterToolingController implements AutoCloseable {
         changes.removeChangeListener(listener);
     }
 
-    private FlutterToolCommand commandFor(String command, Lookup context) {
-        return switch (command) {
-            case FlutterProjectActionProvider.COMMAND_PUB_GET -> FlutterToolCommand.pubGet();
-            case FlutterProjectActionProvider.COMMAND_ANALYZE -> FlutterToolCommand.analyze();
-            case ActionProvider.COMMAND_TEST -> FlutterToolCommand.test();
+    private ToolingPlan planFor(
+            String command,
+            Lookup context,
+            FlutterDevice buildTarget) {
+        List<FlutterToolCommand> commands = switch (command) {
+            case ActionProvider.COMMAND_CLEAN -> List.of(FlutterToolCommand.clean());
+            case ActionProvider.COMMAND_BUILD -> List.of(FlutterToolCommand.build(buildTarget));
+            case ActionProvider.COMMAND_REBUILD -> List.of(
+                    FlutterToolCommand.clean(),
+                    FlutterToolCommand.build(buildTarget));
+            case FlutterProjectActionProvider.COMMAND_PUB_GET ->
+                List.of(FlutterToolCommand.pubGet());
+            case FlutterProjectActionProvider.COMMAND_ANALYZE ->
+                List.of(FlutterToolCommand.analyze());
+            case ActionProvider.COMMAND_TEST -> List.of(FlutterToolCommand.test());
             case ActionProvider.COMMAND_TEST_SINGLE -> {
                 FlutterTestSelection selection = FlutterTestSelection.fromContext(
                                 projectRoot,
@@ -158,9 +181,9 @@ public final class FlutterToolingController implements AutoCloseable {
                                 false)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "select an existing Dart test file inside the project"));
-                yield selection.plainName()
+                yield List.of(selection.plainName()
                         .map(name -> FlutterToolCommand.test(selection.relativePath(), name))
-                        .orElseGet(() -> FlutterToolCommand.test(selection.relativePath()));
+                        .orElseGet(() -> FlutterToolCommand.test(selection.relativePath())));
             }
             case FlutterProjectActionProvider.COMMAND_TEST_FILE -> {
                 FlutterTestSelection selection = FlutterTestSelection.fromContext(
@@ -169,7 +192,7 @@ public final class FlutterToolingController implements AutoCloseable {
                                 false)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "select an existing Dart test file inside the project"));
-                yield FlutterToolCommand.test(selection.relativePath());
+                yield List.of(FlutterToolCommand.test(selection.relativePath()));
             }
             case SingleMethod.COMMAND_RUN_SINGLE_METHOD,
                  FlutterProjectActionProvider.COMMAND_TEST_AT_CARET -> {
@@ -179,23 +202,24 @@ public final class FlutterToolingController implements AutoCloseable {
                                 command.equals(FlutterProjectActionProvider.COMMAND_TEST_AT_CARET))
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "place the caret in a test(...) or testWidgets(...) declaration"));
-                yield FlutterToolCommand.test(
+                yield List.of(FlutterToolCommand.test(
                         selection.relativePath(),
-                        selection.plainName().orElseThrow());
+                        selection.plainName().orElseThrow()));
             }
             default -> throw new IllegalArgumentException(
                     "Unsupported Flutter tooling command: " + command);
         };
+        return new ToolingPlan(operationName(command), commands);
     }
 
-    private void start(FlutterToolCommand command, ActionProgress progress) {
+    private void start(ToolingPlan plan, ActionProgress progress) {
         ActiveOperation operation;
         synchronized (lock) {
             if (closed || active != null || !project.getProjectDirectory().isValid()) {
                 finishProgress(progress, false);
                 return;
             }
-            operation = new ActiveOperation(command, lifecycleGeneration, progress);
+            operation = new ActiveOperation(plan, lifecycleGeneration, progress);
             active = operation;
         }
         fireChange();
@@ -208,19 +232,32 @@ public final class FlutterToolingController implements AutoCloseable {
                 operation.complete(-1, true, null, false);
                 return;
             }
-            FlutterSdk sdk = sdkResolver.resolve(operation.command.type().displayName());
-            FlutterExecutionRequest request = request(operation, sdk);
-            Future<Integer> future = backend.start(request);
-            operation.future = future;
-            if (!isCurrent(operation)) {
-                future.cancel(true);
-                operation.complete(-1, true, null, false);
-                return;
-            }
+            FlutterSdk sdk = sdkResolver.resolve(operation.plan.operationName());
+            for (FlutterToolCommand command : operation.plan.commands()) {
+                if (!isCurrent(operation)) {
+                    operation.complete(-1, true, null, false);
+                    return;
+                }
+                operation.currentCommand = command;
+                FlutterExecutionRequest request = request(operation, sdk, command);
+                Future<Integer> future = startStage(operation, request);
+                if (future == null) {
+                    operation.complete(-1, true, null, false);
+                    return;
+                }
 
-            int exitCode = future.get();
-            boolean success = exitCode == 0;
-            complete(operation, exitCode, false, null, success);
+                int exitCode = future.get();
+                clearFuture(operation, future);
+                if (!isCurrent(operation)) {
+                    operation.complete(-1, true, null, false);
+                    return;
+                }
+                if (exitCode != 0) {
+                    complete(operation, exitCode, false, null, false);
+                    return;
+                }
+            }
+            complete(operation, 0, false, null, true);
         } catch (CancellationException ex) {
             complete(operation, -1, true, null, false);
         } catch (InterruptedException ex) {
@@ -238,9 +275,32 @@ public final class FlutterToolingController implements AutoCloseable {
         }
     }
 
-    private FlutterExecutionRequest request(ActiveOperation operation, FlutterSdk sdk) {
-        FlutterToolCommand command = operation.command;
-        String displayName = "Flutter " + command.type().displayName() + ": "
+    private Future<Integer> startStage(
+            ActiveOperation operation,
+            FlutterExecutionRequest request) {
+        synchronized (lock) {
+            if (!isCurrentLocked(operation)) {
+                return null;
+            }
+            Future<Integer> future = backend.start(request);
+            operation.future = future;
+            return future;
+        }
+    }
+
+    private void clearFuture(ActiveOperation operation, Future<Integer> future) {
+        synchronized (lock) {
+            if (operation.future == future) {
+                operation.future = null;
+            }
+        }
+    }
+
+    private FlutterExecutionRequest request(
+            ActiveOperation operation,
+            FlutterSdk sdk,
+            FlutterToolCommand command) {
+        String displayName = "Flutter " + operation.plan.operationName() + ": "
                 + projectRoot.getFileName();
         if (command.type() == FlutterToolCommandType.TEST) {
             FlutterTestSessionBridge bridge = testSessions.create(
@@ -287,11 +347,11 @@ public final class FlutterToolingController implements AutoCloseable {
             showMessage(
                     "Flutter test rerun unavailable",
                     "Cannot rerun Flutter tests for " + projectRoot + ": "
-                    + unavailableReason() + ".",
+                    + unavailableReason(ActionProvider.COMMAND_TEST, null) + ".",
                     NotifyDescriptor.WARNING_MESSAGE);
             return;
         }
-        start(command, null);
+        start(new ToolingPlan("Test", List.of(command)), null);
     }
 
     private void complete(
@@ -309,26 +369,29 @@ public final class FlutterToolingController implements AutoCloseable {
                 active = null;
             }
         }
-        if (!operation.complete(exitCode, cancelled, failure, success)) {
+        if (!operation.complete(exitCode, cancelled, failure, success && current)) {
             return;
         }
         fireChange();
         if (current && failure != null) {
             showMessage(
-                    "Flutter " + operation.command.type().displayName() + " failed to start",
-                    "Cannot run Flutter " + operation.command.type().displayName()
+                    "Flutter " + operation.plan.operationName() + " failed to start",
+                    "Cannot run Flutter " + operation.plan.operationName()
                     + " for " + projectRoot + " using " + executableDescription()
+                    + " during " + operation.stageDescription()
                     + ": " + failureMessage(failure) + ".",
                     NotifyDescriptor.ERROR_MESSAGE);
         } else if (current
                 && !cancelled
                 && failure == null
                 && exitCode != 0
-                && operation.command.type() == FlutterToolCommandType.PUB_GET) {
+                && operation.reportsNonzeroExit()) {
             showMessage(
-                    "Flutter Pub Get failed",
-                    "Flutter Pub Get for " + projectRoot + " finished with exit code "
-                    + exitCode + ". See the Flutter Pub Get Output tab for details.",
+                    "Flutter " + operation.plan.operationName() + " failed",
+                    "Flutter " + operation.plan.operationName() + " for " + projectRoot
+                    + " failed during " + operation.stageDescription()
+                    + " with exit code " + exitCode + ". See the Flutter "
+                    + operation.plan.operationName() + " Output tab for details.",
                     NotifyDescriptor.ERROR_MESSAGE);
         }
     }
@@ -341,13 +404,17 @@ public final class FlutterToolingController implements AutoCloseable {
 
     private boolean isCurrent(ActiveOperation operation) {
         synchronized (lock) {
-            return !closed
-                    && active == operation
-                    && lifecycleGeneration == operation.generation;
+            return isCurrentLocked(operation);
         }
     }
 
-    private String unavailableReason() {
+    private boolean isCurrentLocked(ActiveOperation operation) {
+        return !closed
+                && active == operation
+                && lifecycleGeneration == operation.generation;
+    }
+
+    private String unavailableReason(String command, FlutterDevice buildTarget) {
         if (closed) {
             return "the Flutter project is closed";
         }
@@ -356,7 +423,17 @@ public final class FlutterToolingController implements AutoCloseable {
         }
         ActiveOperation operation = active;
         if (operation != null) {
-            return "Flutter " + operation.command.type().displayName() + " is already running";
+            return "Flutter " + operation.plan.operationName() + " is already running";
+        }
+        if (requiresBuildTarget(command)) {
+            if (buildTarget == null) {
+                return "select an active Flutter target in the project toolbar";
+            }
+            try {
+                FlutterToolCommand.build(buildTarget);
+            } catch (IllegalArgumentException ex) {
+                return ex.getMessage();
+            }
         }
         return "the tooling service is unavailable";
     }
@@ -372,7 +449,10 @@ public final class FlutterToolingController implements AutoCloseable {
             return false;
         }
         return switch (command) {
-            case FlutterProjectActionProvider.COMMAND_PUB_GET,
+            case ActionProvider.COMMAND_BUILD,
+                 ActionProvider.COMMAND_CLEAN,
+                 ActionProvider.COMMAND_REBUILD,
+                 FlutterProjectActionProvider.COMMAND_PUB_GET,
                  FlutterProjectActionProvider.COMMAND_ANALYZE,
                  FlutterProjectActionProvider.COMMAND_TEST_FILE,
                  FlutterProjectActionProvider.COMMAND_TEST_AT_CARET,
@@ -384,16 +464,37 @@ public final class FlutterToolingController implements AutoCloseable {
     }
 
     private static String displayName(String command) {
+        return "Flutter " + operationName(command);
+    }
+
+    private static String operationName(String command) {
         return switch (command) {
-            case FlutterProjectActionProvider.COMMAND_PUB_GET -> "Flutter Pub Get";
-            case FlutterProjectActionProvider.COMMAND_ANALYZE -> "Flutter Analyze";
+            case ActionProvider.COMMAND_BUILD -> "Build";
+            case ActionProvider.COMMAND_CLEAN -> "Clean";
+            case ActionProvider.COMMAND_REBUILD -> "Clean and Build";
+            case FlutterProjectActionProvider.COMMAND_PUB_GET -> "Pub Get";
+            case FlutterProjectActionProvider.COMMAND_ANALYZE -> "Analyze";
             case FlutterProjectActionProvider.COMMAND_TEST_FILE,
-                 ActionProvider.COMMAND_TEST_SINGLE -> "Flutter Test Current File";
-            case FlutterProjectActionProvider.COMMAND_TEST_AT_CARET -> "Flutter Test at Caret";
-            case SingleMethod.COMMAND_RUN_SINGLE_METHOD -> "Flutter Test Method";
-            case ActionProvider.COMMAND_TEST -> "Flutter Test";
+                 ActionProvider.COMMAND_TEST_SINGLE -> "Test Current File";
+            case FlutterProjectActionProvider.COMMAND_TEST_AT_CARET -> "Test at Caret";
+            case SingleMethod.COMMAND_RUN_SINGLE_METHOD -> "Test Method";
+            case ActionProvider.COMMAND_TEST -> "Test";
             default -> command;
         };
+    }
+
+    private static boolean requiresBuildTarget(String command) {
+        return ActionProvider.COMMAND_BUILD.equals(command)
+                || ActionProvider.COMMAND_REBUILD.equals(command);
+    }
+
+    private static boolean supportsBuildTarget(FlutterDevice buildTarget) {
+        try {
+            FlutterToolCommand.build(buildTarget);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     private void fireChange() {
@@ -431,20 +532,41 @@ public final class FlutterToolingController implements AutoCloseable {
     }
 
     private static final class ActiveOperation {
-        private final FlutterToolCommand command;
+        private final ToolingPlan plan;
         private final long generation;
         private final ActionProgress progress;
         private final AtomicBoolean completed = new AtomicBoolean();
         private volatile Future<Integer> future;
+        private volatile FlutterToolCommand currentCommand;
         private volatile FlutterTestSessionBridge testSession = FlutterTestSessionBridge.NONE;
 
         ActiveOperation(
-                FlutterToolCommand command,
+                ToolingPlan plan,
                 long generation,
                 ActionProgress progress) {
-            this.command = command;
+            this.plan = plan;
             this.generation = generation;
             this.progress = progress;
+        }
+
+        String stageDescription() {
+            FlutterToolCommand command = currentCommand;
+            if (command == null) {
+                return plan.operationName();
+            }
+            if (command.type() == FlutterToolCommandType.BUILD
+                    && command.arguments().size() > 1) {
+                return "Build (" + command.arguments().get(1) + ")";
+            }
+            return command.type().displayName();
+        }
+
+        boolean reportsNonzeroExit() {
+            FlutterToolCommand command = currentCommand;
+            return command != null && switch (command.type()) {
+                case CLEAN, BUILD, PUB_GET -> true;
+                default -> false;
+            };
         }
 
         boolean complete(
@@ -461,6 +583,19 @@ public final class FlutterToolingController implements AutoCloseable {
                 finishProgress(progress, success && !cancelled && failure == null);
             }
             return true;
+        }
+    }
+
+    private record ToolingPlan(String operationName, List<FlutterToolCommand> commands) {
+        ToolingPlan {
+            Objects.requireNonNull(operationName, "operationName");
+            if (operationName.isBlank()) {
+                throw new IllegalArgumentException("operationName must not be blank");
+            }
+            commands = List.copyOf(Objects.requireNonNull(commands, "commands"));
+            if (commands.isEmpty()) {
+                throw new IllegalArgumentException("Flutter tooling plan must not be empty");
+            }
         }
     }
 }

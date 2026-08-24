@@ -40,6 +40,7 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 - [x] Device selector in the standard NetBeans project-configuration toolbar combo
 - [x] Automatic coalesced toolbar-device refresh with bounded failure backoff
 - [x] Cancellable native progress and lifecycle-safe matching for configured emulator launch
+- [x] Native NetBeans Build, Clean, and Clean and Build actions with target-specific Flutter artifacts
 
 ## M2 — Dart editor intelligence
 

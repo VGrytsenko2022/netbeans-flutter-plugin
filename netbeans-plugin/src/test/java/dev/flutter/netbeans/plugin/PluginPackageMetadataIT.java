@@ -27,7 +27,7 @@ class PluginPackageMetadataIT {
             "Develop Dart and Flutter applications in Apache NetBeans.";
     private static final String LONG_DESCRIPTION =
             "Adds Dart editing, analysis, completion, navigation and formatting together with "
-                    + "Flutter project creation, execution, device management, testing and debugging "
+                    + "Flutter project creation, building, execution, device management, testing and debugging "
                     + "to Apache NetBeans 30.";
 
     @Test

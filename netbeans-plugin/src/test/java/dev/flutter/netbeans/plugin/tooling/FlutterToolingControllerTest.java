@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
@@ -40,6 +41,8 @@ import org.openide.util.lookup.Lookups;
 
 class FlutterToolingControllerTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final FlutterDevice WINDOWS = new FlutterDevice(
+            "windows", "Windows", "windows-x64", false);
 
     @TempDir
     Path temporaryDirectory;
@@ -112,6 +115,225 @@ class FlutterToolingControllerTest {
 
         analyzeFuture.complete(2);
         assertEquals(List.of(false), analyzeProgress.awaitFinished());
+    }
+
+    @Test
+    void buildsExactCleanAndTargetSpecificBuildRequests() throws Exception {
+        RecordingProgress cleanProgress = new RecordingProgress();
+        ControlledFuture cleanFuture = backend.plan(true);
+
+        controller.invoke(ActionProvider.COMMAND_CLEAN, Lookup.EMPTY, cleanProgress);
+        FlutterExecutionRequest cleanRequest = backend.awaitRequest();
+
+        assertEquals("Flutter Clean: project", cleanRequest.displayName());
+        assertEquals(List.of("clean"), cleanRequest.arguments());
+        assertTrue(cleanRequest.echoStandardOutput());
+        assertNull(cleanRequest.outputConvertor());
+
+        cleanFuture.complete(0);
+        assertEquals(List.of(true), cleanProgress.awaitFinished());
+
+        RecordingProgress buildProgress = new RecordingProgress();
+        ControlledFuture buildFuture = backend.plan(true);
+        controller.invoke(
+                ActionProvider.COMMAND_BUILD,
+                Lookup.EMPTY,
+                buildProgress,
+                WINDOWS);
+        FlutterExecutionRequest buildRequest = backend.awaitRequest();
+
+        assertEquals("Flutter Build: project", buildRequest.displayName());
+        assertEquals(List.of("build", "windows"), buildRequest.arguments());
+        assertTrue(buildRequest.echoStandardOutput());
+        assertNull(buildRequest.outputConvertor());
+
+        buildFuture.complete(0);
+        assertEquals(List.of(true), buildProgress.awaitFinished());
+    }
+
+    @Test
+    void cleanAndBuildRunsSequentiallyWithOneProgressLifecycle() throws Exception {
+        ControlledFuture cleanFuture = backend.plan(true);
+        ControlledFuture buildFuture = backend.plan(true);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                progress,
+                new FlutterDevice("pixel", "Pixel", "android-arm64", true));
+
+        FlutterExecutionRequest cleanRequest = backend.awaitRequest();
+        assertEquals("Flutter Clean and Build: project", cleanRequest.displayName());
+        assertEquals(List.of("clean"), cleanRequest.arguments());
+        assertEquals(1, backend.startCount());
+        assertTrue(progress.finishedValues().isEmpty());
+
+        cleanFuture.complete(0);
+        FlutterExecutionRequest buildRequest = backend.awaitRequest();
+        assertEquals("Flutter Clean and Build: project", buildRequest.displayName());
+        assertEquals(List.of("build", "apk"), buildRequest.arguments());
+        assertEquals(2, backend.startCount());
+        assertTrue(progress.finishedValues().isEmpty());
+
+        buildFuture.complete(0);
+        assertEquals(List.of(true), progress.awaitFinished());
+        awaitCondition(() -> controller.isCommandEnabled(ActionProvider.COMMAND_CLEAN));
+    }
+
+    @Test
+    void failedCleanStopsCleanAndBuildBeforeTheBuildStage() throws Exception {
+        ControlledFuture cleanFuture = backend.plan(true);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                progress,
+                WINDOWS);
+        assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+
+        cleanFuture.complete(2);
+
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertEquals(1, backend.startCount());
+    }
+
+    @Test
+    void failedBuildFinishesCleanAndBuildOnceAfterBothStagesStarted() throws Exception {
+        ControlledFuture cleanFuture = backend.plan(true);
+        ControlledFuture buildFuture = backend.plan(true);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                progress,
+                WINDOWS);
+        assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+        cleanFuture.complete(0);
+        assertEquals(List.of("build", "windows"), backend.awaitRequest().arguments());
+
+        buildFuture.complete(7);
+
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertEquals(1, progress.finishedValues().size());
+        assertEquals(2, backend.startCount());
+    }
+
+    @Test
+    void closeDuringCleanCancelsItAndNeverStartsBuild() throws Exception {
+        ControlledFuture cleanFuture = backend.plan(true);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                progress,
+                WINDOWS);
+        assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+
+        controller.close();
+
+        assertTrue(cleanFuture.awaitCancelRequested());
+        assertEquals(List.of(false), progress.awaitFinished());
+        cleanFuture.awaitGetReturned();
+        assertEquals(1, progress.finishedValues().size());
+        assertEquals(1, backend.startCount());
+    }
+
+    @Test
+    void staleCleanCompletionAfterReopenCannotStartItsBuildStage() throws Exception {
+        ControlledFuture staleClean = backend.plan(false);
+        RecordingProgress staleProgress = new RecordingProgress();
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                staleProgress,
+                WINDOWS);
+        assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+
+        controller.close();
+        assertTrue(staleClean.awaitCancelRequested());
+        assertEquals(List.of(false), staleProgress.awaitFinished());
+        controller.open();
+
+        ControlledFuture currentFuture = backend.plan(true);
+        RecordingProgress currentProgress = new RecordingProgress();
+        controller.invoke(
+                FlutterProjectActionProvider.COMMAND_PUB_GET,
+                Lookup.EMPTY,
+                currentProgress);
+        assertEquals(List.of("pub", "get"), backend.awaitRequest().arguments());
+
+        staleClean.complete(0);
+        staleClean.awaitGetReturned();
+        currentFuture.complete(0);
+        assertEquals(List.of(true), currentProgress.awaitFinished());
+        awaitCondition(() -> controller.isCommandEnabled(ActionProvider.COMMAND_BUILD));
+
+        assertEquals(2, backend.startCount());
+        assertEquals(1, staleProgress.finishedValues().size());
+    }
+
+    @Test
+    void closeDuringBuildCancelsOnlyTheCurrentStageAndFinishesOnce() throws Exception {
+        ControlledFuture cleanFuture = backend.plan(true);
+        ControlledFuture buildFuture = backend.plan(true);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                progress,
+                WINDOWS);
+        backend.awaitRequest();
+        cleanFuture.complete(0);
+        assertEquals(List.of("build", "windows"), backend.awaitRequest().arguments());
+
+        controller.close();
+
+        assertTrue(buildFuture.awaitCancelRequested());
+        assertEquals(List.of(false), progress.awaitFinished());
+        buildFuture.awaitGetReturned();
+        assertEquals(1, progress.finishedValues().size());
+        assertEquals(2, backend.startCount());
+    }
+
+    @Test
+    void keepsBuildDiscoverableAndValidatesTheCapturedTargetAtInvocation() {
+        assertTrue(controller.isCommandEnabled(ActionProvider.COMMAND_CLEAN));
+        assertTrue(controller.isCommandEnabled(ActionProvider.COMMAND_BUILD));
+        assertFalse(controller.isCommandEnabled(
+                ActionProvider.COMMAND_BUILD,
+                new FlutterDevice("fuchsia", "Fuchsia", "fuchsia-arm64", false)));
+        assertTrue(controller.isCommandEnabled(ActionProvider.COMMAND_BUILD, WINDOWS));
+        assertTrue(controller.isCommandEnabled(ActionProvider.COMMAND_REBUILD, WINDOWS));
+    }
+
+    @Test
+    void missingAndUnsupportedBuildTargetsStartNoProcessAndFinishOnce() throws Exception {
+        RecordingProgress missingProgress = new RecordingProgress();
+        controller.invoke(
+                ActionProvider.COMMAND_BUILD,
+                Lookup.EMPTY,
+                missingProgress,
+                null);
+
+        assertEquals(List.of(false), missingProgress.awaitFinished());
+        assertEquals(1, missingProgress.finishedValues().size());
+        assertEquals(0, backend.startCount());
+
+        RecordingProgress unsupportedProgress = new RecordingProgress();
+        controller.invoke(
+                ActionProvider.COMMAND_REBUILD,
+                Lookup.EMPTY,
+                unsupportedProgress,
+                new FlutterDevice("fuchsia", "Fuchsia", "fuchsia-arm64", false));
+
+        assertEquals(List.of(false), unsupportedProgress.awaitFinished());
+        assertEquals(1, unsupportedProgress.finishedValues().size());
+        assertEquals(0, backend.startCount());
     }
 
     @Test

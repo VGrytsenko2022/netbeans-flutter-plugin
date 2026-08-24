@@ -10,7 +10,7 @@
     <artifactId>netbeans-plugin</artifactId>
     <packaging>nbm</packaging>
     <name>Flutter and Dart Support</name>
-    <description>Adds Dart editing, analysis, completion, navigation and formatting together with Flutter project creation, execution, device management, testing and debugging to Apache NetBeans 30.</description>
+    <description>Adds Dart editing, analysis, completion, navigation and formatting together with Flutter project creation, building, execution, device management, testing and debugging to Apache NetBeans 30.</description>
     <dependencies>
         <dependency>
             <groupId>dev.flutter.netbeans</groupId>

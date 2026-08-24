@@ -169,7 +169,9 @@ final class FlutterProjectConfigurationProvider
     @Override
     public boolean configurationsAffectAction(String command) {
         return ActionProvider.COMMAND_RUN.equals(command)
-                || ActionProvider.COMMAND_DEBUG.equals(command);
+                || ActionProvider.COMMAND_DEBUG.equals(command)
+                || ActionProvider.COMMAND_BUILD.equals(command)
+                || ActionProvider.COMMAND_REBUILD.equals(command);
     }
 
     @Override

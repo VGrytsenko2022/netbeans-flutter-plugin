@@ -1,6 +1,8 @@
 package dev.flutter.netbeans.run;
 
+import dev.flutter.netbeans.api.FlutterDevice;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -10,6 +12,7 @@ import java.util.Objects;
  * value. The IDE resolves both from the owning project and configured SDK.</p>
  */
 public final class FlutterToolCommand {
+    private static final List<String> CLEAN_ARGUMENTS = List.of("clean");
     private static final List<String> PUB_GET_ARGUMENTS = List.of("pub", "get");
     private static final List<String> ANALYZE_ARGUMENTS =
             List.of("analyze", "--no-pub", "--no-congratulate");
@@ -22,6 +25,17 @@ public final class FlutterToolCommand {
     private FlutterToolCommand(FlutterToolCommandType type, List<String> arguments) {
         this.type = Objects.requireNonNull(type, "type");
         this.arguments = List.copyOf(arguments);
+    }
+
+    public static FlutterToolCommand clean() {
+        return new FlutterToolCommand(FlutterToolCommandType.CLEAN, CLEAN_ARGUMENTS);
+    }
+
+    /** Builds the artifact matching a connected Flutter target's platform. */
+    public static FlutterToolCommand build(FlutterDevice device) {
+        return new FlutterToolCommand(
+                FlutterToolCommandType.BUILD,
+                List.of("build", buildTarget(device)));
     }
 
     public static FlutterToolCommand pubGet() {
@@ -61,6 +75,51 @@ public final class FlutterToolCommand {
 
     public List<String> arguments() {
         return arguments;
+    }
+
+    private static String buildTarget(FlutterDevice device) {
+        if (device == null) {
+            throw new IllegalArgumentException("Flutter build device is required");
+        }
+        String id = normalize(device.id());
+        if (id.isEmpty()) {
+            throw new IllegalArgumentException("Flutter build device id is required");
+        }
+        String platform = normalize(device.platform());
+        if (platform.startsWith("windows")) {
+            return "windows";
+        }
+        if (platform.startsWith("linux")) {
+            return "linux";
+        }
+        if (platform.startsWith("macos") || platform.startsWith("darwin")) {
+            return "macos";
+        }
+        if (platform.startsWith("web")
+                || id.equals("chrome")
+                || id.equals("edge")
+                || id.equals("web-server")) {
+            return "web";
+        }
+        if (platform.startsWith("android")) {
+            return "apk";
+        }
+        if (platform.startsWith("ios")) {
+            return "ios";
+        }
+        String displayedPlatform = device.platform() == null
+                ? "<missing>"
+                : device.platform().strip();
+        if (displayedPlatform.isEmpty()) {
+            displayedPlatform = "<blank>";
+        }
+        throw new IllegalArgumentException(
+                "Unsupported Flutter build device '" + device.id().strip()
+                + "' with platform '" + displayedPlatform + "'");
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.strip().toLowerCase(Locale.ROOT);
     }
 
     private static String normalizeRelativePath(String value) {

@@ -1,7 +1,9 @@
 package dev.flutter.netbeans.plugin.project;
 
+import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.plugin.tooling.FlutterToolingController;
 import java.util.Set;
+import org.netbeans.api.project.ProjectManager;
 import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ActionProgress;
 import org.netbeans.spi.project.SingleMethod;
@@ -25,6 +27,9 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     private static final String[] ACTIONS = {
         COMMAND_SELECT_TARGET,
         COMMAND_LAUNCH_EMULATOR,
+        COMMAND_BUILD,
+        COMMAND_REBUILD,
+        COMMAND_CLEAN,
         COMMAND_RUN,
         COMMAND_DEBUG,
         COMMAND_HOT_RELOAD,
@@ -49,14 +54,17 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     private final FlutterProject project;
     private final FlutterRunController runController;
     private final FlutterToolingController toolingController;
+    private final FlutterProjectConfigurationProvider configurations;
 
     FlutterProjectActionProvider(
             FlutterProject project,
             FlutterRunController runController,
-            FlutterToolingController toolingController) {
+            FlutterToolingController toolingController,
+            FlutterProjectConfigurationProvider configurations) {
         this.project = project;
         this.runController = runController;
         this.toolingController = toolingController;
+        this.configurations = configurations;
     }
 
     @Override
@@ -84,7 +92,14 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                  COMMAND_OPEN_DEVTOOLS,
                  COMMAND_STOP_DEVTOOLS,
                  COMMAND_STOP -> runController.invoke(command);
-            case COMMAND_PUB_GET,
+            case COMMAND_BUILD,
+                 COMMAND_REBUILD -> toolingController.invoke(
+                         command,
+                         actionContext,
+                         ActionProgress.start(actionContext),
+                         buildTarget(actionContext));
+            case COMMAND_CLEAN,
+                 COMMAND_PUB_GET,
                  COMMAND_ANALYZE,
                  COMMAND_TEST,
                  COMMAND_TEST_SINGLE,
@@ -135,6 +150,9 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         return switch (command) {
             case COMMAND_PUB_GET,
                  COMMAND_ANALYZE,
+                 COMMAND_BUILD,
+                 COMMAND_CLEAN,
+                 COMMAND_REBUILD,
                  COMMAND_TEST,
                  COMMAND_TEST_SINGLE,
                  SingleMethod.COMMAND_RUN_SINGLE_METHOD,
@@ -142,5 +160,21 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                  COMMAND_TEST_AT_CARET -> true;
             default -> false;
         };
+    }
+
+    private FlutterDevice buildTarget(Lookup context) {
+        return resolveBuildTarget(context, configurations);
+    }
+
+    static FlutterDevice resolveBuildTarget(
+            Lookup context,
+            FlutterProjectConfigurationProvider configurations) {
+        Lookup safeContext = context == null ? Lookup.EMPTY : context;
+        FlutterTargetConfiguration contextual = safeContext.lookup(
+                FlutterTargetConfiguration.class);
+        FlutterTargetConfiguration configuration = contextual != null
+                ? contextual
+                : ProjectManager.mutex().readAccess(configurations::getActiveConfiguration);
+        return configuration == null ? null : configuration.device();
     }
 }

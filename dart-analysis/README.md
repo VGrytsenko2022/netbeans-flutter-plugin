@@ -1,0 +1,7 @@
+# dart-analysis
+
+Owns the lifecycle-safe raw LSP transport for Dart analysis tooling. It starts the configured executable as `dart language-server --protocol=lsp`, exposes clean stdin/stdout streams, drains stderr separately, and provides bounded idempotent termination and restart.
+
+The NetBeans module hands this connection to the standard NetBeans 30 LSP client. Protocol framing, document synchronization, diagnostics, and language-feature adapters therefore remain outside UI classes and are not reimplemented in this module.
+
+The optional `DartAnalysisServerRealSdkTest` creates a temporary Dart package and validates diagnostics, completion imports returned as `additionalTextEdits` through a NetBeans-30-shaped resolve, a missing-import Quick Fix and its workspace edit, Organize Imports, definition, references, rename, and formatting against a real SDK. Run it with `mvn -pl dart-analysis -am -Ddart.executable=<absolute-path-to-dart> test`; without that property the SDK-dependent test is skipped. The NetBeans RELEASE300 capability and completion compatibility wrappers are intentionally kept at the `netbeans-plugin` integration edge rather than in this transport module. Dart's `resolved.command` path for some part-file and multi-file imports is not executed by NetBeans 30's standard completion adapter and is therefore outside this supported completion-import path; the diagnostic Quick Fix remains available.

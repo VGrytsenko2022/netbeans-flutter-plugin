@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE editor-preferences PUBLIC
+        "-//NetBeans//DTD Editor Preferences 1.0//EN"
+        "http://www.netbeans.org/dtds/EditorPreferences-1_0.dtd">
+<editor-preferences>
+    <entry javaType="java.lang.Boolean" name="enable-indent">
+        <value><![CDATA[true]]></value>
+    </entry>
+    <entry javaType="java.lang.Boolean" name="expand-tabs">
+        <value><![CDATA[true]]></value>
+    </entry>
+    <entry javaType="java.lang.Integer" name="indent-shift-width">
+        <value><![CDATA[2]]></value>
+    </entry>
+    <entry javaType="java.lang.Integer" name="spaces-per-tab">
+        <value><![CDATA[2]]></value>
+    </entry>
+</editor-preferences>

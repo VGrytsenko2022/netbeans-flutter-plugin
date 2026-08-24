@@ -1,0 +1,94 @@
+# Getting Started
+
+## 1. Install prerequisites
+
+Install JDK 21+, Apache NetBeans 30, Maven 3.9+ and a current Flutter SDK.
+
+Verify:
+
+```bash
+java -version
+mvn -version
+flutter --version
+flutter doctor
+```
+
+## 2. Open the root Maven project
+
+Open the root directory in NetBeans. The reactor contains all modules.
+
+## 3. Configure Flutter and Dart SDKs
+
+On the first plugin start, Flutter is imported from the first valid source in this order:
+
+1. JVM property `flutter.sdk`
+2. environment variable `FLUTTER_HOME`
+3. environment variable `FLUTTER_ROOT`
+4. `flutter` executable on `PATH`
+
+For Dart, explicit configuration wins in this order: `dart.sdk`, `DART_HOME`, and `DART_SDK`. The plugin then uses the SDK bundled with Flutter when available and finally checks `PATH`.
+
+The detected configuration is saved in the NetBeans user directory. To inspect, change, or validate it, open `Tools > Options > Flutter`. Invalid explicit paths are reported with the exact missing executable and are not silently replaced by another SDK.
+
+To pass a Flutter SDK only to the development IDE, use:
+
+```powershell
+mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans -Dnetbeans.run.params=-J-Dflutter.sdk=C:/dev/flutter
+```
+
+If no SDK is found automatically, leave the automatic fields blank or choose the Flutter and Dart root folders manually in the Options page.
+
+## 4. Create or open an application
+
+Use `File > New Project > Flutter > Flutter Application` to run `flutter create --template app` with the configured SDK. The wizard validates the package name, organization, location and exact target directory before generation.
+
+Use `File > Open Project` to open an existing Flutter directory. A directory with a valid `pubspec.yaml`, a Flutter declaration and a `lib` folder is recognized as a native Flutter project.
+
+To add a class, select its destination folder in the Flutter project and use `File > New File > Dart > Dart Class`. Enter an UpperCamelCase name; for example, `OrderRepository` creates `order_repository.dart` with a const class skeleton and opens it in the Dart editor. The wizard blocks duplicate files, generated folders and locations outside the project.
+
+## 5. Select a target and run or debug
+
+Make the Flutter project active in the Projects window, or set it as the main project. The same execution actions are available from the top-level `Flutter` menu and the Flutter project's context menu.
+
+The standard NetBeans configuration selector in the Run toolbar lists the connected targets reported by Flutter. Its compact entries show the Desktop, Mobile, or Web kind and the concrete device name; the detailed chooser also shows platform and id. The list is discovered in the background when the project opens and refreshes automatically about five seconds after each successful discovery. Failed passive refreshes preserve the last good list and retry with a bounded backoff. The selected device is remembered separately for each project. Use `Flutter > Select Run Target...` for an immediate refresh or the detailed chooser. If a remembered device is unavailable, the toolbar selects the first available target deterministically; Run and Debug still verify that it is connected before launching.
+
+For Android, use `Flutter > Device Manager`. Android SDK discovery checks the JVM property `android.sdk`, `ANDROID_SDK_ROOT`, `ANDROID_HOME`, Flutter's saved Android SDK, and platform-default locations. The window shows detected tools, connected physical/emulated devices, configured AVDs and their concrete boot/runtime states. It can create an AVD from an already installed system image, start it, wait for boot, stop, restart, wipe user data, delete it, refresh inventory and select the exact online ADB serial as the Flutter Run/Debug target. Wipe starts the reset AVD and does not wipe an attached SD card; Wipe and Delete both require a concrete confirmation. Cancelling a boot wait or closing Device Manager stops the NetBeans operation but leaves an already launched emulator running.
+
+`Flutter > Launch Mobile Emulator...` remains available for Android and iOS definitions already exposed by Flutter. Device discovery is serialized per project so toolbar polling, Run/Debug validation, target selection and emulator waiting never execute competing `flutter devices` commands.
+
+Choose `Flutter > Run Flutter Project` for a normal debug-mode Flutter run, or `Flutter > Debug Flutter Project` to start paused and connect the NetBeans debugger through Flutter's DAP adapter. Debug sessions support Dart breakpoints, stepping, and variables.
+
+Opening a `.dart` file activates the incremental Dart lexer, theme-aware syntax highlighting, and Dart-aware two-space indentation. Enter between `{}` creates an indented body and a leading `}` is realigned; braces inside strings and comments do not affect indentation. These typing operations use the live token hierarchy and line-local text rather than copying or re-lexing the complete document on each keystroke.
+
+The first editor request that needs semantic information starts `dart language-server --protocol=lsp` from the configured Dart SDK for the owning project. NetBeans supplies the project root, synchronizes open and changed documents, and consumes the server capabilities through its standard LSP client. Diagnostics appear as standard editor hints and error-stripe marks; use completion, Go to Declaration/Ctrl-click, Find Usages, Rename, and `Source > Format` exactly as for other NetBeans languages. Completion inserts an import when Dart supplies it as resolved `additionalTextEdits`. For part files and other multi-file cases, Dart can instead return the import as `resolved.command`; NetBeans 30's standard `CompletionProviderImpl` does not execute that command, so apply the diagnostic's Quick Fix to add the import. Organize Imports is available among the editor's Dart source actions.
+
+The status bar reports when the Dart analysis process starts or restarts. If the SDK is unavailable or the process cannot be launched, one deduplicated notification names the affected project and concrete cause; click it to open `Tools > Options > Flutter`. Closing the Flutter project stops the language-server process without an error notification. Headless contract tests and the optional real-SDK test cover diagnostics, completion imports delivered as `additionalTextEdits`, missing-import Quick Fix/workspace edits, Organize Imports, definition, references, rename, and document formatting.
+
+The plugin normalizes Flutter DAP output events for NetBeans 30 and reports the debugger as connected only after successful `attach` and `configurationDone` responses plus Flutter's `flutter.appStarted` event. Output events without a category are routed to the debugger console instead of producing an `Unexpected Exception` notification. If the complete DAP handshake cannot finish within its bounded deadline, the plugin terminates the adapter and reports a failed Debug action instead of leaving it stuck in Starting.
+
+Run and Debug display a native NetBeans progress indicator for the lifetime of the Flutter process. Its text changes through Starting, Running, and Stopping and names the project and selected target. Choose Cancel in that progress indicator to request an orderly application stop; progress completes after the process exits.
+
+If you choose Run or Debug again while the application is still Starting or Running, NetBeans names both the target of the current session and the currently selected toolbar target, then asks whether to stop and restart. Choose No to keep the existing session. Changing the toolbar target alone does not move a running application, and restart is unavailable after the session has entered Stopping.
+
+While the Flutter app is running, `Hot Reload`, `Hot Restart`, and `Stop Flutter Application` become available. Flutter application output, session state, emulator progress, errors, progress cancellation, restart activity, and debugger diagnostics appear in a named NetBeans Output tab.
+
+The selector is the same project-configuration combo used by Java projects. It follows NetBeans' main/active project rules and standard Run and Debug actions reuse its selected Flutter target without opening an extra dialog.
+
+## 6. Resolve packages, analyze, and test
+
+Use `Flutter > Flutter Pub Get` after changing dependencies. Use `Flutter > Flutter Analyze` to run a project-wide analysis without an implicit package download; click a reported issue in its Output tab to open the Dart file at the reported line and column.
+
+Use `Flutter > Flutter Test` or the project's standard Test action for all tests. With a Dart test file active, use `Test Current Dart File`; place the caret in a literal `test(...)` or `testWidgets(...)` declaration and use `Test at Caret` for one test. Flutter's machine events are mapped into the standard NetBeans Test Results session, including failures, errors, skipped tests, cancellation/abnormal termination, and rerun. Each tooling command has native Output, Progress, and Stop controls and closing the project cancels its active tooling process.
+
+In `pubspec.yaml`, press Ctrl+Space for pub/Flutter keys, SDK dependencies, and local packages under the project. Semantic diagnostics supplement the bundled YAML syntax checks with required fields, type checks, dependency-source conflicts, and missing local paths/assets. Completion and diagnostics intentionally do nothing in other YAML files.
+
+## 7. Run the plugin during development
+
+After a successful build, assemble the plugin cluster and start a separate NetBeans 30 instance:
+
+```powershell
+mvn nbm:cluster
+mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
+```
+
+The launched IDE uses `target/userdir`, so its imported SDK settings are separate from those of the development NetBeans instance.

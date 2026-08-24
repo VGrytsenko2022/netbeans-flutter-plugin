@@ -1,2 +1,4 @@
 Manifest-Version: 1.0
 OpenIDE-Module-Layer: dev/flutter/netbeans/plugin/layer.xml
+OpenIDE-Module-Localizing-Bundle: dev/flutter/netbeans/plugin/
+ Bundle.properties

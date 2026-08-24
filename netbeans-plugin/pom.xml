@@ -9,6 +9,8 @@
     </parent>
     <artifactId>netbeans-plugin</artifactId>
     <packaging>nbm</packaging>
+    <name>Flutter and Dart Support</name>
+    <description>Adds Dart editing, analysis, completion, navigation and formatting together with Flutter project creation, execution, device management, testing and debugging to Apache NetBeans 30.</description>
     <dependencies>
         <dependency>
             <groupId>dev.flutter.netbeans</groupId>
@@ -228,6 +230,29 @@
             <plugin>
                 <groupId>org.apache.netbeans.utilities</groupId>
                 <artifactId>nbm-maven-plugin</artifactId>
+                <configuration>
+                    <licenseName>Apache License, Version 2.0</licenseName>
+                    <licenseFile>${project.parent.basedir}/LICENSE</licenseFile>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <nbm.file>${project.build.directory}/${project.build.finalName}.nbm</nbm.file>
+                        <source.license>${project.parent.basedir}/LICENSE</source.license>
+                        <maven.version>${project.version}</maven.version>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

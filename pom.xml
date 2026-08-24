@@ -7,6 +7,15 @@
   <version>0.1.1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>NetBeans Flutter Plugin</name>
+  <description>First-class Dart and Flutter development support for Apache NetBeans 30.</description>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
 
   <modules>
     <module>flutter-core-api</module>
@@ -55,6 +64,11 @@
           <configuration>
             <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED</argLine>
           </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>3.5.3</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>

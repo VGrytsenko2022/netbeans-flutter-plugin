@@ -1,4 +1,4 @@
-# NetBeans Flutter Plugin Starter
+# Flutter and Dart Support for Apache NetBeans
 
 Starter architecture for first-class Dart + Flutter support in Apache NetBeans 30.
 
@@ -95,6 +95,10 @@ mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
 The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The generated plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.1-SNAPSHOT.nbm`.
+
+## License
+
+This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ## Status
 

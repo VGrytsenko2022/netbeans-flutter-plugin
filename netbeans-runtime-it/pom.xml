@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.flutter.netbeans</groupId>
+    <artifactId>netbeans-flutter-parent</artifactId>
+    <version>0.1.2-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>netbeans-runtime-it</artifactId>
+  <packaging>nbm-application</packaging>
+  <name>NetBeans Runtime Integration Gate</name>
+  <description>Assembles an Apache NetBeans 30 runtime and verifies Flutter and Dart registrations in its module system.</description>
+
+  <properties>
+    <netbeans.branding.token>flutterruntimeit</netbeans.branding.token>
+    <netbeans.runtime.directory>${project.build.directory}/${netbeans.branding.token}</netbeans.runtime.directory>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.netbeans.cluster</groupId>
+      <artifactId>platform</artifactId>
+      <version>${netbeans.version}</version>
+      <type>pom</type>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.cluster</groupId>
+      <artifactId>ide</artifactId>
+      <version>${netbeans.version}</version>
+      <type>pom</type>
+      <exclusions>
+        <!-- RELEASE300 platform already supplies the NetBeans commons-codec wrapper. -->
+        <exclusion>
+          <groupId>commons-codec</groupId>
+          <artifactId>commons-codec</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.cluster</groupId>
+      <artifactId>harness</artifactId>
+      <version>${netbeans.version}</version>
+      <type>pom</type>
+    </dependency>
+    <dependency>
+      <groupId>dev.flutter.netbeans</groupId>
+      <artifactId>netbeans-plugin</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-netbeans-modules-nbjunit</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-openide-filesystems</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-openide-modules</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-openide-util-lookup</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.netbeans.utilities</groupId>
+        <artifactId>nbm-maven-plugin</artifactId>
+        <configuration>
+          <brandingToken>${netbeans.branding.token}</brandingToken>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED</argLine>
+          <forkedProcessTimeoutInSeconds>120</forkedProcessTimeoutInSeconds>
+          <forkedProcessExitTimeoutInSeconds>30</forkedProcessExitTimeoutInSeconds>
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>dev.flutter.netbeans:netbeans-plugin</classpathDependencyExclude>
+          </classpathDependencyExcludes>
+          <classpathDependencyScopeExclude>runtime</classpathDependencyScopeExclude>
+          <systemPropertyVariables>
+            <all.clusters>${netbeans.runtime.directory}</all.clusters>
+            <branding.token>${netbeans.branding.token}</branding.token>
+          </systemPropertyVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

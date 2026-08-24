@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.netbeans.api.project.ProjectInformation;
+import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.Sources;
 import org.netbeans.spi.project.ProjectState;
 import org.netbeans.spi.project.ActionProvider;
@@ -83,6 +84,7 @@ class FlutterProjectFactoryTest {
         assertEquals(1, sources.getSourceGroups(Sources.TYPE_GENERIC).length);
         assertEquals(2, sources.getSourceGroups(FlutterProjectSources.TYPE_DART).length);
 
+        assertNotNull(ProjectManager.mutex());
         LogicalViewProvider view = project.getLookup().lookup(LogicalViewProvider.class);
         var rootNode = view.createLogicalView();
         assertEquals("sample_app", rootNode.getDisplayName());

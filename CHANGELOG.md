@@ -2,6 +2,21 @@
 
 All notable changes to the NetBeans Flutter plugin are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Deterministic controller coverage and lifecycle hardening for Run and Debug startup, cancellation, confirmed restart, Stop, process exit, project close, stale completions, and exactly-once progress cleanup.
+- DevTools lifecycle coverage for connected-URL reuse, explicit Stop, owning Flutter-session termination or replacement, project close, process failure, and suppression of stale callbacks and Output writes.
+- An assembled NetBeans 30 runtime integration gate for module activation, Dart MIME/editor/LSP/DAP registrations, and Flutter action resolution.
+- A strict release verifier for fresh Surefire/Failsafe results, package metadata and licensing, NBM/update-catalog hashes, installed update tracking, and activation logs.
+- A headless isolated NetBeans 30 smoke runner: clean-install activation of `0.1.2`, activated `0.1.1` baseline and offline exact-payload verification after updating to `0.1.2`, with strict process ownership and cleanup checks.
+
+### Changed
+
+- Started the 0.1.2 stability milestone with automated lifecycle and release verification gates for NetBeans 30.
+- The Dart Analysis Server client version is now checked against the Maven project version during every test run.
+
 ## [0.1.1] - 2026-08-24
 
 ### Added

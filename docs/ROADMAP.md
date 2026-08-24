@@ -1,5 +1,19 @@
 # Roadmap
 
+## 0.1.2 — Stability & NetBeans Integration
+
+Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embedded DevTools, or Designer features. Automated gates now cover deterministic Run/Debug and DevTools lifecycle contracts, packaged registrations in an assembled NetBeans 30 runtime, strict release verification, and isolated clean-install/update smoke. Functional editor E2E, persisted-settings/project-reopen/disable/uninstall smoke coverage, and mobile evidence remain explicit release requirements below.
+
+- [x] Harden Run/Debug lifecycle handling for start, cancel, confirmed restart, Stop, process exit, project close, and late asynchronous callbacks, with consistent `ActionProgress`, `ProgressHandle`, Output, and debugger cleanup.
+- [x] Add controller-level DevTools lifecycle tests for startup cancellation, repeated Open URL reuse, explicit Stop, Flutter-session replacement/termination, project close, process failure, and stale completion rejection.
+- [x] Add an assembled NetBeans 30 runtime integration gate for module activation, Dart MIME/editor/LSP/DAP registrations, and Flutter action resolution.
+- [x] Add a strict release verifier covering fresh Surefire/Failsafe reports, package metadata and licensing, NBM/update-catalog hashes, installed update tracking, and activation logs.
+- [ ] Add a Dart editor end-to-end gate in a real NetBeans 30 runtime covering Analysis Server startup, diagnostics, completion/import edits, navigation, rename, formatting, Quick Fixes, restart, and project close.
+- [x] Automate isolated NetBeans 30 NBM smoke: clean-install activation of `0.1.2`, activated `0.1.1` baseline plus offline exact-payload verification after update to `0.1.2`, staged local catalogs, headless launchers, and owned-process cleanup.
+- [ ] Extend the isolated runtime smoke to persisted SDK settings, project reopening, and disable/uninstall cleanup.
+- [ ] Run and record a mobile compatibility matrix for Android physical devices and AVDs plus iOS simulators where macOS is available, covering discovery, target selection, Run, Debug, Hot Reload, Hot Restart, Stop, and DevTools lifecycle.
+- [ ] Require the complete Maven/runtime-registration gates, strict release verifier, isolated clean-install/update smoke, functional editor E2E gate, persisted-settings/project-reopen/disable/uninstall smoke, and recorded mobile matrix before tagging `0.1.2`.
+
 ## M1 — usable Flutter workflow
 
 - [x] Multi-module architecture
@@ -53,11 +67,13 @@
 - [x] `flutter test` for project/file/test with machine-protocol Test Results and rerun
 - [x] Android Device Manager with SDK discovery, AVD creation and lifecycle management
 - [x] Project-scoped DevTools launcher connected to the active VM Service
-- [ ] Embedded DevTools panel
-- [ ] Flutter Inspector / widget tree
-- [ ] Direct Dart VM Service tooling beyond the implemented DAP handoff
+- [ ] Embedded DevTools panel — postponed beyond 0.1.2
+- [ ] Flutter Inspector / widget tree — postponed beyond 0.1.2
+- [ ] Direct Dart VM Service tooling beyond the implemented DAP handoff — postponed beyond 0.1.2
 
-## M4 — Designer foundation
+## M4 — Designer foundation (postponed beyond 0.1.2)
+
+Designer implementation remains out of scope until the 0.1.2 stability gates are complete.
 
 - [ ] Native Flutter Engine canvas
 - [ ] Widget metadata catalog
@@ -67,7 +83,7 @@
 - [ ] Drag & drop
 - [ ] Layout guides
 
-## M5 — bidirectional RAD
+## M5 — bidirectional RAD (postponed beyond 0.1.2)
 
 - [ ] Dart AST ↔ designer model mapping
 - [ ] Safe source rewriting

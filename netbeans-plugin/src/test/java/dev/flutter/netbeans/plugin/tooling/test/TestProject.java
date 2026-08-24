@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.tooling.test;
 
+import dev.flutter.netbeans.plugin.testsupport.BareProjectManagerImplementation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.netbeans.api.project.Project;
@@ -22,7 +23,7 @@ final class TestProject implements Project {
         if (directory == null) {
             throw new AssertionError("No FileObject for " + projectRoot);
         }
-        return new TestProject(directory);
+        return BareProjectManagerImplementation.register(new TestProject(directory));
     }
 
     @Override

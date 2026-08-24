@@ -29,6 +29,11 @@ class DartAnalysisServerTest {
     Path temporaryDirectory;
 
     @Test
+    void clientVersionMatchesMavenProjectVersion() {
+        assertEquals(System.getProperty("maven.version"), DartAnalysisServer.CLIENT_VERSION);
+    }
+
+    @Test
     void startsExpectedLspCommandInProjectDirectory() throws Exception {
         RecordingFactory factory = new RecordingFactory(new FakeProcess("", "", false));
         Path executable = temporaryDirectory.resolve("sdk/bin/dart.exe");
@@ -42,7 +47,7 @@ class DartAnalysisServerTest {
                 "language-server",
                 "--protocol=lsp",
                 "--client-id=netbeans-flutter",
-                "--client-version=0.1.1"), factory.command);
+                "--client-version=" + DartAnalysisServer.CLIENT_VERSION), factory.command);
         assertEquals(project.toAbsolutePath().normalize(), factory.workingDirectory);
         server.close();
     }

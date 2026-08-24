@@ -29,6 +29,7 @@ Only after these are stable do we build the Matisse-like Flutter Designer.
 - `flutter-project` — Flutter project recognition and project metadata.
 - `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, DevTools process integration, immutable one-shot tooling commands, and Analyze/Test protocol parsers.
 - `netbeans-plugin` — NetBeans UI integration and actions.
+- `netbeans-runtime-it` — an assembled NetBeans 30 runtime gate for the packaged module, Dart MIME/editor registrations, and Flutter menu actions.
 - `flutter-designer` — reserved boundary for the future native Flutter designer.
 
 ## Requirements
@@ -100,7 +101,7 @@ mvn nbm:cluster
 mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
-The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The stable 0.1.1 plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.1.nbm`.
+The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The current 0.1.2 development package is `netbeans-plugin/target/netbeans-plugin-0.1.2-SNAPSHOT.nbm`; the latest stable package remains `netbeans-plugin-0.1.1.nbm`.
 
 ## License
 
@@ -108,4 +109,4 @@ This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ## Status
 
-This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, application and Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Embedded DevTools/Inspector UI and deeper editor polish remain future milestones.
+This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, application and Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Version 0.1.2 is focused on lifecycle hardening and automated NetBeans integration gates; embedded DevTools, Inspector/widget-tree UI, and Designer work are explicitly postponed beyond it.

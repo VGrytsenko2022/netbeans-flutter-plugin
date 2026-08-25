@@ -31,7 +31,7 @@ import java.util.logging.Logger;
  */
 public final class DartAnalysisServer implements AutoCloseable {
     public static final String CLIENT_ID = "netbeans-flutter";
-    public static final String CLIENT_VERSION = "0.1.2";
+    public static final String CLIENT_VERSION = "0.1.3-SNAPSHOT";
 
     private static final Logger LOGGER = Logger.getLogger(DartAnalysisServer.class.getName());
     private static final Duration DEFAULT_CLOSE_TIMEOUT = Duration.ofSeconds(2);

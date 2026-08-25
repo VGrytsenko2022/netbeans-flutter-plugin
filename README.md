@@ -102,7 +102,7 @@ mvn nbm:cluster
 mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
-The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The stable 0.1.2 plugin package is `netbeans-plugin/target/netbeans-plugin-0.1.2.nbm`.
+The development instance uses `target/userdir`, so it does not reuse the settings of the NetBeans instance in which the project is open. The current development package is `netbeans-plugin/target/netbeans-plugin-0.1.3-SNAPSHOT.nbm`; the latest stable package remains `netbeans-plugin/target/netbeans-plugin-0.1.2.nbm`.
 
 ## License
 

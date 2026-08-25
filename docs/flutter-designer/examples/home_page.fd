@@ -1,0 +1,100 @@
+{
+  "$schema": "../fd-v1.schema.json",
+  "format": "netbeans-flutter-designer",
+  "schemaVersion": 1,
+  "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
+  "source": {
+    "dartFile": "home_page.dart",
+    "className": "HomePage",
+    "widgetKind": "stateless",
+    "generatorVersion": "0.1.3-SNAPSHOT",
+    "managedRegions": {
+      "imports": {
+        "sha256": "7D7414B55709E54DEA29770C4D6F8D6F48A1DFC02505F62D192A4DE0333556B7"
+      },
+      "build": {
+        "sha256": "4565291327B5F6A910BC99F3D3238A0F0C826058DD800C017F1D7C8250FA707E"
+      }
+    }
+  },
+  "canvas": {
+    "preset": "phone",
+    "logicalWidth": 390,
+    "logicalHeight": 844,
+    "devicePixelRatio": 1,
+    "orientation": "portrait",
+    "themeMode": "light",
+    "textScaleFactor": 1,
+    "locale": "en-US"
+  },
+  "root": {
+    "id": "35ca8ca5-c5ec-4fe1-8982-dfc036e3c6ce",
+    "type": "flutter.material.Scaffold",
+    "properties": {},
+    "slots": {
+      "appBar": {
+        "kind": "single",
+        "child": {
+          "id": "dd1d8080-4d06-46dd-a4a4-0a4e276cc28d",
+          "type": "flutter.material.AppBar",
+          "properties": {},
+          "slots": {
+            "title": {
+              "kind": "single",
+              "child": {
+                "id": "51ea38d4-19f3-46be-894d-0c8a9f70a3f6",
+                "type": "flutter.widgets.Text",
+                "properties": {
+                  "data": {
+                    "kind": "string",
+                    "value": "Hello from NetBeans"
+                  }
+                },
+                "slots": {}
+              }
+            }
+          }
+        }
+      },
+      "body": {
+        "kind": "single",
+        "child": {
+          "id": "6cb097a8-233c-4427-95bd-f939a0e2c5f1",
+          "type": "flutter.widgets.Center",
+          "properties": {},
+          "slots": {
+            "child": {
+              "kind": "single",
+              "child": {
+                "id": "58b076fe-d6ef-487e-b9d4-172dfd2a2eb5",
+                "type": "flutter.material.ElevatedButton",
+                "properties": {
+                  "onPressed": {
+                    "kind": "callback",
+                    "handler": "onContinue"
+                  }
+                },
+                "slots": {
+                  "child": {
+                    "kind": "single",
+                    "child": {
+                      "id": "669db535-b4e0-4207-984d-dfd434b9f765",
+                      "type": "flutter.widgets.Text",
+                      "properties": {
+                        "data": {
+                          "kind": "string",
+                          "value": "Continue"
+                        }
+                      },
+                      "slots": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

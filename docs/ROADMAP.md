@@ -73,17 +73,22 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 - [ ] Flutter Inspector / widget tree — postponed beyond 0.1.2
 - [ ] Direct Dart VM Service tooling beyond the implemented DAP handoff — postponed beyond 0.1.2
 
-## M4 — Designer foundation (postponed beyond 0.1.2)
+## 0.1.3 / M4 — Matisse-like Designer foundation
 
-Designer implementation remains out of scope until the 0.1.2 stability gates are complete.
+The designer work starts only after the tagged 0.1.2 stability baseline. The
+accepted architecture is documented in
+[`FLUTTER_DESIGNER_ARCHITECTURE.md`](FLUTTER_DESIGNER_ARCHITECTURE.md).
 
-- [ ] Native Flutter Engine canvas
-- [ ] Widget metadata catalog
-- [ ] Widget tree model
-- [ ] Palette and Properties
-- [ ] Selection/hit testing
-- [ ] Drag & drop
-- [ ] Layout guides
+- [x] Choose `.fd` as the versioned JSON visual-model format.
+- [x] Choose same-basename `.fd`/`.dart` pairing with guarded generated regions.
+- [x] Define the initial version 1 JSON Schema and conflict-safety invariants.
+- [ ] Validate NetBeans 30 DataObject/MultiView and guarded-section integration.
+- [ ] Implement the widget metadata catalog and typed widget-tree model.
+- [ ] Implement deterministic Dart-region generation and source-conflict checks.
+- [ ] Implement command-based editing and Undo/Redo.
+- [ ] Integrate Palette, Widget Tree, Properties and semantic canvas.
+- [ ] Add selection/hit testing, semantic drag/drop and layout guides.
+- [ ] Decide pixel-accurate preview transport in a separate ADR.
 
 ## M5 — bidirectional RAD (postponed beyond 0.1.2)
 

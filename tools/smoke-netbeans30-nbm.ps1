@@ -16,6 +16,8 @@ $ErrorActionPreference = 'Stop'
 
 $ExpectedModuleCodeName = 'dev.flutter.netbeans.netbeans.plugin'
 $ModuleConfigName = 'dev-flutter-netbeans-netbeans-plugin.xml'
+$FlutterPreferencesRelativePath = 'config\Preferences\dev\flutter\netbeans\netbeans\plugin.properties'
+$ProjectUiPreferencesRelativePath = 'config\Preferences\org\netbeans\modules\projectui.properties'
 $CriticalLogPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
 $HarmlessCliStderrPatterns = @(
     '^\s*WARNING: package com\.sun\.tools\.classfile not in jdk\.jdeps\s*$',
@@ -73,6 +75,104 @@ function Read-SharedTextFile {
         $reader.Dispose()
         $stream.Dispose()
     }
+}
+
+function ConvertFrom-JavaPropertiesEscape {
+    param([string]$Value)
+
+    $result = [System.Text.StringBuilder]::new()
+    for ($index = 0; $index -lt $Value.Length; $index++) {
+        $character = $Value[$index]
+        if ($character -ne '\') {
+            [void]$result.Append($character)
+            continue
+        }
+        if (++$index -ge $Value.Length) {
+            [void]$result.Append('\')
+            break
+        }
+        $escaped = $Value[$index]
+        switch ($escaped) {
+            't' { [void]$result.Append("`t") }
+            'n' { [void]$result.Append("`n") }
+            'r' { [void]$result.Append("`r") }
+            'f' { [void]$result.Append("`f") }
+            'u' {
+                if ($index + 4 -ge $Value.Length) {
+                    throw "Invalid Java properties Unicode escape in '$Value'."
+                }
+                $hex = $Value.Substring($index + 1, 4)
+                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') {
+                    throw "Invalid Java properties Unicode escape '\u$hex'."
+                }
+                [void]$result.Append([char][Convert]::ToInt32($hex, 16))
+                $index += 4
+            }
+            default { [void]$result.Append($escaped) }
+        }
+    }
+    return $result.ToString()
+}
+
+function Read-JavaPropertiesFile {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Java properties file does not exist: $Path"
+    }
+    $properties = @{}
+    foreach ($line in ([System.IO.File]::ReadAllLines($Path))) {
+        $trimmed = $line.TrimStart()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or
+                $trimmed.StartsWith('#') -or $trimmed.StartsWith('!')) {
+            continue
+        }
+
+        $separator = -1
+        $escaped = $false
+        for ($index = 0; $index -lt $line.Length; $index++) {
+            $character = $line[$index]
+            if ($escaped) {
+                $escaped = $false
+                continue
+            }
+            if ($character -eq '\') {
+                $escaped = $true
+                continue
+            }
+            if ($character -eq '=' -or $character -eq ':' -or
+                    [char]::IsWhiteSpace($character)) {
+                $separator = $index
+                break
+            }
+        }
+        if ($separator -lt 0) {
+            $keyText = $line
+            $valueText = ''
+        } else {
+            $keyText = $line.Substring(0, $separator)
+            $valueStart = $separator
+            while ($valueStart -lt $line.Length -and
+                    [char]::IsWhiteSpace($line[$valueStart])) {
+                $valueStart++
+            }
+            if ($valueStart -lt $line.Length -and
+                    ($line[$valueStart] -eq '=' -or $line[$valueStart] -eq ':')) {
+                $valueStart++
+            }
+            while ($valueStart -lt $line.Length -and
+                    [char]::IsWhiteSpace($line[$valueStart])) {
+                $valueStart++
+            }
+            $valueText = $line.Substring($valueStart)
+        }
+        $key = ConvertFrom-JavaPropertiesEscape $keyText
+        if ($properties.ContainsKey($key)) {
+            throw "Java properties file contains duplicate key '$key': $Path"
+        }
+        $properties[$key] = ConvertFrom-JavaPropertiesEscape $valueText
+    }
+    return $properties
 }
 
 function Read-ZipEntryText {
@@ -380,6 +480,156 @@ function Resolve-IsolatedProbeRoot {
     }
     Assert-NoReparsePointAncestors $rootPath $candidate
     return $candidate
+}
+
+function New-FlutterLifecycleFixture {
+    param([string]$ScenarioRoot)
+
+    $scenario = Get-CanonicalPath $ScenarioRoot
+    $fixtureRoot = Join-Path $scenario 'lifecycle-fixture'
+    if (Test-Path -LiteralPath $fixtureRoot) {
+        throw "Flutter lifecycle fixture already exists: $fixtureRoot"
+    }
+    Assert-NoReparsePointAncestors $scenario $fixtureRoot
+
+    $projectDirectory = Join-Path $fixtureRoot 'flutter_reopen_probe'
+    $flutterHome = Join-Path $fixtureRoot 'sdk\flutter'
+    $dartHome = Join-Path $fixtureRoot 'sdk\dart'
+    foreach ($directory in @(
+            (Join-Path $projectDirectory 'lib'),
+            (Join-Path $flutterHome 'bin'),
+            (Join-Path $dartHome 'bin'))) {
+        [void][System.IO.Directory]::CreateDirectory($directory)
+    }
+
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText(
+        (Join-Path $projectDirectory 'pubspec.yaml'),
+        (@(
+                'name: flutter_reopen_probe',
+                'description: Isolated NetBeans lifecycle smoke fixture.',
+                'version: 1.0.0+1',
+                'environment:',
+                "  sdk: '>=3.0.0 <4.0.0'",
+                'dependencies:',
+                '  flutter:',
+                '    sdk: flutter',
+                '') -join "`r`n"),
+        $utf8)
+    [System.IO.File]::WriteAllText(
+        (Join-Path $projectDirectory 'lib\main.dart'),
+        "void main() {}`r`n",
+        $utf8)
+    [System.IO.File]::WriteAllText(
+        (Join-Path $flutterHome 'bin\flutter.bat'),
+        (@(
+                '@echo off',
+                'if /I "%~1"=="devices" echo []',
+                'if /I not "%~1"=="devices" echo []',
+                'exit /b 0',
+                '') -join "`r`n"),
+        $utf8)
+    [System.IO.File]::WriteAllText(
+        (Join-Path $dartHome 'bin\dart.bat'),
+        (@(
+                '@echo off',
+                'exit /b 0',
+                '') -join "`r`n"),
+        $utf8)
+
+    foreach ($path in @($projectDirectory, $flutterHome, $dartHome)) {
+        Assert-NoReparsePointAncestors $scenario $path
+    }
+    return [pscustomobject]@{
+        Root = Get-CanonicalPath $fixtureRoot
+        ProjectDirectory = Get-CanonicalPath $projectDirectory
+        FlutterHome = Get-CanonicalPath $flutterHome
+        DartHome = Get-CanonicalPath $dartHome
+    }
+}
+
+function Assert-FlutterSdkPreferences {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Fixture
+    )
+
+    $path = Join-Path $Userdir $FlutterPreferencesRelativePath
+    $properties = Read-JavaPropertiesFile $path
+    $expected = @{
+        'flutter.sdk.home' = Get-CanonicalPath $Fixture.FlutterHome
+        'dart.sdk.useBundled' = 'false'
+        'dart.sdk.home' = Get-CanonicalPath $Fixture.DartHome
+        'sdk.discovery.version' = '1'
+    }
+    foreach ($key in $expected.Keys) {
+        if (-not $properties.ContainsKey($key)) {
+            throw "Flutter SDK preferences are missing '$key': $path"
+        }
+        if ($properties[$key] -cne $expected[$key]) {
+            throw "Flutter SDK preference '$key' is '$($properties[$key])'; expected '$($expected[$key])'."
+        }
+    }
+}
+
+function Assert-FlutterProjectReopenRecord {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Fixture
+    )
+
+    $path = Join-Path $Userdir $ProjectUiPreferencesRelativePath
+    $properties = Read-JavaPropertiesFile $path
+    $urlKeys = @($properties.Keys | Where-Object {
+            $_ -match '^openProjectsURLs\.\d+$'
+        } | Sort-Object)
+    if ($urlKeys.Count -ne 1) {
+        throw "Expected exactly one persisted open project; found $($urlKeys.Count): $path"
+    }
+    try {
+        $uri = [System.Uri]::new([string]$properties[$urlKeys[0]])
+    } catch {
+        throw "Persisted open-project URL is invalid: $($properties[$urlKeys[0]])"
+    }
+    if (-not $uri.IsFile) {
+        throw "Persisted open-project URL is not a file URL: $uri"
+    }
+    $actualProject = Get-CanonicalPath $uri.LocalPath
+    if (-not (Test-SameCanonicalPath $actualProject $Fixture.ProjectDirectory)) {
+        throw "Persisted open project is '$actualProject'; expected '$($Fixture.ProjectDirectory)'."
+    }
+    $displayKeys = @($properties.Keys | Where-Object {
+            $_ -match '^openProjectsDisplayNames\.\d+$'
+        })
+    if ($displayKeys.Count -ne 1 -or
+            $properties[$displayKeys[0]] -cne 'flutter_reopen_probe') {
+        throw 'Persisted Flutter project display name is missing or incorrect.'
+    }
+}
+
+function Wait-FlutterLifecyclePersistence {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Fixture,
+        [bool]$RequireProject,
+        [int]$TimeoutSeconds
+    )
+
+    $deadline = [System.DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lastFailure = ''
+    while ([System.DateTime]::UtcNow -lt $deadline) {
+        try {
+            Assert-FlutterSdkPreferences $Userdir $Fixture
+            if ($RequireProject) {
+                Assert-FlutterProjectReopenRecord $Userdir $Fixture
+            }
+            return
+        } catch {
+            $lastFailure = $_.Exception.Message
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    throw "Flutter lifecycle persistence did not stabilize within $TimeoutSeconds seconds. Last failure: $lastFailure"
 }
 
 function New-ProbeRootOwnership {
@@ -818,7 +1068,8 @@ function Start-NetBeansProbeHost {
     param(
         [string]$Executable,
         [string]$Userdir,
-        [string]$Cachedir
+        [string]$Cachedir,
+        [pscustomobject]$LifecycleFixture = $null
     )
 
     $canonicalUserdir = Get-CanonicalPath $Userdir
@@ -840,6 +1091,12 @@ function Start-NetBeansProbeHost {
             '--cachedir', $canonicalCachedir,
             '--nosplash', '--nogui', '-J-Djava.awt.headless=true')) {
         [void]$startInfo.ArgumentList.Add($argument)
+    }
+    if ($null -ne $LifecycleFixture) {
+        [void]$startInfo.ArgumentList.Add(
+            "-J-Dflutter.sdk=$($LifecycleFixture.FlutterHome)")
+        [void]$startInfo.ArgumentList.Add(
+            "-J-Ddart.sdk=$($LifecycleFixture.DartHome)")
     }
     $process = [System.Diagnostics.Process]::Start($startInfo)
     if ($null -eq $process) {
@@ -869,11 +1126,30 @@ function Test-NetBeansProbeAlive {
         return $true
     }
 
-    # netbeans64.exe is a launcher and may exit after handing off to javaw.exe.
-    # Only accept that handoff when the old PID is vacant and an identity-checked
-    # descendant still owns the exact isolated userdir.
+    # The Windows launcher normally hosts the JVM in-process. Retain the
+    # descendant fallback only for launcher/runtime variants, and accept it
+    # solely when the old PID is vacant and the exact userdir is validated.
     Assert-HostProcessIdVacant $HostHandle
     return @(Get-NetBeansProbeProcesses $HostHandle).Count -gt 0
+}
+
+function Test-IsolatedNetBeansCliEndpointPublished {
+    param([string]$Userdir)
+
+    $lockPath = Join-Path (Get-CanonicalPath $Userdir) 'lock'
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        return $false
+    }
+    $lockItem = Get-Item -LiteralPath $lockPath -Force
+    if ($lockItem.PSIsContainer -or
+            ($lockItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        throw "Unexpected isolated NetBeans userdir lock object: $lockPath"
+    }
+
+    # CLIHandler writes the four-byte server port only after the primary
+    # launcher has acquired the userdir lock. Before that marker, a secondary
+    # --modules launcher can win the single-instance race and become the host.
+    return $lockItem.Length -ge 4
 }
 
 function Clear-IsolatedNetBeansUserdirLock {
@@ -1007,7 +1283,9 @@ function Wait-NetBeansCliReady {
     $missingSince = $null
     while ([System.DateTime]::UtcNow -lt $deadline) {
         if (-not (Test-NetBeansProbeAlive $HostHandle)) {
-            $lastFailure = "NetBeans launcher exited with code $($HostHandle.Process.ExitCode) before its Java process became visible."
+            $lastFailure = ("NetBeans launcher exited with code " +
+                "$($HostHandle.Process.ExitCode) before publishing a stable " +
+                'CLI endpoint or retaining an identity-validated child process.')
             if ($null -eq $missingSince) {
                 $missingSince = [System.DateTime]::UtcNow
             } elseif (([System.DateTime]::UtcNow - $missingSince).TotalSeconds -ge 3) {
@@ -1017,6 +1295,11 @@ function Wait-NetBeansCliReady {
             continue
         }
         $missingSince = $null
+        if (-not (Test-IsolatedNetBeansCliEndpointPublished $Userdir)) {
+            $lastFailure = 'Waiting for the primary NetBeans launcher to publish its isolated userdir CLI endpoint.'
+            Start-Sleep -Milliseconds 100
+            continue
+        }
         $remainingSeconds = [Math]::Ceiling(($deadline - [System.DateTime]::UtcNow).TotalSeconds)
         $attemptTimeout = [Math]::Max(1, [Math]::Min(
                 [Math]::Min($CommandTimeout, 15), $remainingSeconds))
@@ -1052,14 +1335,16 @@ function Start-ReadyNetBeansProbe {
         [string]$Userdir,
         [string]$Cachedir,
         [int]$StartupTimeout,
-        [int]$CommandTimeout
+        [int]$CommandTimeout,
+        [pscustomobject]$LifecycleFixture = $null
     )
 
     $lastFailure = ''
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         $handle = $null
         try {
-            $handle = Start-NetBeansProbeHost $Executable $Userdir $Cachedir
+            $handle = Start-NetBeansProbeHost $Executable $Userdir $Cachedir `
+                $LifecycleFixture
             Write-Info "Started isolated NetBeans probe attempt $attempt as PID $($handle.Process.Id)."
             $ready = Wait-NetBeansCliReady $handle $Executable $Userdir `
                 $StartupTimeout $CommandTimeout
@@ -1082,12 +1367,14 @@ function Start-ReadyNetBeansProbe {
     throw "NetBeans probe did not become ready after 3 isolated starts. Last failure: $lastFailure"
 }
 
-function Wait-ModuleEnabled {
+function Wait-ModuleState {
     param(
         [pscustomobject]$HostHandle,
         [string]$Executable,
         [string]$Userdir,
         [pscustomobject]$Metadata,
+        [ValidateSet('Enabled', 'Installed')]
+        [string]$ExpectedState,
         [int]$TimeoutSeconds,
         [int]$CommandTimeout
     )
@@ -1097,7 +1384,7 @@ function Wait-ModuleEnabled {
     $lastFailure = ''
     while ([System.DateTime]::UtcNow -lt $deadline) {
         if (-not (Test-NetBeansProbeAlive $HostHandle)) {
-            throw "NetBeans probe host exited while waiting for $($Metadata.CodeName) to become enabled."
+            throw "NetBeans probe host exited while waiting for $($Metadata.CodeName) to reach $ExpectedState."
         }
         $remainingSeconds = [Math]::Ceiling(($deadline - [System.DateTime]::UtcNow).TotalSeconds)
         $attemptTimeout = [Math]::Max(1, [Math]::Min(
@@ -1117,7 +1404,7 @@ function Wait-ModuleEnabled {
         $record = Get-ModuleListRecord $lastResult.StandardOutput $Metadata.CodeName
         if ($null -ne $record -and
                 $record.Version -ceq $Metadata.SpecificationVersion -and
-                $record.State -ceq 'Enabled') {
+                $record.State -ceq $ExpectedState) {
             return [pscustomobject]@{
                 Result = $lastResult
                 Record = $record
@@ -1131,8 +1418,57 @@ function Wait-ModuleEnabled {
         $record = Get-ModuleListRecord $lastResult.StandardOutput $Metadata.CodeName
         if ($null -eq $record) { '<module absent>' } else { $record.Line }
     }
-    throw ("Module did not reach Enabled $($Metadata.SpecificationVersion) in " +
+    throw ("Module did not reach $ExpectedState $($Metadata.SpecificationVersion) in " +
         "$TimeoutSeconds seconds: $lastLine Last failure: $lastFailure")
+}
+
+function Wait-ModuleEnabled {
+    param(
+        [pscustomobject]$HostHandle,
+        [string]$Executable,
+        [string]$Userdir,
+        [pscustomobject]$Metadata,
+        [int]$TimeoutSeconds,
+        [int]$CommandTimeout
+    )
+
+    return Wait-ModuleState $HostHandle $Executable $Userdir $Metadata `
+        'Enabled' $TimeoutSeconds $CommandTimeout
+}
+
+function Get-ModuleStateMap {
+    param([string]$Output)
+
+    $states = @{}
+    foreach ($line in ($Output -split "`r?`n")) {
+        if ($line -match '^(\S+)\s+(\S+)\s+(Enabled|Installed)\s*$') {
+            $states[$Matches[1]] = "$($Matches[2])|$($Matches[3])"
+        }
+    }
+    return $states
+}
+
+function Assert-UnrelatedModuleStatesEqual {
+    param(
+        [string]$BeforeOutput,
+        [string]$AfterOutput,
+        [string]$ExcludedCodeName
+    )
+
+    $before = Get-ModuleStateMap $BeforeOutput
+    $after = Get-ModuleStateMap $AfterOutput
+    [void]$before.Remove($ExcludedCodeName)
+    [void]$after.Remove($ExcludedCodeName)
+    $beforeKeys = @($before.Keys | Sort-Object)
+    $afterKeys = @($after.Keys | Sort-Object)
+    if (($beforeKeys -join "`n") -cne ($afterKeys -join "`n")) {
+        throw 'Disabling or removing Flutter changed the set of unrelated NetBeans modules.'
+    }
+    foreach ($key in $beforeKeys) {
+        if ($before[$key] -cne $after[$key]) {
+            throw "Unrelated NetBeans module '$key' changed from '$($before[$key])' to '$($after[$key])'."
+        }
+    }
 }
 
 function Get-CriticalLogLines {
@@ -1201,7 +1537,9 @@ function Assert-InstalledModuleFiles {
         [pscustomobject]$Metadata,
         [string]$ExpectedCatalogPath,
         [pscustomobject]$PreviousMetadata = $null,
-        [bool]$RequireActivation = $true
+        [bool]$RequireActivation = $true,
+        [ValidateSet('Enabled', 'Installed')]
+        [string]$ExpectedState = 'Enabled'
     )
 
     $configPath = Join-Path $Userdir "config\Modules\$ModuleConfigName"
@@ -1221,7 +1559,8 @@ function Assert-InstalledModuleFiles {
     foreach ($parameter in @($config.DocumentElement.SelectNodes("./*[local-name()='param']"))) {
         $parameters[$parameter.GetAttribute('name')] = $parameter.InnerText.Trim()
     }
-    if ($parameters['enabled'] -cne 'true') {
+    $expectedEnabled = if ($ExpectedState -ceq 'Enabled') { 'true' } else { 'false' }
+    if ($parameters['enabled'] -cne $expectedEnabled) {
         throw "Installed module enabled parameter is '$($parameters['enabled'])'."
     }
     if (-not $parameters.ContainsKey('jar')) {
@@ -1291,13 +1630,20 @@ function Assert-InstalledModuleFiles {
             throw "Update tracking references a missing file: $installedPath"
         }
         $expectedPayload = $Metadata.PayloadFiles[$trackedName]
-        $installedItem = Get-Item -LiteralPath $installedPath
-        if ($installedItem.Length -ne $expectedPayload.Length) {
-            throw "Installed payload length differs from the NBM for '$trackedName'."
-        }
-        $installedSha256 = (Get-FileHash -LiteralPath $installedPath -Algorithm SHA256).Hash
-        if ($installedSha256 -ine $expectedPayload.Sha256) {
-            throw "Installed payload SHA-256 differs from the NBM for '$trackedName'."
+        $moduleConfigPayload = "config/Modules/$ModuleConfigName"
+        $moduleTrackingPayload = "update_tracking/$ModuleConfigName"
+        $mutablePayload = $trackedName -ieq $moduleTrackingPayload -or
+            ($ExpectedState -ceq 'Installed' -and
+                $trackedName -ieq $moduleConfigPayload)
+        if (-not $mutablePayload) {
+            $installedItem = Get-Item -LiteralPath $installedPath
+            if ($installedItem.Length -ne $expectedPayload.Length) {
+                throw "Installed payload length differs from the NBM for '$trackedName'."
+            }
+            $installedSha256 = (Get-FileHash -LiteralPath $installedPath -Algorithm SHA256).Hash
+            if ($installedSha256 -ine $expectedPayload.Sha256) {
+                throw "Installed payload SHA-256 differs from the NBM for '$trackedName'."
+            }
         }
     }
     if ($trackedNames.Count -ne $Metadata.PayloadFiles.Count) {
@@ -1352,9 +1698,9 @@ function Assert-InstalledModuleFiles {
     }
 
     $scope = if ($RequireActivation) {
-        'installed payload hashes, tracking, JAR metadata, and activation log'
+        "installed $ExpectedState payload hashes, tracking, JAR metadata, and activation log"
     } else {
-        'installed payload hashes, tracking, JAR metadata, and NetBeans 30 product log'
+        "installed $ExpectedState payload hashes, tracking, JAR metadata, and NetBeans 30 product log"
     }
     Write-Pass ("{0} match {1} {2}." -f $scope, $Metadata.CodeName,
         $Metadata.SpecificationVersion)
@@ -1366,7 +1712,9 @@ function Wait-InstalledModuleFiles {
         [pscustomobject]$Metadata,
         [string]$ExpectedCatalogPath,
         [pscustomobject]$PreviousMetadata,
-        [int]$TimeoutSeconds
+        [int]$TimeoutSeconds,
+        [ValidateSet('Enabled', 'Installed')]
+        [string]$ExpectedState = 'Enabled'
     )
 
     $deadline = [System.DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -1374,7 +1722,8 @@ function Wait-InstalledModuleFiles {
     while ([System.DateTime]::UtcNow -lt $deadline) {
         try {
             Assert-InstalledModuleFiles $Userdir $Metadata $ExpectedCatalogPath `
-                $PreviousMetadata -RequireActivation $false
+                $PreviousMetadata -RequireActivation $false `
+                -ExpectedState $ExpectedState
             return
         } catch {
             $lastFailure = $_.Exception.Message
@@ -1389,15 +1738,24 @@ function Wait-InstalledModuleFiles {
 function Assert-FinalLogClean {
     param([string]$Userdir)
 
-    $logPath = Join-Path $Userdir 'var\log\messages.log'
-    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
-        throw "NetBeans messages.log is missing after shutdown: $logPath"
+    $logDirectory = Join-Path $Userdir 'var\log'
+    $logPaths = @(Get-ChildItem -LiteralPath $logDirectory `
+            -Filter 'messages.log*' -File -ErrorAction SilentlyContinue)
+    if ($logPaths.Count -eq 0) {
+        throw "NetBeans messages.log is missing after shutdown: $logDirectory"
     }
-    $criticalLines = @(Get-CriticalLogLines (Read-SharedTextFile $logPath))
-    if ($criticalLines.Count -gt 0) {
-        throw "messages.log contains critical pattern(s) after shutdown: $((@($criticalLines | Select-Object -First 5)) -join ' | ')"
+    $criticalEvidence = [System.Collections.Generic.List[string]]::new()
+    foreach ($logPath in $logPaths) {
+        foreach ($line in @(Get-CriticalLogLines (
+                    Read-SharedTextFile $logPath.FullName))) {
+            $criticalEvidence.Add("$($logPath.Name): $line")
+        }
     }
-    Write-Pass 'NetBeans messages.log remains free of configured critical error patterns after shutdown.'
+    if ($criticalEvidence.Count -gt 0) {
+        throw ("NetBeans logs contain critical pattern(s) after shutdown: " +
+            ((@($criticalEvidence | Select-Object -First 5)) -join ' | '))
+    }
+    Write-Pass 'All NetBeans messages.log sessions remain free of configured critical error patterns after shutdown.'
 }
 
 function Invoke-InstallOrUpdate {
@@ -1517,6 +1875,354 @@ function Invoke-InstallOrUpdate {
         "Output: $summary Last failure: $lastFailure")
 }
 
+function Invoke-DirectDisableModule {
+    param(
+        [string]$Executable,
+        [string]$Userdir,
+        [string]$Cachedir,
+        [pscustomobject]$Metadata,
+        [int]$TimeoutSeconds
+    )
+
+    $matcher = '^' + [System.Text.RegularExpressions.Regex]::Escape(
+        $Metadata.CodeName) + '$'
+    $result = Invoke-NetBeansCli $Executable @(
+        '--userdir', $Userdir,
+        '--cachedir', $Cachedir,
+        '--nosplash',
+        '--modules', '--direct-disable', $matcher
+    ) $TimeoutSeconds
+    Assert-NetBeansCliStderr $result 'direct module disable'
+    return $result
+}
+
+function Get-TrackedModulePayloadNames {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Metadata
+    )
+
+    $trackingPath = Join-Path $Userdir "update_tracking\$ModuleConfigName"
+    $tracking = Read-SafeXmlFile $trackingPath
+    if ($tracking.DocumentElement.GetAttribute('codename') -cne $Metadata.CodeName) {
+        throw "Update tracking code name is '$($tracking.DocumentElement.GetAttribute('codename'))'."
+    }
+    $lastVersion = $tracking.SelectSingleNode(
+        "/*[local-name()='module']/*[local-name()='module_version'][@last='true']")
+    if ($null -eq $lastVersion -or
+            $lastVersion.GetAttribute('specification_version') -cne
+            $Metadata.SpecificationVersion) {
+        throw 'Update tracking does not identify the exact installed module version.'
+    }
+
+    $names = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($file in @($lastVersion.SelectNodes("./*[local-name()='file']"))) {
+        $name = $file.GetAttribute('name').Replace('\', '/')
+        if ([string]::IsNullOrWhiteSpace($name) -or
+                $name.StartsWith('/', [System.StringComparison]::Ordinal) -or
+                [System.IO.Path]::IsPathRooted($name) -or
+                @($name.Split('/')) -contains '..') {
+            throw "Update tracking contains unsafe file path '$name'."
+        }
+        if (-not $names.Add($name)) {
+            throw "Update tracking contains duplicate file '$name'."
+        }
+    }
+    if ($names.Count -ne $Metadata.PayloadFiles.Count) {
+        throw 'Update tracking payload count differs from the exact NBM payload.'
+    }
+    foreach ($expectedName in $Metadata.PayloadFiles.Keys) {
+        if (-not $names.Contains($expectedName)) {
+            throw "Update tracking omits exact NBM payload file '$expectedName'."
+        }
+    }
+    return @($names | Sort-Object)
+}
+
+function Remove-EmptyParentDirectories {
+    param(
+        [string]$StartDirectory,
+        [string]$BoundaryDirectory
+    )
+
+    $boundary = Get-CanonicalPath $BoundaryDirectory
+    $current = Get-CanonicalPath $StartDirectory
+    while (-not (Test-SameCanonicalPath $current $boundary)) {
+        Assert-NoReparsePointAncestors $boundary $current
+        if (-not (Test-Path -LiteralPath $current -PathType Container)) {
+            $current = Split-Path -Parent $current
+            continue
+        }
+        if (@([System.IO.Directory]::EnumerateFileSystemEntries($current)).Count -gt 0) {
+            break
+        }
+        [System.IO.Directory]::Delete($current, $false)
+        $current = Split-Path -Parent $current
+    }
+}
+
+function Assert-IsolatedModuleRemoved {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Metadata
+    )
+
+    foreach ($name in $Metadata.PayloadFiles.Keys) {
+        foreach ($path in @(
+                (Join-Path $Userdir ($name -replace '/', '\')),
+                (Join-Path $Userdir (
+                        'update\backup\netbeans\' + ($name -replace '/', '\'))))) {
+            if (Test-Path -LiteralPath $path) {
+                throw "Removed Flutter module left a payload file: $path"
+            }
+        }
+    }
+    $trackingPath = Join-Path $Userdir "update_tracking\$ModuleConfigName"
+    if (Test-Path -LiteralPath $trackingPath) {
+        throw "Removed Flutter module left update tracking: $trackingPath"
+    }
+}
+
+function Remove-IsolatedInstalledModule {
+    param(
+        [string]$ScenarioRoot,
+        [string]$Userdir,
+        [pscustomobject]$Metadata,
+        [string]$CatalogPath,
+        [pscustomobject]$StoppedHostHandle
+    )
+
+    $scenario = Get-CanonicalPath $ScenarioRoot
+    $canonicalUserdir = Get-CanonicalPath $Userdir
+    Assert-NoReparsePointAncestors $scenario $canonicalUserdir
+    if ($null -eq $StoppedHostHandle -or
+            $null -eq $StoppedHostHandle.Process -or
+            [string]::IsNullOrWhiteSpace($StoppedHostHandle.Userdir)) {
+        throw 'Offline module cleanup requires the identity-validated handle of the stopped isolated NetBeans host.'
+    }
+    if (-not (Test-SameCanonicalPath $StoppedHostHandle.Userdir $canonicalUserdir)) {
+        throw 'Stopped NetBeans host handle does not belong to the cleanup userdir.'
+    }
+    $probeAlive = Test-NetBeansProbeAlive $StoppedHostHandle
+    $remainingProbeProcesses = @(
+        Get-NetBeansProbeProcesses $StoppedHostHandle)
+    if ($probeAlive -or $remainingProbeProcesses.Count -gt 0) {
+        throw 'Refusing offline module cleanup while the isolated NetBeans probe is alive.'
+    }
+
+    foreach ($markerName in @('to_uninstall.txt', 'to_disable.txt', 'to_enable.txt')) {
+        $marker = Join-Path $canonicalUserdir "update\deactivate\$markerName"
+        if (Test-Path -LiteralPath $marker) {
+            throw "Refusing cleanup with a pending NetBeans updater marker: $marker"
+        }
+    }
+
+    Assert-InstalledModuleFiles $canonicalUserdir $Metadata $CatalogPath $null `
+        -RequireActivation $false -ExpectedState 'Installed'
+    $trackedNames = @(Get-TrackedModulePayloadNames $canonicalUserdir $Metadata)
+
+    $trackingDirectory = Join-Path $canonicalUserdir 'update_tracking'
+    foreach ($otherTracking in @(Get-ChildItem -LiteralPath $trackingDirectory `
+            -Filter '*.xml' -File -ErrorAction SilentlyContinue)) {
+        if ($otherTracking.Name -ieq $ModuleConfigName) {
+            continue
+        }
+        $otherDocument = Read-SafeXmlFile $otherTracking.FullName
+        foreach ($trackedFile in @($otherDocument.SelectNodes(
+                    "//*[local-name()='file']"))) {
+            $otherName = $trackedFile.GetAttribute('name').Replace('\', '/')
+            if ($trackedNames -icontains $otherName) {
+                throw "Another module update-tracking file owns Flutter payload '$otherName': $($otherTracking.FullName)"
+            }
+        }
+    }
+
+    $pathsToRemove = [System.Collections.Generic.List[string]]::new()
+    $uniquePathsToRemove = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in $trackedNames) {
+        $currentPath = Get-CanonicalPath (
+            Join-Path $canonicalUserdir ($name -replace '/', '\'))
+        Assert-NoReparsePointAncestors $canonicalUserdir $currentPath
+        $currentItem = Get-Item -LiteralPath $currentPath -Force
+        if ($currentItem.PSIsContainer -or
+                ($currentItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            throw "Tracked Flutter payload is not a regular isolated file: $currentPath"
+        }
+        if ($uniquePathsToRemove.Add($currentPath)) {
+            $pathsToRemove.Add($currentPath)
+        }
+
+        $backupPath = Get-CanonicalPath (Join-Path $canonicalUserdir (
+                'update\backup\netbeans\' + ($name -replace '/', '\')))
+        Assert-NoReparsePointAncestors $canonicalUserdir $backupPath
+        if (Test-Path -LiteralPath $backupPath) {
+            $backupItem = Get-Item -LiteralPath $backupPath -Force
+            if ($backupItem.PSIsContainer -or
+                    ($backupItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+                throw "Flutter backup payload is not a regular isolated file: $backupPath"
+            }
+            $trackingPayload = "update_tracking/$ModuleConfigName"
+            if ($name -ieq $trackingPayload) {
+                $backupTracking = Read-SafeXmlFile $backupPath
+                $backupLast = $backupTracking.SelectSingleNode(
+                    "/*[local-name()='module']/*[local-name()='module_version'][@last='true']")
+                if ($null -eq $backupLast) {
+                    throw "Flutter backup update tracking has no last=true version: $backupPath"
+                }
+                $backupNames = @($backupLast.SelectNodes(
+                        "./*[local-name()='file']") | ForEach-Object {
+                        $_.GetAttribute('name').Replace('\', '/')
+                    } | Sort-Object -Unique)
+                if ($backupTracking.DocumentElement.GetAttribute('codename') -cne
+                        $Metadata.CodeName -or
+                        $backupLast.GetAttribute('specification_version') -cne
+                        $Metadata.SpecificationVersion -or
+                        ($backupNames -join "`n") -cne
+                        (@($trackedNames | Sort-Object) -join "`n")) {
+                    throw "Flutter backup update tracking is not the exact installed module layout: $backupPath"
+                }
+            } else {
+                $expected = $Metadata.PayloadFiles[$name]
+                if ($backupItem.Length -ne $expected.Length -or
+                        (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash -ine
+                        $expected.Sha256) {
+                    throw "Flutter backup payload differs from the exact NBM: $backupPath"
+                }
+            }
+            if ($uniquePathsToRemove.Add($backupPath)) {
+                $pathsToRemove.Add($backupPath)
+            }
+        }
+    }
+
+    $trackingPath = Get-CanonicalPath (
+        Join-Path $canonicalUserdir "update_tracking\$ModuleConfigName")
+    Assert-NoReparsePointAncestors $canonicalUserdir $trackingPath
+    if ($uniquePathsToRemove.Add($trackingPath)) {
+        $pathsToRemove.Add($trackingPath)
+    }
+
+    $removed = [System.Collections.Generic.List[string]]::new()
+    foreach ($path in $pathsToRemove) {
+        [System.IO.File]::Delete($path)
+        if (Test-Path -LiteralPath $path) {
+            throw "Could not remove isolated Flutter module file: $path"
+        }
+        $removed.Add($path)
+    }
+    foreach ($parent in @($removed | ForEach-Object {
+                Split-Path -Parent $_
+            } | Sort-Object Length -Descending -Unique)) {
+        Remove-EmptyParentDirectories $parent $canonicalUserdir
+    }
+
+    Assert-IsolatedModuleRemoved $canonicalUserdir $Metadata
+    return [pscustomobject]@{
+        RemovedPaths = $removed.ToArray()
+    }
+}
+
+function Invoke-IsolatedDisableCleanup {
+    param(
+        [string]$Executable,
+        [string]$ScenarioRoot,
+        [pscustomobject]$Metadata,
+        [pscustomobject]$Catalog,
+        [pscustomobject]$LifecycleFixture,
+        [string]$EvidenceDirectory,
+        [int]$StartupTimeout,
+        [int]$CommandTimeout
+    )
+
+    $cleanupRoot = Join-Path $ScenarioRoot 'disable-uninstall-cleanup'
+    $cleanupUserdir = Join-Path $cleanupRoot 'userdir'
+    $cleanupCache = Join-Path $cleanupRoot 'cache'
+    [void][System.IO.Directory]::CreateDirectory($cleanupRoot)
+    $hostHandle = $null
+    $stoppedHost = $null
+    try {
+        $started = Start-ReadyNetBeansProbe $Executable $cleanupUserdir `
+            $cleanupCache $StartupTimeout $CommandTimeout $LifecycleFixture
+        $hostHandle = $started.HostHandle
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-list-ready' `
+            $started.ReadyResult
+
+        $install = Invoke-InstallOrUpdate 'install' $Executable $cleanupUserdir `
+            $hostHandle.Cachedir $Catalog $Metadata $CommandTimeout
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-install-current' $install
+        $enabled = Wait-ModuleState $hostHandle $Executable $cleanupUserdir `
+            $Metadata 'Enabled' $CommandTimeout $CommandTimeout
+        Wait-NetBeansActivationLog $hostHandle $cleanupUserdir $Metadata `
+            ([Math]::Min($CommandTimeout, 30))
+        Assert-InstalledModuleFiles $cleanupUserdir $Metadata $Catalog.Path
+        Wait-FlutterLifecyclePersistence $cleanupUserdir $LifecycleFixture $false `
+            ([Math]::Min($CommandTimeout, 30))
+        $enabled = Wait-ModuleState $hostHandle $Executable $cleanupUserdir `
+            $Metadata 'Enabled' $CommandTimeout $CommandTimeout
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-list-enabled' $enabled.Result
+
+        $disable = Invoke-DirectDisableModule $Executable $cleanupUserdir `
+            $hostHandle.Cachedir $Metadata $CommandTimeout
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-disable-current' $disable
+        $disabled = Wait-ModuleState $hostHandle $Executable $cleanupUserdir `
+            $Metadata 'Installed' $CommandTimeout $CommandTimeout
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-list-disabled' $disabled.Result
+        Assert-UnrelatedModuleStatesEqual $enabled.Result.StandardOutput `
+            $disabled.Result.StandardOutput $Metadata.CodeName
+        Wait-InstalledModuleFiles $cleanupUserdir $Metadata $Catalog.Path $null `
+            ([Math]::Min($CommandTimeout, 30)) -ExpectedState 'Installed'
+        Assert-FlutterSdkPreferences $cleanupUserdir $LifecycleFixture
+        Write-Pass 'NetBeans reports the Flutter module Installed (disabled) without changing unrelated module versions.'
+
+        $stoppedHost = $hostHandle
+        Stop-NetBeansProbeHost $hostHandle
+        Clear-IsolatedNetBeansUserdirLock $hostHandle
+        $hostHandle = $null
+
+        $cleanup = Remove-IsolatedInstalledModule $cleanupRoot $cleanupUserdir `
+            $Metadata $Catalog.Path $stoppedHost
+        Save-CommandEvidence $EvidenceDirectory 'offline-uninstall-cleanup' `
+            ([pscustomobject]@{
+                    ExitCode = 0
+                    StandardOutput = ($cleanup.RemovedPaths -join "`r`n")
+                    StandardError = ''
+                })
+        Assert-IsolatedModuleRemoved $cleanupUserdir $Metadata
+        Assert-FlutterSdkPreferences $cleanupUserdir $LifecycleFixture
+        Write-Pass "Removed only $($cleanup.RemovedPaths.Count) verified Flutter module/tracking files; SDK preferences remain."
+
+        $postCleanupCache = Join-Path $cleanupRoot 'post-cleanup-cache'
+        $postCleanup = Start-ReadyNetBeansProbe $Executable $cleanupUserdir `
+            $postCleanupCache $StartupTimeout $CommandTimeout
+        $hostHandle = $postCleanup.HostHandle
+        Save-CommandEvidence $EvidenceDirectory 'cleanup-list-after-removal' `
+            $postCleanup.ReadyResult
+        $removedRecord = Get-ModuleListRecord `
+            $postCleanup.ReadyResult.StandardOutput $Metadata.CodeName
+        if ($null -ne $removedRecord) {
+            throw ("Removed Flutter module is still reported by NetBeans: " +
+                $removedRecord.Line)
+        }
+        Write-Pass 'A fresh-cache NetBeans restart no longer reports the removed Flutter module.'
+        Stop-NetBeansProbeHost $hostHandle
+        Clear-IsolatedNetBeansUserdirLock $hostHandle
+        $hostHandle = $null
+        Assert-FlutterSdkPreferences $cleanupUserdir $LifecycleFixture
+    } finally {
+        if ($null -ne $hostHandle) {
+            Stop-NetBeansProbeHost $hostHandle
+            Clear-IsolatedNetBeansUserdirLock $hostHandle
+        }
+    }
+    Assert-FinalLogClean $cleanupUserdir
+    return [pscustomobject]@{
+        Root = $cleanupRoot
+        Userdir = $cleanupUserdir
+    }
+}
+
 function Invoke-SmokeScenario {
     param(
         [string]$Name,
@@ -1540,12 +2246,18 @@ function Invoke-SmokeScenario {
     } else {
         New-LocalUpdateCatalog $PreviousMetadata (Join-Path $ScenarioRoot 'catalog-previous')
     }
+    $lifecycleFixture = if ($null -eq $PreviousMetadata) {
+        New-FlutterLifecycleFixture $ScenarioRoot
+    } else {
+        $null
+    }
 
     Write-Info "Starting $Name scenario in $ScenarioRoot"
     $hostHandle = $null
+    $cleanupScenario = $null
     try {
         $started = Start-ReadyNetBeansProbe $Executable $userdir $cachedir `
-            $StartupTimeout $CommandTimeout
+            $StartupTimeout $CommandTimeout $lifecycleFixture
         $hostHandle = $started.HostHandle
         $ready = $started.ReadyResult
         Save-CommandEvidence $evidence 'list-ready' $ready
@@ -1592,10 +2304,38 @@ function Invoke-SmokeScenario {
                 ([Math]::Min($CommandTimeout, 30))
             Assert-InstalledModuleFiles $userdir $CurrentMetadata `
                 $currentCatalog.Path
+
+            Wait-FlutterLifecyclePersistence $userdir $lifecycleFixture $false `
+                ([Math]::Min($CommandTimeout, 30))
+            Write-Pass 'Auto-discovered Flutter and Dart SDK settings were persisted through NbPreferences.'
+
+            $openProject = Invoke-NetBeansCli $Executable @(
+                '--userdir', $userdir,
+                '--cachedir', $hostHandle.Cachedir,
+                '--nosplash',
+                '--open', $lifecycleFixture.ProjectDirectory
+            ) $CommandTimeout
+            Assert-NetBeansCliStderr $openProject 'initial Flutter project open'
+            Save-CommandEvidence $evidence 'open-flutter-project' $openProject
+            Wait-FlutterLifecyclePersistence $userdir $lifecycleFixture $true `
+                ([Math]::Min($CommandTimeout, 30))
+            Write-Pass 'NetBeans persisted the isolated Flutter project as an open project.'
+
+            Stop-NetBeansProbeHost $hostHandle
+            Clear-IsolatedNetBeansUserdirLock $hostHandle
+            $hostHandle = $null
+            Assert-FlutterSdkPreferences $userdir $lifecycleFixture
+            Assert-FlutterProjectReopenRecord $userdir $lifecycleFixture
+            Write-Pass 'Flutter SDK settings and the standard NetBeans project reopen record remain persisted after shutdown.'
+
+            $cleanupScenario = Invoke-IsolatedDisableCleanup $Executable `
+                $ScenarioRoot $CurrentMetadata $currentCatalog $lifecycleFixture `
+                $evidence $StartupTimeout $CommandTimeout
         }
     } finally {
         if ($null -ne $hostHandle) {
             Stop-NetBeansProbeHost $hostHandle
+            Clear-IsolatedNetBeansUserdirLock $hostHandle
         }
     }
     Assert-FinalLogClean $userdir
@@ -1604,6 +2344,11 @@ function Invoke-SmokeScenario {
         Name = $Name
         Root = $ScenarioRoot
         Userdir = $userdir
+        CleanupUserdir = if ($null -eq $cleanupScenario) {
+            $null
+        } else {
+            $cleanupScenario.Userdir
+        }
     }
 }
 

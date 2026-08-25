@@ -93,11 +93,21 @@ PID has been reused. The child sweep runs in a `finally` block even if the
 launcher exits during cleanup. An atomically created owner sentinel is held
 with exclusive sharing for the full run, so concurrent invocations cannot
 share an explicitly selected probe root.
+Before starting any secondary NetBeans CLI process, readiness waits for the
+primary launcher to publish the four-byte server-port marker in the isolated
+userdir lock. This prevents the readiness command from winning the native
+single-instance startup race. Offline payload removal also requires the exact
+identity-validated handle of that userdir's stopped host.
 The probe userdir masks the three bundled update centers so installation and
 upgrade resolve only from the staged local catalog and do not depend on the
-network. All launcher processes also force Java headless mode, so an
-unexpected userdir-lock condition fails the smoke instead of displaying a
-desktop dialog.
+network. The clean scenario also creates deterministic offline Flutter and
+Dart SDK stubs plus a minimal Flutter project. A separate userdir, which never
+opens that project, exercises the NetBeans 30 direct-disable transition and
+uninstall cleanup without racing an active project lifecycle. Direct disable
+is used because the standard headless CLI disable leaves this active,
+non-reloadable module enabled. All launcher processes force Java headless mode,
+so an unexpected userdir-lock condition fails the smoke instead of displaying
+a desktop dialog.
 
 Build the NBM, then run a clean-install smoke against Apache NetBeans 30:
 
@@ -141,16 +151,25 @@ Success requires all of the following:
   the scenario (the Windows launcher `-252` connected status remains
   informational);
 - module config is enabled, update tracking identifies the staged update
-  catalog and exactly lists the NBM payload, every installed payload file has
-  the same length and SHA-256 as the NBM, obsolete previous-version payload is
-  absent after an upgrade, and the installed JAR manifest matches the metadata;
+  catalog and exactly lists the NBM payload, every immutable installed payload
+  file has the same length and SHA-256 as the NBM, updater-owned tracking is
+  validated semantically, obsolete previous-version payload is absent after an
+  upgrade, and the installed JAR manifest matches the metadata;
 - the clean-install scenario proves current-version activation in Apache
-  NetBeans IDE 30 and a clean `messages.log`;
+  NetBeans IDE 30, exact auto-discovered standalone Flutter/Dart SDK settings,
+  and the standard NetBeans reopen record for the isolated Flutter project;
+- a separate project-free userdir proves `Enabled` to `Installed` disable,
+  requires every unrelated module name, version, and state to remain unchanged,
+  then removes only the exact tracked current payload, updater backup copies,
+  and tracking file while retaining SDK preferences and unrelated files; a
+  fresh-cache restart must no longer report the Flutter module code name;
 - the upgrade scenario first proves previous-version activation, then stops
   NetBeans and verifies the persisted current NBM payload, update tracking,
   catalog origin, JAR metadata, and removal of obsolete previous-version files
   offline; current-version activation is independently covered by the clean
   scenario;
+- every retained `messages.log*` session is free of the configured critical
+  exception/linkage patterns;
 - no process remains for the dedicated probe userdir.
 
 The runner leaves its target-only userdirs, staged catalogs, and captured

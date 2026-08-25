@@ -84,6 +84,18 @@ OpenIDE-Module-Implementation-Version: $ImplementationVersion
   <param name="jar">modules/dev-flutter-netbeans-netbeans-plugin.jar</param>
 </module>
 "@
+    $tracking = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<module codename="dev.flutter.netbeans.netbeans.plugin">
+  <module_version last="true" origin="installer"
+                  specification_version="$SpecificationVersion">
+    <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
+    <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
+    <file name="modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar"/>
+    <file name="update_tracking/dev-flutter-netbeans-netbeans-plugin.xml"/>
+  </module_version>
+</module>
+"@
     New-ZipFile $Path @{
         'Info/info.xml' = $info
         'netbeans/config/Modules/dev-flutter-netbeans-netbeans-plugin.xml' = $config
@@ -91,6 +103,7 @@ OpenIDE-Module-Implementation-Version: $ImplementationVersion
             [System.IO.File]::ReadAllBytes($moduleJar)
         'netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar' = `
             [System.Text.Encoding]::UTF8.GetBytes("dependency-$ImplementationVersion")
+        'netbeans/update_tracking/dev-flutter-netbeans-netbeans-plugin.xml' = $tracking
     }
     return $Path
 }
@@ -99,7 +112,8 @@ function New-InstalledFixture {
     param(
         [string]$Userdir,
         [pscustomobject]$Metadata,
-        [string]$CatalogPath
+        [string]$CatalogPath,
+        [switch]$IncludeBackup
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -126,6 +140,16 @@ function New-InstalledFixture {
     } finally {
         $archive.Dispose()
     }
+    if ($IncludeBackup) {
+        foreach ($name in $Metadata.PayloadFiles.Keys) {
+            $installedPath = Join-Path $Userdir ($name -replace '/', '\')
+            $backupPath = Join-Path $Userdir (
+                'update\backup\netbeans\' + ($name -replace '/', '\'))
+            [void][System.IO.Directory]::CreateDirectory(
+                (Split-Path -Parent $backupPath))
+            [System.IO.File]::Copy($installedPath, $backupPath, $false)
+        }
+    }
     $origin = [System.Uri]::new($CatalogPath).AbsoluteUri
     $trackedFileXml = @($Metadata.PayloadFiles.Keys | Sort-Object | ForEach-Object {
             "    <file name=`"$_`"/>"
@@ -150,7 +174,198 @@ INFO [org.netbeans.core.startup.NbEvents]: Turning on modules:
 "@
 }
 
+function ConvertTo-JavaPropertyValue {
+    param([string]$Value)
+
+    return $Value.Replace('\', '\\').Replace(':', '\:')
+}
+
+function Write-FlutterSdkPreferencesFixture {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Fixture,
+        [string]$FlutterHome = $Fixture.FlutterHome,
+        [string]$DartHome = $Fixture.DartHome,
+        [string]$UseBundledDart = 'false',
+        [string]$DiscoveryVersion = '1'
+    )
+
+    Write-Utf8File (Join-Path $Userdir $FlutterPreferencesRelativePath) @"
+flutter.sdk.home=$(ConvertTo-JavaPropertyValue $FlutterHome)
+dart.sdk.useBundled=$UseBundledDart
+dart.sdk.home=$(ConvertTo-JavaPropertyValue $DartHome)
+sdk.discovery.version=$DiscoveryVersion
+"@
+}
+
+function Write-FlutterProjectReopenFixture {
+    param(
+        [string]$Userdir,
+        [pscustomobject]$Fixture,
+        [string]$ProjectDirectory = $Fixture.ProjectDirectory,
+        [string]$AdditionalProjectDirectory
+    )
+
+    $projectUrl = [System.Uri]::new(
+        $ProjectDirectory.TrimEnd('\') + '\').AbsoluteUri
+    $additional = if ([string]::IsNullOrWhiteSpace($AdditionalProjectDirectory)) {
+        ''
+    } else {
+        $additionalUrl = [System.Uri]::new(
+            $AdditionalProjectDirectory.TrimEnd('\') + '\').AbsoluteUri
+        "`r`nopenProjectsURLs.1=$(ConvertTo-JavaPropertyValue $additionalUrl)"
+    }
+    Write-Utf8File (Join-Path $Userdir $ProjectUiPreferencesRelativePath) @"
+openProjectsURLs.0=$(ConvertTo-JavaPropertyValue $projectUrl)$additional
+openProjectsDisplayNames.0=flutter_reopen_probe
+"@
+}
+
+function Set-InstalledModuleEnabledFixture {
+    param(
+        [string]$Userdir,
+        [bool]$Enabled
+    )
+
+    $path = Join-Path $Userdir "config\Modules\$ModuleConfigName"
+    $text = [System.IO.File]::ReadAllText($path)
+    $replacement = if ($Enabled) { 'true' } else { 'false' }
+    $updated = $text -replace (
+        '(<param\s+name="enabled">)(?:true|false)(</param>)'), `
+        "`${1}$replacement`${2}"
+    $expectedPattern = '<param\s+name="enabled">{0}</param>' -f $replacement
+    if ($updated -ceq $text -and
+            $text -notmatch $expectedPattern) {
+        throw "Fixture module config has no enabled parameter: $path"
+    }
+    Write-Utf8File $path $updated
+}
+
+function New-StoppedHostFixture {
+    param(
+        [string]$Userdir,
+        [int]$ProcessId = 4401
+    )
+
+    return [pscustomobject]@{
+        Process = [pscustomobject]@{ Id = $ProcessId }
+        Userdir = $Userdir
+    }
+}
+
+function Test-ScriptBlockThrows {
+    param([scriptblock]$Action)
+
+    try {
+        & $Action | Out-Null
+        return $false
+    } catch {
+        return $true
+    }
+}
+
 Describe 'smoke-netbeans30-nbm.ps1 pure helpers' {
+    It 'reads Java properties with escaped Windows path separators' {
+        $path = Join-Path $TestDrive 'java-properties\plugin.properties'
+        Write-Utf8File $path @'
+# NetBeans stores Windows paths with Java-properties escaping.
+flutter.sdk.home=G\:\\SDKs\\flutter
+dart.sdk.home=C\:\\Program Files\\Dart\\dart-sdk
+dart.sdk.useBundled=false
+'@
+
+        $properties = Read-JavaPropertiesFile $path
+
+        $properties['flutter.sdk.home'] | Should Be 'G:\SDKs\flutter'
+        $properties['dart.sdk.home'] | Should Be 'C:\Program Files\Dart\dart-sdk'
+        $properties['dart.sdk.useBundled'] | Should Be 'false'
+    }
+
+    It 'creates deterministic offline Flutter lifecycle fixtures' {
+        $first = New-FlutterLifecycleFixture (Join-Path $TestDrive 'fixture-one')
+        $second = New-FlutterLifecycleFixture (Join-Path $TestDrive 'fixture-two')
+
+        foreach ($fixture in @($first, $second)) {
+            (Test-SameCanonicalPath $fixture.Root (
+                    Split-Path -Parent $fixture.ProjectDirectory)) | Should Be $true
+            (Test-Path -LiteralPath (Join-Path $fixture.ProjectDirectory `
+                    'pubspec.yaml') -PathType Leaf) | Should Be $true
+            (Test-Path -LiteralPath (Join-Path $fixture.ProjectDirectory `
+                    'lib\main.dart') -PathType Leaf) | Should Be $true
+            (Test-Path -LiteralPath (Join-Path $fixture.FlutterHome `
+                    'bin\flutter.bat') -PathType Leaf) | Should Be $true
+            (Test-Path -LiteralPath (Join-Path $fixture.DartHome `
+                    'bin\dart.bat') -PathType Leaf) | Should Be $true
+        }
+        foreach ($relativePath in @(
+                'pubspec.yaml',
+                'lib\main.dart')) {
+            (Get-FileHash -LiteralPath (Join-Path $first.ProjectDirectory `
+                        $relativePath) -Algorithm SHA256).Hash | Should Be `
+                (Get-FileHash -LiteralPath (Join-Path $second.ProjectDirectory `
+                        $relativePath) -Algorithm SHA256).Hash
+        }
+        (Get-FileHash -LiteralPath (Join-Path $first.FlutterHome `
+                    'bin\flutter.bat') -Algorithm SHA256).Hash | Should Be `
+            (Get-FileHash -LiteralPath (Join-Path $second.FlutterHome `
+                    'bin\flutter.bat') -Algorithm SHA256).Hash
+        (Get-FileHash -LiteralPath (Join-Path $first.DartHome `
+                    'bin\dart.bat') -Algorithm SHA256).Hash | Should Be `
+            (Get-FileHash -LiteralPath (Join-Path $second.DartHome `
+                    'bin\dart.bat') -Algorithm SHA256).Hash
+        (Get-Content -LiteralPath (Join-Path $first.ProjectDirectory `
+                    'pubspec.yaml') -Raw) | Should Match '(?m)^\s*flutter:\s*$'
+        (Get-Content -LiteralPath (Join-Path $first.FlutterHome `
+                    'bin\flutter.bat') -Raw) | Should Match '(?i)devices'
+    }
+
+    It 'requires exact persisted Flutter and standalone Dart SDK settings' {
+        $fixture = New-FlutterLifecycleFixture (Join-Path $TestDrive `
+            'sdk-preferences')
+        $userdir = Join-Path $TestDrive 'sdk-preferences-userdir'
+        Write-FlutterSdkPreferencesFixture $userdir $fixture
+
+        Assert-FlutterSdkPreferences $userdir $fixture
+
+        Write-FlutterSdkPreferencesFixture $userdir $fixture `
+            -DartHome (Join-Path $fixture.Root 'sdk\other-dart')
+        (Test-ScriptBlockThrows {
+                Assert-FlutterSdkPreferences $userdir $fixture
+            }) | Should Be $true
+        Write-FlutterSdkPreferencesFixture $userdir $fixture `
+            -UseBundledDart 'true'
+        (Test-ScriptBlockThrows {
+                Assert-FlutterSdkPreferences $userdir $fixture
+            }) | Should Be $true
+        Write-FlutterSdkPreferencesFixture $userdir $fixture `
+            -DiscoveryVersion '0'
+        (Test-ScriptBlockThrows {
+                Assert-FlutterSdkPreferences $userdir $fixture
+            }) | Should Be $true
+    }
+
+    It 'requires exactly the lifecycle fixture project reopen URL and name' {
+        $fixture = New-FlutterLifecycleFixture (Join-Path $TestDrive `
+            'project-reopen')
+        $userdir = Join-Path $TestDrive 'project-reopen-userdir'
+        Write-FlutterProjectReopenFixture $userdir $fixture
+
+        Assert-FlutterProjectReopenRecord $userdir $fixture
+
+        $otherProject = Join-Path $fixture.Root 'other-project'
+        [void][System.IO.Directory]::CreateDirectory($otherProject)
+        Write-FlutterProjectReopenFixture $userdir $fixture `
+            -ProjectDirectory $otherProject
+        (Test-ScriptBlockThrows {
+                Assert-FlutterProjectReopenRecord $userdir $fixture
+            }) | Should Be $true
+        Write-FlutterProjectReopenFixture $userdir $fixture `
+            -AdditionalProjectDirectory $otherProject
+        (Test-ScriptBlockThrows {
+                Assert-FlutterProjectReopenRecord $userdir $fixture
+            }) | Should Be $true
+    }
+
     It 'stages an immutable local catalog from the exact NBM bytes' {
         $nbm = New-NbmFixture (Join-Path $TestDrive `
             'artifact\netbeans-plugin-0.1.2-SNAPSHOT.nbm')
@@ -159,7 +374,7 @@ Describe 'smoke-netbeans30-nbm.ps1 pure helpers' {
 
         $metadata.CodeName | Should Be 'dev.flutter.netbeans.netbeans.plugin'
         $metadata.SpecificationVersion | Should Be '0.1.2'
-        $metadata.PayloadFiles.Count | Should Be 3
+        $metadata.PayloadFiles.Count | Should Be 4
         (Get-FileHash $nbm -Algorithm SHA256).Hash | Should Be `
             (Get-FileHash $catalog.NbmPath -Algorithm SHA256).Hash
         $document = Read-SafeXmlFile $catalog.Path
@@ -580,6 +795,17 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2     Enabled
         $stderrRejected | Should Be $true
     }
 
+    It 'recognizes a published NetBeans CLI endpoint only after its four-byte port marker' {
+        $userdir = Join-Path $TestDrive 'endpoint-marker\userdir'
+        [void][System.IO.Directory]::CreateDirectory($userdir)
+        (Test-IsolatedNetBeansCliEndpointPublished $userdir) | Should Be $false
+        $lockPath = Join-Path $userdir 'lock'
+        [System.IO.File]::WriteAllBytes($lockPath, [byte[]](1, 2, 3))
+        (Test-IsolatedNetBeansCliEndpointPublished $userdir) | Should Be $false
+        [System.IO.File]::WriteAllBytes($lockPath, [byte[]](1, 2, 3, 4))
+        (Test-IsolatedNetBeansCliEndpointPublished $userdir) | Should Be $true
+    }
+
     It 'retries an inner CLI timeout and passes the same isolated cachedir' {
         $fakeProcess = [pscustomobject]@{
             HasExited = $false
@@ -609,6 +835,7 @@ Code Name Version State
                 StandardError = ''
             }
         }
+        Mock Test-IsolatedNetBeansCliEndpointPublished { return $true }
 
         [void](Wait-NetBeansCliReady $hostHandle 'netbeans64.exe' `
                 (Join-Path $TestDrive 'retry\userdir') 10 10)
@@ -617,6 +844,39 @@ Code Name Version State
         $cacheIndex = [Array]::IndexOf($script:observedArguments, '--cachedir')
         $cacheIndex | Should BeGreaterThan -1
         $script:observedArguments[$cacheIndex + 1] | Should Be $cachedir
+    }
+
+    It 'waits for primary userdir ownership before starting the readiness CLI' {
+        $fakeProcess = [pscustomobject]@{
+            HasExited = $false
+            ExitCode = 0
+        }
+        $fakeProcess | Add-Member -MemberType ScriptMethod -Name Refresh -Value {}
+        $hostHandle = [pscustomobject]@{
+            Process = $fakeProcess
+            Cachedir = Join-Path $TestDrive 'ownership\cache'
+        }
+        $script:lockChecks = 0
+        $script:readinessCalls = 0
+        Mock Start-Sleep {}
+        Mock Test-IsolatedNetBeansCliEndpointPublished {
+            $script:lockChecks++
+            return $script:lockChecks -ge 3
+        }
+        Mock Invoke-NetBeansCli {
+            $script:readinessCalls++
+            return [pscustomobject]@{
+                ExitCode = -252
+                StandardOutput = "Code Name Version State`r`n---------- ---------- -----"
+                StandardError = ''
+            }
+        }
+
+        [void](Wait-NetBeansCliReady $hostHandle 'netbeans64.exe' `
+                (Join-Path $TestDrive 'ownership\userdir') 10 10)
+
+        $script:lockChecks | Should Be 3
+        $script:readinessCalls | Should Be 1
     }
 
     It 'restarts and cleans an isolated host that exits during readiness' {
@@ -651,6 +911,117 @@ Code Name Version State
         $started.HostHandle.Process.Id | Should Be 102
         $script:hostStarts | Should Be 2
         $script:hostCleanups | Should Be 1
+    }
+
+    It 'handles exact module states and a direct disable with empty stdout' {
+        $metadata = [pscustomobject]@{
+            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            SpecificationVersion = '0.1.2'
+        }
+        $hostHandle = [pscustomobject]@{
+            Cachedir = 'fixture-cache'
+        }
+        $script:reportedModuleState = 'Enabled'
+        $script:stateAliveChecks = 0
+        $script:stopAfterFirstAlive = $false
+        $script:listCliCalls = 0
+        $script:disableCalls = 0
+        $script:disableArguments = $null
+        $script:disableTimeout = 0
+        Mock Start-Sleep {}
+        Mock Test-NetBeansProbeAlive {
+            if (-not $script:stopAfterFirstAlive) {
+                return $true
+            }
+            $script:stateAliveChecks++
+            return $script:stateAliveChecks -eq 1
+        }
+        Mock Invoke-NetBeansCli {
+            param($Executable, $Arguments, $TimeoutSeconds)
+            if ([Array]::IndexOf($Arguments, '--direct-disable') -ge 0) {
+                $script:disableCalls++
+                $script:disableArguments = @($Arguments)
+                $script:disableTimeout = $TimeoutSeconds
+                return [pscustomobject]@{
+                    ExitCode = -252
+                    StandardOutput = ''
+                    StandardError = ''
+                }
+            }
+            $script:listCliCalls++
+            return [pscustomobject]@{
+                ExitCode = -252
+                StandardOutput = @"
+Code Name                                          Version State
+-------------------------------------------------- ------- ---------
+dev.flutter.netbeans.netbeans.plugin               0.1.2   $script:reportedModuleState
+"@
+                StandardError = ''
+            }
+        }
+
+        $enabled = Wait-ModuleState $hostHandle 'netbeans64.exe' `
+            'fixture-userdir' $metadata 'Enabled' 10 10
+        $enabled.Record.Version | Should Be '0.1.2'
+        $enabled.Record.State | Should Be 'Enabled'
+
+        $script:reportedModuleState = 'Installed'
+        $installed = Wait-ModuleState $hostHandle 'netbeans64.exe' `
+            'fixture-userdir' $metadata 'Installed' 10 10
+        $installed.Record.Version | Should Be '0.1.2'
+        $installed.Record.State | Should Be 'Installed'
+
+        $script:reportedModuleState = 'Installed'
+        $script:stateAliveChecks = 0
+        $script:stopAfterFirstAlive = $true
+        try {
+            [void](Wait-ModuleState $hostHandle 'netbeans64.exe' `
+                'fixture-userdir' $metadata 'Enabled' 10 10)
+            $stateMismatchRejected = $false
+        } catch {
+            $stateMismatchRejected = $true
+        }
+        $stateMismatchRejected | Should Be $true
+        $script:stopAfterFirstAlive = $false
+
+        $result = Invoke-DirectDisableModule 'netbeans64.exe' `
+            'fixture-userdir' 'fixture-cache' $metadata 17
+
+        $result.StandardOutput | Should Be ''
+        $script:listCliCalls | Should Be 3
+        $script:disableCalls | Should Be 1
+        $script:disableTimeout | Should Be 17
+        ($script:disableArguments -join '|') | Should Be (@(
+                '--userdir', 'fixture-userdir',
+                '--cachedir', 'fixture-cache',
+                '--nosplash', '--modules', '--direct-disable',
+                '^dev\.flutter\.netbeans\.netbeans\.plugin$'
+            ) -join '|')
+    }
+
+    It 'requires every unrelated module version and state to remain unchanged' {
+        $before = @"
+Code Name Version State
+---------- ------- -----
+dev.flutter.netbeans.netbeans.plugin 0.1.2 Enabled
+unrelated.module 7.4 Enabled
+"@
+        $validAfter = @"
+Code Name Version State
+---------- ------- -----
+dev.flutter.netbeans.netbeans.plugin 0.1.2 Installed
+unrelated.module 7.4 Enabled
+"@
+        $changedAfter = $validAfter.Replace(
+            'unrelated.module 7.4 Enabled',
+            'unrelated.module 7.4 Installed')
+
+        { Assert-UnrelatedModuleStatesEqual $before $validAfter `
+                'dev.flutter.netbeans.netbeans.plugin' } | Should Not Throw
+        (Test-ScriptBlockThrows {
+                Assert-UnrelatedModuleStatesEqual $before $changedAfter `
+                    'dev.flutter.netbeans.netbeans.plugin'
+            }) | Should Be $true
     }
 
     It 'retries a transient empty install response only after checking module state' {
@@ -800,6 +1171,244 @@ Code Name Version State
         { Assert-InstalledModuleFiles $userdir $metadata $catalogPath } |
             Should Not Throw
         { Assert-FinalLogClean $userdir } | Should Not Throw
+    }
+
+    It 'accepts an exact disabled config as Installed while preserving payload bytes' {
+        $nbm = New-NbmFixture (Join-Path $TestDrive `
+            'disabled-installed\fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $TestDrive `
+            'disabled-installed\site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $TestDrive 'disabled-installed\userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath
+        Set-InstalledModuleEnabledFixture $userdir $false
+
+        Assert-InstalledModuleFiles $userdir $metadata $catalogPath $null `
+            -RequireActivation $false -ExpectedState 'Installed'
+        (Test-ScriptBlockThrows {
+                Assert-InstalledModuleFiles $userdir $metadata $catalogPath `
+                    $null -RequireActivation $false -ExpectedState 'Enabled'
+            }) | Should Be $true
+
+        foreach ($name in $metadata.PayloadFiles.Keys | Where-Object {
+                $_ -ine "config/Modules/$ModuleConfigName" -and
+                $_ -ine "update_tracking/$ModuleConfigName"
+            }) {
+            $installedPath = Join-Path $userdir ($name -replace '/', '\')
+            (Get-FileHash -LiteralPath $installedPath -Algorithm SHA256).Hash |
+                Should Be $metadata.PayloadFiles[$name].Sha256
+        }
+    }
+
+    It 'removes only exact tracked payload, backup copies, and tracking' {
+        $scenario = Join-Path $TestDrive 'offline-remove-success'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        Set-InstalledModuleEnabledFixture $userdir $false
+
+        $preferencesPath = Join-Path $userdir $FlutterPreferencesRelativePath
+        Write-Utf8File $preferencesPath 'flutter.sdk.home=G\:\\preserved'
+        $userSentinel = Join-Path $userdir 'preserve.sentinel'
+        Write-Utf8File $userSentinel 'preserve-userdir'
+        $ownerSentinel = Join-Path $scenario '.netbeans30-smoke-owner'
+        Write-Utf8File $ownerSentinel 'preserve-owner'
+
+        $expectedRemoved = [System.Collections.Generic.List[string]]::new()
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            $expectedRemoved.Add((Get-CanonicalPath (
+                Join-Path $userdir ($name -replace '/', '\'))))
+            $expectedRemoved.Add((Get-CanonicalPath (Join-Path $userdir (
+                'update\backup\netbeans\' + ($name -replace '/', '\')))))
+        }
+        $stoppedHost = New-StoppedHostFixture $userdir
+        Mock Test-NetBeansProbeAlive { return $false }
+        Mock Get-NetBeansProbeProcesses { return @() }
+
+        $result = Remove-IsolatedInstalledModule $scenario $userdir `
+            $metadata $catalogPath $stoppedHost
+
+        (($result.RemovedPaths | Sort-Object) -join '|') | Should Be `
+            (($expectedRemoved.ToArray() | Sort-Object) -join '|')
+        foreach ($removedPath in $expectedRemoved) {
+            (Test-Path -LiteralPath $removedPath) | Should Be $false
+        }
+        (Get-Content -LiteralPath $preferencesPath -Raw) |
+            Should Be 'flutter.sdk.home=G\:\\preserved'
+        (Get-Content -LiteralPath $userSentinel -Raw) |
+            Should Be 'preserve-userdir'
+        (Get-Content -LiteralPath $ownerSentinel -Raw) |
+            Should Be 'preserve-owner'
+        (Test-Path -LiteralPath $nbm -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath $catalogPath -PathType Leaf) | Should Be $true
+    }
+
+    It 'refuses offline removal while the installed module config is enabled' {
+        $scenario = Join-Path $TestDrive 'offline-remove-enabled'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        $stoppedHost = New-StoppedHostFixture $userdir 4402
+        Mock Test-NetBeansProbeAlive { return $false }
+        Mock Get-NetBeansProbeProcesses { return @() }
+
+        (Test-ScriptBlockThrows {
+                Remove-IsolatedInstalledModule $scenario $userdir $metadata `
+                    $catalogPath $stoppedHost
+            }) | Should Be $true
+
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            (Test-Path -LiteralPath (Join-Path $userdir (
+                        $name -replace '/', '\')) -PathType Leaf) |
+                Should Be $true
+        }
+        (Test-Path -LiteralPath (Join-Path $userdir `
+                "update_tracking\$ModuleConfigName") -PathType Leaf) |
+            Should Be $true
+    }
+
+    It 'refuses offline removal when an exact backup payload was tampered' {
+        $scenario = Join-Path $TestDrive 'offline-remove-tampered'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        Set-InstalledModuleEnabledFixture $userdir $false
+        $stoppedHost = New-StoppedHostFixture $userdir 4403
+        Mock Test-NetBeansProbeAlive { return $false }
+        Mock Get-NetBeansProbeProcesses { return @() }
+        $tamperedBackup = Join-Path $userdir (
+            'update\backup\netbeans\modules\ext\' +
+            'dev.flutter.netbeans.netbeans-plugin\dependency.jar')
+        Write-Utf8File $tamperedBackup 'tampered-backup'
+
+        (Test-ScriptBlockThrows {
+                Remove-IsolatedInstalledModule $scenario $userdir $metadata `
+                    $catalogPath $stoppedHost
+            }) | Should Be $true
+
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            (Test-Path -LiteralPath (Join-Path $userdir (
+                        $name -replace '/', '\')) -PathType Leaf) |
+                Should Be $true
+        }
+    }
+
+    It 'rejects unsafe tracking before removing any isolated file' {
+        $scenario = Join-Path $TestDrive 'offline-remove-unsafe'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        Set-InstalledModuleEnabledFixture $userdir $false
+        $stoppedHost = New-StoppedHostFixture $userdir 4404
+        Mock Test-NetBeansProbeAlive { return $false }
+        Mock Get-NetBeansProbeProcesses { return @() }
+        $outside = Join-Path $scenario 'outside.txt'
+        Write-Utf8File $outside 'must-not-be-removed'
+        $trackingPath = Join-Path $userdir `
+            "update_tracking\$ModuleConfigName"
+        $tracking = [System.IO.File]::ReadAllText($trackingPath)
+        $tracking = $tracking.Replace(
+            'modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar',
+            '../outside.txt')
+        Write-Utf8File $trackingPath $tracking
+
+        $errorMessage = ''
+        try {
+            Remove-IsolatedInstalledModule $scenario $userdir $metadata `
+                $catalogPath $stoppedHost
+        } catch {
+            $errorMessage = $_.Exception.Message
+        }
+        $errorMessage | Should Be `
+            "Update tracking contains unsafe file path '../outside.txt'."
+
+        (Get-Content -LiteralPath $outside -Raw) |
+            Should Be 'must-not-be-removed'
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            (Test-Path -LiteralPath (Join-Path $userdir (
+                        $name -replace '/', '\')) -PathType Leaf) |
+                Should Be $true
+        }
+    }
+
+    It 'requires the stopped host proof before offline removal' {
+        $scenario = Join-Path $TestDrive 'offline-remove-no-host-proof'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        Set-InstalledModuleEnabledFixture $userdir $false
+
+        $errorMessage = ''
+        try {
+            Remove-IsolatedInstalledModule $scenario $userdir $metadata `
+                $catalogPath $null
+        } catch {
+            $errorMessage = $_.Exception.Message
+        }
+        $errorMessage | Should Be `
+            'Offline module cleanup requires the identity-validated handle of the stopped isolated NetBeans host.'
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            (Test-Path -LiteralPath (Join-Path $userdir (
+                        $name -replace '/', '\')) -PathType Leaf) |
+                Should Be $true
+        }
+    }
+
+    It 'rejects malformed self-tracking backup before removing payload' {
+        $scenario = Join-Path $TestDrive 'offline-remove-bad-tracking-backup'
+        [void][System.IO.Directory]::CreateDirectory($scenario)
+        $nbm = New-NbmFixture (Join-Path $scenario 'fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $scenario 'site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $scenario 'userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath -IncludeBackup
+        Set-InstalledModuleEnabledFixture $userdir $false
+        $stoppedHost = New-StoppedHostFixture $userdir 4405
+        Mock Test-NetBeansProbeAlive { return $false }
+        Mock Get-NetBeansProbeProcesses { return @() }
+        $backupTracking = Join-Path $userdir (
+            "update\backup\netbeans\update_tracking\$ModuleConfigName")
+        $backupText = [System.IO.File]::ReadAllText($backupTracking).Replace(
+            'codename="dev.flutter.netbeans.netbeans.plugin"',
+            'codename="wrong.module"')
+        Write-Utf8File $backupTracking $backupText
+
+        $errorMessage = ''
+        try {
+            Remove-IsolatedInstalledModule $scenario $userdir $metadata `
+                $catalogPath $stoppedHost
+        } catch {
+            $errorMessage = $_.Exception.Message
+        }
+        $errorMessage | Should Be `
+            "Flutter backup update tracking is not the exact installed module layout: $backupTracking"
+        foreach ($name in $metadata.PayloadFiles.Keys) {
+            (Test-Path -LiteralPath (Join-Path $userdir (
+                        $name -replace '/', '\')) -PathType Leaf) |
+                Should Be $true
+        }
     }
 
     It 'allows offline upgrade payload verification without claiming activation' {

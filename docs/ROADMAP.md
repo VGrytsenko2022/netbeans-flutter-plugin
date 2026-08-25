@@ -2,7 +2,7 @@
 
 ## 0.1.2 — Stability & NetBeans Integration
 
-Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embedded DevTools, or Designer features. Automated gates now cover deterministic Run/Debug and DevTools lifecycle contracts, packaged registrations and functional Dart editor behavior in an assembled NetBeans 30 runtime, strict release verification, and isolated clean-install/update smoke. Persisted-settings/project-reopen/disable/uninstall smoke coverage and mobile evidence remain explicit release requirements below.
+Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embedded DevTools, or Designer features. Automated gates now cover deterministic Run/Debug and DevTools lifecycle contracts, packaged registrations and functional Dart editor behavior in an assembled NetBeans 30 runtime, strict release verification, isolated clean-install/update smoke, persisted SDK settings, Flutter-project reopen lifecycle, and disable/uninstall cleanup. Mobile evidence remains an explicit release requirement below.
 
 - [x] Harden Run/Debug lifecycle handling for start, cancel, confirmed restart, Stop, process exit, project close, and late asynchronous callbacks, with consistent `ActionProgress`, `ProgressHandle`, Output, and debugger cleanup.
 - [x] Add controller-level DevTools lifecycle tests for startup cancellation, repeated Open URL reuse, explicit Stop, Flutter-session replacement/termination, project close, process failure, and stale completion rejection.
@@ -10,7 +10,7 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 - [x] Add a strict release verifier covering fresh Surefire/Failsafe reports, package metadata and licensing, NBM/update-catalog hashes, installed update tracking, and activation logs.
 - [x] Add a Dart editor end-to-end gate in a real NetBeans 30 runtime covering Analysis Server startup, diagnostics, completion/import edits, navigation, rename, formatting, Quick Fixes, restart, and project close.
 - [x] Automate isolated NetBeans 30 NBM smoke: clean-install activation of `0.1.2`, activated `0.1.1` baseline plus offline exact-payload verification after update to `0.1.2`, staged local catalogs, headless launchers, and owned-process cleanup.
-- [ ] Extend the isolated runtime smoke to persisted SDK settings, project reopening, and disable/uninstall cleanup.
+- [x] Extend the assembled-runtime and isolated NBM smoke gates to deterministic persisted Flutter/Dart SDK settings, Flutter project open/close/reopen lifecycle and reopen records, module disable state, exact tracked-payload/backup cleanup, preserved user settings, fresh-cache confirmation that the removed module is absent, and all-session log validation.
 - [ ] Run and record a mobile compatibility matrix for Android physical devices and AVDs plus iOS simulators where macOS is available, covering discovery, target selection, Run, Debug, Hot Reload, Hot Restart, Stop, and DevTools lifecycle.
 - [ ] Require the complete Maven/runtime-registration gates, strict release verifier, isolated clean-install/update smoke, functional editor E2E gate, persisted-settings/project-reopen/disable/uninstall smoke, and recorded mobile matrix before tagging `0.1.2`.
 

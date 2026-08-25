@@ -29,7 +29,7 @@ Only after these are stable do we build the Matisse-like Flutter Designer.
 - `flutter-project` — Flutter project recognition and project metadata.
 - `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, DevTools process integration, immutable Build/Clean and tooling commands, and Analyze/Test protocol parsers.
 - `netbeans-plugin` — NetBeans UI integration and actions.
-- `netbeans-runtime-it` — assembled NetBeans 30 gates for the packaged module, Dart MIME/editor registrations, Flutter actions, and optional real-SDK editor behavior.
+- `netbeans-runtime-it` — assembled NetBeans 30 gates for the packaged module, persisted SDK settings, Flutter project lifecycle, Dart MIME/editor registrations, Flutter actions, and optional real-SDK editor behavior.
 - `flutter-designer` — reserved boundary for the future native Flutter designer.
 
 ## Requirements

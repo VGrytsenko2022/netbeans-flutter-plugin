@@ -26,8 +26,7 @@ import org.openide.util.lookup.Lookups;
 /** Starts the configured Dart SDK's LSP server for Dart editor documents. */
 @MimeRegistration(
         mimeType = DartTokenId.MIME_TYPE,
-        service = LanguageServerProvider.class,
-        position = 100)
+        service = LanguageServerProvider.class)
 public final class DartLanguageServerProvider implements LanguageServerProvider {
     private static final Logger LOGGER =
             Logger.getLogger(DartLanguageServerProvider.class.getName());

@@ -8,6 +8,8 @@ import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ActionProgress;
 import org.netbeans.spi.project.SingleMethod;
 import org.netbeans.spi.project.ui.support.DefaultProjectOperations;
+import org.openide.DialogDisplayer;
+import org.openide.NotifyDescriptor;
 import org.openide.util.Lookup;
 
 /** Standard lifecycle operations for a Flutter project directory. */
@@ -55,16 +57,19 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     private final FlutterRunController runController;
     private final FlutterToolingController toolingController;
     private final FlutterProjectConfigurationProvider configurations;
+    private final FlutterProjectMoveOperation moveOperation;
 
     FlutterProjectActionProvider(
             FlutterProject project,
             FlutterRunController runController,
             FlutterToolingController toolingController,
-            FlutterProjectConfigurationProvider configurations) {
+            FlutterProjectConfigurationProvider configurations,
+            FlutterProjectMoveOperation moveOperation) {
         this.project = project;
         this.runController = runController;
         this.toolingController = toolingController;
         this.configurations = configurations;
+        this.moveOperation = moveOperation;
     }
 
     @Override
@@ -74,6 +79,12 @@ public final class FlutterProjectActionProvider implements ActionProvider {
 
     @Override
     public void invokeAction(String command, Lookup context) throws IllegalArgumentException {
+        requireSupported(command);
+        if (moveOperation.isRecoveryBlocked()
+                && !isRecoveryResolutionCommand(command)) {
+            showRecoveryBlocked(command);
+            return;
+        }
         Lookup actionContext = context == null ? Lookup.EMPTY : context;
         switch (command) {
             case COMMAND_RUN,
@@ -119,8 +130,10 @@ public final class FlutterProjectActionProvider implements ActionProvider {
 
     @Override
     public boolean isActionEnabled(String command, Lookup context) throws IllegalArgumentException {
-        if (!SUPPORTED.contains(command)) {
-            throw new IllegalArgumentException("Unsupported Flutter project action: " + command);
+        requireSupported(command);
+        if (moveOperation.isRecoveryBlocked()
+                && !isRecoveryResolutionCommand(command)) {
+            return false;
         }
         if (isRunCommand(command)) {
             return runController.isCommandEnabled(command);
@@ -129,6 +142,33 @@ public final class FlutterProjectActionProvider implements ActionProvider {
             return toolingController.isCommandEnabled(command);
         }
         return project.getProjectDirectory().isValid();
+    }
+
+    private static void requireSupported(String command) {
+        if (!SUPPORTED.contains(command)) {
+            throw new IllegalArgumentException(
+                    "Unsupported Flutter project action: " + command);
+        }
+    }
+
+    private boolean isRecoveryResolutionCommand(String command) {
+        return COMMAND_DELETE.equals(command)
+                || (COMMAND_RENAME.equals(command)
+                        && moveOperation.canResolveRecoveryByRename());
+    }
+
+    private void showRecoveryBlocked(String command) {
+        String projectPath = project.getProjectDirectory().getPath();
+        String resolution = moveOperation.canResolveRecoveryByRename()
+                ? "Use Rename to supply the target project name and finish the interrupted "
+                        + "move, or delete the project if it is no longer needed."
+                : "Close the project and repair or remove the preserved .netbeans Flutter "
+                        + "move handoff after verifying its contents, or delete the project "
+                        + "if it is no longer needed.";
+        DialogDisplayer.getDefault().notifyLater(new NotifyDescriptor.Message(
+                "Cannot perform " + command + " for " + projectPath + ": "
+                        + moveOperation.recoveryBlockReason() + ". " + resolution,
+                NotifyDescriptor.WARNING_MESSAGE));
     }
 
     private static boolean isRunCommand(String command) {

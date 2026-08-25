@@ -19,6 +19,53 @@ class DartLspCompletionCompatibilityInputStreamTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test
+    void removesAnalyzerStatusNotificationsAndPreservesFollowingMessages() throws Exception {
+        byte[] analyzing = frame("""
+                {"jsonrpc":"2.0","method":"$/analyzerStatus","params":{"isAnalyzing":true}}
+                """.trim());
+        byte[] idle = frame("""
+                {"jsonrpc":"2.0","method":"$/analyzerStatus","params":{"isAnalyzing":false}}
+                """.trim());
+        byte[] diagnostics = frame("""
+                {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///main.dart","diagnostics":[]}}
+                """.trim());
+
+        byte[] output = new DartLspCompletionCompatibilityInputStream(
+                new ByteArrayInputStream(join(analyzing, diagnostics, idle)),
+                new DartLspCompletionCompatibility()).readAllBytes();
+
+        assertArrayEquals(diagnostics, output,
+                "supported LSP messages must remain byte-for-byte unchanged");
+    }
+
+    @Test
+    void preservesServerRequestThatOnlySharesAnalyzerStatusMethodName() throws Exception {
+        byte[] request = frame("""
+                {"jsonrpc":"2.0","id":17,"method":"$/analyzerStatus","params":{"isAnalyzing":true}}
+                """.trim());
+
+        byte[] output = new DartLspCompletionCompatibilityInputStream(
+                new ByteArrayInputStream(request),
+                new DartLspCompletionCompatibility()).readAllBytes();
+
+        assertArrayEquals(request, output,
+                "a message with an id is a request and must not be discarded");
+    }
+
+    @Test
+    void preservesMalformedMessageContainingAnalyzerStatusMarker() throws Exception {
+        byte[] malformed = frame(
+                "{\"jsonrpc\":\"2.0\",\"method\":\"$/analyzerStatus\",\"params\":");
+
+        byte[] output = new DartLspCompletionCompatibilityInputStream(
+                new ByteArrayInputStream(malformed),
+                new DartLspCompletionCompatibility()).readAllBytes();
+
+        assertArrayEquals(malformed, output,
+                "the compatibility filter must not rewrite malformed protocol data");
+    }
+
+    @Test
     void removesInitialTextEditFromCorrelatedResolvableItems() throws Exception {
         DartLspCompletionCompatibility compatibility = new DartLspCompletionCompatibility();
         ByteArrayOutputStream requests = new ByteArrayOutputStream();

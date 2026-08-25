@@ -368,7 +368,7 @@ dart.sdk.useBundled=false
 
     It 'stages an immutable local catalog from the exact NBM bytes' {
         $nbm = New-NbmFixture (Join-Path $TestDrive `
-            'artifact\netbeans-plugin-0.1.2-SNAPSHOT.nbm')
+            'artifact\netbeans-plugin-0.1.2.nbm')
         $metadata = Get-NbmMetadata $nbm
         $catalog = New-LocalUpdateCatalog $metadata (Join-Path $TestDrive 'site')
 
@@ -381,7 +381,7 @@ dart.sdk.useBundled=false
         $module = $document.SelectSingleNode(
             "/*[local-name()='module_updates']/*[local-name()='module']")
         $module.GetAttribute('distribution') | Should Be `
-            'netbeans-plugin-0.1.2-SNAPSHOT.nbm'
+            'netbeans-plugin-0.1.2.nbm'
         $module.GetAttribute('downloadsize') | Should Be `
             ([string](Get-Item $nbm).Length)
         $digest = $module.SelectSingleNode("./*[local-name()='message_digest']")
@@ -431,7 +431,7 @@ dart.sdk.useBundled=false
         $launcher = Join-Path $netBeansHome 'bin\netbeans64.exe'
         Write-Utf8File $launcher 'fixture launcher'
         $nbm = New-NbmFixture (Join-Path $TestDrive `
-            'orchestration-artifact\netbeans-plugin-0.1.2-SNAPSHOT.nbm')
+            'orchestration-artifact\netbeans-plugin-0.1.2.nbm')
         $probeRoot = Join-Path $repository 'target\literal[1]'
         $script:observedScenarioRoot = $null
         $script:ownershipWasExclusive = $false
@@ -560,6 +560,25 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2     Enabled
     dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2-20260824 build]
 "@
         (Test-NetBeansActivationLog $activationLog $metadata) | Should Be $true
+    }
+
+    It 'detects only the plugin-owned Ordering warning contracts' {
+        $log = @'
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2"><group/></open-files> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/projectui-open-files/2#open-files on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <preferences xmlns="http://www.netbeans.org/ns/auxiliary-configuration-preferences/1"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/auxiliary-configuration-preferences/1#preferences on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/editor-bookmarks/2#editor-bookmarks on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <other/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/other/1#other on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Not all children are marked with a position attribute.
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both org-example-One.instance and org-example-Two.instance
+WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute dev-flutter-netbeans-plugin-dart-DartTokenId.instance/org-example-One.instance
+INFO [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and org-example-One.instance
+WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [dev-flutter-netbeans-plugin-dart-DartTokenId.instance]
+'@
+
+        @(Get-PluginOwnedOrderingLogLines $log).Count | Should Be 5
+        @(Get-CriticalLogLines $log).Count | Should Be 0
     }
 
     It 'parses exact launcher and java userdir arguments without substring matches' {
@@ -1171,6 +1190,50 @@ unrelated.module 7.4 Enabled
         { Assert-InstalledModuleFiles $userdir $metadata $catalogPath } |
             Should Not Throw
         { Assert-FinalLogClean $userdir } | Should Not Throw
+    }
+
+    It 'rejects plugin-owned Ordering warnings in current and retained logs' {
+        Mock Read-SharedTextFile {
+            param($Path)
+            return [System.IO.File]::ReadAllText($Path)
+        }
+        $nbm = New-NbmFixture (Join-Path $TestDrive `
+            'auxiliary-ordering\fixture.nbm')
+        $metadata = Get-NbmMetadata $nbm
+        $catalogPath = Join-Path $TestDrive 'auxiliary-ordering\site\updates.xml'
+        Write-Utf8File $catalogPath '<module_updates/>'
+        $userdir = Join-Path $TestDrive 'auxiliary-ordering\userdir'
+        New-InstalledFixture $userdir $metadata $catalogPath
+        $currentLogPath = Join-Path $userdir 'var\log\messages.log'
+        $cleanLog = [System.IO.File]::ReadAllText($currentLogPath)
+        $currentWarning = @'
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance
+'@
+        $retainedWarning = @'
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+'@
+
+        Write-Utf8File $currentLogPath ($cleanLog + "`r`n" + $currentWarning)
+        $currentFailure = ''
+        try {
+            Assert-InstalledModuleFiles $userdir $metadata $catalogPath
+        } catch {
+            $currentFailure = $_.Exception.Message
+        }
+        $currentFailure | Should Match 'messages.log contains plugin-owned Ordering warning'
+        $currentFailure | Should Match 'Found same position 100'
+
+        Write-Utf8File $currentLogPath $cleanLog
+        Write-Utf8File (Join-Path $userdir 'var\log\messages.log.1') $retainedWarning
+        $retainedFailure = ''
+        try {
+            Assert-FinalLogClean $userdir
+        } catch {
+            $retainedFailure = $_.Exception.Message
+        }
+        $retainedFailure | Should Match 'NetBeans logs contain plugin-owned Ordering warning'
+        $retainedFailure | Should Match 'messages.log.1'
+        $retainedFailure | Should Match 'Not all children'
     }
 
     It 'accepts an exact disabled config as Installed while preserving payload bytes' {

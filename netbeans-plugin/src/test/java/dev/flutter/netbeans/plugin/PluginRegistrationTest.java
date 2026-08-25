@@ -156,6 +156,34 @@ class PluginRegistrationTest {
         assertTrue(preferences.contains("<![CDATA[2]]>"));
     }
 
+    @Test
+    void mimeRegistrationsDoNotCreatePartialOrDuplicateOrderingRules()
+            throws IOException {
+        String layer = readResource("META-INF/generated-layer.xml");
+        for (String registration : new String[]{
+            "dev-flutter-netbeans-plugin-dart-DartEditorKit.instance",
+            "dev-flutter-netbeans-plugin-dart-DartIndentTask$Factory.instance",
+            "dev-flutter-netbeans-plugin-dart-DartLanguageServerProvider.instance",
+            "dev-flutter-netbeans-plugin-dart-DartTokenId-language.instance",
+            "dev-flutter-netbeans-plugin-dart-DartTypingHooks$BreakFactory.instance",
+            "dev-flutter-netbeans-plugin-dart-DartTypingHooks$TextFactory.instance",
+            "dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance"
+        }) {
+            assertFalse(
+                    fileRegistration(layer, registration).contains("name=\"position\""),
+                    () -> registration + " must remain unpositioned alongside other MIME services");
+        }
+    }
+
+    private static String fileRegistration(String layer, String fileName) {
+        String marker = "<file name=\"" + fileName + "\">";
+        int start = layer.indexOf(marker);
+        assertTrue(start >= 0, "missing generated registration: " + fileName);
+        int end = layer.indexOf("</file>", start);
+        assertTrue(end >= 0, "unterminated generated registration: " + fileName);
+        return layer.substring(start, end);
+    }
+
     private static String readResource(String name) throws IOException {
         try (InputStream input = PluginRegistrationTest.class.getClassLoader().getResourceAsStream(name)) {
             assertNotNull(input, "missing generated registration: " + name);

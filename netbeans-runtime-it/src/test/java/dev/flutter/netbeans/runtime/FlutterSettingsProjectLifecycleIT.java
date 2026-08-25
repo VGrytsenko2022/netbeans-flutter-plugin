@@ -9,11 +9,16 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import java.util.regex.Pattern;
 import junit.framework.TestFailure;
@@ -22,16 +27,20 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
+import org.netbeans.api.project.ProjectUtils;
 import org.netbeans.api.project.ui.OpenProjects;
 import org.netbeans.junit.NbModuleSuite;
 import org.netbeans.junit.NbTestCase;
 import org.netbeans.spi.project.ActionProvider;
+import org.netbeans.spi.project.AuxiliaryConfiguration;
+import org.netbeans.spi.project.AuxiliaryProperties;
 import org.netbeans.spi.project.ProjectConfigurationProvider;
 import org.netbeans.spi.project.ui.LogicalViewProvider;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.modules.ModuleInfo;
 import org.openide.util.Lookup;
+import org.w3c.dom.Element;
 
 /** Mandatory production settings and project-lifecycle gate in an assembled NetBeans runtime. */
 final class FlutterSettingsProjectLifecycleIT {
@@ -95,6 +104,20 @@ final class FlutterSettingsProjectLifecycleIT {
                 "dev.flutter.netbeans.plugin.settings.FlutterToolchainService";
         private static final String LIFECYCLE_CLASS =
                 "dev.flutter.netbeans.plugin.project.DartAnalysisLifecycle";
+        private static final String ORDERING_LOGGER = "org.openide.filesystems.Ordering";
+        private static final String NON_BOOLEAN_ORDERING_WARNING =
+                "Encountered non-boolean relative ordering attribute {0} from {1} on {2}";
+        private static final String OPEN_FILES_ELEMENT = "open-files";
+        private static final String OPEN_FILES_NAMESPACE =
+                "http://www.netbeans.org/ns/projectui-open-files/2";
+        private static final String PREFERENCES_ELEMENT = "preferences";
+        private static final String PREFERENCES_NAMESPACE =
+                "http://www.netbeans.org/ns/auxiliary-configuration-preferences/1";
+        private static final String EDITOR_BOOKMARKS_ELEMENT = "editor-bookmarks";
+        private static final String EDITOR_BOOKMARKS_NAMESPACE =
+                "http://www.netbeans.org/ns/editor-bookmarks/2";
+        private static final String AUXILIARY_ATTRIBUTE_PREFIX =
+                AuxiliaryConfiguration.class.getName() + ".";
         private static final String EXPECTED_PREFERENCES_NODE =
                 "/dev/flutter/netbeans/netbeans/plugin";
         private static final String KEY_FLUTTER_HOME = "flutter.sdk.home";
@@ -130,7 +153,10 @@ final class FlutterSettingsProjectLifecycleIT {
                 saveAndAssertSettings(moduleLoader, fakeSdk);
                 assertToolchainResolution(moduleLoader, fakeSdk);
 
-                project = recognizeFlutterProject(createFlutterProject());
+                Path projectPath = createFlutterProject();
+                LegacyAuxiliaryMetadata legacyMetadata =
+                        installLegacyPrivateAuxiliaryConfiguration(projectPath);
+                project = recognizeFlutterProject(projectPath);
                 assertProjectLookup(moduleLoader);
                 lifecycle = project.getLookup().lookup(Class.forName(
                         LIFECYCLE_CLASS, true, moduleLoader));
@@ -138,9 +164,8 @@ final class FlutterSettingsProjectLifecycleIT {
                 assertFalse("A newly recognized closed project has an open Dart lifecycle",
                         lifecycleIsOpen());
 
-                openProject();
-                await("Dart analysis lifecycle to open with the Flutter project",
-                        this::lifecycleIsOpen);
+                openProjectAndAssertNoPluginOwnedOrderingWarnings(
+                        legacyMetadata);
 
                 closeProject();
                 await("Dart analysis lifecycle to close with the Flutter project",
@@ -267,7 +292,8 @@ final class FlutterSettingsProjectLifecycleIT {
         }
 
         private Path createFlutterProject() throws Exception {
-            Path root = getWorkDir().toPath().resolve("flutter-settings-lifecycle");
+            Path root = Files.createTempDirectory(
+                    getWorkDir().toPath(), "flutter-settings-lifecycle-");
             Path lib = Files.createDirectories(root.resolve("lib"));
             Files.writeString(root.resolve("pubspec.yaml"), """
                     name: flutter_settings_lifecycle
@@ -293,6 +319,148 @@ final class FlutterSettingsProjectLifecycleIT {
                     "dev.flutter.netbeans.plugin.project.FlutterProject",
                     recognized.getClass().getName());
             return recognized;
+        }
+
+        private LegacyAuxiliaryMetadata installLegacyPrivateAuxiliaryConfiguration(
+                Path projectPath) throws Exception {
+            FileUtil.refreshFor(projectPath.toFile());
+            FileObject directory = FileUtil.toFileObject(projectPath.toFile());
+            assertNotNull("The Flutter project directory is absent from the NetBeans filesystem",
+                    directory);
+
+            String mainDartUri = projectPath.resolve("lib/main.dart").toUri().toString();
+            List<LegacyAuxiliaryFragment> fragments = List.of(
+                    new LegacyAuxiliaryFragment(
+                            OPEN_FILES_ELEMENT,
+                            OPEN_FILES_NAMESPACE,
+                            """
+                            <open-files xmlns="%s">
+                              <group>
+                                <file>%s</file>
+                              </group>
+                            </open-files>
+                            """.formatted(OPEN_FILES_NAMESPACE, mainDartUri).strip()),
+                    new LegacyAuxiliaryFragment(
+                            PREFERENCES_ELEMENT,
+                            PREFERENCES_NAMESPACE,
+                            """
+                            <preferences xmlns="%s">
+                              <module name="dev-flutter-netbeans-netbeans-plugin">
+                                <property name="selectedDeviceId" value="windows"/>
+                                <property name="selectedTargetKind" value="DESKTOP"/>
+                                <property name="selectedTargetPreferencesMigrated" value="true"/>
+                                <property name="selectedDeviceName" value="Windows"/>
+                              </module>
+                            </preferences>
+                            """.formatted(PREFERENCES_NAMESPACE).strip()),
+                    new LegacyAuxiliaryFragment(
+                            EDITOR_BOOKMARKS_ELEMENT,
+                            EDITOR_BOOKMARKS_NAMESPACE,
+                            """
+                            <editor-bookmarks xmlns="%s" lastBookmarkId="0"/>
+                            """.formatted(EDITOR_BOOKMARKS_NAMESPACE).strip()));
+
+            for (LegacyAuxiliaryFragment fragment : fragments) {
+                String attribute = auxiliaryAttribute(fragment);
+                directory.setAttribute(attribute, fragment.xml());
+                assertEquals("Could not install legacy private AuxiliaryConfiguration attribute",
+                        fragment.xml(), directory.getAttribute(attribute));
+            }
+            return new LegacyAuxiliaryMetadata(mainDartUri, fragments);
+        }
+
+        private void assertLegacyPrivateAuxiliaryConfigurationMigrated(
+                LegacyAuxiliaryMetadata legacyMetadata) {
+            AuxiliaryConfiguration lookupConfiguration =
+                    project.getLookup().lookup(AuxiliaryConfiguration.class);
+            assertNotNull("Flutter project lookup has no AuxiliaryConfiguration",
+                    lookupConfiguration);
+            assertNotNull("Flutter project lookup has no AuxiliaryProperties",
+                    project.getLookup().lookup(AuxiliaryProperties.class));
+
+            AuxiliaryConfiguration configuration =
+                    ProjectUtils.getAuxiliaryConfiguration(project);
+            Map<String, Element> migrated = new LinkedHashMap<>();
+            for (LegacyAuxiliaryFragment fragment : legacyMetadata.fragments()) {
+                assertNull("Legacy private AuxiliaryConfiguration attribute was not removed: "
+                                + auxiliaryAttribute(fragment),
+                        project.getProjectDirectory().getAttribute(auxiliaryAttribute(fragment)));
+                Element element = configuration.getConfigurationFragment(
+                        fragment.elementName(), fragment.namespace(), false);
+                assertNotNull("Migrated AuxiliaryConfiguration fragment is unavailable: "
+                        + fragment.namespace() + "#" + fragment.elementName(), element);
+                migrated.put(fragment.elementName(), element);
+            }
+
+            Element openFiles = migrated.get(OPEN_FILES_ELEMENT);
+            Element file = (Element) openFiles
+                    .getElementsByTagNameNS(OPEN_FILES_NAMESPACE, "file")
+                    .item(0);
+            assertNotNull("Migrated open-files metadata lost its file entry", file);
+            assertEquals("Migrated open-files metadata changed the Dart file URI",
+                    legacyMetadata.mainDartUri(), file.getTextContent());
+
+            Element preferencesElement = migrated.get(PREFERENCES_ELEMENT);
+            Element selectedDevice = findProperty(preferencesElement, "selectedDeviceId");
+            assertNotNull("Migrated preferences lost selectedDeviceId", selectedDevice);
+            assertEquals("Migrated preferences changed selectedDeviceId",
+                    "windows", selectedDevice.getAttribute("value"));
+
+            Element bookmarks = migrated.get(EDITOR_BOOKMARKS_ELEMENT);
+            assertEquals("Migrated editor bookmarks changed lastBookmarkId",
+                    "0", bookmarks.getAttribute("lastBookmarkId"));
+        }
+
+        private void openProjectAndAssertNoPluginOwnedOrderingWarnings(
+                LegacyAuxiliaryMetadata legacyMetadata) throws Exception {
+            Logger orderingLogger = Logger.getLogger(ORDERING_LOGGER);
+            Level previousLevel = orderingLogger.getLevel();
+            OrderingWarningHandler handler = new OrderingWarningHandler();
+            handler.setLevel(Level.ALL);
+            orderingLogger.addHandler(handler);
+            orderingLogger.setLevel(Level.ALL);
+            try {
+                openProject();
+                await("Dart analysis lifecycle to open with the Flutter project",
+                        this::lifecycleIsOpen);
+                assertLegacyPrivateAuxiliaryConfigurationMigrated(legacyMetadata);
+
+                LogicalViewProvider logicalView =
+                        project.getLookup().lookup(LogicalViewProvider.class);
+                assertNotNull("Flutter project lookup has no LogicalViewProvider", logicalView);
+                var root = logicalView.createLogicalView();
+                assertNotNull("Flutter logical view did not create a root node", root);
+                assertTrue("Flutter logical view did not enumerate project children",
+                        root.getChildren().getNodes(true).length > 0);
+            } finally {
+                orderingLogger.removeHandler(handler);
+                orderingLogger.setLevel(previousLevel);
+            }
+
+            assertTrue("Project opening, metadata migration, MIME registrations, or "
+                            + "logical-view enumeration emitted a plugin-owned Ordering "
+                            + "warning: "
+                            + handler.warningParameters(),
+                    handler.isEmpty());
+        }
+
+        private static Element findProperty(Element preferencesElement, String name) {
+            var properties = preferencesElement.getElementsByTagNameNS(
+                    PREFERENCES_NAMESPACE, "property");
+            for (int index = 0; index < properties.getLength(); index++) {
+                Element property = (Element) properties.item(index);
+                if (name.equals(property.getAttribute("name"))) {
+                    return property;
+                }
+            }
+            return null;
+        }
+
+        private static String auxiliaryAttribute(LegacyAuxiliaryFragment fragment) {
+            return AUXILIARY_ATTRIBUTE_PREFIX
+                    + fragment.namespace()
+                    + "#"
+                    + fragment.elementName();
         }
 
         private void assertProjectLookup(ClassLoader moduleLoader) throws Exception {
@@ -393,6 +561,58 @@ final class FlutterSettingsProjectLifecycleIT {
                 Path flutterExecutable,
                 Path dartHome,
                 Path dartExecutable) {
+        }
+
+        private record LegacyAuxiliaryMetadata(
+                String mainDartUri,
+                List<LegacyAuxiliaryFragment> fragments) {
+        }
+
+        private record LegacyAuxiliaryFragment(
+                String elementName,
+                String namespace,
+                String xml) {
+        }
+
+        private static final class OrderingWarningHandler extends Handler {
+            private final List<LogRecord> warnings = new CopyOnWriteArrayList<>();
+
+            @Override
+            public void publish(LogRecord record) {
+                if (record != null
+                        && ORDERING_LOGGER.equals(record.getLoggerName())
+                        && record.getLevel().intValue() >= Level.WARNING.intValue()
+                        && (NON_BOOLEAN_ORDERING_WARNING.equals(record.getMessage())
+                        || containsPluginRegistration(record))) {
+                    warnings.add(record);
+                }
+            }
+
+            private static boolean containsPluginRegistration(LogRecord record) {
+                String parameters = java.util.Arrays.deepToString(record.getParameters());
+                return String.valueOf(record.getMessage())
+                        .contains("dev-flutter-netbeans-plugin")
+                        || parameters.contains("dev-flutter-netbeans-plugin");
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+
+            boolean isEmpty() {
+                return warnings.isEmpty();
+            }
+
+            List<String> warningParameters() {
+                return warnings.stream()
+                        .map(record -> String.valueOf(record.getMessage()) + " "
+                                + java.util.Arrays.toString(record.getParameters()))
+                        .toList();
+            }
         }
     }
 }

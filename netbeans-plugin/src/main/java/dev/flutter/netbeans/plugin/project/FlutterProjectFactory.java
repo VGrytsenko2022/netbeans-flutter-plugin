@@ -65,7 +65,8 @@ public final class FlutterProjectFactory implements ProjectFactory2 {
         if (!(project instanceof FlutterProject)) {
             throw new ClassCastException("Not a Flutter project: " + project);
         }
-        // Flutter projects store their model in pubspec.yaml; the plugin owns no project metadata file.
+        // The Flutter model remains in pubspec.yaml. FlutterProjectMetadata persists
+        // private IDE state through a project-root filesystem attribute.
     }
 
     private Optional<FlutterProjectInfo> detect(FileObject projectDirectory) {

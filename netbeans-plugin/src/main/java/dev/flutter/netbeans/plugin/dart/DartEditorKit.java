@@ -7,8 +7,7 @@ import org.netbeans.modules.editor.NbEditorKit;
 /** NetBeans editor kit for Dart source files. */
 @MimeRegistration(
         mimeType = DartTokenId.MIME_TYPE,
-        service = EditorKit.class,
-        position = 100)
+        service = EditorKit.class)
 public final class DartEditorKit extends NbEditorKit {
     public DartEditorKit() {
     }

@@ -19,6 +19,20 @@ $ModuleConfigName = 'dev-flutter-netbeans-netbeans-plugin.xml'
 $FlutterPreferencesRelativePath = 'config\Preferences\dev\flutter\netbeans\netbeans\plugin.properties'
 $ProjectUiPreferencesRelativePath = 'config\Preferences\org\netbeans\modules\projectui.properties'
 $CriticalLogPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
+$AuxiliaryConfigurationOrderingLogPattern = (
+    '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
+    'Encountered non-boolean relative ordering attribute\b.*\sfrom\s+' +
+    'org\.netbeans\.spi\.project\.AuxiliaryConfiguration\.' +
+    'http://www\.netbeans\.org/ns/' +
+    '(?:projectui-open-files/2#open-files|' +
+    'auxiliary-configuration-preferences/1#preferences|' +
+    'editor-bookmarks/2#editor-bookmarks)\s+on\s+'
+)
+$PluginLayerOrderingLogPattern = (
+    '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
+    '(?:Found same position\b|Not all children\b)' +
+    '[^\r\n]*dev-flutter-netbeans-plugin-'
+)
 $HarmlessCliStderrPatterns = @(
     '^\s*WARNING: package com\.sun\.tools\.classfile not in jdk\.jdeps\s*$',
     '^\s*WARNING: package com\.apple\.laf not in java\.desktop\s*$',
@@ -1476,6 +1490,14 @@ function Get-CriticalLogLines {
     return @($LogText -split "`r?`n" | Where-Object { $_ -match $CriticalLogPattern })
 }
 
+function Get-PluginOwnedOrderingLogLines {
+    param([string]$LogText)
+    return @($LogText -split "`r?`n" | Where-Object {
+            $_ -match $AuxiliaryConfigurationOrderingLogPattern -or
+            $_ -match $PluginLayerOrderingLogPattern
+        })
+}
+
 function Test-NetBeans30ProductLog {
     param([string]$LogText)
 
@@ -1696,6 +1718,11 @@ function Assert-InstalledModuleFiles {
     if ($criticalLines.Count -gt 0) {
         throw "messages.log contains critical pattern(s): $((@($criticalLines | Select-Object -First 5)) -join ' | ')"
     }
+    $pluginOrderingLines = @(Get-PluginOwnedOrderingLogLines $log)
+    if ($pluginOrderingLines.Count -gt 0) {
+        throw ("messages.log contains plugin-owned Ordering warning(s): " +
+            ((@($pluginOrderingLines | Select-Object -First 5)) -join ' | '))
+    }
 
     $scope = if ($RequireActivation) {
         "installed $ExpectedState payload hashes, tracking, JAR metadata, and activation log"
@@ -1745,17 +1772,27 @@ function Assert-FinalLogClean {
         throw "NetBeans messages.log is missing after shutdown: $logDirectory"
     }
     $criticalEvidence = [System.Collections.Generic.List[string]]::new()
+    $pluginOrderingEvidence = [System.Collections.Generic.List[string]]::new()
     foreach ($logPath in $logPaths) {
-        foreach ($line in @(Get-CriticalLogLines (
-                    Read-SharedTextFile $logPath.FullName))) {
+        $logText = Read-SharedTextFile $logPath.FullName
+        foreach ($line in @(Get-CriticalLogLines $logText)) {
             $criticalEvidence.Add("$($logPath.Name): $line")
+        }
+        foreach ($line in @(Get-PluginOwnedOrderingLogLines $logText)) {
+            $pluginOrderingEvidence.Add("$($logPath.Name): $line")
         }
     }
     if ($criticalEvidence.Count -gt 0) {
         throw ("NetBeans logs contain critical pattern(s) after shutdown: " +
             ((@($criticalEvidence | Select-Object -First 5)) -join ' | '))
     }
-    Write-Pass 'All NetBeans messages.log sessions remain free of configured critical error patterns after shutdown.'
+    if ($pluginOrderingEvidence.Count -gt 0) {
+        throw ("NetBeans logs contain plugin-owned Ordering warning(s) " +
+            "after shutdown: " +
+            ((@($pluginOrderingEvidence | Select-Object -First 5)) -join ' | '))
+    }
+    Write-Pass ('All NetBeans messages.log sessions remain free of configured ' +
+        'critical error patterns and plugin-owned Ordering warnings after shutdown.')
 }
 
 function Invoke-InstallOrUpdate {

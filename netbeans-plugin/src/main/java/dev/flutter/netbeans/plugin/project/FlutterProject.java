@@ -20,11 +20,51 @@ public final class FlutterProject implements Project {
             FileObject projectDirectory,
             ProjectState state,
             FlutterProjectInfo projectInfo) {
+        this(
+                projectDirectory,
+                state,
+                projectInfo,
+                new FlutterProjectMetadata(projectDirectory));
+    }
+
+    FlutterProject(
+            FileObject projectDirectory,
+            ProjectState state,
+            FlutterProjectInfo projectInfo,
+            FlutterProjectMetadata metadata) {
+        this(projectDirectory, state, projectInfo, metadata, null);
+    }
+
+    FlutterProject(
+            FileObject projectDirectory,
+            ProjectState state,
+            FlutterProjectInfo projectInfo,
+            FlutterProjectMetadata metadata,
+            FlutterProjectMoveOperation.PrivateStateWriter moveStateWriter) {
+        this(
+                projectDirectory,
+                state,
+                projectInfo,
+                metadata,
+                moveStateWriter,
+                null);
+    }
+
+    FlutterProject(
+            FileObject projectDirectory,
+            ProjectState state,
+            FlutterProjectInfo projectInfo,
+            FlutterProjectMetadata metadata,
+            FlutterProjectMoveOperation.PrivateStateWriter moveStateWriter,
+            FlutterProjectMoveOperation.PrivatePreferencesFlusher movePreferencesFlusher) {
         this.projectDirectory = projectDirectory;
         this.state = state;
         this.projectInfo = projectInfo;
 
-        FlutterProjectInformation information = new FlutterProjectInformation(this, projectInfo);
+        FlutterProjectInformation information = new FlutterProjectInformation(
+                this,
+                projectInfo,
+                metadata);
         FlutterProjectSources sources = new FlutterProjectSources(this);
         FlutterRecommendedTemplates recommendedTemplates = new FlutterRecommendedTemplates();
         FlutterRunController runController = new FlutterRunController(this, projectInfo);
@@ -38,12 +78,32 @@ public final class FlutterProject implements Project {
                 projectInfo.name(),
                 new NetBeansDartAnalysisStatusReporter());
         FlutterLogicalViewProvider logicalView = new FlutterLogicalViewProvider(this, information);
+        FlutterProjectMoveOperation moveOperation = moveStateWriter == null
+                && movePreferencesFlusher == null
+                ? new FlutterProjectMoveOperation(this, information)
+                : new FlutterProjectMoveOperation(
+                        this,
+                        information,
+                        moveStateWriter == null
+                                ? (destination, attribute, value) -> destination.setAttribute(
+                                        FlutterProjectMetadata.TRANSIENT_ATTRIBUTE_PREFIX
+                                                + attribute,
+                                        value)
+                                : moveStateWriter,
+                        movePreferencesFlusher == null
+                                ? ignored -> {
+                                }
+                                : movePreferencesFlusher);
         FlutterProjectActionProvider actions = new FlutterProjectActionProvider(
                 this,
                 runController,
                 toolingController,
-                configurations);
+                configurations,
+                moveOperation);
         FlutterProjectLifecycle lifecycle = new FlutterProjectLifecycle(
+                this,
+                metadata,
+                moveOperation,
                 configurations,
                 runController,
                 toolingController,
@@ -54,7 +114,9 @@ public final class FlutterProject implements Project {
                 information,
                 sources,
                 recommendedTemplates,
+                metadata,
                 logicalView,
+                moveOperation,
                 actions,
                 configurations,
                 runController,

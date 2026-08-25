@@ -10,8 +10,7 @@ import org.netbeans.spi.lsp.ErrorProvider;
 /** Publishes pubspec semantic problems through NetBeans' standard diagnostics API. */
 @MimeRegistration(
         mimeType = "text/x-yaml",
-        service = ErrorProvider.class,
-        position = 200)
+        service = ErrorProvider.class)
 public final class PubspecErrorProvider implements ErrorProvider {
     private final PubspecValidator validator = new PubspecValidator();
 

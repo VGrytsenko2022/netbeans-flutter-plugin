@@ -44,8 +44,7 @@ public final class DartIndentTask implements IndentTask {
 
     @MimeRegistration(
             mimeType = DartTokenId.MIME_TYPE,
-            service = IndentTask.Factory.class,
-            position = 200)
+            service = IndentTask.Factory.class)
     public static final class Factory implements IndentTask.Factory {
         @Override
         public IndentTask createTask(Context context) {

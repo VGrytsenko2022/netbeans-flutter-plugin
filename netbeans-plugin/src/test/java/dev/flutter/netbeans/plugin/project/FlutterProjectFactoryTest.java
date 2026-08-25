@@ -16,9 +16,12 @@ import org.junit.jupiter.api.io.TempDir;
 import org.netbeans.api.project.ProjectInformation;
 import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.Sources;
-import org.netbeans.spi.project.ProjectState;
 import org.netbeans.spi.project.ActionProvider;
+import org.netbeans.spi.project.AuxiliaryConfiguration;
+import org.netbeans.spi.project.AuxiliaryProperties;
+import org.netbeans.spi.project.MoveOrRenameOperationImplementation;
 import org.netbeans.spi.project.ProjectConfigurationProvider;
+import org.netbeans.spi.project.ProjectState;
 import org.netbeans.spi.project.ui.LogicalViewProvider;
 import org.netbeans.spi.project.ui.RecommendedTemplates;
 import org.openide.filesystems.FileObject;
@@ -64,6 +67,9 @@ class FlutterProjectFactoryTest {
         assertNotNull(toolingController);
         assertNotNull(project.getLookup().lookup(DartAnalysisLifecycle.class));
         assertNotNull(project.getLookup().lookup(ProjectConfigurationProvider.class));
+        assertNotNull(project.getLookup().lookup(AuxiliaryConfiguration.class));
+        assertNotNull(project.getLookup().lookup(AuxiliaryProperties.class));
+        assertNotNull(project.getLookup().lookup(MoveOrRenameOperationImplementation.class));
         assertArrayEquals(
                 new String[]{FlutterRecommendedTemplates.DART_TEMPLATE_CATEGORY},
                 project.getLookup().lookup(RecommendedTemplates.class).getRecommendedTypes());

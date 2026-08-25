@@ -15,6 +15,21 @@ $ErrorActionPreference = 'Stop'
 $ExpectedModuleCodeName = 'dev.flutter.netbeans.netbeans.plugin'
 $ExpectedModuleName = 'Flutter and Dart Support'
 $ExpectedModuleCategory = 'Flutter'
+$CriticalLogPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
+$AuxiliaryConfigurationOrderingLogPattern = (
+    '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
+    'Encountered non-boolean relative ordering attribute\b.*\sfrom\s+' +
+    'org\.netbeans\.spi\.project\.AuxiliaryConfiguration\.' +
+    'http://www\.netbeans\.org/ns/' +
+    '(?:projectui-open-files/2#open-files|' +
+    'auxiliary-configuration-preferences/1#preferences|' +
+    'editor-bookmarks/2#editor-bookmarks)\s+on\s+'
+)
+$PluginLayerOrderingLogPattern = (
+    '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
+    '(?:Found same position\b|Not all children\b)' +
+    '[^\r\n]*dev-flutter-netbeans-plugin-'
+)
 $OptionalSdkTestClasses = @(
     'dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest',
     'dev.flutter.netbeans.project.FlutterProjectCreatorRealSdkTest',
@@ -37,6 +52,14 @@ function Add-Failure {
     param([string]$Message)
     $Failures.Add($Message)
     Write-Output "[FAIL] $Message"
+}
+
+function Get-PluginOwnedOrderingLogLines {
+    param([string]$LogText)
+    return @($LogText -split "`r?`n" | Where-Object {
+            $_ -match $AuxiliaryConfigurationOrderingLogPattern -or
+            $_ -match $PluginLayerOrderingLogPattern
+        })
 }
 
 function Assert-Equal {
@@ -689,13 +712,28 @@ function Verify-InstalledUserdir {
     } else {
         Write-Pass 'messages.log identifies a NetBeans 30 product/build.'
     }
-    $criticalPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
-    $criticalLines = @($log -split "`r?`n" | Where-Object { $_ -match $criticalPattern })
+    $criticalLines = @($log -split "`r?`n" | Where-Object { $_ -match $CriticalLogPattern })
     if ($criticalLines.Count -gt 0) {
         Add-Failure ("messages.log contains critical pattern(s): " +
             (($criticalLines | Select-Object -First 5) -join ' | '))
     } else {
         Write-Pass 'messages.log contains no configured critical error patterns.'
+    }
+    $pluginOrderingEvidence = [System.Collections.Generic.List[string]]::new()
+    $logDirectory = Split-Path -Parent $logPath
+    $orderingLogPaths = @(Get-ChildItem -LiteralPath $logDirectory `
+            -Filter 'messages.log*' -File -ErrorAction SilentlyContinue)
+    foreach ($orderingLogPath in $orderingLogPaths) {
+        $orderingLog = [System.IO.File]::ReadAllText($orderingLogPath.FullName)
+        foreach ($line in @(Get-PluginOwnedOrderingLogLines $orderingLog)) {
+            $pluginOrderingEvidence.Add("$($orderingLogPath.Name): $line")
+        }
+    }
+    if ($pluginOrderingEvidence.Count -gt 0) {
+        Add-Failure ("NetBeans logs contain plugin-owned Ordering warning(s): " +
+            (($pluginOrderingEvidence | Select-Object -First 5) -join ' | '))
+    } else {
+        Write-Pass 'NetBeans logs contain no plugin-owned Ordering warnings.'
     }
 
     $escapedCodeName = [Regex]::Escape($ExpectedModuleCodeName)

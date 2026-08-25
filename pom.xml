@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.flutter.netbeans</groupId>
   <artifactId>netbeans-flutter-parent</artifactId>
-  <version>0.1.2-SNAPSHOT</version>
+  <version>0.1.2</version>
   <packaging>pom</packaging>
   <name>NetBeans Flutter Plugin</name>
   <description>First-class Dart and Flutter development support for Apache NetBeans 30.</description>

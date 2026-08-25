@@ -45,6 +45,10 @@ function New-ReleaseFixture {
         [switch]$OptionalSdkSkip,
         [switch]$InstalledUserdir,
         [switch]$CriticalLog,
+        [switch]$AuxiliaryOrderingLog,
+        [switch]$PluginLayerOrderingLog,
+        [switch]$RotatedPluginLayerOrderingLog,
+        [switch]$UnrelatedOrderingLog,
         [switch]$CatalogUpdaterOrigin,
         [switch]$OrphanUpdaterOrigin
     )
@@ -204,11 +208,43 @@ OpenIDE-Module-Implementation-Version: 0.1.2
 "@
         }
         $critical = if ($CriticalLog) { "`nSEVERE synthetic release smoke failure" } else { '' }
+        $auxiliaryOrdering = if ($AuxiliaryOrderingLog) {
+            $orderingWarnings = @'
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2"><group/></open-files> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/projectui-open-files/2#open-files on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <preferences xmlns="http://www.netbeans.org/ns/auxiliary-configuration-preferences/1"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/auxiliary-configuration-preferences/1#preferences on C:/fixture/flutter_app
+WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/editor-bookmarks/2#editor-bookmarks on C:/fixture/flutter_app
+'@
+            "`n$orderingWarnings"
+        } else {
+            ''
+        }
+        $pluginLayerOrdering = if ($PluginLayerOrderingLog) {
+            "`nWARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance"
+        } else {
+            ''
+        }
+        $unrelatedOrdering = if ($UnrelatedOrderingLog) {
+            $unrelatedWarnings = @'
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both org-example-One.instance and org-example-Two.instance
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-dart/ marked with the position attribute: [org-example-One.instance]
+WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute dev-flutter-netbeans-plugin-dart-DartTokenId.instance/org-example-One.instance
+INFO [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and org-example-One.instance
+WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [dev-flutter-netbeans-plugin-dart-DartTokenId.instance]
+'@
+            "`n$unrelatedWarnings"
+        } else {
+            ''
+        }
         Write-Utf8File (Join-Path $userdir 'var\log\messages.log') @"
   Product Version         = Apache NetBeans IDE 30
 INFO [org.netbeans.core.startup.NbEvents]: Turning on modules:
-    dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2 202608250001]$critical
+    dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2 202608250001]$critical$auxiliaryOrdering$pluginLayerOrdering$unrelatedOrdering
 "@
+        if ($RotatedPluginLayerOrderingLog) {
+            Write-Utf8File (Join-Path $userdir 'var\log\messages.log.1') @'
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+'@
+        }
     }
 
     return [pscustomobject]@{
@@ -278,6 +314,49 @@ Describe 'verify-release.ps1' {
         $result.ExitCode | Should Be 1
         $result.Text | Should Match 'messages.log contains critical pattern'
         $result.Text | Should Match 'SEVERE synthetic release smoke failure'
+    }
+
+    It 'rejects AuxiliaryConfiguration ordering warnings from an installed userdir log' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'auxiliary-ordering-log') `
+            -InstalledUserdir -AuxiliaryOrderingLog
+
+        $result = Invoke-ReleaseVerifier $fixture -InstalledUserdir
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match 'NetBeans logs contain plugin-owned Ordering warning'
+        $result.Text | Should Match 'projectui-open-files/2#open-files'
+        $result.Text | Should Match 'auxiliary-configuration-preferences/1#preferences'
+        $result.Text | Should Match 'editor-bookmarks/2#editor-bookmarks'
+        $result.Text | Should Match 'Release verification FAILED'
+    }
+
+    It 'rejects plugin layer Ordering warnings from current and retained userdir logs' {
+        $currentFixture = New-ReleaseFixture (Join-Path $TestDrive `
+            'plugin-ordering-current') -InstalledUserdir -PluginLayerOrderingLog
+        $currentResult = Invoke-ReleaseVerifier $currentFixture -InstalledUserdir
+
+        $currentResult.ExitCode | Should Be 1
+        $currentResult.Text | Should Match 'NetBeans logs contain plugin-owned Ordering warning'
+        $currentResult.Text | Should Match 'messages.log:.*Found same position 100'
+
+        $rotatedFixture = New-ReleaseFixture (Join-Path $TestDrive `
+            'plugin-ordering-rotated') -InstalledUserdir -RotatedPluginLayerOrderingLog
+        $rotatedResult = Invoke-ReleaseVerifier $rotatedFixture -InstalledUserdir
+
+        $rotatedResult.ExitCode | Should Be 1
+        $rotatedResult.Text | Should Match 'NetBeans logs contain plugin-owned Ordering warning'
+        $rotatedResult.Text | Should Match 'messages.log.1:.*Not all children'
+    }
+
+    It 'ignores unrelated Ordering warnings and plugin lines outside the two templates' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive `
+            'unrelated-ordering-log') -InstalledUserdir -UnrelatedOrderingLog
+
+        $result = Invoke-ReleaseVerifier $fixture -InstalledUserdir
+
+        $result.ExitCode | Should Be 0
+        $result.Text | Should Match 'NetBeans logs contain no plugin-owned Ordering warnings'
+        $result.Text | Should Match 'Release verification PASSED'
     }
 
     It 'accepts a CLI updater origin backed by an exact local catalog' {

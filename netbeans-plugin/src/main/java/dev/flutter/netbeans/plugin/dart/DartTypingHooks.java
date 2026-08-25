@@ -109,8 +109,7 @@ public final class DartTypingHooks {
 
     @MimeRegistration(
             mimeType = DartTokenId.MIME_TYPE,
-            service = TypedBreakInterceptor.Factory.class,
-            position = 200)
+            service = TypedBreakInterceptor.Factory.class)
     public static final class BreakFactory implements TypedBreakInterceptor.Factory {
         @Override
         public TypedBreakInterceptor createTypedBreakInterceptor(MimePath mimePath) {
@@ -120,8 +119,7 @@ public final class DartTypingHooks {
 
     @MimeRegistration(
             mimeType = DartTokenId.MIME_TYPE,
-            service = TypedTextInterceptor.Factory.class,
-            position = 200)
+            service = TypedTextInterceptor.Factory.class)
     public static final class TextFactory implements TypedTextInterceptor.Factory {
         @Override
         public TypedTextInterceptor createTypedTextInterceptor(MimePath mimePath) {

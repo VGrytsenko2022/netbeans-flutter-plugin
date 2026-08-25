@@ -12,17 +12,22 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Adapts Dart completion responses to NetBeans 30's completion-resolve trigger.
+ * Adapts Dart server messages for NetBeans 30 compatibility.
  *
  * <p>NetBeans 30 resolves a completion item only when its initial
  * {@code textEdit} is absent. Dart supplies that edit before resolve but adds
  * auto-import edits during resolve, so this stream temporarily hides the
  * initial edit in correlated auto-import items. The paired output stream
- * restores it before Dart receives {@code completionItem/resolve}.</p>
+ * restores it before Dart receives {@code completionItem/resolve}. Dart also
+ * emits the custom {@code $/analyzerStatus} notification, which the generic
+ * NetBeans 30 LSP client cannot consume; this stream removes only that
+ * notification before it reaches the client.</p>
  */
 final class DartLspCompletionCompatibilityInputStream extends InputStream {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final byte[] HEADER_TERMINATOR = {'\r', '\n', '\r', '\n'};
+    private static final byte[] ANALYZER_STATUS_METHOD =
+            "\"$/analyzerStatus\"".getBytes(StandardCharsets.US_ASCII);
     private static final int MAX_HEADER_BYTES = 32_768;
     private static final int MAX_BODY_BYTES = 64 * 1024 * 1024;
 
@@ -66,26 +71,38 @@ final class DartLspCompletionCompatibilityInputStream extends InputStream {
     }
 
     private boolean loadNextFrame() throws IOException {
-        byte[] headerBytes = readHeader();
-        if (headerBytes == null) {
-            return false;
+        while (true) {
+            byte[] headerBytes = readHeader();
+            if (headerBytes == null) {
+                return false;
+            }
+            Header header = parseHeader(headerBytes);
+            byte[] body = readBody(header.contentLength());
+            byte[] compatibleBody = adaptServerMessage(body);
+            if (compatibleBody == null) {
+                continue;
+            }
+            pending = compatibleBody == body
+                    ? concatenate(headerBytes, body)
+                    : encodeFrame(header.lines(), compatibleBody);
+            pendingOffset = 0;
+            return true;
         }
-        Header header = parseHeader(headerBytes);
-        byte[] body = readBody(header.contentLength());
-        byte[] compatibleBody = adaptCompletionResponse(body);
-        pending = compatibleBody == body
-                ? concatenate(headerBytes, body)
-                : encodeFrame(header.lines(), compatibleBody);
-        pendingOffset = 0;
-        return true;
     }
 
-    private byte[] adaptCompletionResponse(byte[] body) {
-        if (!compatibility.hasPendingRequests()) {
+    private byte[] adaptServerMessage(byte[] body) {
+        boolean completionPending = compatibility.hasPendingRequests();
+        if (!completionPending && !contains(body, ANALYZER_STATUS_METHOD)) {
             return body;
         }
         try {
             JsonNode root = JSON.readTree(body);
+            if (isAnalyzerStatusNotification(root)) {
+                return null;
+            }
+            if (!completionPending) {
+                return body;
+            }
             if (!(root instanceof ObjectNode response)
                     || !response.hasNonNull("id")
                     || response.has("method")
@@ -113,6 +130,12 @@ final class DartLspCompletionCompatibilityInputStream extends InputStream {
             // must not turn a protocol problem into a different failure.
             return body;
         }
+    }
+
+    private static boolean isAnalyzerStatusNotification(JsonNode message) {
+        return message instanceof ObjectNode object
+                && !object.has("id")
+                && "$/analyzerStatus".equals(object.path("method").asText());
     }
 
     private byte[] readHeader() throws IOException {
@@ -225,6 +248,20 @@ final class DartLspCompletionCompatibilityInputStream extends InputStream {
         System.arraycopy(first, 0, result, 0, first.length);
         System.arraycopy(second, 0, result, first.length, second.length);
         return result;
+    }
+
+    private static boolean contains(byte[] source, byte[] expected) {
+        int lastOffset = source.length - expected.length;
+        outer:
+        for (int offset = 0; offset <= lastOffset; offset++) {
+            for (int index = 0; index < expected.length; index++) {
+                if (source[offset + index] != expected[index]) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     private record Header(List<String> lines, int contentLength) {

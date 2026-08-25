@@ -55,7 +55,7 @@ public enum DartTokenId implements TokenId {
         return primaryCategory;
     }
 
-    @MimeRegistration(mimeType = MIME_TYPE, service = Language.class, position = 100)
+    @MimeRegistration(mimeType = MIME_TYPE, service = Language.class)
     public static Language<DartTokenId> language() {
         return LANGUAGE;
     }

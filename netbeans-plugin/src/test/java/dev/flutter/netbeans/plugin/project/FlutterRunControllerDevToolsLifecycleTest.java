@@ -14,6 +14,7 @@ import java.awt.EventQueue;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -93,7 +94,10 @@ class FlutterRunControllerDevToolsLifecycleTest {
         controller.close();
         dependencies.executor.runAll();
         controller.close();
+        assertFalse(controller.awaitQuiescence(Duration.ZERO),
+                "DevTools close request may return before its process exits");
         server.completeExit(0);
+        assertTrue(controller.awaitQuiescence(Duration.ofSeconds(1)));
 
         assertEquals(1, server.closeCalls);
         assertEquals(1, runSession.closeCalls);

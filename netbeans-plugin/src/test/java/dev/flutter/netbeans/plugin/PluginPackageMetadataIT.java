@@ -5,15 +5,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
@@ -21,6 +27,138 @@ import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
 class PluginPackageMetadataIT {
+    private static final String MODULE_JAR =
+            "netbeans/modules/dev-flutter-netbeans-netbeans-plugin.jar";
+    private static final String DESIGNER_LIBRARY =
+            "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
+            + "dev-flutter-netbeans/flutter-designer.jar";
+    private static final String ANALYSIS_LIBRARY =
+            "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
+            + "dev-flutter-netbeans/dart-analysis.jar";
+    private static final String CORE_LIBRARY =
+            "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
+            + "dev-flutter-netbeans/flutter-core-api.jar";
+    private static final Set<String> CORE_RUNTIME_ENTRIES = Set.of(
+            "dev/flutter/netbeans/api/DartCandidateCapacityBudget.class");
+    private static final Set<String> MODULE_RUNTIME_ENTRIES = Set.of(
+            "dev/flutter/netbeans/plugin/designer/DesignerAtomicEditCapture.class",
+            "dev/flutter/netbeans/plugin/designer/DesignerCombinedUndoRedo.class",
+            "dev/flutter/netbeans/plugin/designer/DesignerCommandSessionOrchestrator.class",
+            "dev/flutter/netbeans/plugin/designer/DesignerSemanticUndoableEdit.class",
+            "dev/flutter/netbeans/plugin/designer/DesignerUndoableEditWrapper.class",
+            "dev/flutter/netbeans/plugin/designer/GeneratedDartSymbolProbePlanner.class",
+            "dev/flutter/netbeans/plugin/designer/PairAnalyzedCandidate.class",
+            "dev/flutter/netbeans/plugin/designer/PairAnalyzedCandidateResult.class",
+            "dev/flutter/netbeans/plugin/designer/PairAnalyzedCandidateResult$Ready.class",
+            "dev/flutter/netbeans/plugin/designer/PairAnalyzedCandidateResult$Rejected.class",
+            "dev/flutter/netbeans/plugin/designer/PairCandidateAnalysisTicket.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveCoordinator.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveCoordinator$PairPreparation.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveCoordinatorSnapshot.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveCoordinatorStatus.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidence.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceDiagnostic.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceDiagnostic$Code.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceGate.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceResult.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceResult$Ready.class",
+            "dev/flutter/netbeans/plugin/designer/PairSaveEvidenceResult$Rejected.class",
+            "dev/flutter/netbeans/plugin/designer/guard/GuardedPersistenceRejectionSink.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/package-info.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/NetBeansPairFileTransactionBackend.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileRole.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransaction.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionBackend.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionIssue.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionIssueCode.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionRequest.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionResult.class",
+            "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionStatus.class");
+    private static final String DESIGNER_CODEC_CLASS =
+            "dev/flutter/netbeans/designer/codec/FdDocumentCodec.class";
+    private static final String DESIGNER_SCHEMA =
+            "META-INF/netbeans-flutter-designer/schema/fd-v1.schema.json";
+    private static final Set<String> DESIGNER_PUBLIC_PACKAGES = Set.of(
+            "dev.flutter.netbeans.designer.catalog.*",
+            "dev.flutter.netbeans.designer.model.*");
+    private static final Set<String> DESIGNER_RUNTIME_ENTRIES = Set.of(
+            DESIGNER_CODEC_CLASS,
+            DESIGNER_SCHEMA,
+            "dev/flutter/netbeans/designer/generation/DartRegionGenerator.class",
+            "dev/flutter/netbeans/designer/generation/DartGenerationResult.class",
+            "dev/flutter/netbeans/designer/generation/DartGenerationLimits.class",
+            "dev/flutter/netbeans/designer/generation/DartGenerationDiagnostic.class",
+            "dev/flutter/netbeans/designer/generation/DartGenerationDiagnosticCode.class",
+            "dev/flutter/netbeans/designer/generation/DartManagedRegionId.class",
+            "dev/flutter/netbeans/designer/generation/DartImportPlan.class",
+            "dev/flutter/netbeans/designer/generation/DartImportDirective.class",
+             "dev/flutter/netbeans/designer/generation/GeneratedDartRegions.class",
+             "dev/flutter/netbeans/designer/generation/GeneratedDartRegion.class",
+             "dev/flutter/netbeans/designer/generation/GeneratedDartSymbolOccurrence.class",
+            "dev/flutter/netbeans/designer/command/DesignerCommandSession.class",
+            "dev/flutter/netbeans/designer/command/DesignerCommandRevision.class",
+            "dev/flutter/netbeans/designer/command/DesignerCommandEdit.class",
+            "dev/flutter/netbeans/designer/command/DesignerRevisionPersistenceKind.class",
+            "dev/flutter/netbeans/designer/command/AddWidget.class",
+            "dev/flutter/netbeans/designer/command/RemoveWidget.class",
+            "dev/flutter/netbeans/designer/command/MoveWidget.class",
+            "dev/flutter/netbeans/designer/command/WrapWidget.class",
+            "dev/flutter/netbeans/designer/command/SetProperty.class",
+            "dev/flutter/netbeans/designer/command/ResetProperty.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityScanner.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityResult.class",
+            "dev/flutter/netbeans/designer/source/DartDesignerSuperclassOccurrence.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityStatus.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityLimits.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityDiagnostic.class",
+            "dev/flutter/netbeans/designer/source/DartSourceIntegrityDiagnosticCode.class",
+            "dev/flutter/netbeans/designer/source/DartManagedRegionHashing.class",
+            "dev/flutter/netbeans/designer/source/DartManagedRegionSnapshot.class",
+            "dev/flutter/netbeans/designer/source/OriginalDartBytes.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayIntegrityGate.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayIntegrityResult.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayIntegrityStatus.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayIntegrityDiagnostic.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayIntegrityDiagnosticCode.class",
+            "dev/flutter/netbeans/designer/source/DartThreeWayRegionComparison.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionPlanner.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionPlan.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionResult.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionStatus.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionDiagnostic.class",
+            "dev/flutter/netbeans/designer/transition/DartSourceTransitionDiagnosticCode.class",
+            "dev/flutter/netbeans/designer/pair/DesignerPairPreparationPlanner.class",
+            "dev/flutter/netbeans/designer/pair/DesignerPairPreparationResult.class",
+            "dev/flutter/netbeans/designer/pair/DesignerPairPreparationStatus.class",
+            "dev/flutter/netbeans/designer/pair/DesignerPairPreparationDiagnostic.class",
+            "dev/flutter/netbeans/designer/pair/DesignerPairPreparationDiagnosticCode.class",
+            "dev/flutter/netbeans/designer/pair/PreparedDesignerPair.class",
+            "dev/flutter/netbeans/designer/catalog/WidgetCatalogContributor.class",
+            "dev/flutter/netbeans/designer/catalog/WidgetDefinition.class",
+            "dev/flutter/netbeans/designer/model/WidgetTypeId.class",
+            "dev/flutter/netbeans/designer/model/PropertyName.class",
+            "dev/flutter/netbeans/designer/model/PropertyValue.class",
+            "dev/flutter/netbeans/designer/model/PropertyValueKind.class",
+            "dev/flutter/netbeans/designer/model/SlotName.class",
+            "dev/flutter/netbeans/designer/model/SlotCardinality.class");
+    private static final Set<String> ANALYSIS_RUNTIME_ENTRIES = Set.of(
+            "dev/flutter/netbeans/dart/DartCandidateAnalyzer.class",
+            "dev/flutter/netbeans/dart/DartAnalyzerProtocolSession.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisRequest.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisOperation.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisResult.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisStatus.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisLimits.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisIssue.class",
+            "dev/flutter/netbeans/dart/DartCandidateAnalysisIssueCode.class",
+            "dev/flutter/netbeans/dart/DartCandidateHashes.class",
+            "dev/flutter/netbeans/dart/DartCandidateDiagnostic.class",
+            "dev/flutter/netbeans/dart/DartCandidateDiagnosticSeverity.class",
+            "dev/flutter/netbeans/dart/DartCandidateSnapshot.class",
+            "dev/flutter/netbeans/dart/DartCandidateWarningPolicy.class",
+            "dev/flutter/netbeans/dart/DartNavigationTarget.class",
+            "dev/flutter/netbeans/dart/DartSymbolEvidence.class",
+            "dev/flutter/netbeans/dart/DartSymbolProbe.class");
     private static final String NAME = "Flutter and Dart Support";
     private static final String CATEGORY = "Flutter";
     private static final String SHORT_DESCRIPTION =
@@ -35,6 +173,7 @@ class PluginPackageMetadataIT {
         Path nbm = requiredPath("nbm.file");
         String mavenVersion = requiredProperty("maven.version");
         Document info = readInfo(nbm);
+        Manifest moduleManifest = readModuleManifest(nbm);
         Element module = info.getDocumentElement();
         Element manifest = firstElement(module, "manifest");
         Element license = firstElement(module, "license");
@@ -46,6 +185,12 @@ class PluginPackageMetadataIT {
                 manifest.getAttribute("OpenIDE-Module-Short-Description"));
         assertEquals(LONG_DESCRIPTION,
                 manifest.getAttribute("OpenIDE-Module-Long-Description"));
+        assertEquals(
+                DESIGNER_PUBLIC_PACKAGES,
+                Set.of(moduleManifest.getMainAttributes()
+                        .getValue("OpenIDE-Module-Public-Packages")
+                        .split("\\s*,\\s*")),
+                "the NBM must export only the supported Designer contributor API");
 
         String specificationVersion = mavenVersion.replaceFirst("-SNAPSHOT$", "");
         assertEquals(specificationVersion,
@@ -77,6 +222,73 @@ class PluginPackageMetadataIT {
         }
     }
 
+    @Test
+    void packagesDesignerCodecAndSchemaInTheNbmRuntime() throws Exception {
+        assertNestedJarContains(
+                requiredPath("nbm.file"),
+                DESIGNER_LIBRARY,
+                "Flutter Designer",
+                DESIGNER_RUNTIME_ENTRIES);
+    }
+
+    @Test
+    void packagesCandidateAnalyzerInTheNbmRuntime() throws Exception {
+        assertNestedJarContains(
+                requiredPath("nbm.file"),
+                ANALYSIS_LIBRARY,
+                "Dart analysis",
+                ANALYSIS_RUNTIME_ENTRIES);
+    }
+
+    @Test
+    void packagesSharedCandidateCapacityInTheNbmRuntime() throws Exception {
+        assertNestedJarContains(
+                requiredPath("nbm.file"),
+                CORE_LIBRARY,
+                "Flutter core API",
+                CORE_RUNTIME_ENTRIES);
+    }
+
+    @Test
+    void packagesPairSaveCoordinatorAndPersistenceInTheModuleJar() throws Exception {
+        assertNestedJarContains(
+                requiredPath("nbm.file"),
+                MODULE_JAR,
+                "Flutter NetBeans module",
+                MODULE_RUNTIME_ENTRIES);
+    }
+
+    private static void assertNestedJarContains(
+            Path nbm,
+            String libraryPath,
+            String libraryName,
+            Set<String> requiredEntries) throws Exception {
+        byte[] libraryJar;
+        try (ZipFile zip = new ZipFile(nbm.toFile())) {
+            ZipEntry entry = zip.getEntry(libraryPath);
+            assertNotNull(entry, "NBM is missing the " + libraryName + " runtime library");
+            assertTrue(entry.getSize() > 0, libraryName + " runtime library is empty");
+            assertTrue(entry.getSize() <= 16L * 1024L * 1024L,
+                    libraryName + " runtime library exceeds the packaging safety bound");
+            try (InputStream input = zip.getInputStream(entry)) {
+                libraryJar = input.readAllBytes();
+            }
+        }
+
+        Set<String> missing = new HashSet<>(requiredEntries);
+        try (ZipInputStream nested = new ZipInputStream(
+                new ByteArrayInputStream(libraryJar))) {
+            ZipEntry entry;
+            while ((entry = nested.getNextEntry()) != null) {
+                missing.remove(entry.getName());
+            }
+        }
+
+        assertTrue(missing.isEmpty(),
+                () -> "packaged " + libraryName
+                + " runtime is missing entries: " + missing);
+    }
+
     private static Document readInfo(Path nbm) throws Exception {
         try (ZipFile zip = new ZipFile(nbm.toFile())) {
             ZipEntry entry = zip.getEntry("Info/info.xml");
@@ -93,6 +305,26 @@ class PluginPackageMetadataIT {
                         new InputSource(new StringReader("")));
                 return builder.parse(input);
             }
+        }
+    }
+
+    private static Manifest readModuleManifest(Path nbm) throws Exception {
+        byte[] moduleJar;
+        try (ZipFile zip = new ZipFile(nbm.toFile())) {
+            ZipEntry entry = zip.getEntry(MODULE_JAR);
+            assertNotNull(entry, "NBM is missing its NetBeans module JAR");
+            assertTrue(entry.getSize() > 0, "NetBeans module JAR is empty");
+            assertTrue(entry.getSize() <= 64L * 1024L * 1024L,
+                    "NetBeans module JAR exceeds the packaging safety bound");
+            try (InputStream input = zip.getInputStream(entry)) {
+                moduleJar = input.readAllBytes();
+            }
+        }
+        try (JarInputStream nested = new JarInputStream(
+                new ByteArrayInputStream(moduleJar))) {
+            Manifest manifest = nested.getManifest();
+            assertNotNull(manifest, "NetBeans module JAR is missing META-INF/MANIFEST.MF");
+            return manifest;
         }
     }
 

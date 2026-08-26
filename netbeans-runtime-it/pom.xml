@@ -51,10 +51,21 @@
       <artifactId>netbeans-plugin</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>dev.flutter.netbeans</groupId>
+      <artifactId>designer-catalog-contributor-fixture</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.netbeans.api</groupId>
       <artifactId>org-netbeans-modules-nbjunit</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-netbeans-core-multiview</artifactId>
       <version>${netbeans.version}</version>
       <scope>test</scope>
     </dependency>
@@ -91,6 +102,12 @@
     <dependency>
       <groupId>org.netbeans.api</groupId>
       <artifactId>org-netbeans-modules-editor-mimelookup</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-netbeans-modules-editor-guards</artifactId>
       <version>${netbeans.version}</version>
       <scope>test</scope>
     </dependency>
@@ -137,6 +154,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-openide-windows</artifactId>
+      <version>${netbeans.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
@@ -157,10 +180,15 @@
         <artifactId>maven-failsafe-plugin</artifactId>
         <configuration>
           <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED</argLine>
+          <!-- Each NbModuleSuite owns a module-system lifecycle. In particular,
+               opening the real MultiView schedules LSP work that must not leak
+               into the next suite after its modules have been disabled. -->
+          <reuseForks>false</reuseForks>
           <forkedProcessTimeoutInSeconds>120</forkedProcessTimeoutInSeconds>
           <forkedProcessExitTimeoutInSeconds>30</forkedProcessExitTimeoutInSeconds>
           <classpathDependencyExcludes>
             <classpathDependencyExclude>dev.flutter.netbeans:netbeans-plugin</classpathDependencyExclude>
+            <classpathDependencyExclude>dev.flutter.netbeans:designer-catalog-contributor-fixture</classpathDependencyExclude>
           </classpathDependencyExcludes>
           <classpathDependencyScopeExclude>runtime</classpathDependencyScopeExclude>
           <systemPropertyVariables>

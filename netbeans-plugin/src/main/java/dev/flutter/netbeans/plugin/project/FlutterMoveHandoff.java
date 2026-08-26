@@ -15,10 +15,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -159,6 +161,35 @@ final class FlutterMoveHandoff {
                     true);
         }
         return effective;
+    }
+
+    List<FileObject> existingOwnedFiles() throws IOException {
+        List<FileObject> files = new ArrayList<>();
+        addExisting(files, HANDOFF_PATH);
+        addExisting(files, TARGET_HANDOFF_PATH);
+        addExisting(files, COMMITTED_HANDOFF_PATH);
+
+        requireStorageFolderContained();
+        FileObject folder = projectDirectory.getFileObject(".netbeans");
+        if (folder != null) {
+            requireContained(folder);
+            for (FileObject child : folder.getChildren()) {
+                if (child.isData()
+                        && OWNED_TEMP_NAME.matcher(child.getNameExt()).matches()) {
+                    requireContained(child);
+                    files.add(child);
+                }
+            }
+        }
+        return List.copyOf(files);
+    }
+
+    private void addExisting(List<FileObject> files, String path)
+            throws IOException {
+        FileObject existing = file(path);
+        if (existing != null) {
+            files.add(existing);
+        }
     }
 
     void delete() throws IOException {

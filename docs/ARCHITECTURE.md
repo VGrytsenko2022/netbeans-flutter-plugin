@@ -20,7 +20,7 @@ NetBeans UI
    +--> Editor integration -------> dart-analysis
    +--> Pubspec editor -----------> NetBeans YAML + plugin semantic layer
    |
-   +--> Future Designer ----------> flutter-designer
+   +--> Flutter Designer ---------> flutter-designer
 
 Shared contracts -----------------> flutter-core-api
 ```
@@ -91,6 +91,136 @@ NetBeans 30's bundled YAML language continues to recognize `pubspec.yaml` as `te
 
 ## Designer boundary
 
-The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A same-basename `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired `.dart` file own only generated source. User code outside those regions is preserved. `flutter-designer` owns the NetBeans-independent schema, model, validation, commands, migrations and deterministic region generation; `netbeans-plugin` owns the `.fd` DataObject, `Design`/`Source` integration, Palette, Nodes/Properties, canvas and save/conflict UI. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A same-basename `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired `.dart` file own only generated source. User code outside those regions is preserved. The NetBeans edge follows the Matisse pattern: `.dart` is the technical primary `MultiDataObject` entry, `.fd` is secondary, and one Dart `DataEditorSupport` backs the dedicated `Design`/`Source` MultiView plus guarded-section persistence. Only complete pairs are claimed; ordinary Dart files remain on the normal language path. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation planners and bounded undoable command session, and will own migrations. `netbeans-plugin` owns the read-only paired UI and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge; Palette/Canvas mutation remains disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
-Pixel-accurate preview is a separate boundary. The initial canvas may be a clearly identified semantic projection. Embedded Flutter Engine, a streamed preview surface or another runtime strategy requires its own decision and may not weaken `.fd`/Dart source ownership.
+The paired DataObject also owns one read-only document controller shared by
+all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
+EDT, coalesces reload storms, rejects stale background completions, stops
+loading after the last clone closes, and reloads after external changes to
+either paired file. Every actual load composes built-in and NetBeans Lookup-provided widget
+catalog entries off the EDT and carries isolated contributor diagnostics into
+the accessible current/future/invalid/oversized/I/O Design status. Opening
+Design preserves exact `.fd` and Dart byte baselines and does not modify either
+file, the Dart editor document, guarded sections or the Save lifecycle. For a
+matching filename it also performs a separate bounded strict-UTF-8 scan of the
+on-disk Dart source, verifies exact marker topology, stateless root/scope
+binding and normalized declared hashes, and retains payload byte ranges. The
+same background load now runs the bounded deterministic stateless generator,
+independently rehashes actual and generated payloads, compares both with the
+`.fd` declarations, reconstructs the complete candidate in memory and scans it
+again. The resulting on-disk three-way state is explicitly
+`ON_DISK_THREE_WAY_MATCH`, `CONFLICT`, `UNSUPPORTED` or `UNAVAILABLE`. Even a
+three-way match remains read-only. ADR-015 through ADR-018 now supply the
+revision-bound live snapshot, scanner- and generator-owned analyzer evidence,
+an analyze-before-apply preparation lease, the coordinator, command-side
+pending C1→C2 identity lease, durable command lease and lock-time baseline
+rechecks plus coordinator-owned analyzed replacement of an exact staged C1 by
+C2. ADR-019 additionally supplies one identity-bound candidate-byte/probe
+capacity policy from command generation through analyzer admission, while
+ADR-020 installs the one native chronological Source/model cursor, successful
+Pair-Save re-anchoring and Source-Save durable-anchor overlay. These remain
+non-authorizing prerequisites only; the recovery/runtime release matrix and
+the separately discussed visual mutation surface still gate Designer mutation.
+
+The next non-authorizing layer is now present and connected only through an
+internal command/replacement boundary. `flutter-designer` can plan a prospective
+old-to-new
+managed-source transition from a proven baseline, preserving every
+user-owned byte and publishing updated descriptor hashes only after the full
+candidate re-scans. The NetBeans adapter reconstructs the exact marker-bearing
+UTF-8 content from the marker-masked `StyledDocument` and binds it to document
+identity/version and guard identities. `dart-analysis` validates the complete
+candidate first through a uniquely versioned isolated native overlay without
+writing it to disk. The coordinator derives the real Dart path from its bound
+`FileObject` and the navigation trust root from the configured Flutter SDK.
+Only an exact passing ticket may enter one EDT operation
+which compares the live predecessor, atomically applies both payloads, verifies
+the complete candidate and publishes separately bound live evidence. Rejected,
+cancelled, replayed or stale analysis never changes the editor. Writable
+preparation is currently restricted to strict UTF-8, LF-only, BOM-free Dart
+source.
+
+For a staged C1, the coordinator claims the exact pending command before pure
+C1→C2 transition planning and registers one replacement reservation before any
+disk or live preflight. Only the claim token may adopt, abort or invalidate that
+lease. Passing analysis enters one document-atomic apply and joint pair/cursor
+finalizer; rejection keeps exact C1. Failed apply restores C1 and binds a fresh
+live-evidence identity, while a user edit or external event that makes either
+outcome unprovable preserves the content and closes the staged command in
+conflict. Deferred command-binding effects are published before pair/cookie
+callbacks, after all semantic locks are released.
+
+The same replacement boundary now admits a command from a retained physical
+history variant. The coordinator first captures an opaque staged command-source
+token containing the exact logical authority, physical cursor/proof identities
+and both event epochs; capture itself grants no mutation authority. Reservation
+rejects the token after any native cursor, proof or epoch move. At `(C1,S0)` the
+token exposes the endpoint-specific `PreparedDesignerPair`, whose durable-side
+live template has the durable managed payloads projected into the exact `S0`
+unmanaged envelope. The pending command lease retains that pair identity and
+derives `C3/S0`, while the logical C1 cursor remains authoritative until the
+joint analyzer/document/pair/command adoption. Replacement and recovery consume
+the generalized staged-proof contract, so an immutable `SavedHistoryProof` may
+be the predecessor without pretending that it has fresh analyzer evidence.
+
+These proofs remain separate by design. The installed NetBeans persistence
+edge adds a canonical prepared pair, a mandatory coordinator lease acquired
+before analysis, exact ticket/analyzer/applied-live evidence binding, one
+pair-aware `SaveCookie`, and an ordered two-lock transaction with exact
+baseline checks, verified rollback/reread and owned-event correlation. The
+state/cookie side effects use an ordered drain whose queue monitor is never
+held across NetBeans listeners, `CookieSet`, or `DataObject` callbacks. The
+drain logs and isolates even fatal presentation callback failures after
+restoring publication ownership, so they cannot retroactively change a
+completed document or persistence result. The
+Source and Design MultiView elements expose the same DataObject-owned combined
+Undo/Redo identity while the native NetBeans editor manager retains savepoints,
+grouping and document locking underneath. Internal apply, restore, verification
+and post-commit Undo barriers defer and coalesce only the outward presentation
+event until the document lock is released; an active callback cannot start a
+new Designer document transaction. Undo/Redo actions own their exact delegate;
+binding is rejected and binding close is deferred until that action or internal
+document barrier completes. The
+scanner-owned `StatelessWidget` occurrence and the complete generator-owned
+manifest are mandatory probes. A durable command lease pins one exact dirty
+cursor; `FD_ONLY` commits verify both files while writing only `.fd`, preserve
+the Dart document and Source Undo state, and re-anchor only after a verified
+commit. Abandoning preparation before apply remains clean; after an observed
+apply/rollback mutation it restores the exact pre-apply live snapshot under one
+document-atomic lease-release barrier but deliberately keeps Source dirty with
+the stable `SaveCookie` until an ordinary Save. No reload can erase a newer
+queued edit. A durable commit becomes the only new disk baseline. Successful
+Pair Save retains semantic native-history entries and re-anchors their
+immutable endpoints without fabricating analyzer proof. Ordinary Source Save
+above a saved semantic edge opens an identity-bound `SourceAnchorLease`, accepts
+the new durable Source anchor only when both managed payloads are byte-for-byte
+unchanged, and rebuilds retained revision proof identities against that anchor.
+Its saved semantic endpoint is an overlay: the command/durable side is the new
+`S2`, while the native bytes immediately below the Source edit remain `C1`.
+The controller adoption ticket, command lease, durable baseline, edge graph and
+cursor are checked as one operation before controller, command and Pair effects
+publish in order. A post-CES failed outcome or committed split-authority risk clears
+semantic authority and enters sticky conflict without discarding native Source
+history or reloading user content. Pair Save after a Source overlay retains
+endpoint-specific physical proofs, preserving the two-axis chronology
+`(C2,S2)→(C1,S2)→(C1,S0)→(B,S0)` and its reverse. Exact anchor payloads are
+projected into each historical unmanaged envelope before semantic derivation;
+unique physical variants share the command-history byte budget. A byte-identical
+`UNCHANGED` Source Save preserves command/Current/edge identities and refreshes
+only the CES cursor, while a trimmed final semantic edge still leaves its owner
+available for the next exact Source re-anchor. A new command at `C1/S0` counts
+its candidate against that same aggregate physical budget before analyzer or
+CES work. Adoption creates the exact branch `B/S0→C1/S0→C3/S0`, truncates the
+old native `S2/C2` redo suffix and leaves durable `C2/S2` unchanged. Undo/Redo
+restores the endpoint-specific saved proof, while rejection, cancellation and
+pre-apply recovery retain the same predecessor proof and bytes. The adopted
+revision carries its `S0` live envelope forward, so a following ordinary C4
+command cannot silently fall back to the canonical `S2` envelope.
+
+The edge still has no writable Designer UI caller. The internal C1→C2 analyzed
+replacement, noncanonical physical-endpoint admission, chronological replay,
+Pair/Source Save re-anchoring and shared capacity budget are complete, but the
+recovery/runtime release matrix and the actual Palette/tree/properties/Canvas
+surface remain gated.
+
+Pixel-accurate preview is a separate boundary. The initial Canvas may be a clearly identified semantic projection, but its first implementation slice requires a separate architecture discussion. Embedded Flutter Engine, a streamed preview surface or another runtime strategy requires its own decision and may not weaken `.fd`/Dart source ownership. `PUBLIC_MUTATION_UI_ENABLED` remains `false` until those gates are deliberately cleared.

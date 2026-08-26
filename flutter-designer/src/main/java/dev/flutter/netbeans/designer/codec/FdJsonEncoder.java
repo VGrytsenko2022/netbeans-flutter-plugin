@@ -1,0 +1,1006 @@
+package dev.flutter.netbeans.designer.codec;
+
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import dev.flutter.netbeans.designer.model.CanvasPreferences;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.ExtensionKey;
+import dev.flutter.netbeans.designer.model.Extensions;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.json.JsonValue;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/** Bounded canonical JSON writer for current-version Flutter Designer documents. */
+final class FdJsonEncoder {
+    private final FdCodecLimits limits;
+    private final JsonFactory jsonFactory;
+
+    FdJsonEncoder(FdCodecLimits limits) {
+        this.limits = Objects.requireNonNull(limits, "limits");
+        this.jsonFactory = JsonFactory.builder()
+                .streamWriteConstraints(StreamWriteConstraints.builder()
+                        .maxNestingDepth(limits.maxJsonNestingDepth())
+                        .build())
+                .build();
+    }
+
+    OriginalFdBytes encode(DesignerDocument document) throws FdEncodeException {
+        Objects.requireNonNull(document, "document");
+        BoundedOutputStream output = new BoundedOutputStream(limits.maxDocumentBytes());
+        try {
+            try (JsonGenerator generator = jsonFactory.createGenerator(output, JsonEncoding.UTF8)) {
+                generator.setPrettyPrinter(new CanonicalPrettyPrinter());
+                EncodingContext context = new EncodingContext(generator, output, limits);
+                writeDocument(document, context);
+            }
+            output.setPointer("");
+            output.write('\n');
+        } catch (FdEncodeException failure) {
+            throw failure;
+        } catch (IOException failure) {
+            OutputLimitIOException outputLimit = findOutputLimit(failure);
+            if (outputLimit != null) {
+                throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                        FdCodecDiagnosticCode.RESOURCE_LIMIT,
+                        outputLimit.pointer(),
+                        "Canonical output exceeds maxDocumentBytes="
+                                + outputLimit.maximumBytes()), failure);
+            }
+            throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    "",
+                    "Could not encode the Flutter Designer document as canonical JSON"), failure);
+        }
+
+        byte[] bytes = output.toByteArray();
+        try {
+            return OriginalFdBytes.copyOf(bytes, limits);
+        } catch (FdInputLimitException impossibleAfterBoundedWrite) {
+            throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.RESOURCE_LIMIT,
+                    "",
+                    "Canonical output exceeds maxDocumentBytes="
+                            + limits.maxDocumentBytes()), impossibleAfterBoundedWrite);
+        }
+    }
+
+    private static void writeDocument(
+            DesignerDocument document,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject("");
+        if (document.schemaReference().isPresent()) {
+            context.stringField("$schema", document.schemaReference().orElseThrow(), "/$schema");
+        }
+        context.stringField("format", document.format(), "/format");
+        context.numberField("schemaVersion", Integer.toString(document.schemaVersion()), "/schemaVersion");
+        context.stringField("documentId", document.documentId().toString(), "/documentId");
+        writeSource(document.source(), context);
+        if (document.canvas().isPresent()) {
+            writeCanvas(document.canvas().orElseThrow(), context);
+        }
+        context.fieldName("root", "/root");
+
+        Deque<WriteTask> tasks = new ArrayDeque<>();
+        tasks.push(new EndObjectTask(""));
+        if (!document.extensions().isEmpty()) {
+            tasks.push(new ExtensionsFieldTask(document.extensions(), "/extensions"));
+        }
+        tasks.push(new WidgetTask(document.root(), 1, "/root"));
+        while (!tasks.isEmpty()) {
+            tasks.pop().write(context, tasks);
+        }
+    }
+
+    private static void writeSource(
+            DartSourceDescriptor source,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.fieldName("source", "/source");
+        context.startObject("/source");
+        context.stringField("dartFile", source.dartFile(), "/source/dartFile");
+        context.stringField("className", source.className(), "/source/className");
+        context.stringField("widgetKind", source.widgetKind().wireName(), "/source/widgetKind");
+        if (source.generatorVersion().isPresent()) {
+            context.stringField(
+                    "generatorVersion",
+                    source.generatorVersion().orElseThrow(),
+                    "/source/generatorVersion");
+        }
+        writeManagedRegions(source.managedRegions(), context);
+        context.endObject("/source");
+    }
+
+    private static void writeManagedRegions(
+            ManagedRegions regions,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.fieldName("managedRegions", "/source/managedRegions");
+        context.startObject("/source/managedRegions");
+        writeManagedRegion("imports", regions.imports(), context);
+        writeManagedRegion("build", regions.build(), context);
+        context.endObject("/source/managedRegions");
+    }
+
+    private static void writeManagedRegion(
+            String name,
+            ManagedRegion region,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String pointer = "/source/managedRegions/" + name;
+        context.fieldName(name, pointer);
+        context.startObject(pointer);
+        context.stringField("sha256", region.sha256(), pointer + "/sha256");
+        context.endObject(pointer);
+    }
+
+    private static void writeCanvas(
+            CanvasPreferences canvas,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.fieldName("canvas", "/canvas");
+        context.startObject("/canvas");
+        if (canvas.preset().isPresent()) {
+            context.stringField("preset", canvas.preset().orElseThrow(), "/canvas/preset");
+        }
+        writeOptionalDecimal("logicalWidth", canvas.logicalWidth(), context);
+        writeOptionalDecimal("logicalHeight", canvas.logicalHeight(), context);
+        writeOptionalDecimal("devicePixelRatio", canvas.devicePixelRatio(), context);
+        if (canvas.orientation().isPresent()) {
+            context.stringField(
+                    "orientation",
+                    canvas.orientation().orElseThrow().wireName(),
+                    "/canvas/orientation");
+        }
+        if (canvas.themeMode().isPresent()) {
+            context.stringField(
+                    "themeMode",
+                    canvas.themeMode().orElseThrow().wireName(),
+                    "/canvas/themeMode");
+        }
+        writeOptionalDecimal("textScaleFactor", canvas.textScaleFactor(), context);
+        if (canvas.locale().isPresent()) {
+            context.stringField("locale", canvas.locale().orElseThrow(), "/canvas/locale");
+        }
+        context.endObject("/canvas");
+    }
+
+    private static void writeOptionalDecimal(
+            String name,
+            java.util.Optional<BigDecimal> value,
+            EncodingContext context) throws IOException, FdEncodeException {
+        if (value.isEmpty()) {
+            return;
+        }
+        String pointer = "/canvas/" + name;
+        String token = CanonicalJsonNumbers.decimal(value.orElseThrow(), context.limits(), pointer);
+        context.numberField(name, token, pointer);
+    }
+
+    private interface WriteTask {
+        void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException;
+    }
+
+    private record EndObjectTask(String pointer) implements WriteTask {
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.endObject(pointer);
+        }
+    }
+
+    private record EndArrayTask(String pointer) implements WriteTask {
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.endArray(pointer);
+        }
+    }
+
+    private record WidgetTask(WidgetNode widget, int depth, String pointer) implements WriteTask {
+        WidgetTask {
+            Objects.requireNonNull(widget, "widget");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.enterWidget(depth, pointer);
+            context.requireAtMost(
+                    widget.properties().size(),
+                    context.limits().maxPropertiesPerWidget(),
+                    pointer + "/properties",
+                    "properties per widget");
+            context.requireAtMost(
+                    widget.slots().size(),
+                    context.limits().maxSlotsPerWidget(),
+                    pointer + "/slots",
+                    "slots per widget");
+
+            context.startObject(pointer);
+            context.stringField("id", widget.id().toString(), pointer + "/id");
+            context.stringField("type", widget.type().value(), pointer + "/type");
+            context.fieldName("properties", pointer + "/properties");
+            context.startObject(pointer + "/properties");
+            List<Map.Entry<PropertyName, PropertyValue>> properties =
+                    new ArrayList<>(widget.properties().entrySet());
+            properties.sort(Comparator.comparing(entry -> entry.getKey().value()));
+            for (Map.Entry<PropertyName, PropertyValue> entry : properties) {
+                String propertyPointer = pointer + "/properties/"
+                        + pointerToken(entry.getKey().value());
+                context.fieldName(entry.getKey().value(), propertyPointer);
+                writePropertyValue(entry.getValue(), propertyPointer, context);
+            }
+            context.endObject(pointer + "/properties");
+
+            context.fieldName("slots", pointer + "/slots");
+            context.startObject(pointer + "/slots");
+            List<Map.Entry<SlotName, WidgetSlot>> slots =
+                    new ArrayList<>(widget.slots().entrySet());
+            slots.sort(Comparator.comparing(entry -> entry.getKey().value()));
+
+            tasks.push(new EndObjectTask(pointer));
+            if (!widget.extensions().isEmpty()) {
+                tasks.push(new ExtensionsFieldTask(
+                        widget.extensions(), pointer + "/extensions"));
+            }
+            tasks.push(new EndObjectTask(pointer + "/slots"));
+            if (!slots.isEmpty()) {
+                tasks.push(new SlotEntriesTask(slots, 0, depth + 1, pointer + "/slots"));
+            }
+        }
+    }
+
+    private record SlotEntriesTask(
+            List<Map.Entry<SlotName, WidgetSlot>> entries,
+            int index,
+            int childDepth,
+            String pointer) implements WriteTask {
+        SlotEntriesTask {
+            Objects.requireNonNull(entries, "entries");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks) {
+            Map.Entry<SlotName, WidgetSlot> entry = entries.get(index);
+            if (index + 1 < entries.size()) {
+                tasks.push(new SlotEntriesTask(entries, index + 1, childDepth, pointer));
+            }
+            String slotPointer = pointer + "/" + pointerToken(entry.getKey().value());
+            tasks.push(new NamedSlotTask(
+                    entry.getKey().value(), entry.getValue(), childDepth, slotPointer));
+        }
+    }
+
+    private record NamedSlotTask(
+            String name,
+            WidgetSlot slot,
+            int childDepth,
+            String pointer) implements WriteTask {
+        NamedSlotTask {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(slot, "slot");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.fieldName(name, pointer);
+            context.startObject(pointer);
+            if (slot instanceof WidgetSlot.SingleSlot single) {
+                context.stringField("kind", "single", pointer + "/kind");
+                context.fieldName("child", pointer + "/child");
+                if (single.child().isEmpty()) {
+                    context.nullValue(pointer + "/child");
+                    context.endObject(pointer);
+                } else {
+                    tasks.push(new EndObjectTask(pointer));
+                    tasks.push(new WidgetTask(
+                            single.child().orElseThrow(),
+                            childDepth,
+                            pointer + "/child"));
+                }
+                return;
+            }
+
+            WidgetSlot.ListSlot list = (WidgetSlot.ListSlot) slot;
+            context.requireAtMost(
+                    list.children().size(),
+                    context.limits().maxListChildren(),
+                    pointer + "/children",
+                    "children per list slot");
+            context.requireAtMost(
+                    list.children().size(),
+                    context.limits().maxJsonArrayElements(),
+                    pointer + "/children",
+                    "JSON array elements");
+            context.stringField("kind", "list", pointer + "/kind");
+            context.fieldName("children", pointer + "/children");
+            context.startArray(pointer + "/children");
+            tasks.push(new EndObjectTask(pointer));
+            tasks.push(new EndArrayTask(pointer + "/children"));
+            if (!list.children().isEmpty()) {
+                tasks.push(new WidgetChildrenTask(
+                        list.children(), 0, childDepth, pointer + "/children"));
+            }
+        }
+    }
+
+    private record WidgetChildrenTask(
+            List<WidgetNode> children,
+            int index,
+            int depth,
+            String pointer) implements WriteTask {
+        WidgetChildrenTask {
+            Objects.requireNonNull(children, "children");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks) {
+            if (index + 1 < children.size()) {
+                tasks.push(new WidgetChildrenTask(children, index + 1, depth, pointer));
+            }
+            tasks.push(new WidgetTask(
+                    children.get(index), depth, pointer + "/" + index));
+        }
+    }
+
+    private static void writePropertyValue(
+            PropertyValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        context.stringField("kind", value.kind().wireName(), pointer + "/kind");
+        if (value instanceof PropertyValue.StringValue stringValue) {
+            context.stringField("value", stringValue.value(), pointer + "/value");
+        } else if (value instanceof PropertyValue.BooleanValue booleanValue) {
+            context.booleanField("value", booleanValue.value(), pointer + "/value");
+        } else if (value instanceof PropertyValue.IntegerValue integerValue) {
+            String token = CanonicalJsonNumbers.integer(
+                    integerValue.value(), context.limits(), pointer + "/value");
+            context.numberField("value", token, pointer + "/value");
+        } else if (value instanceof PropertyValue.DoubleValue doubleValue) {
+            String token = CanonicalJsonNumbers.decimal(
+                    doubleValue.value(), context.limits(), pointer + "/value");
+            context.numberField("value", token, pointer + "/value");
+        } else if (value instanceof PropertyValue.EnumValue enumValue) {
+            context.stringField("type", enumValue.type(), pointer + "/type");
+            context.stringField("value", enumValue.value(), pointer + "/value");
+        } else if (value instanceof PropertyValue.ColorValue colorValue) {
+            context.stringField("argb", colorValue.wireArgb(), pointer + "/argb");
+        } else if (value instanceof PropertyValue.EdgeInsetsValue edgeInsets) {
+            writeDecimalField("left", edgeInsets.left(), pointer, context);
+            writeDecimalField("top", edgeInsets.top(), pointer, context);
+            writeDecimalField("right", edgeInsets.right(), pointer, context);
+            writeDecimalField("bottom", edgeInsets.bottom(), pointer, context);
+        } else if (value instanceof PropertyValue.AssetValue assetValue) {
+            context.stringField("path", assetValue.path(), pointer + "/path");
+        } else if (value instanceof PropertyValue.CallbackValue callbackValue) {
+            context.stringField("handler", callbackValue.handler(), pointer + "/handler");
+        } else if (value instanceof PropertyValue.DartExpressionValue expressionValue) {
+            context.stringField("code", expressionValue.code(), pointer + "/code");
+        } else {
+            throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer,
+                    "Unsupported property value implementation: "
+                            + value.getClass().getName()));
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeDecimalField(
+            String name,
+            BigDecimal value,
+            String parentPointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String pointer = parentPointer + "/" + name;
+        String token = CanonicalJsonNumbers.decimal(value, context.limits(), pointer);
+        context.numberField(name, token, pointer);
+    }
+
+    private record ExtensionsFieldTask(Extensions extensions, String pointer) implements WriteTask {
+        ExtensionsFieldTask {
+            Objects.requireNonNull(extensions, "extensions");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.requireAtMost(
+                    extensions.values().size(),
+                    context.limits().maxExtensionKeysPerBag(),
+                    pointer,
+                    "extension keys per bag");
+            context.fieldName("extensions", pointer);
+            context.startObject(pointer);
+            List<Map.Entry<ExtensionKey, JsonValue>> entries =
+                    new ArrayList<>(extensions.values().entrySet());
+            entries.sort(Comparator.comparing(entry -> entry.getKey().value()));
+            tasks.push(new EndObjectTask(pointer));
+            if (!entries.isEmpty()) {
+                tasks.push(new ExtensionEntriesTask(entries, 0, pointer));
+            }
+        }
+    }
+
+    private record ExtensionEntriesTask(
+            List<Map.Entry<ExtensionKey, JsonValue>> entries,
+            int index,
+            String pointer) implements WriteTask {
+        ExtensionEntriesTask {
+            Objects.requireNonNull(entries, "entries");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            Map.Entry<ExtensionKey, JsonValue> entry = entries.get(index);
+            if (index + 1 < entries.size()) {
+                tasks.push(new ExtensionEntriesTask(entries, index + 1, pointer));
+            }
+            String valuePointer = pointer + "/" + pointerToken(entry.getKey().value());
+            context.fieldName(entry.getKey().value(), valuePointer);
+            tasks.push(new JsonValueTask(entry.getValue(), 1, valuePointer));
+        }
+    }
+
+    private record JsonValueTask(JsonValue value, int depth, String pointer) implements WriteTask {
+        JsonValueTask {
+            Objects.requireNonNull(value, "value");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            context.enterExtensionValue(depth, pointer);
+            if (value instanceof JsonValue.NullValue) {
+                context.nullValue(pointer);
+            } else if (value instanceof JsonValue.BooleanValue booleanValue) {
+                context.booleanValue(booleanValue.value(), pointer);
+            } else if (value instanceof JsonValue.NumberValue numberValue) {
+                context.numberValue(
+                        CanonicalJsonNumbers.decimal(
+                                numberValue.value(), context.limits(), pointer),
+                        pointer);
+            } else if (value instanceof JsonValue.StringValue stringValue) {
+                context.stringValue(stringValue.value(), pointer);
+            } else if (value instanceof JsonValue.ArrayValue arrayValue) {
+                context.requireAtMost(
+                        arrayValue.values().size(),
+                        context.limits().maxJsonArrayElements(),
+                        pointer,
+                        "JSON array elements");
+                context.startArray(pointer);
+                tasks.push(new EndArrayTask(pointer));
+                if (!arrayValue.values().isEmpty()) {
+                    tasks.push(new JsonArrayElementsTask(
+                            arrayValue.values(), 0, depth + 1, pointer));
+                }
+            } else if (value instanceof JsonValue.ObjectValue objectValue) {
+                context.requireAtMost(
+                        objectValue.values().size(),
+                        context.limits().maxJsonObjectFields(),
+                        pointer,
+                        "JSON object fields");
+                context.startObject(pointer);
+                List<Map.Entry<String, JsonValue>> entries =
+                        new ArrayList<>(objectValue.values().entrySet());
+                entries.sort(Map.Entry.comparingByKey());
+                tasks.push(new EndObjectTask(pointer));
+                if (!entries.isEmpty()) {
+                    tasks.push(new JsonObjectEntriesTask(entries, 0, depth + 1, pointer));
+                }
+            } else {
+                throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                        FdCodecDiagnosticCode.INVALID_VALUE,
+                        pointer,
+                        "Unsupported extension JSON value implementation: "
+                                + value.getClass().getName()));
+            }
+        }
+    }
+
+    private record JsonArrayElementsTask(
+            List<JsonValue> values,
+            int index,
+            int depth,
+            String pointer) implements WriteTask {
+        JsonArrayElementsTask {
+            Objects.requireNonNull(values, "values");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks) {
+            if (index + 1 < values.size()) {
+                tasks.push(new JsonArrayElementsTask(values, index + 1, depth, pointer));
+            }
+            tasks.push(new JsonValueTask(values.get(index), depth, pointer + "/" + index));
+        }
+    }
+
+    private record JsonObjectEntriesTask(
+            List<Map.Entry<String, JsonValue>> entries,
+            int index,
+            int depth,
+            String pointer) implements WriteTask {
+        JsonObjectEntriesTask {
+            Objects.requireNonNull(entries, "entries");
+            Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(EncodingContext context, Deque<WriteTask> tasks)
+                throws IOException, FdEncodeException {
+            Map.Entry<String, JsonValue> entry = entries.get(index);
+            if (index + 1 < entries.size()) {
+                tasks.push(new JsonObjectEntriesTask(entries, index + 1, depth, pointer));
+            }
+            String valuePointer = pointer + "/" + pointerToken(entry.getKey());
+            context.fieldName(entry.getKey(), valuePointer);
+            tasks.push(new JsonValueTask(entry.getValue(), depth, valuePointer));
+        }
+    }
+
+    private static final class EncodingContext {
+        private final JsonGenerator generator;
+        private final BoundedOutputStream output;
+        private final FdCodecLimits limits;
+        private final Deque<ContainerState> containers = new ArrayDeque<>();
+        private long tokenCount;
+        private long widgetCount;
+        private long extensionValueCount;
+
+        EncodingContext(
+                JsonGenerator generator,
+                BoundedOutputStream output,
+                FdCodecLimits limits) {
+            this.generator = Objects.requireNonNull(generator, "generator");
+            this.output = Objects.requireNonNull(output, "output");
+            this.limits = Objects.requireNonNull(limits, "limits");
+        }
+
+        FdCodecLimits limits() {
+            return limits;
+        }
+
+        void startObject(String pointer) throws IOException, FdEncodeException {
+            beforeValue(pointer);
+            requireNesting(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeStartObject();
+            containers.push(new ContainerState(ContainerKind.OBJECT));
+        }
+
+        void endObject(String pointer) throws IOException, FdEncodeException {
+            requireContainer(ContainerKind.OBJECT);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeEndObject();
+            containers.pop();
+        }
+
+        void startArray(String pointer) throws IOException, FdEncodeException {
+            beforeValue(pointer);
+            requireNesting(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeStartArray();
+            containers.push(new ContainerState(ContainerKind.ARRAY));
+        }
+
+        void endArray(String pointer) throws IOException, FdEncodeException {
+            requireContainer(ContainerKind.ARRAY);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeEndArray();
+            containers.pop();
+        }
+
+        void fieldName(String name, String pointer) throws IOException, FdEncodeException {
+            validateFieldName(name, pointer);
+            requireContainer(ContainerKind.OBJECT);
+            ContainerState object = containers.peek();
+            if (object.entryCount >= limits.maxJsonObjectFields()) {
+                throw resourceLimit(
+                        pointer,
+                        "JSON object fields",
+                        (long) object.entryCount + 1L,
+                        limits.maxJsonObjectFields());
+            }
+            object.entryCount++;
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeFieldName(name);
+        }
+
+        void stringField(String name, String value, String pointer)
+                throws IOException, FdEncodeException {
+            validateString(value, pointer);
+            fieldName(name, pointer);
+            stringValueAlreadyValidated(value, pointer);
+        }
+
+        void booleanField(String name, boolean value, String pointer)
+                throws IOException, FdEncodeException {
+            fieldName(name, pointer);
+            booleanValue(value, pointer);
+        }
+
+        void numberField(String name, String token, String pointer)
+                throws IOException, FdEncodeException {
+            fieldName(name, pointer);
+            numberValue(token, pointer);
+        }
+
+        void stringValue(String value, String pointer) throws IOException, FdEncodeException {
+            validateString(value, pointer);
+            stringValueAlreadyValidated(value, pointer);
+        }
+
+        private void stringValueAlreadyValidated(String value, String pointer)
+                throws IOException, FdEncodeException {
+            beforeValue(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeString(value);
+        }
+
+        void booleanValue(boolean value, String pointer) throws IOException, FdEncodeException {
+            beforeValue(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeBoolean(value);
+        }
+
+        void numberValue(String token, String pointer) throws IOException, FdEncodeException {
+            Objects.requireNonNull(token, "token");
+            if (token.length() > limits.maxNumberCharacters()) {
+                throw resourceLimit(
+                        pointer,
+                        "number characters",
+                        token.length(),
+                        limits.maxNumberCharacters());
+            }
+            beforeValue(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeNumber(token);
+        }
+
+        void nullValue(String pointer) throws IOException, FdEncodeException {
+            beforeValue(pointer);
+            countToken(pointer);
+            output.setPointer(pointer);
+            generator.writeNull();
+        }
+
+        void enterWidget(int depth, String pointer) throws FdEncodeException {
+            if (depth > limits.maxWidgetDepth()) {
+                throw resourceLimit(
+                        pointer,
+                        "widget depth",
+                        depth,
+                        limits.maxWidgetDepth());
+            }
+            if (widgetCount >= limits.maxWidgetNodes()) {
+                throw resourceLimit(
+                        pointer,
+                        "widget nodes",
+                        widgetCount + 1L,
+                        limits.maxWidgetNodes());
+            }
+            widgetCount++;
+        }
+
+        void enterExtensionValue(int depth, String pointer) throws FdEncodeException {
+            if (depth > limits.maxExtensionNestingDepth()) {
+                throw resourceLimit(
+                        pointer,
+                        "extension nesting depth",
+                        depth,
+                        limits.maxExtensionNestingDepth());
+            }
+            if (extensionValueCount >= limits.maxExtensionValues()) {
+                throw resourceLimit(
+                        pointer,
+                        "extension values",
+                        extensionValueCount + 1L,
+                        limits.maxExtensionValues());
+            }
+            extensionValueCount++;
+        }
+
+        void requireAtMost(long actual, long maximum, String pointer, String label)
+                throws FdEncodeException {
+            if (actual > maximum) {
+                throw resourceLimit(pointer, label, actual, maximum);
+            }
+        }
+
+        private void beforeValue(String pointer) throws FdEncodeException {
+            if (!containers.isEmpty() && containers.peek().kind == ContainerKind.ARRAY) {
+                ContainerState array = containers.peek();
+                if (array.entryCount >= limits.maxJsonArrayElements()) {
+                    throw resourceLimit(
+                            pointer,
+                            "JSON array elements",
+                            (long) array.entryCount + 1L,
+                            limits.maxJsonArrayElements());
+                }
+                array.entryCount++;
+            }
+        }
+
+        private void requireNesting(String pointer) throws FdEncodeException {
+            long nextDepth = (long) containers.size() + 1L;
+            if (nextDepth > limits.maxJsonNestingDepth()) {
+                throw resourceLimit(
+                        pointer,
+                        "JSON nesting depth",
+                        nextDepth,
+                        limits.maxJsonNestingDepth());
+            }
+        }
+
+        private void countToken(String pointer) throws FdEncodeException {
+            if (tokenCount >= limits.maxJsonTokens()) {
+                throw resourceLimit(
+                        pointer,
+                        "JSON tokens",
+                        tokenCount + 1L,
+                        limits.maxJsonTokens());
+            }
+            tokenCount++;
+        }
+
+        private void validateFieldName(String name, String pointer) throws FdEncodeException {
+            Objects.requireNonNull(name, "name");
+            if (name.length() > limits.maxFieldNameUtf16Units()) {
+                throw resourceLimit(
+                        pointer,
+                        "field-name UTF-16 units",
+                        name.length(),
+                        limits.maxFieldNameUtf16Units());
+            }
+            requirePairedSurrogates(name, pointer, "field name");
+        }
+
+        private void validateString(String value, String pointer) throws FdEncodeException {
+            Objects.requireNonNull(value, "value");
+            if (value.length() > limits.maxStringUtf16Units()) {
+                throw resourceLimit(
+                        pointer,
+                        "string UTF-16 units",
+                        value.length(),
+                        limits.maxStringUtf16Units());
+            }
+            int codePoints = 0;
+            for (int index = 0; index < value.length(); index++) {
+                char current = value.charAt(index);
+                if (Character.isHighSurrogate(current)) {
+                    if (index + 1 >= value.length()
+                            || !Character.isLowSurrogate(value.charAt(index + 1))) {
+                        throw invalidSurrogate(pointer, "string value");
+                    }
+                    index++;
+                } else if (Character.isLowSurrogate(current)) {
+                    throw invalidSurrogate(pointer, "string value");
+                }
+                codePoints++;
+                if (codePoints > limits.maxStringCodePoints()) {
+                    throw resourceLimit(
+                            pointer,
+                            "string code points",
+                            codePoints,
+                            limits.maxStringCodePoints());
+                }
+            }
+        }
+
+        private void requirePairedSurrogates(String value, String pointer, String label)
+                throws FdEncodeException {
+            for (int index = 0; index < value.length(); index++) {
+                char current = value.charAt(index);
+                if (Character.isHighSurrogate(current)) {
+                    if (index + 1 >= value.length()
+                            || !Character.isLowSurrogate(value.charAt(index + 1))) {
+                        throw invalidSurrogate(pointer, label);
+                    }
+                    index++;
+                } else if (Character.isLowSurrogate(current)) {
+                    throw invalidSurrogate(pointer, label);
+                }
+            }
+        }
+
+        private static FdEncodeException invalidSurrogate(String pointer, String label) {
+            return new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer,
+                    "Unpaired UTF-16 surrogate in " + label));
+        }
+
+        private static FdEncodeException resourceLimit(
+                String pointer,
+                String label,
+                long actual,
+                long maximum) {
+            return new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.RESOURCE_LIMIT,
+                    pointer,
+                    label + " count " + actual + " exceeds configured limit " + maximum));
+        }
+
+        private void requireContainer(ContainerKind expected) {
+            if (containers.isEmpty() || containers.peek().kind != expected) {
+                throw new IllegalStateException("Canonical writer container state is inconsistent");
+            }
+        }
+    }
+
+    private enum ContainerKind {
+        OBJECT,
+        ARRAY
+    }
+
+    private static final class ContainerState {
+        private final ContainerKind kind;
+        private int entryCount;
+
+        ContainerState(ContainerKind kind) {
+            this.kind = Objects.requireNonNull(kind, "kind");
+        }
+    }
+
+    private static final class CanonicalPrettyPrinter extends DefaultPrettyPrinter {
+        CanonicalPrettyPrinter() {
+            DefaultIndenter lfTwoSpaces = new DefaultIndenter("  ", "\n");
+            indentObjectsWith(lfTwoSpaces);
+            indentArraysWith(lfTwoSpaces);
+        }
+
+        private CanonicalPrettyPrinter(CanonicalPrettyPrinter base) {
+            super(base);
+        }
+
+        @Override
+        public DefaultPrettyPrinter createInstance() {
+            return new CanonicalPrettyPrinter(this);
+        }
+
+        @Override
+        public void writeObjectFieldValueSeparator(JsonGenerator generator) throws IOException {
+            generator.writeRaw(": ");
+        }
+
+        @Override
+        public void writeEndObject(JsonGenerator generator, int entryCount) throws IOException {
+            if (!_objectIndenter.isInline()) {
+                _nesting--;
+            }
+            if (entryCount > 0) {
+                _objectIndenter.writeIndentation(generator, _nesting);
+            }
+            generator.writeRaw('}');
+        }
+
+        @Override
+        public void writeEndArray(JsonGenerator generator, int valueCount) throws IOException {
+            if (!_arrayIndenter.isInline()) {
+                _nesting--;
+            }
+            if (valueCount > 0) {
+                _arrayIndenter.writeIndentation(generator, _nesting);
+            }
+            generator.writeRaw(']');
+        }
+    }
+
+    private static final class BoundedOutputStream extends OutputStream {
+        private final ByteArrayOutputStream delegate;
+        private final int maximumBytes;
+        private String pointer = "";
+
+        BoundedOutputStream(int maximumBytes) {
+            this.maximumBytes = maximumBytes;
+            this.delegate = new ByteArrayOutputStream(Math.min(maximumBytes, 8_192));
+        }
+
+        void setPointer(String pointer) {
+            this.pointer = Objects.requireNonNull(pointer, "pointer");
+        }
+
+        @Override
+        public void write(int value) throws IOException {
+            reserve(1);
+            delegate.write(value);
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length) throws IOException {
+            Objects.checkFromIndexSize(offset, length, bytes.length);
+            reserve(length);
+            delegate.write(bytes, offset, length);
+        }
+
+        byte[] toByteArray() {
+            return delegate.toByteArray();
+        }
+
+        private void reserve(int bytes) throws OutputLimitIOException {
+            long attempted = (long) delegate.size() + (long) bytes;
+            if (attempted > maximumBytes) {
+                throw new OutputLimitIOException(maximumBytes, attempted, pointer);
+            }
+        }
+    }
+
+    private static final class OutputLimitIOException extends IOException {
+        private final int maximumBytes;
+        private final long attemptedBytes;
+        private final String pointer;
+
+        OutputLimitIOException(int maximumBytes, long attemptedBytes, String pointer) {
+            super("Canonical output would contain " + attemptedBytes
+                    + " bytes; maximum is " + maximumBytes);
+            this.maximumBytes = maximumBytes;
+            this.attemptedBytes = attemptedBytes;
+            this.pointer = Objects.requireNonNull(pointer, "pointer");
+        }
+
+        int maximumBytes() {
+            return maximumBytes;
+        }
+
+        @SuppressWarnings("unused")
+        long attemptedBytes() {
+            return attemptedBytes;
+        }
+
+        String pointer() {
+            return pointer;
+        }
+    }
+
+    private static OutputLimitIOException findOutputLimit(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof OutputLimitIOException outputLimit) {
+                return outputLimit;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static String pointerToken(String value) {
+        return value.replace("~", "~0").replace("/", "~1");
+    }
+}

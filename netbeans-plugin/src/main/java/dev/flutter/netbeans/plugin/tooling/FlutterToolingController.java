@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.tooling;
 import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.plugin.lifecycle.AsyncTaskTracker;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainStatus;
@@ -11,11 +12,11 @@ import dev.flutter.netbeans.run.FlutterToolCommandType;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.event.ChangeListener;
 import org.netbeans.api.project.Project;
@@ -38,6 +39,8 @@ public final class FlutterToolingController implements AutoCloseable {
     private final FlutterExecutionBackend backend;
     private final FlutterTestSessionFactory testSessions;
     private final FlutterSdkResolver sdkResolver;
+    private final AsyncTaskTracker quiescenceTasks = new AsyncTaskTracker(
+            command -> WORKER.post(command));
     private final ChangeSupport changes = new ChangeSupport(this);
     private final Object lock = new Object();
 
@@ -142,13 +145,20 @@ public final class FlutterToolingController implements AutoCloseable {
             active = null;
         }
         if (operation != null) {
-            Future<Integer> future = operation.future;
-            if (future != null) {
-                future.cancel(true);
-            }
-            WORKER.post(() -> operation.complete(-1, true, null, false));
+            quiescenceTasks.execute(() -> {
+                FlutterExecutionHandle execution = operation.execution;
+                if (execution != null) {
+                    execution.cancel(true);
+                }
+                operation.complete(-1, true, null, false);
+            });
         }
         fireChange();
+    }
+
+    /** Waits for project-owned Flutter command processes and completion work. */
+    public boolean awaitQuiescence(Duration timeout) throws InterruptedException {
+        return quiescenceTasks.awaitIdle(timeout);
     }
 
     public void addChangeListener(ChangeListener listener) {
@@ -223,7 +233,7 @@ public final class FlutterToolingController implements AutoCloseable {
             active = operation;
         }
         fireChange();
-        WORKER.post(() -> launch(operation));
+        quiescenceTasks.execute(() -> launch(operation));
     }
 
     private void launch(ActiveOperation operation) {
@@ -240,14 +250,14 @@ public final class FlutterToolingController implements AutoCloseable {
                 }
                 operation.currentCommand = command;
                 FlutterExecutionRequest request = request(operation, sdk, command);
-                Future<Integer> future = startStage(operation, request);
-                if (future == null) {
+                FlutterExecutionHandle execution = startStage(operation, request);
+                if (execution == null) {
                     operation.complete(-1, true, null, false);
                     return;
                 }
 
-                int exitCode = future.get();
-                clearFuture(operation, future);
+                int exitCode = execution.result().get();
+                clearExecution(operation, execution);
                 if (!isCurrent(operation)) {
                     operation.complete(-1, true, null, false);
                     return;
@@ -262,9 +272,9 @@ public final class FlutterToolingController implements AutoCloseable {
             complete(operation, -1, true, null, false);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            Future<Integer> future = operation.future;
-            if (future != null) {
-                future.cancel(true);
+            FlutterExecutionHandle execution = operation.execution;
+            if (execution != null) {
+                execution.cancel(true);
             }
             complete(operation, -1, true, null, false);
         } catch (ExecutionException ex) {
@@ -275,23 +285,39 @@ public final class FlutterToolingController implements AutoCloseable {
         }
     }
 
-    private Future<Integer> startStage(
+    private FlutterExecutionHandle startStage(
             ActiveOperation operation,
             FlutterExecutionRequest request) {
         synchronized (lock) {
             if (!isCurrentLocked(operation)) {
                 return null;
             }
-            Future<Integer> future = backend.start(request);
-            operation.future = future;
-            return future;
         }
+        FlutterExecutionHandle execution = Objects.requireNonNull(
+                backend.start(request),
+                "Flutter execution backend returned no execution handle");
+        // Register physical termination before the handle can be attached or
+        // cancelled. A cancelled NetBeans Future may be done while its child
+        // process is still exiting.
+        quiescenceTasks.track(execution.termination());
+        synchronized (lock) {
+            if (isCurrentLocked(operation)) {
+                operation.execution = execution;
+                return execution;
+            }
+        }
+        // close() may win while backend.start() is creating the process. Track
+        // the late handle before cancelling it so deletion still sees its exit.
+        execution.cancel(true);
+        return null;
     }
 
-    private void clearFuture(ActiveOperation operation, Future<Integer> future) {
+    private void clearExecution(
+            ActiveOperation operation,
+            FlutterExecutionHandle execution) {
         synchronized (lock) {
-            if (operation.future == future) {
-                operation.future = null;
+            if (operation.execution == execution) {
+                operation.execution = null;
             }
         }
     }
@@ -536,7 +562,7 @@ public final class FlutterToolingController implements AutoCloseable {
         private final long generation;
         private final ActionProgress progress;
         private final AtomicBoolean completed = new AtomicBoolean();
-        private volatile Future<Integer> future;
+        private volatile FlutterExecutionHandle execution;
         private volatile FlutterToolCommand currentCommand;
         private volatile FlutterTestSessionBridge testSession = FlutterTestSessionBridge.NONE;
 

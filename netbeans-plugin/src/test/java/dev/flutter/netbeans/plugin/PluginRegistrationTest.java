@@ -115,6 +115,20 @@ class PluginRegistrationTest {
     }
 
     @Test
+    void registersDartDesignerUndoableEditWrapperAtTheNativeDocumentBoundary()
+            throws IOException {
+        String layer = readResource("META-INF/generated-layer.xml");
+        String registration = fileRegistration(
+                layer,
+                "dev-flutter-netbeans-plugin-designer-DesignerUndoableEditWrapper.instance");
+
+        assertTrue(registration.contains(
+                "name=\"instanceOf\" stringvalue=\"org.netbeans.spi.editor.document.UndoableEditWrapper\""));
+        assertTrue(registration.contains(
+                "intvalue=\"100000\" name=\"position\""));
+    }
+
+    @Test
     void registersDartFontColorsAndPreview() throws IOException {
         String layer = readResource("dev/flutter/netbeans/plugin/layer.xml");
         String colors = readResource(
@@ -167,6 +181,7 @@ class PluginRegistrationTest {
             "dev-flutter-netbeans-plugin-dart-DartTokenId-language.instance",
             "dev-flutter-netbeans-plugin-dart-DartTypingHooks$BreakFactory.instance",
             "dev-flutter-netbeans-plugin-dart-DartTypingHooks$TextFactory.instance",
+            "dev-flutter-netbeans-plugin-designer-guard-DartGuardedSectionsFactory.instance",
             "dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance"
         }) {
             assertFalse(

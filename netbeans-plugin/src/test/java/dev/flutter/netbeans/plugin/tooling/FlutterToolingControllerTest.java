@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -232,6 +233,7 @@ class FlutterToolingControllerTest {
                 progress,
                 WINDOWS);
         assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+        cleanFuture.awaitGetEntered();
 
         controller.close();
 
@@ -240,6 +242,60 @@ class FlutterToolingControllerTest {
         cleanFuture.awaitGetReturned();
         assertEquals(1, progress.finishedValues().size());
         assertEquals(1, backend.startCount());
+    }
+
+    @Test
+    void closeDoesNotBlockWhileBackendIsStartingAProcess() throws Exception {
+        ControlledFuture lateFuture = backend.plan(true);
+        backend.blockNextStart();
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                FlutterProjectActionProvider.COMMAND_PUB_GET,
+                Lookup.EMPTY,
+                progress);
+        backend.awaitBlockedStart();
+
+        Thread closer = Thread.ofVirtual().start(controller::close);
+        try {
+            closer.join(TimeUnit.SECONDS.toMillis(1));
+            assertFalse(closer.isAlive(),
+                    "project close must not wait on backend.start while holding the controller lock");
+            assertFalse(controller.awaitQuiescence(Duration.ofMillis(25)),
+                    "delete preparation must keep waiting for the blocked start worker");
+        } finally {
+            backend.releaseBlockedStart();
+            closer.join(TIMEOUT.toMillis());
+        }
+
+        assertTrue(lateFuture.awaitCancelRequested(),
+                "a Future returned after close must be cancelled before it can attach");
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertTrue(controller.awaitQuiescence(TIMEOUT));
+    }
+
+    @Test
+    void deletionWaitsForPhysicalExitAfterLogicalFutureWasCancelled() throws Exception {
+        ControlledFuture command = backend.plan(true, false);
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invoke(
+                FlutterProjectActionProvider.COMMAND_PUB_GET,
+                Lookup.EMPTY,
+                progress);
+        assertEquals(List.of("pub", "get"), backend.awaitRequest().arguments());
+        command.awaitGetEntered();
+
+        controller.close();
+
+        assertTrue(command.awaitCancelRequested());
+        command.awaitGetReturned();
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertFalse(controller.awaitQuiescence(Duration.ofMillis(25)),
+                "logical Future cancellation must not stand in for OS process exit");
+
+        command.completePhysicalExit();
+        assertTrue(controller.awaitQuiescence(TIMEOUT));
     }
 
     @Test
@@ -252,10 +308,13 @@ class FlutterToolingControllerTest {
                 staleProgress,
                 WINDOWS);
         assertEquals(List.of("clean"), backend.awaitRequest().arguments());
+        staleClean.awaitGetEntered();
 
         controller.close();
         assertTrue(staleClean.awaitCancelRequested());
         assertEquals(List.of(false), staleProgress.awaitFinished());
+        assertFalse(controller.awaitQuiescence(Duration.ofMillis(25)),
+                "a command Future that ignores cancellation must block destructive cleanup");
         controller.open();
 
         ControlledFuture currentFuture = backend.plan(true);
@@ -271,6 +330,7 @@ class FlutterToolingControllerTest {
         currentFuture.complete(0);
         assertEquals(List.of(true), currentProgress.awaitFinished());
         awaitCondition(() -> controller.isCommandEnabled(ActionProvider.COMMAND_BUILD));
+        assertTrue(controller.awaitQuiescence(TIMEOUT));
 
         assertEquals(2, backend.startCount());
         assertEquals(1, staleProgress.finishedValues().size());
@@ -290,6 +350,7 @@ class FlutterToolingControllerTest {
         backend.awaitRequest();
         cleanFuture.complete(0);
         assertEquals(List.of("build", "windows"), backend.awaitRequest().arguments());
+        buildFuture.awaitGetEntered();
 
         controller.close();
 
@@ -397,6 +458,7 @@ class FlutterToolingControllerTest {
         controller.invoke(ActionProvider.COMMAND_TEST, Lookup.EMPTY, progress);
         backend.awaitRequest();
         FakeTestSessionBridge session = testSessions.awaitSession();
+        future.awaitGetEntered();
 
         controller.close();
 
@@ -418,6 +480,7 @@ class FlutterToolingControllerTest {
                 Lookup.EMPTY,
                 staleProgress);
         backend.awaitRequest();
+        staleFuture.awaitGetEntered();
 
         controller.close();
         assertTrue(staleFuture.awaitCancelRequested());
@@ -521,22 +584,66 @@ class FlutterToolingControllerTest {
         private final BlockingQueue<ControlledFuture> planned = new LinkedBlockingQueue<>();
         private final BlockingQueue<FlutterExecutionRequest> requests = new LinkedBlockingQueue<>();
         private final AtomicInteger starts = new AtomicInteger();
+        private volatile CountDownLatch startEntered;
+        private volatile CountDownLatch releaseStart;
 
         ControlledFuture plan(boolean honorCancellation) {
-            ControlledFuture future = new ControlledFuture(honorCancellation);
+            return plan(honorCancellation, honorCancellation);
+        }
+
+        ControlledFuture plan(
+                boolean honorCancellation,
+                boolean terminateOnCancellation) {
+            ControlledFuture future = new ControlledFuture(
+                    honorCancellation,
+                    terminateOnCancellation);
             planned.add(future);
             return future;
         }
 
+        void blockNextStart() {
+            startEntered = new CountDownLatch(1);
+            releaseStart = new CountDownLatch(1);
+        }
+
+        void awaitBlockedStart() throws Exception {
+            CountDownLatch entered = startEntered;
+            if (entered == null
+                    || !entered.await(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                throw new AssertionError(
+                        "Flutter execution backend did not enter its blocked start");
+            }
+        }
+
+        void releaseBlockedStart() {
+            CountDownLatch release = releaseStart;
+            if (release != null) {
+                release.countDown();
+            }
+        }
+
         @Override
-        public Future<Integer> start(FlutterExecutionRequest request) {
+        public FlutterExecutionHandle start(FlutterExecutionRequest request) {
             ControlledFuture future = planned.poll();
             if (future == null) {
                 throw new AssertionError("No future was planned for " + request.displayName());
             }
+            CountDownLatch entered = startEntered;
+            CountDownLatch release = releaseStart;
+            if (entered != null && release != null) {
+                entered.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(
+                            "Blocked Flutter backend start was interrupted",
+                            ex);
+                }
+            }
             starts.incrementAndGet();
             requests.add(request);
-            return future;
+            return new FlutterExecutionHandle(future, future.termination());
         }
 
         FlutterExecutionRequest awaitRequest() throws Exception {
@@ -555,21 +662,40 @@ class FlutterToolingControllerTest {
 
     private static final class ControlledFuture implements Future<Integer> {
         private final boolean honorCancellation;
+        private final boolean terminateOnCancellation;
         private final CompletableFuture<Integer> completion = new CompletableFuture<>();
+        private final CompletableFuture<Void> termination = new CompletableFuture<>();
         private final CompletableFuture<Void> cancelRequested = new CompletableFuture<>();
+        private final CompletableFuture<Void> getEntered = new CompletableFuture<>();
         private final CompletableFuture<Void> getReturned = new CompletableFuture<>();
 
-        ControlledFuture(boolean honorCancellation) {
+        ControlledFuture(
+                boolean honorCancellation,
+                boolean terminateOnCancellation) {
             this.honorCancellation = honorCancellation;
+            this.terminateOnCancellation = terminateOnCancellation;
         }
 
         void complete(int exitCode) {
             completion.complete(exitCode);
+            termination.complete(null);
+        }
+
+        void completePhysicalExit() {
+            termination.complete(null);
+        }
+
+        CompletableFuture<Void> termination() {
+            return termination;
         }
 
         boolean awaitCancelRequested() throws Exception {
             cancelRequested.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             return true;
+        }
+
+        void awaitGetEntered() throws Exception {
+            getEntered.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         void awaitGetReturned() throws Exception {
@@ -579,7 +705,12 @@ class FlutterToolingControllerTest {
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
             cancelRequested.complete(null);
-            return honorCancellation && completion.cancel(mayInterruptIfRunning);
+            boolean cancelled = honorCancellation
+                    && completion.cancel(mayInterruptIfRunning);
+            if (cancelled && terminateOnCancellation) {
+                termination.complete(null);
+            }
+            return cancelled;
         }
 
         @Override
@@ -594,6 +725,7 @@ class FlutterToolingControllerTest {
 
         @Override
         public Integer get() throws InterruptedException, ExecutionException {
+            getEntered.complete(null);
             try {
                 return completion.get();
             } catch (CancellationException ex) {
@@ -606,6 +738,7 @@ class FlutterToolingControllerTest {
         @Override
         public Integer get(long timeout, TimeUnit unit)
                 throws InterruptedException, ExecutionException, TimeoutException {
+            getEntered.complete(null);
             try {
                 return completion.get(timeout, unit);
             } finally {

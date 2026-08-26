@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -17,11 +18,14 @@ import java.util.logging.Logger;
 import java.util.prefs.BackingStoreException;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectUtils;
+import org.netbeans.spi.project.DeleteOperationImplementation;
 import org.netbeans.spi.project.MoveOrRenameOperationImplementation;
 import org.openide.filesystems.FileObject;
 
-/** Preserves private Flutter state while NetBeans moves a project directory. */
-final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplementation {
+/** Integrates Flutter project move, rename, and delete lifecycle operations. */
+final class FlutterProjectMoveOperation implements
+        MoveOrRenameOperationImplementation,
+        DeleteOperationImplementation {
     enum RecoveryResult {
         RECOVERED,
         BLOCKED
@@ -35,6 +39,7 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     private final FlutterProjectInformation information;
     private final PrivateStateWriter privateStateWriter;
     private final PrivatePreferencesFlusher privatePreferencesFlusher;
+    private final PrivateMetadataCleaner privateMetadataCleaner;
     private final FlutterMoveHandoff handoff;
     private Map<String, Object> privateStateSnapshot = Collections.emptyMap();
     private String pendingTransactionId;
@@ -45,6 +50,12 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     private volatile boolean recoveryBlocked;
     private volatile boolean recoveryRenameAllowed;
     private volatile String recoveryBlockReason;
+    private boolean deletePreparationInFlight;
+    private boolean deletePrepared;
+    private boolean deleteAttributesCleared;
+    private boolean deleteMoveStateCleared;
+    private boolean deleteNotificationInFlight;
+    private boolean deleteCompleted;
 
     FlutterProjectMoveOperation(
             FlutterProject project,
@@ -72,6 +83,20 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
             FlutterProjectInformation information,
             PrivateStateWriter privateStateWriter,
             PrivatePreferencesFlusher privatePreferencesFlusher) {
+        this(
+                project,
+                information,
+                privateStateWriter,
+                privatePreferencesFlusher,
+                FlutterProjectMetadata::clearPrivateMetadataAfterDelete);
+    }
+
+    FlutterProjectMoveOperation(
+            FlutterProject project,
+            FlutterProjectInformation information,
+            PrivateStateWriter privateStateWriter,
+            PrivatePreferencesFlusher privatePreferencesFlusher,
+            PrivateMetadataCleaner privateMetadataCleaner) {
         this.project = Objects.requireNonNull(project, "project");
         this.information = Objects.requireNonNull(information, "information");
         this.privateStateWriter = Objects.requireNonNull(
@@ -80,12 +105,39 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
         this.privatePreferencesFlusher = Objects.requireNonNull(
                 privatePreferencesFlusher,
                 "privatePreferencesFlusher");
+        this.privateMetadataCleaner = Objects.requireNonNull(
+                privateMetadataCleaner,
+                "privateMetadataCleaner");
         this.handoff = new FlutterMoveHandoff(project.getProjectDirectory());
     }
 
     @Override
     public List<FileObject> getMetadataFiles() {
-        return List.of();
+        List<FileObject> files = new ArrayList<>();
+        FlutterProjectMetadata metadata = project.getLookup()
+                .lookup(FlutterProjectMetadata.class);
+        if (metadata != null) {
+            try {
+                FileObject sharedMetadata = metadata.sharedMetadataFile();
+                if (sharedMetadata != null) {
+                    files.add(sharedMetadata);
+                }
+            } catch (IOException | RuntimeException ex) {
+                LOGGER.log(
+                        Level.WARNING,
+                        "Could not inventory shared Flutter project metadata for deletion",
+                        ex);
+            }
+        }
+        try {
+            files.addAll(handoff.existingOwnedFiles());
+        } catch (IOException | RuntimeException ex) {
+            LOGGER.log(
+                    Level.WARNING,
+                    "Could not inventory Flutter move metadata for deletion",
+                    ex);
+        }
+        return List.copyOf(files);
     }
 
     @Override
@@ -94,7 +146,111 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     }
 
     @Override
+    public void notifyDeleting() throws IOException {
+        FlutterProjectLifecycle lifecycle = project.getLookup()
+                .lookup(FlutterProjectLifecycle.class);
+        if (lifecycle == null) {
+            throw new IOException(
+                    "Cannot prepare Flutter project deletion: project lifecycle is unavailable");
+        }
+
+        synchronized (this) {
+            if (deleteCompleted || deletePrepared) {
+                return;
+            }
+            if (deletePreparationInFlight) {
+                throw new IOException(
+                        "Flutter project deletion preparation is already in progress");
+            }
+            deletePreparationInFlight = true;
+        }
+        try {
+            privatePreferencesFlusher.flush(project);
+            lifecycle.prepareForDelete();
+        } catch (IOException ex) {
+            synchronized (this) {
+                deletePreparationInFlight = false;
+            }
+            throw ex;
+        } catch (RuntimeException ex) {
+            synchronized (this) {
+                deletePreparationInFlight = false;
+            }
+            throw new IOException(
+                    "Could not stop Flutter project services before deletion",
+                    ex);
+        }
+        synchronized (this) {
+            deletePreparationInFlight = false;
+            deletePrepared = true;
+        }
+    }
+
+    @Override
+    public void notifyDeleted() throws IOException {
+        boolean clearAttributes;
+        synchronized (this) {
+            if (deleteCompleted) {
+                return;
+            }
+            if (!deletePrepared) {
+                throw new IOException(
+                        "Flutter project deletion must call notifyDeleting before notifyDeleted");
+            }
+            if (deleteNotificationInFlight) {
+                throw new IOException(
+                        "Flutter project deletion completion is already in progress");
+            }
+            deleteNotificationInFlight = true;
+            clearAttributes = !deleteAttributesCleared;
+        }
+
+        try {
+            if (clearAttributes) {
+                clearPrivateAttributesAfterDelete();
+            }
+            synchronized (this) {
+                if (clearAttributes) {
+                    deleteAttributesCleared = true;
+                }
+                if (!deleteMoveStateCleared) {
+                    clearPendingMoveStateAfterDelete();
+                    deleteMoveStateCleared = true;
+                }
+            }
+        } catch (IOException ex) {
+            synchronized (this) {
+                deleteNotificationInFlight = false;
+            }
+            throw ex;
+        } catch (RuntimeException ex) {
+            synchronized (this) {
+                deleteNotificationInFlight = false;
+            }
+            throw new IOException(
+                    "Could not clear private Flutter project metadata after deletion",
+                    ex);
+        }
+
+        try {
+            project.state().notifyDeleted();
+        } catch (RuntimeException ex) {
+            synchronized (this) {
+                deleteNotificationInFlight = false;
+            }
+            throw new IOException(
+                    "Could not finish Flutter project deletion",
+                    ex);
+        }
+        synchronized (this) {
+            deleteNotificationInFlight = false;
+            deleteCompleted = true;
+        }
+    }
+
+    @Override
     public synchronized void notifyMoving() throws IOException {
+        requireDeleteNotPrepared("move");
         privatePreferencesFlusher.flush(project);
         Map<String, Object> snapshot = capturePrivateState();
         String sourceUri = projectUri();
@@ -121,6 +277,7 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     @Override
     public void notifyMoved(Project original, File originalPath, String newName)
             throws IOException {
+        requireDeleteNotPrepared("complete a move");
         if (original == null) {
             return;
         }
@@ -156,11 +313,13 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     }
 
     @Override
-    public void notifyRenaming() {
+    public void notifyRenaming() throws IOException {
+        requireDeleteNotPrepared("rename");
     }
 
     @Override
     public void notifyRenamed(String newName) throws IOException {
+        requireDeleteNotPrepared("complete a rename");
         if (!handoff.exists()) {
             information.renameTo(newName);
             clearRecoveryBlock();
@@ -207,6 +366,13 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     }
 
     RecoveryResult recoverPendingHandoff() {
+        synchronized (this) {
+            if (deletePreparationInFlight || deletePrepared) {
+                return blocked(
+                        "project deletion is already prepared",
+                        false);
+            }
+        }
         try {
             if (!handoff.exists()) {
                 return recovered();
@@ -532,6 +698,36 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
         }
     }
 
+    private void clearPrivateAttributesAfterDelete() throws IOException {
+        FlutterProjectMetadata metadata = project.getLookup()
+                .lookup(FlutterProjectMetadata.class);
+        if (metadata == null) {
+            throw new IOException(
+                    "Cannot clear private Flutter project metadata: metadata service is unavailable");
+        }
+        privateMetadataCleaner.clear(metadata);
+    }
+
+    private void clearPendingMoveStateAfterDelete() {
+        ACTIVE_MOVES.unregister(pendingTransactionId, this);
+        privateStateSnapshot = Collections.emptyMap();
+        pendingTransactionId = null;
+        pendingSourceUri = null;
+        movePending = false;
+        pendingSource = null;
+        pendingTargetDisplayName = null;
+        clearRecoveryBlock();
+    }
+
+    private synchronized void requireDeleteNotPrepared(String operation)
+            throws IOException {
+        if (deletePreparationInFlight || deletePrepared) {
+            throw new IOException(
+                    "Cannot " + operation
+                            + " a Flutter project after deletion was prepared");
+        }
+    }
+
     private static final class ActiveMoveRegistry {
         private final ConcurrentMap<String, SourceReference> sources =
                 new ConcurrentHashMap<>();
@@ -599,5 +795,10 @@ final class FlutterProjectMoveOperation implements MoveOrRenameOperationImplemen
     @FunctionalInterface
     interface PrivatePreferencesFlusher {
         void flush(FlutterProject project) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface PrivateMetadataCleaner {
+        void clear(FlutterProjectMetadata metadata) throws IOException;
     }
 }

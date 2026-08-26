@@ -36,6 +36,7 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 - [x] NetBeans Options page for Flutter and Dart SDKs
 - [x] First-start SDK discovery and persistent settings
 - [x] Open existing Flutter project as first-class project
+- [x] Delete a Flutter project through NetBeans' native keep-sources/delete-sources workflow
 - [x] Create a basic Flutter application from the New Project wizard
 - [x] `New File > Dart > Dart Class` wizard with project-aware location and naming
 - [x] Device selector in the standard NetBeans project-configuration toolbar combo
@@ -82,11 +83,128 @@ accepted architecture is documented in
 - [x] Choose `.fd` as the versioned JSON visual-model format.
 - [x] Choose same-basename `.fd`/`.dart` pairing with guarded generated regions.
 - [x] Define the initial version 1 JSON Schema and conflict-safety invariants.
-- [ ] Validate NetBeans 30 DataObject/MultiView and guarded-section integration.
-- [ ] Implement the widget metadata catalog and typed widget-tree model.
-- [ ] Implement deterministic Dart-region generation and source-conflict checks.
-- [ ] Implement command-based editing and Undo/Redo.
-- [ ] Integrate Palette, Widget Tree, Properties and semantic canvas.
+- [x] Validate NetBeans 30 DataObject/MultiView and guarded-section integration.
+- [x] Implement the widget metadata catalog and typed widget-tree model.
+- [x] Implement bounded version 1 JSON decoding/encoding, unsupported-version
+  read-only handling, and deterministic golden round-trip tests. Package the
+  canonical schema in `flutter-designer` runtime resources and verify that its
+  checked-in documentation copy remains identical.
+- [x] Connect the bounded codec to the NetBeans `DataObject` and `Design`
+  MultiView through a clone-safe, reload-coalescing background session. Compose
+  built-in and NetBeans Lookup-provided catalogs off the EDT, surface isolated
+  contributor diagnostics, and keep every loaded Design model read-only.
+  Passing pair and managed-source integrity gates publishes evidence only and
+  never enables mutation.
+- [x] Add bounded on-disk Dart source-integrity checks with exact source
+  baselines/region byte ranges, marker/guard parser parity, normalized hashes,
+  stateless class/scope binding, balanced structural delimiters, bounded
+  interpolation nesting and accessible conflict/unsupported states. This is
+  explicitly read-only; stateful or shadowed Flutter-symbol binding is not
+  guessed.
+- [x] Implement bounded deterministic Dart-region generation for the supported
+  stateless version 1 catalog and a read-only on-disk
+  `actual == declared == generated` gate that reconstructs and rescans the
+  complete candidate source without writing either file.
+- [x] Add the non-authorizing writable prerequisites: a prospective managed
+  Dart transition plan, a side-effect-free revision-bound live
+  `StyledDocument` snapshot with atomic apply/rollback primitives, and an
+  isolated no-disk-write native-analyzer overlay for bounded diagnostics and
+  unique real-target navigation evidence.
+- [x] Add the immutable canonical `PreparedDesignerPair`, strict live/analyzer
+  evidence gate, mandatory pre-apply preparation lease, one
+  `PairSaveCoordinator` owning the stable pair-aware `SaveCookie`, two-phase
+  guarded persistence, and an ordered two-lock
+  Dart/`.fd` transaction with exact baseline rechecks, verified
+  rollback/reread and exact owned-event correlation. This production
+  persistence edge has no Designer mutation caller yet.
+- [ ] Complete the writable-command release boundary. Exact probes, chained
+  unsaved model/source transitions, one native cross-file Undo/Redo cursor and
+  Pair/Source Save re-anchoring are implemented; the recovery-only
+  unprovable-authority discard and runtime/release matrix still block public
+  mutation.
+  - [x] Emit and validate the exact 1:1 generator-owned managed-region Flutter
+    occurrence manifest, including strict candidate UTF-16 mapping and exact
+    analyzer probe-set equality.
+  - [x] Implement the bounded pure Add/Remove/Move/Wrap/Set/Reset command
+    session, exact inverse history, saved cursor, branch semantics and
+    `PAIRED`/`FD_ONLY` revision classification, plus a stable NetBeans combined
+    Undo/Redo identity. It remains disconnected from writable UI.
+  - [x] Add scanner-owned exact `StatelessWidget` superclass evidence and make
+    it a mandatory analyzer probe beside the generator-owned occurrences.
+  - [x] Analyze the exact candidate in a unique no-disk overlay before the
+    first live mutation, then perform one EDT predecessor compare-and-set and
+    bind the applied revision separately. Rejected, cancelled, replayed or
+    transferred evidence leaves the live Dart revision unchanged. Analyzer
+    authority is fixed to the bound Dart file/configured Flutter SDK, and
+    reservation rechecks disk bytes across one external-event epoch.
+  - [x] Pin a dirty command cursor with a durable pre-commit lease and support
+    an internal exact `FD_ONLY` transaction that verifies both baselines,
+    the exact loaded catalog plus complete writable facts, writes only `.fd`,
+    leaves the Dart document/Undo state untouched and
+    re-anchors the command session only after a verified commit.
+  - [x] Make restore/lease release one document-atomic, no-reload barrier and
+    keep any observed apply/rollback dirty until ordinary Source Save; serialize
+    NetBeans state/cookie callbacks through a lock-free callback drain. Keep
+    the native editor Undo manager, expose one combined Source/Design identity,
+    and defer internal transaction notifications until the document lock is
+    released without erasing a later edit. Isolate fatal presentation callback
+    failures and serialize delegate actions against binding transitions.
+  - [x] Add the command-side pending C1→C2 lease. It derives and binds the exact
+    predecessor session/revision, candidate session/revision, edit and catalog
+    identities without moving C1 or truncating its redo branch; it blocks a
+    second command, Undo/Redo and durable Save until explicit adopt, abort or
+    invalidation. It deliberately grants no analyzer, live-editor or write
+    authority.
+  - [x] Add coordinator-owned analyzed replacement of the exact staged C1 pair
+    by C2. Claim and fence the pending command before transition planning,
+    analyze before live apply, jointly publish document/pair/cursor C2, retain
+    exact C1 on rejection, and restore/rebind fresh C1 evidence after a failed
+    apply across chained unsaved commands. External or user edits fail closed
+    without losing their content.
+  - [x] Unify the command/generator/analyzer candidate-byte and symbol-probe
+    capacity budget so an accepted command cannot become unsaveable only at
+    staging. The exact policy identity now travels with generation, revision,
+    analyzer ticket/request and analyzer limits.
+  - [x] Add one chronological Source/model Undo/Redo cursor. Mutation remains
+    separately gated by the complete release/runtime matrix and visual-surface
+    contracts.
+    - [x] Keep the native CES manager as the sole delegate and admit one
+      non-merging Designer semantic edit through the Dart MIME
+      `UndoableEditWrapper`; prove `Source → Model → Source` ordering, exact
+      branch-truncation release, and zero phantom entries after atomic rollback.
+    - [x] Join native semantic Undo/Redo to exact retained pair evidence and
+      command cursor transitions without rerunning the analyzer.
+    - [x] Re-anchor successful paired Save at the exact model/native savepoint,
+      retain the native edge, and preserve a newer unmanaged Source entry above
+      it without a successful-Save `discardAllEdits()` barrier. The retained
+      `B→C1→C2` chain now completes two-step semantic Undo/Redo around the exact
+      clean `C2` savepoint without rewriting the durable pair.
+    - [x] Re-anchor ordinary Source Save over saved semantic history. Require
+      exact managed-payload byte equality under an identity-bound
+      `SourceAnchorLease`, make `S2` the durable command baseline, rebuild
+      historical proof identities against it, and retain the native `C1`
+      underlay so Undo/Redo follows `S2→C1→B→C1→S2`. Adopt controller, command
+      and Pair state atomically; any post-CES failed outcome or split-authority risk
+      fails closed without discarding native history.
+    - [x] Preserve two-axis semantic/Source history across a later Pair Save:
+      `(C2,S2)→(C1,S2)→(C1,S0)→(B,S0)` and full Redo, with exact physical
+      endpoint proofs, aggregate byte bounds, `UNCHANGED` savepoint handling,
+      repeated Source re-anchoring across every retained physical variant, and
+      safe last-edge owner re-anchoring or retirement after owner close.
+    - [x] Admit the next Designer command from an exact noncanonical physical
+      endpoint such as `(C1,S0)`. An opaque staged command-source token pins the
+      logical owner, endpoint-specific `SavedHistoryProof`, live identity and
+      both coordinator epochs. The pending lease derives `C3/S0` from that
+      exact pair, analyzer/replacement/recovery accept the generalized saved
+      proof without fabricating predecessor analysis, and aggregate physical
+      budget admission happens before mutation. Successful adoption truncates
+      the old `S2/C2` redo suffix, preserves the exact `B/S0→C1/S0→C3/S0`
+      branch, and keeps `S0` sticky for the next ordinary command.
+    - [ ] Replace the remaining recovery-only history discard used when staged
+      authority is already unprovable before persistence.
+- [ ] Discuss and freeze the first Canvas architecture slice before enabling
+  any public mutation UI. `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+- [ ] Integrate Palette, Widget Tree, Properties and semantic Canvas.
 - [ ] Add selection/hit testing, semantic drag/drop and layout guides.
 - [ ] Decide pixel-accurate preview transport in a separate ADR.
 

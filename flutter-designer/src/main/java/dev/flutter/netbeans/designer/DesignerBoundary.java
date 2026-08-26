@@ -1,11 +1,10 @@
 package dev.flutter.netbeans.designer;
 
-/**
- * Marker for the future Matisse-like Flutter designer.
- * This module intentionally contains no active designer implementation until
- * Dart/Flutter project, run, debug and tooling support are stable.
- */
+/** Marks the NetBeans-independent boundary of the Flutter Designer domain. */
 public final class DesignerBoundary {
     private DesignerBoundary() { }
-    public static String milestone() { return "M4: native Flutter Engine canvas"; }
+
+    public static String milestone() {
+        return "M4: prepared pairs and a fail-closed NetBeans pair-save edge";
+    }
 }

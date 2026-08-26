@@ -1,11 +1,15 @@
 package dev.flutter.netbeans.plugin.project;
 
 import dev.flutter.netbeans.plugin.tooling.FlutterToolingController;
+import java.io.IOException;
+import java.time.Duration;
 import org.netbeans.api.project.ProjectManager;
 import org.netbeans.spi.project.ui.ProjectOpenedHook;
 
 /** Owns metadata migration and project-scoped Flutter service lifecycles. */
 final class FlutterProjectLifecycle extends ProjectOpenedHook {
+    private static final Duration DELETE_QUIESCENCE_TIMEOUT = Duration.ofSeconds(15);
+
     private final Object lifecycleLock = new Object();
     private final FlutterProject project;
     private final FlutterProjectMetadata metadata;
@@ -61,7 +65,31 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
 
     @Override
     protected void projectClosed() {
+        stopServices();
+    }
+
+    void prepareForDelete() throws IOException {
+        long deadline = System.nanoTime() + DELETE_QUIESCENCE_TIMEOUT.toNanos();
+        stopServices();
+        awaitDeleteService(
+                "Flutter Run, Debug, and DevTools processes",
+                runController::awaitQuiescence,
+                deadline);
+        awaitDeleteService(
+                "Flutter tooling commands",
+                toolingController::awaitQuiescence,
+                deadline);
+        awaitDeleteService(
+                "Dart analysis server",
+                analysisLifecycle::awaitQuiescence,
+                deadline);
+    }
+
+    private void stopServices() {
         synchronized (lifecycleLock) {
+            if (!projectOpen && !servicesStarted) {
+                return;
+            }
             projectOpen = false;
             servicesStarted = false;
         }
@@ -69,6 +97,30 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
         configurations.close();
         toolingController.close();
         runController.close();
+    }
+
+    private void awaitDeleteService(
+            String service,
+            QuiescenceWait wait,
+            long deadline) throws IOException {
+        long remainingNanos = Math.max(0L, deadline - System.nanoTime());
+        try {
+            if (!wait.await(Duration.ofNanos(remainingNanos))) {
+                throw new IOException(
+                        "Cannot delete Flutter project at "
+                        + project.getProjectDirectory().getPath()
+                        + " because " + service
+                        + " did not stop within "
+                        + DELETE_QUIESCENCE_TIMEOUT.toSeconds() + " seconds");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException(
+                    "Cannot delete Flutter project at "
+                    + project.getProjectDirectory().getPath()
+                    + " because waiting for " + service + " was interrupted",
+                    ex);
+        }
     }
 
     FlutterProjectMoveOperation.RecoveryResult recoverMetadataOnOpen() {
@@ -84,5 +136,10 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
 
     void recoveryResolved() {
         startServicesIfOpen();
+    }
+
+    @FunctionalInterface
+    private interface QuiescenceWait {
+        boolean await(Duration timeout) throws InterruptedException;
     }
 }

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -193,6 +194,23 @@ class FlutterRunControllerLifecycleTest {
     }
 
     @Test
+    void closeIsNotQuiescentUntilTheRunProcessActuallyExits() throws Exception {
+        FakeRunSession session = dependencies.planSession();
+        session.delayExitAfterClose();
+        startRun(session);
+
+        controller.close();
+        dependencies.executor.runAll();
+
+        assertFalse(controller.awaitQuiescence(Duration.ZERO));
+
+        session.completeExit(143);
+        dependencies.executor.runAll();
+
+        assertTrue(controller.awaitQuiescence(Duration.ofSeconds(1)));
+    }
+
+    @Test
     void closeWhileSessionFactoryIgnoresInterruptDoesNotRetainStartedResources()
             throws Exception {
         FakeRunSession session = dependencies.planSession();
@@ -204,6 +222,8 @@ class FlutterRunControllerLifecycleTest {
         dependencies.awaitSessionStart();
 
         controller.close();
+        assertFalse(controller.awaitQuiescence(Duration.ZERO),
+                "delete preparation must still see the blocked startup worker");
         dependencies.releaseSessionStart();
         startWorker.join(TimeUnit.SECONDS.toMillis(2));
         assertFalse(startWorker.isAlive(), "blocked session factory did not finish");
@@ -216,6 +236,8 @@ class FlutterRunControllerLifecycleTest {
                 "a ProgressHandle must not be created after project close");
         assertFalse(controller.isCommandEnabled(ActionProvider.COMMAND_RUN));
         assertFalse(dependencies.executor.hasTasks());
+        assertTrue(controller.awaitQuiescence(Duration.ofSeconds(1)),
+                "all Run/Debug cleanup work must become observable as quiescent");
     }
 
     @Test
@@ -517,6 +539,7 @@ class FlutterRunControllerLifecycleTest {
         private RunState state = RunState.STARTING;
         private int quitCalls;
         private int closeCalls;
+        private boolean completeExitOnClose = true;
 
         @Override
         public RunState state() {
@@ -570,7 +593,17 @@ class FlutterRunControllerLifecycleTest {
         public void close() {
             closeCalls++;
             transition(RunState.STOPPED);
-            exit.complete(143);
+            if (completeExitOnClose) {
+                exit.complete(143);
+            }
+        }
+
+        void delayExitAfterClose() {
+            completeExitOnClose = false;
+        }
+
+        void completeExit(int exitCode) {
+            exit.complete(exitCode);
         }
 
         void transition(RunState next) {

@@ -5,6 +5,7 @@ import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.api.RunState;
+import dev.flutter.netbeans.plugin.lifecycle.AsyncTaskTracker;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
 import dev.flutter.netbeans.run.DevToolsLauncher;
 import dev.flutter.netbeans.run.DevToolsSession;
@@ -76,6 +77,7 @@ public final class FlutterRunController implements AutoCloseable {
     private final FlutterProjectInfo projectInfo;
     private final Path projectRoot;
     private final Dependencies dependencies;
+    private final AsyncTaskTracker quiescenceTasks;
     private final Executor worker;
     private final ChangeSupport changes = new ChangeSupport(this);
     private volatile Preferences preferences;
@@ -114,7 +116,10 @@ public final class FlutterRunController implements AutoCloseable {
         this.projectInfo = projectInfo;
         this.projectRoot = projectInfo.root().toAbsolutePath().normalize();
         this.dependencies = java.util.Objects.requireNonNull(dependencies, "dependencies");
-        this.worker = java.util.Objects.requireNonNull(dependencies.executor(), "executor");
+        Executor executor = java.util.Objects.requireNonNull(
+                dependencies.executor(), "executor");
+        this.quiescenceTasks = new AsyncTaskTracker(executor);
+        this.worker = quiescenceTasks;
     }
 
     public boolean isCommandEnabled(String command) {
@@ -1869,6 +1874,12 @@ public final class FlutterRunController implements AutoCloseable {
         for (ActionProgressCompletion completion : actionCompletions) {
             completion.finish(false);
         }
+        if (current != null) {
+            quiescenceTasks.track(current.exitCode());
+        }
+        if (devTools != null) {
+            quiescenceTasks.track(devTools.exitCode());
+        }
         worker.execute(() -> {
             if (launcher != null) {
                 launcher.close();
@@ -1893,6 +1904,11 @@ public final class FlutterRunController implements AutoCloseable {
             }
             fireChange();
         });
+    }
+
+    /** Waits for project-owned Run, Debug, and DevTools cleanup work to finish. */
+    boolean awaitQuiescence(Duration timeout) throws InterruptedException {
+        return quiescenceTasks.awaitIdle(timeout);
     }
 
     @FunctionalInterface

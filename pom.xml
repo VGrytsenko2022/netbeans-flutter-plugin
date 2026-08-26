@@ -24,6 +24,7 @@
     <module>flutter-project</module>
     <module>flutter-run</module>
     <module>netbeans-plugin</module>
+    <module>designer-catalog-contributor-fixture</module>
     <module>netbeans-runtime-it</module>
     <module>flutter-designer</module>
   </modules>
@@ -63,13 +64,16 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>3.5.3</version>
           <configuration>
-            <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED</argLine>
+            <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED</argLine>
           </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-failsafe-plugin</artifactId>
           <version>3.5.3</version>
+          <configuration>
+            <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>

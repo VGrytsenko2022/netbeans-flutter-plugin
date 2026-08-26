@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.project;
 
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -33,6 +34,7 @@ public final class DartAnalysisLifecycle {
     private long startingAttempt;
     private String lastFailure;
     private final Set<String> notifiedFailures = new HashSet<>();
+    private final Set<Ticket> startingTickets = new HashSet<>();
     private Registration server;
 
     public DartAnalysisLifecycle() {
@@ -109,6 +111,7 @@ public final class DartAnalysisLifecycle {
             state = AnalysisState.STARTING;
             currentStartIsRestart = restarting;
             startingAttempt = ticket.attempt();
+            startingTickets.add(ticket);
             lastFailure = null;
             report(() -> statusReporter.starting(projectName, restarting));
         }
@@ -123,6 +126,9 @@ public final class DartAnalysisLifecycle {
                 : reason.strip();
         boolean notifyUser;
         synchronized (this) {
+            if (startingTickets.remove(ticket)) {
+                notifyAll();
+            }
             if (!isCurrent(ticket)) {
                 return;
             }
@@ -150,9 +156,11 @@ public final class DartAnalysisLifecycle {
         Objects.requireNonNull(ticket, "ticket");
         Objects.requireNonNull(owner, "owner");
         Registration previous = null;
+        Registration cleanup = null;
         boolean accepted;
         boolean restarted = false;
         synchronized (this) {
+            boolean startFinished = startingTickets.remove(ticket);
             accepted = open
                     && pendingCleanups == 0
                     && isCurrent(ticket);
@@ -167,14 +175,24 @@ public final class DartAnalysisLifecycle {
                 boolean wasRestarted = restarted;
                 report(() -> statusReporter.running(projectName, wasRestarted));
             }
+            if (!accepted) {
+                cleanup = new Registration(owner, null);
+            } else if (previous != null && previous.owner() != owner) {
+                cleanup = new Registration(previous.owner(), null);
+            }
+            if (cleanup != null) {
+                // Reserve cleanup before waking a deletion waiter. Scheduling
+                // happens outside the lifecycle monitor.
+                pendingCleanups++;
+            }
+            if (startFinished) {
+                notifyAll();
+            }
         }
-        if (!accepted) {
-            closeWithoutCacheRemoval(owner);
-        } else if (previous != null && previous.owner() != owner) {
-            // NetBeans only asks for a replacement after it has discarded a
-            // dead binding; invoking the old restarter here could remove the
-            // new binding that is currently being created.
-            closeWithoutCacheRemoval(previous.owner());
+        if (cleanup != null) {
+            // A rejected owner was never cached; a replaced binding has
+            // already been discarded. Neither cleanup may restart the cache.
+            submitCleanup(cleanup, this::cleanupFinished);
         }
         return accepted;
     }
@@ -210,10 +228,29 @@ public final class DartAnalysisLifecycle {
         if (pendingCleanups > 0) {
             pendingCleanups--;
         }
+        notifyAll();
     }
 
-    private void closeWithoutCacheRemoval(AutoCloseable owner) {
-        submitCleanup(new Registration(owner, null), () -> { });
+    /** Waits for Dart server startup and cleanup work owned by this project. */
+    public boolean awaitQuiescence(Duration timeout) throws InterruptedException {
+        Objects.requireNonNull(timeout, "timeout");
+        if (timeout.isNegative()) {
+            throw new IllegalArgumentException("timeout must not be negative");
+        }
+        long remainingNanos = timeout.toNanos();
+        long deadline = System.nanoTime() + remainingNanos;
+        synchronized (this) {
+            while (pendingCleanups != 0 || !startingTickets.isEmpty()) {
+                if (remainingNanos <= 0) {
+                    return false;
+                }
+                java.util.concurrent.TimeUnit.NANOSECONDS.timedWait(
+                        this,
+                        remainingNanos);
+                remainingNanos = deadline - System.nanoTime();
+            }
+            return true;
+        }
     }
 
     private void submitCleanup(Registration registration, Runnable completion) {

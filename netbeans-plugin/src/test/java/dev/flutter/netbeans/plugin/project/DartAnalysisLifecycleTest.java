@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,7 +68,7 @@ class DartAnalysisLifecycleTest {
     }
 
     @Test
-    void waitsForOldBindingCleanupBeforeIssuingNewTicket() {
+    void waitsForOldBindingCleanupBeforeIssuingNewTicket() throws Exception {
         AtomicReference<Runnable> pendingCleanup = new AtomicReference<>();
         AtomicBoolean cacheRemoved = new AtomicBoolean();
         AtomicBoolean serverClosed = new AtomicBoolean();
@@ -96,12 +97,35 @@ class DartAnalysisLifecycleTest {
         lifecycle.open();
 
         assertNull(lifecycle.acquire());
+        assertFalse(lifecycle.awaitQuiescence(Duration.ZERO));
         assertNotNull(pendingCleanup.get());
         pendingCleanup.get().run();
 
         assertTrue(cacheRemoved.get());
         assertTrue(serverClosed.get());
+        assertTrue(lifecycle.awaitQuiescence(Duration.ofSeconds(1)));
         assertNotNull(lifecycle.acquire());
+    }
+
+    @Test
+    void deleteWaitsForAStartingServerToReturnItsOwner() throws Exception {
+        DartAnalysisLifecycle lifecycle = synchronousLifecycle();
+        AtomicBoolean staleOwnerClosed = new AtomicBoolean();
+
+        lifecycle.open();
+        DartAnalysisLifecycle.Ticket starting = lifecycle.acquire();
+        assertNotNull(starting);
+        assertTrue(lifecycle.beginStart(starting));
+
+        lifecycle.close();
+
+        assertFalse(lifecycle.awaitQuiescence(Duration.ZERO));
+        assertFalse(lifecycle.attach(
+                starting,
+                () -> staleOwnerClosed.set(true),
+                null));
+        assertTrue(staleOwnerClosed.get());
+        assertTrue(lifecycle.awaitQuiescence(Duration.ofSeconds(1)));
     }
 
     @Test

@@ -310,6 +310,25 @@ final class FlutterProjectMetadata implements AuxiliaryConfiguration, AuxiliaryP
         }
     }
 
+    void clearPrivateMetadataAfterDelete() throws IOException {
+        synchronized (storageLock) {
+            if (!projectDirectory.isValid()) {
+                return;
+            }
+            projectDirectory.setAttribute(PRIVATE_METADATA_ATTRIBUTE, null);
+            List<String> attributes = Collections.list(
+                    projectDirectory.getAttributes());
+            for (String attribute : attributes) {
+                if (attribute.startsWith(LEGACY_VALUE_QUARANTINE_PREFIX)
+                        || attribute.startsWith(
+                                EXTERNAL_PAYLOAD_QUARANTINE_PREFIX)) {
+                    projectDirectory.setAttribute(attribute, null);
+                }
+            }
+            reportedReadFailures.clear();
+        }
+    }
+
     private void quarantineMalformedLegacyXml(
             String attributeName,
             String xml,
@@ -527,7 +546,7 @@ final class FlutterProjectMetadata implements AuxiliaryConfiguration, AuxiliaryP
         return serialized.toByteArray();
     }
 
-    private FileObject sharedMetadataFile() throws IOException {
+    FileObject sharedMetadataFile() throws IOException {
         FileObject file = projectDirectory.getFileObject(SHARED_METADATA_PATH);
         if (file == null) {
             return null;

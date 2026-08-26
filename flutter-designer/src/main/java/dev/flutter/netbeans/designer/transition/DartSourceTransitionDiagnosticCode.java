@@ -1,0 +1,16 @@
+package dev.flutter.netbeans.designer.transition;
+
+/** Stable failure codes for prospective managed-Dart transition planning. */
+public enum DartSourceTransitionDiagnosticCode {
+    BASELINE_NOT_THREE_WAY_MATCH,
+    BASELINE_DESCRIPTOR_MISMATCH,
+    WRITABLE_SOURCE_BOM_UNSUPPORTED,
+    WRITABLE_SOURCE_EOL_UNSUPPORTED,
+    LIVE_SOURCE_CONFLICT,
+    LIVE_SOURCE_UNSUPPORTED,
+    LIVE_SOURCE_UNAVAILABLE,
+    GENERATION_UNAVAILABLE,
+    GENERATION_EVIDENCE_INCONSISTENT,
+    GENERATED_CANDIDATE_TOO_LARGE,
+    GENERATED_CANDIDATE_INVALID
+}

@@ -1,0 +1,259 @@
+package dev.flutter.netbeans.plugin.designer.catalog;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.flutter.netbeans.designer.catalog.CatalogBuildResult;
+import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
+import dev.flutter.netbeans.designer.catalog.CatalogDiagnosticCode;
+import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
+import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.WidgetCatalogContributor;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.awt.EventQueue;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Test;
+
+class NetBeansWidgetCatalogProviderTest {
+    private static final String EXTENSION_TYPE = "com.example.ExampleCard";
+
+    @Test
+    void defaultLookupAlwaysRetainsTheBuiltInSnapshot() throws Exception {
+        CatalogBuildResult result = new NetBeansWidgetCatalogProvider()
+                .snapshotAsync()
+                .toCompletableFuture()
+                .get(5, TimeUnit.SECONDS);
+
+        assertTrue(typeIds(result).contains("flutter.material.Scaffold"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Text"));
+    }
+
+    @Test
+    void lookupAndContributorCompositionRunOffTheEventDispatchThread() throws Exception {
+        AtomicBoolean discoveryOnEdt = new AtomicBoolean(true);
+        AtomicReference<String> discoveryThread = new AtomicReference<>();
+        ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, "catalog-provider-test-worker");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                    () -> {
+                        discoveryOnEdt.set(EventQueue.isDispatchThread());
+                        discoveryThread.set(Thread.currentThread().getName());
+                        return List.of(contributor("com.example", definition(EXTENSION_TYPE)));
+                    },
+                    worker);
+            AtomicReference<CompletionStage<CatalogBuildResult>> pending = new AtomicReference<>();
+
+            EventQueue.invokeAndWait(() -> pending.set(provider.snapshotAsync()));
+            CatalogBuildResult result = pending.get().toCompletableFuture()
+                    .get(5, TimeUnit.SECONDS);
+
+            assertFalse(discoveryOnEdt.get());
+            assertEquals("catalog-provider-test-worker", discoveryThread.get());
+            assertTrue(typeIds(result).contains(EXTENSION_TYPE));
+        } finally {
+            worker.shutdownNow();
+            assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void synchronousSnapshotRejectsTheEventDispatchThreadBeforeDiscovery() throws Exception {
+        AtomicBoolean discoveryCalled = new AtomicBoolean();
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                () -> {
+                    discoveryCalled.set(true);
+                    return List.of();
+                },
+                Runnable::run);
+        AtomicReference<IllegalStateException> failure = new AtomicReference<>();
+
+        EventQueue.invokeAndWait(() -> failure.set(assertThrows(
+                IllegalStateException.class,
+                provider::snapshotOffEdt)));
+
+        assertEquals(
+                "Widget catalog discovery must not run on the Event Dispatch Thread",
+                failure.get().getMessage());
+        assertFalse(discoveryCalled.get());
+    }
+
+    @Test
+    void malformedContributorsAreRejectedWithoutHidingValidPeersOrBuiltIns() {
+        WidgetCatalogContributor runtimeBroken = failingDefinitions(
+                "com.brokenruntime", new IllegalStateException("broken"));
+        WidgetCatalogContributor linkageBroken = failingDefinitions(
+                "com.brokenlinkage", new NoClassDefFoundError("missing"));
+        WidgetCatalogContributor valid = contributor("com.example", definition(EXTENSION_TYPE));
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                () -> List.of(runtimeBroken, valid, linkageBroken),
+                Runnable::run);
+
+        CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
+
+        assertTrue(typeIds(result).contains("flutter.material.Scaffold"));
+        assertTrue(typeIds(result).contains(EXTENSION_TYPE));
+        assertEquals(
+                List.of("com.brokenlinkage", "com.brokenruntime"),
+                result.diagnostics().stream().map(CatalogDiagnostic::subject).toList());
+        assertTrue(result.diagnostics().stream()
+                .allMatch(value -> value.code() == CatalogDiagnosticCode.INVALID_DEFINITION));
+    }
+
+    @Test
+    void lookupFailureBecomesStableDiagnosticAndBuiltInFallback() {
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                () -> {
+                    throw new IllegalStateException("environment-specific detail");
+                },
+                Runnable::run);
+
+        CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
+
+        assertEquals(10, result.catalog().definitions().size());
+        assertEquals(List.of(new CatalogDiagnostic(
+                CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
+                "<lookup>",
+                List.of(),
+                "NetBeans Lookup contributor discovery failed: IllegalStateException")),
+                result.diagnostics());
+    }
+
+    @Test
+    void lazyLookupCollectionFailureIsContainedByTheEdgeGuard() {
+        Collection<WidgetCatalogContributor> hostile = new java.util.AbstractCollection<>() {
+            @Override
+            public java.util.Iterator<WidgetCatalogContributor> iterator() {
+                return List.<WidgetCatalogContributor>of().iterator();
+            }
+
+            @Override
+            public int size() {
+                return 1;
+            }
+
+            @Override
+            public Object[] toArray() {
+                throw new java.util.ServiceConfigurationError("miscompiled provider");
+            }
+        };
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                () -> hostile,
+                Runnable::run);
+
+        CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
+
+        assertEquals(10, result.catalog().definitions().size());
+        assertEquals(List.of(new CatalogDiagnostic(
+                CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
+                "<composition>",
+                List.of(),
+                "Widget catalog composition failed: ServiceConfigurationError")),
+                result.diagnostics());
+    }
+
+    @Test
+    void returnedSnapshotCollectionsAreImmutable() {
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                List::of,
+                Runnable::run);
+
+        CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> result.diagnostics().add(new CatalogDiagnostic(
+                        CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
+                        "unused",
+                        List.of(),
+                        "unused")));
+        assertThrows(UnsupportedOperationException.class,
+                () -> result.catalog().definitions().clear());
+    }
+
+    private static WidgetCatalogContributor contributor(
+            String id, WidgetDefinition... definitions) {
+        return new Contributor(id, WidgetCatalog.API_VERSION, List.of(definitions));
+    }
+
+    private static WidgetCatalogContributor failingDefinitions(
+            String id, RuntimeException failure) {
+        return new WidgetCatalogContributor() {
+            @Override
+            public String contributorId() {
+                return id;
+            }
+
+            @Override
+            public int apiVersion() {
+                return WidgetCatalog.API_VERSION;
+            }
+
+            @Override
+            public Collection<WidgetDefinition> definitions() {
+                throw failure;
+            }
+        };
+    }
+
+    private static WidgetCatalogContributor failingDefinitions(
+            String id, LinkageError failure) {
+        return new WidgetCatalogContributor() {
+            @Override
+            public String contributorId() {
+                return id;
+            }
+
+            @Override
+            public int apiVersion() {
+                return WidgetCatalog.API_VERSION;
+            }
+
+            @Override
+            public Collection<WidgetDefinition> definitions() {
+                throw failure;
+            }
+        };
+    }
+
+    private static WidgetDefinition definition(String typeId) {
+        String className = typeId.substring(typeId.lastIndexOf('.') + 1);
+        return new WidgetDefinition(
+                new WidgetTypeId(typeId),
+                className,
+                Optional.empty(),
+                false,
+                "package:example/widgets.dart",
+                List.of("package:example/widgets.dart"),
+                Set.of(),
+                new PaletteMetadata("example", 500, 10, className),
+                List.of(),
+                List.of());
+    }
+
+    private static List<String> typeIds(CatalogBuildResult result) {
+        return result.catalog().definitions().stream()
+                .map(value -> value.typeId().value())
+                .toList();
+    }
+
+    private record Contributor(
+            String contributorId,
+            int apiVersion,
+            Collection<WidgetDefinition> definitions) implements WidgetCatalogContributor {
+    }
+}

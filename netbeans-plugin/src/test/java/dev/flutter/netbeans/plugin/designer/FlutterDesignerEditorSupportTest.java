@@ -1,0 +1,858 @@
+package dev.flutter.netbeans.plugin.designer;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
+import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.codec.FdDecodeResult;
+import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
+import dev.flutter.netbeans.designer.generation.GeneratedDartRegions;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
+import dev.flutter.netbeans.plugin.dart.DartEditorKit;
+import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
+import java.awt.EventQueue;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
+import javax.swing.text.StyledDocument;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.netbeans.editor.BaseDocument;
+import org.netbeans.spi.editor.guards.GuardedEditorSupport;
+import org.openide.cookies.CloseCookie;
+import org.openide.cookies.EditCookie;
+import org.openide.cookies.EditorCookie;
+import org.openide.cookies.OpenCookie;
+import org.openide.cookies.PrintCookie;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataObject;
+import org.openide.loaders.SaveAsCapable;
+import org.openide.text.CloneableEditorSupport;
+import org.openide.text.DataEditorSupport;
+
+/** Structural contract for the designer-specific source editor support. */
+class FlutterDesignerEditorSupportTest {
+    private static final String IMPORTS_PAYLOAD =
+            "import 'package:flutter/widgets.dart';\n";
+    private static final String BUILD_PAYLOAD = "  @override\n"
+            + "  Widget build(BuildContext context) {\n"
+            + "    return const SizedBox();\n"
+            + "  }\n";
+    private static final String SOURCE =
+            "// <netbeans-flutter-designer region=\"imports\">\n"
+            + IMPORTS_PAYLOAD
+            + "// </netbeans-flutter-designer>\n\n"
+            + "class HomePage extends StatelessWidget {\n"
+            + "  // <netbeans-flutter-designer region=\"build\">\n"
+            + BUILD_PAYLOAD
+            + "  // </netbeans-flutter-designer>\n"
+            + "}\n";
+
+    @TempDir
+    Path temporaryDirectory;
+
+    @Test
+    void providesStandardEditorCookiesWithoutUnsafeDartOnlySaveAs() {
+        Class<FlutterDesignerEditorSupport> type = FlutterDesignerEditorSupport.class;
+
+        assertTrue(DataEditorSupport.class.isAssignableFrom(type));
+        assertTrue(OpenCookie.class.isAssignableFrom(type));
+        assertTrue(EditCookie.class.isAssignableFrom(type));
+        assertTrue(EditorCookie.Observable.class.isAssignableFrom(type));
+        assertTrue(PrintCookie.class.isAssignableFrom(type));
+        assertTrue(CloseCookie.class.isAssignableFrom(type));
+        assertFalse(SaveAsCapable.class.isAssignableFrom(type),
+                "Dart-only Save As would orphan the paired .fd model");
+    }
+
+    @Test
+    void ownsAGuardedEditorBridgeForTheDocumentBeingLoaded() {
+        assertTrue(Arrays.stream(FlutterDesignerEditorSupport.class.getDeclaredClasses())
+                .anyMatch(GuardedEditorSupport.class::isAssignableFrom));
+    }
+
+    @Test
+    void replacementRestoreFinalizerReceivesExactSnapshotUnderEditorDocumentLock()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("restore_lock");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot before = editor.liveSnapshot();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        byte[] candidate = candidate(generated);
+        LiveDartDocumentSnapshot applied = onEdt(() ->
+                editor.applyPreparedRegions(before, generated, candidate));
+        CountDownLatch editStarted = new CountDownLatch(1);
+        CountDownLatch editFinished = new CountDownLatch(1);
+        AtomicReference<Throwable> editFailure = new AtomicReference<>();
+        AtomicReference<Thread> editThread = new AtomicReference<>();
+        AtomicReference<LiveDartDocumentSnapshot> finalized =
+                new AtomicReference<>();
+        String userEdit = "// queued after editor replacement rollback\n";
+
+        LiveDartDocumentSnapshot restored = onEdt(() ->
+                editor.restoreAndFinalizeReplacement(
+                        applied,
+                        before,
+                        exactRestored -> {
+                            finalized.set(exactRestored);
+                            assertArrayEquals(before.markerBearingUtf8(),
+                                    exactRestored.markerBearingUtf8());
+                            Thread worker = new Thread(() -> {
+                                editStarted.countDown();
+                                try {
+                                    fixture.document().insertString(
+                                            fixture.document().getLength(),
+                                            userEdit,
+                                            null);
+                                } catch (Throwable failure) {
+                                    editFailure.set(failure);
+                                } finally {
+                                    editFinished.countDown();
+                                }
+                            }, "queued-edit-after-editor-replacement-rollback");
+                            worker.setDaemon(true);
+                            editThread.set(worker);
+                            worker.start();
+                            try {
+                                assertTrue(editStarted.await(2, TimeUnit.SECONDS));
+                                assertFalse(editFinished.await(
+                                        100, TimeUnit.MILLISECONDS),
+                                        "the editor finalizer must retain the document lock");
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(interrupted);
+                            }
+                        }));
+
+        assertSame(finalized.get(), restored);
+        Thread worker = editThread.get();
+        assertNotNull(worker);
+        worker.join(TimeUnit.SECONDS.toMillis(2));
+        assertFalse(worker.isAlive());
+        assertNull(editFailure.get());
+        assertArrayEquals(
+                (SOURCE + userEdit).getBytes(StandardCharsets.UTF_8),
+                editor.liveSnapshot().markerBearingUtf8());
+    }
+
+    @Test
+    void failedEditorApplyFinalizerRollsBackAndPublishesNoCandidateIdentity()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("apply_failure");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot predecessor = editor.liveSnapshot();
+        boolean nativeUndoBefore = editor
+                .nativeUndoRedoManagerForCombinedBridge().canUndo();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        AtomicReference<LiveDartDocumentSnapshot> published =
+                new AtomicReference<>();
+
+        IOException failure = assertThrows(IOException.class, () ->
+                published.set(onEdt(() ->
+                        editor.applyPreparedRegionsAndFinalize(
+                                predecessor,
+                                generated,
+                                candidate(generated),
+                                exactApplied -> {
+                                    throw new IOException(
+                                            "synthetic editor C2 binding failure");
+                                }))));
+
+        assertTrue(failure.getMessage().contains("editor C2 binding failure"));
+        assertNull(published.get());
+        assertArrayEquals(predecessor.markerBearingUtf8(),
+                editor.liveSnapshot().markerBearingUtf8());
+        assertTrue(editor.sourceModified(),
+                "an observed apply/rollback stays dirty until explicit recovery");
+        assertEquals(nativeUndoBefore,
+                editor.nativeUndoRedoManagerForCombinedBridge().canUndo(),
+                "atomic rollback must admit no native history entry");
+    }
+
+    @Test
+    void semanticForwardAdmissionCommitsAfterNativeAckAndPublishesAfterUnlock()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture(
+                "semantic_forward_admission", true);
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot predecessor = editor.liveSnapshot();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        AtomicInteger semanticRevision = new AtomicInteger(40);
+        AtomicInteger jointCommits = new AtomicInteger();
+        AtomicReference<Throwable> readerFailure = new AtomicReference<>();
+        AtomicReference<Thread> readerThread = new AtomicReference<>();
+        CountDownLatch readerStarted = new CountDownLatch(1);
+        CountDownLatch readerFinished = new CountDownLatch(1);
+        List<String> callbacks = new ArrayList<>();
+        DesignerCombinedUndoRedo combined =
+                ((FlutterDesignerDataObject) fixture.editor().getDataObject())
+                        .getCombinedUndoRedo();
+
+        LiveDartDocumentSnapshot applied = onEdt(() -> {
+            javax.swing.event.ChangeListener combinedListener =
+                    event -> callbacks.add("combined");
+            combined.addChangeListener(combinedListener);
+            try {
+                return editor.applyPreparedRegionsAndFinalize(
+                        predecessor,
+                        generated,
+                        candidate(generated),
+                        new FlutterDesignerEditorSupport.ForwardSemanticEdge(
+                                40,
+                                41,
+                                "Apply Flutter visual change",
+                                (direction, currentRevisionId,
+                                        targetRevisionId) -> {
+                                    throw new AssertionError(
+                                            "forward-admission fixture must not replay");
+                                }),
+                        exactApplied -> {
+                            assertArrayEquals(
+                                    candidate(generated),
+                                    exactApplied.markerBearingUtf8());
+                            Thread reader = new Thread(() -> {
+                                readerStarted.countDown();
+                                try {
+                                    fixture.document().render(() -> {
+                                        try {
+                                            fixture.document().getText(
+                                                    0,
+                                                    fixture.document().getLength());
+                                        } catch (BadLocationException failure) {
+                                            throw new IllegalStateException(failure);
+                                        }
+                                    });
+                                } catch (Throwable failure) {
+                                    readerFailure.set(failure);
+                                } finally {
+                                    readerFinished.countDown();
+                                }
+                            }, "semantic-forward-admission-reader");
+                            reader.setDaemon(true);
+                            readerThread.set(reader);
+                            reader.start();
+                            assertTrue(await(readerStarted, 2, TimeUnit.SECONDS));
+                            assertFalse(await(
+                                    readerFinished, 100, TimeUnit.MILLISECONDS),
+                                    "the evidence finalizer must retain the outer write lock");
+
+                            return () -> {
+                                assertEquals(40, semanticRevision.get());
+                                assertFalse(await(
+                                        readerFinished,
+                                        100,
+                                        TimeUnit.MILLISECONDS),
+                                        "native acknowledgement must commit before outer unlock");
+                                semanticRevision.set(41);
+                                jointCommits.incrementAndGet();
+                                return () -> {
+                                    assertTrue(await(
+                                            readerFinished,
+                                            2,
+                                            TimeUnit.SECONDS),
+                                            "semantic publication must run after outer unlock");
+                                    assertNull(readerFailure.get());
+                                    callbacks.add("semantic");
+                                };
+                            };
+                        });
+            } finally {
+                combined.removeChangeListener(combinedListener);
+            }
+        });
+
+        Thread reader = readerThread.get();
+        assertNotNull(reader);
+        reader.join(TimeUnit.SECONDS.toMillis(2));
+        assertFalse(reader.isAlive());
+        assertNull(readerFailure.get());
+        assertArrayEquals(candidate(generated), applied.markerBearingUtf8());
+        assertEquals(41, semanticRevision.get());
+        assertEquals(1, jointCommits.get());
+        assertEquals(List.of("semantic", "combined"), callbacks,
+                "semantic state must publish before one native presentation edge");
+        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
+        assertEquals("Undo Apply Flutter visual change",
+                editor.nativeUndoRedoManagerForCombinedBridge()
+                        .getUndoPresentationName());
+    }
+
+    @Test
+    void committedPairVerificationRetainsSemanticNativeEdgeAndExplicitSourceS2()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture(
+                "committed_pair_history_verification", true);
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot predecessor = editor.liveSnapshot();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        LiveDartDocumentSnapshot applied = onEdt(() ->
+                editor.applyPreparedRegionsAndFinalize(
+                        predecessor,
+                        generated,
+                        candidate(generated),
+                        semanticEdge(60, 61, "Saved Flutter visual change"),
+                        exactApplied -> () -> () -> { }));
+        String undoName = editor.nativeUndoRedoManagerForCombinedBridge()
+                .getUndoPresentationName();
+        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
+
+        LiveDartDocumentSnapshot exact = onEdt(() ->
+                editor.verifyCommittedPairWithoutHistoryMutation(
+                        applied,
+                        LiveDartDocumentBridge.CommittedPairContentPolicy
+                                .EXACT_FULL_CONTENT));
+
+        assertTrue(applied.sameEvidence(exact));
+        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
+        assertEquals(undoName, editor.nativeUndoRedoManagerForCombinedBridge()
+                .getUndoPresentationName(),
+                "commit verification must not replace or clear the semantic edge");
+
+        String sourceS2 = "// unmanaged Source S2 after serialized M1\n";
+        onEdt(() -> {
+            fixture.document().insertString(
+                    fixture.document().getLength(), sourceS2, null);
+            return null;
+        });
+        LiveDartDocumentSnapshot retained = onEdt(() ->
+                editor.verifyCommittedPairWithoutHistoryMutation(
+                        applied,
+                        LiveDartDocumentBridge.CommittedPairContentPolicy
+                                .EXACT_MANAGED_CONTENT));
+        IOException exactMismatch = assertThrows(IOException.class, () ->
+                onEdt(() -> editor.verifyCommittedPairWithoutHistoryMutation(
+                        applied,
+                        LiveDartDocumentBridge.CommittedPairContentPolicy
+                                .EXACT_FULL_CONTENT)));
+
+        assertTrue(applied.sameManagedContent(retained));
+        assertTrue(new String(retained.markerBearingUtf8(), StandardCharsets.UTF_8)
+                .endsWith(sourceS2));
+        assertTrue(exactMismatch.getMessage().contains(
+                "complete live Dart source differs"));
+        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
+    }
+
+    @Test
+    void committedPairVerificationRejectsAnotherEditorDocumentIdentity()
+            throws Exception {
+        EditorFixture owner = createEditorFixture("committed_pair_owner");
+        EditorFixture foreign = createEditorFixture("committed_pair_foreign");
+        LiveDartDocumentSnapshot foreignSnapshot = foreign.editor().liveSnapshot();
+
+        IOException mismatch = assertThrows(IOException.class, () -> onEdt(() ->
+                owner.editor().verifyCommittedPairWithoutHistoryMutation(
+                        foreignSnapshot,
+                        LiveDartDocumentBridge.CommittedPairContentPolicy
+                                .EXACT_MANAGED_CONTENT)));
+
+        assertTrue(mismatch.getMessage().contains("identity changed"));
+    }
+
+    @Test
+    void rejectedSemanticForwardFinalizerRollsBackAndReleasesCaptureToken()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture(
+                "semantic_forward_rejection", true);
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot predecessor = editor.liveSnapshot();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        boolean nativeUndoBefore = editor
+                .nativeUndoRedoManagerForCombinedBridge().canUndo();
+        boolean nativeRedoBefore = editor
+                .nativeUndoRedoManagerForCombinedBridge().canRedo();
+
+        IOException failure = assertThrows(IOException.class, () -> onEdt(() ->
+                editor.applyPreparedRegionsAndFinalize(
+                        predecessor,
+                        generated,
+                        candidate(generated),
+                        semanticEdge(50, 51, "Rejected Flutter visual change"),
+                        applied -> {
+                            throw new IOException(
+                                    "synthetic semantic evidence rejection");
+                        })));
+
+        assertTrue(failure.getMessage().contains(
+                "synthetic semantic evidence rejection"));
+        assertArrayEquals(predecessor.markerBearingUtf8(),
+                editor.liveSnapshot().markerBearingUtf8());
+        assertTrue(editor.sourceModified(),
+                "an observed apply/atomicUndo remains fail-closed dirty");
+        assertEquals(nativeUndoBefore,
+                editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
+        assertEquals(nativeRedoBefore,
+                editor.nativeUndoRedoManagerForCombinedBridge().canRedo());
+
+        LiveDartDocumentSnapshot exactRetryPredecessor = editor.liveSnapshot();
+        AtomicBoolean retriedCommit = new AtomicBoolean();
+        LiveDartDocumentSnapshot retried = onEdt(() ->
+                editor.applyPreparedRegionsAndFinalize(
+                        exactRetryPredecessor,
+                        generated,
+                        candidate(generated),
+                        semanticEdge(50, 51, "Retried Flutter visual change"),
+                        applied -> () -> {
+                            retriedCommit.set(true);
+                            return () -> { };
+                        }));
+
+        assertTrue(retriedCommit.get(),
+                "a rejected apply must release both capture token halves");
+        assertArrayEquals(candidate(generated), retried.markerBearingUtf8());
+        assertEquals("Undo Retried Flutter visual change",
+                editor.nativeUndoRedoManagerForCombinedBridge()
+                        .getUndoPresentationName());
+    }
+
+    @Test
+    void failedEditorRestoreFinalizerKeepsPredecessorSemanticStateWhole()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("restore_failure");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        LiveDartDocumentSnapshot predecessor = editor.liveSnapshot();
+        GeneratedDartRegions generated = generatedExampleRegions();
+        LiveDartDocumentSnapshot applied = onEdt(() ->
+                editor.applyPreparedRegions(
+                        predecessor, generated, candidate(generated)));
+        AtomicReference<LiveDartDocumentSnapshot> semanticPredecessor =
+                new AtomicReference<>(predecessor);
+        AtomicReference<LiveDartDocumentSnapshot> published =
+                new AtomicReference<>();
+
+        IOException failure = assertThrows(IOException.class, () ->
+                published.set(onEdt(() ->
+                        editor.restoreAndFinalizeReplacement(
+                                applied,
+                                predecessor,
+                                exactRestored -> {
+                                    assertArrayEquals(
+                                            semanticPredecessor.get()
+                                                    .markerBearingUtf8(),
+                                            exactRestored.markerBearingUtf8());
+                                    throw new IOException(
+                                            "synthetic predecessor evidence failure");
+                                }))));
+
+        assertTrue(failure.getMessage().contains(
+                "predecessor evidence failure"));
+        assertNull(published.get());
+        assertSame(predecessor, semanticPredecessor.get(),
+                "the failed finalizer must not publish a partial semantic revision");
+        assertArrayEquals(predecessor.markerBearingUtf8(),
+                editor.liveSnapshot().markerBearingUtf8());
+    }
+
+    @Test
+    void nativeReplayMutationUsesCesDirtyStateWithoutExternalSourceClassification()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("native_replay_notification");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        PairSaveCoordinatorSnapshot before = coordinator.state();
+        AtomicReference<LiveDartDocumentSnapshot> finalized =
+                new AtomicReference<>();
+        String replayedText = "// replayed semantic source\n";
+
+        LiveDartDocumentSnapshot verified = onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                fixture.document().insertString(
+                        fixture.document().getLength(), replayedText, null);
+                LiveDartDocumentSnapshot target = editor.liveSnapshot();
+                return editor.verifyNativeReplayAndFinalize(
+                        fixture.document(),
+                        target.markerBearingUtf8(),
+                        finalized::set);
+            }
+        });
+
+        assertSame(verified, finalized.get());
+        assertSame(fixture.document(), verified.documentIdentity());
+        assertTrue(editor.sourceModified(),
+                "CES must still own the modified transition for the raw edit");
+        assertEquals(before, coordinator.state(),
+                "the raw half of a semantic replay is not an external Source edge");
+    }
+
+    @Test
+    void nativeReplayVerificationRequiresExactDocumentIdentityAndBytes()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("native_replay_exactness");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        byte[] exact = editor.liveSnapshot().markerBearingUtf8();
+        AtomicBoolean finalized = new AtomicBoolean();
+
+        IOException identityFailure = onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                IOException failure = assertThrows(IOException.class, () ->
+                        editor.verifyNativeReplayAndFinalize(
+                                new DefaultStyledDocument(),
+                                exact,
+                                snapshot -> finalized.set(true)));
+                assertThrows(IOException.class, () ->
+                        editor.beginNativeHistoryReplay(fixture.document()),
+                        "failed verification must retain the owning replay token");
+                return failure;
+            }
+        });
+        assertTrue(identityFailure.getMessage().contains("identity changed"));
+        assertFalse(finalized.get());
+
+        IOException mismatch = onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                IOException failure = assertThrows(IOException.class, () ->
+                        editor.verifyNativeReplayAndFinalize(
+                                fixture.document(),
+                                (SOURCE + "// not present\n")
+                                        .getBytes(StandardCharsets.UTF_8),
+                                snapshot -> finalized.set(true)));
+                assertThrows(IOException.class, () ->
+                        editor.beginNativeHistoryReplay(fixture.document()),
+                        "byte mismatch must not close the replay before raw recovery");
+                return failure;
+            }
+        });
+        assertTrue(mismatch.getMessage().contains("exact expected Dart bytes"));
+        assertFalse(finalized.get());
+
+        LiveDartDocumentSnapshot verified = onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                return editor.verifyNativeReplayAndFinalize(
+                        fixture.document(), exact, snapshot -> { });
+            }
+        });
+        assertArrayEquals(exact, verified.markerBearingUtf8(),
+                "a failed exactness check must close its replay context");
+
+        onEdt(() -> {
+            fixture.document().insertString(
+                    fixture.document().getLength(),
+                    "// ordinary source after successful replay context\n",
+                    null);
+            return null;
+        });
+        assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                fixture.coordinator().state().status(),
+                "ordinary Source notifications must resume after replay cleanup");
+    }
+
+    @Test
+    void nativeReplayRejectsDocumentMutationByFinalizerAndClosesContext()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("native_replay_mutating_finalizer");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        byte[] exact = editor.liveSnapshot().markerBearingUtf8();
+
+        IOException failure = assertThrows(IOException.class, () -> onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                return editor.verifyNativeReplayAndFinalize(
+                        fixture.document(), exact, snapshot -> {
+                            try {
+                                fixture.document().insertString(
+                                        fixture.document().getLength(),
+                                        "// forbidden finalizer mutation\n",
+                                        null);
+                            } catch (BadLocationException ex) {
+                                throw new IOException(ex);
+                            }
+                        });
+            }
+        }));
+        assertTrue(failure.getMessage().contains("finalizer mutated"));
+
+        LiveDartDocumentSnapshot current = editor.liveSnapshot();
+        onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                return editor.verifyNativeReplayAndFinalize(
+                        fixture.document(),
+                        current.markerBearingUtf8(),
+                        snapshot -> { });
+            }
+        });
+    }
+
+    @Test
+    void throwingNativeReplayFinalizerCannotLeakInternalNotificationContext()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("native_replay_throwing_finalizer");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        byte[] exact = editor.liveSnapshot().markerBearingUtf8();
+        PairSaveCoordinatorSnapshot before = coordinator.state();
+        String replayed = "// raw replay requiring recovery\n";
+
+        IOException failure = onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                int predecessorLength = fixture.document().getLength();
+                fixture.document().insertString(
+                        predecessorLength, replayed, null);
+                byte[] target = editor.liveSnapshot().markerBearingUtf8();
+                IOException expected = assertThrows(IOException.class, () ->
+                        editor.verifyNativeReplayAndFinalize(
+                                fixture.document(), target, snapshot -> {
+                                    throw new IOException(
+                                            "synthetic replay finalizer failure");
+                                }));
+                assertThrows(IOException.class, () ->
+                        editor.beginNativeHistoryReplay(fixture.document()),
+                        "a throwing finalizer must retain context through inverse replay");
+                // DesignerSemanticUndoableEdit performs this exact raw
+                // recovery before PreparedReplay.abort closes the token.
+                fixture.document().remove(
+                        predecessorLength, replayed.length());
+                return expected;
+            }
+        });
+        assertTrue(failure.getMessage().contains(
+                "synthetic replay finalizer failure"));
+        assertArrayEquals(exact, editor.liveSnapshot().markerBearingUtf8());
+        assertEquals(before, coordinator.state(),
+                "both the failed raw move and its recovery remain internal");
+
+        onEdt(() -> {
+            try (FlutterDesignerEditorSupport.NativeHistoryReplay ignored =
+                    editor.beginNativeHistoryReplay(fixture.document())) {
+                return editor.verifyNativeReplayAndFinalize(
+                        fixture.document(), exact, snapshot -> { });
+            }
+        });
+    }
+
+    private EditorFixture createEditorFixture(String name) throws Exception {
+        return createEditorFixture(name, false);
+    }
+
+    private EditorFixture createEditorFixture(
+            String name,
+            boolean installForwardCaptureWrapper) throws Exception {
+        Path folder = Files.createDirectory(temporaryDirectory.resolve(name));
+        Path dartPath = folder.resolve("home_page.dart");
+        Path fdPath = folder.resolve("home_page.fd");
+        Files.writeString(dartPath, SOURCE, StandardCharsets.UTF_8);
+        Files.write(fdPath, fdBytes());
+        FileUtil.refreshFor(folder.toFile());
+        FileObject dart = FileUtil.toFileObject(dartPath.toFile());
+        assertNotNull(dart);
+        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
+                DataObject.find(dart);
+        FlutterDesignerEditorSupport editor = dataObject.getEditorSupport();
+        StyledDocument document = openGuardedSourceDocument(
+                editor, installForwardCaptureWrapper);
+        return new EditorFixture(
+                editor,
+                document,
+                dataObject.getPairSaveCoordinator());
+    }
+
+    private static StyledDocument openGuardedSourceDocument(
+            FlutterDesignerEditorSupport editor) throws Exception {
+        return openGuardedSourceDocument(editor, false);
+    }
+
+    private static StyledDocument openGuardedSourceDocument(
+            FlutterDesignerEditorSupport editor,
+            boolean installForwardCaptureWrapper) throws Exception {
+        assertNull(editor.getDocument());
+        Field kitField = CloneableEditorSupport.class.getDeclaredField("kit");
+        kitField.setAccessible(true);
+        kitField.set(editor, new DartEditorKit());
+        Class<?> bridgeClass = Class.forName(
+                FlutterDesignerEditorSupport.class.getName()
+                + "$GuardedDocumentBridge");
+        Constructor<?> bridgeConstructor = bridgeClass.getDeclaredConstructor();
+        bridgeConstructor.setAccessible(true);
+        GuardedEditorSupport guardedEditor = (GuardedEditorSupport)
+                bridgeConstructor.newInstance();
+        DartGuardedSectionsProvider provider =
+                new DartGuardedSectionsProvider(guardedEditor);
+        Field editorField = FlutterDesignerEditorSupport.class
+                .getDeclaredField("guardedEditor");
+        editorField.setAccessible(true);
+        editorField.set(editor, guardedEditor);
+        Field providerField = FlutterDesignerEditorSupport.class
+                .getDeclaredField("guardedProvider");
+        providerField.setAccessible(true);
+        providerField.set(editor, provider);
+        StyledDocument document = editor.openDocument();
+        if (installForwardCaptureWrapper) {
+            Field wrappers = BaseDocument.class.getDeclaredField(
+                    "undoEditWrappers");
+            wrappers.setAccessible(true);
+            wrappers.set(document, List.of(new DesignerUndoableEditWrapper()));
+        }
+        return document;
+    }
+
+    private static GeneratedDartRegions generatedExampleRegions() throws Exception {
+        String modelJson = """
+                {
+                  "format": "netbeans-flutter-designer",
+                  "schemaVersion": 1,
+                  "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
+                  "source": {
+                    "dartFile": "home_page.dart",
+                    "className": "HomePage",
+                    "widgetKind": "stateless",
+                    "managedRegions": {
+                      "imports": {"sha256": "%s"},
+                      "build": {"sha256": "%s"}
+                    }
+                  },
+                  "root": {
+                    "id": "35ca8ca5-c5ec-4fe1-8982-dfc036e3c6ce",
+                    "type": "example.widgets.SampleWidget",
+                    "properties": {},
+                    "slots": {}
+                  }
+                }
+                """.formatted("0".repeat(64), "0".repeat(64));
+        FdDecodeResult.Current decoded = (FdDecodeResult.Current)
+                new FdDocumentCodec().decode(
+                        modelJson.getBytes(StandardCharsets.UTF_8));
+        WidgetDefinition definition = new WidgetDefinition(
+                new WidgetTypeId("example.widgets.SampleWidget"),
+                "SampleWidget",
+                Optional.empty(),
+                true,
+                "package:example/widgets.dart",
+                List.of("package:example/widgets.dart"),
+                Set.of(),
+                new PaletteMetadata("example", 10, 10, "Sample Widget"),
+                List.of(),
+                List.of());
+        return new DartRegionGenerator()
+                .generate(decoded.document(), WidgetCatalog.strict(List.of(definition)))
+                .generated()
+                .orElseThrow();
+    }
+
+    private static byte[] candidate(GeneratedDartRegions generated) {
+        return SOURCE
+                .replace(IMPORTS_PAYLOAD, generated.imports().payload())
+                .replace(BUILD_PAYLOAD, generated.build().payload())
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static FlutterDesignerEditorSupport.ForwardSemanticEdge semanticEdge(
+            long beforeRevisionId,
+            long afterRevisionId,
+            String presentationName) {
+        return new FlutterDesignerEditorSupport.ForwardSemanticEdge(
+                beforeRevisionId,
+                afterRevisionId,
+                presentationName,
+                (direction, currentRevisionId, targetRevisionId) -> {
+                    throw new AssertionError(
+                            "forward-admission fixture must not replay");
+                });
+    }
+
+    private static boolean await(
+            CountDownLatch latch,
+            long timeout,
+            TimeUnit unit) {
+        try {
+            return latch.await(timeout, unit);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(interrupted);
+        }
+    }
+
+    private static byte[] fdBytes() throws Exception {
+        DartSourceDescriptor descriptor = new DartSourceDescriptor(
+                "home_page.dart",
+                "HomePage",
+                WidgetClassKind.STATELESS,
+                Optional.of("test-profile"),
+                new ManagedRegions(
+                        new ManagedRegion(DartManagedRegionHashing
+                                .normalizedSha256(IMPORTS_PAYLOAD)),
+                        new ManagedRegion(DartManagedRegionHashing
+                                .normalizedSha256(BUILD_PAYLOAD))));
+        WidgetNode root = new WidgetNode(
+                StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(
+                        new PropertyName("data"),
+                        new PropertyValue.StringValue("fixture")),
+                Map.of());
+        DesignerDocument document = new DesignerDocument(
+                StableId.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                descriptor,
+                root);
+        return new FdDocumentCodec().encode(document).copyBytes();
+    }
+
+    private static <T> T onEdt(Callable<T> operation) throws Exception {
+        if (EventQueue.isDispatchThread()) {
+            return operation.call();
+        }
+        AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        EventQueue.invokeAndWait(() -> {
+            try {
+                result.set(operation.call());
+            } catch (Throwable caught) {
+                failure.set(caught);
+            }
+        });
+        if (failure.get() instanceof Exception exception) {
+            throw exception;
+        }
+        if (failure.get() instanceof Error error) {
+            throw error;
+        }
+        return result.get();
+    }
+
+    private record EditorFixture(
+            FlutterDesignerEditorSupport editor,
+            StyledDocument document,
+            PairSaveCoordinator coordinator) {
+    }
+}

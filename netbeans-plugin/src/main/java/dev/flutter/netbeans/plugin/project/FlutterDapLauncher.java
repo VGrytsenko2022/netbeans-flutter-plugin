@@ -230,17 +230,47 @@ final class FlutterDapLauncher implements AutoCloseable {
     }
 
     private static void destroyProcess(Process process) {
+        destroyProcess(process, 2, TimeUnit.SECONDS);
+    }
+
+    static void destroyProcess(
+            Process process,
+            long gracefulTimeout,
+            TimeUnit timeoutUnit) {
         if (process == null || !process.isAlive()) {
             return;
         }
+        Objects.requireNonNull(timeoutUnit, "timeoutUnit");
+        if (gracefulTimeout < 0) {
+            throw new IllegalArgumentException("gracefulTimeout must not be negative");
+        }
+
+        boolean interrupted = false;
         process.destroy();
         try {
-            if (!process.waitFor(2, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+            if (process.waitFor(gracefulTimeout, timeoutUnit)) {
+                return;
             }
         } catch (InterruptedException ex) {
+            interrupted = true;
+        }
+
+        Process forced = process.isAlive()
+                ? process.destroyForcibly()
+                : process;
+        while (forced.isAlive()) {
+            try {
+                forced.waitFor();
+            } catch (InterruptedException ex) {
+                // Closing the project must not release deletion quiescence while
+                // the adapter still owns the project working directory. Preserve
+                // cancellation for the caller after the OS process has exited.
+                interrupted = true;
+                forced.destroyForcibly();
+            }
+        }
+        if (interrupted) {
             Thread.currentThread().interrupt();
-            process.destroyForcibly();
         }
     }
 

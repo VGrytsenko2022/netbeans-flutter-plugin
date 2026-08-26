@@ -125,6 +125,50 @@ class FlutterRunControllerLifecycleTest {
     }
 
     @Test
+    void hotReloadAndHotRestartDispatchToTheRunningSession() {
+        assertFalse(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RELOAD));
+        assertFalse(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RESTART));
+
+        FakeRunSession session = dependencies.planSession();
+        startRun(session);
+
+        assertTrue(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RELOAD));
+        assertTrue(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RESTART));
+
+        controller.invoke(FlutterProjectActionProvider.COMMAND_HOT_RELOAD);
+        controller.invoke(FlutterProjectActionProvider.COMMAND_HOT_RESTART);
+        dependencies.executor.runAll();
+
+        assertEquals(1, session.hotReloadCalls);
+        assertEquals(1, session.hotRestartCalls);
+
+        session.transition(RunState.STOPPING);
+        assertFalse(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RELOAD));
+        assertFalse(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_HOT_RESTART));
+    }
+
+    @Test
+    void queuedHotReloadAndRestartDoNotReachAClosedSession() {
+        FakeRunSession session = dependencies.planSession();
+        startRun(session);
+
+        controller.invoke(FlutterProjectActionProvider.COMMAND_HOT_RELOAD);
+        controller.invoke(FlutterProjectActionProvider.COMMAND_HOT_RESTART);
+        controller.close();
+        controller.open();
+        dependencies.executor.runAll();
+
+        assertEquals(0, session.hotReloadCalls);
+        assertEquals(0, session.hotRestartCalls);
+    }
+
+    @Test
     void debugCompletesActionOnlyAfterAttachAndCloseFinishesResourcesOnce() {
         FakeRunSession session = dependencies.planSession();
         FakeDebugLauncher debugger = dependencies.planDebugger();
@@ -539,6 +583,8 @@ class FlutterRunControllerLifecycleTest {
         private RunState state = RunState.STARTING;
         private int quitCalls;
         private int closeCalls;
+        private int hotReloadCalls;
+        private int hotRestartCalls;
         private boolean completeExitOnClose = true;
 
         @Override
@@ -575,10 +621,12 @@ class FlutterRunControllerLifecycleTest {
 
         @Override
         public void hotReload() {
+            hotReloadCalls++;
         }
 
         @Override
         public void hotRestart() {
+            hotRestartCalls++;
         }
 
         @Override

@@ -80,6 +80,40 @@ class PluginRegistrationTest {
     }
 
     @Test
+    void registersHotReloadAndRestartInTheBuildToolbar() throws IOException {
+        String layer = readResource("META-INF/generated-layer.xml");
+        String toolbar = folderRegistration(layer, "Toolbars");
+        String buildToolbar = folderRegistration(toolbar, "Build");
+
+        String hotReload = fileRegistration(
+                buildToolbar,
+                "dev-flutter-netbeans-plugin-run-HotReloadFlutterAction.shadow");
+        assertTrue(hotReload.contains(
+                "Actions/Flutter/dev-flutter-netbeans-plugin-run-HotReloadFlutterAction.instance"));
+        assertTrue(hotReload.contains("intvalue=\"360\" name=\"position\""));
+        String separator = fileRegistration(
+                buildToolbar,
+                "dev-flutter-netbeans-plugin-run-HotReloadFlutterAction-separatorBefore.instance");
+        assertTrue(separator.contains("intvalue=\"355\" name=\"position\""));
+
+        String hotRestart = fileRegistration(
+                buildToolbar,
+                "dev-flutter-netbeans-plugin-run-HotRestartFlutterAction.shadow");
+        assertTrue(hotRestart.contains(
+                "Actions/Flutter/dev-flutter-netbeans-plugin-run-HotRestartFlutterAction.instance"));
+        assertTrue(hotRestart.contains("intvalue=\"370\" name=\"position\""));
+
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotReload.svg", "16", "16");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotReload_dark.svg", "16", "16");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotReload24.svg", "24", "24");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotReload24_dark.svg", "24", "24");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotRestart.svg", "16", "16");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotRestart_dark.svg", "16", "16");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotRestart24.svg", "24", "24");
+        assertSvgIcon("dev/flutter/netbeans/plugin/run/hotRestart24_dark.svg", "24", "24");
+    }
+
+    @Test
     void registersPubspecCompletionAndDiagnostics() throws IOException {
         String layer = readResource("META-INF/generated-layer.xml");
 
@@ -197,6 +231,35 @@ class PluginRegistrationTest {
         int end = layer.indexOf("</file>", start);
         assertTrue(end >= 0, "unterminated generated registration: " + fileName);
         return layer.substring(start, end);
+    }
+
+    private static String folderRegistration(String layer, String folderName) {
+        String marker = "<folder name=\"" + folderName + "\">";
+        int start = layer.indexOf(marker);
+        assertTrue(start >= 0, "missing generated folder: " + folderName);
+        int depth = 1;
+        int cursor = start + marker.length();
+        while (depth > 0) {
+            int nextOpen = layer.indexOf("<folder ", cursor);
+            int nextClose = layer.indexOf("</folder>", cursor);
+            assertTrue(nextClose >= 0, "unterminated generated folder: " + folderName);
+            if (nextOpen >= 0 && nextOpen < nextClose) {
+                depth++;
+                cursor = nextOpen + 8;
+            } else {
+                depth--;
+                cursor = nextClose + "</folder>".length();
+            }
+        }
+        return layer.substring(start, cursor);
+    }
+
+    private static void assertSvgIcon(String resource, String width, String height)
+            throws IOException {
+        String svg = readResource(resource);
+        assertTrue(svg.contains("<svg"));
+        assertTrue(svg.contains("width=\"" + width + "\""));
+        assertTrue(svg.contains("height=\"" + height + "\""));
     }
 
     private static String readResource(String name) throws IOException {

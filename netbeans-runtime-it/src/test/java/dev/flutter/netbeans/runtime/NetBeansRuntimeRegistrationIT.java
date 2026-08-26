@@ -23,6 +23,7 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileSystem;
 import org.openide.filesystems.FileUtil;
 import org.openide.modules.ModuleInfo;
+import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -87,6 +88,20 @@ final class NetBeansRuntimeRegistrationIT {
             action(
                     "dev-flutter-netbeans-plugin-device-FlutterDeviceManagerTopComponent.shadow",
                     "Actions/Window/dev-flutter-netbeans-plugin-device-FlutterDeviceManagerTopComponent.instance"));
+
+    private static final List<ToolbarActionRegistration> FLUTTER_TOOLBAR_ACTIONS = List.of(
+            toolbarAction(
+                    "dev-flutter-netbeans-plugin-run-HotReloadFlutterAction.shadow",
+                    "Actions/Flutter/dev-flutter-netbeans-plugin-run-HotReloadFlutterAction.instance",
+                    "Hot Reload",
+                    "dev/flutter/netbeans/plugin/run/hotReload.svg",
+                    360),
+            toolbarAction(
+                    "dev-flutter-netbeans-plugin-run-HotRestartFlutterAction.shadow",
+                    "Actions/Flutter/dev-flutter-netbeans-plugin-run-HotRestartFlutterAction.instance",
+                    "Hot Restart",
+                    "dev/flutter/netbeans/plugin/run/hotRestart.svg",
+                    370));
 
     private static final List<LayerRegistration> DART_EDITOR_REGISTRATIONS = List.of(
             registration(
@@ -216,6 +231,16 @@ final class NetBeansRuntimeRegistrationIT {
         return new LayerRegistration(path, instanceOf);
     }
 
+    private static ToolbarActionRegistration toolbarAction(
+            String toolbarFile,
+            String originalFile,
+            String displayName,
+            String iconBase,
+            int position) {
+        return new ToolbarActionRegistration(
+                toolbarFile, originalFile, displayName, iconBase, position);
+    }
+
     public static final class RuntimeRegistrationCase extends NbTestCase {
 
         public RuntimeRegistrationCase(String name) {
@@ -226,6 +251,7 @@ final class NetBeansRuntimeRegistrationIT {
             assertFlutterModuleActive();
             assertDartMimeAndEditorRegistrations();
             assertFlutterMenuActions();
+            assertFlutterToolbarActions();
         }
 
         private void assertFlutterModuleActive() {
@@ -305,6 +331,67 @@ final class NetBeansRuntimeRegistrationIT {
             }
         }
 
+        private void assertFlutterToolbarActions() {
+            assertConfigFile("Toolbars/Build");
+            for (ToolbarActionRegistration registration : FLUTTER_TOOLBAR_ACTIONS) {
+                String shadowPath = "Toolbars/Build/" + registration.toolbarFile();
+                FileObject shadow = assertConfigFile(shadowPath);
+                assertEquals(
+                        "Flutter toolbar shadow points at the wrong action: " + shadowPath,
+                        registration.originalFile(),
+                        shadow.getAttribute("originalFile"));
+                assertEquals(
+                        "Flutter toolbar action has the wrong position: " + shadowPath,
+                        registration.position(),
+                        shadow.getAttribute("position"));
+
+                Action action = FileUtil.getConfigObject(registration.originalFile(), Action.class);
+                assertNotNull(
+                        "Flutter toolbar action cannot be resolved: " + registration.originalFile(),
+                        action);
+                assertEquals(
+                        "Flutter toolbar action has the wrong accessible name",
+                        registration.displayName(),
+                        action.getValue(Action.NAME));
+                assertEquals(
+                        "Flutter toolbar action does not expose its SVG iconBase",
+                        registration.iconBase(),
+                        action.getValue("iconBase"));
+                assertEquals(
+                        "Adding the toolbar button must not add icons to the Flutter menu",
+                        Boolean.TRUE,
+                        action.getValue("noIconInMenu"));
+                assertActionIconResource(action, registration.iconBase());
+            }
+
+            FileObject separator = assertConfigFile(
+                    "Toolbars/Build/"
+                            + "dev-flutter-netbeans-plugin-run-HotReloadFlutterAction-separatorBefore.instance");
+            assertEquals("Hot Reload toolbar separator has the wrong position",
+                    355, separator.getAttribute("position"));
+        }
+
+        private void assertActionIconResource(Action action, String iconBase) {
+            ClassLoader loader = action.getClass().getClassLoader();
+            for (String path : List.of(
+                    iconBase,
+                    beforeExtension(iconBase, "_dark"),
+                    beforeExtension(iconBase, "24"),
+                    beforeExtension(iconBase, "24_dark"))) {
+                assertNotNull("Flutter toolbar icon resource is missing: " + path,
+                        loader.getResource(path));
+                assertNotNull("NetBeans cannot load the Flutter toolbar SVG: " + path,
+                        ImageUtilities.loadImageIcon(path, true));
+            }
+        }
+
+        private String beforeExtension(String path, String suffix) {
+            int extension = path.lastIndexOf('.');
+            return extension < 0
+                    ? path + suffix
+                    : path.substring(0, extension) + suffix + path.substring(extension);
+        }
+
         private FileObject assertConfigFile(String path) {
             FileObject file = FileUtil.getConfigFile(path);
             assertNotNull("NetBeans layer registration is missing: " + path, file);
@@ -313,6 +400,14 @@ final class NetBeansRuntimeRegistrationIT {
     }
 
     private record ActionRegistration(String menuFile, String originalFile) {
+    }
+
+    private record ToolbarActionRegistration(
+            String toolbarFile,
+            String originalFile,
+            String displayName,
+            String iconBase,
+            int position) {
     }
 
     private record LayerRegistration(String path, String instanceOf) {

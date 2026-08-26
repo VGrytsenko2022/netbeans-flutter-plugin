@@ -31,8 +31,16 @@ abstract class FlutterProjectCommandAction extends AbstractAction
     private volatile FlutterRunController observedController;
 
     FlutterProjectCommandAction(String displayName, String command) {
+        this(displayName, command, null);
+    }
+
+    FlutterProjectCommandAction(String displayName, String command, String iconBase) {
         super(displayName);
         this.command = command;
+        if (iconBase != null) {
+            putValue("iconBase", iconBase);
+            putValue("noIconInMenu", Boolean.TRUE);
+        }
         contextProjects = Utilities.actionsGlobalContext().lookupResult(Project.class);
         contextProjects.addLookupListener(this);
         contextFiles = Utilities.actionsGlobalContext().lookupResult(FileObject.class);

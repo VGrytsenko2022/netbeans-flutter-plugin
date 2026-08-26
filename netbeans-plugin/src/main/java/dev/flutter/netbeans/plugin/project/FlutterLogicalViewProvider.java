@@ -158,6 +158,9 @@ final class FlutterLogicalViewProvider implements LogicalViewProvider {
             if (deviceManager != null) {
                 actions.add(deviceManager);
             }
+            actions.add(projectCommand(
+                    FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS,
+                    Bundle.CTL_AddPlatformsProjectAction()));
             actions.add(null);
             actions.add(projectCommand(
                     FlutterProjectActionProvider.COMMAND_PUB_GET,

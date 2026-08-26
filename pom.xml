@@ -23,6 +23,7 @@
     <module>flutter-sdk</module>
     <module>flutter-project</module>
     <module>flutter-run</module>
+    <module>flutter-canvas-runner</module>
     <module>netbeans-plugin</module>
     <module>designer-catalog-contributor-fixture</module>
     <module>netbeans-runtime-it</module>

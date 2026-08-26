@@ -88,6 +88,8 @@ class FlutterProjectFactoryTest {
                 FlutterProjectActionProvider.COMMAND_PUB_GET));
         assertTrue(java.util.List.of(actions.getSupportedActions()).contains(
                 FlutterProjectActionProvider.COMMAND_ANALYZE));
+        assertTrue(java.util.List.of(actions.getSupportedActions()).contains(
+                FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS));
         assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_RUN, org.openide.util.Lookup.EMPTY));
         assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_CLEAN, org.openide.util.Lookup.EMPTY));
         assertTrue(actions.isActionEnabled(ActionProvider.COMMAND_BUILD, org.openide.util.Lookup.EMPTY));
@@ -126,6 +128,37 @@ class FlutterProjectFactoryTest {
         toolingController.open();
         assertTrue(runController.isCommandEnabled(ActionProvider.COMMAND_RUN));
         assertTrue(toolingController.isCommandEnabled(ActionProvider.COMMAND_TEST));
+    }
+
+    @Test
+    void addPlatformsActionIsDisabledForModuleAndPackageProjects() throws Exception {
+        for (String projectType : java.util.List.of("module", "package")) {
+            Path root = temporaryDirectory.resolve(projectType);
+            Files.createDirectories(root.resolve("lib"));
+            Files.writeString(root.resolve("pubspec.yaml"), """
+                    name: sample_%s
+                    dependencies:
+                      flutter:
+                        sdk: flutter
+                    flutter:
+                    """.formatted(projectType));
+            Files.writeString(root.resolve(".metadata"),
+                    "project_type: " + projectType + "\n");
+
+            LocalFileSystem fileSystem = new LocalFileSystem();
+            fileSystem.setRootDirectory(root.toFile());
+            var project = new FlutterProjectFactory().loadProject(
+                    fileSystem.getRoot(), new TestProjectState());
+            assertNotNull(project);
+            ActionProvider actions = project.getLookup().lookup(ActionProvider.class);
+
+            assertTrue(!actions.isActionEnabled(
+                    FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS,
+                    org.openide.util.Lookup.EMPTY));
+
+            project.getLookup().lookup(FlutterRunController.class).close();
+            project.getLookup().lookup(FlutterToolingController.class).close();
+        }
     }
 
     private static final class TestProjectState implements ProjectState {

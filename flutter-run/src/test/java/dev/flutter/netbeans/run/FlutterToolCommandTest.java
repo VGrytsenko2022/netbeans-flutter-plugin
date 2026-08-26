@@ -24,6 +24,10 @@ class FlutterToolCommandTest {
                 FlutterToolCommandType.PUB_GET,
                 "pub", "get");
         assertCommand(
+                FlutterToolCommand.addPlatforms("android,web,windows"),
+                FlutterToolCommandType.ADD_PLATFORMS,
+                "create", "--platforms=android,web,windows", ".");
+        assertCommand(
                 FlutterToolCommand.analyze(),
                 FlutterToolCommandType.ANALYZE,
                 "analyze", "--no-pub", "--no-congratulate");
@@ -108,6 +112,17 @@ class FlutterToolCommandTest {
         assertThrows(IllegalArgumentException.class, () -> FlutterToolCommand.test("C:/tmp/test.dart"));
         assertThrows(IllegalArgumentException.class, () -> FlutterToolCommand.test("/tmp/test.dart"));
         assertThrows(IllegalArgumentException.class, () -> FlutterToolCommand.test("test/a.dart", " "));
+    }
+
+    @Test
+    void rejectsEmptyDuplicateUnknownOrNonCanonicalPlatformArguments() {
+        assertThrows(IllegalArgumentException.class, () -> FlutterToolCommand.addPlatforms(""));
+        assertThrows(IllegalArgumentException.class,
+                () -> FlutterToolCommand.addPlatforms("android,android"));
+        assertThrows(IllegalArgumentException.class,
+                () -> FlutterToolCommand.addPlatforms("android,fuchsia"));
+        assertThrows(IllegalArgumentException.class,
+                () -> FlutterToolCommand.addPlatforms("web,android"));
     }
 
     private static void assertCommand(

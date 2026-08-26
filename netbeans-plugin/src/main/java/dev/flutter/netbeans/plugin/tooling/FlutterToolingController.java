@@ -5,16 +5,23 @@ import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.plugin.lifecycle.AsyncTaskTracker;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
+import dev.flutter.netbeans.project.FlutterProjectType;
+import dev.flutter.netbeans.project.FlutterProjectTypeDetector;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainStatus;
 import dev.flutter.netbeans.run.FlutterToolCommand;
 import dev.flutter.netbeans.run.FlutterToolCommandType;
 import java.awt.EventQueue;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,6 +32,7 @@ import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.SingleMethod;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.ChangeSupport;
 import org.openide.util.Lookup;
 import org.openide.util.RequestProcessor;
@@ -119,6 +127,41 @@ public final class FlutterToolingController implements AutoCloseable {
             return;
         }
         start(plan, progress);
+    }
+
+    /** Runs {@code flutter create} for missing platforms without overwrite mode. */
+    public void invokeAddPlatforms(
+            Collection<FlutterProjectPlatform> platforms,
+            ActionProgress progress) {
+        if (!isCommandEnabled(FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS)) {
+            finishProgress(progress, false);
+            showMessage(
+                    "Flutter action unavailable",
+                    Bundle.MSG_AddPlatformsControllerUnavailable(
+                            projectRoot.toString(),
+                            unavailableReason(
+                                    FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS, null)),
+                    NotifyDescriptor.WARNING_MESSAGE);
+            return;
+        }
+        final Set<FlutterProjectPlatform> selected;
+        final String argument;
+        try {
+            selected = FlutterProjectPlatform.copyOf(platforms);
+            argument = FlutterProjectPlatform.cliArgument(selected);
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            finishProgress(progress, false);
+            showMessage(
+                    "Flutter action unavailable",
+                    Bundle.MSG_AddPlatformsControllerUnavailable(
+                            projectRoot.toString(), failureMessage(ex)),
+                    NotifyDescriptor.WARNING_MESSAGE);
+            return;
+        }
+        start(new ToolingPlan(
+                Bundle.LBL_AddFlutterPlatformsOperation(),
+                List.of(FlutterToolCommand.addPlatforms(argument)),
+                selected), progress);
     }
 
     public void open() {
@@ -250,6 +293,20 @@ public final class FlutterToolingController implements AutoCloseable {
                 }
                 operation.currentCommand = command;
                 FlutterExecutionRequest request = request(operation, sdk, command);
+                if (command.type() == FlutterToolCommandType.ADD_PLATFORMS) {
+                    try {
+                        validateAddPlatformsPreconditions(
+                                operation.plan.expectedPlatforms());
+                    } catch (IOException | RuntimeException exception) {
+                        complete(operation, -1, false,
+                                exception instanceof AddPlatformsPreconditionException
+                                        ? exception
+                                        : new AddPlatformsPreconditionException(
+                                                failureMessage(exception), exception),
+                                false);
+                        return;
+                    }
+                }
                 FlutterExecutionHandle execution = startStage(operation, request);
                 if (execution == null) {
                     operation.complete(-1, true, null, false);
@@ -266,6 +323,17 @@ public final class FlutterToolingController implements AutoCloseable {
                     complete(operation, exitCode, false, null, false);
                     return;
                 }
+            }
+            List<FlutterProjectPlatform> missing = operation.plan.expectedPlatforms().stream()
+                    .filter(platform -> !isGeneratedPlatformDirectory(platform))
+                    .toList();
+            if (!missing.isEmpty()) {
+                String names = missing.stream()
+                        .map(FlutterProjectPlatform::displayName)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                complete(operation, 0, false, new GeneratedPlatformsMissingException(
+                        Bundle.MSG_AddPlatformsMissingDirectories(names)), false);
+                return;
             }
             complete(operation, 0, false, null, true);
         } catch (CancellationException ex) {
@@ -395,11 +463,27 @@ public final class FlutterToolingController implements AutoCloseable {
                 active = null;
             }
         }
+        if (current && !cancelled && operation.addsPlatforms()) {
+            FileUtil.refreshFor(projectRoot.toFile());
+            project.getProjectDirectory().refresh();
+        }
         if (!operation.complete(exitCode, cancelled, failure, success && current)) {
             return;
         }
         fireChange();
-        if (current && failure != null) {
+        if (current && failure instanceof AddPlatformsPreconditionException) {
+            showMessage(
+                    Bundle.TTL_AddPlatformsCannotStart(),
+                    Bundle.MSG_AddPlatformsCannotStart(
+                            projectRoot.toString(), failureMessage(failure)),
+                    NotifyDescriptor.ERROR_MESSAGE);
+        } else if (current && failure instanceof GeneratedPlatformsMissingException) {
+            showMessage(
+                    Bundle.TTL_AddPlatformsIncomplete(),
+                    Bundle.MSG_AddPlatformsIncomplete(
+                            projectRoot.toString(), failureMessage(failure)),
+                    NotifyDescriptor.ERROR_MESSAGE);
+        } else if (current && failure != null) {
             showMessage(
                     "Flutter " + operation.plan.operationName() + " failed to start",
                     "Cannot run Flutter " + operation.plan.operationName()
@@ -478,6 +562,7 @@ public final class FlutterToolingController implements AutoCloseable {
             case ActionProvider.COMMAND_BUILD,
                  ActionProvider.COMMAND_CLEAN,
                  ActionProvider.COMMAND_REBUILD,
+                 FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS,
                  FlutterProjectActionProvider.COMMAND_PUB_GET,
                  FlutterProjectActionProvider.COMMAND_ANALYZE,
                  FlutterProjectActionProvider.COMMAND_TEST_FILE,
@@ -498,6 +583,8 @@ public final class FlutterToolingController implements AutoCloseable {
             case ActionProvider.COMMAND_BUILD -> "Build";
             case ActionProvider.COMMAND_CLEAN -> "Clean";
             case ActionProvider.COMMAND_REBUILD -> "Clean and Build";
+            case FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS ->
+                Bundle.LBL_AddFlutterPlatformsOperation();
             case FlutterProjectActionProvider.COMMAND_PUB_GET -> "Pub Get";
             case FlutterProjectActionProvider.COMMAND_ANALYZE -> "Analyze";
             case FlutterProjectActionProvider.COMMAND_TEST_FILE,
@@ -520,6 +607,44 @@ public final class FlutterToolingController implements AutoCloseable {
             return true;
         } catch (IllegalArgumentException ex) {
             return false;
+        }
+    }
+
+    private boolean isGeneratedPlatformDirectory(FlutterProjectPlatform platform) {
+        Path path = projectRoot.resolve(platform.id());
+        return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(path);
+    }
+
+    private void validateAddPlatformsPreconditions(
+            Set<FlutterProjectPlatform> selected) throws IOException {
+        final FlutterProjectType type;
+        try {
+            type = FlutterProjectTypeDetector.detect(projectRoot);
+        } catch (IOException | SecurityException exception) {
+            throw new AddPlatformsPreconditionException(
+                    "cannot inspect Flutter project type at " + projectRoot + ": "
+                    + failureMessage(exception), exception);
+        }
+        if (!type.supportsPlatformScaffolding()) {
+            throw new AddPlatformsPreconditionException(
+                    "project type '" + type.id()
+                    + "' does not support flutter create --platforms; only Flutter "
+                    + "application projects are supported");
+        }
+        for (FlutterProjectPlatform platform : FlutterProjectPlatform.ordered(selected)) {
+            Path path = projectRoot.resolve(platform.id());
+            try {
+                if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)
+                        || Files.isSymbolicLink(path)) {
+                    throw new AddPlatformsPreconditionException(
+                            "selected platform path is already occupied: " + path);
+                }
+            } catch (SecurityException exception) {
+                throw new AddPlatformsPreconditionException(
+                        "cannot verify selected platform path " + path + ": "
+                        + failureMessage(exception), exception);
+            }
         }
     }
 
@@ -590,9 +715,13 @@ public final class FlutterToolingController implements AutoCloseable {
         boolean reportsNonzeroExit() {
             FlutterToolCommand command = currentCommand;
             return command != null && switch (command.type()) {
-                case CLEAN, BUILD, PUB_GET -> true;
+                case CLEAN, BUILD, ADD_PLATFORMS, PUB_GET -> true;
                 default -> false;
             };
+        }
+
+        boolean addsPlatforms() {
+            return plan.addsPlatforms();
         }
 
         boolean complete(
@@ -612,7 +741,14 @@ public final class FlutterToolingController implements AutoCloseable {
         }
     }
 
-    private record ToolingPlan(String operationName, List<FlutterToolCommand> commands) {
+    private record ToolingPlan(
+            String operationName,
+            List<FlutterToolCommand> commands,
+            Set<FlutterProjectPlatform> expectedPlatforms) {
+        ToolingPlan(String operationName, List<FlutterToolCommand> commands) {
+            this(operationName, commands, Set.of());
+        }
+
         ToolingPlan {
             Objects.requireNonNull(operationName, "operationName");
             if (operationName.isBlank()) {
@@ -622,6 +758,30 @@ public final class FlutterToolingController implements AutoCloseable {
             if (commands.isEmpty()) {
                 throw new IllegalArgumentException("Flutter tooling plan must not be empty");
             }
+            expectedPlatforms = expectedPlatforms.isEmpty()
+                    ? Set.of()
+                    : FlutterProjectPlatform.copyOf(expectedPlatforms);
+        }
+
+        boolean addsPlatforms() {
+            return commands.size() == 1
+                    && commands.getFirst().type() == FlutterToolCommandType.ADD_PLATFORMS;
+        }
+    }
+
+    private static final class GeneratedPlatformsMissingException extends IOException {
+        private GeneratedPlatformsMissingException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class AddPlatformsPreconditionException extends IOException {
+        private AddPlatformsPreconditionException(String message) {
+            super(message);
+        }
+
+        private AddPlatformsPreconditionException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 }

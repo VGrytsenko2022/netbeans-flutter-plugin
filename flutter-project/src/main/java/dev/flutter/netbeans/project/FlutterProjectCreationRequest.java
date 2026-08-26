@@ -2,6 +2,7 @@ package dev.flutter.netbeans.project;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Values used to create a standard Flutter application. */
@@ -9,7 +10,8 @@ public record FlutterProjectCreationRequest(
         Path parentDirectory,
         String projectName,
         String organization,
-        String description) {
+        String description,
+        Set<FlutterProjectPlatform> platforms) {
 
     private static final Pattern PROJECT_NAME = Pattern.compile("[a-z][a-z0-9_]*");
     private static final Pattern ORGANIZATION = Pattern.compile(
@@ -21,6 +23,7 @@ public record FlutterProjectCreationRequest(
         projectName = Objects.requireNonNull(projectName, "projectName").trim();
         organization = Objects.requireNonNull(organization, "organization").trim();
         description = Objects.requireNonNull(description, "description").trim();
+        platforms = FlutterProjectPlatform.copyOf(platforms);
 
         if (!isValidProjectName(projectName)) {
             throw new IllegalArgumentException(
@@ -35,8 +38,22 @@ public record FlutterProjectCreationRequest(
         }
     }
 
+    /** Preserves Flutter's current all-platform default for older callers. */
+    public FlutterProjectCreationRequest(
+            Path parentDirectory,
+            String projectName,
+            String organization,
+            String description) {
+        this(parentDirectory, projectName, organization, description,
+                FlutterProjectPlatform.all());
+    }
+
     public Path targetDirectory() {
         return parentDirectory.resolve(projectName).normalize();
+    }
+
+    public String platformsArgument() {
+        return FlutterProjectPlatform.cliArgument(platforms);
     }
 
     public static boolean isValidProjectName(String value) {

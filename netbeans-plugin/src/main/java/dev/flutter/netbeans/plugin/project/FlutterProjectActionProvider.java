@@ -1,8 +1,17 @@
 package dev.flutter.netbeans.plugin.project;
 
 import dev.flutter.netbeans.api.FlutterDevice;
+import dev.flutter.netbeans.api.FlutterProjectInfo;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
+import dev.flutter.netbeans.project.FlutterProjectType;
+import dev.flutter.netbeans.project.FlutterProjectTypeDetector;
 import dev.flutter.netbeans.plugin.tooling.FlutterToolingController;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.netbeans.api.project.ProjectManager;
 import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ActionProgress;
@@ -23,6 +32,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     public static final String COMMAND_STOP = "flutter.stop";
     public static final String COMMAND_PUB_GET = "flutter.pub.get";
     public static final String COMMAND_ANALYZE = "flutter.analyze";
+    public static final String COMMAND_ADD_PLATFORMS = "flutter.platforms.add";
     public static final String COMMAND_TEST_FILE = "flutter.test.file";
     public static final String COMMAND_TEST_AT_CARET = "flutter.test.caret";
 
@@ -39,6 +49,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         COMMAND_OPEN_DEVTOOLS,
         COMMAND_STOP_DEVTOOLS,
         COMMAND_STOP,
+        COMMAND_ADD_PLATFORMS,
         COMMAND_PUB_GET,
         COMMAND_ANALYZE,
         COMMAND_TEST,
@@ -58,6 +69,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
     private final FlutterToolingController toolingController;
     private final FlutterProjectConfigurationProvider configurations;
     private final FlutterProjectMoveOperation moveOperation;
+    private final FlutterProjectType projectType;
 
     FlutterProjectActionProvider(
             FlutterProject project,
@@ -70,6 +82,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         this.toolingController = toolingController;
         this.configurations = configurations;
         this.moveOperation = moveOperation;
+        this.projectType = detectProjectType(project.info().root());
     }
 
     @Override
@@ -120,6 +133,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                          command,
                          actionContext,
                          ActionProgress.start(actionContext));
+            case COMMAND_ADD_PLATFORMS -> addPlatforms(actionContext);
             case COMMAND_DELETE -> DefaultProjectOperations.performDefaultDeleteOperation(project);
             case COMMAND_COPY -> DefaultProjectOperations.performDefaultCopyOperation(project);
             case COMMAND_MOVE -> DefaultProjectOperations.performDefaultMoveOperation(project);
@@ -138,10 +152,26 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         if (isRunCommand(command)) {
             return runController.isCommandEnabled(command);
         }
+        if (COMMAND_ADD_PLATFORMS.equals(command)) {
+            return toolingController.isCommandEnabled(command)
+                    && supportsPlatformScaffolding();
+        }
         if (isToolingCommand(command)) {
             return toolingController.isCommandEnabled(command);
         }
         return project.getProjectDirectory().isValid();
+    }
+
+    private boolean supportsPlatformScaffolding() {
+        return projectType.supportsPlatformScaffolding();
+    }
+
+    private static FlutterProjectType detectProjectType(Path projectRoot) {
+        try {
+            return FlutterProjectTypeDetector.detect(projectRoot);
+        } catch (IOException | IllegalArgumentException | SecurityException exception) {
+            return FlutterProjectType.UNKNOWN;
+        }
     }
 
     private static void requireSupported(String command) {
@@ -190,6 +220,7 @@ public final class FlutterProjectActionProvider implements ActionProvider {
         return switch (command) {
             case COMMAND_PUB_GET,
                  COMMAND_ANALYZE,
+                 COMMAND_ADD_PLATFORMS,
                  COMMAND_BUILD,
                  COMMAND_CLEAN,
                  COMMAND_REBUILD,
@@ -199,6 +230,96 @@ public final class FlutterProjectActionProvider implements ActionProvider {
                  COMMAND_TEST_FILE,
                  COMMAND_TEST_AT_CARET -> true;
             default -> false;
+        };
+    }
+
+    private void addPlatforms(Lookup actionContext) {
+        FlutterProjectInfo info = project.getLookup().lookup(FlutterProjectInfo.class);
+        if (info == null) {
+            showAddPlatformsUnavailable(
+                    project.getProjectDirectory().getPath(),
+                    "project metadata is unavailable");
+            return;
+        }
+        Path root = info.root().toAbsolutePath().normalize();
+        try {
+            FlutterProjectType type = FlutterProjectTypeDetector.detect(root);
+            if (!type.supportsPlatformScaffolding()) {
+                showAddPlatformsUnavailable(
+                        root.toString(),
+                        "project type '" + type.id()
+                        + "' does not support flutter create --platforms; "
+                        + "only Flutter application projects are supported");
+                return;
+            }
+            Optional<Set<FlutterProjectPlatform>> selection =
+                    FlutterAddPlatformsPanel.choose(root);
+            if (selection.isEmpty()) {
+                return;
+            }
+            Set<FlutterProjectPlatform> selected = selection.orElseThrow();
+            Set<FlutterProjectPlatform> stillMissing =
+                    FlutterAddPlatformsPanel.stillMissingSelection(root, selected);
+            if (!stillMissing.equals(selected)) {
+                NotifyDescriptor message = new NotifyDescriptor.Message(
+                        Bundle.MSG_PlatformSelectionChanged(root.toString()),
+                        NotifyDescriptor.WARNING_MESSAGE);
+                message.setTitle(Bundle.TTL_AddFlutterPlatforms());
+                DialogDisplayer.getDefault().notify(message);
+                return;
+            }
+            toolingController.invokeAddPlatforms(
+                    selected,
+                    refreshTargetsAfterSuccessfulPlatformAdd(
+                            ActionProgress.start(actionContext),
+                            configurations::refreshTargets));
+        } catch (IOException | IllegalArgumentException | SecurityException exception) {
+            showAddPlatformsUnavailable(root.toString(), failureReason(exception));
+        }
+    }
+
+    private static String failureReason(Throwable failure) {
+        String message = failure.getMessage();
+        if (message == null || message.isBlank()) {
+            return failure.getClass().getSimpleName();
+        }
+        return message;
+    }
+
+    private static void showAddPlatformsUnavailable(String projectPath, String reason) {
+        NotifyDescriptor message = new NotifyDescriptor.Message(
+                Bundle.MSG_AddPlatformsUnavailable(projectPath, reason),
+                NotifyDescriptor.ERROR_MESSAGE);
+        message.setTitle(Bundle.TTL_AddFlutterPlatforms());
+        DialogDisplayer.getDefault().notify(message);
+    }
+
+    static ActionProgress refreshTargetsAfterSuccessfulPlatformAdd(
+            ActionProgress delegate,
+            Runnable refreshTargets) {
+        Objects.requireNonNull(delegate, "delegate");
+        Objects.requireNonNull(refreshTargets, "refreshTargets");
+        return new ActionProgress() {
+            private final AtomicBoolean completed = new AtomicBoolean();
+
+            @Override
+            protected void started() {
+                // ActionProgress.start(actionContext) already notified the delegate.
+            }
+
+            @Override
+            public void finished(boolean success) {
+                if (!completed.compareAndSet(false, true)) {
+                    return;
+                }
+                try {
+                    delegate.finished(success);
+                } finally {
+                    if (success) {
+                        refreshTargets.run();
+                    }
+                }
+            }
         };
     }
 

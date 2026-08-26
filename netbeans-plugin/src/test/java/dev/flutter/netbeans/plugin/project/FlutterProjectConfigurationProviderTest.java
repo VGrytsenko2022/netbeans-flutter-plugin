@@ -14,11 +14,13 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import org.junit.jupiter.api.Test;
 import org.netbeans.spi.project.ActionProvider;
+import org.netbeans.spi.project.ActionProgress;
 import org.netbeans.spi.project.ProjectConfigurationProvider;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
@@ -30,6 +32,33 @@ class FlutterProjectConfigurationProviderTest {
             new FlutterDevice("emulator-5554", "Pixel 9", "android-arm64", true);
     private static final FlutterDevice CHROME =
             new FlutterDevice("chrome", "Chrome", "web-javascript", false);
+
+    @Test
+    void successfulPlatformAdditionRefreshesTargetsExactlyOnce() {
+        List<Boolean> successResults = new ArrayList<>();
+        AtomicInteger refreshes = new AtomicInteger();
+        ActionProgress success = FlutterProjectActionProvider
+                .refreshTargetsAfterSuccessfulPlatformAdd(
+                        recordingProgress(successResults),
+                        refreshes::incrementAndGet);
+
+        success.finished(true);
+        success.finished(true);
+
+        assertEquals(List.of(true), successResults);
+        assertEquals(1, refreshes.get());
+
+        List<Boolean> failureResults = new ArrayList<>();
+        ActionProgress failure = FlutterProjectActionProvider
+                .refreshTargetsAfterSuccessfulPlatformAdd(
+                        recordingProgress(failureResults),
+                        refreshes::incrementAndGet);
+
+        failure.finished(false);
+
+        assertEquals(List.of(false), failureResults);
+        assertEquals(1, refreshes.get(), "failed platform creation must not refresh targets");
+    }
 
     @Test
     void publishesSortedTargetsAndRestoresRememberedSelection() {
@@ -465,6 +494,19 @@ class FlutterProjectConfigurationProviderTest {
 
     private static FlutterProjectConfigurationProvider provider(FakeBackend backend) {
         return new FlutterProjectConfigurationProvider(backend, Runnable::run);
+    }
+
+    private static ActionProgress recordingProgress(List<Boolean> results) {
+        return new ActionProgress() {
+            @Override
+            protected void started() {
+            }
+
+            @Override
+            public void finished(boolean success) {
+                results.add(success);
+            }
+        };
     }
 
     private static FlutterProjectConfigurationProvider provider(

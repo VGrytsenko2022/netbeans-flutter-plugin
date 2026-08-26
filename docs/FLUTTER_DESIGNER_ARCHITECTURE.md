@@ -12,8 +12,8 @@ respecting Flutter's semantic widget layout:
 - the standard NetBeans Palette for adding widgets;
 - a widget tree published through NetBeans Explorer/Nodes;
 - the standard Properties window for editing typed properties;
-- a central canvas with synchronized selection, semantic drop targets, zoom,
-  device bounds and layout guides;
+- a central embedded native `FlutterView`, with synchronized selection,
+  semantic drop targets, zoom, device bounds and layout guides;
 - standard NetBeans Save, Undo/Redo, Copy/Paste and Delete actions.
 
 Flutter layout is not an absolute-position form. A drop operation selects a
@@ -256,17 +256,23 @@ expand output unexpectedly.
 - JSON decoding/encoding and schema migrations;
 - structural and catalog validation;
 - deterministic Dart-region generation;
-- future undoable commands for add, remove, move, wrap and property changes;
-- conflict detection inputs and normalized region hashing.
+- bounded undoable commands for add, remove, move, wrap and property changes;
+- conflict detection inputs and normalized region hashing;
+- pure Canvas identities, resolved render profiles, replay/admission gates,
+  backend contracts and per-MultiView lifecycle controller;
+- the strict version 1 Canvas control codec/handshake gate and bounded process
+  framing for control, model and catalog JSON channels.
 
 `netbeans-plugin` owns only the NetBeans edge:
 
 - `.fd` MIME resolution, loader/DataObject and paired-file operations;
 - the `Design`/`Source` MultiView elements;
-- Palette, Explorer/Nodes, Properties and Visual Library adapters;
+- NetBeans Palette, Explorer/Nodes and Properties adapters, plus the concrete
+  process, Flutter SDK and native Canvas host edge selected through the planned
+  Windows/Linux/macOS platform SPI;
 - the single `PairSaveCoordinator`-owned `SaveCookie`, file listeners, guarded
-  sections, the current source-Undo barrier and the future combined
-  `UndoRedo` bridge;
+  sections and the shared native chronological Source/Designer `UndoRedo`
+  bridge;
 - wizards/actions and user-facing conflict resolution;
 - background execution and EDT handoff.
 
@@ -764,39 +770,162 @@ identity-bound command/generator/analyzer capacity policy are implemented.
 Pre-persistence loss of staged authority now clears only the exact semantic
 graph and durable command lease while retaining native Source content and
 Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
-verifier and isolated install lifecycle now pass. Remaining stop-ship work is
-the actual Palette/tree/properties/Canvas mutation surface and its pair-aware
-workflow/property/callback contracts. Canvas work requires a separate
-architecture discussion before its first implementation slice. Until those
-contracts pass together, `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+verifier and isolated install lifecycle now pass. ADR-021 freezes the Canvas
+target, and the pure backend/lifecycle plus bounded control/model/catalog
+transport foundation is implemented. The first Windows native-host vertical
+spike is also implemented: it builds a versioned isolated runner, creates the
+real Flutter child window inside a heavyweight AWT host in the Design MultiView
+and validates the exact HWND/PID hierarchy before showing it. Every open `.fd`
+Design MultiView owns its own host, lifecycle session and runner process; only
+the immutable SDK-keyed build cache is shared. Resize/peer-loss races, late
+build/launch/exit callbacks, visibility transitions and two simultaneous
+sessions now have deterministic coverage. Cache reuse additionally requires a
+bounded SHA-256 manifest for the complete launchable Windows runtime. The
+platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
+canonical model projection, Palette/tree/properties mutation surface and
+pair-aware workflow/property/callback contracts remain stop-ship work. Until
+those contracts pass together,
+`PUBLIC_MUTATION_UI_ENABLED` remains `false`.
 
-## Target NetBeans presentation
+## Target NetBeans presentation and embedded FlutterView boundary
 
-The writable designer will publish its selected widget as a NetBeans Node.
-That one selection will drive the canvas highlight, widget tree and standard
-Properties window. The Palette will be supplied through the active MultiView
-element's Lookup, so the normal NetBeans Palette window becomes
-context-sensitive.
+The writable designer will publish its selected widget as a revision-bound
+NetBeans Node. That one selection drives the widget tree and standard
+Properties window and is synchronized with the Canvas. The Palette is supplied
+through the active MultiView element's Lookup, so the normal NetBeans Palette
+window remains context-sensitive. Palette, Explorer/Nodes, Properties and the
+MultiView chrome remain native NetBeans Swing surfaces.
 
-The canvas will use the NetBeans Visual Library for selection, zoom, pan,
-drag/drop feedback and semantic layout guides. Canvas widgets will be
-projections of the domain model and never become the persisted model
-themselves.
+The Canvas itself is a real native `FlutterView` embedded inside that chrome.
+Flutter paints the widget tree, selection overlay, drop zones and layout guides
+directly into its native surface and performs the authoritative widget hit
+test. Swing and the NetBeans Visual Library must not imitate Flutter widgets or
+maintain a competing layout model. A Swing-painted projection, transferred
+PNG/JPEG/raw-RGBA frames, screenshots or periodic image copies are not an
+acceptable Canvas implementation. A heavyweight Java host peer may reserve the
+native region, but Flutter remains its renderer.
 
-The first usable vertical slice contains `Scaffold`, `AppBar`, `Column`, `Row`,
-`Padding`, `Center`, `Text`, `Icon`, `SizedBox` and `ElevatedButton`. It must
-support create, open, edit, save, reopen, undo/redo and deterministic Dart
-generation before additional widgets are added.
+Native hosting is abstracted by a planned platform SPI. Its contract covers
+creation/attachment, detachment, bounds and device-pixel-ratio changes,
+visibility, focus, liveness, crash notification and final destruction. Platform
+handles stay at the NetBeans/native edge and do not enter the domain model. The
+first implementation target is Windows: a Flutter desktop runner creates a
+native child surface and the Windows provider embeds it into the NetBeans host.
+Linux and macOS providers follow the same SPI and lifecycle/fencing tests; no
+platform may substitute an image-transfer surface.
 
-## Preview boundary
+The preferred Windows design places the Flutter engine and `FlutterView` in an
+isolated runner process when child-surface embedding and supervision prove
+feasible. NetBeans owns bounded startup, cancellation, restart, termination,
+diagnostics and project/form-close cleanup. Isolation contains crashes but is
+not claimed as an operating-system security sandbox. The protocol supplies
+only bounded canonical model/catalog data and lifecycle/input intents: it
+supplies no project paths, Dart source, file handles or arbitrary project code.
+The runner has no `.fd`, Dart, `SaveCookie`, Undo/Redo, command-session or
+persistence authority. If a platform cannot support the isolated-child design,
+an alternative native provider requires explicit review and the same ownership
+contract; falling back to transferred pixels is forbidden.
 
-Pixel-accurate Flutter rendering is not part of the `.fd` ownership contract.
-The initial canvas may be a semantic projection, but it must not pretend to be
-pixel-accurate. A later preview runner will use the configured project Flutter
-SDK, consume the same validated document/catalog, and keep process/tooling code
-outside Swing event handlers. Embedding a native Flutter surface, streaming a
-rendered surface, and selected-target preview remain open implementation
-choices that require a separate ADR.
+The implemented pure lifecycle controller is owned by one Design MultiView,
+not by the project or DataObject. Each start/restart creates a fresh session,
+admits one presentation request at a time, coalesces a burst to one replace-only
+latest request, and fences callbacks from detached attempts. Startup,
+handshake, rendering, protocol, termination and closed states are explicit. The
+backend contract is thread-safe and asynchronous; concrete adapters must prove
+prompt calls, idempotent close, bounded termination escalation and eventual
+completion of all stages. Listener delivery has no EDT affinity, so the
+NetBeans adapter must marshal presentation changes itself.
+
+The concrete Windows adapter follows that ownership boundary as well. An open
+`.fd` Design view creates one heavyweight host and one isolated runner; hiding
+the Design view hides its verified child surface, while closing the editor
+terminates only that view's process. Generation fencing prevents late build,
+launch and `Process.onExit` callbacks from tearing down a newer surface. A
+failed `MoveWindow` or invalid HWND hierarchy clears only the matching
+attachment and reports peer loss without letting an exception escape the EDT.
+The shared build cache is reusable only when its final commit marker and bounded
+runtime SHA-256 manifest agree with every allowlisted launch artifact.
+
+The version 1 control plane is exact and deliberately small: strict UTF-8 JSON
+without a BOM for `host.hello`, `runner.hello`, `host.close`, `runner.closed`
+and bounded `runner.failure`. Runner control sequences start at zero and are
+contiguous; wire integers do not exceed 9,007,199,254,740,991. The implemented
+process codec validates a fixed header, kind-specific negotiated size and
+SHA-256 before accepting a payload. Its complete frame-kind whitelist is
+control JSON, model JSON and catalog JSON; only control is legal before the
+hello is admitted. Stream-bound readers and writers fail closed after malformed
+or partial traffic, and model/catalog frames require exact expected
+kind/length/SHA-256 descriptors before allocation. The model/catalog channels
+are bounded envelopes, not yet completed payload schemas or a validated-model
+rendering protocol. There is no layout, image or pixel-transfer frame kind. The
+current Windows native host/runner path is a compiled read-only surface and
+lifecycle proof.
+
+Every presentation receives a fresh host-issued open-session identity and a
+monotonically increasing presentation sequence, independent of the logical
+command revision id. Flutter responses echo that identity. Frame and layout
+sequences identify a native paint/presentation epoch and its Flutter-side
+hit-test epoch; they do not identify transferred images. Initial frame/layout
+evidence is admitted atomically. These identities reject delayed work across
+reload, Undo/Redo, runner restart, close and reopen, including an ABA return to
+the same logical revision.
+
+Drag and drop crosses the boundary in one direction and returns an intent:
+
+1. Java captures an allowlisted palette/model drag, the exact current session,
+   presentation and revision, and coordinates translated into the native view.
+2. Flutter hit-tests its live widget tree and computes a semantic target/drop
+   operation for the exact accepted layout epoch.
+3. Flutter returns only that revision-bound intent; it does not mutate the
+   model or touch a file.
+4. Java rejects stale, replayed, malformed or no-longer-valid responses,
+   validates the target against the current catalog/domain model, and only then
+   may admit a Designer command.
+
+Selection and future property intents follow the same host-authoritative rule.
+Render-profile limits reject a requested native surface above 4096 physical
+pixels on either axis or 8,388,608 total pixels before native allocation. This
+is a resource bound for the embedded surface, not a raw-RGBA transfer budget.
+
+Every presentation request selects `MOBILE`, `TABLET`, `DESKTOP` or `WEB` as a
+responsive development mode. The mode chooses viewport intent and stays
+independent from the concrete engine/platform identity. The Windows-first
+embedded Canvas is authentic for its bound Windows Flutter engine, exact
+resolved theme, locale, viewport, text scale and device-pixel ratio. A mobile-
+or web-sized viewport does not claim Android, iOS or browser rendering
+equivalence. A complex built-in or contributed widget is rendered only after
+its type and constructor metadata are present in the validated catalog; the
+runner may not execute arbitrary unreviewed project code merely because Flutter
+can load it.
+
+The first public writable vertical slice contains `Scaffold`, `AppBar`,
+`Column`, `Row`, `Padding`, `Center`, `Text`, `Icon`, `SizedBox` and
+`ElevatedButton`. It must support create, open, edit, save, reopen, undo/redo and
+deterministic Dart generation before additional widgets are added. Earlier
+read-only native-Canvas prototypes prove hosting and synchronization without
+granting mutation capabilities.
+
+Implementation proceeds through explicit gates:
+
+1. [Complete] Define the pure host-issued session/presentation/frame/layout
+   identities, exact validated-revision/render-profile binding and replay-safe
+   interaction admission rules.
+2. [Foundation complete] Add the read-only backend lifecycle, bounded versioned
+   control handshake and process framing for control/model/catalog only. This
+   does not claim completed model/catalog schemas.
+3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
+    platform-neutral native-surface SPI and prove its teardown,
+    resize/DPR, focus, visibility, crash and stale-callback contract.
+4. [Native hosting spike complete; model projection pending] Implement the
+   Windows child-surface host and isolated Flutter runner; next render one exact
+   validated revision with no image-transfer path.
+5. Add canonical model/catalog payloads and synchronize selection with Widget
+   Tree and Properties without mutation.
+6. Implement Java → Flutter hit-test → revision-bound DnD/selection intents
+   behind `PUBLIC_MUTATION_UI_ENABLED=false`.
+7. Prove runner crash/restart/close, native-handle cleanup, pair Save and
+   Undo/Redo behavior, then implement the Linux and macOS SPI providers.
+8. Enable the first public writable ten-widget slice only after all gates pass.
 
 ## Remaining decisions before writable UI implementation
 
@@ -810,9 +939,11 @@ infrastructure.
 2. The NetBeans property-editor provider SPI and localized presentation; the
    built-in domain metadata is now fixed by ADR-010.
 3. Callback stub creation without modifying user-owned code on later saves.
-4. The first semantic Canvas slice and its Palette/tree/properties interaction;
-   agree its exact scope before implementation. Pixel-accurate preview
-   transport and lifecycle remain a separate decision.
+4. The native-surface SPI and Windows child-window embedding mechanism,
+   per-platform isolated-runner feasibility, canonical model/catalog payload
+   schemas, native lifecycle cleanup and Java → Flutter hit-test →
+   revision-bound interaction-intent validation required by ADR-021. Bounded
+   control/model/catalog framing itself is already foundation code.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

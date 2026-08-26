@@ -143,10 +143,10 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertEquals(
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in the .fd model, and the deterministic generated "
-                    + "payloads agree. The pair-save edge is installed, but Designer "
-                    + "mutation remains disabled until the separately discussed "
-                    + "pair-aware workflows, Palette, tree, properties and semantic "
-                    + "Canvas surface are complete.",
+                    + "payloads agree. The native Flutter Canvas host is installed, "
+                    + "but validated model publication, Palette, tree, properties, "
+                    + "selection, drag-and-drop and Designer mutation remain disabled "
+                    + "until their staged pair-aware workflows are complete.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

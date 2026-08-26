@@ -70,6 +70,7 @@ class PluginRegistrationTest {
         assertTrue(layer.contains("OpenDevToolsAction"));
         assertTrue(layer.contains("StopDevToolsAction"));
         assertTrue(layer.contains("StopFlutterAction"));
+        assertTrue(layer.contains("AddFlutterPlatformsAction"));
         assertTrue(layer.contains("FlutterPubGetAction"));
         assertTrue(layer.contains("FlutterAnalyzeAction"));
         assertTrue(layer.contains("FlutterTestAction"));

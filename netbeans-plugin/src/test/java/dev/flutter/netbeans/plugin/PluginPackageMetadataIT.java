@@ -38,8 +38,18 @@ class PluginPackageMetadataIT {
     private static final String CORE_LIBRARY =
             "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
             + "dev-flutter-netbeans/flutter-core-api.jar";
+    private static final String CANVAS_RUNNER_LIBRARY =
+            "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
+            + "dev-flutter-netbeans/flutter-canvas-runner.jar";
     private static final Set<String> CORE_RUNTIME_ENTRIES = Set.of(
             "dev/flutter/netbeans/api/DartCandidateCapacityBudget.class");
+    private static final Set<String> CANVAS_RUNNER_RUNTIME_ENTRIES = Set.of(
+            "dev/flutter/netbeans/canvas/runner/CanvasRunnerBundle.class",
+            "dev/flutter/netbeans/canvas/runner/CanvasRunnerBundle.manifest",
+            "dev/flutter/netbeans/canvas/runner/v1/pubspec.yaml",
+            "dev/flutter/netbeans/canvas/runner/v1/lib/main.dart",
+            "dev/flutter/netbeans/canvas/runner/v1/windows/runner/main.cpp",
+            "dev/flutter/netbeans/canvas/runner/v1/windows/runner/resources/app_icon.ico");
     private static final Set<String> MODULE_RUNTIME_ENTRIES = Set.of(
             "dev/flutter/netbeans/plugin/designer/DesignerAtomicEditCapture.class",
             "dev/flutter/netbeans/plugin/designer/DesignerCombinedUndoRedo.class",
@@ -247,6 +257,15 @@ class PluginPackageMetadataIT {
                 CORE_LIBRARY,
                 "Flutter core API",
                 CORE_RUNTIME_ENTRIES);
+    }
+
+    @Test
+    void packagesNativeCanvasRunnerSourcesInTheNbmRuntime() throws Exception {
+        assertNestedJarContains(
+                requiredPath("nbm.file"),
+                CANVAS_RUNNER_LIBRARY,
+                "Flutter native Canvas runner",
+                CANVAS_RUNNER_RUNTIME_ENTRIES);
     }
 
     @Test

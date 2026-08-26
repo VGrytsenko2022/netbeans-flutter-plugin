@@ -124,4 +124,92 @@ Endpoint-specific command admission from saved physical history is now accepted 
 
 Staged replacement and its recovery path operate on the generalized `StagedPairProof` contract rather than requiring fresh predecessor analyzer evidence. An immutable `SavedHistoryProof` can therefore be replaced, rejected, cancelled or recovered without being converted into fabricated `PairSaveEvidence`; only the new command candidate receives a new analyzer ticket and result. Canonical-pair substitution is rejected without document mutation and the same captured physical source may retry while its identities remain current. A failed semantic apply uses the MIME capture's atomic rollback, rebinds a fresh exact predecessor proof and preserves the older native semantic graph instead of calling `discardAllEdits()`. The new physical candidate is counted with all retained endpoint variants against the aggregate Dart-plus-`.fd` history budget before analyzer admission or CES mutation. Successful adoption keeps durable C2/S2 unchanged, truncates the obsolete S2/C2 redo suffix and produces the exact branch `B/S0→C1/S0→C3/S0`; Undo/Redo restores the endpoint-specific proofs. The adopted paired revision retains its S0 live template, so a following ordinary command continues as C4/S0 instead of silently reverting to S2.
 
-When staged authority becomes unprovable before persistence, recovery now clears the exact semantic edge graph and invalidates its durable command lease without touching the native manager. Newer user-owned Source content, its Undo/Redo cursor, dirty state and stable `SaveCookie` remain available in sticky conflict; exact candidate bytes cannot revive the revoked authority. The branch/runtime matrix, strict NBM verification and isolated NetBeans 30 install lifecycle now pass. The Palette/tree/properties/Canvas mutation surface is a separate slice that must be discussed before implementation; `PUBLIC_MUTATION_UI_ENABLED` therefore remains `false`.
+When staged authority becomes unprovable before persistence, recovery now clears the exact semantic edge graph and invalidates its durable command lease without touching the native manager. Newer user-owned Source content, its Undo/Redo cursor, dirty state and stable `SaveCookie` remain available in sticky conflict; exact candidate bytes cannot revive the revoked authority. The branch/runtime matrix, strict NBM verification and isolated NetBeans 30 install lifecycle now pass. The Palette/tree/properties/Canvas mutation surface remains a separate staged slice governed by ADR-021; `PUBLIC_MUTATION_UI_ENABLED` therefore remains `false`.
+
+## ADR-021 — The Canvas is an embedded native FlutterView, not a Swing raster proxy
+
+Accepted for staged implementation in 0.1.3, while public Designer mutation
+remains gated. The active Design MultiView supplies the standard
+context-sensitive NetBeans Palette. The visual widget tree is published through
+Explorer/Nodes, and the selected revision-bound widget Node drives the standard
+Properties window. These surfaces and the MultiView chrome remain NetBeans
+Swing UI.
+
+The central Canvas is a real native `FlutterView` embedded in that chrome. Its
+Flutter engine paints the widget tree, selection overlay, drop zones and layout
+guides directly into the native surface and performs the authoritative widget
+hit test. A Swing component, the NetBeans Visual Library, a PNG/JPEG/raw-RGBA
+transfer, screenshots or periodic image copies must not stand in for the
+Canvas. Swing may own the surrounding chrome and a heavyweight native host peer;
+it must not paint a second approximation of Flutter layout. Runtime widget and
+overlay state remain disposable projections. The exact validated immutable
+`.fd` revision and catalog remain the canonical visual model.
+
+Native hosting is hidden behind a platform SPI. The SPI owns attach, detach,
+resize, device-pixel-ratio changes, visibility, focus, liveness and final
+surface destruction without exposing platform handles to the domain core. The
+first implementation target is Windows: a Flutter desktop runner creates a
+native child surface and the Windows provider embeds that surface into the
+NetBeans Canvas host. Linux and macOS providers must implement the same
+lifecycle and fencing contract before their platforms are supported. The first
+Windows vertical spike now implements that actual child surface inside the
+Design MultiView, not merely a source scaffold; it is not yet the completed
+cross-platform SPI or public Designer surface.
+
+The preferred deployment keeps the Flutter engine and view in an isolated
+runner process when the platform can safely embed and supervise its child
+surface. Process isolation is crash containment, not by itself an operating
+system sandbox. The runner receives bounded canonical model and catalog values,
+not project file paths, Dart source, file handles or arbitrary project code, and
+has no protocol capability to read, write, Save, Undo/Redo or persist anything.
+NetBeans alone owns `.fd`, Dart, `SaveCookie`, the command session and all file
+authority. A platform on which an isolated child surface is infeasible requires
+an explicit reviewed native-provider decision; it must not silently fall back
+to transferred pixels.
+
+Every request and runtime response is bound to an exact open-Canvas session,
+the validated document/model revision and a host-issued monotonically
+increasing presentation sequence. Frame and layout sequences identify native
+presentation and Flutter-side hit-test epochs; they do not identify an image
+payload. The identities fence delayed acknowledgements and intents across
+reload, Undo/Redo, runner restart, close and reopen. Every backend spawn or
+restart receives a fresh session identity, so an ABA return to the same logical
+revision cannot revive detached work.
+
+Drag and drop deliberately crosses the Java/native boundary as an intent
+protocol. NetBeans sends the allowlisted palette/model drag description, exact
+revision identities and coordinates resolved for the current native view to
+Flutter. Flutter performs the widget hit test and returns a semantic drop intent
+bound to that same session, presentation, revision and accepted layout epoch.
+Java rejects stale, replayed, malformed or no-longer-valid targets and validates
+the intent against the current catalog and domain model. Only that trusted Java
+admission may later invoke a Designer command; Flutter never mutates the model
+or files directly. The same rule applies to selection and property intents.
+
+The implemented foundation is narrower than this accepted target. It contains
+the pure lifecycle/admission identities and version 1 hello/close/failure codec,
+plus fail-stop bounded process framing whose only frame kinds are control JSON,
+model JSON and catalog JSON. The Windows edge additionally has a real
+heavyweight AWT HWND host, exact PID/parent/class/style validation for both
+runner and `FLUTTERVIEW` children, a bounded SDK-keyed build cache and isolated
+child-runner lifecycle per open `.fd` Design MultiView. Cache reuse requires a
+bounded SHA-256 manifest for the complete launch runtime, and deterministic
+tests fence close/build/launch/attach/exit races plus two simultaneous sessions.
+Model/catalog framing remains an envelope, not a
+completed payload schema; the current runner surface is a compiled read-only
+native-host proof rather than a validated `.fd` projection. No layout, image or
+pixel-transfer frame kind exists. The platform-neutral SPI, completed Windows
+acceptance matrix, Linux/macOS providers, canonical model/catalog projection
+and DnD bridge remain foundation gates.
+
+`MOBILE`, `TABLET`, `DESKTOP` and `WEB` are responsive viewport intents and stay
+separate from the concrete engine/platform identity. The Windows-first embedded
+Canvas is authentic only for its bound Windows Flutter engine, resolved theme,
+locale, viewport, text scale and device-pixel ratio; a mobile- or web-sized
+viewport does not claim Android, iOS or browser rendering equivalence.
+
+Accepting this ADR does not enable writable UI.
+`DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED` remains `false`
+until the native surface lifecycle, revision fencing, DnD/selection intent
+validation, crash and close recovery, pair Save, Undo/Redo and assembled
+Windows/Linux/macOS runtime gates pass together.

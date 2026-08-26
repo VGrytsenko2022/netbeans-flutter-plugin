@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import java.awt.BorderLayout;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
 import javax.swing.Action;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
@@ -18,6 +19,7 @@ import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityDiagnostic;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
+import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasHost;
 import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
@@ -43,7 +45,11 @@ public final class FlutterDesignerMultiViewDesign
     private final JLabel statusLabel;
     private final JLabel modelLabel;
     private final JLabel detailLabel;
+    private final JLabel canvasStatusLabel;
     private final JProgressBar progress;
+    private final JProgressBar canvasProgress;
+    private final WindowsNativeCanvasHost nativeCanvasHost;
+    private final FlutterDesignerNativeCanvasSession nativeCanvasSession;
     private final String modelName;
     private final String sourceName;
     private boolean listening;
@@ -66,16 +72,50 @@ public final class FlutterDesignerMultiViewDesign
         statusLabel = centeredLabel("Preparing Flutter Designer model...");
         modelLabel = centeredLabel("Model: " + modelName + ". Source: " + sourceName + ".");
         detailLabel = centeredLabel("Waiting for bounded model validation.");
+        canvasStatusLabel = centeredLabel("Native Canvas: waiting for the Design view.");
         progress = new JProgressBar();
         progress.setIndeterminate(true);
         progress.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         progress.setVisible(false);
         statusLabel.setLabelFor(progress);
+        canvasProgress = new JProgressBar();
+        canvasProgress.setIndeterminate(true);
+        canvasProgress.setAlignmentX(JComponent.CENTER_ALIGNMENT);
+        canvasProgress.setVisible(false);
+        canvasStatusLabel.setLabelFor(canvasProgress);
         statusPanel.add(statusLabel);
         statusPanel.add(modelLabel);
         statusPanel.add(detailLabel);
         statusPanel.add(progress);
-        visual.add(statusPanel, BorderLayout.CENTER);
+        statusPanel.add(canvasStatusLabel);
+        statusPanel.add(canvasProgress);
+        WindowsNativeCanvasHost canvasHost = null;
+        FlutterDesignerNativeCanvasSession canvasSession = null;
+        if (isWindows()) {
+            try {
+                canvasHost = new WindowsNativeCanvasHost();
+                canvasSession = FlutterDesignerNativeCanvasSession.createDefault(
+                        canvasHost, this::renderNativeCanvasStatus);
+            } catch (IOException | RuntimeException | LinkageError failure) {
+                canvasHost = null;
+                canvasSession = null;
+                canvasStatusLabel.setText(
+                        "Native Canvas unavailable: " + failureReason(failure));
+                canvasStatusLabel.setToolTipText(canvasStatusLabel.getText());
+            }
+        } else {
+            canvasStatusLabel.setText(
+                    "Native Canvas: the current implementation is Windows-first; "
+                    + "the platform host for this operating system is not available yet.");
+        }
+        nativeCanvasHost = canvasHost;
+        nativeCanvasSession = canvasSession;
+        if (nativeCanvasHost == null) {
+            visual.add(statusPanel, BorderLayout.CENTER);
+        } else {
+            visual.add(nativeCanvasHost, BorderLayout.CENTER);
+            visual.add(statusPanel, BorderLayout.SOUTH);
+        }
         toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.add(new JLabel(modelName + " — Design"));
@@ -120,6 +160,9 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentClosed() {
+        if (nativeCanvasSession != null) {
+            nativeCanvasSession.close();
+        }
         if (controller != null && listening) {
             listening = false;
             controller.removePropertyChangeListener(this);
@@ -129,10 +172,16 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentShowing() {
+        if (nativeCanvasSession != null) {
+            nativeCanvasSession.show();
+        }
     }
 
     @Override
     public void componentHidden() {
+        if (nativeCanvasSession != null) {
+            nativeCanvasSession.hide();
+        }
     }
 
     @Override
@@ -292,10 +341,10 @@ public final class FlutterDesignerMultiViewDesign
                     + "; root widget " + rootType + ".",
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in " + modelName + ", and the deterministic generated "
-                    + "payloads agree. The pair-save edge is installed, but Designer "
-                    + "mutation remains disabled until the separately discussed "
-                    + "pair-aware workflows, Palette, tree, properties and semantic "
-                    + "Canvas surface are complete.");
+                    + "payloads agree. The native Flutter Canvas host is installed, "
+                    + "but validated model publication, Palette, tree, properties, "
+                    + "selection, drag-and-drop and Designer mutation remain disabled "
+                    + "until their staged pair-aware workflows are complete.");
         }
     }
 
@@ -402,6 +451,14 @@ public final class FlutterDesignerMultiViewDesign
         modelLabel.getAccessibleContext().setAccessibleName("Flutter Designer model and source");
         detailLabel.getAccessibleContext().setAccessibleName("Flutter Designer status details");
         progress.getAccessibleContext().setAccessibleName("Flutter Designer model loading progress");
+        canvasStatusLabel.getAccessibleContext().setAccessibleName(
+                "Native Flutter Canvas status");
+        canvasProgress.getAccessibleContext().setAccessibleName(
+                "Native Flutter Canvas preparation progress");
+        canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
+                canvasStatusLabel.getText());
+        canvasProgress.getAccessibleContext().setAccessibleDescription(
+                canvasStatusLabel.getText());
         toolbar.getAccessibleContext().setAccessibleName("Flutter Designer toolbar");
         updateAccessiblePresentation(
                 statusLabel.getText(), modelLabel.getText(), detailLabel.getText());
@@ -417,5 +474,27 @@ public final class FlutterDesignerMultiViewDesign
         progress.getAccessibleContext().setAccessibleDescription(detail);
         toolbar.getAccessibleContext().setAccessibleDescription(
                 "Designer actions for " + modelName + ".");
+    }
+
+    private void renderNativeCanvasStatus(FlutterDesignerNativeCanvasStatus state) {
+        canvasStatusLabel.setText(state.summary() + " " + state.detail());
+        canvasStatusLabel.setToolTipText(state.detail());
+        canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
+                canvasStatusLabel.getText());
+        canvasProgress.setVisible(state.busy());
+        canvasProgress.getAccessibleContext().setAccessibleDescription(state.detail());
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .startsWith("windows");
+    }
+
+    private static String failureReason(Throwable failure) {
+        String message = failure.getMessage();
+        return message == null || message.isBlank()
+                ? failure.getClass().getSimpleName()
+                : message;
     }
 }

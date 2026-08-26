@@ -53,6 +53,7 @@ class FlutterRunControllerDevToolsLifecycleTest {
     void setUp() throws Exception {
         Path root = Files.createDirectories(temporaryDirectory.resolve("project"));
         Files.createDirectories(root.resolve("lib"));
+        Files.createDirectories(root.resolve("windows"));
         Files.writeString(root.resolve("lib/main.dart"), "void main() {}\n");
         Path pubspec = Files.writeString(root.resolve("pubspec.yaml"),
                 "name: devtools_lifecycle_test\ndependencies:\n  flutter:\n    sdk: flutter\n");

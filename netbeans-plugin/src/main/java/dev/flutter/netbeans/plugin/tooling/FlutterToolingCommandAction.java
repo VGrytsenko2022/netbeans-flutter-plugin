@@ -93,7 +93,11 @@ abstract class FlutterToolingCommandAction extends AbstractAction
                 controller.addChangeListener(this);
             }
         }
-        setEnabled(controller != null && controller.isCommandEnabled(command));
+        ActionProvider actions = project == null
+                ? null
+                : project.getLookup().lookup(ActionProvider.class);
+        setEnabled(controller != null && actions != null
+                && actions.isActionEnabled(command, Utilities.actionsGlobalContext()));
     }
 
     private FlutterProject activeProject() {

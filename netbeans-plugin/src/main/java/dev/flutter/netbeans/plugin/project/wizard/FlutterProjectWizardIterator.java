@@ -4,10 +4,13 @@ import dev.flutter.netbeans.plugin.project.FlutterProjectFactory;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
 import dev.flutter.netbeans.project.FlutterProjectCreationRequest;
 import dev.flutter.netbeans.project.FlutterProjectCreator;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
 import dev.flutter.netbeans.sdk.FlutterCli;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import javax.swing.JComponent;
@@ -19,6 +22,7 @@ import org.netbeans.spi.project.ui.support.ProjectChooser;
 import org.openide.WizardDescriptor;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.ChangeSupport;
 import org.openide.util.NbBundle.Messages;
 
 /** New Project wizard that delegates generation to {@code flutter create}. */
@@ -32,6 +36,7 @@ import org.openide.util.NbBundle.Messages;
 @Messages({
     "LBL_FlutterApplication=Flutter Application",
     "LBL_FlutterProjectWizardStep=Name and Location",
+    "LBL_FlutterProjectPlatformsWizardStep=Target Platforms",
     "LBL_FlutterProjectWizardTitle=New Flutter Application",
     "LBL_ProjectName=Project &Name:",
     "LBL_ProjectLocation=Project &Location:",
@@ -39,7 +44,7 @@ import org.openide.util.NbBundle.Messages;
     "LBL_ProjectFolder=Project &Folder:",
     "LBL_Organization=&Organization:",
     "LBL_Description=&Description:",
-    "LBL_CreateHint=The wizard runs the configured Flutter SDK's \"flutter create --template app\" command and opens lib/main.dart.",
+    "LBL_CreateHint=The next step selects target platform folders. The wizard runs the configured Flutter SDK's \"flutter create --template app --platforms=...\" command and opens lib/main.dart.",
     "TTL_SelectProjectLocation=Select Flutter Project Location",
     "ACS_ProjectName=Flutter project name",
     "ACD_ProjectName=Lowercase Dart package name for the new Flutter application.",
@@ -52,13 +57,33 @@ import org.openide.util.NbBundle.Messages;
     "ACS_Organization=Flutter organization identifier",
     "ACD_Organization=Reverse-domain organization used for generated application identifiers, for example com.example.",
     "ACS_Description=Flutter project description",
-    "ACD_Description=Description written to the generated pubspec.yaml."
+    "ACD_Description=Description written to the generated pubspec.yaml.",
+    "LBL_PlatformPreset=&Preset:",
+    "LBL_PlatformPresetRecommended=Recommended",
+    "LBL_PlatformPresetMobile=Mobile",
+    "LBL_PlatformPresetDesktop=Desktop",
+    "LBL_PlatformPresetWeb=Web",
+    "LBL_PlatformPresetAll=All",
+    "LBL_PlatformPresetCustom=Custom",
+    "LBL_PlatformAndroid=&Android",
+    "LBL_PlatformIos=&iOS",
+    "LBL_PlatformWeb=&Web",
+    "LBL_PlatformWindows=Wi&ndows",
+    "LBL_PlatformMacos=&macOS",
+    "LBL_PlatformLinux=&Linux",
+    "LBL_PlatformSelectionHint=<html><p width='420'>Platform folders can be generated on any host. Building iOS/macOS requires macOS and Xcode; Windows requires Windows and Visual Studio; Linux requires Linux desktop packages; Android requires the Android SDK. Web has no host restriction.</p></html>",
+    "ACS_PlatformPreset=Flutter platform preset",
+    "ACD_PlatformPreset=Select a recommended platform group or customize the individual target platforms.",
+    "ACS_PlatformSelection=Flutter target platforms",
+    "ACD_PlatformSelection=Selected platform folders that flutter create will generate."
 })
 public final class FlutterProjectWizardIterator
         implements WizardDescriptor.ProgressInstantiatingIterator<WizardDescriptor> {
 
     private WizardDescriptor wizard;
-    private FlutterProjectWizardPanel panel;
+    private final ChangeSupport changes = new ChangeSupport(this);
+    private List<WizardDescriptor.Panel<WizardDescriptor>> panels = List.of();
+    private int panelIndex;
 
     @Override
     public Set<?> instantiate() throws IOException {
@@ -79,7 +104,8 @@ public final class FlutterProjectWizardIterator
                     pathProperty(FlutterProjectWizardPanel.PROP_PARENT_DIRECTORY),
                     stringProperty(FlutterProjectWizardPanel.PROP_PROJECT_NAME),
                     stringProperty(FlutterProjectWizardPanel.PROP_ORGANIZATION),
-                    stringProperty(FlutterProjectWizardPanel.PROP_DESCRIPTION));
+                    stringProperty(FlutterProjectWizardPanel.PROP_DESCRIPTION),
+                    platformProperty(FlutterProjectPlatformsWizardPanel.PROP_PLATFORMS));
 
             handle.progress("Running flutter create for " + request.projectName(), 2);
             try {
@@ -126,62 +152,81 @@ public final class FlutterProjectWizardIterator
     @Override
     public void initialize(WizardDescriptor descriptor) {
         wizard = descriptor;
-        panel = new FlutterProjectWizardPanel();
+        panelIndex = 0;
+        panels = List.of(
+                new FlutterProjectWizardPanel(),
+                new FlutterProjectPlatformsWizardPanel());
         descriptor.putProperty("NewProjectWizard_Title", Bundle.LBL_FlutterProjectWizardTitle());
-        JComponent component = (JComponent) panel.getComponent();
-        component.putClientProperty(
-                WizardDescriptor.PROP_CONTENT_DATA,
-                new String[]{Bundle.LBL_FlutterProjectWizardStep()});
-        component.putClientProperty(WizardDescriptor.PROP_CONTENT_SELECTED_INDEX, 0);
-        component.putClientProperty(WizardDescriptor.PROP_AUTO_WIZARD_STYLE, true);
-        component.putClientProperty(WizardDescriptor.PROP_CONTENT_DISPLAYED, true);
-        component.putClientProperty(WizardDescriptor.PROP_CONTENT_NUMBERED, true);
+        String[] steps = {
+            Bundle.LBL_FlutterProjectWizardStep(),
+            Bundle.LBL_FlutterProjectPlatformsWizardStep()
+        };
+        for (int index = 0; index < panels.size(); index++) {
+            JComponent component = (JComponent) panels.get(index).getComponent();
+            component.putClientProperty(WizardDescriptor.PROP_CONTENT_DATA, steps);
+            component.putClientProperty(WizardDescriptor.PROP_CONTENT_SELECTED_INDEX, index);
+            component.putClientProperty(WizardDescriptor.PROP_AUTO_WIZARD_STYLE, true);
+            component.putClientProperty(WizardDescriptor.PROP_CONTENT_DISPLAYED, true);
+            component.putClientProperty(WizardDescriptor.PROP_CONTENT_NUMBERED, true);
+        }
     }
 
     @Override
     public void uninitialize(WizardDescriptor descriptor) {
         wizard = null;
-        panel = null;
+        panels = List.of();
+        panelIndex = 0;
     }
 
     @Override
     public WizardDescriptor.Panel<WizardDescriptor> current() {
-        return panel;
+        if (panels.isEmpty()) {
+            throw new NoSuchElementException("Flutter project wizard is not initialized");
+        }
+        return panels.get(panelIndex);
     }
 
     @Override
     public String name() {
-        return Bundle.LBL_FlutterProjectWizardStep();
+        return ((JComponent) current().getComponent()).getName();
     }
 
     @Override
     public boolean hasNext() {
-        return false;
+        return panelIndex + 1 < panels.size();
     }
 
     @Override
     public boolean hasPrevious() {
-        return false;
+        return panelIndex > 0;
     }
 
     @Override
     public void nextPanel() {
-        throw new NoSuchElementException();
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
+        panelIndex++;
+        changes.fireChange();
     }
 
     @Override
     public void previousPanel() {
-        throw new NoSuchElementException();
+        if (!hasPrevious()) {
+            throw new NoSuchElementException();
+        }
+        panelIndex--;
+        changes.fireChange();
     }
 
     @Override
     public void addChangeListener(ChangeListener listener) {
-        // A single immutable panel is used; its own ChangeSupport drives wizard validity.
+        changes.addChangeListener(listener);
     }
 
     @Override
     public void removeChangeListener(ChangeListener listener) {
-        // A single immutable panel is used; its own ChangeSupport drives wizard validity.
+        changes.removeChangeListener(listener);
     }
 
     private String stringProperty(String key) throws IOException {
@@ -201,5 +246,21 @@ public final class FlutterProjectWizardIterator
             throw new IOException("Flutter application cannot be created: parent directory is invalid: "
                     + value + ".", ex);
         }
+    }
+
+    private Set<FlutterProjectPlatform> platformProperty(String key) throws IOException {
+        Object value = wizard.getProperty(key);
+        if (!(value instanceof Set<?> values) || values.isEmpty()) {
+            throw new IOException("Flutter application cannot be created: select at least one target platform.");
+        }
+        EnumSet<FlutterProjectPlatform> selected =
+                EnumSet.noneOf(FlutterProjectPlatform.class);
+        for (Object candidate : values) {
+            if (!(candidate instanceof FlutterProjectPlatform platform)) {
+                throw new IOException("Flutter application cannot be created: wizard platform selection is invalid.");
+            }
+            selected.add(platform);
+        }
+        return FlutterProjectPlatform.copyOf(selected);
     }
 }

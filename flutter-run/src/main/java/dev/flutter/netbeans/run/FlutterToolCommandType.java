@@ -4,6 +4,7 @@ package dev.flutter.netbeans.run;
 public enum FlutterToolCommandType {
     CLEAN("Clean"),
     BUILD("Build"),
+    ADD_PLATFORMS("Add Platforms"),
     PUB_GET("Pub Get"),
     ANALYZE("Analyze"),
     TEST("Test");

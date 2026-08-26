@@ -15,10 +15,39 @@ dependency on NetBeans APIs or Swing.
 
 The NetBeans adapter lives in `netbeans-plugin`. It currently exposes the
 read-only Design/status surface and the transactional pair-save edge; a later
-writable slice will project commands into the Palette, Widget Tree, Properties
-window and semantic canvas. A future pixel-accurate preview consumes the same
-validated model, but its transport and lifecycle are a separate architecture
-decision.
+writable slice will project commands into the Palette, Widget Tree and
+Properties around a real embedded native `FlutterView`. ADR-021 explicitly
+forbids implementing the Canvas as Swing-painted widgets or a transferred
+PNG/JPEG/raw-pixel surface. A planned platform SPI owns native hosting on
+Windows first and then Linux/macOS; the preferred provider keeps the Flutter
+engine/view in an isolated child runner wherever that native arrangement is
+feasible.
+
+This module owns only the NetBeans-independent host-issued presentation
+identities and stale/replay admission rules, the explicit Mobile, Tablet,
+Desktop and Web preview-mode identity, native-surface request validation, pure
+backend contracts and per-MultiView lifecycle controller, plus the bounded
+version 1 lifecycle control codec/session gate and process framing. The current
+frame-kind whitelist is control JSON, model JSON and catalog JSON. Those
+model/catalog channels are bounded byte envelopes only, not completed payload
+schemas. There is no layout, image or pixel-transfer channel. This module does
+not own Swing, native window handles, a platform host implementation, concrete
+processes, SDK discovery or persistence.
+
+The NetBeans edge now has a first real Windows child-surface spike: a
+heavyweight AWT host inside the Design MultiView, verified
+runner/`FLUTTERVIEW` HWND chain, bounded SDK-keyed runner build cache and
+per-view isolated process lifecycle. Each open `.fd` Design view owns its host
+and process independently; cache reuse is accepted only after a bounded runtime
+SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
+build/launch/exit races are fenced and covered together with simultaneous-view
+tests. It currently renders a compiled read-only
+proof surface. Canonical model/catalog publication and the Java → Flutter hit
+test → revision-bound DnD bridge are not implemented. The future model-driven
+runner receives bounded canonical model/catalog values, not
+project paths, Dart source, file handles or file/Save/Undo/Redo authority; Java
+remains the only command admission and persistence owner.
+`PUBLIC_MUTATION_UI_ENABLED` remains `false`.
 
 Important version 1 semantics:
 
@@ -176,12 +205,13 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 These paths are not connected to writable UI. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
-NBM verifier and isolated install lifecycle now pass. The separately discussed
-Palette/tree/properties/Canvas surface and its remaining pair-aware workflow,
-property and callback contracts remain outstanding;
+NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
+Palette/tree/properties/native-`FlutterView` surface, platform providers,
+runner/DnD bridge and pair-aware workflow, property and callback contracts
+remain outstanding;
 `PUBLIC_MUTATION_UI_ENABLED` stays `false`.
 
-The codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
+The `.fd` document codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
 duplicates and trailing content, and keeps the exact bounded input snapshot.
 Current version 1 data maps to the domain model; a completely parsed newer
 version remains raw/read-only and cannot be down-saved. Canonical output is

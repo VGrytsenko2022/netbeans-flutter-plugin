@@ -9,12 +9,14 @@ import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
 import dev.flutter.netbeans.run.FlutterToolCommand;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -58,6 +60,7 @@ class FlutterToolingControllerTest {
     void setUp() throws Exception {
         projectRoot = Files.createDirectories(temporaryDirectory.resolve("project"));
         Path pubspec = Files.writeString(projectRoot.resolve("pubspec.yaml"), "name: project\n");
+        Files.writeString(projectRoot.resolve(".metadata"), "project_type: app\n");
         Path flutterHome = Files.createDirectories(temporaryDirectory.resolve("flutter-sdk"));
         flutterExecutable = Files.writeString(
                 Files.createDirectories(flutterHome.resolve("bin")).resolve("flutter-test"),
@@ -150,6 +153,112 @@ class FlutterToolingControllerTest {
 
         buildFuture.complete(0);
         assertEquals(List.of(true), buildProgress.awaitFinished());
+    }
+
+    @Test
+    void addsPlatformsWithCanonicalCreateCommandInProjectRoot() throws Exception {
+        RecordingProgress progress = new RecordingProgress();
+        ControlledFuture future = backend.plan(true);
+
+        controller.invokeAddPlatforms(
+                Set.of(FlutterProjectPlatform.WEB, FlutterProjectPlatform.ANDROID),
+                progress);
+        FlutterExecutionRequest request = backend.awaitRequest();
+
+        assertEquals("Flutter Add Platforms: project", request.displayName());
+        assertEquals(flutterExecutable.toAbsolutePath().normalize(), request.executable());
+        assertEquals(projectRoot.toAbsolutePath().normalize(), request.workingDirectory());
+        assertEquals(
+                List.of("create", "--platforms=android,web", "."),
+                request.arguments());
+        assertTrue(request.echoStandardOutput());
+        assertNull(request.outputConvertor());
+
+        Files.createDirectories(projectRoot.resolve("android"));
+        Files.createDirectories(projectRoot.resolve("web"));
+        future.complete(0);
+        assertEquals(List.of(true), progress.awaitFinished());
+    }
+
+    @Test
+    void successfulExitWithoutSelectedPlatformDirectoryFailsPostcondition() throws Exception {
+        RecordingProgress progress = new RecordingProgress();
+        ControlledFuture future = backend.plan(true);
+
+        controller.invokeAddPlatforms(Set.of(FlutterProjectPlatform.LINUX), progress);
+        FlutterExecutionRequest request = backend.awaitRequest();
+        assertEquals(
+                List.of("create", "--platforms=linux", "."),
+                request.arguments());
+
+        future.complete(0);
+
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertTrue(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS));
+    }
+
+    @Test
+    void occupiedSelectedPlatformPathFailsBeforeStartingFlutter() throws Exception {
+        Files.writeString(projectRoot.resolve("web"), "protected user content\n");
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invokeAddPlatforms(Set.of(FlutterProjectPlatform.WEB), progress);
+
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertEquals(0, backend.startCount());
+    }
+
+    @Test
+    void platformPathAppearingDuringSdkResolutionFailsImmediatelyBeforeStart()
+            throws Exception {
+        controller.close();
+        backend = new FakeBackend();
+        testSessions = new FakeTestSessionFactory();
+        CountDownLatch resolverEntered = new CountDownLatch(1);
+        CountDownLatch releaseResolver = new CountDownLatch(1);
+        Path flutterHome = flutterExecutable.getParent().getParent();
+        FlutterSdk sdk = new FlutterSdk(flutterHome, flutterExecutable);
+        controller = new FlutterToolingController(
+                new FakeProject(fileObject(projectRoot)),
+                new FlutterProjectInfo(projectRoot, "project", projectRoot.resolve("pubspec.yaml")),
+                backend,
+                testSessions,
+                ignoredOperation -> {
+                    resolverEntered.countDown();
+                    try {
+                        if (!releaseResolver.await(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                            throw new java.io.IOException("timed out waiting in test SDK resolver");
+                        }
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new java.io.IOException("interrupted in test SDK resolver", exception);
+                    }
+                    return sdk;
+                });
+        RecordingProgress progress = new RecordingProgress();
+
+        controller.invokeAddPlatforms(Set.of(FlutterProjectPlatform.WEB), progress);
+        assertTrue(resolverEntered.await(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+        Files.createDirectories(projectRoot.resolve("web"));
+        releaseResolver.countDown();
+
+        assertEquals(List.of(false), progress.awaitFinished());
+        assertEquals(0, backend.startCount());
+    }
+
+    @Test
+    void moduleAndPackageTypesFailBeforeStartingFlutter() throws Exception {
+        for (String type : List.of("module", "package")) {
+            Files.writeString(projectRoot.resolve(".metadata"),
+                    "project_type: " + type + "\n");
+            RecordingProgress progress = new RecordingProgress();
+
+            controller.invokeAddPlatforms(Set.of(FlutterProjectPlatform.WEB), progress);
+
+            assertEquals(List.of(false), progress.awaitFinished());
+            assertEquals(0, backend.startCount());
+        }
     }
 
     @Test

@@ -71,6 +71,9 @@ final class NetBeansRuntimeRegistrationIT {
                     "dev-flutter-netbeans-plugin-run-StopFlutterAction.shadow",
                     "Actions/Flutter/dev-flutter-netbeans-plugin-run-StopFlutterAction.instance"),
             action(
+                    "dev-flutter-netbeans-plugin-tooling-AddFlutterPlatformsAction.shadow",
+                    "Actions/Flutter/dev-flutter-netbeans-plugin-tooling-AddFlutterPlatformsAction.instance"),
+            action(
                     "dev-flutter-netbeans-plugin-tooling-FlutterAnalyzeAction.shadow",
                     "Actions/Flutter/dev-flutter-netbeans-plugin-tooling-FlutterAnalyzeAction.instance"),
             action(

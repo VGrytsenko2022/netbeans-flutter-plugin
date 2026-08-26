@@ -7,6 +7,10 @@ import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.api.RunState;
 import dev.flutter.netbeans.plugin.lifecycle.AsyncTaskTracker;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
+import dev.flutter.netbeans.project.FlutterProjectPlatformResolver;
+import dev.flutter.netbeans.project.FlutterProjectType;
+import dev.flutter.netbeans.project.FlutterProjectTypeDetector;
 import dev.flutter.netbeans.run.DevToolsLauncher;
 import dev.flutter.netbeans.run.DevToolsSession;
 import dev.flutter.netbeans.run.FlutterDeviceService;
@@ -129,9 +133,11 @@ public final class FlutterRunController implements AutoCloseable {
         RunSession current = session;
         RunState state = current == null ? RunState.STOPPED : current.state();
         return switch (command) {
-            case FlutterProjectActionProvider.COMMAND_SELECT_TARGET,
-                 FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR ->
+            case FlutterProjectActionProvider.COMMAND_SELECT_TARGET ->
                 pendingOperation == null && isTerminal(state);
+            case FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR ->
+                pendingOperation == null && isTerminal(state)
+                        && hasConfiguredMobilePlatform();
             case ActionProvider.COMMAND_RUN,
                  ActionProvider.COMMAND_DEBUG ->
                 pendingOperation == null && (isTerminal(state) || isRestartable(state));
@@ -264,30 +270,32 @@ public final class FlutterRunController implements AutoCloseable {
         progress.start();
         try {
             operation.checkCancelled();
+            requireMobilePlatformConfigured();
             progress.update("Loading", "Loading configured mobile emulators");
             FlutterSdk sdk = requireFlutterSdk("launch a mobile emulator");
             FlutterCli cli = new FlutterCli(sdk);
             FlutterEmulatorService emulators = new FlutterEmulatorService(cli);
-            List<FlutterEmulator> available = emulators.list(projectRoot).stream()
-                    .filter(FlutterRunController::isMobileEmulator)
+            List<FlutterEmulator> reported = dependencies.listEmulators(sdk, projectRoot);
+            Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+            List<FlutterEmulator> available = compatibleMobileEmulators(
+                    reported,
+                    configured).stream()
                     .sorted(Comparator.comparing(
                             FlutterEmulator::name,
                             String.CASE_INSENSITIVE_ORDER))
                     .toList();
             operation.checkCancelled();
             if (available.isEmpty()) {
-                throw new IOException(noConfiguredMobileEmulatorMessage());
+                throw new IOException(noCompatibleMobileEmulatorMessage(configured));
             }
-            selected = choose(
-                    "Choose an emulator to start for " + projectInfo.name() + ":",
-                    "Launch Mobile Emulator",
-                    available,
-                    emulator -> emulator.name() + " — " + emulator.platform()
-                    + " (" + emulator.id() + ")",
-                    null).orElse(null);
+            selected = dependencies.chooseMobileEmulator(
+                    projectInfo.name(),
+                    available).orElse(null);
             if (selected == null) {
                 return;
             }
+            operation.checkCancelled();
+            requireEmulatorPlatformConfigured(selected);
             progress.select(selected);
             openOutput("Flutter Emulator: " + selected.name(), operation.lifecycle());
 
@@ -300,6 +308,8 @@ public final class FlutterRunController implements AutoCloseable {
             progress.update("Launching", "Starting " + selected.name() + " (" + selected.id() + ")");
             writeLine(operation.lifecycle(), "Launching mobile emulator " + selected.name()
                     + " (" + selected.id() + ")...");
+            requireEmulatorPlatformConfigured(selected);
+            operation.checkCancelled();
             launchIssued = true;
             emulators.launch(projectRoot, selected.id());
             operation.checkCancelled();
@@ -521,6 +531,7 @@ public final class FlutterRunController implements AutoCloseable {
         if (!main.toFile().isFile()) {
             throw new IOException("Flutter entry point was not found: " + main);
         }
+        requireTargetPlatformConfigured(target);
 
         if (!openOutput(
                 "Flutter: " + projectInfo.name() + " — " + target.name(),
@@ -726,6 +737,9 @@ public final class FlutterRunController implements AutoCloseable {
     private FlutterDevice requireTarget(
             FlutterSdk sdk,
             FlutterDevice requestedTarget) throws Exception {
+        if (requestedTarget != null) {
+            requireTargetPlatformConfigured(requestedTarget);
+        }
         List<FlutterDevice> devices = listDevices(sdk);
         if (requestedTarget != null) {
             return devices.stream()
@@ -757,8 +771,7 @@ public final class FlutterRunController implements AutoCloseable {
     private List<FlutterDevice> listDevices(FlutterSdk sdk) throws IOException, InterruptedException {
         List<FlutterDevice> devices = queryDevices(sdk);
         if (devices.isEmpty()) {
-            throw new IOException("Flutter reported no connected Desktop, Mobile, or Web targets. "
-                    + "For Mobile, connect a device or use Flutter > Launch Mobile Emulator.");
+            throw new IOException(noCompatibleTargetsMessage());
         }
         return devices;
     }
@@ -782,7 +795,13 @@ public final class FlutterRunController implements AutoCloseable {
                         + " was closed or reopened while waiting to discover devices");
             }
             long query = targetQuerySequence.incrementAndGet();
-            List<FlutterDevice> discovered = queryService.list(projectRoot).stream()
+            List<FlutterDevice> reported = queryService.list(projectRoot);
+            Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+            List<FlutterDevice> discovered = reported.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .filter(device -> FlutterProjectPlatformResolver.platformFor(device)
+                            .filter(configured::contains)
+                            .isPresent())
                     .sorted(Comparator
                             .comparing((FlutterDevice device) ->
                                     FlutterTargetKind.from(device).ordinal())
@@ -806,6 +825,83 @@ public final class FlutterRunController implements AutoCloseable {
         } finally {
             targetDiscoveryLock.unlock();
         }
+    }
+
+    private boolean hasConfiguredMobilePlatform() {
+        try {
+            Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+            return configured.contains(FlutterProjectPlatform.ANDROID)
+                    || configured.contains(FlutterProjectPlatform.IOS);
+        } catch (IOException | RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private void requireMobilePlatformConfigured() throws IOException {
+        if (!hasConfiguredMobilePlatform()) {
+            throw new IOException("Flutter project " + projectRoot
+                    + " has no configured Android or iOS platform. Use Flutter > "
+                    + "Add Flutter Platforms... before launching a mobile emulator.");
+        }
+    }
+
+    private void requireTargetPlatformConfigured(FlutterDevice target) throws IOException {
+        FlutterProjectPlatform required = FlutterProjectPlatformResolver.platformFor(target)
+                .orElseThrow(() -> new IOException(
+                        "Flutter run target " + deviceLabel(target)
+                        + " cannot be mapped to a supported Flutter project platform."));
+        Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+        if (!configured.contains(required)) {
+            throw new IOException("Flutter run target " + deviceLabel(target)
+                    + " requires the " + required.displayName() + " project platform, but "
+                    + projectRoot.resolve(required.id())
+                    + " is not a configured platform directory. Use Flutter > "
+                    + "Add Flutter Platforms... to add it before Run or Debug.");
+        }
+    }
+
+    private void requireEmulatorPlatformConfigured(FlutterEmulator emulator) throws IOException {
+        FlutterProjectPlatform required = emulatorProjectPlatform(emulator)
+                .orElseThrow(() -> new IOException(
+                        "Flutter emulator " + emulator.name() + " (" + emulator.id()
+                        + ") has unsupported platform '" + emulator.platform() + "'."));
+        Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+        if (!configured.contains(required)) {
+            throw new IOException("Selected Flutter emulator " + emulator.name()
+                    + " (" + emulator.id() + ") requires the " + required.displayName()
+                    + " project platform, but " + projectRoot.resolve(required.id())
+                    + " is no longer a configured platform directory. Use Flutter > "
+                    + "Add Flutter Platforms... before launching it.");
+        }
+    }
+
+    private String noCompatibleTargetsMessage() throws IOException {
+        FlutterProjectType projectType = FlutterProjectTypeDetector.detect(projectRoot);
+        if (projectType != FlutterProjectType.APP) {
+            return "Flutter project " + projectRoot + " has project type '"
+                    + projectType.id() + "'. Run and Debug targets are available only for "
+                    + "Flutter application projects.";
+        }
+        Set<FlutterProjectPlatform> configured = configuredRunPlatforms();
+        if (configured.isEmpty()) {
+            return "Flutter project " + projectRoot
+                    + " has no configured Android, iOS, Web, Windows, macOS, or Linux "
+                    + "platform directory. Use Flutter > Add Flutter Platforms... first.";
+        }
+        String configuredNames = FlutterProjectPlatform.ordered(configured).stream()
+                .map(FlutterProjectPlatform::displayName)
+                .collect(java.util.stream.Collectors.joining(", "));
+        return "Flutter reported no connected run target compatible with the configured "
+                + "project platforms: " + configuredNames + ". Connect a compatible device"
+                + " or start an emulator. To enable another target type, use Flutter > "
+                + "Add Flutter Platforms...";
+    }
+
+    private Set<FlutterProjectPlatform> configuredRunPlatforms() throws IOException {
+        FlutterProjectType projectType = FlutterProjectTypeDetector.detect(projectRoot);
+        return projectType == FlutterProjectType.APP
+                ? FlutterProjectPlatformResolver.configuredPlatforms(projectRoot)
+                : Set.of();
     }
 
     private Optional<FlutterDevice> chooseDevice(List<FlutterDevice> devices, String title)
@@ -1745,6 +1841,11 @@ public final class FlutterRunController implements AutoCloseable {
         if (closed || !project.getProjectDirectory().isValid()) {
             return "the Flutter project is closed or its directory is no longer available";
         }
+        if (FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR.equals(command)
+                && !hasConfiguredMobilePlatform()) {
+            return "the project has no configured Android or iOS platform; use Flutter > "
+                    + "Add Flutter Platforms... first";
+        }
         if (FlutterProjectActionProvider.COMMAND_OPEN_DEVTOOLS.equals(command)) {
             RunSession current = session;
             if (current == null || current.state() != RunState.RUNNING) {
@@ -1768,20 +1869,47 @@ public final class FlutterRunController implements AutoCloseable {
                 : deviceLabel(progress.target);
     }
 
-    private static boolean isMobileEmulator(FlutterEmulator emulator) {
-        String platform = emulator.platform().toLowerCase(java.util.Locale.ROOT);
-        return platform.contains("android") || platform.contains("ios");
+    static List<FlutterEmulator> compatibleMobileEmulators(
+            List<FlutterEmulator> emulators,
+            Set<FlutterProjectPlatform> configured) {
+        return emulators.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(emulator -> emulatorProjectPlatform(emulator)
+                        .filter(configured::contains)
+                        .isPresent())
+                .toList();
     }
 
-    private static String noConfiguredMobileEmulatorMessage() {
-        boolean macOs = System.getProperty("os.name", "")
-                .toLowerCase(java.util.Locale.ROOT)
-                .contains("mac");
-        return macOs
-                ? "Flutter reported no configured Android or iOS emulators. Create one in "
-                + "Android Studio Device Manager or Xcode Simulator first."
-                : "Flutter reported no configured Android emulators. Create an Android Virtual "
-                + "Device in Android Studio Device Manager first; iOS Simulator requires macOS.";
+    private static Optional<FlutterProjectPlatform> emulatorProjectPlatform(
+            FlutterEmulator emulator) {
+        return switch (emulator.platform().toLowerCase(java.util.Locale.ROOT)) {
+            case "android" -> Optional.of(FlutterProjectPlatform.ANDROID);
+            case "ios" -> Optional.of(FlutterProjectPlatform.IOS);
+            default -> Optional.empty();
+        };
+    }
+
+    private String noCompatibleMobileEmulatorMessage(
+            Set<FlutterProjectPlatform> configured) {
+        boolean android = configured.contains(FlutterProjectPlatform.ANDROID);
+        boolean ios = configured.contains(FlutterProjectPlatform.IOS);
+        if (android && ios) {
+            return "Flutter reported no configured Android emulator or iOS simulator compatible "
+                    + "with the Android and iOS platforms of project " + projectRoot + ". Create "
+                    + "one in Android Studio Device Manager or Xcode Simulator first.";
+        }
+        if (android) {
+            return "Flutter reported no configured Android emulator compatible with the Android "
+                    + "platform of project " + projectRoot + ". Create an Android Virtual Device "
+                    + "in Android Studio Device Manager first.";
+        }
+        if (ios) {
+            return "Flutter reported no configured iOS simulator compatible with the iOS platform "
+                    + "of project " + projectRoot + ". Create one in Xcode Simulator first.";
+        }
+        return "Flutter project " + projectRoot
+                + " no longer has a configured Android or iOS platform. Use Flutter > "
+                + "Add Flutter Platforms... before launching a mobile emulator.";
     }
 
     static String deviceLabel(FlutterDevice device) {
@@ -2020,6 +2148,11 @@ public final class FlutterRunController implements AutoCloseable {
             return new FlutterDeviceService(new FlutterCli(sdk)).list(projectRoot);
         }
 
+        List<FlutterEmulator> listEmulators(FlutterSdk sdk, Path projectRoot)
+                throws IOException, InterruptedException {
+            return new FlutterEmulatorService(new FlutterCli(sdk)).list(projectRoot);
+        }
+
         RunSession startSession(
                 FlutterSdk sdk,
                 Path projectRoot,
@@ -2073,6 +2206,18 @@ public final class FlutterRunController implements AutoCloseable {
                     devices,
                     FlutterRunController::deviceLabel,
                     device -> device.id().equals(selectedId));
+        }
+
+        Optional<FlutterEmulator> chooseMobileEmulator(
+                String projectName,
+                List<FlutterEmulator> emulators) throws Exception {
+            return choose(
+                    "Choose an emulator to start for " + projectName + ":",
+                    "Launch Mobile Emulator",
+                    emulators,
+                    emulator -> emulator.name() + " — " + emulator.platform()
+                    + " (" + emulator.id() + ")",
+                    null);
         }
 
         void invokeBrowserLater(Runnable action) {

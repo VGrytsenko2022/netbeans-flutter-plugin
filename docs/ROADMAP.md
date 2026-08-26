@@ -38,8 +38,18 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 - [x] Open existing Flutter project as first-class project
 - [x] Delete a Flutter project through NetBeans' native keep-sources/delete-sources workflow
 - [x] Create a basic Flutter application from the New Project wizard
+- [x] Add a second New Project wizard step for an explicit non-empty
+  `android`/`ios`/`web`/`windows`/`macos`/`linux` platform selection, preserving
+  today's all-platform default. Provide Recommended/Mobile/Desktop/Web/All
+  presets and explain which selected platforms require another host OS or
+  toolchain to build without disabling cross-host project generation.
+- [x] Pass the deterministic New Project selection to
+  `flutter create --platforms=...` and provide a separate
+  `Add Flutter Platforms...` action for missing platform scaffolding in an
+  existing project.
 - [x] `New File > Dart > Dart Class` wizard with project-aware location and naming
-- [x] Device selector in the standard NetBeans project-configuration toolbar combo
+- [x] Device selector in the standard NetBeans project-configuration toolbar combo,
+  filtered and revalidated against the active application's generated platforms
 - [x] Automatic coalesced toolbar-device refresh with bounded failure backoff
 - [x] Cancellable native progress and lifecycle-safe matching for configured emulator launch
 - [x] Native NetBeans Build, Clean, and Clean and Build actions with target-specific Flutter artifacts
@@ -211,13 +221,75 @@ accepted architecture is documented in
     dirty→Save→Undo→Redo lifecycle in an assembled NetBeans 30 runtime, then
     pass strict NBM metadata/freshness verification and a fresh isolated
     install/activation/reopen/disable/uninstall smoke with clean logs.
-- [ ] Discuss and freeze the first Canvas architecture slice before enabling
-  any public mutation UI. `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
-- [ ] Integrate Palette, Widget Tree, Properties and semantic Canvas.
-- [ ] Add selection/hit testing, semantic drag/drop and layout guides.
-- [ ] Decide pixel-accurate preview transport in a separate ADR.
+- [x] Discuss and freeze ADR-021: NetBeans-native Palette, Widget Tree and
+  Properties around a real embedded native `FlutterView`, never a Swing
+  PNG/pixel-transfer surface. Target a Windows native child surface first,
+  retain a Windows/Linux/macOS platform SPI, and isolate the runner wherever
+  child-surface hosting is feasible. Public mutation remains disabled.
+- [x] Establish the pure bounded Canvas lifecycle and version 1 transport
+  foundation.
+  - [x] Add host-issued session/presentation/frame/layout identities, exact
+    validated-revision and resolved render-profile binding, plus pure stale and
+    replay admission rules. Mobile/Tablet/Desktop/Web development mode remains
+    independent from the concrete engine identity; the Windows-first native
+    host does not turn a mobile- or web-sized viewport into Android/iOS/browser
+    rendering.
+  - [x] Add the per-MultiView lifecycle controller with fresh-session restart,
+    one in-flight render plus latest-only coalescing, stale callback fencing,
+    atomic frame/layout admission and bounded failure states, verified with a
+    fake backend.
+  - [x] Add the already-framed strict UTF-8 JSON control codec/session gate for
+    `host.hello`, `runner.hello`, `host.close`, `runner.closed` and
+    `runner.failure`, including exact version/capability/limit negotiation,
+    contiguous runner sequences and startup-close races.
+  - [x] Add bounded digest-verified process framing. The complete current
+    channel whitelist is control JSON plus post-handshake model and catalog
+    JSON. These are byte envelopes only; model/catalog payload schemas and
+    validated model publication are not implemented.
+  - [x] Reject physical surfaces above 4096 pixels per dimension or 8,388,608
+    total pixels before native surface allocation. This is not a raster-transfer
+    budget.
+  - [x] Package the versioned Windows Flutter runner, embed its real
+    `FLUTTERVIEW` child through a heavyweight AWT host in each Design MultiView,
+    and verify the exact parent/PID/style/class hierarchy before display.
+  - [x] Harden each per-`.fd` runner lifecycle against close-during-build,
+    in-flight launch duplication, peer loss, exit-during-attach, stale `onExit`
+    callbacks and re-entrant attach/visibility loss. Deterministic tests cover
+    two simultaneous independent Design sessions.
+  - [x] Commit and reuse the SDK-keyed Windows runner cache only after an atomic,
+    bounded SHA-256 manifest verifies the executable, Flutter DLL, ICU data and
+    complete `flutter_assets`; incomplete or modified generated output is
+    rebuilt without trusting symlinks or paths outside the cache.
+- [ ] Complete the native-surface platform SPI: attach/detach, resize/DPR,
+  visibility, focus, liveness/crash notification and final native-handle
+  cleanup for Windows, Linux and macOS. The first injectable Windows HWND edge
+  and per-MultiView lifecycle now exist; Linux/macOS and the common contract do
+  not.
+- [ ] Complete Windows child-window acceptance in the assembled NetBeans
+  MultiView. The automated standalone Win32 spike already proves the actual
+  `AWT Canvas HWND → runner HWND → FLUTTERVIEW HWND` hierarchy, resize and
+  isolated-process feasibility, while deterministic host/session tests cover
+  resize races, stale exits and two independent views. Focus, DPI, IME,
+  menus/popups, peer recreation and real-process multi-view/crash cleanup still
+  require assembled-NetBeans acceptance. Do not introduce a PNG, screenshot or
+  raw-pixel fallback.
+- [ ] Define canonical model/catalog payload schemas and a bundled allowlisted
+  runner projection. The runner receives no project paths, Dart source, file
+  handles or persistence capability.
+- [ ] Render one exact validated revision in the embedded Windows `FlutterView`;
+  bind native paint/layout epochs to session/presentation/revision identities,
+  and prove resize/viewport/DPR and stale-callback rejection.
+- [ ] Synchronize selection with Explorer/Nodes and Properties, then implement
+  the DnD bridge: Java drag → Flutter hit test → revision/layout-bound semantic
+  intent → Java validation. Keep all mutation admission behind
+  `PUBLIC_MUTATION_UI_ENABLED=false`.
+- [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
+  Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
+  Linux and macOS SPI providers.
+- [ ] Enable the first public writable ten-widget slice only after those gates
+  pass.
 
-## M5 — bidirectional RAD (postponed beyond 0.1.2)
+## M5 — bidirectional RAD (later milestone)
 
 - [ ] Dart AST ↔ designer model mapping
 - [ ] Safe source rewriting

@@ -5,8 +5,10 @@ import dev.flutter.netbeans.api.ProcessResult;
 import dev.flutter.netbeans.sdk.FlutterCli;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 
 /** Creates a Flutter application through the configured Flutter CLI. */
@@ -39,7 +41,8 @@ public final class FlutterProjectCreator {
             throw new IOException("Flutter application cannot be created at " + target
                     + ": parent directory is not writable: " + parent + ".");
         }
-        if (Files.exists(target)) {
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(target)) {
             throw new IOException("Flutter application cannot be created at " + target
                     + ": the target already exists.");
         }
@@ -52,12 +55,30 @@ public final class FlutterProjectCreator {
                 "--project-name", request.projectName(),
                 "--org", request.organization(),
                 "--description", request.description(),
+                "--platforms=" + request.platformsArgument(),
                 target.toString());
 
         if (!result.success()) {
             throw new IOException("Flutter application was not created at " + target
                     + ": flutter create exited with code " + result.exitCode() + ". "
                     + commandFailure(result.stderr(), result.stdout()));
+        }
+
+        List<String> missingPlatforms = request.platforms().stream()
+                .filter(platform -> {
+                    Path platformDirectory = target.resolve(platform.id());
+                    return !Files.isDirectory(
+                            platformDirectory, LinkOption.NOFOLLOW_LINKS)
+                            || Files.isSymbolicLink(platformDirectory);
+                })
+                .map(FlutterProjectPlatform::id)
+                .toList();
+        if (!missingPlatforms.isEmpty()) {
+            throw new IOException("Flutter application creation reported success at " + target
+                    + ", but these selected platform directories were not generated: "
+                    + String.join(", ", missingPlatforms)
+                    + ". Ensure the corresponding Flutter platform feature is enabled. "
+                    + "The partially generated project was preserved for inspection.");
         }
 
         return detector.detect(target).orElseThrow(() -> new IOException(

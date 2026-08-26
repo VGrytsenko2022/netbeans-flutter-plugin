@@ -2,12 +2,15 @@ package dev.flutter.netbeans.plugin.project;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.api.RunState;
+import dev.flutter.netbeans.project.FlutterProjectPlatform;
+import dev.flutter.netbeans.run.FlutterEmulator;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -20,10 +23,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.prefs.AbstractPreferences;
@@ -42,6 +47,10 @@ import org.openide.filesystems.FileUtil;
 class FlutterRunControllerLifecycleTest {
     private static final FlutterDevice TARGET =
             new FlutterDevice("windows", "Windows", "windows-x64", false);
+    private static final FlutterDevice PIXEL =
+            new FlutterDevice("emulator-5554", "Pixel 9", "android-arm64", true);
+    private static final FlutterDevice CHROME =
+            new FlutterDevice("chrome", "Chrome", "web-javascript", false);
     private static final URI VM_SERVICE = URI.create("ws://127.0.0.1:4321/token/ws");
 
     @TempDir
@@ -49,11 +58,14 @@ class FlutterRunControllerLifecycleTest {
 
     private FakeDependencies dependencies;
     private FlutterRunController controller;
+    private Path projectRoot;
 
     @BeforeEach
     void setUp() throws Exception {
         Path root = Files.createDirectories(temporaryDirectory.resolve("project"));
+        projectRoot = root;
         Files.createDirectories(root.resolve("lib"));
+        Files.createDirectories(root.resolve("windows"));
         Files.writeString(root.resolve("lib/main.dart"), "void main() {}\n");
         Path pubspec = Files.writeString(root.resolve("pubspec.yaml"),
                 "name: lifecycle_test\ndependencies:\n  flutter:\n    sdk: flutter\n");
@@ -62,6 +74,137 @@ class FlutterRunControllerLifecycleTest {
         FlutterProject project = new FlutterProject(directory, new TestProjectState(), info);
         dependencies = new FakeDependencies(root, TARGET);
         controller = new FlutterRunController(project, info, dependencies);
+    }
+
+    @Test
+    void discoveryPublishesOnlyTargetsSupportedByConfiguredProjectPlatforms()
+            throws Exception {
+        Files.delete(projectRoot.resolve("windows"));
+        Files.createDirectories(projectRoot.resolve("android"));
+        dependencies.devices = List.of(TARGET, PIXEL, CHROME);
+
+        assertEquals(List.of(PIXEL), controller.discoverTargets());
+        assertEquals(List.of(PIXEL), controller.availableTargets());
+
+        Files.createDirectories(projectRoot.resolve("web"));
+
+        assertEquals(List.of(PIXEL, CHROME), controller.discoverTargets());
+        assertEquals(List.of(PIXEL, CHROME), controller.availableTargets());
+    }
+
+    @Test
+    void discoveryUsesPlatformDirectoriesObservedAfterTheDeviceQuery() throws Exception {
+        dependencies.devices = List.of(TARGET, PIXEL);
+        dependencies.blockDeviceList();
+        AtomicReference<List<FlutterDevice>> result = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread discovery = Thread.ofVirtual().start(() -> {
+            try {
+                result.set(controller.discoverTargets());
+            } catch (Throwable exception) {
+                failure.set(exception);
+            }
+        });
+        try {
+            dependencies.awaitDeviceList();
+            Files.delete(projectRoot.resolve("windows"));
+            Files.createDirectories(projectRoot.resolve("android"));
+        } finally {
+            dependencies.releaseDeviceList();
+        }
+        discovery.join(5_000);
+
+        assertFalse(discovery.isAlive(), "target discovery did not finish");
+        assertNull(failure.get());
+        assertEquals(List.of(PIXEL), result.get());
+        assertEquals(List.of(PIXEL), controller.availableTargets());
+    }
+
+    @Test
+    void staleRequestedTargetIsRejectedWhenItsProjectPlatformWasNotGenerated()
+            throws Exception {
+        Files.delete(projectRoot.resolve("windows"));
+        Files.createDirectories(projectRoot.resolve("android"));
+        dependencies.devices = List.of(TARGET, PIXEL);
+        RecordingActionProgress progress = new RecordingActionProgress();
+
+        controller.invoke(ActionProvider.COMMAND_RUN, progress, TARGET);
+        dependencies.executor.runAll();
+
+        assertEquals(List.of(false), progress.finishedValues());
+        assertTrue(dependencies.startedSessions.isEmpty());
+        assertTrue(dependencies.containsOutput("requires the Windows project platform"));
+        assertTrue(dependencies.containsOutput("Add Flutter Platforms"));
+    }
+
+    @Test
+    void pluginImplementationDirectoriesAreNotPublishedAsApplicationTargets()
+            throws Exception {
+        Files.writeString(projectRoot.resolve(".metadata"),
+                "version:\n  revision: test\n  channel: stable\nproject_type: plugin\n");
+        Files.createDirectories(projectRoot.resolve("android"));
+        dependencies.devices = List.of(TARGET, PIXEL);
+
+        assertTrue(controller.discoverTargets().isEmpty());
+        assertTrue(controller.availableTargets().isEmpty());
+    }
+
+    @Test
+    void mobileEmulatorActionTracksConfiguredMobilePlatforms() throws Exception {
+        assertFalse(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR));
+
+        Files.createDirectories(projectRoot.resolve("android"));
+
+        assertTrue(controller.isCommandEnabled(
+                FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR));
+    }
+
+    @Test
+    void mobileEmulatorChoicesMatchTheExactConfiguredMobilePlatforms() {
+        FlutterEmulator android = new FlutterEmulator(
+                "Pixel_9_API_35", "Pixel 9 API 35", "Google", "android");
+        FlutterEmulator ios = new FlutterEmulator(
+                "apple_ios_simulator", "iPhone 16 Pro", "Apple", "ios");
+        FlutterEmulator unknown = new FlutterEmulator(
+                "custom", "Custom Emulator", "Vendor", "fuchsia");
+        List<FlutterEmulator> reported = List.of(ios, unknown, android);
+
+        assertEquals(List.of(android), FlutterRunController.compatibleMobileEmulators(
+                reported,
+                Set.of(FlutterProjectPlatform.ANDROID)));
+        assertEquals(List.of(ios), FlutterRunController.compatibleMobileEmulators(
+                reported,
+                Set.of(FlutterProjectPlatform.IOS)));
+        assertEquals(List.of(ios, android), FlutterRunController.compatibleMobileEmulators(
+                reported,
+                Set.of(FlutterProjectPlatform.ANDROID, FlutterProjectPlatform.IOS)));
+        assertTrue(FlutterRunController.compatibleMobileEmulators(
+                reported,
+                Set.of(FlutterProjectPlatform.WINDOWS)).isEmpty());
+    }
+
+    @Test
+    void emulatorPlatformIsRevalidatedAfterTheChooserReturns() throws Exception {
+        FlutterEmulator android = new FlutterEmulator(
+                "Pixel_9_API_35", "Pixel 9 API 35", "Google", "android");
+        Files.createDirectories(projectRoot.resolve("android"));
+        dependencies.emulators = List.of(android);
+        dependencies.blockEmulatorChoice(android);
+
+        controller.invoke(FlutterProjectActionProvider.COMMAND_LAUNCH_EMULATOR);
+        Thread launch = Thread.ofVirtual().start(dependencies.executor::runNext);
+        try {
+            dependencies.awaitEmulatorChoice();
+            Files.delete(projectRoot.resolve("android"));
+        } finally {
+            dependencies.releaseEmulatorChoice();
+        }
+        launch.join(5_000);
+
+        assertFalse(launch.isAlive(), "emulator action did not finish");
+        assertTrue(dependencies.containsOutput("requires the Android project platform"));
+        assertTrue(dependencies.containsOutput("is no longer a configured platform directory"));
     }
 
     @AfterEach
@@ -391,6 +534,7 @@ class FlutterRunControllerLifecycleTest {
         private final ManualExecutor executor = new ManualExecutor();
         private final FlutterSdk sdk;
         private final FlutterDevice target;
+        private List<FlutterDevice> devices;
         private final Preferences projectPreferences = new MemoryPreferences();
         private final Deque<FakeRunSession> plannedSessions = new ArrayDeque<>();
         private final Deque<FakeDebugLauncher> plannedDebuggers = new ArrayDeque<>();
@@ -407,11 +551,18 @@ class FlutterRunControllerLifecycleTest {
         private CountDownLatch targetChoiceEntered;
         private CountDownLatch releaseTargetChoice;
         private FlutterDevice targetChoice;
+        private List<FlutterEmulator> emulators = List.of();
+        private CountDownLatch emulatorChoiceEntered;
+        private CountDownLatch releaseEmulatorChoice;
+        private FlutterEmulator emulatorChoice;
+        private CountDownLatch deviceListEntered;
+        private CountDownLatch releaseDeviceList;
 
         FakeDependencies(Path root, FlutterDevice target) {
             this.sdk = new FlutterSdk(root.resolve("fake-flutter-sdk"),
                     root.resolve("fake-flutter-sdk/bin/flutter"));
             this.target = target;
+            this.devices = List.of(target);
             projectPreferences.putBoolean("selectedTargetPreferencesMigrated", true);
         }
 
@@ -460,6 +611,35 @@ class FlutterRunControllerLifecycleTest {
             releaseTargetChoice.countDown();
         }
 
+        void blockEmulatorChoice(FlutterEmulator choice) {
+            emulatorChoice = choice;
+            emulatorChoiceEntered = new CountDownLatch(1);
+            releaseEmulatorChoice = new CountDownLatch(1);
+        }
+
+        void awaitEmulatorChoice() throws InterruptedException {
+            assertTrue(emulatorChoiceEntered.await(2, TimeUnit.SECONDS),
+                    "emulator picker was not entered");
+        }
+
+        void releaseEmulatorChoice() {
+            releaseEmulatorChoice.countDown();
+        }
+
+        void blockDeviceList() {
+            deviceListEntered = new CountDownLatch(1);
+            releaseDeviceList = new CountDownLatch(1);
+        }
+
+        void awaitDeviceList() throws InterruptedException {
+            assertTrue(deviceListEntered.await(2, TimeUnit.SECONDS),
+                    "device discovery was not entered");
+        }
+
+        void releaseDeviceList() {
+            releaseDeviceList.countDown();
+        }
+
         int outputTabCount() {
             return outputTabs.size();
         }
@@ -486,7 +666,17 @@ class FlutterRunControllerLifecycleTest {
 
         @Override
         List<FlutterDevice> listDevices(FlutterSdk ignoredSdk, Path ignoredRoot) {
-            return List.of(target);
+            List<FlutterDevice> snapshot = devices;
+            if (deviceListEntered != null) {
+                deviceListEntered.countDown();
+                awaitUninterruptibly(releaseDeviceList);
+            }
+            return snapshot;
+        }
+
+        @Override
+        List<FlutterEmulator> listEmulators(FlutterSdk ignoredSdk, Path ignoredRoot) {
+            return emulators;
         }
 
         @Override
@@ -530,6 +720,18 @@ class FlutterRunControllerLifecycleTest {
                 awaitUninterruptibly(releaseTargetChoice);
             }
             return Optional.ofNullable(targetChoice);
+        }
+
+        @Override
+        Optional<FlutterEmulator> chooseMobileEmulator(
+                String projectName,
+                List<FlutterEmulator> available) {
+            assertTrue(available.contains(emulatorChoice));
+            if (emulatorChoiceEntered != null) {
+                emulatorChoiceEntered.countDown();
+                awaitUninterruptibly(releaseEmulatorChoice);
+            }
+            return Optional.ofNullable(emulatorChoice);
         }
 
         @Override

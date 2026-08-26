@@ -7,6 +7,7 @@ import dev.flutter.netbeans.sdk.FlutterCli;
 import dev.flutter.netbeans.sdk.FlutterSdkLocator;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
@@ -25,12 +26,18 @@ class FlutterProjectCreatorRealSdkTest {
                 temporaryDirectory,
                 "netbeans_flutter_smoke",
                 "dev.flutter.netbeans",
-                "NetBeans Flutter plugin smoke test.");
+                "NetBeans Flutter plugin smoke test.",
+                Set.of(
+                        FlutterProjectPlatform.ANDROID,
+                        FlutterProjectPlatform.WEB));
 
         var created = new FlutterProjectCreator(new FlutterCli(sdk)).create(request);
 
         assertEquals("netbeans_flutter_smoke", created.name());
         assertTrue(Files.isRegularFile(created.root().resolve("lib/main.dart")));
         assertTrue(Files.isRegularFile(created.root().resolve("pubspec.yaml")));
+        assertTrue(Files.isDirectory(created.root().resolve("android")));
+        assertTrue(Files.isDirectory(created.root().resolve("web")));
+        assertTrue(Files.notExists(created.root().resolve("windows")));
     }
 }

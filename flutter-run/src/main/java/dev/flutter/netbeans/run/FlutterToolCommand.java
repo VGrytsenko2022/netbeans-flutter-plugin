@@ -4,6 +4,7 @@ import dev.flutter.netbeans.api.FlutterDevice;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Immutable command line for a supported one-shot Flutter project operation.
@@ -40,6 +41,27 @@ public final class FlutterToolCommand {
 
     public static FlutterToolCommand pubGet() {
         return new FlutterToolCommand(FlutterToolCommandType.PUB_GET, PUB_GET_ARGUMENTS);
+    }
+
+    /** Adds canonical platform scaffolding to the current Flutter project. */
+    public static FlutterToolCommand addPlatforms(String platformsArgument) {
+        if (platformsArgument == null || platformsArgument.isBlank()) {
+            throw new IllegalArgumentException("Flutter project platforms are required");
+        }
+        String value = platformsArgument.strip();
+        List<String> platforms = List.of(value.split(",", -1));
+        List<String> canonical = List.of(
+                "android", "ios", "web", "windows", "macos", "linux");
+        Set<String> selected = Set.copyOf(platforms);
+        if (selected.size() != platforms.size()
+                || platforms.stream().anyMatch(platform -> !canonical.contains(platform))
+                || !canonical.stream().filter(selected::contains).toList().equals(platforms)) {
+            throw new IllegalArgumentException(
+                    "Flutter project platforms must be unique canonical ids in stable order");
+        }
+        return new FlutterToolCommand(
+                FlutterToolCommandType.ADD_PLATFORMS,
+                List.of("create", "--platforms=" + value, "."));
     }
 
     public static FlutterToolCommand analyze() {

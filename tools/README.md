@@ -22,7 +22,7 @@ The checks cover:
   Apache 2.0 license;
 - the module configuration and module JAR entries inside the NBM;
 - every Maven `*Test.java`/`*IT.java` source having a corresponding
-  Surefire/Failsafe XML report, zero recorded failures/errors, only the four
+  Surefire/Failsafe XML report, zero recorded failures/errors, only the five
   known optional real-SDK tests being skipped, and a passing
   `PluginPackageMetadataIT` report;
 - the SHA-256, optionally against a previously recorded expected value;

@@ -158,8 +158,6 @@ class PluginRegistrationTest {
 
         assertTrue(registration.contains(
                 "name=\"instanceOf\" stringvalue=\"org.netbeans.spi.editor.document.UndoableEditWrapper\""));
-        assertTrue(registration.contains(
-                "intvalue=\"100000\" name=\"position\""));
     }
 
     @Test
@@ -215,6 +213,7 @@ class PluginRegistrationTest {
             "dev-flutter-netbeans-plugin-dart-DartTokenId-language.instance",
             "dev-flutter-netbeans-plugin-dart-DartTypingHooks$BreakFactory.instance",
             "dev-flutter-netbeans-plugin-dart-DartTypingHooks$TextFactory.instance",
+            "dev-flutter-netbeans-plugin-designer-DesignerUndoableEditWrapper.instance",
             "dev-flutter-netbeans-plugin-designer-guard-DartGuardedSectionsFactory.instance",
             "dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance"
         }) {

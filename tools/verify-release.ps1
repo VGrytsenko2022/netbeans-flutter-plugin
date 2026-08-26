@@ -32,6 +32,7 @@ $PluginLayerOrderingLogPattern = (
 )
 $OptionalSdkTestClasses = @(
     'dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest',
+    'dev.flutter.netbeans.dart.DartCandidateAnalyzerRealSdkTest',
     'dev.flutter.netbeans.project.FlutterProjectCreatorRealSdkTest',
     'dev.flutter.netbeans.run.AndroidSdkAvdRealSdkTest',
     'dev.flutter.netbeans.runtime.DartEditorEndToEndIT'

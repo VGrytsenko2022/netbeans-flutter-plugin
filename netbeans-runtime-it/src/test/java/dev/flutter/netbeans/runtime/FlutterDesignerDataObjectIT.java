@@ -26,6 +26,7 @@ import org.netbeans.core.api.multiview.MultiViewPerspective;
 import org.netbeans.core.api.multiview.MultiViews;
 import org.netbeans.junit.NbModuleSuite;
 import org.netbeans.junit.NbTestCase;
+import org.openide.awt.UndoRedo;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
@@ -274,6 +275,7 @@ final class FlutterDesignerDataObjectIT {
             StyledDocument pairedDocument = pairedEditor.openDocument();
 
             AtomicReference<CloneableTopComponent> openedMultiView = new AtomicReference<>();
+            AtomicReference<UndoRedo> sharedUndoRedo = new AtomicReference<>();
             try {
                 SwingUtilities.invokeAndWait(() -> {
                     assertTrue("The designer MultiView must be created and opened on the EDT",
@@ -310,11 +312,22 @@ final class FlutterDesignerDataObjectIT {
                             "Source", "flutter.designer.source");
                     assertPerspective(handler.getSelectedPerspective(),
                             "Design", "flutter.designer.design");
+                    try {
+                        assertPackagedMultiViewUndoIdentity(dataObject);
+                    } catch (ReflectiveOperationException ex) {
+                        throw new AssertionError(
+                                "The packaged Design/Source Undo/Redo identity could not be inspected",
+                                ex);
+                    }
+                    UndoRedo multiViewUndoRedo = multiView.getUndoRedo();
+                    assertNotSame("The MultiView must expose a real paired Undo/Redo owner",
+                            UndoRedo.NONE, multiViewUndoRedo);
 
                     MultiViewPerspective sourcePerspective = designerPerspectives.get(1);
                     handler.requestVisible(sourcePerspective);
                     assertPerspective(handler.getSelectedPerspective(),
                             "Source", "flutter.designer.source");
+                    sharedUndoRedo.set(multiViewUndoRedo);
 
                     CloneableEditorSupport sourceEditor = multiView.getLookup()
                             .lookup(CloneableEditorSupport.class);
@@ -341,6 +354,13 @@ final class FlutterDesignerDataObjectIT {
                         java.util.Arrays.equals(modelBeforeOpen, pair.fd().asBytes()));
                 assertTrue("Loading Design rewrote the paired Dart source",
                         java.util.Arrays.equals(dartBeforeOpen, pair.dart().asBytes()));
+                assertSourceSavepointLifecycle(
+                        dataObject,
+                        pair,
+                        pairedEditor,
+                        pairedDocument,
+                        openedMultiView.get(),
+                        sharedUndoRedo.get());
             } finally {
                 CloneableTopComponent multiView = openedMultiView.get();
                 if (multiView != null) {
@@ -349,6 +369,145 @@ final class FlutterDesignerDataObjectIT {
                 }
                 pairedEditor.close();
             }
+        }
+
+        private void assertSourceSavepointLifecycle(
+                DataObject dataObject,
+                Pair pair,
+                CloneableEditorSupport editor,
+                StyledDocument document,
+                CloneableTopComponent multiView,
+                UndoRedo undoRedo) throws Exception {
+            assertNotNull("The opened MultiView did not publish its Undo/Redo owner",
+                    undoRedo);
+            String cleanDocumentSource = document.getText(0, document.getLength());
+            String cleanDiskSource = pair.dart().asText(StandardCharsets.UTF_8.name());
+            byte[] cleanFd = pair.fd().asBytes();
+            String sourceEdit = "// assembled-runtime source savepoint edit\n";
+            String editedDocumentSource = cleanDocumentSource + sourceEdit;
+            String editedDiskSource = cleanDiskSource + sourceEdit;
+
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    NbDocument.runAtomicAsUser(document, () -> {
+                        try {
+                            document.insertString(document.getLength(), sourceEdit, null);
+                        } catch (BadLocationException ex) {
+                            throw new AssertionError(ex);
+                        }
+                    });
+                } catch (BadLocationException ex) {
+                    throw new AssertionError(ex);
+                }
+            });
+
+            assertEquals("The public Source edit was not applied exactly",
+                    editedDocumentSource, document.getText(0, document.getLength()));
+            assertTrue("A public Source edit did not mark the paired DataObject dirty",
+                    dataObject.isModified());
+            assertTrue("A public Source edit did not mark CES dirty", editor.isModified());
+            SaveCookie stableSave = dataObject.getLookup().lookup(SaveCookie.class);
+            assertNotNull("A public Source edit did not publish the pair SaveCookie",
+                    stableSave);
+            assertTrue("The shared Undo/Redo owner cannot undo the public Source edit",
+                    undoRedo.canUndo());
+
+            stableSave.save();
+
+            assertFalse("Source Save left the paired DataObject dirty",
+                    dataObject.isModified());
+            assertFalse("Source Save left CES dirty", editor.isModified());
+            assertNull("Source Save left a SaveCookie at the native savepoint",
+                    dataObject.getLookup().lookup(SaveCookie.class));
+            assertEquals("Source Save did not persist the exact public edit",
+                    editedDiskSource, pair.dart().asText(StandardCharsets.UTF_8.name()));
+            assertTrue("Source Save changed the canonical .fd bytes",
+                    java.util.Arrays.equals(cleanFd, pair.fd().asBytes()));
+            assertTrue("Source Save discarded the native Undo history",
+                    undoRedo.canUndo());
+
+            SwingUtilities.invokeAndWait(() -> {
+                requestVisible(multiView, "Design", "flutter.designer.design");
+                assertTrue("Design cannot see the saved Source edit in shared Undo/Redo",
+                        undoRedo.canUndo());
+                undoRedo.undo();
+            });
+
+            assertEquals("Undo did not restore the exact pre-save Source bytes",
+                    cleanDocumentSource, document.getText(0, document.getLength()));
+            assertTrue("Undo away from the native savepoint did not dirty the pair",
+                    dataObject.isModified());
+            assertTrue("Undo away from the native savepoint did not dirty CES",
+                    editor.isModified());
+            assertSame("Undo published a different pair SaveCookie instance",
+                    stableSave, dataObject.getLookup().lookup(SaveCookie.class));
+            assertTrue("Undo did not expose the matching native Redo",
+                    undoRedo.canRedo());
+            assertEquals("Undo unexpectedly rewrote the durable Dart source",
+                    editedDiskSource, pair.dart().asText(StandardCharsets.UTF_8.name()));
+            assertTrue("Undo unexpectedly changed the canonical .fd bytes",
+                    java.util.Arrays.equals(cleanFd, pair.fd().asBytes()));
+
+            SwingUtilities.invokeAndWait(() -> {
+                requestVisible(multiView, "Source", "flutter.designer.source");
+                assertTrue("Source cannot see the Redo exposed after Design Undo",
+                        undoRedo.canRedo());
+                undoRedo.redo();
+            });
+
+            assertEquals("Redo did not restore the exact saved Source bytes",
+                    editedDocumentSource, document.getText(0, document.getLength()));
+            assertFalse("Redo back to the native savepoint left the pair dirty",
+                    dataObject.isModified());
+            assertFalse("Redo back to the native savepoint left CES dirty",
+                    editor.isModified());
+            assertNull("Redo back to the native savepoint left a SaveCookie",
+                    dataObject.getLookup().lookup(SaveCookie.class));
+            assertEquals("Redo unexpectedly rewrote the durable Dart source",
+                    editedDiskSource, pair.dart().asText(StandardCharsets.UTF_8.name()));
+            assertTrue("Redo unexpectedly changed the canonical .fd bytes",
+                    java.util.Arrays.equals(cleanFd, pair.fd().asBytes()));
+        }
+
+        private void assertPackagedMultiViewUndoIdentity(DataObject dataObject)
+                throws ReflectiveOperationException {
+            ClassLoader loader = flutterModule().getClassLoader();
+            Class<?> designType = Class.forName(
+                    "dev.flutter.netbeans.plugin.designer.FlutterDesignerMultiViewDesign",
+                    true,
+                    loader);
+            Class<?> sourceType = Class.forName(
+                    "dev.flutter.netbeans.plugin.designer.FlutterDesignerMultiViewSource",
+                    true,
+                    loader);
+            Object design = designType.getConstructor(Lookup.class)
+                    .newInstance(dataObject.getLookup());
+            Object source = sourceType.getConstructor(Lookup.class)
+                    .newInstance(dataObject.getLookup());
+            UndoRedo designUndoRedo = (UndoRedo) designType.getMethod("getUndoRedo")
+                    .invoke(design);
+            UndoRedo sourceUndoRedo = (UndoRedo) sourceType.getMethod("getUndoRedo")
+                    .invoke(source);
+
+            assertNotSame("Packaged Design exposed no paired Undo/Redo owner",
+                    UndoRedo.NONE, designUndoRedo);
+            assertSame("Packaged Design and Source exposed different Undo/Redo identities",
+                    designUndoRedo, sourceUndoRedo);
+        }
+
+        private void requestVisible(
+                CloneableTopComponent multiView,
+                String displayName,
+                String preferredId) {
+            MultiViewHandler handler = MultiViews.findMultiViewHandler(multiView);
+            assertNotNull("The opened designer has no MultiViewHandler", handler);
+            MultiViewPerspective perspective = java.util.Arrays.stream(handler.getPerspectives())
+                    .filter(candidate -> preferredId.equals(candidate.preferredID()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "Missing MultiView perspective " + preferredId));
+            handler.requestVisible(perspective);
+            assertPerspective(handler.getSelectedPerspective(), displayName, preferredId);
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})

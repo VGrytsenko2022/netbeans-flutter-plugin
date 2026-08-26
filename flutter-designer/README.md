@@ -54,7 +54,7 @@ binds the exact applied editor revision and both exact baselines for Save. That
 persistence evidence, internal staged-replacement transaction and shared
 candidate-capacity identity remain non-authorizing. The chronological native
 Undo boundary and durable Pair/Source Save re-anchoring now exist, but public
-Designer mutation remains gated by recovery/runtime and visual-surface work.
+Designer mutation remains gated by visual-surface work.
 
 Successful generation additionally publishes a source-ordered occurrence
 manifest for every emitted external Dart type. Each entry identifies exact
@@ -67,8 +67,9 @@ outside-guard `StatelessWidget` superclass byte/UTF-16 occurrence for the same
 retained source identity; the NetBeans edge requires its dedicated
 `package:flutter/widgets.dart` class probe. The command, generator, probe
 planner and analyzer now retain one exact shared candidate-capacity identity.
-Third-party contributor symbol roots and the complete recovery/runtime release
-matrix are still required before a writable UI can be enabled.
+Third-party contributor symbol roots are still required before contributed
+widgets can participate in writable commands; the built-in catalog's
+pre-Canvas runtime/release matrix now passes.
 
 `DartSourceTransitionPlanner` handles the expected old-to-new drift after a
 validated visual-model change. It requires the old on-disk three-way proof,
@@ -172,9 +173,13 @@ accounting runs before analyzer or document mutation. Adoption preserves
 durable C2/S2, replaces the obsolete redo suffix with the exact
 `B/S0→C1/S0→C3/S0` branch, and carries S0 into the following ordinary command.
 
-These paths are not connected to writable UI. The recovery/runtime release
-matrix and the separately discussed Palette/tree/properties/Canvas surface
-remain outstanding; `PUBLIC_MUTATION_UI_ENABLED` stays `false`.
+These paths are not connected to writable UI. Pre-persistence loss of exact
+staged authority now clears only semantic Designer state while retaining live
+Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
+NBM verifier and isolated install lifecycle now pass. The separately discussed
+Palette/tree/properties/Canvas surface and its remaining pair-aware workflow,
+property and callback contracts remain outstanding;
+`PUBLIC_MUTATION_UI_ENABLED` stays `false`.
 
 The codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
 duplicates and trailing content, and keeps the exact bounded input snapshot.

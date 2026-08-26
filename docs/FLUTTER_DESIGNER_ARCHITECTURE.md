@@ -761,11 +761,14 @@ endpoint-specific command admission from retained physical history, durable
 re-anchoring, exact `FD_ONLY` persistence, native semantic replay, saved-pair
 savepoint re-anchoring, Source Save over saved semantic history, and one
 identity-bound command/generator/analyzer capacity policy are implemented.
-Remaining stop-ship work includes the recovery-only unprovable-authority
-barrier, the full runtime/release matrix and the actual
-Palette/tree/properties/Canvas mutation surface. Canvas work requires a
-separate architecture discussion before its first implementation slice. Until
-those contracts pass together, `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+Pre-persistence loss of staged authority now clears only the exact semantic
+graph and durable command lease while retaining native Source content and
+Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
+verifier and isolated install lifecycle now pass. Remaining stop-ship work is
+the actual Palette/tree/properties/Canvas mutation surface and its pair-aware
+workflow/property/callback contracts. Canvas work requires a separate
+architecture discussion before its first implementation slice. Until those
+contracts pass together, `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
 
 ## Target NetBeans presentation
 
@@ -797,17 +800,17 @@ choices that require a separate ADR.
 
 ## Remaining decisions before writable UI implementation
 
-1. Complete the recovery/runtime release matrix, including replacement of the
-   recovery-only history discard used when staged authority is already
-   unprovable before persistence. The chronological model/source cursor,
-   Pair-Save re-anchoring and Source-Save durable-anchor overlay are already
-   implemented as non-authorizing infrastructure.
-2. Pair-aware Save As, rename/copy metadata updates, and the explicit
+The chronological model/source cursor, Pair-Save re-anchoring, Source-Save
+durable-anchor overlay, targeted pre-persistence semantic invalidation and the
+NetBeans 30 runtime/release matrix are complete as non-authorizing
+infrastructure.
+
+1. Pair-aware Save As, rename/copy metadata updates, and the explicit
    conversion flow for an already modified or open Dart source.
-3. The NetBeans property-editor provider SPI and localized presentation; the
+2. The NetBeans property-editor provider SPI and localized presentation; the
    built-in domain metadata is now fixed by ADR-010.
-4. Callback stub creation without modifying user-owned code on later saves.
-5. The first semantic Canvas slice and its Palette/tree/properties interaction;
+3. Callback stub creation without modifying user-owned code on later saves.
+4. The first semantic Canvas slice and its Palette/tree/properties interaction;
    agree its exact scope before implementation. Pixel-accurate preview
    transport and lifecycle remain a separate decision.
 

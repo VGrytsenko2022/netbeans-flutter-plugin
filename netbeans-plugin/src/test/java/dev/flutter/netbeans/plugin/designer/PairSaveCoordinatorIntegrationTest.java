@@ -386,76 +386,6 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
-    void undoBridgePublishesAfterNativeDocumentBarrierAndPreservesNewerEdit()
-            throws Exception {
-        TestPair pair = createPair("undo_callback_barrier");
-        FlutterDesignerEditorSupport editor =
-                pair.dataObject().getEditorSupport();
-        StyledDocument document = openGuardedSourceDocument(editor);
-        onEdt(() -> {
-            document.insertString(
-                    document.getLength(),
-                    "// edit before Undo barrier\n",
-                    null);
-            return null;
-        });
-        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo());
-
-        AtomicBoolean firstCallback = new AtomicBoolean(true);
-        CountDownLatch writerFinished = new CountDownLatch(1);
-        AtomicReference<Throwable> writerFailure = new AtomicReference<>();
-        AtomicReference<Thread> writerReference = new AtomicReference<>();
-        String newerEdit = "// edit queued after Undo barrier\n";
-        javax.swing.event.ChangeListener listener = event -> {
-            if (!firstCallback.compareAndSet(true, false)) {
-                return;
-            }
-            Thread writer = new Thread(() -> {
-                try {
-                    document.insertString(
-                            document.getLength(), newerEdit, null);
-                } catch (Throwable failure) {
-                    writerFailure.set(failure);
-                } finally {
-                    writerFinished.countDown();
-                }
-            }, "source-writer-from-undo-callback");
-            writer.setDaemon(true);
-            writerReference.set(writer);
-            writer.start();
-            try {
-                assertTrue(writerFinished.await(2, TimeUnit.SECONDS),
-                        "Undo/Redo callback must run after the native document "
-                        + "barrier is released");
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(interrupted);
-            }
-        };
-        pair.dataObject().getCombinedUndoRedo().addChangeListener(listener);
-        try {
-            onEdt(() -> {
-                editor.discardUndoHistoryForPersistenceBarrier();
-                return null;
-            });
-        } finally {
-            pair.dataObject().getCombinedUndoRedo()
-                    .removeChangeListener(listener);
-        }
-
-        Thread writer = writerReference.get();
-        assertNotNull(writer);
-        writer.join(TimeUnit.SECONDS.toMillis(2));
-        assertFalse(writer.isAlive());
-        assertNull(writerFailure.get());
-        assertTrue(document.getText(0, document.getLength())
-                .endsWith(newerEdit));
-        assertTrue(editor.nativeUndoRedoManagerForCombinedBridge().canUndo(),
-                "the edit that acquired the document after the barrier must "
-                + "remain undoable");
-    }
-
-    @Test
     void stateListenerMayWaitForCrossThreadPublicationWithoutEffectsDeadlock()
             throws Exception {
         TestPair pair = createPair("effects_callback_deadlock");
@@ -3735,6 +3665,138 @@ class PairSaveCoordinatorIntegrationTest {
                     "a second Save must fail before re-entering pair persistence");
             assertEquals(PairSaveCoordinatorStatus.RECOVERY_CONFLICT,
                     staged.pair().coordinator().state().status());
+        }
+    }
+
+    @Test
+    void unprovableStagedAuthorityBeforePersistencePreservesNativeHistory()
+            throws Exception {
+        StagedPair staged = stageRealPair(
+                "pair_unprovable_before_persistence");
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                staged.orchestrator()) {
+            TestPair pair = staged.pair();
+            FlutterDesignerEditorSupport editor =
+                    pair.dataObject().getEditorSupport();
+            StyledDocument document = editor.getDocument();
+            assertNotNull(document);
+            SaveCookie cookie = pair.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(cookie);
+
+            var nativeHistory = editor.nativeUndoRedoManagerForCombinedBridge();
+            assertTrue(nativeHistory.canUndo(),
+                    "the staged managed apply must establish native history");
+            boolean nativeCanRedoBefore = nativeHistory.canRedo();
+            String sourceBeforeNewerEdit =
+                    document.getText(0, document.getLength());
+            DesignerCombinedUndoRedo combined =
+                    pair.dataObject().getCombinedUndoRedo();
+            AtomicBoolean newerEditInjected = new AtomicBoolean();
+            AtomicReference<Throwable> injectionFailure = new AtomicReference<>();
+            AtomicReference<String> injectedUndoPresentation =
+                    new AtomicReference<>();
+            AtomicReference<String> injectedRedoPresentation =
+                    new AtomicReference<>();
+            AtomicInteger pairTransactions = new AtomicInteger();
+            String newerEdit =
+                    "// user edit after the durable lease was pinned\n";
+            pair.coordinator().setPairTransactionForTests(request -> {
+                pairTransactions.incrementAndGet();
+                throw new AssertionError(
+                        "unprovable staged authority must start no pair I/O");
+            });
+            javax.swing.event.ChangeListener leaseListener = event -> {
+                if (!newerEditInjected.compareAndSet(false, true)) {
+                    return;
+                }
+                try {
+                    onEdt(() -> {
+                        document.insertString(
+                                document.getLength(), newerEdit, null);
+                        injectedUndoPresentation.set(
+                                nativeHistory.getUndoPresentationName());
+                        injectedRedoPresentation.set(
+                                nativeHistory.getRedoPresentationName());
+                        return null;
+                    });
+                } catch (Throwable failure) {
+                    injectionFailure.set(failure);
+                }
+            };
+            orchestrator.addChangeListener(leaseListener);
+            IOException failure;
+            try {
+                failure = assertThrows(IOException.class, cookie::save);
+            } finally {
+                orchestrator.removeChangeListener(leaseListener);
+            }
+
+            assertTrue(newerEditInjected.get());
+            assertNull(injectionFailure.get());
+            assertTrue(failure.getMessage().contains(
+                    "live Dart document identity, revision or candidate changed"),
+                    () -> "unexpected rejection: " + failure.getMessage());
+            assertEquals(0, pairTransactions.get(),
+                    "the stale candidate must fail before pair persistence");
+            assertNull(pair.coordinator().stagedEvidence());
+            assertNull(pair.coordinator().stagedProofSnapshot());
+            assertEquals(0, pair.coordinator().unsavedPairHistoryEdgeCount());
+            assertEquals(PairSaveCoordinatorStatus.RECOVERY_CONFLICT,
+                    pair.coordinator().state().status());
+            assertFalse(orchestrator.canUndo());
+            assertFalse(orchestrator.canRedo());
+            assertFalse(combined.designerSessionActive(),
+                    "semantic invalidation must release the Designer binding");
+            assertThrows(IllegalStateException.class,
+                    orchestrator::currentRevision,
+                    "the unprovable semantic authority must be invalidated");
+            assertTrue(nativeHistory.canUndo(),
+                    "recovery must retain the native Source Undo history");
+            assertEquals(nativeCanRedoBefore, nativeHistory.canRedo(),
+                    "recovery must not rewrite the native Redo cursor");
+            assertEquals(injectedUndoPresentation.get(),
+                    nativeHistory.getUndoPresentationName());
+            assertEquals(injectedRedoPresentation.get(),
+                    nativeHistory.getRedoPresentationName());
+            assertTrue(document.getText(0, document.getLength())
+                    .endsWith(newerEdit),
+                    "recovery must preserve the newer user-owned Source edit");
+            assertTrue(editor.sourceModified());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+            assertSame(cookie, pair.dataObject().getCookie(SaveCookie.class));
+
+            PairSaveCoordinatorSnapshot conflict = pair.coordinator().state();
+            orchestrator.close();
+            assertFalse(combined.designerSessionActive());
+            assertSame(conflict, pair.coordinator().state());
+            assertSame(cookie, pair.dataObject().getCookie(SaveCookie.class));
+
+            onEdt(() -> {
+                combined.undo();
+                return null;
+            });
+            assertEquals(sourceBeforeNewerEdit,
+                    document.getText(0, document.getLength()),
+                    "the retained native Undo must remove the newer Source edit");
+            assertThrows(IOException.class, cookie::save,
+                    "exact candidate bytes cannot revive invalidated authority");
+            assertEquals(0, pairTransactions.get());
+            assertSame(conflict, pair.coordinator().state());
+            assertSame(cookie, pair.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+            onEdt(() -> {
+                combined.redo();
+                return null;
+            });
+            assertTrue(document.getText(0, document.getLength())
+                    .endsWith(newerEdit),
+                    "the retained native Redo must restore the newer Source edit");
         }
     }
 

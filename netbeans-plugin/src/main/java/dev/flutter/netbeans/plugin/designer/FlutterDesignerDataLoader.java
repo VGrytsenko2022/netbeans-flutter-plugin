@@ -20,7 +20,7 @@ import org.openide.loaders.MultiFileLoader;
         displayName = "Flutter Designer Model Files",
         extension = FlutterDesignerMime.MODEL_EXTENSION,
         mimeType = FlutterDesignerMime.MIME_TYPE,
-        position = 350)
+        position = 352)
 @DataObject.Registrations({
     @DataObject.Registration(
             mimeType = DartTokenId.MIME_TYPE,

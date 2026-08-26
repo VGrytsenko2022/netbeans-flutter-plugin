@@ -9,8 +9,7 @@ import org.netbeans.spi.editor.document.UndoableEditWrapper;
 /** Dart MIME hook which wraps only an exact active Designer atomic token. */
 @MimeRegistration(
         mimeType = DartTokenId.MIME_TYPE,
-        service = UndoableEditWrapper.class,
-        position = 100_000)
+        service = UndoableEditWrapper.class)
 public final class DesignerUndoableEditWrapper implements UndoableEditWrapper {
     @Override
     public UndoableEdit wrap(UndoableEdit edit, Document document) {

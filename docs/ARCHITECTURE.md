@@ -118,9 +118,12 @@ rechecks plus coordinator-owned analyzed replacement of an exact staged C1 by
 C2. ADR-019 additionally supplies one identity-bound candidate-byte/probe
 capacity policy from command generation through analyzer admission, while
 ADR-020 installs the one native chronological Source/model cursor, successful
-Pair-Save re-anchoring and Source-Save durable-anchor overlay. These remain
-non-authorizing prerequisites only; the recovery/runtime release matrix and
-the separately discussed visual mutation surface still gate Designer mutation.
+Pair-Save re-anchoring and Source-Save durable-anchor overlay. Pre-persistence
+loss of staged authority now clears only the semantic graph and retains native
+Source history. These remain non-authorizing prerequisites; the runtime/release
+matrix now passes in the assembled NetBeans 30 runtime and isolated installed
+NBM smoke. The separately discussed visual mutation surface still gates
+mutation.
 
 The next non-authorizing layer is now present and connected only through an
 internal command/replacement boundary. `flutter-designer` can plan a prospective
@@ -220,7 +223,8 @@ command cannot silently fall back to the canonical `S2` envelope.
 The edge still has no writable Designer UI caller. The internal C1→C2 analyzed
 replacement, noncanonical physical-endpoint admission, chronological replay,
 Pair/Source Save re-anchoring and shared capacity budget are complete, but the
-recovery/runtime release matrix and the actual Palette/tree/properties/Canvas
-surface remain gated.
+actual Palette/tree/properties/Canvas surface and its remaining writable-UI
+contracts remain gated. The packaged runtime, strict release verifier and
+isolated NetBeans 30 install lifecycle now pass.
 
 Pixel-accurate preview is a separate boundary. The initial Canvas may be a clearly identified semantic projection, but its first implementation slice requires a separate architecture discussion. Embedded Flutter Engine, a streamed preview surface or another runtime strategy requires its own decision and may not weaken `.fd`/Dart source ownership. `PUBLIC_MUTATION_UI_ENABLED` remains `false` until those gates are deliberately cleared.

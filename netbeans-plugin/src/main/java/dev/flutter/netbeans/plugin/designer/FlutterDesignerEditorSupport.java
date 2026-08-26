@@ -872,14 +872,6 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
         }
     }
 
-    /** Failed CES savepoints must never make the next Undo look persisted. */
-    void discardUndoHistoryForPersistenceBarrier() {
-        try (DesignerCombinedUndoRedo.NotificationDeferral ignored =
-                deferUndoRedoNotifications()) {
-            getUndoRedo().discardAllEdits();
-        }
-    }
-
     /**
      * Verifies a committed live pair without changing native history or the
      * private CES savepoint. The fresh snapshot is returned after the document

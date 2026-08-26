@@ -293,8 +293,9 @@ public final class FlutterDesignerMultiViewDesign
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in " + modelName + ", and the deterministic generated "
                     + "payloads agree. The pair-save edge is installed, but Designer "
-                    + "mutation remains disabled until generated Flutter symbol probes "
-                    + "and chained unsaved model revisions are implemented.");
+                    + "mutation remains disabled until the separately discussed "
+                    + "pair-aware workflows, Palette, tree, properties and semantic "
+                    + "Canvas surface are complete.");
         }
     }
 

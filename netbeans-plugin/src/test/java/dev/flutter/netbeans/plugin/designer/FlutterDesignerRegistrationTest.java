@@ -28,6 +28,13 @@ class FlutterDesignerRegistrationTest {
         assertTrue(layer.contains(
                 "name=\"mimeType\" stringvalue=\"text/x-flutter-designer\""),
                 "the .fd extension must use its dedicated MIME type");
+        assertPosition(
+                fileRegistration(
+                        layer,
+                        "dev-flutter-netbeans-plugin-designer-"
+                        + "FlutterDesignerDataLoader-Extension.xml"),
+                352,
+                "Flutter Designer MIME resolver");
         assertTrue(layer.contains("FlutterDesignerDataLoader"),
                 "missing pair-aware Flutter Designer data loader");
         assertTrue(layer.contains("<folder name=\"Loaders\">"));

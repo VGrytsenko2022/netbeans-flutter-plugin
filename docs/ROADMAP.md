@@ -117,11 +117,14 @@ accepted architecture is documented in
   Dart/`.fd` transaction with exact baseline rechecks, verified
   rollback/reread and exact owned-event correlation. This production
   persistence edge has no Designer mutation caller yet.
-- [ ] Complete the writable-command release boundary. Exact probes, chained
+- [x] Complete the writable-command release boundary. Exact probes, chained
   unsaved model/source transitions, one native cross-file Undo/Redo cursor and
-  Pair/Source Save re-anchoring are implemented; the recovery-only
-  unprovable-authority discard and runtime/release matrix still block public
-  mutation.
+  Pair/Source Save re-anchoring are implemented. Pre-persistence recovery now
+  revokes only unprovable Designer authority while retaining native Source
+  history. The assembled NetBeans 30 runtime, strict NBM verifier and isolated
+  install/activation/reopen/disable/uninstall smoke now pass without critical
+  errors or plugin-owned ordering warnings. Public mutation remains disabled
+  until the visual-surface contracts below are agreed and implemented.
   - [x] Emit and validate the exact 1:1 generator-owned managed-region Flutter
     occurrence manifest, including strict candidate UTF-16 mapping and exact
     analyzer probe-set equality.
@@ -166,8 +169,7 @@ accepted architecture is documented in
     staging. The exact policy identity now travels with generation, revision,
     analyzer ticket/request and analyzer limits.
   - [x] Add one chronological Source/model Undo/Redo cursor. Mutation remains
-    separately gated by the complete release/runtime matrix and visual-surface
-    contracts.
+    separately gated by the visual-surface contracts.
     - [x] Keep the native CES manager as the sole delegate and admit one
       non-merging Designer semantic edit through the Dart MIME
       `UndoableEditWrapper`; prove `Source → Model → Source` ordering, exact
@@ -200,8 +202,15 @@ accepted architecture is documented in
       budget admission happens before mutation. Successful adoption truncates
       the old `S2/C2` redo suffix, preserves the exact `B/S0→C1/S0→C3/S0`
       branch, and keeps `S0` sticky for the next ordinary command.
-    - [ ] Replace the remaining recovery-only history discard used when staged
-      authority is already unprovable before persistence.
+    - [x] Replace the remaining recovery-only history discard used when staged
+      authority is already unprovable before persistence. Clear the exact
+      semantic graph and invalidate its durable command lease, but retain the
+      live Source content, native Undo/Redo cursor and stable `SaveCookie` in a
+      sticky recovery conflict with zero pair I/O.
+  - [x] Verify the packaged Design/Source shared Undo identity and public CES
+    dirty→Save→Undo→Redo lifecycle in an assembled NetBeans 30 runtime, then
+    pass strict NBM metadata/freshness verification and a fresh isolated
+    install/activation/reopen/disable/uninstall smoke with clean logs.
 - [ ] Discuss and freeze the first Canvas architecture slice before enabling
   any public mutation UI. `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
 - [ ] Integrate Palette, Widget Tree, Properties and semantic Canvas.

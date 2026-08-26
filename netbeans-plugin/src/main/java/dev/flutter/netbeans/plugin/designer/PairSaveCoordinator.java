@@ -3226,25 +3226,21 @@ final class PairSaveCoordinator implements Node.Cookie,
     /**
      * A staged live revision that no longer matches its analyzed evidence
      * cannot remain retryable: its managed Dart candidate is beside the old
-     * on-disk .fd model. Fail closed until an explicit reload/recovery.
+     * on-disk .fd model. Fail closed until an explicit reload/recovery while
+     * preserving native Source history and any newer user-owned live edit.
      */
     private void invalidateStagedPair(
             StagedPairAuthority authority,
             DesignerCommandSessionOrchestrator.DurableSaveLease lease,
             IOException failure) {
-        try {
-            onEdt(() -> {
-                editor.discardUndoHistoryForPersistenceBarrier();
-                return null;
-            });
-        } catch (IOException undoFailure) {
-            failure.addSuppressed(undoFailure);
-        }
         StateChange change = null;
         boolean invalidateLease = false;
         synchronized (this) {
             if (staged == authority && activePairSave == null) {
                 staged = null;
+                unsavedPairHistory.clear();
+                unsavedHistoryCursor = null;
+                unsavedHistoryOwner = null;
                 failedSavePending = true;
                 sourceDirty = editor.sourceModified();
                 diskBaseline = null;
@@ -3253,10 +3249,14 @@ final class PairSaveCoordinator implements Node.Cookie,
                         PairSaveCoordinatorStatus.RECOVERY_CONFLICT,
                         "The staged Flutter Designer candidate was invalidated "
                         + "before Save and cannot be persisted beside the old .fd "
-                        + "model: " + reason(failure));
+                        + "model. Native Source content and Undo/Redo were retained "
+                        + "for explicit recovery: " + reason(failure));
             }
         }
         if (invalidateLease) {
+            // The semantic lease is the only unprovable authority. Native CES
+            // history remains authoritative for the live Source document and
+            // must not be rewritten merely to close the Designer session.
             invalidateLeaseSafely(lease, failure);
         } else {
             abortLeaseSafely(lease, failure);

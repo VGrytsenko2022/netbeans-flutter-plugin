@@ -30,11 +30,14 @@ Accepted. Every loaded `FlutterProject` provides `AuxiliaryConfiguration` and `A
 
 ## ADR-008 — `.fd` owns the visual model and guards generated Dart regions
 
-Accepted. A Matisse-like Flutter form is a same-directory, same-basename pair: a custom `.fd` file containing versioned JSON is the canonical visual model, while the paired `.dart` file owns all code outside explicitly marked designer regions. In the target writable workflow, `Design` edits the `.fd` model and `Source` edits the paired Dart file; the current 0.1.3 Design surface remains read-only. The generator initially owns unique `imports` and `build` regions and stores a normalized SHA-256 for each region in `.fd`. A missing/duplicate marker, unsupported schema, filename/class mismatch, or changed managed payload enters an explicit source-conflict state and blocks automatic writes. The designer preserves user-owned bytes outside the markers, does not format the whole Dart file during a designer save, and never defaults a conflict dialog to overwrite source. Details, schema and remaining integration decisions are recorded in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md).
+Accepted. A Matisse-like Flutter form is a mirrored project pair: `lib/<relative>/<name>.dart` owns all code outside explicitly marked designer regions, while `.fd_templates/<relative>/<name>.fd` contains the versioned JSON canonical visual model. Schema v1 deliberately keeps `source.dartFile` as the exact Dart basename rather than a project-relative path; the mirrored roots and relative directory identify the physical pair. In the target writable workflow, `Design` edits the `.fd` model and `Source` edits the paired Dart file; the current 0.1.3 Design surface remains read-only. The generator initially owns unique `imports` and `build` regions and stores a normalized SHA-256 for each region in `.fd`. A missing/duplicate marker, unsupported schema, filename/class mismatch, or changed managed payload enters an explicit source-conflict state and blocks automatic writes. The designer preserves user-owned bytes outside the markers, does not format the whole Dart file during a designer save, and never defaults a conflict dialog to overwrite source. The `Flutter Designer Form` New File wizard accepts only `lib` or its descendants and creates both mirrored entries before either is resolved as a DataObject. Details, schema and remaining integration decisions are recorded in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md).
 
-## ADR-009 — Dart is the NetBeans primary entry, not the designer source of truth
+## ADR-009 — Dart owns the editor session while `.fd` stays physically visible
 
-Accepted. A complete same-basename pair is represented by one `MultiDataObject` whose `.dart` file is the technical NetBeans primary entry and whose `.fd` file is secondary. This follows the Matisse loader pattern and lets one custom `DataEditorSupport` keep the Dart MIME type, EditorKit, LSP document, Save lifecycle and guarded sections while hosting `Design` and `Source` in a dedicated `text/x-flutter-designer` MultiView. The ordering is an IDE implementation detail: `.fd` remains the canonical visual model defined by ADR-008. The loader is registered for both MIME types but claims neither orphan; ordinary Dart editing is unchanged. Valid guard markers are recognized only as Dart line-comment tokens in the default lexical state, masked with equal-length spaces during editor load, and restored on save so Dart offsets remain stable. Ambiguous markers create no guards. If the live guard set no longer matches the loaded set, persistence restores the last known-good marker-bearing source and rejects the save rather than writing masked placeholders; normalized hashes remain the source-integrity boundary. Dart-only Save As and Rename/Copy/Move are deliberately unavailable until they can update both files and `source.dartFile` atomically; Delete removes the complete registered pair.
+Accepted. A complete mirrored pair has exactly one live designer editor owner: a Dart-primary `MultiDataObject` for `lib/.../*.dart`. Its custom `DataEditorSupport` preserves the Dart MIME type, EditorKit, LSP document, Save lifecycle and guarded sections while hosting `Design` and `Source` in a dedicated `text/x-flutter-designer` MultiView. The corresponding `.fd_templates/.../*.fd` is deliberately not registered as a secondary entry because NetBeans suppresses secondary files whose primary lives in another folder, making `.fd_templates` appear empty in the physical Files view. Instead, `.fd` has a separate visible, non-editing model DataObject whose Open action delegates to the single Dart-owned designer session. This is an IDE implementation detail: `.fd` remains the canonical visual model defined by ADR-008 and never receives a second live editor buffer. The pair-aware loader claims only complete Dart entries below `lib`; ordinary Dart editing is unchanged. An unmodified cached ordinary Dart DataObject may be safely re-recognized when the visible model appears, while a modified one is retained and opening the model reports the concrete conflict. Valid guard markers are recognized only as Dart line-comment tokens in the default lexical state, masked with equal-length spaces during editor load, and restored on save so Dart offsets remain stable. Ambiguous markers create no guards. If the live guard set no longer matches the loaded set, persistence restores the last known-good marker-bearing source and rejects the save rather than writing masked placeholders; normalized hashes remain the source-integrity boundary. Dart-only Save As and generic DataObject Copy/Move remain unavailable. Both the Dart editor owner and visible `.fd` model expose shared pair-aware Copy, Rename and Delete node operations, with no one-file variants; ADR-022 defines the deliberately narrow Copy/Paste contract. Rename accepts a canonical lower-snake-case basename, changes both mirrored paths and only `source.dartFile`, and deliberately preserves the exact Dart bytes and `source.className`; class refactoring remains a separate analyzer-backed operation. Rename and Delete close an open clean editor first, stage both paths under deterministic locks, verify their outcome and exact-byte roll back a pre-commit failure. Unsafe, read-only, conflicted or unsaved pairs fail closed. These are in-process rollback guarantees, not durable crash-recovery journals.
+
+ADR-023 extends those paired nodes with private pair Cut/Paste while preserving
+the same generic DataObject Move prohibition and fresh target-owner lifecycle.
 
 ## ADR-010 — The designer domain is typed, immutable, and catalog-driven
 
@@ -159,7 +162,8 @@ cross-platform SPI or public Designer surface.
 The preferred deployment keeps the Flutter engine and view in an isolated
 runner process when the platform can safely embed and supervise its child
 surface. Process isolation is crash containment, not by itself an operating
-system sandbox. The runner receives bounded canonical model and catalog values,
+system sandbox. The runner receives bounded canonical allowlisted model values
+and may receive catalog values only under a future reviewed versioned contract,
 not project file paths, Dart source, file handles or arbitrary project code, and
 has no protocol capability to read, write, Save, Undo/Redo or persist anything.
 NetBeans alone owns `.fd`, Dart, `SaveCookie`, the command session and all file
@@ -186,30 +190,160 @@ the intent against the current catalog and domain model. Only that trusted Java
 admission may later invoke a Designer command; Flutter never mutates the model
 or files directly. The same rule applies to selection and property intents.
 
-The implemented foundation is narrower than this accepted target. It contains
-the pure lifecycle/admission identities and version 1 hello/close/failure codec,
-plus fail-stop bounded process framing whose only frame kinds are control JSON,
-model JSON and catalog JSON. The Windows edge additionally has a real
-heavyweight AWT HWND host, exact PID/parent/class/style validation for both
-runner and `FLUTTERVIEW` children, a bounded SDK-keyed build cache and isolated
-child-runner lifecycle per open `.fd` Design MultiView. Cache reuse requires a
-bounded SHA-256 manifest for the complete launch runtime, and deterministic
-tests fence close/build/launch/attach/exit races plus two simultaneous sessions.
-Model/catalog framing remains an envelope, not a
-completed payload schema; the current runner surface is a compiled read-only
-native-host proof rather than a validated `.fd` projection. No layout, image or
-pixel-transfer frame kind exists. The platform-neutral SPI, completed Windows
-acceptance matrix, Linux/macOS providers, canonical model/catalog projection
-and DnD bridge remain foundation gates.
+The implemented read-only slice is narrower than this accepted writable target.
+It contains the standard context-sensitive NetBeans Palette and selected-Node
+read-only Properties in addition to the pure lifecycle/admission identities and the exact version 1
+hello/close/failure handshake and fail-stop bounded process framing. A separate
+post-handshake runtime control codec publishes one exact validated revision,
+admits its layout acknowledgement and synchronizes stable-ID selection. The
+canonical `CORE_V1` model payload accepts only reviewed built-in definitions for
+`Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`; the isolated runner
+uses the same hardcoded allowlist and receives neither project code nor file
+authority. `CATALOG_JSON` remains reserved for a future versioned catalog
+contract.
 
-`MOBILE`, `TABLET`, `DESKTOP` and `WEB` are responsive viewport intents and stay
-separate from the concrete engine/platform identity. The Windows-first embedded
-Canvas is authentic only for its bound Windows Flutter engine, resolved theme,
-locale, viewport, text scale and device-pixel ratio; a mobile- or web-sized
-viewport does not claim Android, iOS or browser rendering equivalence.
+The Windows edge has a real heavyweight AWT HWND host, exact
+PID/parent/class/style validation for runner and `FLUTTERVIEW` children, a
+bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
+`.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
+complete launch runtime, and deterministic tests fence
+close/build/launch/attach/exit races plus two simultaneous sessions. The native
+Canvas now renders the validated six-widget model for Mobile, Tablet, Desktop
+and Web responsive preview profiles and synchronizes selection with the
+read-only Explorer/Nodes tree and standard Properties window. The Palette
+exposes exactly those six reviewed definitions without insertion actions. No
+image or pixel-transfer frame kind exists.
+Preview availability follows real generated project platform directories rather
+than connected devices or a stale wizard choice. Each choice is now an exact
+`responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
+Windows/macOS/Linux Desktop, or Web. A project-scoped observable snapshot updates
+open Design views on canonical folder creation, deletion or rename; the exact
+choice is retained first, then the same responsive mode, and otherwise the first
+canonical target is selected. An empty snapshot disables Preview and does not
+fall back to Mobile. Android/iOS/macOS/Linux targets reach Flutter
+`ThemeData.platform` on the Windows engine. Selecting Web reports that the
+separately compiled browser backend is absent and never relabels a Windows frame
+as Web.
+The platform-neutral SPI, completed Windows acceptance matrix, Linux/macOS
+providers, drag-and-drop, editable Properties and Designer mutation
+remain foundation gates.
+
+`MOBILE`, `TABLET`, `DESKTOP` and `WEB` remain responsive viewport intents. Their
+selected `CanvasTargetPlatform` is the requested Flutter adaptive appearance,
+while the native host and `CanvasEngineIdentity` still identify the physical
+runtime. The Windows-first embedded Canvas is authentic only for its bound
+Windows Flutter engine, resolved theme, locale, viewport, text scale and
+device-pixel ratio. Android/iOS/macOS/Linux adaptive appearance does not claim
+their operating-system runtime, fonts, plugins, platform channels, IME or
+accessibility stack. Flutter Web is compile-time/browser identity and therefore
+requires a separate browser backend.
 
 Accepting this ADR does not enable writable UI.
 `DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED` remains `false`
 until the native surface lifecycle, revision fencing, DnD/selection intent
 validation, crash and close recovery, pair Save, Undo/Redo and assembled
 Windows/Linux/macOS runtime gates pass together.
+
+## ADR-022 — Pair Copy/Paste is a same-folder Node transaction
+
+Accepted for the 0.1.3 Designer foundation. Copy initiated from either the
+visible Dart node or its mirrored `.fd` node publishes a custom NetBeans
+`NodeTransfer` paste provider. It deliberately omits `LoaderTransfer` and the
+operating-system file-list flavor, because either generic flavor could escape
+one physical member without the other. The underlying DataObjects therefore
+continue to report generic Copy and Move as unavailable; only the paired nodes
+advertise Copy. Pair Cut/Move is the separate contract in ADR-023.
+
+This first slice permits Paste only into the initiating member's current
+physical parent. The duplicate consequently stays in the same mirrored relative
+folder under `lib` and `.fd_templates`. One target basename is selected jointly
+across both trees (`name_copy`, `name_copy_2`, ...), so a one-sided collision
+reserves that suffix for the whole pair. Cross-directory Copy is rejected until
+the schema has explicit, reviewed rebasing semantics for relative URI values;
+preserving those values while changing their physical resolution base would not
+be a semantics-preserving copy.
+
+The transaction takes exact bounded snapshots of both source members, verifies
+the clean Dart-owned coordinator lease, copies the Dart bytes unchanged, and
+canonically produces the target `.fd`. The target document receives a fresh
+`documentId`; only `source.dartFile` changes to the selected Dart basename.
+Class metadata, generator metadata, managed hashes, Canvas preferences, widget
+tree and stable widget ids, extensions and all other document semantics are
+preserved. A clean open shared editor remains open and bound to the original
+pair; Copy creates independent target DataObjects and never rebinds the source
+session.
+
+Both staged target files are published inside one owned filesystem atomic
+action. A failure removes only identity- and byte-verified artifacts created by
+that transaction and re-verifies the exact source snapshots. Staging write,
+publish and rollback delete revalidate the exact FileObject path identity under
+the same `FileLock` as their mutation; publish and delete also require the
+planned bytes. Recovery never deletes an artifact whose identity or content was
+changed by another owner. This is a verified
+in-process rollback contract, not a durable crash-recovery journal. Copy/Paste
+does not transfer the live editor/DataObject lifecycle and remains restricted to
+the same mirrored folder even after ADR-023 adds the distinct pair Move flow.
+
+## ADR-023 — Pair Cut/Move is a same-project mirrored Node transaction
+
+Accepted for the 0.1.3 Designer foundation. Cut initiated from either physical
+pair node publishes only a private pair paste provider through
+`NodeTransfer.CLIPBOARD_CUT`; it does not expose `LoaderTransfer` or an
+operating-system file-list flavor. Successful Paste returns the empty
+transferable, making the Cut one-shot. The underlying path-bound DataObjects
+continue to reject generic Move, so no one-file or foreign clipboard path can
+separate the Dart and `.fd` members.
+
+The target must be a direct, already existing writable folder under `lib` or
+`.fd_templates` in the same Flutter project. Its corresponding mirrored folder
+must also already exist and be writable. Move preserves the basename and both
+exact Dart and `.fd` byte sequences; it does not create folders, rename a class,
+rewrite `source.dartFile`, rebase URI values or merge with an existing target.
+One-sided collisions, ambiguous case/Unicode identities, links, escapes,
+hard-linked identities, read-only paths, incomplete or non-current-version pairs,
+conflicts and unsaved project Dart editors all fail closed.
+
+Before the filesystem edge, a bounded pure planner scans exact project Dart
+snapshots for `import`, `export`, `part` and URI `part of` directives. The
+NetBeans adapter binds that inventory to the canonical `pubspec.yaml` package
+name and matching `.dart_tool/package_config.json` self-package roots, rejects
+nested packages and package aliases of the project `lib`, and scans again for
+modified editors. It blocks every relative directive originating in the moved
+source, every incoming reference to its old path and every reference that could
+acquire or change binding at the destination. Unsupported URI forms and
+case-folded/NFC-equivalent path identities are rejected rather than guessed.
+At the mutation boundary the adapter acquires exact NetBeans 30 MasterFS data
+locks for every proof input and the child-cache write mutexes for every proof,
+source and target folder plus the physical ancestor chain to the local
+filesystem root. The final inventory/modified-editor proof and the filesystem
+callback then run together on the EDT. This excludes in-process MasterFS save,
+create, delete and rename races; the adapter verifies the exact NetBeans 30
+MasterFS runtime shape and fails closed if that admission mechanism is
+unavailable. Because NetBeans exposes no public folder-admission API, that
+bridge is one isolated reflective compatibility edge rather than a compile-time
+dependency on a private MasterFS package. A writer outside NetBeans remains a
+residual race.
+
+Paste acquires the pair path-operation lease, closes an open clean
+Designer/Source editor, snapshots both members, publishes the `.fd` target
+before Dart so the loader never observes a transient ordinary Dart owner,
+verifies both targets, and retains their locks while it renames the original FileObjects to
+reversible private `.nbmove` tombstones. Only after both exact source identities
+are retired is the logical Move committed; post-commit tombstone deletion is
+best effort. A late provider/verifier failure after that commit is recorded as
+a recovery conflict but cannot report the operation as uncommitted or leave the
+one-shot Cut reusable. The old path-bound DataObjects/controller/coordinator
+retire, and fresh DataObjects own the exact target files.
+
+Before commit, rollback restores and verifies both original sources first and
+then removes only identity- and byte-verified target artifacts owned by the
+transaction. If exact source recreation cannot be proved, verified targets are
+retained as recovery copies rather than risking total data loss. This is an
+in-process rollback/recovery contract, not a durable crash journal.
+
+Schema-v1 `AssetValue` paths are defined relative to the Flutter
+project/pubspec root, never relative to the `.fd` file. Schema-v1 `extensions`
+are location-independent opaque metadata and must not encode `.fd`-relative
+semantics. Those rules make byte-preserving pair Move well-defined; they do not
+relax ADR-022's block on cross-directory Copy, whose duplication contract still
+requires explicit relative-URI rebasing semantics.

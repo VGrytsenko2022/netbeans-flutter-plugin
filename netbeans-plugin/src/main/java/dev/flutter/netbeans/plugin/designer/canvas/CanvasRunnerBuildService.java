@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -32,6 +33,9 @@ public final class CanvasRunnerBuildService {
     static final Duration DEFAULT_BUILD_TIMEOUT = Duration.ofMinutes(10);
     static final int MAX_DIAGNOSTIC_CHARS = 64 * 1024;
     static final String EXPECTED_EXECUTABLE = "netbeans_flutter_canvas_runner.exe";
+    static final String BUILD_MODE = "release";
+    static final String BUILD_PROFILE = "windows-" + BUILD_MODE + "-v1";
+    private static final String WINDOWS_CACHE_DIRECTORY = "nb-fcr";
     private static final String BUILD_MARKER = ".netbeans-canvas-runner-build";
     private static final ConcurrentHashMap<String, BuildLock> JVM_BUILD_LOCKS =
             new ConcurrentHashMap<>();
@@ -43,12 +47,29 @@ public final class CanvasRunnerBuildService {
     private final Executor asyncExecutor;
 
     public static CanvasRunnerBuildService createDefault() throws IOException {
-        return new CanvasRunnerBuildService(
+        Path cacheRoot = resolveDefaultCacheRoot(
+                System.getProperty("os.name", ""),
                 Places.getCacheSubdirectory("flutter-canvas-runner").toPath(),
+                Path.of(System.getProperty("java.io.tmpdir")));
+        return new CanvasRunnerBuildService(
+                cacheRoot,
                 CanvasRunnerSourceBundle.packaged(),
                 CanvasRunnerProcessStarter.system(),
                 DEFAULT_BUILD_TIMEOUT,
                 command -> Thread.ofVirtual().name("flutter-canvas-runner-build").start(command));
+    }
+
+    static Path resolveDefaultCacheRoot(
+            String osName,
+            Path netBeansCacheRoot,
+            Path userTemporaryDirectory) {
+        Objects.requireNonNull(osName, "osName");
+        Objects.requireNonNull(netBeansCacheRoot, "netBeansCacheRoot");
+        Objects.requireNonNull(userTemporaryDirectory, "userTemporaryDirectory");
+        Path selected = osName.toLowerCase(Locale.ROOT).startsWith("windows")
+                ? userTemporaryDirectory.resolve(WINDOWS_CACHE_DIRECTORY)
+                : netBeansCacheRoot;
+        return selected.toAbsolutePath().normalize();
     }
 
     public CanvasRunnerBuildService(Path cacheRoot) throws IOException {
@@ -87,7 +108,8 @@ public final class CanvasRunnerBuildService {
     /** Blocking build helper. Call {@link #buildAsync(FlutterSdk)} from UI code. */
     public CanvasRunnerBuildResult build(FlutterSdk sdk) throws IOException {
         Objects.requireNonNull(sdk, "sdk");
-        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(sources, sdk);
+        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
+                sources, sdk, BUILD_PROFILE);
         BuildLock processLock = retainBuildLock(identity.cacheKey());
         processLock.lock.lock();
         try {
@@ -145,7 +167,7 @@ public final class CanvasRunnerBuildService {
                     sdk.flutterExecutable().toString(),
                     "build",
                     "windows",
-                    "--debug");
+                    "--" + BUILD_MODE);
             Process process = processStarter.start(command, sourceDirectory);
             BoundedDiagnostics diagnostics = new BoundedDiagnostics(MAX_DIAGNOSTIC_CHARS);
             Thread drainer = Thread.ofVirtual()

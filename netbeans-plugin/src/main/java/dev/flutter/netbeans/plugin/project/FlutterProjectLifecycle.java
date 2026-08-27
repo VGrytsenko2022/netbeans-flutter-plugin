@@ -14,6 +14,7 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
     private final FlutterProject project;
     private final FlutterProjectMetadata metadata;
     private final FlutterProjectMoveOperation moveOperation;
+    private final FlutterProjectPlatformProvider platformProvider;
     private final FlutterProjectConfigurationProvider configurations;
     private final FlutterRunController runController;
     private final FlutterToolingController toolingController;
@@ -25,6 +26,7 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
             FlutterProject project,
             FlutterProjectMetadata metadata,
             FlutterProjectMoveOperation moveOperation,
+            FlutterProjectPlatformProvider platformProvider,
             FlutterProjectConfigurationProvider configurations,
             FlutterRunController runController,
             FlutterToolingController toolingController,
@@ -32,6 +34,7 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
         this.project = project;
         this.metadata = metadata;
         this.moveOperation = moveOperation;
+        this.platformProvider = platformProvider;
         this.configurations = configurations;
         this.runController = runController;
         this.toolingController = toolingController;
@@ -57,6 +60,7 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
             }
             servicesStarted = true;
         }
+        platformProvider.start();
         analysisLifecycle.open();
         runController.open();
         toolingController.open();
@@ -97,6 +101,7 @@ final class FlutterProjectLifecycle extends ProjectOpenedHook {
         configurations.close();
         toolingController.close();
         runController.close();
+        platformProvider.close();
     }
 
     private void awaitDeleteService(

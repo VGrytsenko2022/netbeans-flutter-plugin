@@ -65,6 +65,8 @@ public final class FlutterProject implements Project {
                 this,
                 projectInfo,
                 metadata);
+        FlutterProjectPlatformProvider platformProvider =
+                new FlutterProjectPlatformProvider(projectDirectory, projectInfo.root());
         FlutterProjectSources sources = new FlutterProjectSources(this);
         FlutterRecommendedTemplates recommendedTemplates = new FlutterRecommendedTemplates();
         FlutterRunController runController = new FlutterRunController(this, projectInfo);
@@ -73,7 +75,8 @@ public final class FlutterProject implements Project {
         FlutterToolingController toolingController = new FlutterToolingController(
                 this,
                 projectInfo,
-                new NetBeansFlutterTestSessionFactory());
+                new NetBeansFlutterTestSessionFactory(),
+                platformProvider);
         DartAnalysisLifecycle analysisLifecycle = new DartAnalysisLifecycle(
                 projectInfo.name(),
                 new NetBeansDartAnalysisStatusReporter());
@@ -104,6 +107,7 @@ public final class FlutterProject implements Project {
                 this,
                 metadata,
                 moveOperation,
+                platformProvider,
                 configurations,
                 runController,
                 toolingController,
@@ -115,6 +119,7 @@ public final class FlutterProject implements Project {
                 sources,
                 recommendedTemplates,
                 metadata,
+                platformProvider,
                 logicalView,
                 moveOperation,
                 actions,

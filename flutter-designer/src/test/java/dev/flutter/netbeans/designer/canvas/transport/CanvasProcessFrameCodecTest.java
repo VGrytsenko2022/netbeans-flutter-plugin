@@ -154,6 +154,18 @@ class CanvasProcessFrameCodecTest {
     }
 
     @Test
+    void invalidMagicFailsAfterFourBytesWithoutWaitingForAWholeHeader() {
+        CountingInputStream input = new CountingInputStream(
+                new byte[] {'N', 'O', 'P', 'E'});
+        CanvasProcessFrameReader reader = codec.reader(input);
+
+        assertReadFailure(reader, handshake(), null,
+                CanvasProcessFramingError.INVALID_MAGIC);
+        assertEquals(CanvasProcessFrameCodec.MAGIC.length, input.readCount());
+        assertTrue(reader.isPoisoned());
+    }
+
+    @Test
     void partialOutputFailurePoisonsBoundWriter() throws Exception {
         CanvasProcessFrameWriter writer = codec.writer(new FailingOutputStream(8));
         CanvasProcessFrame control = frame(

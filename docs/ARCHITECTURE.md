@@ -59,6 +59,8 @@ The same MIME type is registered with the NetBeans DAP debugger for runtime brea
 
 Each loaded Flutter project publishes a project-scoped `FlutterRunController` and `ProjectConfigurationProvider`. The provider exposes cached `FlutterTargetConfiguration` values through NetBeans' built-in project-configuration combo—the same toolbar control used by Java projects. Device discovery starts asynchronously from the project lifecycle and then self-reschedules on a five-second fixed delay. Every global device result is mapped to one exact canonical project platform and intersected with the active application's real non-symlink platform directories; modules, packages, plugins, unknown targets, and targets for missing scaffolding fail closed. The same compatibility check runs again immediately before Run/Debug, and verified platform addition requests an immediate provider refresh. Repeated requests coalesce into one follow-up query; failures preserve the last good snapshot and retry after 2, 5, 15, and then at most 30 seconds. The SPI getters only return immutable cached state because NetBeans calls them under the project mutex. Target identity is stable by device id, selection is stored in per-project private preferences, and the controller serializes every project-scoped `flutter devices` query used by passive refresh, Select, Run/Debug, and emulator waiting. The same controller backs actions in the top-level `Flutter` menu and the project context menu: Select Run Target, Launch Mobile Emulator, Run, Debug, Hot Reload, Hot Restart, Stop, Open DevTools, and Stop DevTools. Closing the project advances a lifecycle generation, invalidates pending discovery and scheduled refreshes, cancels a pending launch operation, and closes its run, debug, and DevTools processes.
 
+The same project lookup publishes an observable `FlutterProjectPlatformProvider` whose immutable snapshot accepts only real non-symlink canonical `android`/`ios`/`web`/`windows`/`macos`/`linux` directories. It watches direct project-root folder creation, deletion and rename for the project lifecycle, and Add Platforms explicitly refreshes it after MasterFS synchronization. Flutter Designer maps these folders to exact preview targets: Android Phone/Tablet, iPhone/iPad, Windows/macOS/Linux Desktop, and Web. Open Design views retain the exact target, then the same viewport mode, and finally fall back to the first canonical choice; Preview is disabled when the authoritative set becomes empty. The selected Android/iOS/macOS/Linux target is carried through the render profile to Flutter adaptive widget semantics. Web remains a separately compiled browser runtime and reports its missing browser Canvas backend instead of impersonating Web on the Windows engine.
+
 Configured emulator launch owns a separate cancellable `ProgressHandle`. It reports loading definitions, capturing the pre-launch device snapshot, launching, waiting with elapsed time, selecting the resolved target, and readiness. Matching first uses normalized configured id/name and otherwise accepts only one new mobile-emulator device relative to the mandatory pre-launch snapshot; it never selects an unrelated sole emulator or the first of several ambiguous devices. Cancellation interrupts the owned Flutter CLI process, terminates that process tree, suppresses stale preference writes/dialogs across project close/reopen, and documents that an already requested emulator can continue starting.
 
 The Android Device Manager is a global, non-modal NetBeans `TopComponent`, because emulator inventory and processes are machine-wide rather than owned by one Flutter project. Its controller serializes mutations on a background request processor, publishes immutable snapshots to the EDT, uses NetBeans Output/Progress/Dialogs, and selects a target only through the active Flutter project's `FlutterRunController`. ADB mapping uses `adb -s <serial> emu avd name`, and boot readiness uses `sys.boot_completed`; it never guesses by list order. Closing the window or cancelling boot polling detaches from an already started emulator. Only explicit Stop terminates it. Wipe and Delete are confirmed with the exact AVD id and consequences; creation uses installed stable-channel images and never auto-accepts SDK licenses.
@@ -91,7 +93,15 @@ NetBeans 30's bundled YAML language continues to recognize `pubspec.yaml` as `te
 
 ## Designer boundary
 
-The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A same-basename `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired `.dart` file own only generated source. User code outside those regions is preserved. The NetBeans edge follows the Matisse pattern: `.dart` is the technical primary `MultiDataObject` entry, `.fd` is secondary, and one Dart `DataEditorSupport` backs the dedicated `Design`/`Source` MultiView plus guarded-section persistence. Only complete pairs are claimed; ordinary Dart files remain on the normal language path. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation planners and bounded undoable command session, and will own migrations. `netbeans-plugin` owns the read-only paired UI and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge; Palette/Canvas mutation remains disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A complete form maps `lib/<relative>/<name>.dart` to `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired Dart file own only generated source. Schema v1 keeps `source.dartFile` as the exact Dart basename, without a path separator; the mirrored relative directory is enforced by the NetBeans project adapter. `AssetValue` paths resolve from the Flutter project/pubspec root, never from the `.fd` location, and schema-v1 `extensions` are location-independent opaque metadata that must not encode `.fd`-relative semantics. User code outside the guarded regions is preserved.
+
+The NetBeans edge keeps `.dart` as the technical primary of the single designer editing session, with one Dart `DataEditorSupport` backing the dedicated `Design`/`Source` MultiView and guarded-section persistence. The mirrored `.fd` is not hidden as a cross-folder secondary entry: a separate visible, non-editing model DataObject appears under `.fd_templates` and delegates Open plus the shared pair-aware Copy, Cut, Rename and Delete operations to that one Dart-owned session. Generic DataObject Copy/Move remains disabled so no one-file operation can escape one pair member.
+
+Rename and Delete close a clean editor, stage both paths under deterministic locks and provide exact-byte in-process rollback rather than a durable crash-recovery journal. Pair-aware Copy/Paste uses a custom node transfer without generic loader or OS file flavors and duplicates both members only in their current mirrored relative folder. It copies the Dart bytes exactly and assigns the canonical target `.fd` a fresh `documentId` while changing only `source.dartFile`; cross-directory Copy remains blocked until relative-URI rebasing is specified.
+
+Pair-aware Cut/Move uses a private one-shot `NodeTransfer.CLIPBOARD_CUT` paste. It keeps the basename and exact pair bytes, stays within one Flutter project, and accepts only an already existing writable destination with an already existing mirrored counterpart folder owned by that exact project. A bounded, strict `pubspec.yaml`/`package_config.json`-bound project Dart inventory blocks outgoing relative directives, incoming references to the old location, references that could acquire the destination, unsafe URI/package aliases, nested packages and conservative case/Unicode collisions. At the final boundary, exact proof-file locks and the actual NetBeans 30 MasterFS child-cache mutexes cover every proof/source/target directory and its physical ancestor chain; inventory verification and commit share one EDT admission, and an unavailable/different MasterFS shape fails closed. Move closes a clean source editor, publishes `.fd` before Dart, locks both targets, retires the source identities through reversible `.nbmove` tombstones, then creates fresh target DataObjects. Rollback restores both exact sources before removing owned targets; if safe recreation cannot be proved, verified targets are retained for recovery. Once exact targets and both source tombstones establish commit, late cleanup/provider failures are recovery warnings rather than a false uncommitted result. This is an in-process guarantee with no durable crash journal, and an external non-NetBeans writer remains a residual race.
+
+Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical read-only Canvas model projection, and will own migrations. `netbeans-plugin` owns the read-only paired UI, pair operation transactions, native Canvas/tree selection edge, six-item context Palette, selected-node read-only Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge; drag-and-drop, editable Properties and Canvas mutation remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
 The paired DataObject also owns one read-only document controller shared by
 all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
@@ -241,23 +251,42 @@ Java-to-Flutter drag/drop sends an allowlisted drag description, exact current
 revision identities and native-view coordinates to Flutter for hit testing.
 Flutter returns only a semantic, revision- and layout-bound intent. The Java
 domain gate rejects stale or invalid responses and remains the only path to a
-Designer command. The runner receives canonical model/catalog values but no
-project paths, Dart source, file handles, Save, Undo/Redo or persistence
-authority. Process separation is not described as an OS security sandbox.
+Designer command. The runner receives canonical allowlisted model values and
+may receive catalog values only under a future reviewed versioned contract; it
+receives no project paths, Dart source, file handles, Save, Undo/Redo or
+persistence authority. Process separation is not described as an OS security
+sandbox.
 
-The current internal foundation implements the NetBeans-independent Canvas
+The current internal slice implements the NetBeans-independent Canvas
 identities/admission gates, bounded native-surface request validation, a pure
-per-MultiView lifecycle controller, the exact version 1 lifecycle-control
-codec, and fail-stop bounded process framing for control, model and catalog
-JSON only. The NetBeans edge now also contains the first Windows-native vertical
-spike: a heavyweight AWT host inside the Design MultiView, strict
-parent/runner/`FLUTTERVIEW` HWND and PID validation, an SDK-keyed bounded runner
-build cache, per-view process lifecycle and an isolated runner that creates a
-real child `FlutterView`. A standalone automated Win32 smoke proves the
-three-window hierarchy and resize path; the `JFrame` used by that smoke is only
-a test harness and is not part of the plugin UI. Model/catalog schemas and
-validated `.fd` projection are not complete, and there is no layout, image or
-pixel-transfer channel. Full NetBeans focus/DPI/IME/DnD/crash acceptance, a
-platform-neutral SPI, Linux/macOS providers and the DnD bridge remain
-outstanding.
+per-MultiView lifecycle controller, the exact version 1 lifecycle handshake and
+fail-stop bounded process framing. After the handshake, bounded runtime control
+publishes one exact validated revision, acknowledges its layout and synchronizes
+selection. The canonical `CORE_V1` model payload admits only reviewed built-in
+definitions for `Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`; the
+isolated Flutter runner uses the same hardcoded allowlist and cannot execute
+arbitrary project code. `CATALOG_JSON` remains reserved for a future versioned
+catalog contract.
+
+The Windows edge embeds the runner's real child `FlutterView` in a heavyweight
+AWT host inside each Design MultiView, validates the exact
+parent/runner/`FLUTTERVIEW` HWND and PID hierarchy, and owns an SDK-keyed bounded
+build cache and per-view process lifecycle. The Design toolbar resolves exact
+viewport/platform pairs filtered by the owning project's configured platforms.
+Android/iOS/macOS/Linux choices apply Flutter's adaptive `ThemeData.platform`
+on that bound Windows engine; they do not claim a device OS runtime. Web is
+withheld with an explicit missing-browser-backend status rather than silently
+falling back to the Windows engine.
+Platform-folder changes reconcile open Design views on the Swing event thread;
+an empty configured set leaves the selector empty and Canvas unavailable.
+Stable widget IDs synchronize read-only selection between the native
+Canvas and the Explorer/Nodes tree; the selected Node is published through the
+standard Explorer lookup with standard read-only Properties, while the active
+Design lookup supplies a Palette filtered to the exact six `CORE_V1` widgets.
+A standalone
+automated Win32 smoke proves the three-window hierarchy and resize path; its
+`JFrame` is only a test harness and is not part of the plugin UI. There is no
+image or pixel-transfer channel. Full NetBeans focus/DPI/IME/DnD/crash
+acceptance, a platform-neutral SPI, Linux/macOS providers, drag-and-drop,
+editable Properties and all Designer mutation remain outstanding;
 `PUBLIC_MUTATION_UI_ENABLED` therefore remains `false`.

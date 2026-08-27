@@ -286,15 +286,17 @@ public final class WindowsNativeCanvasHost extends JPanel implements AutoCloseab
         }
         try {
             NativeCanvasWindowBounds bounds = windows.clientBounds(current.parentWindow());
-            if (windows.moveWindow(current.runnerWindow(), bounds)) {
+            if (windows.setWindowBoundsAsync(current.runnerWindow(), bounds)) {
                 return true;
             }
             boolean stillLive = isAttachmentLive(current);
             invalidateAttachment(
                     current,
                     stillLive
-                            ? "MoveWindow failed for a verified live Flutter runner HWND."
-                            : "The Flutter runner HWND disappeared while MoveWindow was resizing it.",
+                            ? "SetWindowPos could not queue an asynchronous resize for a "
+                                    + "verified live Flutter runner HWND."
+                            : "The Flutter runner HWND disappeared while an asynchronous "
+                                    + "SetWindowPos resize was being queued.",
                     null);
             return false;
         } catch (RuntimeException | LinkageError failure) {

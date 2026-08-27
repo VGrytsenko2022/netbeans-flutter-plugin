@@ -15,6 +15,9 @@ import java.util.List;
 final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
     private static final int SW_HIDE = 0;
     private static final int SW_SHOW = 5;
+    private static final int ASYNC_RESIZE_FLAGS = WinUser.SWP_ASYNCWINDOWPOS
+            | WinUser.SWP_NOACTIVATE
+            | WinUser.SWP_NOZORDER;
 
     private final User32 user32;
 
@@ -100,14 +103,15 @@ final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
     }
 
     @Override
-    public boolean moveWindow(long window, NativeCanvasWindowBounds bounds) {
-        return user32.MoveWindow(
+    public boolean setWindowBoundsAsync(long window, NativeCanvasWindowBounds bounds) {
+        return user32.SetWindowPos(
                 hwnd(window),
+                null,
                 0,
                 0,
                 Math.max(1, bounds.width()),
                 Math.max(1, bounds.height()),
-                true);
+                ASYNC_RESIZE_FLAGS);
     }
 
     @Override

@@ -1,7 +1,7 @@
 package dev.flutter.netbeans.plugin.dart.wizard;
 
 import dev.flutter.netbeans.plugin.project.FlutterProject;
-import dev.flutter.netbeans.plugin.project.FlutterProjectFactory;
+import dev.flutter.netbeans.plugin.ui.FlutterFileIcons;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -31,7 +31,7 @@ import org.openide.util.NbBundle.Messages;
         position = 100,
         displayName = "#LBL_DartClass",
         category = "dart",
-        iconBase = FlutterProjectFactory.ICON_PATH,
+        iconBase = FlutterFileIcons.DART_FILE_ICON_PATH,
         description = "DartClassDescription.html")
 @Messages({
     "LBL_DartClass=Dart Class",

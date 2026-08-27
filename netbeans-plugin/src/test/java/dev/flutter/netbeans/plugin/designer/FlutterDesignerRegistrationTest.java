@@ -39,13 +39,81 @@ class FlutterDesignerRegistrationTest {
                 "missing pair-aware Flutter Designer data loader");
         assertTrue(layer.contains("<folder name=\"Loaders\">"));
         assertTrue(layer.contains("<folder name=\"x-flutter-designer\">"));
-        assertTrue(folderRegistration(layer, "Loaders", "text", "x-dart", "Factories")
-                .contains("FlutterDesignerDataLoader.instance"),
+        String dartFactories = folderRegistration(
+                layer, "Loaders", "text", "x-dart", "Factories");
+        assertTrue(dartFactories.contains("FlutterDesignerDataLoader.instance"),
                 "the pair-aware loader must be eligible when NetBeans sees Dart first");
-        assertTrue(folderRegistration(
-                layer, "Loaders", "text", "x-flutter-designer", "Factories")
-                .contains("FlutterDesignerDataLoader.instance"),
-                "the pair-aware loader must be eligible when NetBeans sees FD first");
+        String pairedDartRegistration = fileRegistration(
+                dartFactories,
+                "dev-flutter-netbeans-plugin-designer-FlutterDesignerDataLoader.instance");
+        assertPosition(pairedDartRegistration, 100, "pair-aware Dart loader");
+        assertTrue(pairedDartRegistration.contains(
+                "name=\"iconBase\" stringvalue=\"dev/flutter/netbeans/plugin/ui/icons/dartFile16.svg\""),
+                "the pair-aware Dart loader must advertise the Dart file-type icon");
+
+        String ordinaryDartRegistration = fileRegistration(
+                dartFactories,
+                "dev-flutter-netbeans-plugin-dart-DartDataObject.instance");
+        assertPosition(ordinaryDartRegistration, 200, "ordinary Dart loader");
+        assertTrue(ordinaryDartRegistration.contains(
+                "name=\"dataObjectClass\" stringvalue=\"dev.flutter.netbeans.plugin.dart.DartDataObject\""),
+                "ordinary Dart files must use the dedicated DartDataObject");
+        assertTrue(ordinaryDartRegistration.contains(
+                "name=\"iconBase\" stringvalue=\"dev/flutter/netbeans/plugin/ui/icons/dartFile16.svg\""),
+                "ordinary Dart files must advertise the Dart file-type icon");
+
+        String modelFactories = folderRegistration(
+                layer, "Loaders", "text", "x-flutter-designer", "Factories");
+        assertTrue(modelFactories.contains("FlutterDesignerModelDataObject"),
+                "the visible .fd model must have its own delegating DataObject");
+        assertFalse(modelFactories.contains("FlutterDesignerDataLoader.instance"),
+                "claiming .fd as a Dart-side secondary hides it from the Files view");
+        String modelRegistration = fileRegistration(
+                modelFactories,
+                "dev-flutter-netbeans-plugin-designer-"
+                + "FlutterDesignerModelDataObject.instance");
+        assertTrue(modelRegistration.contains(
+                "name=\"iconBase\" stringvalue=\"dev/flutter/netbeans/plugin/ui/icons/flutterDesignerFile16.svg\""),
+                "physical .fd files must advertise the Flutter Designer file-type icon");
+    }
+
+    @Test
+    void registersStandardDartFileActionsWithOpenAsThePreferredAction()
+            throws IOException {
+        String layer = readResource("META-INF/generated-layer.xml");
+        String actions = folderRegistration(
+                layer, "Loaders", "text", "x-dart", "Actions");
+
+        assertActionReference(
+                actions, "OpenAction", "System", 100);
+        assertSeparatorAfter(actions, "OpenAction", 200);
+        assertActionReference(
+                actions, "CutAction", "Edit", 300);
+        assertActionReference(
+                actions, "CopyAction", "Edit", 400);
+        assertActionReference(
+                actions, "PasteAction", "Edit", 500);
+        assertSeparatorAfter(actions, "PasteAction", 600);
+        assertActionReference(
+                actions, "DeleteAction", "Edit", 700);
+        assertActionReference(
+                actions, "RenameAction", "System", 800);
+        assertSeparatorAfter(actions, "RenameAction", 900);
+        assertActionReference(
+                actions, "SaveAsTemplateAction", "System", 1000);
+        assertSeparatorAfter(actions, "SaveAsTemplateAction", 1100);
+        assertActionReference(
+                actions, "FileSystemAction", "System", 1200);
+        assertSeparatorAfter(actions, "FileSystemAction", 1300);
+        assertActionReference(
+                actions, "ToolsAction", "System", 1400);
+        assertActionReference(
+                actions, "PropertiesAction", "System", 1500);
+
+        assertEquals(10, occurrences(actions, ".shadow"),
+                "the Dart popup must contain exactly the standard file-action set");
+        assertEquals(5, occurrences(actions, "separatorAfter.instance"),
+                "the Dart popup has the wrong separator set");
     }
 
     @Test
@@ -105,6 +173,33 @@ class FlutterDesignerRegistrationTest {
         String secondOrder = "intvalue=\"" + position + "\" name=\"position\"";
         assertTrue(registration.contains(firstOrder) || registration.contains(secondOrder),
                 () -> name + " must have position " + position);
+    }
+
+    private static void assertActionReference(
+            String actions,
+            String actionName,
+            String category,
+            int position) {
+        String registration = fileRegistration(
+                actions, "org-openide-actions-" + actionName + ".shadow");
+        assertTrue(registration.contains(
+                "stringvalue=\"Actions/" + category
+                + "/org-openide-actions-" + actionName + ".instance\""),
+                () -> actionName + " points to the wrong global action");
+        assertPosition(registration, position, actionName);
+    }
+
+    private static void assertSeparatorAfter(
+            String actions,
+            String actionName,
+            int position) {
+        String separatorName = "org-openide-actions-" + actionName
+                + "-separatorAfter.instance";
+        String registration = fileRegistration(actions, separatorName);
+        assertTrue(registration.contains(
+                "newvalue=\"javax.swing.JSeparator\""),
+                () -> separatorName + " is not a Swing separator");
+        assertPosition(registration, position, separatorName);
     }
 
     private static String fileRegistration(String layer, String fileName) {

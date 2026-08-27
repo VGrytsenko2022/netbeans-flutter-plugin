@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -50,6 +51,7 @@ import javax.swing.text.StyledDocument;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileSystem;
 import org.openide.filesystems.FileUtil;
 import org.openide.nodes.CookieSet;
 import org.openide.nodes.Node;
@@ -107,6 +109,9 @@ final class PairSaveCoordinator implements Node.Cookie,
     private ActivePairSave activePairSave;
     private ActiveSourceSave activeSourceSave;
     private ActiveFdOnlySave activeFdOnlySave;
+    private PairPathOperationLease activePairPathOperation;
+    /** Retained until all enclosing NetBeans atomic actions publish their events. */
+    private FileSystem.AtomicAction pairPathOperationProvenance;
     private boolean sourceDirty;
     private boolean failedSavePending;
     private boolean suppressConflictSaveCookie;
@@ -183,6 +188,108 @@ final class PairSaveCoordinator implements Node.Cookie,
         synchronized (this) {
             return state;
         }
+    }
+
+    boolean canBeginPairDelete() {
+        synchronized (this) {
+            return pairPathOperationAvailableLocked();
+        }
+    }
+
+    PairDeleteLease beginPairDelete() throws IOException {
+        return beginPairPathOperation(new PairDeleteLease(), true);
+    }
+
+    boolean canBeginPairRename() {
+        synchronized (this) {
+            return pairPathOperationAvailableLocked();
+        }
+    }
+
+    PairRenameLease beginPairRename() throws IOException {
+        return beginPairPathOperation(new PairRenameLease(), true);
+    }
+
+    boolean canBeginPairMove() {
+        synchronized (this) {
+            return pairPathOperationAvailableLocked();
+        }
+    }
+
+    PairMoveLease beginPairMove() throws IOException {
+        return beginPairPathOperation(new PairMoveLease(), true);
+    }
+
+    boolean canBeginPairCopy() {
+        synchronized (this) {
+            return pairPathOperationAvailableLocked();
+        }
+    }
+
+    PairCopyLease beginPairCopy() throws IOException {
+        return beginPairPathOperation(new PairCopyLease(), false);
+    }
+
+    private <T extends PairPathOperationLease> T beginPairPathOperation(
+            T lease,
+            boolean closeEditor)
+            throws IOException {
+        synchronized (this) {
+            if (!pairPathOperationAvailableLocked()) {
+                throw new IOException(
+                        "Cannot " + lease.operation().toLowerCase(Locale.ROOT)
+                        + " the Flutter Designer form while it has "
+                        + "unsaved changes, a conflict, or another active pair operation");
+            }
+            activePairPathOperation = lease;
+        }
+
+        try {
+            // Destructive path operations close the clean CES view because it
+            // otherwise observes staging as a read-only transition. Copy owns
+            // only a stable source snapshot and deliberately keeps that view
+            // open while the same lease blocks save/command admission.
+            if (closeEditor && !editor.close()) {
+                throw new IOException(
+                        "the clean Designer/Source editor refused to close");
+            }
+            synchronized (this) {
+                if (activePairPathOperation != lease
+                        || sourceDirty
+                        || failedSavePending
+                        || dataObject.isModified()
+                        || editor.sourceModified()) {
+                    throw new IOException(
+                            "the paired editor state changed while "
+                            + lease.operation()
+                            + " was acquiring exclusive authority");
+                }
+            }
+            return lease;
+        } catch (IOException | RuntimeException failure) {
+            lease.finish(false);
+            if (failure instanceof IOException ioFailure) {
+                throw ioFailure;
+            }
+            throw failure;
+        }
+    }
+
+    private boolean pairPathOperationAvailableLocked() {
+        return activePairPathOperation == null
+                && preparation == null
+                && replacement == null
+                && staged == null
+                && historyTransition == null
+                && forwardAdmission == null
+                && activePairSave == null
+                && activeSourceSave == null
+                && activeFdOnlySave == null
+                && !sourceDirty
+                && !failedSavePending
+                && !dataObject.isModified()
+                && !editor.sourceModified()
+                && !conflictStatusLocked();
     }
 
     /** Package-private exact staged identity for the internal command bridge/tests. */
@@ -703,6 +810,12 @@ final class PairSaveCoordinator implements Node.Cookie,
         StateChange change = null;
 
         synchronized (this) {
+            if (activePairPathOperation != null) {
+                throw new IOException(
+                        "Cannot save " + dartFile.getNameExt()
+                        + ": paired " + activePairPathOperation.operation()
+                        + " currently owns the form");
+            }
             Thread currentThread = Thread.currentThread();
             if (activeFdOnlySave != null) {
                 throw new IOException("Cannot save " + dartFile.getNameExt()
@@ -896,6 +1009,12 @@ final class PairSaveCoordinator implements Node.Cookie,
     /** Rejects a foreign save owner before CES accepts a document edit. */
     void beforeSourceModification() throws IOException {
         synchronized (this) {
+            if (activePairPathOperation != null) {
+                throw new IOException(
+                        "Cannot edit Dart source while paired "
+                        + activePairPathOperation.operation()
+                        + " owns the form");
+            }
             if (historyTransition != null) {
                 throw new IOException(
                         "Cannot edit Dart source while an exact unsaved Designer "
@@ -1058,6 +1177,14 @@ final class PairSaveCoordinator implements Node.Cookie,
 
     /** @return true when the controller must suppress reload for this event. */
     boolean handleFileEvent(FileEvent event) {
+        synchronized (this) {
+            if ((activePairPathOperation != null
+                    && activePairPathOperation.owns(event))
+                    || (pairPathOperationProvenance != null
+                        && event.firedFrom(pairPathOperationProvenance))) {
+                return true;
+            }
+        }
         if (transaction.owns(event)) {
             return true;
         }
@@ -1074,7 +1201,8 @@ final class PairSaveCoordinator implements Node.Cookie,
                     || replacement != null || historyTransition != null
                     || forwardAdmission != null
                     || staged != null || activePairSave != null
-                    || activeSourceSave != null || activeFdOnlySave != null;
+                    || activeSourceSave != null || activeFdOnlySave != null
+                    || activePairPathOperation != null;
             if (forwardAdmission != null) {
                 // The raw candidate already passed every fallible evidence
                 // check and is about to be sealed into native history. Do not
@@ -1128,6 +1256,12 @@ final class PairSaveCoordinator implements Node.Cookie,
                 }
                 if (activeFdOnlySave != null) {
                     suppressConflictSaveCookie = true;
+                }
+                if (activePairPathOperation != null) {
+                    activePairPathOperation.markRecoveryConflict(
+                            "a paired file changed outside the active "
+                            + activePairPathOperation.operation()
+                            + " transaction");
                 }
                 String operation = event.getFile().isValid()
                         ? "changed" : "was deleted or renamed";
@@ -5796,7 +5930,8 @@ final class PairSaveCoordinator implements Node.Cookie,
         if (preparation != null || replacement != null || staged != null
                 || historyTransition != null
                 || activePairSave != null
-                || activeSourceSave != null || activeFdOnlySave != null) {
+                || activeSourceSave != null || activeFdOnlySave != null
+                || activePairPathOperation != null) {
             throw new IOException(
                     "Only one Flutter Designer preparation or save may own the pair");
         }
@@ -5808,7 +5943,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         if (preparation != null || replacement != null
                 || historyTransition != null
                 || activePairSave != null || activeSourceSave != null
-                || activeFdOnlySave != null
+                || activeFdOnlySave != null || activePairPathOperation != null
                 || expectedSource.coordinatorIdentity()
                     != this
                 || staged != expectedSource.authorityIdentity()
@@ -7780,6 +7915,152 @@ final class PairSaveCoordinator implements Node.Cookie,
             this.lease = lease;
             this.evidence = evidence;
             this.eventTicket = eventTicket;
+        }
+    }
+
+    /** Exclusive admission and file-event provenance for one paired path operation. */
+    abstract class PairPathOperationLease {
+        private final String operation;
+        private final boolean mutatesSourcePair;
+        private final boolean invalidatesRetainedPair;
+        private FileSystem.AtomicAction action;
+        private String recoveryConflict;
+        private boolean closed;
+
+        PairPathOperationLease(
+                String operation,
+                boolean mutatesSourcePair,
+                boolean invalidatesRetainedPair) {
+            this.operation = Objects.requireNonNull(operation, "operation");
+            this.mutatesSourcePair = mutatesSourcePair;
+            this.invalidatesRetainedPair = invalidatesRetainedPair;
+        }
+
+        final String operation() {
+            return operation;
+        }
+
+        final void bind(FileSystem.AtomicAction pathAction) throws IOException {
+            Objects.requireNonNull(pathAction, "pathAction");
+            synchronized (PairSaveCoordinator.this) {
+                if (closed || activePairPathOperation != this || action != null) {
+                    throw new IOException(
+                            "The paired " + operation
+                            + " lease is no longer the sole active owner");
+                }
+                action = pathAction;
+            }
+        }
+
+        final void markRecoveryConflict(String reason) {
+            Objects.requireNonNull(reason, "reason");
+            synchronized (PairSaveCoordinator.this) {
+                if (!closed && activePairPathOperation == this) {
+                    recoveryConflict = reason;
+                }
+            }
+        }
+
+        final void finish(boolean committed) {
+            StateChange change = null;
+            boolean invalidateRetainedPair = false;
+            synchronized (PairSaveCoordinator.this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                if (activePairPathOperation != this) {
+                    LOGGER.log(Level.WARNING,
+                            "The paired {0} lease lost coordinator ownership before finish",
+                            operation);
+                    return;
+                }
+                activePairPathOperation = null;
+                if (action != null) {
+                    pairPathOperationProvenance = action;
+                }
+                if (committed && mutatesSourcePair) {
+                    diskBaseline = null;
+                    invalidateRetainedPair = invalidatesRetainedPair;
+                    if (invalidateRetainedPair) {
+                        externalEventEpoch++;
+                        sourceStateEpoch++;
+                        unsavedPairHistory.clear();
+                        unsavedHistoryCursor = null;
+                        unsavedHistoryOwner = null;
+                        suppressConflictSaveCookie = false;
+                        if (recoveryConflict == null) {
+                            change = transitionLocked(
+                                    PairSaveCoordinatorStatus.CLEAN, null);
+                        }
+                    }
+                }
+                if (recoveryConflict != null) {
+                    change = transitionLocked(
+                            PairSaveCoordinatorStatus.EXTERNAL_CONFLICT,
+                            "Paired " + operation
+                            + " lost exact filesystem authority: "
+                            + recoveryConflict);
+                }
+            }
+            if (invalidateRetainedPair) {
+                try {
+                    controller.pairPathOperationCommitted();
+                } catch (RuntimeException presentationFailure) {
+                    LOGGER.log(Level.WARNING,
+                            "The Flutter Designer pair path operation committed, "
+                            + "but its retained presentation could not be invalidated",
+                            presentationFailure);
+                }
+            }
+            publishEffects(change);
+        }
+
+        private boolean owns(FileEvent event) {
+            return action != null && event.firedFrom(action);
+        }
+    }
+
+    final class PairDeleteLease extends PairPathOperationLease {
+        PairDeleteLease() {
+            super("Delete", true, false);
+        }
+    }
+
+    final class PairRenameLease extends PairPathOperationLease {
+        PairRenameLease() {
+            super("Rename", true, true);
+        }
+    }
+
+    /**
+     * A cross-folder move retires the old path-bound DataObjects.  Their file
+     * deletion events perform invalidation, so unlike Rename this lease must
+     * not ask the retained controller to reload obsolete FileObjects.
+     */
+    final class PairMoveLease extends PairPathOperationLease {
+        PairMoveLease() {
+            super("Move", true, false);
+        }
+    }
+
+    final class PairCopyLease extends PairPathOperationLease {
+        PairCopyLease() {
+            super("Copy", false, false);
+        }
+
+        void verifySourceStillClean() throws IOException {
+            synchronized (PairSaveCoordinator.this) {
+                if (activePairPathOperation != this
+                        || sourceDirty
+                        || failedSavePending
+                        || dataObject.isModified()
+                        || editor.sourceModified()
+                        || conflictStatusLocked()) {
+                    throw new IOException(
+                            "the source pair changed while its copy was being prepared");
+                }
+            }
         }
     }
 

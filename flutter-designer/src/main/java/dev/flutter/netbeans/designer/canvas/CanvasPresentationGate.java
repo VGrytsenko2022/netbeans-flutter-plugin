@@ -26,8 +26,25 @@ public final class CanvasPresentationGate implements AutoCloseable {
     public CanvasPresentationGate(
             CanvasSessionId sessionId,
             StableId documentId) {
+        this(sessionId, documentId, 0);
+    }
+
+    /**
+     * Creates a document gate at a session-owned presentation sequence.
+     * Controllers use this overload when the active document identity changes
+     * without opening a new Canvas session.
+     */
+    public CanvasPresentationGate(
+            CanvasSessionId sessionId,
+            StableId documentId,
+            long initialPresentationSequence) {
         this.sessionId = Objects.requireNonNull(sessionId, "sessionId");
         this.documentId = Objects.requireNonNull(documentId, "documentId");
+        if (initialPresentationSequence < 0) {
+            throw new IllegalArgumentException(
+                    "initialPresentationSequence must not be negative");
+        }
+        nextPresentationSequence = initialPresentationSequence;
     }
 
     /**

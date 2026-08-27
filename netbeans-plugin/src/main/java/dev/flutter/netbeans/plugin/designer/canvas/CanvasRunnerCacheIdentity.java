@@ -33,8 +33,16 @@ public record CanvasRunnerCacheIdentity(
     public static CanvasRunnerCacheIdentity create(
             CanvasRunnerSourceBundle bundle,
             FlutterSdk sdk) throws IOException {
+        return create(bundle, sdk, CanvasRunnerBuildService.BUILD_PROFILE);
+    }
+
+    static CanvasRunnerCacheIdentity create(
+            CanvasRunnerSourceBundle bundle,
+            FlutterSdk sdk,
+            String buildProfile) throws IOException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(sdk, "sdk");
+        buildProfile = requireValue(buildProfile, "Canvas runner build profile");
         Path sdkHome = sdk.home().toRealPath(LinkOption.NOFOLLOW_LINKS);
         Path executable = sdk.flutterExecutable().toRealPath(LinkOption.NOFOLLOW_LINKS);
         if (Files.isSymbolicLink(sdkHome) || Files.isSymbolicLink(executable)) {
@@ -57,6 +65,7 @@ public record CanvasRunnerCacheIdentity(
         update(digest, "flutter-executable", executable.toString());
         update(digest, "framework", frameworkVersion);
         update(digest, "engine", engineRevision);
+        update(digest, "build-profile", buildProfile);
         return new CanvasRunnerCacheIdentity(
                 bundle.sourceDigest(), engineRevision, HexFormat.of().formatHex(digest.digest()));
     }

@@ -32,12 +32,15 @@ import org.eclipse.lsp4j.CodeActionParams;
 import org.eclipse.lsp4j.Command;
 import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.ReferenceContext;
 import org.eclipse.lsp4j.ReferenceParams;
 import org.eclipse.lsp4j.RenameParams;
+import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
@@ -46,6 +49,8 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.lexer.TokenHierarchy;
+import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.ui.OpenProjects;
@@ -69,6 +74,7 @@ import org.netbeans.spi.editor.completion.CompletionTask;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.Fix;
 import org.netbeans.spi.editor.hints.LazyFixList;
+import org.netbeans.spi.editor.hints.Severity;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -142,6 +148,8 @@ final class DartEditorEndToEndIT {
     public static final class DartEditorRuntimeCase extends NbTestCase {
 
         private static final String DART_MIME_TYPE = "text/x-dart";
+        private static final String DART_DATA_OBJECT =
+                "dev.flutter.netbeans.plugin.dart.DartDataObject";
         private static final Duration TIMEOUT = Duration.ofSeconds(30);
         private static final String COMPLETION_PROVIDER_CLASS =
                 "org.netbeans.modules.lsp.client.bindings.CompletionProviderImpl";
@@ -168,6 +176,7 @@ final class DartEditorEndToEndIT {
             Path completionPath = projectPath.resolve("lib/completion.dart");
             Path formatPath = projectPath.resolve("lib/format.dart");
             Path importPath = projectPath.resolve("lib/missing_import.dart");
+            Path syntaxErrorPath = projectPath.resolve("lib/syntax_error.dart");
 
             FileUtil.refreshFor(projectPath.toFile());
             FileObject projectDirectory = requireFileObject(projectPath);
@@ -176,6 +185,7 @@ final class DartEditorEndToEndIT {
             FileObject completionFile = requireFileObject(completionPath);
             FileObject formatFile = requireFileObject(formatPath);
             FileObject importFile = requireFileObject(importPath);
+            FileObject syntaxErrorFile = requireFileObject(syntaxErrorPath);
 
             project = ProjectManager.getDefault().findProject(projectDirectory);
             assertNotNull("The assembled runtime did not recognize the Flutter project", project);
@@ -190,6 +200,9 @@ final class DartEditorEndToEndIT {
                 StyledDocument completionDocument = openDocument(completionFile);
                 StyledDocument formatDocument = openDocument(formatFile);
                 StyledDocument importDocument = openDocument(importFile);
+                StyledDocument syntaxErrorDocument = openDocument(syntaxErrorFile);
+
+                assertDartSyntaxHighlighting(mainDocument);
 
                 LSPBindings firstBinding = awaitBinding(mainFile, null);
                 Process firstProcess = bindingProcess(firstBinding);
@@ -216,18 +229,22 @@ final class DartEditorEndToEndIT {
                 JTextPane completionPane = registerEditorPane(completionDocument);
                 registerEditorPane(formatDocument);
                 registerEditorPane(importDocument);
+                registerEditorPane(syntaxErrorDocument);
                 refreshOpenedFilesInServers();
                 await("NetBeans editor synchronization to open every Dart document", () ->
                         firstBinding.getOpenedFiles().contains(mainFile)
                         && firstBinding.getOpenedFiles().contains(completionFile)
                         && firstBinding.getOpenedFiles().contains(formatFile)
-                        && firstBinding.getOpenedFiles().contains(importFile));
+                        && firstBinding.getOpenedFiles().contains(importFile)
+                        && firstBinding.getOpenedFiles().contains(syntaxErrorFile));
 
                 assertDefinitionTargets(firstBinding, mainFile, helperPath);
+                assertDocumentSymbols(firstBinding, mainFile);
                 assertReferencesAndRename(firstBinding, mainFile, helperPath);
                 assertCompletionAppliesAutoImport(completionDocument, completionPane);
                 assertFormattingThroughNetBeans(formatDocument);
                 assertDiagnosticAndQuickFix(firstBinding, importFile, importDocument);
+                assertSyntaxErrorHighlighting(syntaxErrorFile);
 
                 closeProject();
                 assertFalse("Dart analysis lifecycle remained open after project close",
@@ -255,6 +272,7 @@ final class DartEditorEndToEndIT {
                 closeDocument(completionFile);
                 closeDocument(formatFile);
                 closeDocument(importFile);
+                closeDocument(syntaxErrorFile);
                 closeDocument(helperFile);
             }
         }
@@ -288,6 +306,11 @@ final class DartEditorEndToEndIT {
             Files.writeString(lib.resolve("missing_import.dart"), """
                     void main() {
                       File('missing.txt');
+                    }
+                    """, StandardCharsets.UTF_8);
+            Files.writeString(lib.resolve("syntax_error.dart"), """
+                    void main() {
+                      final value = ;
                     }
                     """, StandardCharsets.UTF_8);
             return root.toAbsolutePath().normalize();
@@ -386,14 +409,13 @@ final class DartEditorEndToEndIT {
             String resolvedMimeType = FileUtil.getMIMEType(file);
             assertEquals("The assembled runtime did not resolve a Dart source MIME type",
                     DART_MIME_TYPE, resolvedMimeType);
-            EditorCookie editor = DataObject.find(file).getLookup().lookup(EditorCookie.class);
+            DataObject dataObject = DataObject.find(file);
+            assertEquals("An unpaired Dart source must use the ordinary Dart DataObject",
+                    DART_DATA_OBJECT, dataObject.getClass().getName());
+            EditorCookie editor = dataObject.getLookup().lookup(EditorCookie.class);
             assertNotNull("Dart file has no NetBeans EditorCookie: " + file.getPath(), editor);
             assertTrue("Dart EditorCookie is not backed by CloneableEditorSupport",
                     editor instanceof CloneableEditorSupport);
-            // The fallback DataObject starts its support as text/plain. In this headless
-            // gate, connect the MIME resolver to that same support before it constructs
-            // the document, so the registered DartEditorKit creates the editor document.
-            ((CloneableEditorSupport) editor).setMIMEType(resolvedMimeType);
             StyledDocument document = editor.openDocument();
             assertEquals("The Dart editor kit did not create a Dart document",
                     resolvedMimeType, document.getProperty("mimeType"));
@@ -402,6 +424,32 @@ final class DartEditorEndToEndIT {
             assertNotNull("NetBeans hints cannot attach to the Dart editor document",
                     AnnotationHolder.getInstance(file));
             return document;
+        }
+
+        private void assertDartSyntaxHighlighting(StyledDocument document) {
+            TokenHierarchy<?> hierarchy = TokenHierarchy.get(document);
+            assertNotNull("The ordinary Dart document has no token hierarchy", hierarchy);
+            assertTrue("The ordinary Dart token hierarchy is inactive", hierarchy.isActive());
+            TokenSequence<?> sequence = hierarchy.tokenSequence();
+            assertNotNull("The ordinary Dart document has no top-level token sequence",
+                    sequence);
+            assertEquals("The ordinary editor selected a non-Dart lexer",
+                    DART_MIME_TYPE, sequence.language().mimeType());
+
+            boolean importKeyword = false;
+            boolean importString = false;
+            while (sequence.moveNext()) {
+                String category = sequence.token().id().primaryCategory();
+                CharSequence text = sequence.token().text();
+                importKeyword |= "keyword".equals(category)
+                        && "import".contentEquals(text);
+                importString |= "string".equals(category)
+                        && "'helper.dart'".contentEquals(text);
+            }
+            assertTrue("Dart syntax highlighting did not classify import as a keyword",
+                    importKeyword);
+            assertTrue("Dart syntax highlighting did not classify the import URI as a string",
+                    importString);
         }
 
         private void closeDocument(FileObject file) {
@@ -481,6 +529,34 @@ final class DartEditorEndToEndIT {
                             .anyMatch(uri -> samePath(uri, helperPath));
             assertTrue("Go to Definition did not target helper.dart: " + result,
                     pointsToHelper);
+        }
+
+        private void assertDocumentSymbols(
+                LSPBindings binding,
+                FileObject mainFile) throws Exception {
+            List<Either<SymbolInformation, DocumentSymbol>> symbols = binding
+                    .getTextDocumentService()
+                    .documentSymbol(new DocumentSymbolParams(
+                            new TextDocumentIdentifier(Utils.toURI(mainFile))))
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            assertNotNull("Dart document-symbol request returned null", symbols);
+            boolean containsMain = symbols.stream().anyMatch(symbol ->
+                    symbol.isLeft()
+                            ? "main".equals(symbol.getLeft().getName())
+                            : containsDocumentSymbol(symbol.getRight(), "main"));
+            assertTrue("Dart document symbols did not expose main for Navigator: "
+                    + symbols, containsMain);
+        }
+
+        private static boolean containsDocumentSymbol(
+                DocumentSymbol symbol,
+                String expectedName) {
+            if (expectedName.equals(symbol.getName())) {
+                return true;
+            }
+            List<DocumentSymbol> children = symbol.getChildren();
+            return children != null && children.stream()
+                    .anyMatch(child -> containsDocumentSymbol(child, expectedName));
         }
 
         private void assertReferencesAndRename(
@@ -697,6 +773,31 @@ final class DartEditorEndToEndIT {
                     return false;
                 }
             });
+        }
+
+        private void assertSyntaxErrorHighlighting(FileObject file) throws Exception {
+            @SuppressWarnings("unchecked")
+            List<ErrorDescription>[] published = new List[] {List.of()};
+            await("a Dart parser error in the NetBeans hints model", () -> {
+                AnnotationHolder holder = AnnotationHolder.getInstance(file);
+                if (holder == null) {
+                    return false;
+                }
+                published[0] = holder.getErrors().stream().toList();
+                return published[0].stream()
+                        .anyMatch(error -> Severity.ERROR.equals(error.getSeverity()));
+            });
+            ErrorDescription syntaxError = published[0].stream()
+                    .filter(error -> Severity.ERROR.equals(error.getSeverity()))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull("Malformed Dart did not produce an error-stripe diagnostic: "
+                    + published[0], syntaxError);
+            assertNotNull("The Dart syntax diagnostic has no source range",
+                    syntaxError.getRange());
+            assertFalse("The Dart syntax diagnostic message is blank",
+                    syntaxError.getDescription() == null
+                            || syntaxError.getDescription().isBlank());
         }
 
         private void awaitDartIoCodeActionAvailability(

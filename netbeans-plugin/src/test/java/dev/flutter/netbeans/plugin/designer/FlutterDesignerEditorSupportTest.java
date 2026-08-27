@@ -29,6 +29,7 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
 import dev.flutter.netbeans.plugin.dart.DartEditorKit;
 import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
+import dev.flutter.netbeans.plugin.project.FlutterProject;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.StyledDocument;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.netbeans.editor.BaseDocument;
@@ -60,12 +62,13 @@ import org.openide.cookies.EditCookie;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.OpenCookie;
 import org.openide.cookies.PrintCookie;
+import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.loaders.DataObject;
 import org.openide.loaders.SaveAsCapable;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.DataEditorSupport;
+import org.openide.windows.CloneableTopComponent;
 
 /** Structural contract for the designer-specific source editor support. */
 class FlutterDesignerEditorSupportTest {
@@ -88,6 +91,38 @@ class FlutterDesignerEditorSupportTest {
     @TempDir
     Path temporaryDirectory;
 
+    private final List<EditorFixture> openFixtures = new ArrayList<>();
+
+    @AfterEach
+    void closeEditorFixturesBeforeTemporaryFilesAreRemoved() {
+        AssertionError cleanupFailure = null;
+        for (int index = openFixtures.size() - 1; index >= 0; index--) {
+            EditorFixture fixture = openFixtures.get(index);
+            try {
+                // These tests deliberately exercise dirty and recovery states.
+                // Discard that synthetic state before JUnit deletes @TempDir;
+                // otherwise NetBeans delivers a later file-delete event to a
+                // modified DataEditorSupport and opens a modal read-only-close
+                // question in an unrelated following test.
+                fixture.editor().getDataObject().setModified(false);
+                if (!fixture.editor().close()) {
+                    throw new AssertionError(
+                            "the synthetic Designer editor refused test cleanup");
+                }
+            } catch (RuntimeException | AssertionError failure) {
+                if (cleanupFailure == null) {
+                    cleanupFailure = new AssertionError(
+                            "Cannot clean up a Designer editor test fixture");
+                }
+                cleanupFailure.addSuppressed(failure);
+            }
+        }
+        openFixtures.clear();
+        if (cleanupFailure != null) {
+            throw cleanupFailure;
+        }
+    }
+
     @Test
     void providesStandardEditorCookiesWithoutUnsafeDartOnlySaveAs() {
         Class<FlutterDesignerEditorSupport> type = FlutterDesignerEditorSupport.class;
@@ -106,6 +141,47 @@ class FlutterDesignerEditorSupportTest {
     void ownsAGuardedEditorBridgeForTheDocumentBeingLoaded() {
         assertTrue(Arrays.stream(FlutterDesignerEditorSupport.class.getDeclaredClasses())
                 .anyMatch(GuardedEditorSupport.class::isAssignableFrom));
+    }
+
+    @Test
+    void newDesignerPaneStartsWithVisibleModelTitleAndAnnotatesPairedDirtyState()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("pane_title");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
+                editor.getDataObject();
+
+        CloneableEditorSupport.Pane pane = onEdt(editor::createPane);
+        CloneableTopComponent component = pane.getComponent();
+
+        assertTrue(dataObject.isValid(),
+                "a non-empty title must not mask an invalid DataObject");
+        assertFalse(dataObject.getNodeDelegate().getDisplayName().isBlank(),
+                "the regression is not an empty or invalid DataObject node");
+        assertEquals("home_page.fd", component.getDisplayName(),
+                "the clean Design-first pane must be titled before Source is created");
+        assertTrue(component.getHtmlDisplayName().contains("home_page.fd"));
+        assertTrue(component.getToolTipText().contains(
+                FileUtil.getFileDisplayName(dataObject.getModelFile())),
+                "the tooltip must identify the visible .fd model");
+        assertTrue(component.getToolTipText().contains(
+                FileUtil.getFileDisplayName(dataObject.getPrimaryFile())),
+                "the tooltip must identify the paired Dart source");
+
+        onEdt(() -> {
+            fixture.document().insertString(
+                    fixture.document().getLength(),
+                    "// title dirty-state edit\n",
+                    null);
+            return null;
+        });
+
+        assertNotNull(dataObject.getCookie(SaveCookie.class),
+                "a paired dirty form must publish its stable SaveCookie");
+        assertTrue(editor.messageHtmlName().contains("<b>home_page.fd</b>"),
+                "the title annotation must follow the paired DataObject dirty state");
+        assertTrue(editor.messageToolTip().contains("unsaved changes"),
+                "the tooltip must explain why the paired form is dirty");
     }
 
     @Test
@@ -670,22 +746,33 @@ class FlutterDesignerEditorSupportTest {
             String name,
             boolean installForwardCaptureWrapper) throws Exception {
         Path folder = Files.createDirectory(temporaryDirectory.resolve(name));
-        Path dartPath = folder.resolve("home_page.dart");
-        Path fdPath = folder.resolve("home_page.fd");
+        Files.createDirectories(folder.resolve("lib"));
+        Files.createDirectories(folder.resolve(".fd_templates"));
+        Files.writeString(folder.resolve("pubspec.yaml"), """
+                name: editor_fixture
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                """, StandardCharsets.UTF_8);
+        FlutterProject project = FlutterDesignerTestProject.own(folder);
+        Path dartPath = folder.resolve("lib/home_page.dart");
+        Path fdPath = folder.resolve(".fd_templates/home_page.fd");
         Files.writeString(dartPath, SOURCE, StandardCharsets.UTF_8);
         Files.write(fdPath, fdBytes());
         FileUtil.refreshFor(folder.toFile());
         FileObject dart = FileUtil.toFileObject(dartPath.toFile());
         assertNotNull(dart);
-        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
-                DataObject.find(dart);
+        FlutterDesignerDataObject dataObject = FlutterDesignerTestProject
+                .dataObject(dart, project);
         FlutterDesignerEditorSupport editor = dataObject.getEditorSupport();
         StyledDocument document = openGuardedSourceDocument(
                 editor, installForwardCaptureWrapper);
-        return new EditorFixture(
+        EditorFixture fixture = new EditorFixture(
                 editor,
                 document,
                 dataObject.getPairSaveCoordinator());
+        openFixtures.add(fixture);
+        return fixture;
     }
 
     private static StyledDocument openGuardedSourceDocument(

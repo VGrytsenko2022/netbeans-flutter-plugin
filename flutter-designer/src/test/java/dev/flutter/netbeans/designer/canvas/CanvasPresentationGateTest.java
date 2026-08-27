@@ -73,6 +73,27 @@ class CanvasPresentationGateTest {
     }
 
     @Test
+    void documentGateCanContinueASessionOwnedPresentationSequence() {
+        DesignerDocument document = document(DOCUMENT_B);
+        CanvasPresentationGate gate = new CanvasPresentationGate(
+                SESSION_A, DOCUMENT_B, 41);
+
+        CanvasRenderRequest request = gate.present(
+                profile(CanvasPreviewMode.DESKTOP, CanvasTargetPlatform.WINDOWS),
+                snapshot(9, document));
+
+        assertEquals(41, request.revisionKey().presentationSequence());
+        assertEquals(DOCUMENT_B, request.revisionKey().documentId());
+        assertThrows(IllegalArgumentException.class, () ->
+                new CanvasPresentationGate(SESSION_A, DOCUMENT_B, -1));
+        CanvasPresentationGate exhausted = new CanvasPresentationGate(
+                SESSION_A, DOCUMENT_B, Long.MAX_VALUE);
+        assertThrows(IllegalStateException.class, () -> exhausted.present(
+                profile(CanvasPreviewMode.DESKTOP, CanvasTargetPlatform.WINDOWS),
+                snapshot(10, document)));
+    }
+
+    @Test
     void acceptsOnlyContiguousFramesLayoutsAndExactLatestSelection() {
         DesignerDocument document = document(DOCUMENT_A);
         CanvasPresentationGate gate = new CanvasPresentationGate(SESSION_A, DOCUMENT_A);

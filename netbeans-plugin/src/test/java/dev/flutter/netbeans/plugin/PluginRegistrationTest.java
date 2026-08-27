@@ -48,12 +48,53 @@ class PluginRegistrationTest {
     @Test
     void registersDartClassNewFileTemplate() throws IOException {
         String layer = readResource("META-INF/generated-layer.xml");
+        String registration = fileRegistration(
+                layer,
+                "dev-flutter-netbeans-plugin-dart-wizard-DartClassWizardIterator");
 
         assertTrue(layer.contains("<folder name=\"Templates\">"));
         assertTrue(layer.contains("<folder name=\"Dart\">"));
-        assertTrue(layer.contains("DartClassWizardIterator"));
-        assertTrue(layer.contains("DartClassDescription.html"));
-        assertTrue(layer.contains("name=\"templateCategory\" stringvalue=\"dart\""));
+        assertTrue(registration.contains("DartClassWizardIterator"));
+        assertTrue(registration.contains("DartClassDescription.html"));
+        assertTrue(registration.contains(
+                "name=\"templateCategory\" stringvalue=\"dart\""));
+        assertTrue(registration.contains(
+                "name=\"iconBase\" stringvalue=\"dev/flutter/netbeans/plugin/ui/icons/dartFile16.svg\""),
+                "Dart Class must use the Dart file-type icon in New File");
+    }
+
+    @Test
+    void registersFlutterDesignerFormNewFileTemplate() throws IOException {
+        String layer = readResource("META-INF/generated-layer.xml");
+        String registration = fileRegistration(
+                layer,
+                "dev-flutter-netbeans-plugin-designer-wizard-"
+                + "FlutterDesignerFormWizardIterator");
+
+        assertTrue(layer.contains("<folder name=\"Flutter Designer\">"));
+        assertTrue(registration.contains("FlutterDesignerFormWizardIterator"));
+        assertTrue(registration.contains("FlutterDesignerFormDescription.html"));
+        assertTrue(registration.contains(
+                "name=\"templateCategory\" stringvalue=\"flutter-designer\""));
+        assertTrue(registration.contains(
+                "name=\"iconBase\" stringvalue=\"dev/flutter/netbeans/plugin/ui/icons/flutterDesignerFile16.svg\""),
+                "Flutter Designer Form must use the Designer file-type icon in New File");
+    }
+
+    @Test
+    void packagesSixteenPixelLightAndDarkFileTypeIcons() throws IOException {
+        assertSvgIcon(
+                "dev/flutter/netbeans/plugin/ui/icons/dartFile16.svg", "16", "16");
+        assertSvgIcon(
+                "dev/flutter/netbeans/plugin/ui/icons/dartFile16_dark.svg", "16", "16");
+        assertSvgIcon(
+                "dev/flutter/netbeans/plugin/ui/icons/flutterDesignerFile16.svg",
+                "16",
+                "16");
+        assertSvgIcon(
+                "dev/flutter/netbeans/plugin/ui/icons/flutterDesignerFile16_dark.svg",
+                "16",
+                "16");
     }
 
     @Test

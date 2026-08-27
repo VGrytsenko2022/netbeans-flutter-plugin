@@ -1,5 +1,7 @@
 package dev.flutter.netbeans.runtime;
 
+import java.awt.Component;
+import java.awt.event.ActionEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -8,9 +10,15 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.FutureTask;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 import javax.swing.Action;
+import javax.swing.JEditorPane;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
+import javax.swing.text.StyledDocument;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import junit.framework.TestFailure;
@@ -19,12 +27,21 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.netbeans.junit.NbModuleSuite;
 import org.netbeans.junit.NbTestCase;
+import org.netbeans.modules.editor.NbEditorUtilities;
+import org.openide.cookies.EditorCookie;
+import org.openide.cookies.OpenCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileSystem;
 import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataObject;
 import org.openide.modules.ModuleInfo;
+import org.openide.nodes.Node;
+import org.openide.nodes.NodeOp;
+import org.openide.util.ContextAwareAction;
 import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
+import org.openide.windows.CloneableTopComponent;
+import org.openide.windows.TopComponent;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -140,7 +157,7 @@ final class NetBeansRuntimeRegistrationIT {
                 .honorAutoloadEager(true)
                 .failOnMessage(Level.SEVERE)
                 .failOnException(Level.SEVERE)
-                .gui(false)
+                .gui(true)
                 .suite();
 
         TestResult result = new TestResult();
@@ -253,6 +270,7 @@ final class NetBeansRuntimeRegistrationIT {
         public void testFlutterRegistrations() throws Exception {
             assertFlutterModuleActive();
             assertDartMimeAndEditorRegistrations();
+            assertOrdinaryDartFilesOpenThroughExplorerActions();
             assertFlutterMenuActions();
             assertFlutterToolbarActions();
         }
@@ -303,6 +321,161 @@ final class NetBeansRuntimeRegistrationIT {
                     "Actions/Debug/org-netbeans-modules-debugger-ui-actions-ToggleBreakpointAction.instance",
                     breakpointAction.getAttribute("originalFile"));
             assertConfigFile((String) breakpointAction.getAttribute("originalFile"));
+        }
+
+        private void assertOrdinaryDartFilesOpenThroughExplorerActions() throws Exception {
+            clearWorkDir();
+            Path root = Files.createDirectories(getWorkDir().toPath().resolve("dart-open"));
+            FileObject preferredFile = createDartFile(
+                    root.resolve("preferred_open.dart"),
+                    "void main() => print('preferred');\n");
+            FileObject popupFile = createDartFile(
+                    root.resolve("popup_open.dart"),
+                    "void main() => print('popup');\n");
+
+            assertDartFileOpensFromNode(preferredFile, false);
+            assertDartFileOpensFromNode(popupFile, true);
+        }
+
+        private FileObject createDartFile(Path path, String source) throws Exception {
+            Files.writeString(path, source);
+            FileUtil.refreshFor(path.toFile());
+            FileObject file = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+            assertNotNull("NetBeans did not discover the Dart test file: " + path, file);
+            return file;
+        }
+
+        private void assertDartFileOpensFromNode(FileObject file, boolean usePopup)
+                throws Exception {
+            assertEquals("Ordinary .dart file has the wrong MIME type",
+                    "text/x-dart", FileUtil.getMIMEType(file));
+            DataObject dataObject = DataObject.find(file);
+            assertEquals("Ordinary .dart file has the wrong DataObject",
+                    "dev.flutter.netbeans.plugin.dart.DartDataObject",
+                    dataObject.getClass().getName());
+
+            OpenCookie open = dataObject.getLookup().lookup(OpenCookie.class);
+            EditorCookie editor = dataObject.getLookup().lookup(EditorCookie.class);
+            assertNotNull("Ordinary .dart file has no OpenCookie", open);
+            assertNotNull("Ordinary .dart file has no EditorCookie", editor);
+            assertSame("OpenCookie and EditorCookie must use one editor support", open, editor);
+            assertNull("Dart editor was already open before invoking its Node action",
+                    onEdt(editor::getOpenedPanes));
+
+            Node node = dataObject.getNodeDelegate();
+            Action preferred = node.getPreferredAction();
+            assertNotNull("Ordinary .dart node has no preferred action", preferred);
+            assertEquals("Double-click must resolve to the visible Open action",
+                    "Open", preferred.getValue(Action.NAME));
+
+            Action[] actions = node.getActions(false);
+            assertTrue("Ordinary .dart node has no context actions", actions.length > 0);
+            assertNotNull("The first ordinary .dart context action is a separator", actions[0]);
+            assertEquals("Open must be the first ordinary .dart context action",
+                    preferred.getValue(Action.NAME), actions[0].getValue(Action.NAME));
+
+            String openLabel = String.valueOf(preferred.getValue(Action.NAME));
+            JMenuItem openMenuItem = onEdt(() -> {
+                JPopupMenu popup = NodeOp.findContextMenu(new Node[]{node});
+                return findMenuItem(popup, openLabel);
+            });
+            assertNotNull("Ordinary .dart context menu has no visible '"
+                    + openLabel + "' item", openMenuItem);
+            assertTrue("Ordinary .dart context-menu Open item is disabled",
+                    onEdt(openMenuItem::isEnabled));
+
+            Action selectedPreferred = preferred instanceof ContextAwareAction contextAware
+                    ? contextAware.createContextAwareInstance(node.getLookup())
+                    : preferred;
+            assertTrue("Preferred Open action is disabled for the selected Dart node",
+                    onEdt(selectedPreferred::isEnabled));
+
+            try {
+                if (usePopup) {
+                    onEdt(() -> {
+                        openMenuItem.doClick();
+                        return null;
+                    });
+                } else {
+                    onEdt(() -> {
+                        selectedPreferred.actionPerformed(new ActionEvent(
+                                node, ActionEvent.ACTION_PERFORMED, "open"));
+                        return null;
+                    });
+                }
+
+                JEditorPane[] panes = awaitOpenedPanes(editor);
+                assertNotNull("The Dart Node Open action did not open an editor pane", panes);
+                assertTrue("The Dart Node Open action opened no editor panes", panes.length > 0);
+                StyledDocument document = editor.getDocument();
+                assertNotNull("The opened Dart editor has no document", document);
+                assertSame("The opened pane is not backed by the Dart editor document",
+                        document, panes[0].getDocument());
+                assertEquals("The opened editor document lost the Dart MIME type",
+                        "text/x-dart", document.getProperty("mimeType"));
+                assertSame("The opened editor document lost its Dart DataObject",
+                        dataObject, NbEditorUtilities.getDataObject(document));
+
+                TopComponent editorComponent = onEdt(() -> findEditorTopComponent(
+                        panes[0], dataObject));
+                assertNotNull("The Dart Node Open action did not open a NetBeans TopComponent",
+                        editorComponent);
+                assertTrue("The Dart editor is not a cloneable NetBeans editor component",
+                        editorComponent instanceof CloneableTopComponent);
+                assertTrue("The Dart editor TopComponent is not marked opened",
+                        editorComponent.isOpened());
+                assertTrue("The Dart editor is absent from the Window System registry",
+                        TopComponent.getRegistry().getOpened().contains(editorComponent));
+            } finally {
+                onEdt(() -> {
+                    editor.close();
+                    return null;
+                });
+            }
+        }
+
+        private JEditorPane[] awaitOpenedPanes(EditorCookie editor) throws Exception {
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
+            JEditorPane[] panes;
+            do {
+                panes = onEdt(editor::getOpenedPanes);
+                if (panes != null && panes.length > 0) {
+                    return panes;
+                }
+                Thread.sleep(20);
+            } while (System.nanoTime() < deadline);
+            return panes;
+        }
+
+        private JMenuItem findMenuItem(JPopupMenu popup, String label) {
+            for (Component component : popup.getComponents()) {
+                if (component instanceof JMenuItem item && label.equals(item.getText())) {
+                    return item;
+                }
+            }
+            return null;
+        }
+
+        private TopComponent findEditorTopComponent(
+                JEditorPane pane,
+                DataObject dataObject) {
+            Component ancestor = SwingUtilities.getAncestorOfClass(TopComponent.class, pane);
+            if (ancestor instanceof TopComponent topComponent) {
+                return topComponent;
+            }
+            return TopComponent.getRegistry().getOpened().stream()
+                    .filter(component -> component.getLookup().lookup(DataObject.class) == dataObject)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        private <T> T onEdt(java.util.concurrent.Callable<T> operation) throws Exception {
+            if (SwingUtilities.isEventDispatchThread()) {
+                return operation.call();
+            }
+            FutureTask<T> task = new FutureTask<>(operation);
+            SwingUtilities.invokeAndWait(task);
+            return task.get();
         }
 
         private void assertFlutterMenuActions() {

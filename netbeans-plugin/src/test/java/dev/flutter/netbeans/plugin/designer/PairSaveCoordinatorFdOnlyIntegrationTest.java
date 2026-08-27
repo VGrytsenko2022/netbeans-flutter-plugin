@@ -32,6 +32,7 @@ import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionIssue
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionRequest;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionResult;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionStatus;
+import dev.flutter.netbeans.plugin.project.FlutterProject;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -59,7 +60,6 @@ import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -443,8 +443,17 @@ class PairSaveCoordinatorFdOnlyIntegrationTest {
 
     private FdOnlyFixture fixture(String name) throws Exception {
         Path folder = Files.createDirectory(temporaryDirectory.resolve(name));
-        Path dartPath = folder.resolve(name + ".dart");
-        Path designerPath = folder.resolve(name + ".fd");
+        Files.createDirectories(folder.resolve("lib"));
+        Files.createDirectories(folder.resolve(".fd_templates"));
+        Files.writeString(folder.resolve("pubspec.yaml"), """
+                name: fd_only_fixture
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                """, StandardCharsets.UTF_8);
+        FlutterProject project = FlutterDesignerTestProject.own(folder);
+        Path dartPath = folder.resolve("lib/" + name + ".dart");
+        Path designerPath = folder.resolve(".fd_templates/" + name + ".fd");
         DesignerDocument provisional = document(descriptor(
                 name + ".dart", "0".repeat(64), "0".repeat(64)));
         GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
@@ -466,8 +475,8 @@ class PairSaveCoordinatorFdOnlyIntegrationTest {
         FileObject designerFile = FileUtil.toFileObject(designerPath.toFile());
         assertNotNull(dartFile);
         assertNotNull(designerFile);
-        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
-                DataObject.find(dartFile);
+        FlutterDesignerDataObject dataObject = FlutterDesignerTestProject
+                .dataObject(dartFile, project);
         FlutterDesignerDocumentController controller =
                 dataObject.getDocumentController();
         assertTrue(controller.viewOpened());

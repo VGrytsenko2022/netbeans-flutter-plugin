@@ -76,6 +76,21 @@ class CanvasRunnerSourceBundleTest {
     }
 
     @Test
+    void buildProfileIsPartOfCacheIdentity() throws Exception {
+        CanvasRunnerSourceBundle bundle = bundle(Map.of("pubspec.yaml", "name: runner\n"));
+        FlutterSdk sdk = sdk("engine-profile");
+
+        CanvasRunnerCacheIdentity release = CanvasRunnerCacheIdentity.create(bundle, sdk);
+        CanvasRunnerCacheIdentity explicitRelease = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, CanvasRunnerBuildService.BUILD_PROFILE);
+        CanvasRunnerCacheIdentity debug = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, "windows-debug-v1");
+
+        assertEquals(release.cacheKey(), explicitRelease.cacheKey());
+        assertNotEquals(release.cacheKey(), debug.cacheKey());
+    }
+
+    @Test
     void cachedSourceRejectsLinkedPackagedAncestor() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle(Map.of(
                 "lib/main.dart", "void main() {}"));

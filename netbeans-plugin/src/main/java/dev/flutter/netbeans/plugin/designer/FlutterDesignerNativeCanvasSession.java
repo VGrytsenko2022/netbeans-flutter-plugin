@@ -1,8 +1,30 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.designer.canvas.CanvasAdmission;
+import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
+import dev.flutter.netbeans.designer.canvas.CanvasIntentAdmission;
+import dev.flutter.netbeans.designer.canvas.CanvasIntentReplayGate;
+import dev.flutter.netbeans.designer.canvas.CanvasIntentReplayPolicy;
+import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasPresentationGate;
+import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
+import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
+import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
+import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
+import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
+import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
+import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.validation.ValidationLimits;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildResult;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildService;
+import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerProcessChannel;
+import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeLease;
 import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasHost;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
@@ -16,9 +38,11 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -35,15 +59,30 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private final NativeCanvasHost host;
     private final RuntimeServices runtime;
     private final Consumer<FlutterDesignerNativeCanvasStatus> listener;
+    private final Consumer<StableId> selectionListener;
+    private final CanvasModelPayloadCodec payloadCodec = new CanvasModelPayloadCodec();
     private CanvasRunnerBuildResult prepared;
     private CompletableFuture<CanvasRunnerBuildResult> buildFuture;
     private Process process;
+    private CanvasRunnerProcessChannel processChannel;
     private CanvasRunnerRuntimeLease processRuntimeLease;
     private BoundedDiagnostics runtimeDiagnostics;
     private Cancellable attachPoll;
     private long attachDeadlineNanos;
     private long generation;
     private long surfaceEpoch;
+    private long presentationGeneration;
+    private CanvasSessionId canvasSessionId;
+    private CanvasEngineIdentity canvasEngineIdentity;
+    private CanvasPresentationGate presentationGate;
+    private StableId presentationDocumentId;
+    private long nextPresentationSequence;
+    private CanvasIntentReplayGate intentReplayGate;
+    private CanvasRenderRequest currentRenderRequest;
+    private CanvasLayoutKey currentLayout;
+    private Set<StableId> currentWidgetIds = Set.of();
+    private StableId desiredSelection;
+    private PendingPresentation pendingPresentation;
     private boolean requestedVisible;
     private boolean launchPending;
     private boolean closed;
@@ -51,11 +90,19 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     static FlutterDesignerNativeCanvasSession createDefault(
             WindowsNativeCanvasHost host,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) throws IOException {
+        return createDefault(host, listener, ignored -> { });
+    }
+
+    static FlutterDesignerNativeCanvasSession createDefault(
+            WindowsNativeCanvasHost host,
+            Consumer<FlutterDesignerNativeCanvasStatus> listener,
+            Consumer<StableId> selectionListener) throws IOException {
         return new FlutterDesignerNativeCanvasSession(
                 host,
                 CanvasRunnerBuildService.createDefault(),
                 new FlutterToolchainService(),
-                listener);
+                listener,
+                selectionListener);
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -63,17 +110,37 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             CanvasRunnerBuildService builds,
             FlutterToolchainService toolchains,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) {
-        this(new WindowsHostAdapter(host), defaultRuntime(builds, toolchains), listener);
+        this(host, builds, toolchains, listener, ignored -> { });
+    }
+
+    FlutterDesignerNativeCanvasSession(
+            WindowsNativeCanvasHost host,
+            CanvasRunnerBuildService builds,
+            FlutterToolchainService toolchains,
+            Consumer<FlutterDesignerNativeCanvasStatus> listener,
+            Consumer<StableId> selectionListener) {
+        this(new WindowsHostAdapter(host), defaultRuntime(builds, toolchains),
+                listener, selectionListener);
     }
 
     FlutterDesignerNativeCanvasSession(
             NativeCanvasHost host,
             RuntimeServices runtime,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) {
+        this(host, runtime, listener, ignored -> { });
+    }
+
+    FlutterDesignerNativeCanvasSession(
+            NativeCanvasHost host,
+            RuntimeServices runtime,
+            Consumer<FlutterDesignerNativeCanvasStatus> listener,
+            Consumer<StableId> selectionListener) {
         requireEventDispatchThread();
         this.host = Objects.requireNonNull(host, "host");
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         this.listener = Objects.requireNonNull(listener, "listener");
+        this.selectionListener = Objects.requireNonNull(
+                selectionListener, "selectionListener");
         host.onPeerReady(this::startIfPossible);
         host.onPeerLost(this::peerLost);
         host.onAttachmentFailed(this::attachmentFailed);
@@ -107,6 +174,113 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
     }
 
+    /** Publishes the latest validated read-only document for this Design view. */
+    void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform) {
+        requireEventDispatchThread();
+        if (closed) {
+            return;
+        }
+        final ValidatedCanvasRevisionSnapshot snapshot;
+        try {
+            snapshot = ValidatedCanvasRevisionSnapshot.captureReadOnly(
+                    0L,
+                    Objects.requireNonNull(document, "document"),
+                    Objects.requireNonNull(catalog, "catalog"),
+                    ValidationLimits.defaults());
+        } catch (IllegalArgumentException failure) {
+            withdraw();
+            publishFailure(
+                    "Validate native Flutter Canvas model",
+                    failureReason(failure));
+            return;
+        }
+        Set<StableId> widgetIds = collectWidgetIds(snapshot.document().root());
+        if (desiredSelection == null || !widgetIds.contains(desiredSelection)) {
+            desiredSelection = snapshot.document().root().id();
+        }
+        long publication = ++presentationGeneration;
+        pendingPresentation = new PendingPresentation(
+                publication,
+                snapshot,
+                Objects.requireNonNull(previewMode, "previewMode"),
+                Objects.requireNonNull(targetPlatform, "targetPlatform"),
+                widgetIds);
+        currentRenderRequest = null;
+        currentLayout = null;
+        currentWidgetIds = Set.of();
+        if (process == null) {
+            startIfPossible();
+        } else {
+            ensureProcessChannel();
+            publishPendingPresentation();
+        }
+    }
+
+    /** Invalidates old Canvas interaction authority and removes stale pixels. */
+    void withdraw() {
+        requireEventDispatchThread();
+        presentationGeneration++;
+        pendingPresentation = null;
+        desiredSelection = null;
+        clearPresentationAuthority();
+        if (process == null) {
+            if (launchPending) {
+                generation++;
+                launchPending = false;
+            }
+            return;
+        }
+        generation++;
+        launchPending = false;
+        stopAttachTimer();
+        Process current = process;
+        CanvasRunnerRuntimeLease currentRuntimeLease = processRuntimeLease;
+        process = null;
+        processRuntimeLease = null;
+        closeProcessChannel();
+        runtimeDiagnostics = null;
+        try {
+            host.close();
+        } catch (RuntimeException | LinkageError ignored) {
+            // The process is still terminated below and cannot retain authority.
+        }
+        terminateAndRelease(current, currentRuntimeLease);
+        publish(new FlutterDesignerNativeCanvasStatus(
+                FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                "Native Flutter Canvas model withdrawn.",
+                "The previous read-only presentation was invalidated because the "
+                + "current .fd state is not eligible for Canvas rendering."));
+    }
+
+    /** Mirrors trusted NetBeans tree selection into the current Flutter overlay. */
+    void selectWidget(StableId widgetId) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(widgetId, "widgetId");
+        Set<StableId> availableWidgetIds = pendingPresentation == null
+                ? currentWidgetIds
+                : pendingPresentation.widgetIds();
+        if (!availableWidgetIds.contains(widgetId)) {
+            return;
+        }
+        desiredSelection = widgetId;
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasLayoutKey layout = currentLayout;
+        if (channel == null || layout == null) {
+            return;
+        }
+        try {
+            channel.select(layout, widgetId);
+        } catch (RuntimeException failure) {
+            failCurrentProcess(
+                    "Select widget in native Flutter Canvas",
+                    failureReason(failure));
+        }
+    }
+
     @Override
     public void close() {
         requireEventDispatchThread();
@@ -130,6 +304,10 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         CanvasRunnerRuntimeLease currentRuntimeLease = processRuntimeLease;
         process = null;
         processRuntimeLease = null;
+        closeProcessChannel();
+        clearPresentationAuthority();
+        pendingPresentation = null;
+        desiredSelection = null;
         runtimeDiagnostics = null;
         if (current != null) {
             terminateAndRelease(current, currentRuntimeLease);
@@ -279,7 +457,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                             command, runner.executable().getParent());
                     Process started = launched;
                     BoundedDiagnostics diagnostics = new BoundedDiagnostics();
-                    drainOutput(started, diagnostics);
+                    drainErrorOutput(started, diagnostics);
                     try {
                         runtime.uiExecutor().execute(() -> processStarted(
                                 launchGeneration, epoch, parentWindow, started, diagnostics,
@@ -353,6 +531,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         process = launched;
         processRuntimeLease = launchRuntimeLease;
         runtimeDiagnostics = diagnostics;
+        ensureProcessChannel();
         attachDeadlineNanos = System.nanoTime() + ATTACH_TIMEOUT.toNanos();
         try {
             attachPoll = runtime.pollScheduler().schedule(
@@ -407,6 +586,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                         "Verified embedded FlutterView surface " + epoch
                         + " in isolated process " + current.pid()
                         + ". Rendering is native; no PNG or pixel-frame transport is used."));
+                publishPendingPresentation();
                 return;
             }
         } catch (RuntimeException | LinkageError exception) {
@@ -430,6 +610,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         process = null;
         CanvasRunnerRuntimeLease exitedRuntimeLease = processRuntimeLease;
         processRuntimeLease = null;
+        closeProcessChannel();
+        clearPresentationAuthority();
         launchPending = false;
         closeLease(exitedRuntimeLease);
         host.close();
@@ -459,6 +641,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         CanvasRunnerRuntimeLease currentRuntimeLease = processRuntimeLease;
         process = null;
         processRuntimeLease = null;
+        closeProcessChannel();
+        clearPresentationAuthority();
         runtimeDiagnostics = null;
         if (current != null) {
             terminateAndRelease(current, currentRuntimeLease);
@@ -479,6 +663,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         CanvasRunnerRuntimeLease currentRuntimeLease = processRuntimeLease;
         process = null;
         processRuntimeLease = null;
+        closeProcessChannel();
+        clearPresentationAuthority();
         String output = runtimeDiagnostics == null ? "" : runtimeDiagnostics.snapshot();
         runtimeDiagnostics = null;
         if (current != null) {
@@ -503,6 +689,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         CanvasRunnerRuntimeLease currentRuntimeLease = processRuntimeLease;
         process = null;
         processRuntimeLease = null;
+        closeProcessChannel();
+        clearPresentationAuthority();
         String hostCloseFailure = null;
         try {
             host.close();
@@ -520,6 +708,343 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 ? ""
                 : " Native host cleanup also failed: " + hostCloseFailure + ".";
         publishFailure(operation, reason + diagnosticSuffix(output) + closeSuffix);
+    }
+
+    private void ensureProcessChannel() {
+        requireEventDispatchThread();
+        if (closed || process == null || pendingPresentation == null
+                || processChannel != null) {
+            return;
+        }
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        canvasSessionId = sessionId;
+        nextPresentationSequence = 0;
+        intentReplayGate = new CanvasIntentReplayGate(sessionId);
+        CanvasRunnerProcessChannel created = new CanvasRunnerProcessChannel(
+                process,
+                sessionId,
+                runtime.uiExecutor(),
+                new CanvasRunnerProcessChannel.Listener() {
+                    @Override
+                    public void ready(CanvasEngineIdentity engineIdentity) {
+                        processChannelReady(sessionId, engineIdentity);
+                    }
+
+                    @Override
+                    public void presented(CanvasLayoutKey layoutKey) {
+                        processChannelPresented(sessionId, layoutKey);
+                    }
+
+                    @Override
+                    public void selection(
+                            dev.flutter.netbeans.designer.canvas.CanvasIntentKey intentKey,
+                            StableId widgetId) {
+                        processChannelSelection(sessionId, intentKey, widgetId);
+                    }
+
+                    @Override
+                    public void failed(String reason) {
+                        processChannelFailed(sessionId, reason);
+                    }
+                });
+        processChannel = created;
+        try {
+            created.start();
+        } catch (RuntimeException failure) {
+            if (processChannel == created) {
+                processChannel = null;
+            }
+            created.close();
+            failCurrentProcess(
+                    "Start native Flutter Canvas protocol",
+                    failureReason(failure));
+        }
+    }
+
+    private void processChannelReady(
+            CanvasSessionId sessionId,
+            CanvasEngineIdentity engineIdentity) {
+        requireEventDispatchThread();
+        if (!isCurrentChannel(sessionId)) {
+            return;
+        }
+        canvasEngineIdentity = Objects.requireNonNull(engineIdentity, "engineIdentity");
+        publishPendingPresentation();
+    }
+
+    private void publishPendingPresentation() {
+        requireEventDispatchThread();
+        PendingPresentation pending = pendingPresentation;
+        CanvasRunnerProcessChannel channel = processChannel;
+        if (pending == null || channel == null || !channel.isReady()
+                || canvasEngineIdentity == null || !host.isAttached()) {
+            return;
+        }
+        StableId documentId = pending.snapshot().document().documentId();
+        if (presentationGate == null || !documentId.equals(presentationDocumentId)) {
+            if (presentationGate != null) {
+                presentationGate.close();
+            }
+            presentationGate = new CanvasPresentationGate(
+                    channel.sessionId(), documentId, nextPresentationSequence);
+            presentationDocumentId = documentId;
+        }
+        final CanvasRenderRequest request;
+        try {
+            request = presentationGate.present(
+                    CanvasPreviewProfileResolver.resolve(
+                            pending.previewMode(),
+                            pending.targetPlatform(),
+                            pending.snapshot().document().canvas(),
+                            canvasEngineIdentity),
+                    pending.snapshot());
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            publishFailure(
+                    "Resolve native Flutter Canvas presentation",
+                    failureReason(failure));
+            return;
+        }
+        nextPresentationSequence = request.revisionKey().presentationSequence() + 1;
+        currentRenderRequest = request;
+        currentLayout = null;
+        currentWidgetIds = pending.widgetIds();
+        try {
+            channel.expectPresentation(request.revisionKey());
+        } catch (RuntimeException failure) {
+            publishFailure(
+                    "Fence native Flutter Canvas presentation",
+                    failureReason(failure));
+            return;
+        }
+        long publication = pending.publicationGeneration();
+        publish(new FlutterDesignerNativeCanvasStatus(
+                FlutterDesignerNativeCanvasStatus.Stage.STARTING,
+                "Rendering native Flutter Canvas...",
+                "Publishing validated .fd revision "
+                + request.revisionKey().logicalRevisionId() + " as "
+                + request.renderProfile().previewMode().name().toLowerCase(
+                        java.util.Locale.ROOT)
+                + " / " + request.renderProfile().targetPlatform().name().toLowerCase(
+                        java.util.Locale.ROOT)
+                + " viewport " + (int) request.renderProfile().viewport().logicalWidth()
+                + "×" + (int) request.renderProfile().viewport().logicalHeight()
+                + " logical pixels."));
+        try {
+            runtime.launchExecutor().execute(() -> encodePresentation(
+                    publication, channel, request));
+        } catch (RuntimeException | LinkageError failure) {
+            publishFailure(
+                    "Schedule native Flutter Canvas model encoding",
+                    failureReason(failure));
+        }
+    }
+
+    private void encodePresentation(
+            long publication,
+            CanvasRunnerProcessChannel channel,
+            CanvasRenderRequest request) {
+        final byte[] payload;
+        try {
+            payload = payloadCodec.encode(request);
+        } catch (Exception failure) {
+            deliverOnUi(() -> presentationFailed(
+                    publication,
+                    channel,
+                    "Project validated .fd model for native Canvas",
+                    failureReason(failure)));
+            return;
+        }
+        deliverOnUi(() -> sendEncodedPresentation(
+                publication, channel, request, payload));
+    }
+
+    private void sendEncodedPresentation(
+            long publication,
+            CanvasRunnerProcessChannel channel,
+            CanvasRenderRequest request,
+            byte[] payload) {
+        requireEventDispatchThread();
+        if (!isCurrentPublication(publication, channel, request)) {
+            return;
+        }
+        try {
+            boolean sent = channel.present(request, payload);
+            if (!sent) {
+                presentationFailed(
+                        publication,
+                        channel,
+                        "Send validated model to native Flutter Canvas",
+                        "the runner protocol is not ready or the publication is stale");
+            }
+        } catch (RuntimeException | LinkageError failure) {
+            presentationFailed(
+                    publication,
+                    channel,
+                    "Queue native Flutter Canvas model publication",
+                    failureReason(failure));
+        }
+    }
+
+    private void presentationFailed(
+            long publication,
+            CanvasRunnerProcessChannel channel,
+            String operation,
+            String reason) {
+        requireEventDispatchThread();
+        if (pendingPresentation == null
+                || pendingPresentation.publicationGeneration() != publication
+                || processChannel != channel) {
+            return;
+        }
+        publishFailure(operation, reason);
+    }
+
+    private void processChannelPresented(
+            CanvasSessionId sessionId,
+            CanvasLayoutKey layoutKey) {
+        requireEventDispatchThread();
+        if (!isCurrentChannel(sessionId) || presentationGate == null) {
+            return;
+        }
+        CanvasAdmission admission = presentationGate.admitPresentation(
+                layoutKey.frameKey(), layoutKey);
+        if (admission != CanvasAdmission.ACCEPTED) {
+            return;
+        }
+        currentLayout = layoutKey;
+        CanvasRenderRequest request = currentRenderRequest;
+        StableId selection = desiredSelection;
+        CanvasRunnerProcessChannel channel = processChannel;
+        if (selection != null
+                && currentWidgetIds.contains(selection)
+                && channel != null) {
+            try {
+                channel.select(layoutKey, selection);
+            } catch (RuntimeException failure) {
+                failCurrentProcess(
+                        "Restore selection in native Flutter Canvas",
+                        failureReason(failure));
+                return;
+            }
+        }
+        if (request != null) {
+            publish(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                    "Native Flutter Canvas rendered.",
+                    "Presented " + request.renderProfile().previewMode().name()
+                            .toLowerCase(java.util.Locale.ROOT)
+                    + " / " + request.renderProfile().targetPlatform().name()
+                            .toLowerCase(java.util.Locale.ROOT)
+                    + " viewport "
+                    + (int) request.renderProfile().viewport().logicalWidth()
+                    + "×" + (int) request.renderProfile().viewport().logicalHeight()
+                    + " with read-only widget selection enabled."));
+        }
+    }
+
+    private void processChannelSelection(
+            CanvasSessionId sessionId,
+            dev.flutter.netbeans.designer.canvas.CanvasIntentKey intentKey,
+            StableId widgetId) {
+        requireEventDispatchThread();
+        if (!isCurrentChannel(sessionId)
+                || intentReplayGate == null) {
+            return;
+        }
+        CanvasIntentAdmission replay = intentReplayGate.consume(
+                intentKey,
+                CanvasIntentReplayPolicy.IDEMPOTENT);
+        if (!replay.firstDelivery()
+                || presentationGate == null
+                || currentLayout == null
+                || !currentWidgetIds.contains(widgetId)
+                || presentationGate.admitSelection(intentKey.layoutKey())
+                        != CanvasAdmission.ACCEPTED) {
+            return;
+        }
+        desiredSelection = widgetId;
+        selectionListener.accept(widgetId);
+    }
+
+    private void processChannelFailed(CanvasSessionId sessionId, String reason) {
+        requireEventDispatchThread();
+        if (isCurrentChannel(sessionId)) {
+            failCurrentProcess("Run native Flutter Canvas protocol", reason);
+        }
+    }
+
+    private boolean isCurrentChannel(CanvasSessionId sessionId) {
+        return !closed
+                && processChannel != null
+                && canvasSessionId != null
+                && canvasSessionId.equals(sessionId)
+                && processChannel.sessionId().equals(sessionId);
+    }
+
+    private boolean isCurrentPublication(
+            long publication,
+            CanvasRunnerProcessChannel channel,
+            CanvasRenderRequest request) {
+        return !closed
+                && processChannel == channel
+                && pendingPresentation != null
+                && pendingPresentation.publicationGeneration() == publication
+                && currentRenderRequest == request;
+    }
+
+    private void clearPresentationAuthority() {
+        currentRenderRequest = null;
+        currentLayout = null;
+        currentWidgetIds = Set.of();
+        presentationDocumentId = null;
+        if (presentationGate != null) {
+            presentationGate.close();
+            presentationGate = null;
+        }
+        if (intentReplayGate != null) {
+            intentReplayGate.close();
+            intentReplayGate = null;
+        }
+    }
+
+    private void closeProcessChannel() {
+        CanvasRunnerProcessChannel current = processChannel;
+        processChannel = null;
+        canvasSessionId = null;
+        canvasEngineIdentity = null;
+        nextPresentationSequence = 0;
+        if (current != null) {
+            current.close();
+        }
+    }
+
+    private void deliverOnUi(Runnable task) {
+        try {
+            runtime.uiExecutor().execute(task);
+        } catch (RuntimeException | LinkageError ignored) {
+            // A closing NetBeans window owns cancellation of this publication.
+        }
+    }
+
+    private static Set<StableId> collectWidgetIds(WidgetNode root) {
+        HashSet<StableId> result = new HashSet<>();
+        java.util.ArrayDeque<WidgetNode> pending = new java.util.ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            WidgetNode widget = pending.removeFirst();
+            if (!result.add(widget.id())) {
+                throw new IllegalArgumentException(
+                        "Canvas widget ids must be unique: " + widget.id());
+            }
+            for (WidgetSlot slot : widget.slots().values()) {
+                switch (slot) {
+                    case WidgetSlot.SingleSlot single ->
+                        single.child().ifPresent(pending::addLast);
+                    case WidgetSlot.ListSlot list -> pending.addAll(list.children());
+                }
+            }
+        }
+        return Set.copyOf(result);
     }
 
     private void publishFailure(String operation, String reason) {
@@ -659,7 +1184,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 builds::buildAsync,
                 (command, workingDirectory) -> new ProcessBuilder(command)
                         .directory(workingDirectory.toFile())
-                        .redirectErrorStream(true)
+                        .redirectErrorStream(false)
                         .start(),
                 command -> Thread.ofVirtual()
                         .name("flutter-native-canvas-launch")
@@ -677,12 +1202,15 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         return timer::stop;
     }
 
-    private static void drainOutput(Process process, BoundedDiagnostics diagnostics) {
-        Thread.ofVirtual().name("flutter-native-canvas-output").start(() -> {
+    private static void drainErrorOutput(
+            Process process,
+            BoundedDiagnostics diagnostics) {
+        Thread.ofVirtual().name("flutter-native-canvas-stderr").start(() -> {
             try {
-                copyBoundedDiagnostics(process.getInputStream(), diagnostics);
+                copyBoundedDiagnostics(process.getErrorStream(), diagnostics);
             } catch (IOException exception) {
-                diagnostics.append("Cannot read runner output: " + failureReason(exception));
+                diagnostics.append("Cannot read runner diagnostics: "
+                        + failureReason(exception));
             }
         });
     }
@@ -802,6 +1330,24 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             if (message.isBlank()) {
                 throw new IllegalArgumentException("SDK resolution message cannot be blank");
             }
+        }
+    }
+
+    private record PendingPresentation(
+            long publicationGeneration,
+            ValidatedCanvasRevisionSnapshot snapshot,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            Set<StableId> widgetIds) {
+        private PendingPresentation {
+            if (publicationGeneration <= 0) {
+                throw new IllegalArgumentException(
+                        "publicationGeneration must be positive");
+            }
+            Objects.requireNonNull(snapshot, "snapshot");
+            Objects.requireNonNull(previewMode, "previewMode");
+            Objects.requireNonNull(targetPlatform, "targetPlatform");
+            widgetIds = Set.copyOf(Objects.requireNonNull(widgetIds, "widgetIds"));
         }
     }
 

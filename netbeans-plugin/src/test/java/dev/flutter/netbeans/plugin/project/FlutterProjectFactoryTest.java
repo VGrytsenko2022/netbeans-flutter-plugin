@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.api.FlutterDevice;
 import dev.flutter.netbeans.api.FlutterProjectInfo;
+import dev.flutter.netbeans.plugin.designer.wizard.FlutterDesignerFormWizardIterator;
 import dev.flutter.netbeans.plugin.tooling.FlutterToolingController;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,6 +67,7 @@ class FlutterProjectFactoryTest {
         FlutterToolingController toolingController =
                 project.getLookup().lookup(FlutterToolingController.class);
         assertNotNull(toolingController);
+        assertNotNull(project.getLookup().lookup(FlutterProjectPlatformProvider.class));
         assertNotNull(project.getLookup().lookup(DartAnalysisLifecycle.class));
         assertNotNull(project.getLookup().lookup(ProjectConfigurationProvider.class));
         assertNotNull(project.getLookup().lookup(AuxiliaryConfiguration.class));
@@ -73,7 +75,10 @@ class FlutterProjectFactoryTest {
         assertNotNull(project.getLookup().lookup(DeleteOperationImplementation.class));
         assertNotNull(project.getLookup().lookup(MoveOrRenameOperationImplementation.class));
         assertArrayEquals(
-                new String[]{FlutterRecommendedTemplates.DART_TEMPLATE_CATEGORY},
+                new String[]{
+                    FlutterRecommendedTemplates.DART_TEMPLATE_CATEGORY,
+                    FlutterDesignerFormWizardIterator.TEMPLATE_CATEGORY
+                },
                 project.getLookup().lookup(RecommendedTemplates.class).getRecommendedTypes());
 
         ActionProvider actions = project.getLookup().lookup(ActionProvider.class);

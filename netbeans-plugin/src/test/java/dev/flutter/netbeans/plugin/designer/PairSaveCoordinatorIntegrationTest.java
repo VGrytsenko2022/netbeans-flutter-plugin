@@ -47,6 +47,7 @@ import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionIssue
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionIssueCode;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionResult;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionStatus;
+import dev.flutter.netbeans.plugin.project.FlutterProject;
 import dev.flutter.netbeans.plugin.settings.FlutterSettings;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainConfig;
 import java.awt.EventQueue;
@@ -85,7 +86,6 @@ import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileLock;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
 
 /** Focused wiring contract for the one-owner Flutter Designer save lifecycle. */
@@ -5763,8 +5763,17 @@ class PairSaveCoordinatorIntegrationTest {
         Path projectRoot = Files.createDirectories(
                 temporaryDirectory.resolve(folderName));
         Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        Path designerRoot = Files.createDirectories(
+                projectRoot.resolve(".fd_templates"));
+        Files.writeString(projectRoot.resolve("pubspec.yaml"), """
+                name: staged_pair_fixture
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                """, StandardCharsets.UTF_8);
+        FlutterProject project = FlutterDesignerTestProject.own(projectRoot);
         Path dartPath = lib.resolve("home_page.dart");
-        Path designerPath = lib.resolve("home_page.fd");
+        Path designerPath = designerRoot.resolve("home_page.fd");
         Path flutterSdkRoot = Files.createDirectories(
                 temporaryDirectory.resolve(folderName + "-flutter"));
         Path flutterLib = Files.createDirectories(
@@ -5807,8 +5816,8 @@ class PairSaveCoordinatorIntegrationTest {
         FileObject designer = FileUtil.toFileObject(designerPath.toFile());
         assertNotNull(dart);
         assertNotNull(designer);
-        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
-                DataObject.find(dart);
+        FlutterDesignerDataObject dataObject = FlutterDesignerTestProject
+                .dataObject(dart, project);
         TestPair pair = new TestPair(
                 dartPath,
                 designerPath,
@@ -6481,8 +6490,18 @@ class PairSaveCoordinatorIntegrationTest {
             byte[] fdBytes) throws Exception {
         Path folderPath = Files.createDirectory(
                 temporaryDirectory.resolve(baseName));
-        Path dartPath = folderPath.resolve(baseName + ".dart");
-        Path designerPath = folderPath.resolve(baseName + ".fd");
+        Files.createDirectories(folderPath.resolve("lib"));
+        Files.createDirectories(folderPath.resolve(".fd_templates"));
+        Files.writeString(folderPath.resolve("pubspec.yaml"), """
+                name: pair_fixture
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                """, StandardCharsets.UTF_8);
+        FlutterProject project = FlutterDesignerTestProject.own(folderPath);
+        Path dartPath = folderPath.resolve("lib/" + baseName + ".dart");
+        Path designerPath = folderPath.resolve(
+                ".fd_templates/" + baseName + ".fd");
         Files.write(dartPath, dartBytes);
         Files.write(designerPath, fdBytes);
         FileUtil.refreshFor(folderPath.toFile());
@@ -6490,8 +6509,8 @@ class PairSaveCoordinatorIntegrationTest {
         FileObject designer = FileUtil.toFileObject(designerPath.toFile());
         assertNotNull(dart);
         assertNotNull(designer);
-        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
-                DataObject.find(dart);
+        FlutterDesignerDataObject dataObject = FlutterDesignerTestProject
+                .dataObject(dart, project);
         return new TestPair(
                 dartPath,
                 designerPath,

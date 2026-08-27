@@ -47,6 +47,24 @@ public final class ValidatedCanvasRevisionSnapshot {
                 session.limits().validationLimits());
     }
 
+    /**
+     * Revalidates one immutable read-only document snapshot at an integration
+     * edge that does not yet own a {@link DesignerCommandSession}.
+     *
+     * <p>This factory is intended for the initial disk-backed Design view. It
+     * deliberately grants no mutation, persistence or Undo/Redo authority;
+     * callers must still issue a fresh Canvas presentation identity for every
+     * publication. Once the editable command session owns the document, use
+     * {@link #capture(DesignerCommandSession)} instead.</p>
+     */
+    public static ValidatedCanvasRevisionSnapshot captureReadOnly(
+            long logicalRevisionId,
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            ValidationLimits limits) {
+        return validate(logicalRevisionId, document, catalog, limits);
+    }
+
     /* Package-private for pure contract fixtures in this package. */
     static ValidatedCanvasRevisionSnapshot validate(
             long logicalRevisionId,

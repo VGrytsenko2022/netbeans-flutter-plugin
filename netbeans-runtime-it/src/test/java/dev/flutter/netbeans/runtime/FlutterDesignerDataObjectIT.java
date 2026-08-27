@@ -1,5 +1,12 @@
 package dev.flutter.netbeans.runtime;
 
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Image;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.beans.BeanInfo;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.accessibility.AccessibleContext;
+import javax.swing.JComboBox;
 import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.StyledDocument;
@@ -21,6 +30,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.netbeans.api.editor.guards.GuardedSectionManager;
 import org.netbeans.api.editor.guards.SimpleSection;
+import org.netbeans.api.project.ProjectManager;
 import org.netbeans.core.api.multiview.MultiViewHandler;
 import org.netbeans.core.api.multiview.MultiViewPerspective;
 import org.netbeans.core.api.multiview.MultiViews;
@@ -28,15 +38,21 @@ import org.netbeans.junit.NbModuleSuite;
 import org.netbeans.junit.NbTestCase;
 import org.openide.awt.UndoRedo;
 import org.openide.cookies.EditorCookie;
+import org.openide.cookies.OpenCookie;
 import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataFolder;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.SaveAsCapable;
 import org.openide.modules.ModuleInfo;
+import org.openide.nodes.Node;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.NbDocument;
+import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
+import org.openide.util.datatransfer.ExTransferable;
+import org.openide.util.datatransfer.PasteType;
 import org.openide.windows.CloneableTopComponent;
 
 /** Runtime gate for Matisse-style ownership of a paired .dart/.fd form. */
@@ -91,6 +107,10 @@ final class FlutterDesignerDataObjectIT {
     public static final class FlutterDesignerDataObjectRuntimeCase extends NbTestCase {
         private static final String DESIGNER_DATA_OBJECT =
                 "dev.flutter.netbeans.plugin.designer.FlutterDesignerDataObject";
+        private static final String DESIGNER_MODEL_DATA_OBJECT =
+                "dev.flutter.netbeans.plugin.designer.FlutterDesignerModelDataObject";
+        private static final String DART_DATA_OBJECT =
+                "dev.flutter.netbeans.plugin.dart.DartDataObject";
         private static final String DESIGNER_MIME = "text/x-flutter-designer";
         private static final String DART_MIME = "text/x-dart";
 
@@ -98,45 +118,55 @@ final class FlutterDesignerDataObjectIT {
             super(name);
         }
 
-        public void testPairedFilesShareOneDataObjectAndOrphanDartIsUnclaimed()
+        public void testPairedFilesExposeVisibleModelAndShareOneEditorOwner()
                 throws Exception {
             clearWorkDir();
             Class<?> designerType = Class.forName(
                     DESIGNER_DATA_OBJECT, true, flutterModule().getClassLoader());
-            Path root = Files.createDirectories(getWorkDir().toPath().resolve("forms"));
+            Class<?> modelType = Class.forName(
+                    DESIGNER_MODEL_DATA_OBJECT, true, flutterModule().getClassLoader());
+            Class<?> dartType = Class.forName(
+                    DART_DATA_OBJECT, true, flutterModule().getClassLoader());
+            Path root = createFlutterProject(
+                    getWorkDir().toPath().resolve("forms"));
 
             // This ordering is intentional: the pair-aware loader must win even when
             // NetBeans is asked for the technical Dart primary before the .fd sidecar.
             Pair dartFirstPair = createPair(root, "dart_first");
             DataObject dartFirst = DataObject.find(dartFirstPair.dart());
             DataObject fdSecond = DataObject.find(dartFirstPair.fd());
-            assertDesignerPair(designerType, dartFirstPair, dartFirst, fdSecond);
+            assertDesignerPair(
+                    designerType, modelType, dartFirstPair, dartFirst, fdSecond);
             assertGuardedSourceEditor(dartFirstPair, dartFirst);
             assertDesignerMultiView(dartFirst, dartFirstPair);
 
             Pair fdFirstPair = createPair(root, "fd_first");
             DataObject fdFirst = DataObject.find(fdFirstPair.fd());
             DataObject dartSecond = DataObject.find(fdFirstPair.dart());
-            assertDesignerPair(designerType, fdFirstPair, fdFirst, dartSecond);
+            assertDesignerPair(
+                    designerType, modelType, fdFirstPair, dartSecond, fdFirst);
 
-            FileObject orphanDart = createFile(root.resolve("ordinary.dart"),
+            FileObject orphanDart = createFile(root.resolve("lib/ordinary.dart"),
                     "void main() {}\n");
             assertEquals("An orphan .dart file must retain the Dart MIME type",
                     DART_MIME, FileUtil.getMIMEType(orphanDart));
             DataObject ordinary = DataObject.find(orphanDart);
             assertFalse("The Flutter Designer loader must not claim an orphan .dart file",
                     designerType.isInstance(ordinary));
+            assertTrue("An ordinary .dart file is not owned by DartDataObject: "
+                    + ordinary.getClass().getName(), dartType.isInstance(ordinary));
             assertEquals("An orphan Dart DataObject must keep its own file as primary",
                     orphanDart, ordinary.getPrimaryFile());
+            assertFileTypeIcons(ordinary, dartFirst, fdSecond);
 
             assertUnsavedOrphanIsNotUpgraded(root, designerType);
 
-            FileObject lateDart = createFile(root.resolve("late_pair.dart"),
+            FileObject lateDart = createFile(root.resolve("lib/late_pair.dart"),
                     "void main() {}\n");
             DataObject cachedOrdinary = DataObject.find(lateDart);
             assertFalse("The pre-sidecar Dart file unexpectedly used the designer loader",
                     designerType.isInstance(cachedOrdinary));
-            FileObject lateFd = createFile(root.resolve("late_pair.fd"), """
+            FileObject lateFd = createFile(root.resolve(".fd_templates/late_pair.fd"), """
                     {
                       "format": "netbeans-flutter-designer",
                       "schemaVersion": 1,
@@ -144,17 +174,653 @@ final class FlutterDesignerDataObjectIT {
                     }
                     """);
             DataObject upgraded = DataObject.find(lateFd);
+            assertTrue("The late .fd file did not receive its visible model DataObject",
+                    modelType.isInstance(upgraded));
             assertTrue("An unmodified cached Dart file was not safely upgraded after its .fd appeared",
-                    designerType.isInstance(upgraded));
-            assertSame("The late .dart/.fd pair did not converge on one DataObject",
-                    upgraded, DataObject.find(lateDart));
+                    designerType.isInstance(DataObject.find(lateDart)));
+
+            assertPairRenameFromEitherNode(root, designerType, modelType);
+            assertPairDeleteFromEitherNode(root, designerType, modelType);
+            assertPairCopyFromEitherNode(root, designerType, modelType);
+            assertPairMoveFromEitherNode(root, designerType, modelType);
+        }
+
+        private void assertPairRenameFromEitherNode(
+                Path root,
+                Class<?> designerType,
+                Class<?> modelType) throws Exception {
+            assertPairRenameFromNode(
+                    root, "rename_from_dart", "renamed_from_dart",
+                    designerType, modelType, true);
+            assertPairRenameFromNode(
+                    root, "rename_from_fd", "renamed_from_fd",
+                    designerType, modelType, false);
+        }
+
+        private void assertPairRenameFromNode(
+                Path root,
+                String originalName,
+                String targetName,
+                Class<?> designerType,
+                Class<?> modelType,
+                boolean initiateFromDart) throws Exception {
+            Pair pair = createPair(root, originalName);
+            Path oldDartPath = FileUtil.toFile(pair.dart()).toPath();
+            Path oldModelPath = FileUtil.toFile(pair.fd()).toPath();
+            Path targetDartPath = oldDartPath.resolveSibling(targetName + ".dart");
+            Path targetModelPath = oldModelPath.resolveSibling(targetName + ".fd");
+            byte[] exactDart = Files.readAllBytes(oldDartPath);
+            DataObject dartObject = DataObject.find(pair.dart());
+            DataObject modelObject = DataObject.find(pair.fd());
+            assertTrue("Rename fixture has no paired Dart owner",
+                    designerType.isInstance(dartObject));
+            assertTrue("Rename fixture has no visible .fd owner",
+                    modelType.isInstance(modelObject));
+
+            EditorCookie openEditor = null;
+            if (!initiateFromDart) {
+                openEditor = dartObject.getLookup().lookup(EditorCookie.class);
+                assertNotNull("The paired Dart owner has no editor", openEditor);
+                openEditor.openDocument();
+                assertFalse("Opening a clean paired editor unexpectedly marked it dirty",
+                        openEditor.isModified());
+            }
+            Node dartNode = dartObject.getNodeDelegate();
+            Node modelNode = modelObject.getNodeDelegate();
+            assertTrue("The Dart node does not publish paired Rename",
+                    dartNode.canRename());
+            assertTrue("The .fd node does not publish paired Rename",
+                    modelNode.canRename());
+            assertNoWritableExtensionProperty(dartNode, "Dart");
+            assertNoWritableExtensionProperty(modelNode, ".fd");
+
+            (initiateFromDart ? dartNode : modelNode).setName(targetName);
+
+            assertFalse("Paired Rename left the old Dart path on disk",
+                    Files.exists(oldDartPath));
+            assertFalse("Paired Rename left the old .fd path on disk",
+                    Files.exists(oldModelPath));
+            assertTrue("Paired Rename did not create the target Dart path",
+                    Files.exists(targetDartPath));
+            assertTrue("Paired Rename did not create the target .fd path",
+                    Files.exists(targetModelPath));
+            assertTrue("Paired Rename invalidated the retained Dart FileObject",
+                    pair.dart().isValid());
+            assertTrue("Paired Rename invalidated the retained .fd FileObject",
+                    pair.fd().isValid());
+            assertEquals("The retained Dart FileObject has the wrong target name",
+                    targetName + ".dart", pair.dart().getNameExt());
+            assertEquals("The retained .fd FileObject has the wrong target name",
+                    targetName + ".fd", pair.fd().getNameExt());
+            assertSame("Paired Rename replaced the Dart FileObject identity",
+                    pair.dart(), dartObject.getPrimaryFile());
+            assertSame("Paired Rename replaced the .fd FileObject identity",
+                    pair.fd(), modelObject.getPrimaryFile());
+            assertSame("The renamed Dart path no longer resolves to its cached DataObject",
+                    dartObject, DataObject.find(pair.dart()));
+            assertSame("The renamed .fd path no longer resolves to its cached DataObject",
+                    modelObject, DataObject.find(pair.fd()));
+            assertEquals("The cached Dart node did not publish its renamed basename",
+                    targetName, dartNode.getName());
+            assertEquals("The cached .fd node did not publish its renamed basename",
+                    targetName, modelNode.getName());
+            assertTrue("Paired Rename changed user-owned Dart bytes",
+                    java.util.Arrays.equals(
+                            exactDart, Files.readAllBytes(targetDartPath)));
+            String renamedModel = Files.readString(
+                    targetModelPath, StandardCharsets.UTF_8);
+            assertTrue("The renamed .fd model does not name the target Dart file",
+                    renamedModel.contains("\"dartFile\": \""
+                            + targetName + ".dart\""));
+            assertTrue("Paired Rename changed the Dart class contract",
+                    renamedModel.contains("\"className\": \"SampleView\""));
+            if (openEditor != null) {
+                assertNull("Paired Rename did not close the clean shared editor",
+                        openEditor.getDocument());
+            }
+            assertTrue("The renamed Dart owner entered a delayed external conflict",
+                    dartObject.isRenameAllowed());
+            assertTrue("The renamed .fd owner entered a delayed external conflict",
+                    modelObject.isRenameAllowed());
+
+            // Exercise the path-bound controller again, as a reopened Design
+            // view would, and then prove that ordinary Source editing/saving
+            // still targets the renamed Dart file.
+            ClassLoader loader = flutterModule().getClassLoader();
+            Class<?> controllerType = Class.forName(
+                    "dev.flutter.netbeans.plugin.designer.FlutterDesignerDocumentController",
+                    true,
+                    loader);
+            Object controller = dartObject.getLookup().lookup(controllerType);
+            assertNotNull("The renamed form lost its designer controller", controller);
+            controllerType.getMethod("viewOpened").invoke(controller);
+            try {
+                assertCurrentDesignerModelLoaded(dartObject, pair);
+            } finally {
+                controllerType.getMethod("viewClosed").invoke(controller);
+            }
+
+            EditorCookie renamedEditor = dartObject.getLookup()
+                    .lookup(EditorCookie.class);
+            assertNotNull("The renamed Dart owner lost its editor", renamedEditor);
+            StyledDocument reopened = renamedEditor.openDocument();
+            String postRenameEdit = "// source edit after paired rename\n";
+            NbDocument.runAtomicAsUser(reopened, () -> {
+                try {
+                    reopened.insertString(
+                            reopened.getLength(), postRenameEdit, null);
+                } catch (BadLocationException ex) {
+                    throw new AssertionError(ex);
+                }
+            });
+            SaveCookie save = dartObject.getLookup().lookup(SaveCookie.class);
+            assertNotNull("A post-Rename Dart edit exposed no SaveCookie", save);
+            save.save();
+            assertFalse("The post-Rename Dart save left the editor modified",
+                    renamedEditor.isModified());
+            assertTrue("The post-Rename Source save wrote to an obsolete path",
+                    Files.readString(targetDartPath, StandardCharsets.UTF_8)
+                            .endsWith(postRenameEdit));
+            assertTrue("The pair is not rename-capable after post-Rename save",
+                    dartObject.isRenameAllowed());
+            assertTrue("The post-Rename editor refused to close",
+                    renamedEditor.close());
+            try (var paths = Files.walk(root)) {
+                assertFalse("Successful paired Rename left a private tombstone",
+                        paths.anyMatch(path -> path.getFileName().toString()
+                                .startsWith(".nb-flutter-rename-")));
+            }
+        }
+
+        private void assertNoWritableExtensionProperty(
+                Node node,
+                String description) {
+            for (Node.PropertySet propertySet : node.getPropertySets()) {
+                for (Node.Property<?> property : propertySet.getProperties()) {
+                    assertFalse("The " + description
+                            + " paired node exposes the one-file Extension editor",
+                            "extension".equals(property.getName()));
+                }
+            }
+        }
+
+        private void assertPairDeleteFromEitherNode(
+                Path root,
+                Class<?> designerType,
+                Class<?> modelType) throws Exception {
+            assertPairDeleteFromNode(
+                    root, "delete_from_dart", designerType, modelType, true);
+            assertPairDeleteFromNode(
+                    root, "delete_from_fd", designerType, modelType, false);
+        }
+
+        private void assertPairDeleteFromNode(
+                Path root,
+                String baseName,
+                Class<?> designerType,
+                Class<?> modelType,
+                boolean initiateFromDart) throws Exception {
+            Pair pair = createPair(root, baseName);
+            Path dartPath = FileUtil.toFile(pair.dart()).toPath();
+            Path modelPath = FileUtil.toFile(pair.fd()).toPath();
+            DataObject dartObject = DataObject.find(pair.dart());
+            DataObject modelObject = DataObject.find(pair.fd());
+            assertTrue("Delete fixture has no paired Dart owner",
+                    designerType.isInstance(dartObject));
+            assertTrue("Delete fixture has no visible .fd owner",
+                    modelType.isInstance(modelObject));
+            EditorCookie openEditor = null;
+            if (!initiateFromDart) {
+                openEditor = dartObject.getLookup().lookup(EditorCookie.class);
+                assertNotNull("The paired Dart owner has no editor", openEditor);
+                openEditor.openDocument();
+                assertFalse("Opening a clean paired editor unexpectedly marked it dirty",
+                        openEditor.isModified());
+            }
+            Node dartNode = dartObject.getNodeDelegate();
+            Node modelNode = modelObject.getNodeDelegate();
+            assertTrue("The Dart node does not publish paired Delete",
+                    dartNode.canDestroy());
+            assertTrue("The .fd node does not publish paired Delete",
+                    modelNode.canDestroy());
+
+            (initiateFromDart ? dartNode : modelNode).destroy();
+
+            assertFalse("Paired Delete left the canonical Dart file on disk",
+                    Files.exists(dartPath));
+            assertFalse("Paired Delete left the canonical .fd file on disk",
+                    Files.exists(modelPath));
+            assertFalse("Paired Delete left the Dart FileObject valid",
+                    pair.dart().isValid());
+            assertFalse("Paired Delete left the .fd FileObject valid",
+                    pair.fd().isValid());
+            assertFalse("Paired Delete left the Dart DataObject valid",
+                    dartObject.isValid());
+            assertFalse("Paired Delete left the .fd DataObject valid",
+                    modelObject.isValid());
+            if (openEditor != null) {
+                assertNull("Paired Delete did not close the clean shared editor",
+                        openEditor.getDocument());
+            }
+            try (var paths = Files.walk(root)) {
+                assertFalse("Successful paired Delete left a private tombstone",
+                        paths.anyMatch(path -> path.getFileName().toString()
+                                .endsWith(".nbdelete")));
+            }
+        }
+
+        private void assertPairCopyFromEitherNode(
+                Path root,
+                Class<?> designerType,
+                Class<?> modelType) throws Exception {
+            FileObject dartCollision = createFile(
+                    root.resolve("lib/copy_from_dart_copy.dart"),
+                    "// occupied only in the Dart tree\n");
+            byte[] exactDartCollision = dartCollision.asBytes();
+            assertPairCopyFromNode(
+                    root,
+                    "copy_from_dart",
+                    "copy_from_dart_copy_2",
+                    designerType,
+                    modelType,
+                    true);
+            assertFalse("A Dart-only collision did not reserve the mirrored suffix",
+                    Files.exists(root.resolve(
+                            ".fd_templates/copy_from_dart_copy.fd")));
+            assertTrue("Pair Copy changed the occupied Dart collision candidate",
+                    java.util.Arrays.equals(
+                            exactDartCollision, dartCollision.asBytes()));
+
+            FileObject modelCollision = createFile(
+                    root.resolve(".fd_templates/copy_from_fd_copy.fd"),
+                    "occupied only in the model tree\n");
+            byte[] exactModelCollision = modelCollision.asBytes();
+            assertPairCopyFromNode(
+                    root,
+                    "copy_from_fd",
+                    "copy_from_fd_copy_2",
+                    designerType,
+                    modelType,
+                    false);
+            assertFalse("An .fd-only collision did not reserve the mirrored suffix",
+                    Files.exists(root.resolve("lib/copy_from_fd_copy.dart")));
+            assertTrue("Pair Copy changed the occupied .fd collision candidate",
+                    java.util.Arrays.equals(
+                            exactModelCollision, modelCollision.asBytes()));
+
+            try (var paths = Files.walk(root)) {
+                assertFalse("Successful paired Copy left a private staging artifact",
+                        paths.anyMatch(path -> path.getFileName().toString()
+                                .startsWith(".nb-flutter-copy-")));
+            }
+        }
+
+        private void assertPairCopyFromNode(
+                Path root,
+                String sourceStem,
+                String targetStem,
+                Class<?> designerType,
+                Class<?> modelType,
+                boolean initiateFromDart) throws Exception {
+            assertFalse("The pair clipboard integration test must run off the EDT",
+                    SwingUtilities.isEventDispatchThread());
+            Pair source = createPair(root, sourceStem);
+            DataObject sourceDartObject = DataObject.find(source.dart());
+            DataObject sourceModelObject = DataObject.find(source.fd());
+            assertTrue("Copy fixture has no paired Dart owner",
+                    designerType.isInstance(sourceDartObject));
+            assertTrue("Copy fixture has no visible .fd owner",
+                    modelType.isInstance(sourceModelObject));
+
+            EditorCookie sourceEditor = sourceDartObject.getLookup()
+                    .lookup(EditorCookie.class);
+            assertNotNull("The Copy fixture has no shared Dart editor", sourceEditor);
+            StyledDocument sourceDocument = sourceEditor.openDocument();
+            assertFalse("Opening the Copy fixture unexpectedly marked it dirty",
+                    sourceEditor.isModified());
+            byte[] exactDart = source.dart().asBytes();
+            byte[] exactModel = source.fd().asBytes();
+            Object originalDocument = decodeDesignerDocument(
+                    source.fd(), flutterModule().getClassLoader());
+
+            Node dartNode = sourceDartObject.getNodeDelegate();
+            Node modelNode = sourceModelObject.getNodeDelegate();
+            assertPairCopyNodeContract(dartNode, sourceDartObject, "Dart");
+            assertPairCopyNodeContract(modelNode, sourceModelObject, ".fd");
+
+            Node initiatingNode = initiateFromDart ? dartNode : modelNode;
+            Transferable clipboard = initiatingNode.clipboardCopy();
+            assertFalse("Pair Copy leaked the operating-system file-list flavor",
+                    clipboard.isDataFlavorSupported(DataFlavor.javaFileListFlavor));
+
+            FileObject physicalDestination = initiateFromDart
+                    ? source.dart().getParent()
+                    : source.fd().getParent();
+            Node destinationFolderNode = DataFolder
+                    .findFolder(physicalDestination)
+                    .getNodeDelegate();
+            PasteType pairPaste = pairCopyPasteType(
+                    destinationFolderNode.getPasteTypes(clipboard));
+            assertNotNull("The matching physical folder node exposed no pair Copy paste",
+                    pairPaste);
+            assertNull("The pair Copy PasteType must consume the clipboard payload",
+                    pairPaste.paste());
+
+            FileObject targetDart = source.dart().getParent()
+                    .getFileObject(targetStem, "dart");
+            FileObject targetModel = source.fd().getParent()
+                    .getFileObject(targetStem, "fd");
+            assertNotNull("Pair Copy did not publish the target Dart file", targetDart);
+            assertNotNull("Pair Copy did not publish the target .fd file", targetModel);
+            assertTrue("Pair Copy changed the exact user-owned Dart bytes",
+                    java.util.Arrays.equals(exactDart, targetDart.asBytes()));
+
+            DataObject targetDartObject = DataObject.find(targetDart);
+            DataObject targetModelObject = DataObject.find(targetModel);
+            assertTrue("The copied Dart file has no Designer DataObject",
+                    designerType.isInstance(targetDartObject));
+            assertTrue("The copied .fd file has no Designer model DataObject",
+                    modelType.isInstance(targetModelObject));
+            assertNotSame("Pair Copy reused the source Dart DataObject",
+                    sourceDartObject, targetDartObject);
+            assertNotSame("Pair Copy reused the source .fd DataObject",
+                    sourceModelObject, targetModelObject);
+
+            Object targetDocument = decodeDesignerDocument(
+                    targetModel, flutterModule().getClassLoader());
+            assertCopiedDocumentSemantics(
+                    originalDocument, targetDocument, targetStem + ".dart");
+
+            assertTrue("Pair Copy invalidated the original Dart FileObject",
+                    source.dart().isValid());
+            assertTrue("Pair Copy invalidated the original .fd FileObject",
+                    source.fd().isValid());
+            assertTrue("Pair Copy invalidated the original Dart DataObject",
+                    sourceDartObject.isValid());
+            assertTrue("Pair Copy invalidated the original .fd DataObject",
+                    sourceModelObject.isValid());
+            assertSame("Pair Copy replaced the original Dart DataObject",
+                    sourceDartObject, DataObject.find(source.dart()));
+            assertSame("Pair Copy replaced the original .fd DataObject",
+                    sourceModelObject, DataObject.find(source.fd()));
+            assertSame("Pair Copy closed or replaced the original source buffer",
+                    sourceDocument, sourceEditor.getDocument());
+            assertFalse("Pair Copy dirtied the original source buffer",
+                    sourceEditor.isModified());
+            assertTrue("Pair Copy changed the original Dart file",
+                    java.util.Arrays.equals(exactDart, source.dart().asBytes()));
+            assertTrue("Pair Copy changed the original .fd file",
+                    java.util.Arrays.equals(exactModel, source.fd().asBytes()));
+            assertTrue("The original source editor refused to close after Pair Copy",
+                    sourceEditor.close());
+        }
+
+        private void assertPairCopyNodeContract(
+                Node node,
+                DataObject dataObject,
+                String description) {
+            assertTrue("The " + description + " node does not publish paired Copy",
+                    node.canCopy());
+            assertTrue("The " + description + " node does not publish paired Cut",
+                    node.canCut());
+            assertFalse("The " + description
+                    + " DataObject unexpectedly enables generic one-file Copy",
+                    dataObject.isCopyAllowed());
+            assertFalse("The " + description
+                    + " DataObject unexpectedly enables generic one-file Move",
+                    dataObject.isMoveAllowed());
+        }
+
+        private PasteType pairCopyPasteType(PasteType[] pasteTypes) {
+            PasteType found = null;
+            for (PasteType pasteType : pasteTypes) {
+                if ("Copy Flutter Designer Form".equals(pasteType.getName())) {
+                    assertNull("The folder node exposed duplicate pair Copy PasteTypes",
+                            found);
+                    found = pasteType;
+                }
+            }
+            return found;
+        }
+
+        private void assertPairMoveFromEitherNode(
+                Path root,
+                Class<?> designerType,
+                Class<?> modelType) throws Exception {
+            assertPairMoveFromNode(
+                    root,
+                    "move_from_dart",
+                    "moved/from_dart",
+                    designerType,
+                    modelType,
+                    true);
+            assertPairMoveFromNode(
+                    root,
+                    "move_from_fd",
+                    "moved/from_fd",
+                    designerType,
+                    modelType,
+                    false);
+
+            try (var paths = Files.walk(root)) {
+                assertFalse("Successful paired Move left a private .nbmove artifact",
+                        paths.anyMatch(path -> path.getFileName().toString()
+                                .endsWith(".nbmove")));
+            }
+        }
+
+        private void assertPairMoveFromNode(
+                Path root,
+                String sourceStem,
+                String targetRelativeFolder,
+                Class<?> designerType,
+                Class<?> modelType,
+                boolean initiateFromDart) throws Exception {
+            assertFalse("The pair Cut/Move integration test must run off the EDT",
+                    SwingUtilities.isEventDispatchThread());
+            Pair source = createPair(root, sourceStem);
+            Path oldDartPath = FileUtil.toFile(source.dart()).toPath();
+            Path oldModelPath = FileUtil.toFile(source.fd()).toPath();
+            byte[] exactDart = source.dart().asBytes();
+            byte[] exactModel = source.fd().asBytes();
+
+            DataObject oldDartObject = DataObject.find(source.dart());
+            DataObject oldModelObject = DataObject.find(source.fd());
+            assertTrue("Move fixture has no paired Dart owner",
+                    designerType.isInstance(oldDartObject));
+            assertTrue("Move fixture has no visible .fd owner",
+                    modelType.isInstance(oldModelObject));
+            assertFalse("The Dart DataObject unexpectedly enables generic one-file Move",
+                    oldDartObject.isMoveAllowed());
+            assertFalse("The .fd DataObject unexpectedly enables generic one-file Move",
+                    oldModelObject.isMoveAllowed());
+
+            EditorCookie oldEditor = oldDartObject.getLookup()
+                    .lookup(EditorCookie.class);
+            assertNotNull("The Move fixture has no shared Dart editor", oldEditor);
+            oldEditor.openDocument();
+            assertFalse("Opening the Move fixture unexpectedly marked it dirty",
+                    oldEditor.isModified());
+
+            Node dartNode = oldDartObject.getNodeDelegate();
+            Node modelNode = oldModelObject.getNodeDelegate();
+            assertTrue("The Dart node does not publish paired Cut", dartNode.canCut());
+            assertTrue("The .fd node does not publish paired Cut", modelNode.canCut());
+            Node initiatingNode = initiateFromDart ? dartNode : modelNode;
+            Transferable clipboard = initiatingNode.clipboardCut();
+            assertFalse("Pair Cut leaked the operating-system file-list flavor",
+                    clipboard.isDataFlavorSupported(DataFlavor.javaFileListFlavor));
+
+            Path targetDartFolderPath = root.resolve(
+                    "lib/" + targetRelativeFolder);
+            Path targetModelFolderPath = root.resolve(
+                    ".fd_templates/" + targetRelativeFolder);
+            Files.createDirectories(targetDartFolderPath);
+            Files.createDirectories(targetModelFolderPath);
+            FileUtil.refreshFor(
+                    targetDartFolderPath.toFile(),
+                    targetModelFolderPath.toFile());
+            FileObject directTargetFolder = FileUtil.toFileObject(
+                    (initiateFromDart
+                            ? targetDartFolderPath
+                            : targetModelFolderPath).toFile());
+            assertNotNull("No direct physical destination folder FileObject",
+                    directTargetFolder);
+            Node destinationFolderNode = DataFolder
+                    .findFolder(directTargetFolder)
+                    .getNodeDelegate();
+            PasteType pairPaste = pairMovePasteType(
+                    destinationFolderNode.getPasteTypes(clipboard));
+            assertNotNull("The direct destination folder exposed no pair Move paste",
+                    pairPaste);
+            Transferable consumed = pairPaste.paste();
+            assertSame("Successful pair Move must consume its one-shot Cut payload",
+                    ExTransferable.EMPTY, consumed);
+
+            Path targetDartPath = targetDartFolderPath.resolve(
+                    sourceStem + ".dart");
+            Path targetModelPath = targetModelFolderPath.resolve(
+                    sourceStem + ".fd");
+            assertFalse("Pair Move left the old Dart path on disk",
+                    Files.exists(oldDartPath));
+            assertFalse("Pair Move left the old .fd path on disk",
+                    Files.exists(oldModelPath));
+            assertTrue("Pair Move did not publish the target Dart path",
+                    Files.exists(targetDartPath));
+            assertTrue("Pair Move did not publish the target .fd path",
+                    Files.exists(targetModelPath));
+            assertFalse("Pair Move left the old Dart FileObject valid",
+                    source.dart().isValid());
+            assertFalse("Pair Move left the old .fd FileObject valid",
+                    source.fd().isValid());
+            assertFalse("Pair Move left the old Dart DataObject valid",
+                    oldDartObject.isValid());
+            assertFalse("Pair Move left the old .fd DataObject valid",
+                    oldModelObject.isValid());
+            assertNull("Pair Move did not close the clean shared editor",
+                    oldEditor.getDocument());
+
+            FileUtil.refreshFor(
+                    targetDartPath.toFile(),
+                    targetModelPath.toFile());
+            FileObject targetDart = FileUtil.toFileObject(targetDartPath.toFile());
+            FileObject targetModel = FileUtil.toFileObject(targetModelPath.toFile());
+            assertNotNull("No fresh target Dart FileObject", targetDart);
+            assertNotNull("No fresh target .fd FileObject", targetModel);
+            assertNotSame("Pair Move reused the retired Dart FileObject",
+                    source.dart(), targetDart);
+            assertNotSame("Pair Move reused the retired .fd FileObject",
+                    source.fd(), targetModel);
+            assertTrue("Pair Move changed the exact user-owned Dart bytes",
+                    java.util.Arrays.equals(exactDart, targetDart.asBytes()));
+            assertTrue("Pair Move changed the exact user-owned .fd bytes",
+                    java.util.Arrays.equals(exactModel, targetModel.asBytes()));
+
+            DataObject targetDartObject = DataObject.find(targetDart);
+            DataObject targetModelObject = DataObject.find(targetModel);
+            assertNotSame("Pair Move reused the retired Dart DataObject",
+                    oldDartObject, targetDartObject);
+            assertNotSame("Pair Move reused the retired .fd DataObject",
+                    oldModelObject, targetModelObject);
+            assertDesignerPair(
+                    designerType,
+                    modelType,
+                    new Pair(targetDart, targetModel),
+                    targetDartObject,
+                    targetModelObject);
+            assertFalse("Fresh Dart owner unexpectedly enables generic one-file Move",
+                    targetDartObject.isMoveAllowed());
+            assertFalse("Fresh .fd owner unexpectedly enables generic one-file Move",
+                    targetModelObject.isMoveAllowed());
+
+            assertNull("The consumed Cut payload still exposes pair Move",
+                    pairMovePasteType(
+                            destinationFolderNode.getPasteTypes(consumed)));
+            assertNull("The stale original Cut payload exposes a second pair Move",
+                    pairMovePasteType(
+                            destinationFolderNode.getPasteTypes(clipboard)));
+        }
+
+        private PasteType pairMovePasteType(PasteType[] pasteTypes) {
+            PasteType found = null;
+            for (PasteType pasteType : pasteTypes) {
+                if ("Move Flutter Designer Form".equals(pasteType.getName())) {
+                    assertNull("The folder node exposed duplicate pair Move PasteTypes",
+                            found);
+                    found = pasteType;
+                }
+            }
+            return found;
+        }
+
+        private Object decodeDesignerDocument(
+                FileObject model,
+                ClassLoader loader) throws Exception {
+            Class<?> codecType = Class.forName(
+                    "dev.flutter.netbeans.designer.codec.FdDocumentCodec",
+                    true,
+                    loader);
+            Object codec = codecType.getConstructor().newInstance();
+            Object decoded = codecType.getMethod("decode", byte[].class)
+                    .invoke(codec, (Object) model.asBytes());
+            assertEquals("The copied .fd file is not a current canonical model",
+                    "Current", decoded.getClass().getSimpleName());
+            assertEquals("Pair Copy unexpectedly migrated the current source model",
+                    Boolean.FALSE,
+                    decoded.getClass().getMethod("migrated").invoke(decoded));
+            return decoded.getClass().getMethod("document").invoke(decoded);
+        }
+
+        private void assertCopiedDocumentSemantics(
+                Object original,
+                Object target,
+                String expectedDartFile) throws Exception {
+            assertEquals("Pair Copy changed the schema reference",
+                    property(original, "schemaReference"),
+                    property(target, "schemaReference"));
+            assertEquals("Pair Copy changed the schema version",
+                    property(original, "schemaVersion"),
+                    property(target, "schemaVersion"));
+            assertEquals("Pair Copy changed the format",
+                    property(original, "format"), property(target, "format"));
+            assertFalse("Pair Copy reused the source documentId",
+                    property(original, "documentId")
+                            .equals(property(target, "documentId")));
+            assertEquals("Pair Copy changed the canvas preferences",
+                    property(original, "canvas"), property(target, "canvas"));
+            assertEquals("Pair Copy changed the widget tree or its stable IDs",
+                    property(original, "root"), property(target, "root"));
+            assertEquals("Pair Copy changed document extensions",
+                    property(original, "extensions"),
+                    property(target, "extensions"));
+
+            Object originalSource = property(original, "source");
+            Object targetSource = property(target, "source");
+            assertEquals("Pair Copy did not retarget source.dartFile",
+                    expectedDartFile, property(targetSource, "dartFile"));
+            assertEquals("Pair Copy changed source.className",
+                    property(originalSource, "className"),
+                    property(targetSource, "className"));
+            assertEquals("Pair Copy changed source.widgetKind",
+                    property(originalSource, "widgetKind"),
+                    property(targetSource, "widgetKind"));
+            assertEquals("Pair Copy changed source.generatorVersion",
+                    property(originalSource, "generatorVersion"),
+                    property(targetSource, "generatorVersion"));
+            assertEquals("Pair Copy changed source.managedRegions",
+                    property(originalSource, "managedRegions"),
+                    property(targetSource, "managedRegions"));
+        }
+
+        private Object property(Object owner, String name) throws Exception {
+            return owner.getClass().getMethod(name).invoke(owner);
         }
 
         private void assertUnsavedOrphanIsNotUpgraded(Path root, Class<?> designerType)
                 throws Exception {
             String diskSource = "void main() {}\n";
             String unsavedEdit = "// unsaved user edit\n";
-            FileObject dart = createFile(root.resolve("buffered.dart"), diskSource);
+            FileObject dart = createFile(root.resolve("lib/buffered.dart"), diskSource);
             DataObject originalDataObject = DataObject.find(dart);
             assertFalse("The buffered orphan unexpectedly used the designer loader",
                     designerType.isInstance(originalDataObject));
@@ -176,7 +842,7 @@ final class FlutterDesignerDataObjectIT {
                         diskSource + unsavedEdit,
                         document.getText(0, document.getLength()));
 
-                FileObject model = createFile(root.resolve("buffered.fd"), """
+                FileObject model = createFile(root.resolve(".fd_templates/buffered.fd"), """
                         {
                           "format": "netbeans-flutter-designer",
                           "schemaVersion": 1,
@@ -484,15 +1150,79 @@ final class FlutterDesignerDataObjectIT {
                     .newInstance(dataObject.getLookup());
             Object source = sourceType.getConstructor(Lookup.class)
                     .newInstance(dataObject.getLookup());
-            UndoRedo designUndoRedo = (UndoRedo) designType.getMethod("getUndoRedo")
-                    .invoke(design);
-            UndoRedo sourceUndoRedo = (UndoRedo) sourceType.getMethod("getUndoRedo")
-                    .invoke(source);
+            try {
+                UndoRedo designUndoRedo = (UndoRedo) designType.getMethod("getUndoRedo")
+                        .invoke(design);
+                UndoRedo sourceUndoRedo = (UndoRedo) sourceType.getMethod("getUndoRedo")
+                        .invoke(source);
 
-            assertNotSame("Packaged Design exposed no paired Undo/Redo owner",
-                    UndoRedo.NONE, designUndoRedo);
-            assertSame("Packaged Design and Source exposed different Undo/Redo identities",
-                    designUndoRedo, sourceUndoRedo);
+                assertNotSame("Packaged Design exposed no paired Undo/Redo owner",
+                        UndoRedo.NONE, designUndoRedo);
+                assertSame("Packaged Design and Source exposed different Undo/Redo identities",
+                        designUndoRedo, sourceUndoRedo);
+                Container toolbar = (Container) designType
+                        .getMethod("getToolbarRepresentation")
+                        .invoke(design);
+                assertDesktopOnlyPreview(toolbar);
+            } finally {
+                designType.getMethod("componentClosed").invoke(design);
+            }
+        }
+
+        private void assertDesktopOnlyPreview(Container toolbar) {
+            JComboBox<?> previews = findNamedComponent(
+                    toolbar,
+                    JComboBox.class,
+                    "Flutter Canvas preview target");
+            assertEquals("A Windows-only Flutter project must expose one preview",
+                    1, previews.getItemCount());
+            assertEquals("The Windows-only Flutter project exposed a non-desktop preview",
+                    "Windows Desktop", previews.getItemAt(0).toString());
+            assertEquals("The Windows-only Flutter project did not select Desktop",
+                    "Windows Desktop", previews.getSelectedItem().toString());
+        }
+
+        private <T extends Component> T findNamedComponent(
+                Container root,
+                Class<T> type,
+                String accessibleName) {
+            for (Component component : root.getComponents()) {
+                AccessibleContext accessible = component.getAccessibleContext();
+                if (type.isInstance(component)
+                        && accessible != null
+                        && accessibleName.equals(accessible.getAccessibleName())) {
+                    return type.cast(component);
+                }
+                if (component instanceof Container child) {
+                    T found = findNamedComponentOrNull(child, type, accessibleName);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+            throw new AssertionError("No " + type.getSimpleName()
+                    + " named '" + accessibleName + "' in the opened Designer MultiView");
+        }
+
+        private <T extends Component> T findNamedComponentOrNull(
+                Container root,
+                Class<T> type,
+                String accessibleName) {
+            for (Component component : root.getComponents()) {
+                AccessibleContext accessible = component.getAccessibleContext();
+                if (type.isInstance(component)
+                        && accessible != null
+                        && accessibleName.equals(accessible.getAccessibleName())) {
+                    return type.cast(component);
+                }
+                if (component instanceof Container child) {
+                    T found = findNamedComponentOrNull(child, type, accessibleName);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+            return null;
         }
 
         private void requestVisible(
@@ -599,33 +1329,145 @@ final class FlutterDesignerDataObjectIT {
 
         private void assertDesignerPair(
                 Class<?> designerType,
+                Class<?> modelType,
                 Pair pair,
-                DataObject first,
-                DataObject second) {
+                DataObject dartObject,
+                DataObject modelObject) throws Exception {
             assertEquals("The .fd sidecar must resolve to the dedicated designer MIME",
                     DESIGNER_MIME, FileUtil.getMIMEType(pair.fd()));
             assertEquals("The technical primary must retain the Dart MIME type",
                     DART_MIME, FileUtil.getMIMEType(pair.dart()));
-            assertSame("The paired .dart and .fd files must resolve to one DataObject",
-                    first, second);
-            assertTrue("The pair is not owned by FlutterDesignerDataObject: "
-                    + first.getClass().getName(), designerType.isInstance(first));
+            assertNotSame("The visible .fd model must not be hidden as a Dart secondary entry",
+                    dartObject, modelObject);
+            assertTrue("The Dart editing session is not owned by FlutterDesignerDataObject: "
+                    + dartObject.getClass().getName(), designerType.isInstance(dartObject));
+            assertTrue("The .fd file has no visible FlutterDesignerModelDataObject: "
+                    + modelObject.getClass().getName(), modelType.isInstance(modelObject));
             assertEquals("The .dart file must be the technical primary",
-                    pair.dart(), first.getPrimaryFile());
-            assertEquals("The designer DataObject must own exactly the pair",
-                    Set.of(pair.dart(), pair.fd()), first.files());
-            assertFalse("Unsafe pair rename must remain disabled in the foundation slice",
-                    first.isRenameAllowed());
+                    pair.dart(), dartObject.getPrimaryFile());
+            assertEquals("The .fd file must remain a physical primary visible in Files",
+                    pair.fd(), modelObject.getPrimaryFile());
+            assertEquals("The Dart editing owner must not hide the model as a secondary entry",
+                    Set.of(pair.dart()), dartObject.files());
+            assertEquals("The visible model object must own exactly its physical .fd file",
+                    Set.of(pair.fd()), modelObject.files());
+            assertNotNull("The visible .fd model has no delegated Open action",
+                    modelObject.getLookup().lookup(OpenCookie.class));
+            DataFolder physicalFolder = DataFolder.findFolder(pair.fd().getParent());
+            awaitPhysicalModelChild(physicalFolder, modelObject);
+            assertPhysicalModelNode(physicalFolder, modelObject);
+            assertTrue("The Dart owner must expose shared paired Rename",
+                    dartObject.isRenameAllowed());
+            assertTrue("The .fd owner must expose the same shared paired Rename",
+                    modelObject.isRenameAllowed());
             assertFalse("Unsafe pair copy must remain disabled in the foundation slice",
-                    first.isCopyAllowed());
+                    dartObject.isCopyAllowed());
             assertFalse("Unsafe pair move must remain disabled in the foundation slice",
-                    first.isMoveAllowed());
-            assertTrue("Deleting the complete pair should remain available",
-                    first.isDeleteAllowed());
+                    dartObject.isMoveAllowed());
+            assertTrue("The Dart node must expose the shared paired Delete operation",
+                    dartObject.isDeleteAllowed());
+            assertTrue("The .fd node must expose the same shared paired Delete operation",
+                    modelObject.isDeleteAllowed());
+            assertTrue("The Dart node must publish NetBeans Delete",
+                    dartObject.getNodeDelegate().canDestroy());
+            assertTrue("The .fd node must publish NetBeans Delete",
+                    modelObject.getNodeDelegate().canDestroy());
+            assertTrue("The Dart node must publish NetBeans Rename",
+                    dartObject.getNodeDelegate().canRename());
+            assertTrue("The .fd node must publish NetBeans Rename",
+                    modelObject.getNodeDelegate().canRename());
+            assertTrue("The Dart node must publish paired NetBeans Cut",
+                    dartObject.getNodeDelegate().canCut());
+            assertTrue("The .fd node must publish paired NetBeans Cut",
+                    modelObject.getNodeDelegate().canCut());
+            assertNoWritableExtensionProperty(
+                    dartObject.getNodeDelegate(), "Dart");
+            assertNoWritableExtensionProperty(
+                    modelObject.getNodeDelegate(), ".fd");
+        }
+
+        /**
+         * Checks the real NetBeans Node icons and their originating resources.
+         * Resource URLs avoid brittle comparisons of rendered SVG pixels while
+         * still proving that Dart and Flutter Designer files stay visually distinct.
+         */
+        private void assertFileTypeIcons(
+                DataObject ordinaryDart,
+                DataObject pairedDart,
+                DataObject designerModel) {
+            Image ordinaryIcon = fileIcon(ordinaryDart, "ordinary Dart");
+            Image pairedIcon = fileIcon(pairedDart, "paired Dart");
+            Image designerIcon = fileIcon(designerModel, "Flutter Designer model");
+
+            URL ordinaryResource = ImageUtilities.findImageBaseURL(ordinaryIcon);
+            URL pairedResource = ImageUtilities.findImageBaseURL(pairedIcon);
+            URL designerResource = ImageUtilities.findImageBaseURL(designerIcon);
+            assertNotNull("The ordinary Dart node icon has no source resource URL",
+                    ordinaryResource);
+            assertNotNull("The paired Dart node icon has no source resource URL",
+                    pairedResource);
+            assertNotNull("The Flutter Designer node icon has no source resource URL",
+                    designerResource);
+            assertEquals("Ordinary and paired Dart nodes must use the same Dart file icon",
+                    ordinaryResource, pairedResource);
+            assertFalse("Dart and Flutter Designer nodes unexpectedly use the same file icon",
+                    ordinaryResource.equals(designerResource));
+        }
+
+        private Image fileIcon(DataObject dataObject, String description) {
+            Image icon = dataObject.getNodeDelegate()
+                    .getIcon(BeanInfo.ICON_COLOR_16x16);
+            assertNotNull("The " + description + " node has no 16x16 color icon", icon);
+            return icon;
+        }
+
+        /**
+         * FolderList processes file-created events on its request processor.
+         * DataFolder.getChildren() is therefore allowed to expose the previous
+         * snapshot briefly when another model is added to an already expanded
+         * .fd_templates folder. Wait for that documented asynchronous edge;
+         * never make production DataObject recognition block on UI refresh.
+         */
+        private void awaitPhysicalModelChild(
+                DataFolder physicalFolder,
+                DataObject modelObject) throws Exception {
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+            DataObject[] children;
+            do {
+                children = physicalFolder.getChildren();
+                if (java.util.Arrays.asList(children).contains(modelObject)) {
+                    return;
+                }
+                Thread.sleep(20);
+            } while (System.nanoTime() < deadline);
+            fail("The physical .fd model did not enter its Files folder after "
+                    + "NetBeans finished processing file-created events. Children: "
+                    + "modelValid=" + modelObject.isValid()
+                    + ", modelPrimary=" + modelObject.getPrimaryFile().getPath()
+                    + ", folderPrimary=" + physicalFolder.getPrimaryFile().getPath()
+                    + ", children="
+                    + java.util.Arrays.stream(children)
+                            .map(child -> child.getPrimaryFile().getPath()
+                                    + " [" + child.getClass().getName()
+                                    + ", valid=" + child.isValid() + "]")
+                            .collect(Collectors.joining(", ")));
+        }
+
+        /** Verifies the same Node path used by the Files view, not only DataFolder ownership. */
+        private void assertPhysicalModelNode(
+                DataFolder physicalFolder,
+                DataObject modelObject) {
+            Node[] nodes = physicalFolder.getNodeDelegate()
+                    .getChildren()
+                    .getNodes(true);
+            assertTrue("The physical .fd model has no node in the NetBeans Files view",
+                    java.util.Arrays.stream(nodes).anyMatch(node ->
+                            modelObject.equals(node.getLookup().lookup(DataObject.class))));
         }
 
         private Pair createPair(Path directory, String baseName) throws Exception {
-            FileObject dart = createFile(directory.resolve(baseName + ".dart"), """
+            FileObject dart = createFile(directory.resolve("lib/" + baseName + ".dart"), """
                     // <netbeans-flutter-designer region="imports">
                     import 'package:flutter/widgets.dart';
                     // </netbeans-flutter-designer>
@@ -641,7 +1483,8 @@ final class FlutterDesignerDataObjectIT {
                       // </netbeans-flutter-designer>
                     }
                     """);
-            FileObject fd = createFile(directory.resolve(baseName + ".fd"), """
+            FileObject fd = createFile(directory.resolve(
+                    ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
                       "schemaVersion": 1,
@@ -671,11 +1514,44 @@ final class FlutterDesignerDataObjectIT {
         }
 
         private FileObject createFile(Path path, String content) throws Exception {
+            Files.createDirectories(path.getParent());
             Files.writeString(path, content, StandardCharsets.UTF_8);
             FileUtil.refreshFor(path.toFile());
             FileObject file = FileUtil.toFileObject(path.toFile());
             assertNotNull("No FileObject for " + path, file);
             return file;
+        }
+
+        private Path createFlutterProject(Path root) throws Exception {
+            Files.createDirectories(root.resolve("lib"));
+            Files.createDirectories(root.resolve(".fd_templates"));
+            Files.createDirectories(root.resolve(".dart_tool"));
+            Files.createDirectories(root.resolve("windows"));
+            Files.writeString(root.resolve("pubspec.yaml"), """
+                    name: designer_runtime_app
+                    dependencies:
+                      flutter:
+                        sdk: flutter
+                    """, StandardCharsets.UTF_8);
+            Files.writeString(root.resolve(".dart_tool/package_config.json"), """
+                    {
+                      "configVersion": 2,
+                      "packages": [
+                        {
+                          "name": "designer_runtime_app",
+                          "rootUri": "../",
+                          "packageUri": "lib/",
+                          "languageVersion": "3.0"
+                        }
+                      ]
+                    }
+                    """, StandardCharsets.UTF_8);
+            FileUtil.refreshFor(root.toFile());
+            FileObject projectDirectory = FileUtil.toFileObject(root.toFile());
+            assertNotNull("No FileObject for Flutter project " + root, projectDirectory);
+            assertNotNull("Runtime fixture was not recognized as a Flutter project",
+                    ProjectManager.getDefault().findProject(projectDirectory));
+            return root;
         }
 
         private ModuleInfo flutterModule() {

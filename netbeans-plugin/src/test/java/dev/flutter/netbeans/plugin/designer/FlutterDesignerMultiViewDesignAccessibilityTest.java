@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnosticCode;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.generation.DartGenerationDiagnostic;
@@ -21,23 +22,275 @@ import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityGate;
 import dev.flutter.netbeans.designer.validation.ValidationResult;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteItem;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
+import dev.flutter.netbeans.plugin.project.FlutterProject;
+import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
 import java.awt.Component;
 import java.awt.Container;
 import java.beans.PropertyChangeEvent;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.accessibility.AccessibleContext;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.netbeans.spi.palette.PaletteController;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
+import org.openide.explorer.view.BeanTreeView;
+import org.openide.nodes.Node;
 import org.openide.util.Lookup;
 
 class FlutterDesignerMultiViewDesignAccessibilityTest {
+
+    @TempDir
+    Path temporaryDirectory;
+
+    @Test
+    void publishesExactCoreV1PaletteAndSelectedWidgetPropertiesInDesignLookup()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+
+            PaletteController palette = design.getLookup().lookup(PaletteController.class);
+            assertNotNull(palette);
+            Node paletteRoot = palette.getRoot().lookup(Node.class);
+            assertNotNull(paletteRoot);
+            assertEquals(List.of(
+                    "flutter.material.Scaffold",
+                    "flutter.widgets.Column",
+                    "flutter.widgets.Row",
+                    "flutter.widgets.Padding",
+                    "flutter.widgets.Center",
+                    "flutter.widgets.Text"),
+                    java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
+                            .flatMap(category -> java.util.Arrays.stream(
+                                    category.getChildren().getNodes(true)))
+                            .map(item -> item.getLookup()
+                                    .lookup(FlutterDesignerPaletteItem.class)
+                                    .typeId().value())
+                            .toList());
+
+            publish(design, currentState(List.of()));
+
+            Node selected = design.getLookup().lookup(Node.class);
+            assertNotNull(selected);
+            assertNotNull(selected.getLookup().lookup(WidgetDefinition.class));
+            assertEquals("flutter.widgets.SizedBox",
+                    selected.getLookup().lookup(WidgetDefinition.class)
+                            .typeId().value());
+            Node.PropertySet properties = java.util.Arrays.stream(
+                            selected.getPropertySets())
+                    .filter(set -> FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME
+                            .equals(set.getName()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals(List.of("width", "height"),
+                    java.util.Arrays.stream(properties.getProperties())
+                            .map(Node.Property::getName)
+                            .toList());
+            for (Node.Property<?> property : properties.getProperties()) {
+                assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        property.getValue());
+                assertFalse(property.canWrite());
+            }
+        });
+    }
+
+    @Test
+    void keepsCanvasFailureInlineConciseAndExposesFullDetailsAction() throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JPanel visual = (JPanel) design.getVisualRepresentation();
+            JLabel canvasStatus = findNamed(
+                    visual, JLabel.class, "Native Flutter Canvas status");
+            JButton details = findNamed(
+                    visual, JButton.class, "Show Native Flutter Canvas details");
+            String summary = "Prepare native Flutter Canvas launch failed.";
+            String detail = "Target: embedded Windows FlutterView. Reason: "
+                    + "the generated runner command produced a deliberately long "
+                    + "diagnostic that must remain available without stretching or "
+                    + "clipping the Design view status row.";
+
+            design.renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                    summary,
+                    detail));
+
+            assertEquals(summary, canvasStatus.getText());
+            assertEquals(detail, canvasStatus.getToolTipText());
+            assertEquals(summary + " " + detail,
+                    canvasStatus.getAccessibleContext().getAccessibleDescription());
+            assertTrue(details.isVisible());
+            assertTrue(details.isEnabled());
+            assertTrue(details.isFocusable());
+            assertTrue(details.getAccessibleContext().getAccessibleDescription()
+                    .contains(summary));
+
+            design.renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                    "Native Flutter Canvas is running.",
+                    "Verified embedded FlutterView."));
+            assertEquals("Native Flutter Canvas is running.", canvasStatus.getText());
+            assertFalse(details.isVisible());
+            assertFalse(details.isEnabled());
+
+            design.renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    "Native Flutter Canvas is unavailable.",
+                    "Target: embedded FlutterView. Reason: no platform host."));
+            assertEquals("Native Flutter Canvas is unavailable.",
+                    canvasStatus.getText());
+            assertTrue(details.isVisible());
+            assertTrue(details.isEnabled());
+        });
+    }
+
+    @Test
+    void rendersValidatedSuccessAsOneCompactHorizontalStatusRow() throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JPanel visual = (JPanel) design.getVisualRepresentation();
+            JPanel statusPanel = findNamed(
+                    visual, JPanel.class, "Flutter Designer model status");
+            JLabel status = findNamed(
+                    statusPanel, JLabel.class, "Flutter Designer status");
+            JLabel model = findNamed(
+                    statusPanel, JLabel.class, "Flutter Designer model and source");
+            JLabel detail = findNamed(
+                    statusPanel, JLabel.class, "Flutter Designer status details");
+            JLabel canvasStatus = findNamed(
+                    statusPanel, JLabel.class, "Native Flutter Canvas status");
+            JButton canvasDetails = findNamed(
+                    statusPanel, JButton.class, "Show Native Flutter Canvas details");
+
+            publish(design, currentState(List.of()));
+            design.renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                    "Native Flutter Canvas rendered.",
+                    "Validated revision 7 is visible in the embedded FlutterView."));
+
+            assertEquals("Designer ready.", status.getText());
+            assertTrue(status.isVisible());
+            assertTrue(canvasStatus.isVisible());
+            assertFalse(isVisibleWithin(model, statusPanel),
+                    "model/source diagnostics must not occupy a second banner row");
+            assertFalse(isVisibleWithin(detail, statusPanel),
+                    "success details must remain metadata rather than banner copy");
+            assertFalse(canvasDetails.isVisible());
+            assertFalse(canvasDetails.isEnabled());
+            assertNotNull(status.getToolTipText());
+            assertTrue(status.getToolTipText().contains("root widget"));
+            assertTrue(status.getToolTipText().contains("on-disk imports and build regions"));
+            assertTrue(statusPanel.getAccessibleContext().getAccessibleDescription()
+                    .contains("on-disk imports and build regions"));
+
+            int tallestSummary = Math.max(
+                    status.getPreferredSize().height,
+                    canvasStatus.getPreferredSize().height);
+            int verticalInsets = statusPanel.getInsets().top
+                    + statusPanel.getInsets().bottom;
+            assertTrue(statusPanel.getPreferredSize().height
+                            <= tallestSummary + verticalInsets + 4,
+                    "normal success must retain status-bar height instead of a banner");
+
+            statusPanel.setSize(1200, statusPanel.getPreferredSize().height);
+            layoutRecursively(statusPanel);
+            int statusCenterY = SwingUtilities.convertPoint(
+                    status, 0, status.getHeight() / 2, statusPanel).y;
+            int canvasCenterY = SwingUtilities.convertPoint(
+                    canvasStatus, 0, canvasStatus.getHeight() / 2, statusPanel).y;
+            assertTrue(Math.abs(statusCenterY - canvasCenterY) <= 2,
+                    "model and Canvas summaries must share one horizontal row");
+        });
+    }
+
+    @Test
+    void keepsModelFailureConciseWhileRetainingTargetAndReasonAsMetadata()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JPanel visual = (JPanel) design.getVisualRepresentation();
+            JPanel statusPanel = findNamed(
+                    visual, JPanel.class, "Flutter Designer model status");
+            JLabel status = findNamed(
+                    visual, JLabel.class, "Flutter Designer status");
+            JLabel model = findNamed(
+                    visual, JLabel.class, "Flutter Designer model and source");
+            JLabel detail = findNamed(
+                    visual, JLabel.class, "Flutter Designer status details");
+
+            publish(design, new FlutterDesignerDocumentState.Failure(
+                    "Read Flutter Designer model",
+                    "sample.fd",
+                    "The file is no longer available"));
+
+            assertEquals("Read Flutter Designer model failed.", status.getText());
+            assertTrue(status.isVisible());
+            assertFalse(isVisibleWithin(model, statusPanel));
+            assertFalse(isVisibleWithin(detail, statusPanel));
+            assertEquals(
+                    "Target: sample.fd. Reason: The file is no longer available",
+                    status.getToolTipText());
+            assertEquals(
+                    "Read Flutter Designer model failed. " + status.getToolTipText(),
+                    statusPanel.getAccessibleContext().getAccessibleDescription());
+        });
+    }
+
+    @Test
+    void createsScrollableSelectableReadOnlyCanvasDetails() throws Exception {
+        onEdt(() -> {
+            FlutterDesignerNativeCanvasStatus state =
+                    new FlutterDesignerNativeCanvasStatus(
+                            FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                            "Native Flutter Canvas is unavailable.",
+                            "Target: embedded Windows FlutterView. Reason: Flutter SDK "
+                            + "could not be resolved from the configured toolchain.");
+            JScrollPane scroll = FlutterDesignerMultiViewDesign
+                    .createNativeCanvasDetailsComponent(
+                            state, "home.fd", "home.dart");
+            JTextArea details = assertInstanceOf(
+                    JTextArea.class, scroll.getViewport().getView());
+
+            assertFalse(details.isEditable());
+            assertTrue(details.getLineWrap());
+            assertTrue(details.getWrapStyleWord());
+            assertTrue(details.isFocusable());
+            assertEquals(0, details.getCaretPosition());
+            assertEquals(
+                    "Native Flutter Canvas is unavailable.\n\n"
+                    + "Model: home.fd\n"
+                    + "Source: home.dart\n\n"
+                    + "Target: embedded Windows FlutterView. Reason: Flutter SDK "
+                    + "could not be resolved from the configured toolchain.",
+                    details.getText());
+            assertEquals("Native Flutter Canvas full status details",
+                    details.getAccessibleContext().getAccessibleName());
+            assertEquals("Native Flutter Canvas details",
+                    scroll.getAccessibleContext().getAccessibleName());
+            details.selectAll();
+            assertEquals(details.getText(), details.getSelectedText());
+        });
+    }
 
     @Test
     void namesTheDesignSurfaceAndAssociatesStatusWithLoadingProgress() throws Exception {
@@ -52,6 +305,14 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     visual,
                     JProgressBar.class,
                     "Flutter Designer model loading progress");
+            BeanTreeView widgetTree = findNamed(
+                    visual,
+                    BeanTreeView.class,
+                    "Flutter Designer widget tree");
+            JComboBox<?> previewMode = findNamed(
+                    toolbar,
+                    JComboBox.class,
+                    "Flutter Canvas preview target");
 
             assertEquals("Flutter Designer design view",
                     visual.getAccessibleContext().getAccessibleName());
@@ -60,6 +321,167 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertSame(progress, status.getLabelFor());
             assertFalse(progress.isVisible());
             assertNotNull(progress.getAccessibleContext().getAccessibleDescription());
+            assertNotNull(widgetTree.getAccessibleContext().getAccessibleDescription());
+            assertEquals(8, previewMode.getItemCount());
+            assertNotNull(previewMode.getAccessibleContext().getAccessibleDescription());
+        });
+    }
+
+    @Test
+    void reportsTheMissingWebBackendInsteadOfRelabelingTheWindowsCanvas()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            try {
+                JPanel visual = (JPanel) design.getVisualRepresentation();
+                JToolBar toolbar = (JToolBar) design.getToolbarRepresentation();
+                publish(design, currentState(List.of()));
+                JComboBox<?> previews = findNamed(
+                        toolbar,
+                        JComboBox.class,
+                        "Flutter Canvas preview target");
+                int web = java.util.stream.IntStream
+                        .range(0, previews.getItemCount())
+                        .filter(index -> "Web".equals(
+                                previews.getItemAt(index).toString()))
+                        .findFirst()
+                        .orElseThrow();
+                previews.setSelectedIndex(web);
+
+                JLabel canvasStatus = findNamed(
+                        visual,
+                        JLabel.class,
+                        "Native Flutter Canvas status");
+                assertEquals("Flutter Web Canvas is unavailable.",
+                        canvasStatus.getText());
+                assertTrue(canvasStatus.getToolTipText()
+                        .contains("browser-compiled Flutter runtime"));
+                assertTrue(canvasStatus.getToolTipText()
+                        .contains("not used as a false Web substitute"));
+            } finally {
+                design.componentClosed();
+            }
+        });
+    }
+
+    @Test
+    void synchronizesPreviewChoicesWithLiveFlutterProjectPlatforms() throws Exception {
+        Path root = Files.createDirectory(temporaryDirectory.resolve("desktop_only"));
+        Files.createDirectories(root.resolve("lib"));
+        Files.createDirectories(root.resolve(".fd_templates"));
+        Files.createDirectories(root.resolve("windows"));
+        Files.writeString(root.resolve("pubspec.yaml"), """
+                name: desktop_only
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                """, StandardCharsets.UTF_8);
+        Path dartPath = root.resolve("lib/home.dart");
+        Path modelPath = root.resolve(".fd_templates/home.fd");
+        Files.writeString(dartPath, "class Home {}\n", StandardCharsets.UTF_8);
+        Files.writeString(modelPath, "{}\n", StandardCharsets.UTF_8);
+        FlutterProject project = FlutterDesignerTestProject.own(root);
+        FileUtil.refreshFor(root.toFile());
+        FileObject dart = FileUtil.toFileObject(dartPath.toFile());
+        assertNotNull(dart);
+        FlutterDesignerDataObject dataObject = FlutterDesignerTestProject.dataObject(
+                dart, project);
+        FlutterProjectPlatformProvider platforms = project.getLookup()
+                .lookup(FlutterProjectPlatformProvider.class);
+        assertNotNull(platforms);
+        var start = FlutterProjectPlatformProvider.class.getDeclaredMethod("start");
+        start.setAccessible(true);
+        start.invoke(platforms);
+
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+        AtomicReference<JComboBox<?>> previewsRef = new AtomicReference<>();
+        try {
+            onEdt(() -> {
+                FlutterDesignerMultiViewDesign design =
+                        new FlutterDesignerMultiViewDesign(dataObject.getLookup());
+                designRef.set(design);
+                JComboBox<?> previews = findNamed(
+                        (JToolBar) design.getToolbarRepresentation(),
+                        JComboBox.class,
+                        "Flutter Canvas preview target");
+                previewsRef.set(previews);
+                assertPreviewChoices(
+                        previews,
+                        List.of("Windows Desktop"),
+                        "Windows Desktop");
+                assertTrue(previews.getAccessibleContext().getAccessibleDescription()
+                        .contains("Desktop"));
+                assertFalse(previews.getAccessibleContext().getAccessibleDescription()
+                        .contains("Mobile,"));
+                design.componentOpened();
+            });
+
+            project.getProjectDirectory().createFolder("android");
+            onEdt(() -> assertPreviewChoices(
+                    previewsRef.get(),
+                    List.of("Android Phone", "Android Tablet", "Windows Desktop"),
+                    "Windows Desktop"));
+
+            project.getProjectDirectory().createFolder("ios");
+            onEdt(() -> assertPreviewChoices(
+                    previewsRef.get(),
+                    List.of(
+                            "Android Phone",
+                            "iPhone",
+                            "Android Tablet",
+                            "iPad",
+                            "Windows Desktop"),
+                    "Windows Desktop"));
+
+            project.getProjectDirectory().getFileObject("windows").delete();
+            onEdt(() -> assertPreviewChoices(
+                    previewsRef.get(),
+                    List.of("Android Phone", "iPhone", "Android Tablet", "iPad"),
+                    "Android Phone"));
+
+            project.getProjectDirectory().getFileObject("android").delete();
+            onEdt(() -> assertPreviewChoices(
+                    previewsRef.get(),
+                    List.of("iPhone", "iPad"),
+                    "iPhone"));
+
+            onEdt(() -> designRef.get().componentClosed());
+            project.getProjectDirectory().createFolder("web");
+            onEdt(() -> assertPreviewChoices(
+                    previewsRef.get(),
+                    List.of("iPhone", "iPad"),
+                    "iPhone"));
+        } finally {
+            FlutterDesignerMultiViewDesign design = designRef.get();
+            if (design != null) {
+                onEdt(() -> design.componentClosed());
+            }
+            platforms.close();
+        }
+    }
+
+    @Test
+    void longValidatedModelStatusDoesNotLockTheWidgetTreeDivider() throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JPanel visual = (JPanel) design.getVisualRepresentation();
+            JSplitPane split = findByType(visual, JSplitPane.class);
+
+            publish(design, currentState(List.of()));
+            split.setSize(1200, 700);
+            split.doLayout();
+
+            assertTrue(split.isContinuousLayout(),
+                    "native resize must remain live while the divider is dragged");
+            assertTrue(split.getMaximumDividerLocation()
+                            > split.getMinimumDividerLocation(),
+                    "complete status copy must not consume the divider's resize range");
+            split.setDividerLocation(400);
+            split.doLayout();
+            assertEquals(400, split.getDividerLocation());
         });
     }
 
@@ -138,15 +560,16 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             FdDocumentCodec codec = new FdDocumentCodec();
             FlutterDesignerDocumentState.Current current = currentState(List.of());
             publish(design, current);
-            assertEquals("Flutter Designer on-disk three-way match verified.",
+            assertEquals("Designer ready.",
                     status.getAccessibleContext().getAccessibleDescription());
             assertEquals(
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in the .fd model, and the deterministic generated "
-                    + "payloads agree. The native Flutter Canvas host is installed, "
-                    + "but validated model publication, Palette, tree, properties, "
-                    + "selection, drag-and-drop and Designer mutation remain disabled "
-                    + "until their staged pair-aware workflows are complete.",
+                    + "payloads agree. The validated CORE_V1 model is published to the "
+                    + "isolated native Flutter Canvas. Viewport preview and read-only "
+                    + "widget-tree selection, the six-item Palette and read-only "
+                    + "Properties are enabled; drag-and-drop, property mutation "
+                    + "and Designer commands remain disabled.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 
@@ -452,6 +875,18 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 state));
     }
 
+    private static void assertPreviewChoices(
+            JComboBox<?> previews,
+            List<String> expected,
+            String selected) {
+        assertEquals(expected,
+                java.util.stream.IntStream.range(0, previews.getItemCount())
+                        .mapToObj(index -> previews.getItemAt(index).toString())
+                        .toList());
+        assertNotNull(previews.getSelectedItem());
+        assertEquals(selected, previews.getSelectedItem().toString());
+    }
+
     private static <T extends Component> T findNamed(
             Container root,
             Class<T> type,
@@ -472,6 +907,60 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
         }
         throw new AssertionError("No " + type.getSimpleName()
                 + " named '" + accessibleName + "'");
+    }
+
+    private static <T extends Component> T findByType(
+            Container root,
+            Class<T> type) {
+        for (Component component : root.getComponents()) {
+            if (type.isInstance(component)) {
+                return type.cast(component);
+            }
+            if (component instanceof Container child) {
+                T found = findByTypeOrNull(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        throw new AssertionError("No " + type.getSimpleName() + " found");
+    }
+
+    private static <T extends Component> T findByTypeOrNull(
+            Container root,
+            Class<T> type) {
+        for (Component component : root.getComponents()) {
+            if (type.isInstance(component)) {
+                return type.cast(component);
+            }
+            if (component instanceof Container child) {
+                T found = findByTypeOrNull(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void layoutRecursively(Container root) {
+        root.doLayout();
+        for (Component component : root.getComponents()) {
+            if (component instanceof Container child) {
+                layoutRecursively(child);
+            }
+        }
+    }
+
+    private static boolean isVisibleWithin(Component component, Container ancestor) {
+        Component cursor = component;
+        while (cursor != ancestor) {
+            if (cursor == null || !cursor.isVisible()) {
+                return false;
+            }
+            cursor = cursor.getParent();
+        }
+        return ancestor.isVisible();
     }
 
     private static <T extends Component> T findNamedOrNull(

@@ -6,6 +6,7 @@ import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
 import java.awt.EventQueue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.CharConversionException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,12 +37,15 @@ import org.openide.cookies.OpenCookie;
 import org.openide.cookies.PrintCookie;
 import org.openide.filesystems.FileLock;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.MultiDataObject;
 import org.openide.nodes.CookieSet;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.DataEditorSupport;
 import org.openide.windows.CloneableOpenSupport;
+import org.openide.windows.CloneableTopComponent;
+import org.openide.xml.XMLUtil;
 
 /**
  * Dart editor support shared by the Source designer view and guarded-section
@@ -102,9 +106,86 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     @Override
     protected CloneableEditorSupport.Pane createPane() {
-        return (CloneableEditorSupport.Pane) MultiViews.createCloneableMultiView(
+        CloneableTopComponent component = MultiViews.createCloneableMultiView(
                 FlutterDesignerMime.MIME_TYPE,
                 getDataObject());
+        if (getDataObject().isValid()) {
+            // MIME-created MultiViewCloneableTopComponent deliberately starts
+            // with an empty name. The active Design element is not a CES Pane,
+            // so no Source pane exists yet to supply the initial editor title.
+            component.setDisplayName(messageName());
+            component.setHtmlDisplayName(messageHtmlName());
+            component.setToolTipText(messageToolTip());
+        }
+        return (CloneableEditorSupport.Pane) component;
+    }
+
+    /** The user-facing editor represents the visible model, not its technical Dart owner. */
+    @Override
+    protected String messageName() {
+        FlutterDesignerDataObject dataObject = designerDataObject();
+        if (!dataObject.isValid()) {
+            return "";
+        }
+        return DataEditorSupport.annotateName(
+                dataObject.getModelFile().getNameExt(),
+                false,
+                isModified(),
+                pairIsReadOnly(dataObject));
+    }
+
+    @Override
+    protected String messageHtmlName() {
+        FlutterDesignerDataObject dataObject = designerDataObject();
+        if (!dataObject.isValid()) {
+            return null;
+        }
+        try {
+            String escapedModelName = XMLUtil.toElementContent(
+                    dataObject.getModelFile().getNameExt());
+            return DataEditorSupport.annotateName(
+                    escapedModelName,
+                    true,
+                    isModified(),
+                    pairIsReadOnly(dataObject));
+        } catch (CharConversionException invalidXmlCharacter) {
+            return null;
+        }
+    }
+
+    @Override
+    protected String messageToolTip() {
+        FlutterDesignerDataObject dataObject = designerDataObject();
+        if (!dataObject.isValid()) {
+            return "";
+        }
+        FileObject model = dataObject.getModelFile();
+        FileObject source = dataObject.getPrimaryFile();
+        StringBuilder tooltip = new StringBuilder(160)
+                .append("Flutter Designer model: ")
+                .append(FileUtil.getFileDisplayName(model))
+                .append(". Paired Dart source: ")
+                .append(FileUtil.getFileDisplayName(source))
+                .append('.');
+        if (isModified()) {
+            tooltip.append(" The paired form has unsaved changes.");
+        }
+        if (!model.canWrite()) {
+            tooltip.append(" The Flutter Designer model is read-only.");
+        }
+        if (!source.canWrite()) {
+            tooltip.append(" The paired Dart source is read-only.");
+        }
+        return tooltip.toString();
+    }
+
+    private FlutterDesignerDataObject designerDataObject() {
+        return (FlutterDesignerDataObject) getDataObject();
+    }
+
+    private static boolean pairIsReadOnly(FlutterDesignerDataObject dataObject) {
+        return !dataObject.getModelFile().canWrite()
+                || !dataObject.getPrimaryFile().canWrite();
     }
 
     @Override

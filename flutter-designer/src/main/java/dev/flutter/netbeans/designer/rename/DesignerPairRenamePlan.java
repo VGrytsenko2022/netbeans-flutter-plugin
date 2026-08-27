@@ -1,0 +1,88 @@
+package dev.flutter.netbeans.designer.rename;
+
+import dev.flutter.netbeans.designer.codec.FdDecodeResult;
+import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.codec.OriginalFdBytes;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import java.util.Objects;
+
+/** Immutable metadata-only transformation for one mirrored form rename. */
+public record DesignerPairRenamePlan(
+        String originalDartFile,
+        String targetDartFile,
+        DesignerDocument originalDocument,
+        DesignerDocument targetDocument,
+        OriginalFdBytes originalFdBytes,
+        OriginalFdBytes targetFdBytes) {
+
+    public DesignerPairRenamePlan {
+        originalDartFile = requireName(originalDartFile, "originalDartFile");
+        targetDartFile = requireName(targetDartFile, "targetDartFile");
+        Objects.requireNonNull(originalDocument, "originalDocument");
+        Objects.requireNonNull(targetDocument, "targetDocument");
+        Objects.requireNonNull(originalFdBytes, "originalFdBytes");
+        Objects.requireNonNull(targetFdBytes, "targetFdBytes");
+        if (!originalDocument.source().dartFile().equals(originalDartFile)) {
+            throw new IllegalArgumentException(
+                    "originalDocument does not name originalDartFile");
+        }
+        if (!targetDocument.source().dartFile().equals(targetDartFile)) {
+            throw new IllegalArgumentException(
+                    "targetDocument does not name targetDartFile");
+        }
+        if (originalDartFile.equals(targetDartFile)) {
+            throw new IllegalArgumentException(
+                    "A rename plan requires a different target Dart filename");
+        }
+
+        DartSourceDescriptor originalSource = originalDocument.source();
+        DartSourceDescriptor expectedTargetSource = new DartSourceDescriptor(
+                targetDartFile,
+                originalSource.className(),
+                originalSource.widgetKind(),
+                originalSource.generatorVersion(),
+                originalSource.managedRegions());
+        DesignerDocument expectedTargetDocument = new DesignerDocument(
+                originalDocument.schemaReference(),
+                originalDocument.documentId(),
+                expectedTargetSource,
+                originalDocument.canvas(),
+                originalDocument.root(),
+                originalDocument.extensions());
+        if (!targetDocument.equals(expectedTargetDocument)) {
+            throw new IllegalArgumentException(
+                    "targetDocument may differ from originalDocument only in source.dartFile");
+        }
+
+        FdDocumentCodec codec = new FdDocumentCodec();
+        requireExactCurrentDocument(
+                codec.decode(originalFdBytes),
+                originalDocument,
+                "originalFdBytes");
+        requireExactCurrentDocument(
+                codec.decode(targetFdBytes),
+                targetDocument,
+                "targetFdBytes");
+    }
+
+    private static String requireName(String value, String label) {
+        Objects.requireNonNull(value, label);
+        if (value.isBlank()) {
+            throw new IllegalArgumentException(label + " must not be blank");
+        }
+        return value;
+    }
+
+    private static void requireExactCurrentDocument(
+            FdDecodeResult decoded,
+            DesignerDocument expected,
+            String label) {
+        if (!(decoded instanceof FdDecodeResult.Current current)
+                || current.migrated()
+                || !current.document().equals(expected)) {
+            throw new IllegalArgumentException(
+                    label + " does not encode its exact non-migrated plan document");
+        }
+    }
+}

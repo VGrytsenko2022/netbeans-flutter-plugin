@@ -91,7 +91,40 @@ accepted architecture is documented in
 [`FLUTTER_DESIGNER_ARCHITECTURE.md`](FLUTTER_DESIGNER_ARCHITECTURE.md).
 
 - [x] Choose `.fd` as the versioned JSON visual-model format.
-- [x] Choose same-basename `.fd`/`.dart` pairing with guarded generated regions.
+- [x] Choose mirrored `lib/<relative>/<name>.dart` ↔
+  `.fd_templates/<relative>/<name>.fd` pairing with guarded generated regions;
+  keep schema-v1 `source.dartFile` as the Dart basename.
+- [x] Add `New File > Flutter Designer > Flutter Designer Form`; restrict its
+  target to `lib` or a subfolder and create both mirrored files atomically.
+- [x] Expose one pair-aware Delete from both mirrored file nodes. Reserve the
+  clean coordinator, close an open clean editor, stage both names reversibly,
+  and verify rollback; keep unsafe/read-only/unsaved pairs and single-file
+  deletion disabled.
+- [x] Expose one pair-aware Rename from both mirrored file nodes. Accept only a
+  canonical lower-snake-case basename for a complete, clean, writable
+  current-version pair; rename both paths and update only `source.dartFile`,
+  preserving the Dart bytes and `source.className`. Stage and verify the path
+  and metadata transition under deterministic locks with exact-byte in-process
+  rollback.
+- [x] Expose pair-aware Copy/Paste from both mirrored file nodes. Duplicate the
+  exact Dart bytes and a canonical `.fd` with a new `documentId` and retargeted
+  `source.dartFile`, only within the existing mirrored relative folder. Allocate
+  a jointly free collision suffix across both trees, keep a clean open editor
+  alive, publish no one-file loader or OS clipboard flavor, and provide verified
+  in-process rollback without a crash journal. Cross-directory Copy remains
+  blocked pending relative-URI rebasing semantics.
+- [x] Expose pair-aware Cut/Move from both mirrored file nodes as a one-shot
+  custom `NodeTransfer.CLIPBOARD_CUT` paste. Move exact bytes, without changing
+  the basename, only inside one Flutter project and into an already existing
+  mirrored destination. Prove project Dart directives with bounded
+  `pubspec.yaml`/`package_config.json`-bound inventory scanning; close the clean
+  source editor, run the final proof and commit under the exact NetBeans 30
+  MasterFS data locks and folder child-cache admission, create fresh target owners, hold both target locks through
+  reversible `.nbmove` source retirement, and retain verified recovery targets
+  when exact source recreation cannot be completed. Keep generic DataObject
+  Move unavailable and document the in-process/no-crash-journal boundary. Fix
+  schema-v1 asset paths at the project/pubspec root and keep opaque extensions
+  location-independent so byte-preserving Move has no `.fd`-relative state.
 - [x] Define the initial version 1 JSON Schema and conflict-safety invariants.
 - [x] Validate NetBeans 30 DataObject/MultiView and guarded-section integration.
 - [x] Implement the widget metadata catalog and typed widget-tree model.
@@ -230,10 +263,10 @@ accepted architecture is documented in
   foundation.
   - [x] Add host-issued session/presentation/frame/layout identities, exact
     validated-revision and resolved render-profile binding, plus pure stale and
-    replay admission rules. Mobile/Tablet/Desktop/Web development mode remains
-    independent from the concrete engine identity; the Windows-first native
-    host does not turn a mobile- or web-sized viewport into Android/iOS/browser
-    rendering.
+    replay admission rules. Exact Android/iOS/desktop adaptive targets now remain
+    distinct from the concrete Windows engine identity and reach
+    `ThemeData.platform`. Web fails explicitly until a separately compiled
+    browser Canvas backend is implemented; no Windows frame is relabeled as Web.
   - [x] Add the per-MultiView lifecycle controller with fresh-session restart,
     one in-flight render plus latest-only coalescing, stale callback fencing,
     atomic frame/layout admission and bounded failure states, verified with a
@@ -244,8 +277,8 @@ accepted architecture is documented in
     contiguous runner sequences and startup-close races.
   - [x] Add bounded digest-verified process framing. The complete current
     channel whitelist is control JSON plus post-handshake model and catalog
-    JSON. These are byte envelopes only; model/catalog payload schemas and
-    validated model publication are not implemented.
+    JSON. The model channel now carries the canonical bounded `CORE_V1`
+    projection; catalog JSON remains reserved for a future versioned contract.
   - [x] Reject physical surfaces above 4096 pixels per dimension or 8,388,608
     total pixels before native surface allocation. This is not a raster-transfer
     budget.
@@ -265,6 +298,11 @@ accepted architecture is documented in
   cleanup for Windows, Linux and macOS. The first injectable Windows HWND edge
   and per-MultiView lifecycle now exist; Linux/macOS and the common contract do
   not.
+- [ ] Implement the separate Flutter Web Canvas backend: compile the bounded
+  runner for Web, host it in an embedded browser surface, bridge the existing
+  session/revision/selection protocol without image transfer, and prove browser
+  lifecycle, origin, resource and teardown boundaries. Until then Web remains
+  explicitly unavailable.
 - [ ] Complete Windows child-window acceptance in the assembled NetBeans
   MultiView. The automated standalone Win32 spike already proves the actual
   `AWT Canvas HWND → runner HWND → FLUTTERVIEW HWND` hierarchy, resize and
@@ -273,15 +311,21 @@ accepted architecture is documented in
   menus/popups, peer recreation and real-process multi-view/crash cleanup still
   require assembled-NetBeans acceptance. Do not introduce a PNG, screenshot or
   raw-pixel fallback.
-- [ ] Define canonical model/catalog payload schemas and a bundled allowlisted
-  runner projection. The runner receives no project paths, Dart source, file
-  handles or persistence capability.
-- [ ] Render one exact validated revision in the embedded Windows `FlutterView`;
+- [x] Define the canonical bounded `CORE_V1` model payload and bundled
+  allowlisted runner projection for exactly `Scaffold`, `Column`, `Row`, `Text`,
+  `Padding` and `Center`. The runner receives no project paths, Dart source, file
+  handles or persistence capability; catalog JSON remains reserved.
+- [x] Render one exact validated revision in the embedded Windows `FlutterView`;
   bind native paint/layout epochs to session/presentation/revision identities,
   and prove resize/viewport/DPR and stale-callback rejection.
-- [ ] Synchronize selection with Explorer/Nodes and Properties, then implement
-  the DnD bridge: Java drag → Flutter hit test → revision/layout-bound semantic
-  intent → Java validation. Keep all mutation admission behind
+- [x] Synchronize stable-ID selection between the native Canvas and the
+  read-only Explorer/Nodes widget tree, publishing the selected Node through the
+  standard lookup without enabling document mutation.
+- [x] Publish a context-sensitive standard NetBeans Palette for the exact six
+  `CORE_V1` definitions and selected-node standard read-only Properties.
+- [ ] Implement editable Properties integration plus the DnD bridge:
+  Java drag → Flutter hit test → revision/layout-bound semantic intent → Java
+  validation. Keep all mutation admission behind
   `PUBLIC_MUTATION_UI_ENABLED=false`.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the

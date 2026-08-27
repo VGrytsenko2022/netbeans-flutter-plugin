@@ -23,6 +23,7 @@
           <exclude>.dart_tool/**</exclude>
           <exclude>build/**</exclude>
           <exclude>.idea/**</exclude>
+          <exclude>test/**</exclude>
           <exclude>windows/flutter/ephemeral/**</exclude>
           <exclude>windows/flutter/generated_*</exclude>
           <exclude>**/.gitignore</exclude>

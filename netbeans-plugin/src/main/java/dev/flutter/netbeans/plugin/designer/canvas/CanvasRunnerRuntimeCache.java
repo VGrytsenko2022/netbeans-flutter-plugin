@@ -54,9 +54,9 @@ final class CanvasRunnerRuntimeCache {
             CanvasRunnerBuildService.EXPECTED_EXECUTABLE,
             "flutter_windows.dll",
             "data/icudtl.dat",
+            "data/app.so",
             "data/flutter_assets/AssetManifest.bin",
             "data/flutter_assets/FontManifest.json",
-            "data/flutter_assets/kernel_blob.bin",
             "data/flutter_assets/NativeAssetsManifest.json",
             "data/flutter_assets/NOTICES.Z");
 
@@ -641,6 +641,7 @@ final class CanvasRunnerRuntimeCache {
         return CanvasRunnerBuildService.EXPECTED_EXECUTABLE.equals(relative)
                 || "flutter_windows.dll".equals(relative)
                 || "data/icudtl.dat".equals(relative)
+                || "data/app.so".equals(relative)
                 || relative.startsWith(ASSET_PREFIX);
     }
 

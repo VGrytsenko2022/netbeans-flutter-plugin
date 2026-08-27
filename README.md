@@ -18,8 +18,14 @@ The current usable workflow is:
 8. Use Hot Reload, Hot Restart, Stop, and the NetBeans Output window.
 9. Build, clean, resolve packages, analyze sources, and run all/file/single tests through native NetBeans tooling UI.
 10. Edit `pubspec.yaml` with Flutter-aware completion and semantic diagnostics.
+11. On Windows, open a valid paired `.dart`/`.fd` Designer document in a
+    read-only native Flutter Canvas, switch among exact Android/iOS/desktop
+    adaptive preview targets allowed by the project, and synchronize stable
+    widget selection between the Canvas and the read-only widget tree. Web is
+    listed only for a project with `web/` and reports the pending browser backend.
 
-Only after these are stable do we build the Matisse-like Flutter Designer.
+With the core IDE workflow stable, version 0.1.3 is now building the
+Matisse-like Flutter Designer in staged, non-authorizing slices.
 
 ## Modules
 
@@ -28,10 +34,14 @@ Only after these are stable do we build the Matisse-like Flutter Designer.
 - `flutter-sdk` — SDK discovery, validation and Flutter CLI process execution.
 - `flutter-project` — Flutter project recognition and project metadata.
 - `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, DevTools process integration, immutable Build/Clean and tooling commands, and Analyze/Test protocol parsers.
-- `flutter-canvas-runner` — versioned Flutter/Windows sources for the isolated native Canvas child process packaged with the plugin.
+- `flutter-canvas-runner` — versioned Flutter/Windows sources for the isolated
+  native Canvas child process, its bounded read-only model protocol and stable-ID
+  selection bridge, packaged with the plugin.
 - `netbeans-plugin` — NetBeans UI integration and actions.
 - `netbeans-runtime-it` — assembled NetBeans 30 gates for the packaged module, persisted SDK settings, Flutter project lifecycle, Dart MIME/editor registrations, Flutter actions, and optional real-SDK editor behavior.
-- `flutter-designer` — NetBeans-independent `.fd` schema, model, validation, generation, command, and persistence-planning boundary for the Designer.
+- `flutter-designer` — NetBeans-independent `.fd` schema, model, validation,
+  generation, command, persistence-planning and bounded read-only Canvas payload
+  boundary for the Designer.
 
 ## Requirements
 
@@ -62,6 +72,45 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 - Choose `File > Open Project` and select any existing Flutter directory containing `pubspec.yaml` and `lib`. It opens as a native NetBeans project with Flutter identity, a logical file tree, Dart source groups, and standard project operations.
 - To extend an existing Flutter application (`project_type: app`), choose `Flutter > Add Flutter Platforms...` or the same command in the project's context menu. Only canonical paths that are completely absent can be selected; an existing directory, file, or symbolic link is treated as occupied and is never overwritten. The operation uses the configured Flutter SDK, native Output and progress, then verifies that Flutter created every selected real directory. Flutter module, package, plugin, and unknown project types are rejected with a concrete reason.
 - In an open Flutter project choose `File > New File > Dart > Dart Class`. The wizard uses the selected project folder, converts an UpperCamelCase name such as `OrderRepository` to `order_repository.dart`, writes the class and opens it in the Dart editor.
+- Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
+  a complete Designer pair. The target is restricted to `lib` or one of its
+  subfolders. A Dart target such as `lib/account/profile.dart` is paired with
+  the JSON model `.fd_templates/account/profile.fd`; the schema-v1
+  `source.dartFile` value remains the Dart basename `profile.dart`.
+- Dart sources and Flutter Designer `.fd` models use distinct theme-aware file
+  icons in Projects, Files, and the corresponding New File wizard entries.
+- NetBeans `Delete` is available on either member of a complete Designer pair
+  and removes both the `lib/.../*.dart` source and mirrored `.fd_templates/.../*.fd`
+  model. The action closes a clean shared Designer/Source editor before touching
+  disk; incomplete, unsafe, read-only or unsaved pairs fail closed.
+- NetBeans `Rename` is also available from either member of a complete, clean
+  current-version pair. A canonical lower-snake-case basename renames both
+  mirrored files and updates only schema-v1 `source.dartFile`; the Dart bytes and
+  `source.className` are deliberately unchanged. The implementation stages both
+  paths, writes and verifies the canonical model metadata, and exact-byte rolls
+  back a failed operation. This is an in-process rollback guarantee rather than
+  a durable crash-recovery journal.
+- NetBeans `Copy`/`Paste` is available from either physical member of a complete,
+  clean pair. Paste currently duplicates the Dart and `.fd` files only inside
+  that pair's existing mirrored relative folder, choosing a jointly free
+  `_copy`, `_copy_2`, ... basename across both trees. The Dart bytes remain
+  exact; the canonical duplicate model receives a new `documentId` and changes
+  only `source.dartFile`. A clean open Source/Designer editor remains open.
+  Clipboard transfer uses the pair-aware NetBeans node flavor only, without a
+  one-file loader flavor or operating-system file-list flavor. Cross-directory
+  Copy awaits defined relative-URI rebasing semantics.
+- NetBeans `Cut`/`Paste` moves a complete clean Designer pair between already
+  existing mirrored folders in the same Flutter project. The basename and the
+  exact Dart/`.fd` bytes are unchanged. A successful Paste consumes the
+  pair-only clipboard transfer, closes a clean source editor, retires the old
+  path-bound DataObjects and creates fresh owners at the destination. Missing
+  mirrored folders, collisions, read-only or linked paths, unsaved files and
+  Dart directives whose binding could change all fail closed. The final proof
+  and commit share an EDT admission under exact NetBeans 30 MasterFS file locks
+  and folder child-cache mutexes; another runtime shape is rejected rather than
+  guessed. Generic DataObject Move remains unavailable. Schema-v1 asset paths are relative to the
+  Flutter project/pubspec root, never to the `.fd` location, and opaque
+  `extensions` metadata must remain location-independent.
 
 ## Run and debug a Flutter application
 
@@ -112,4 +161,22 @@ This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 ## Status
 
-This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, platform-selective application creation and later platform addition, Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, target-aware Build/Clean/Clean and Build, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Version 0.1.2 is focused on lifecycle hardening and native NetBeans integration; embedded DevTools and Inspector/widget-tree UI remain separate future work while the 0.1.3 Designer foundation is developed behind its isolated boundary.
+This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, platform-selective application creation and later platform addition, Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, target-aware Build/Clean/Clean and Build, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Version 0.1.2 focused on lifecycle hardening and native NetBeans integration.
+
+The unreleased 0.1.3 Designer now includes the first Windows native read-only
+Canvas slice. Each eligible `.fd` Design tab embeds an isolated real
+`FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
+bounded validated `CORE_V1` model restricted to `Scaffold`, `Column`, `Row`,
+`Text`, `Padding` and `Center`. The toolbar now preserves exact Android Phone,
+Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
+targets and carries each target into Flutter's adaptive theme semantics on the
+bound Windows engine. These are appearance previews, not device runtimes. Web
+fails explicitly until its separate browser backend exists. Stable widget IDs synchronize
+selection between the Canvas, the read-only Explorer widget tree and standard
+read-only Properties. The active Design lookup supplies the standard NetBeans
+Palette with those exact six items. Palette insertion, drag-and-drop, editable
+Properties, Designer commands and model mutation remain disabled; the standard
+pair-aware Copy/Paste, Cut/Move, Rename and Delete described above are enabled;
+Linux/macOS native hosts and writable UI are future work. Embedded DevTools and
+its Flutter Inspector are a separate future
+milestone.

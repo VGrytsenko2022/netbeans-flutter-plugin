@@ -142,6 +142,28 @@ class CanvasIntentReplayGateTest {
     }
 
     @Test
+    void consumeAdvancesAStalePresentationRaceWithoutACurrentLayout() {
+        CanvasLayoutKey oldLayout = layout(SESSION_A, 0, 0, 0);
+        CanvasLayoutKey newLayout = layout(SESSION_A, 1, 0, 0);
+        CanvasIntentReplayGate gate = new CanvasIntentReplayGate(SESSION_A);
+
+        CanvasIntentAdmission staleRace = gate.consume(
+                intent(SESSION_A, 0, oldLayout),
+                CanvasIntentReplayPolicy.IDEMPOTENT);
+        CanvasIntentAdmission current = gate.consume(
+                intent(SESSION_A, 1, newLayout),
+                CanvasIntentReplayPolicy.IDEMPOTENT);
+
+        assertEquals(CanvasIntentAdmission.ACCEPTED, staleRace);
+        assertTrue(staleRace.firstDelivery());
+        assertEquals(CanvasIntentAdmission.ACCEPTED, current);
+        assertTrue(current.firstDelivery());
+        assertEquals(CanvasIntentAdmission.STALE_INTENT, gate.consume(
+                intent(SESSION_A, 0, oldLayout),
+                CanvasIntentReplayPolicy.IDEMPOTENT));
+    }
+
+    @Test
     void rejectsInvalidProtocolValuesAndForeignCurrentLayout() {
         CanvasFrameKey frame = frame(SESSION_A, 0, 0);
         CanvasLayoutKey layout = new CanvasLayoutKey(frame, 0);

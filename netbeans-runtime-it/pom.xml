@@ -179,7 +179,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
         <configuration>
-          <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED</argLine>
+          <argLine>--add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.desktop/javax.swing=ALL-UNNAMED --add-opens=java.desktop/javax.swing.text=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=java.desktop/sun.awt=ALL-UNNAMED</argLine>
           <!-- Each NbModuleSuite owns a module-system lifecycle. In particular,
                opening the real MultiView schedules LSP work that must not leak
                into the next suite after its modules have been disabled. -->

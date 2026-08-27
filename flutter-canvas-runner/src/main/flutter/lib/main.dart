@@ -1,55 +1,34 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
+import 'src/canvas_runtime.dart';
+import 'src/canvas_view.dart';
+
 void main() {
-  runApp(const NativeCanvasApp());
-}
+  void diagnostic(String message) => stderr.writeln(message);
+  runZonedGuarded<void>(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      FlutterError.onError = (details) {
+        diagnostic(
+          'Native Flutter Canvas framework failure: ${details.exception}',
+        );
+      };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        diagnostic('Native Flutter Canvas asynchronous failure: $error');
+        return true;
+      };
 
-class NativeCanvasApp extends StatelessWidget {
-  const NativeCanvasApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Native Flutter Canvas'),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        ),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FlutterLogo(size: 72),
-                SizedBox(height: 20),
-                Text(
-                  'FlutterView is embedded in the NetBeans Design view',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.phone_android),
-                    SizedBox(width: 12),
-                    Icon(Icons.tablet),
-                    SizedBox(width: 12),
-                    Icon(Icons.desktop_windows),
-                    SizedBox(width: 12),
-                    Icon(Icons.web),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+      final runtime = CanvasRuntimeController();
+      runApp(NativeCanvasApp(runtime: runtime));
+      unawaited(runtime.start());
+    },
+    (error, stack) {
+      diagnostic('Native Flutter Canvas uncaught failure: $error');
+    },
+    zoneSpecification: protocolOnlyStdoutZone(diagnostic),
+  );
 }

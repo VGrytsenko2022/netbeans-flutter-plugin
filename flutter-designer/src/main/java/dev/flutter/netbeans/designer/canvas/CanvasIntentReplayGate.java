@@ -27,6 +27,53 @@ public final class CanvasIntentReplayGate implements AutoCloseable {
     }
 
     /**
+     * Consumes one observed intent identity before presentation-dependent
+     * semantic checks are performed by the caller.
+     *
+     * <p>This entry point is for controller races where the current accepted
+     * layout may temporarily be absent (for example while a newer model is
+     * being published). Every contiguous same-session sequence still advances
+     * the replay fence. Callers must authorize the intent separately and must
+     * act only on a first delivery.</p>
+     */
+    public synchronized CanvasIntentAdmission consume(
+            CanvasIntentKey candidate,
+            CanvasIntentReplayPolicy policy) {
+        Objects.requireNonNull(candidate, "candidate");
+        Objects.requireNonNull(policy, "policy");
+        if (closed) {
+            return CanvasIntentAdmission.CLOSED;
+        }
+        if (!sessionId.equals(candidate.intentId().sessionId())) {
+            return CanvasIntentAdmission.STALE_SESSION;
+        }
+        long candidateSequence = candidate.intentId().intentSequence();
+        if (candidateSequence < nextIntentSequence) {
+            if (lastObservedKey != null
+                    && candidateSequence
+                    == lastObservedKey.intentId().intentSequence()) {
+                if (!lastObservedKey.equals(candidate)
+                        || lastObservedPolicy != policy) {
+                    return CanvasIntentAdmission.CONFLICTING_INTENT_ID;
+                }
+                if (lastObservedAdmission != CanvasIntentAdmission.ACCEPTED) {
+                    return lastObservedAdmission;
+                }
+                return policy == CanvasIntentReplayPolicy.IDEMPOTENT
+                        ? CanvasIntentAdmission.ACCEPTED_IDEMPOTENT_REPLAY
+                        : CanvasIntentAdmission.REPLAYED_ONE_SHOT;
+            }
+            return CanvasIntentAdmission.STALE_INTENT;
+        }
+        if (candidateSequence > nextIntentSequence) {
+            return CanvasIntentAdmission.OUT_OF_ORDER_INTENT;
+        }
+        remember(candidate, policy, CanvasIntentAdmission.ACCEPTED);
+        nextIntentSequence++;
+        return CanvasIntentAdmission.ACCEPTED;
+    }
+
+    /**
      * Checks one candidate against the exact latest accepted layout.
      *
      * <p>{@code policy} must be derived by trusted Java code from the intent

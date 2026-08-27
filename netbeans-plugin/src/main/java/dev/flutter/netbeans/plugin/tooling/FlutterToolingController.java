@@ -5,6 +5,7 @@ import dev.flutter.netbeans.api.FlutterProjectInfo;
 import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.plugin.lifecycle.AsyncTaskTracker;
 import dev.flutter.netbeans.plugin.project.FlutterProjectActionProvider;
+import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
 import dev.flutter.netbeans.project.FlutterProjectPlatform;
 import dev.flutter.netbeans.project.FlutterProjectType;
 import dev.flutter.netbeans.project.FlutterProjectTypeDetector;
@@ -47,6 +48,7 @@ public final class FlutterToolingController implements AutoCloseable {
     private final FlutterExecutionBackend backend;
     private final FlutterTestSessionFactory testSessions;
     private final FlutterSdkResolver sdkResolver;
+    private final FlutterProjectPlatformProvider platformProvider;
     private final AsyncTaskTracker quiescenceTasks = new AsyncTaskTracker(
             command -> WORKER.post(command));
     private final ChangeSupport changes = new ChangeSupport(this);
@@ -60,12 +62,21 @@ public final class FlutterToolingController implements AutoCloseable {
             Project project,
             FlutterProjectInfo projectInfo,
             FlutterTestSessionFactory testSessions) {
+        this(project, projectInfo, testSessions, null);
+    }
+
+    public FlutterToolingController(
+            Project project,
+            FlutterProjectInfo projectInfo,
+            FlutterTestSessionFactory testSessions,
+            FlutterProjectPlatformProvider platformProvider) {
         this(
                 project,
                 projectInfo,
                 new NetBeansFlutterExecutionBackend(),
                 testSessions,
-                FlutterToolingController::resolveFlutterSdk);
+                FlutterToolingController::resolveFlutterSdk,
+                platformProvider);
     }
 
     FlutterToolingController(
@@ -74,12 +85,23 @@ public final class FlutterToolingController implements AutoCloseable {
             FlutterExecutionBackend backend,
             FlutterTestSessionFactory testSessions,
             FlutterSdkResolver sdkResolver) {
+        this(project, projectInfo, backend, testSessions, sdkResolver, null);
+    }
+
+    FlutterToolingController(
+            Project project,
+            FlutterProjectInfo projectInfo,
+            FlutterExecutionBackend backend,
+            FlutterTestSessionFactory testSessions,
+            FlutterSdkResolver sdkResolver,
+            FlutterProjectPlatformProvider platformProvider) {
         this.project = Objects.requireNonNull(project, "project");
         this.projectRoot = Objects.requireNonNull(projectInfo, "projectInfo")
                 .root().toAbsolutePath().normalize();
         this.backend = Objects.requireNonNull(backend, "backend");
         this.testSessions = Objects.requireNonNull(testSessions, "testSessions");
         this.sdkResolver = Objects.requireNonNull(sdkResolver, "sdkResolver");
+        this.platformProvider = platformProvider;
     }
 
     public boolean isCommandEnabled(String command) {
@@ -466,6 +488,9 @@ public final class FlutterToolingController implements AutoCloseable {
         if (current && !cancelled && operation.addsPlatforms()) {
             FileUtil.refreshFor(projectRoot.toFile());
             project.getProjectDirectory().refresh();
+            if (platformProvider != null) {
+                platformProvider.refresh();
+            }
         }
         if (!operation.complete(exitCode, cancelled, failure, success && current)) {
             return;

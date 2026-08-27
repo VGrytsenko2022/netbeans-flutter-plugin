@@ -1,9 +1,12 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.plugin.dart.DartTokenId;
+import dev.flutter.netbeans.plugin.project.FlutterProject;
+import dev.flutter.netbeans.plugin.ui.FlutterFileIcons;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Objects;
 import org.openide.filesystems.FileObject;
-import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.MIMEResolver;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.DataObjectExistsException;
@@ -12,27 +15,30 @@ import org.openide.loaders.MultiDataObject;
 import org.openide.loaders.MultiFileLoader;
 
 /**
- * Recognizes a same-directory {@code .dart + .fd} pair as one designer file.
- * Dart remains the technical primary so its editor MIME and language services
- * continue to work without special forwarding.
+ * Recognizes a Dart file below {@code lib} when its mirrored model exists below
+ * {@code .fd_templates}.
+ *
+ * <p>Dart remains the technical primary of the editing session so its editor
+ * MIME, document identity and language services continue to work without
+ * forwarding. The model is deliberately <em>not</em> registered as a secondary
+ * entry: {@link FlutterDesignerModelDataObject} keeps the physical {@code .fd}
+ * file visible in NetBeans' Files view and delegates opening it to this shared
+ * editing session.</p>
  */
 @MIMEResolver.ExtensionRegistration(
         displayName = "Flutter Designer Model Files",
         extension = FlutterDesignerMime.MODEL_EXTENSION,
         mimeType = FlutterDesignerMime.MIME_TYPE,
         position = 352)
-@DataObject.Registrations({
-    @DataObject.Registration(
-            mimeType = DartTokenId.MIME_TYPE,
-            displayName = "Flutter Designer Screen",
-            position = 100),
-    @DataObject.Registration(
-            mimeType = FlutterDesignerMime.MIME_TYPE,
-            displayName = "Flutter Designer Screen",
-            position = 100)
-})
+@DataObject.Registration(
+        mimeType = DartTokenId.MIME_TYPE,
+        displayName = "Flutter Designer Screen",
+        iconBase = FlutterFileIcons.DART_FILE_ICON_PATH,
+        position = 100)
 public final class FlutterDesignerDataLoader extends MultiFileLoader {
     private static final long serialVersionUID = 1L;
+    private static final ThreadLocal<FlutterProject> EXPLICIT_PROJECT =
+            new ThreadLocal<>();
 
     public FlutterDesignerDataLoader() {
         super("dev.flutter.netbeans.plugin.designer.FlutterDesignerDataObject");
@@ -40,24 +46,52 @@ public final class FlutterDesignerDataLoader extends MultiFileLoader {
 
     @Override
     protected FileObject findPrimaryFile(FileObject file) {
-        if (file == null || file.isFolder()) {
+        if (file == null || !file.hasExt(FlutterDesignerMime.DART_EXTENSION)) {
             return null;
         }
-        if (file.hasExt(FlutterDesignerMime.DART_EXTENSION)) {
-            return FileUtil.findBrother(file, FlutterDesignerMime.MODEL_EXTENSION) == null
-                    ? null
-                    : file;
+        FlutterProject project = EXPLICIT_PROJECT.get();
+        return (project == null
+                ? FlutterDesignerPairLayout.findCompletePair(file)
+                : FlutterDesignerPairLayout.findCompletePair(file, project))
+                .map(FlutterDesignerPairLayout.Pair::dartFile)
+                .orElse(null);
+    }
+
+    FileObject findPrimaryFile(FileObject file, FlutterProject project) {
+        if (file == null || !file.hasExt(FlutterDesignerMime.DART_EXTENSION)) {
+            return null;
         }
-        if (file.hasExt(FlutterDesignerMime.MODEL_EXTENSION)) {
-            return FileUtil.findBrother(file, FlutterDesignerMime.DART_EXTENSION);
+        return FlutterDesignerPairLayout.findCompletePair(file, project)
+                .map(FlutterDesignerPairLayout.Pair::dartFile)
+                .orElse(null);
+    }
+
+    /**
+     * Runs normal DataObject recognition with an already resolved project.
+     * This is used by lightweight unit containers that intentionally omit the
+     * NetBeans project-owner service; production recognition uses FileOwnerQuery.
+     */
+    DataObject findDataObject(FileObject file, FlutterProject project)
+            throws IOException {
+        Objects.requireNonNull(project, "project");
+        if (EXPLICIT_PROJECT.get() != null) {
+            throw new IllegalStateException("Nested explicit project recognition");
         }
-        return null;
+        EXPLICIT_PROJECT.set(project);
+        try {
+            return findDataObject(file, new HashSet<>());
+        } finally {
+            EXPLICIT_PROJECT.remove();
+        }
     }
 
     @Override
     protected MultiDataObject createMultiObject(FileObject primaryFile)
             throws DataObjectExistsException, IOException {
-        return new FlutterDesignerDataObject(primaryFile, this);
+        FlutterProject project = EXPLICIT_PROJECT.get();
+        return project == null
+                ? new FlutterDesignerDataObject(primaryFile, this)
+                : new FlutterDesignerDataObject(primaryFile, this, project);
     }
 
     @Override

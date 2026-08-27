@@ -254,6 +254,38 @@ public final class FlutterDesignerDocumentController implements Node.Cookie {
         }
     }
 
+    /**
+     * Invalidates every retained model/source identity after a committed pair
+     * path change. The rename lease has already closed the shared editor, but
+     * this also handles a late clone callback without exposing the old
+     * {@code source.dartFile} descriptor.
+     */
+    void pairPathOperationCommitted() {
+        FlutterDesignerDocumentState previous;
+        FlutterDesignerDocumentState idle = new FlutterDesignerDocumentState.Idle();
+        boolean scheduleWorker = false;
+        synchronized (this) {
+            generation.incrementAndGet();
+            previous = state;
+            state = idle;
+            reloadRequested = openViews > 0;
+            if (reloadRequested && !loadRunning) {
+                loadRunning = true;
+                scheduleWorker = true;
+            }
+        }
+        Runnable publication = () -> changes.firePropertyChange(
+                PROP_STATE, previous, idle);
+        if (EventQueue.isDispatchThread()) {
+            publication.run();
+        } else {
+            EventQueue.invokeLater(publication);
+        }
+        if (scheduleWorker) {
+            WORKER.post(this::runLoads);
+        }
+    }
+
     FlutterDesignerDocumentState loadNow() {
         return loadOperation.load();
     }

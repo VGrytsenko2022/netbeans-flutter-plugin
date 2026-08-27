@@ -23,7 +23,11 @@ interface WindowsNativeCanvasApi {
 
     NativeCanvasWindowBounds clientBounds(long window);
 
-    boolean moveWindow(long window, NativeCanvasWindowBounds bounds);
+    /**
+     * Queues a bounds update on the thread that owns {@code window} without
+     * waiting for that thread to process Flutter's resize and paint messages.
+     */
+    boolean setWindowBoundsAsync(long window, NativeCanvasWindowBounds bounds);
 
     void showWindow(long window, boolean visible);
 }

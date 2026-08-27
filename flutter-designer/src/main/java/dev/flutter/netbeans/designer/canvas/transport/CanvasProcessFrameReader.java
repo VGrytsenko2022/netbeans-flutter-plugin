@@ -79,10 +79,17 @@ public final class CanvasProcessFrameReader {
         readExact(
                 header,
                 1,
-                CanvasProcessFrameCodec.HEADER_BYTES - 1,
+                CanvasProcessFrameCodec.MAGIC.length - 1,
                 CanvasProcessFramingError.TRUNCATED_HEADER,
                 "Canvas process frame header ended before 44 bytes.");
         validateMagic(header);
+        readExact(
+                header,
+                CanvasProcessFrameCodec.MAGIC.length,
+                CanvasProcessFrameCodec.HEADER_BYTES
+                        - CanvasProcessFrameCodec.MAGIC.length,
+                CanvasProcessFramingError.TRUNCATED_HEADER,
+                "Canvas process frame header ended before 44 bytes.");
         if (Byte.toUnsignedInt(header[4]) != CanvasProcessFrameCodec.VERSION) {
             throw CanvasProcessFrameCodec.failure(
                     CanvasProcessFramingError.UNSUPPORTED_VERSION,

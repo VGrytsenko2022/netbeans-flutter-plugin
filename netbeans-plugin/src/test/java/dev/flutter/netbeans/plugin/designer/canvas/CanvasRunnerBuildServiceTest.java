@@ -40,6 +40,38 @@ class CanvasRunnerBuildServiceTest {
     Path temporary;
 
     @Test
+    void defaultCacheRootUsesShortDeterministicUserTempOnWindows() {
+        Path netBeansCache = temporary.resolve(
+                "an-intentionally-long-netbeans-user-directory")
+                .resolve("var/cache/flutter-canvas-runner");
+        Path userTemp = temporary.resolve("user-temp");
+        Path expected = userTemp.resolve("nb-fcr").toAbsolutePath().normalize();
+
+        Path windows = CanvasRunnerBuildService.resolveDefaultCacheRoot(
+                "Windows 11", netBeansCache, userTemp);
+        Path windowsCaseInsensitive = CanvasRunnerBuildService.resolveDefaultCacheRoot(
+                "wInDoWs Server 2025", netBeansCache, userTemp);
+
+        assertEquals(expected, windows);
+        assertEquals(expected, windowsCaseInsensitive);
+        assertFalse(windows.startsWith(netBeansCache.toAbsolutePath().normalize()));
+        assertTrue(windows.toString().length()
+                < netBeansCache.toAbsolutePath().normalize().toString().length());
+    }
+
+    @Test
+    void defaultCacheRootKeepsNetBeansPlacesCacheOutsideWindows() {
+        Path netBeansCache = temporary.resolve("netbeans-cache");
+        Path userTemp = temporary.resolve("user-temp");
+        Path expected = netBeansCache.toAbsolutePath().normalize();
+
+        assertEquals(expected, CanvasRunnerBuildService.resolveDefaultCacheRoot(
+                "Linux", netBeansCache, userTemp));
+        assertEquals(expected, CanvasRunnerBuildService.resolveDefaultCacheRoot(
+                "Mac OS X", netBeansCache, userTemp));
+    }
+
+    @Test
     void asyncBuildUsesOnlyExtractedCacheAndThenReusesExactExecutable() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle();
         FlutterSdk sdk = sdk();
@@ -49,7 +81,7 @@ class CanvasRunnerBuildServiceTest {
             assertEquals(workingDirectory, workingDirectory.toAbsolutePath().normalize());
             assertTrue(workingDirectory.startsWith(temporary.resolve("cache").toAbsolutePath()));
             assertEquals(List.of(sdk.flutterExecutable().toString(),
-                    "build", "windows", "--debug"), command);
+                    "build", "windows", "--release"), command);
             writeRuntime(workingDirectory);
             return new TestProcess(0, "build ok\n", false);
         };
@@ -113,16 +145,15 @@ class CanvasRunnerBuildServiceTest {
         }, Duration.ofSeconds(1));
 
         CanvasRunnerBuildResult first = service.build(sdk);
-        Path kernel = first.executable().getParent()
-                .resolve("data/flutter_assets/kernel_blob.bin");
-        Files.writeString(kernel, "tampered");
+        Path application = first.executable().getParent().resolve("data/app.so");
+        Files.writeString(application, "tampered");
         CanvasRunnerBuildResult rebuilt = service.build(sdk);
         try (first; rebuilt) {
             assertTrue(rebuilt.builtNow());
             assertEquals(2, starts.get());
-            assertEquals("kernel", Files.readString(rebuilt.executable().getParent()
-                    .resolve("data/flutter_assets/kernel_blob.bin")));
-            assertEquals("tampered", Files.readString(kernel),
+            assertEquals("application", Files.readString(rebuilt.executable().getParent()
+                    .resolve("data/app.so")));
+            assertEquals("tampered", Files.readString(application),
                     "leased generation stays immutable and is not repaired in place");
         }
     }
@@ -131,7 +162,7 @@ class CanvasRunnerBuildServiceTest {
     void successfulBuildWithEmptyRequiredRuntimeFileIsRejected() throws Exception {
         CanvasRunnerBuildService service = service(bundle(), (_command, workingDirectory) -> {
             Path executable = writeRuntime(workingDirectory);
-            Files.write(executable.getParent().resolve("data/flutter_assets/kernel_blob.bin"),
+            Files.write(executable.getParent().resolve("data/app.so"),
                     new byte[0]);
             return new TestProcess(0, "partial build\n", false);
         }, Duration.ofSeconds(1));
@@ -458,14 +489,14 @@ class CanvasRunnerBuildServiceTest {
     }
 
     private static Path writeRuntime(Path workingDirectory) throws IOException {
-        Path runtime = workingDirectory.resolve("build/windows/x64/runner/Debug");
+        Path runtime = workingDirectory.resolve("build/windows/x64/runner/Release");
         Map<String, String> files = Map.ofEntries(
                 Map.entry(CanvasRunnerBuildService.EXPECTED_EXECUTABLE, "exe"),
                 Map.entry("flutter_windows.dll", "engine"),
                 Map.entry("data/icudtl.dat", "icu"),
+                Map.entry("data/app.so", "application"),
                 Map.entry("data/flutter_assets/AssetManifest.bin", "assets"),
                 Map.entry("data/flutter_assets/FontManifest.json", "fonts"),
-                Map.entry("data/flutter_assets/kernel_blob.bin", "kernel"),
                 Map.entry("data/flutter_assets/NativeAssetsManifest.json", "native-assets"),
                 Map.entry("data/flutter_assets/NOTICES.Z", "notices"),
                 Map.entry("data/flutter_assets/fonts/MaterialIcons-Regular.otf", "material-icons"),

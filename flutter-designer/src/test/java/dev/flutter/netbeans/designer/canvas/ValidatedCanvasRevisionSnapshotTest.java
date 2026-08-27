@@ -64,6 +64,25 @@ class ValidatedCanvasRevisionSnapshotTest {
     }
 
     @Test
+    void capturesAValidatedDiskBackedSnapshotWithoutOpeningMutationAuthority()
+            throws Exception {
+        DesignerCommandSession session = openSession();
+        DesignerDocument document = session.current().document();
+
+        ValidatedCanvasRevisionSnapshot snapshot =
+                ValidatedCanvasRevisionSnapshot.captureReadOnly(
+                        0L,
+                        document,
+                        session.catalog(),
+                        session.limits().validationLimits());
+
+        assertEquals(0L, snapshot.logicalRevisionId());
+        assertSame(document, snapshot.document());
+        assertSame(session.catalog(), snapshot.catalog());
+        assertTrue(snapshot.validation().valid());
+    }
+
+    @Test
     void packagePrivateValidationRejectsAnInvalidDetachedDocument()
             throws Exception {
         DesignerCommandSession session = openSession();

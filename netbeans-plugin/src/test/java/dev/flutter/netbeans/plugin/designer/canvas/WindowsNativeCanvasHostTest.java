@@ -151,7 +151,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
-        windows.killRunnerDuringNextMove = true;
+        windows.killRunnerDuringNextBoundsRequest = true;
 
         onEdt(() -> {
             dispatchResize(host);
@@ -170,7 +170,8 @@ class WindowsNativeCanvasHostTest {
     }
 
     @Test
-    void liveMoveWindowFailureStillInvalidatesAndNotifiesSession() throws Exception {
+    void liveAsynchronousBoundsRequestFailureStillInvalidatesAndNotifiesSession()
+            throws Exception {
         FakeWindowsApi windows = FakeWindowsApi.attachable();
         WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
         AtomicInteger failures = new AtomicInteger();
@@ -179,7 +180,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
-        windows.failNextMove = true;
+        windows.failNextBoundsRequest = true;
 
         onEdt(() -> {
             dispatchResize(host);
@@ -223,7 +224,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
-        windows.failNextMove = true;
+        windows.failNextBoundsRequest = true;
 
         onEdt(() -> {
             dispatchResize(host);
@@ -341,8 +342,8 @@ class WindowsNativeCanvasHostTest {
         private final Set<Long> deadWindows = new HashSet<>();
         private final List<NativeCanvasWindowBounds> moves = new ArrayList<>();
         private final List<String> visibility = new ArrayList<>();
-        private boolean failNextMove;
-        private boolean killRunnerDuringNextMove;
+        private boolean failNextBoundsRequest;
+        private boolean killRunnerDuringNextBoundsRequest;
         private boolean failNextShowWithLinkageError;
 
         static FakeWindowsApi attachable() {
@@ -411,15 +412,17 @@ class WindowsNativeCanvasHostTest {
         }
 
         @Override
-        public boolean moveWindow(long window, NativeCanvasWindowBounds bounds) {
+        public boolean setWindowBoundsAsync(
+                long window,
+                NativeCanvasWindowBounds bounds) {
             moves.add(bounds);
-            if (killRunnerDuringNextMove) {
-                killRunnerDuringNextMove = false;
+            if (killRunnerDuringNextBoundsRequest) {
+                killRunnerDuringNextBoundsRequest = false;
                 deadWindows.add(window);
                 return false;
             }
-            if (failNextMove) {
-                failNextMove = false;
+            if (failNextBoundsRequest) {
+                failNextBoundsRequest = false;
                 return false;
             }
             return true;

@@ -602,6 +602,11 @@ class DesignerCommandSessionTest {
                 canonicalC1.dartCandidateBytes(),
                 pair.prospectiveDartBytes(),
                 "re-derivation must restore C1 while retaining the S0 envelope");
+        DesignerCommandRevision reanchoredC1 = saved.retainedRevision(
+                canonicalC1.revisionId()).orElseThrow();
+        assertSame(reanchoredC1.generation(), physicalC1.generation());
+        assertSame(reanchoredC1.generation(),
+                pair.dartTransition().generation());
         assertSame(saved.durableThreeWayIntegrity(),
                 pair.dartTransition().baseline());
     }

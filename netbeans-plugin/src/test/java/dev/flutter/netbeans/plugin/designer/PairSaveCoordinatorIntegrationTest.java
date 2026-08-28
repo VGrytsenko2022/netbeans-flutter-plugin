@@ -661,6 +661,49 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
+    void savedC1UndoToFormerDurablePairCanBeSavedAgain()
+            throws Exception {
+        SavedPairHistoryFixture history = saveC1HistoryFixture(
+                "saved_history_undo_resave");
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                history.orchestrator()) {
+            TestPair pair = history.staged().pair();
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+
+            DesignerCommandRevision historicalB = orchestrator.currentRevision();
+            assertEquals(history.oldRevisionId(), historicalB.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                    historicalB.persistenceKind());
+            assertFormerDurableBIsStaged(history, historicalB);
+            var stagedPair = pair.coordinator().stagedProofSnapshot()
+                    .preparedPairIdentity();
+            assertSame(historicalB.generation(),
+                    stagedPair.dartTransition().generation());
+            SaveCookie cookie = pair.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(cookie);
+
+            cookie.save();
+
+            DesignerCommandRevision savedB = orchestrator.currentRevision();
+            assertEquals(history.oldRevisionId(), savedB.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    savedB.persistenceKind());
+            assertFalse(orchestrator.dirty());
+            assertFalse(pair.dataObject().getEditorSupport().sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    pair.coordinator().state().status());
+            assertNull(pair.coordinator().stagedProofSnapshot());
+            assertNull(pair.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(history.oldDart(),
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(history.oldFd(),
+                    Files.readAllBytes(pair.designerPath()));
+        }
+    }
+
+    @Test
     void savedC2RetainsBothSemanticEdgesAcrossFullUndoRedoChain()
             throws Exception {
         StagedPair staged = stageRealPair("saved_history_b_c1_c2");

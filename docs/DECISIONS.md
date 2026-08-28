@@ -3,7 +3,9 @@
 Status note: ADR-024 supersedes the earlier provisional statements that
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted; only the closed typed Properties slice described by
-ADR-024 is now enabled.
+ADR-024 is now enabled. ADR-025 separately enables exactly one `Text` terminal-
+append DnD slice after its assembled NetBeans 30 acceptance passed; it does not
+authorize any broader Palette or Canvas mutation.
 
 ## ADR-001 — IDE support before Designer
 
@@ -136,8 +138,9 @@ When staged authority becomes unprovable before persistence, recovery now clears
 
 ## ADR-021 — The Canvas is an embedded native FlutterView, not a Swing raster proxy
 
-Accepted for staged implementation in 0.1.3, while public Designer mutation
-remains gated. The active Design MultiView supplies the standard
+Accepted for staged implementation in 0.1.3. The broad public Designer mutation
+surface remains gated, while ADR-024 and ADR-025 later enable their two exact
+reviewed slices. The active Design MultiView supplies the standard
 context-sensitive NetBeans Palette. The visual widget tree is published through
 Explorer/Nodes, and the selected revision-bound widget Node drives the standard
 Properties window. These surfaces and the MultiView chrome remain NetBeans
@@ -162,7 +165,7 @@ NetBeans Canvas host. Linux and macOS providers must implement the same
 lifecycle and fencing contract before their platforms are supported. The first
 Windows vertical spike now implements that actual child surface inside the
 Design MultiView, not merely a source scaffold; it is not yet the completed
-cross-platform SPI or public Designer surface.
+cross-platform SPI or broad public Designer surface.
 
 The preferred deployment keeps the Flutter engine and view in an isolated
 runner process when the platform can safely embed and supervise its child
@@ -186,22 +189,26 @@ restart receives a fresh session identity, so an ABA return to the same logical
 revision cannot revive detached work.
 
 Drag and drop deliberately crosses the Java/native boundary as an intent
-protocol. NetBeans sends the allowlisted palette/model drag description, exact
-revision identities and coordinates resolved for the current native view to
-Flutter. Flutter performs the widget hit test and returns a semantic drop intent
-bound to that same session, presentation, revision and accepted layout epoch.
-Java rejects stale, replayed, malformed or no-longer-valid targets and validates
-the intent against the current catalog and domain model. Only that trusted Java
-admission may later invoke a Designer command; Flutter never mutates the model
-or files directly. The same rule applies to selection and property intents.
+protocol. For the first implemented slice, ADR-025 replaces a descriptive
+palette/model payload with one bounded opaque token carried unchanged through
+Flutter-authoritative hover, prepare and commit or cancel. OLE `MOVE` is only
+the immutable-Palette transport result; the semantic intent is `ADD`. Java
+rejects stale, replayed, malformed or no-longer-valid targets and validates the
+intent against the current catalog and domain model. Only that trusted Java
+admission may invoke a Designer command; Flutter never mutates the model or
+files directly. The same host-authoritative rule applies to selection and
+property intents.
 
-The implemented read-only slice is narrower than this accepted writable target.
-It contains the standard context-sensitive NetBeans Palette and selected-Node
-read-only Properties in addition to the pure lifecycle/admission identities and the exact version 1
-hello/close/failure handshake and fail-stop bounded process framing. A separate
-post-handshake runtime control codec publishes one exact validated revision,
-admits its layout acknowledgement and synchronizes stable-ID selection. The
-canonical `CORE_V1` model payload accepts only reviewed built-in definitions for
+The implemented surface contains the standard context-sensitive NetBeans
+Palette, selected-Node Properties, the pure lifecycle/admission identities, the
+exact version 1 hello/close/failure handshake and fail-stop bounded process
+framing. ADR-024 makes only 27 catalog-backed non-`Scaffold` Properties fields
+writable. ADR-025 makes only `Text` terminal append to `Row.children` or
+`Column.children` publicly draggable; all other Palette mutations remain
+disabled. A separate post-handshake runtime control codec publishes one exact
+validated revision, admits its layout acknowledgement, synchronizes stable-ID
+selection and capability-gates the narrow palette-drop intent. The canonical
+`CORE_V1` model payload accepts only reviewed built-in definitions for
 `Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`; the isolated runner
 uses the same hardcoded allowlist and receives neither project code nor file
 authority. `CATALOG_JSON` remains reserved for a future versioned catalog
@@ -215,9 +222,9 @@ complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
 Canvas now renders the validated six-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
-read-only Explorer/Nodes tree and standard Properties window. The Palette
-exposes exactly those six reviewed definitions without insertion actions. No
-image or pixel-transfer frame kind exists.
+Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
+those six reviewed definitions; only ADR-025's built-in `Text` terminal append
+has an insertion action. No image or pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -229,9 +236,9 @@ fall back to Mobile. Android/iOS/macOS/Linux targets reach Flutter
 `ThemeData.platform` on the Windows engine. Selecting Web reports that the
 separately compiled browser backend is absent and never relabels a Windows frame
 as Web.
-The platform-neutral SPI, completed Windows acceptance matrix, Linux/macOS
-providers, drag-and-drop, editable Properties and Designer mutation
-remain foundation gates.
+The platform-neutral SPI, completed broader Windows acceptance matrix,
+Linux/macOS providers, broader drag-and-drop, remaining Properties and the
+broader Designer mutation surface remain foundation gates.
 
 `MOBILE`, `TABLET`, `DESKTOP` and `WEB` remain responsive viewport intents. Their
 selected `CanvasTargetPlatform` is the requested Flutter adaptive appearance,
@@ -245,8 +252,10 @@ requires a separate browser backend.
 
 Accepting this ADR did not by itself enable writable UI. ADR-024 later enables
 only the reviewed typed Properties allowlist after its revision fencing,
-pair-save, Undo/Redo, close and assembled-runtime gates pass. DnD and the
-broader mutation surface remain outside that authorization.
+pair-save, Undo/Redo, close and assembled-runtime gates pass. ADR-025 later
+enables one separately bounded `Text` terminal-append DnD transaction after its
+own assembled acceptance; every broader DnD and mutation surface remains
+outside both authorizations.
 
 ## ADR-022 — Pair Copy/Paste is a same-folder Node transaction
 
@@ -379,3 +388,74 @@ it; the combined Source/model Undo/Redo and Save lifecycle remain authoritative.
 Palette insertion, Java/Flutter DnD, arbitrary Canvas commands, writable
 `Scaffold`, complex/contributed property values, the Web Canvas backend or
 Linux/macOS native-surface providers.
+
+## ADR-025 — First DnD is one native Text terminal-append transaction
+
+Accepted and enabled as the only first DnD implementation target for 0.1.3.
+The source is exactly the built-in `Text` item in the standard NetBeans
+Palette. The target is exactly an existing `Row.children` or
+`Column.children` list, and the only Designer operation is terminal append.
+The returned insertion index must equal the current child count at Java
+admission. Arbitrary indices, before/between-child insertion, existing-widget
+move/reorder, cross-form drag, every other Palette type or slot, and
+Linux/macOS/Web DnD are outside this decision and remain disabled.
+
+Windows uses a native OLE bridge because the drop crosses from Swing-owned
+Palette chrome into the embedded child-HWND Flutter surface. At drag start,
+Java stores the allowlisted `Text` prototype behind a bounded, short-lived,
+process-local opaque token. Its wire form is printable ASCII, no longer than
+160 characters and begins with `nbfdnd:v1:`. The token is one-shot and conveys
+neither widget JSON nor a stable ID, file path, Dart source, catalog authority
+or file-write capability. OLE transfers only that exact token and native-view
+coordinates; the identical active-view value must cross hover, prepare and the
+terminal commit or cancel, and only Java resolves it. Closing or restarting the
+Canvas, replacing its presentation or layout, starting another drag,
+consumption or expiry invalidates the outstanding token. Canceled, failed and
+non-`MOVE` drags revoke it immediately. A successful native `MOVE` retains it
+for a bounded three-second asynchronous grace, ending sooner on consumption,
+so the committed runner event can arrive after the OLE source callback.
+
+OLE `MOVE` is only the Windows/NetBeans transport contract: the Palette offers
+`ACTION_MOVE`, and its immutable prototype is not removed. The semantic
+Designer intent is always `operation = ADD`; this decision does not enable an
+existing-widget Move or reorder.
+
+Flutter owns the authoritative live-tree hit test and terminal drop-zone
+visuals. Native hover starts fail-closed and advertises `MOVE` only after the
+exact latest Flutter probe is approved. Fast release may proceed to final
+validation only while the exact latest already-sent probe remains in flight;
+hover and prepare use one FIFO `MethodChannel`, so Flutter observes the hover
+first. Under the negotiated `palette.drop.textAppend.v1` capability, prepare
+revalidates generation, token, probe, point, presentation and semantic target
+and stores one candidate without emitting `runner.paletteDrop`. Windows pumps
+its STA for at most 250 ms waiting for that reply. Timeout, error, reentrant
+cancel or shutdown fails closed, sends exact cancel/leave while the channel is
+alive and returns OLE `NONE`, so a late prepare cannot mutate Java state. Only
+a timely positive prepare sends a single-use commit and returns OLE `MOVE`.
+Commit revalidates the same identity and may then emit one
+`runner.paletteDrop` containing the exact session, presentation, document,
+logical revision, frame, layout and intent sequences, the opaque token,
+`operation = ADD`, parent stable ID, `slotName = children`, and terminal
+insertion index. Flutter never resolves the token into a prototype and never
+mutates the canonical model or either file.
+
+Java consumes the token atomically before command admission; an unknown,
+expired, duplicate or already consumed token fails closed and is never made
+reusable after rejection. It then rechecks the exact current revision and
+accepted layout, confirms that the current stable parent is a `Row` or `Column`
+with the `children` list and that the index still equals its size, and creates
+the reviewed `Text` prototype with a fresh host-owned stable ID. Any stale,
+foreign, malformed or concurrently invalidated fact produces no command and no
+file or history change.
+
+OLE `MOVE` confirms timely Flutter prepare and commit dispatch, not Java
+admission. Only a drop subsequently admitted by Java becomes one bounded
+`AddWidget` command. It must pass the existing catalog/relationship validation,
+deterministic Dart generation, analyzer admission, claimed paired `.fd`/Dart
+replacement and `PairSaveCoordinator` adoption. The action owns one
+chronological native Undo/Redo edit and follows the existing Save lifecycle; no
+parallel DnD-specific persistence or Undo stack is allowed. Public enablement
+passed live assembled Windows NetBeans 30 drop → Save → Undo → Redo → Save
+acceptance. This acceptance statement does not include a separate saved-history
+Undo → Save cycle. ADR-024's Properties authorization does not implicitly
+authorize this path, and all DnD outside this exact slice stays disabled.

@@ -331,10 +331,38 @@ accepted architecture is documented in
   use native Restore Default for optional values, and route every admitted edit
   through the existing pair-save/Undo lifecycle. Keep `Scaffold` read-only for
   its separate property-design task.
-- [ ] Implement the DnD bridge: Java drag → Flutter hit test →
-  revision/layout-bound semantic intent → Java validation. Palette insertion
-  remains non-mutating until this bridge passes its lifecycle and stale-intent
-  gates.
+- [x] Implement and narrowly enable the first safe DnD vertical slice. Its
+  public surface is exactly
+  `Text` from the Palette → terminal append to `Row.children` or
+  `Column.children`; every other Palette type, slot, insertion position,
+  semantic reorder/move operation and Linux/macOS/Web DnD path remains
+  disabled. Native OLE `MOVE` is only the immutable-Palette transport contract;
+  the Designer intent is `ADD`.
+  - [x] Freeze ADR-025: Windows native OLE bridge, Flutter-authoritative hit
+    test, one bounded process-local one-shot opaque token, and exact
+    session/presentation/document/logical-revision/frame/layout/intent fencing.
+  - [x] Complete Palette → OLE token publication and child-HWND coordinate/drop
+    delivery without exposing widget JSON, Dart source, paths or file authority.
+    Preserve the exact active-view token across hover/prepare/commit/cancel;
+    revoke cancel/failure/non-`MOVE` immediately and bound successful `MOVE`
+    grace to three seconds.
+  - [x] Complete native Flutter terminal-zone hit testing, same-channel FIFO
+    fast release and the 250 ms prepare → commit/cancel protocol. Prepare emits
+    no Java event; timeout/`NONE` cannot mutate later. Commit may publish only
+    capability-gated `runner.paletteDrop` with `operation = ADD`,
+    `slotName = children` and the exact terminal insertion index.
+  - [x] Atomically consume the token on Java admission; reject stale, foreign,
+    duplicate, expired or structurally invalid responses; revalidate the current
+    `Row`/`Column` parent and `insertionIndex == children.size()`. Treat OLE
+    `MOVE` as commit dispatch, not proof of Java admission.
+  - [x] Route the single admitted `AddWidget(Text)` through deterministic
+    generation, analysis, paired `.fd`/Dart replacement, Save and one native
+    chronological Undo/Redo edit.
+  - [x] Pass lifecycle, runner restart/close, stale-layout/revision,
+    duplicate-drop, rollback, pair-save/Undo and assembled Windows NetBeans 30
+    acceptance, including the live drop → Save → Undo → Redo → Save sequence,
+    before enabling this drag publicly. This does not claim the separately
+    discovered saved-history Undo → Save cycle.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.

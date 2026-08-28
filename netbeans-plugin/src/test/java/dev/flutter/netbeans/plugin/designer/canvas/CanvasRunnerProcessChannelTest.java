@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.canvas.CanvasDevicePixelRatio;
 import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
 import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
+import dev.flutter.netbeans.designer.canvas.CanvasIntentId;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLocale;
@@ -46,6 +47,7 @@ import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
 import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -74,7 +76,8 @@ class CanvasRunnerProcessChannelTest {
     private static final List<CanvasWireCapability> ALL_CAPABILITIES = List.of(
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
-            CanvasWireCapability.READ_ONLY_SELECTION);
+            CanvasWireCapability.READ_ONLY_SELECTION,
+            CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
 
     private Harness harness;
 
@@ -104,6 +107,8 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         assertEquals(ENGINE, harness.listener.engine);
         assertTrue(harness.channel.isReady());
+        assertTrue(harness.channel.supports(
+                CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1));
     }
 
     @Test
@@ -298,23 +303,111 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
-    void dispatchesPresentedAndSelectionOnlyForTheExactSession()
+    void dispatchesPresentedSelectionAndPaletteDropForTheExactSession()
             throws Exception {
         harness = Harness.ready();
         CanvasRenderRequest request = renderRequest(harness.sessionId);
         CanvasRevisionKey revision = request.revisionKey();
         StableId widgetId = request.snapshot().document().root().id();
+        String token = "nbfdnd:v1:opaque-token";
 
         harness.sendRuntime(presented(revision, 3, 5));
         harness.sendRuntime(selection(revision, 3, 5, 9, widgetId));
+        harness.sendRuntime(paletteDrop(
+                revision, 3, 5, 10, token, widgetId, 2));
 
         assertTrue(harness.listener.presented.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.selection.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.paletteDrop.await(2, TimeUnit.SECONDS));
         CanvasLayoutKey layout = harness.listener.layout;
         assertEquals(new CanvasLayoutKey(new CanvasFrameKey(revision, 3), 5), layout);
         assertEquals(widgetId, harness.listener.widgetId);
         assertEquals(9, harness.listener.intent.intentId().intentSequence());
+        CanvasRunnerRuntimeEvent.PaletteDrop drop = harness.listener.drop;
+        assertEquals(new CanvasIntentKey(
+                new CanvasIntentId(harness.sessionId, 10),
+                layout), drop.intentKey());
+        assertEquals(token, drop.token());
+        assertEquals(widgetId, drop.parentWidgetId());
+        assertEquals(new SlotName("children"), drop.slotName());
+        assertEquals(2, drop.insertionIndex());
+        assertEquals(1, harness.listener.paletteDropCalls.get());
         assertTrue(harness.listener.failureReason == null);
+    }
+
+    @Test
+    void paletteDropCodecRejectsUnsupportedOperationAndSlot() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId parent = request.snapshot().document().root().id();
+        String valid = paletteDrop(
+                request.revisionKey(), 3, 5, 10,
+                "nbfdnd:v1:opaque-token", parent, 2);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+
+        CanvasRunnerControlException operation = assertThrows(
+                CanvasRunnerControlException.class,
+                () -> codec.decode(valid.replace(
+                        "\"operation\":\"ADD\"",
+                        "\"operation\":\"MOVE\"")
+                        .getBytes(StandardCharsets.UTF_8)));
+        CanvasRunnerControlException slot = assertThrows(
+                CanvasRunnerControlException.class,
+                () -> codec.decode(valid.replace(
+                        "\"slotName\":\"children\"",
+                        "\"slotName\":\"child\"")
+                        .getBytes(StandardCharsets.UTF_8)));
+
+        assertTrue(operation.getMessage().contains("operation"));
+        assertTrue(slot.getMessage().contains("slotName"));
+    }
+
+    @Test
+    void paletteDropCodecRejectsUntrustedTokens() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId parent = request.snapshot().document().root().id();
+        String valid = paletteDrop(
+                request.revisionKey(), 3, 5, 10,
+                "nbfdnd:v1:opaque-token", parent, 2);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+        List<String> invalidTokens = List.of(
+                "foreign:v1:opaque-token",
+                "nbfdnd:v1:opaque\\ntoken",
+                "nbfdnd:v1:" + "x".repeat(151));
+
+        for (String invalidToken : invalidTokens) {
+            String malformed = valid.replace(
+                    "nbfdnd:v1:opaque-token", invalidToken);
+            CanvasRunnerControlException failure = assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(malformed.getBytes(StandardCharsets.UTF_8)),
+                    invalidToken);
+            assertTrue(failure.getMessage().contains("token"), invalidToken);
+        }
+    }
+
+    @Test
+    void paletteDropCodecRequiresExactFieldsAndBoundedInsertionIndex() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId parent = request.snapshot().document().root().id();
+        String valid = paletteDrop(
+                request.revisionKey(), 3, 5, 10,
+                "nbfdnd:v1:opaque-token", parent, 2);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+        List<String> malformed = List.of(
+                valid.replace(
+                        "\"insertionIndex\":2}",
+                        "\"insertionIndex\":2,\"unexpected\":true}"),
+                valid.replace(",\"intentSequence\":10", ""),
+                valid.replace(parent.toString(), "not-a-stable-id"),
+                valid.replace("\"insertionIndex\":2", "\"insertionIndex\":-1"),
+                valid.replace("\"insertionIndex\":2", "\"insertionIndex\":10001"),
+                valid.replace("\"insertionIndex\":2", "\"insertionIndex\":2.5"));
+
+        for (String payload : malformed) {
+            assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(payload.getBytes(StandardCharsets.UTF_8)));
+        }
     }
 
     @Test
@@ -330,17 +423,47 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
-    void refusesAHandshakeThatOmitsSelectionCapability() throws Exception {
+    void rejectsAPaletteDropFromAnotherSessionWithoutDispatchingIt()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId parent = request.snapshot().document().root().id();
+
+        harness.sendRuntime(paletteDrop(
+                request.revisionKey(), 0, 0, 0,
+                "nbfdnd:v1:foreign", parent, 0));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("stale or foreign"));
+        assertEquals(0, harness.listener.paletteDropCalls.get());
+        assertFalse(harness.channel.isReady());
+    }
+
+    @Test
+    void keepsReadOnlyCanvasReadyWhenOptionalPaletteDropIsUnavailable()
+            throws Exception {
         harness = new Harness();
         harness.channel.start();
 
         harness.sendHello(List.of(
                 CanvasWireCapability.READ_ONLY_RENDER,
-                CanvasWireCapability.READ_ONLY_LAYOUT));
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION));
+
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.channel.isReady());
+        assertFalse(harness.channel.supports(
+                CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1));
+
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        StableId parent = request.snapshot().document().root().id();
+        harness.sendRuntime(paletteDrop(
+                request.revisionKey(), 0, 0, 0,
+                "nbfdnd:v1:unnegotiated", parent, 0));
 
         assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
-        assertTrue(harness.listener.failureReason.contains(
-                "render, layout, and selection"));
+        assertTrue(harness.listener.failureReason.contains("without negotiating"));
+        assertEquals(0, harness.listener.paletteDropCalls.get());
         assertFalse(harness.channel.isReady());
     }
 
@@ -571,6 +694,27 @@ class CanvasRunnerProcessChannelTest {
                         + ",\"layoutSequence\":" + layout
                         + ",\"intentSequence\":" + intent
                         + ",\"widgetId\":\"" + widgetId + "\"");
+    }
+
+    private static String paletteDrop(
+            CanvasRevisionKey revision,
+            long frame,
+            long layout,
+            long intent,
+            String token,
+            StableId parentWidgetId,
+            int insertionIndex) {
+        return runtimeEnvelope(
+                revision,
+                "runner.paletteDrop",
+                "\"frameSequence\":" + frame
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"intentSequence\":" + intent
+                        + ",\"token\":\"" + token + "\""
+                        + ",\"operation\":\"ADD\""
+                        + ",\"parentWidgetId\":\"" + parentWidgetId + "\""
+                        + ",\"slotName\":\"children\""
+                        + ",\"insertionIndex\":" + insertionIndex);
     }
 
     private static String runtimeEnvelope(
@@ -805,11 +949,14 @@ class CanvasRunnerProcessChannelTest {
         private final CountDownLatch ready = new CountDownLatch(1);
         private final CountDownLatch presented = new CountDownLatch(1);
         private final CountDownLatch selection = new CountDownLatch(1);
+        private final CountDownLatch paletteDrop = new CountDownLatch(1);
         private final CountDownLatch failed = new CountDownLatch(1);
+        private final AtomicInteger paletteDropCalls = new AtomicInteger();
         private volatile CanvasEngineIdentity engine;
         private volatile CanvasLayoutKey layout;
         private volatile CanvasIntentKey intent;
         private volatile StableId widgetId;
+        private volatile CanvasRunnerRuntimeEvent.PaletteDrop drop;
         private volatile String failureReason;
 
         @Override
@@ -829,6 +976,13 @@ class CanvasRunnerProcessChannelTest {
             intent = value;
             widgetId = selectedWidgetId;
             selection.countDown();
+        }
+
+        @Override
+        public void paletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop value) {
+            drop = value;
+            paletteDropCalls.incrementAndGet();
+            paletteDrop.countDown();
         }
 
         @Override

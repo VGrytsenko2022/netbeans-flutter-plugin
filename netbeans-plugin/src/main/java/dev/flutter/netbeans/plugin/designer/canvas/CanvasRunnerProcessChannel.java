@@ -57,8 +57,12 @@ import java.util.concurrent.TimeUnit;
 public final class CanvasRunnerProcessChannel implements AutoCloseable {
     private static final String HOST_VERSION = "netbeans-flutter-plugin";
     private static final int MAX_PENDING_OUTBOUND_OPERATIONS = 64;
-    private static final Set<CanvasWireCapability> REQUIRED_CAPABILITIES =
+    private static final Set<CanvasWireCapability> REQUESTED_CAPABILITIES =
             Set.copyOf(EnumSet.allOf(CanvasWireCapability.class));
+    private static final Set<CanvasWireCapability> REQUIRED_CAPABILITIES = Set.of(
+            CanvasWireCapability.READ_ONLY_RENDER,
+            CanvasWireCapability.READ_ONLY_LAYOUT,
+            CanvasWireCapability.READ_ONLY_SELECTION);
 
     private final CanvasSessionId sessionId;
     private final InputStream stdout;
@@ -80,6 +84,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     private State state = State.NEW;
     private CanvasProcessFramingPolicy readPolicy;
     private CanvasProcessFramingPolicy writePolicy;
+    private Set<CanvasWireCapability> acceptedCapabilities = Set.of();
     private CanvasRevisionKey latestExpectedRevision;
     private Thread readerThread;
     private boolean failureDelivered;
@@ -120,7 +125,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         sessionGate = new CanvasWireSessionGate(
                 sessionId,
                 HOST_VERSION,
-                REQUIRED_CAPABILITIES,
+                REQUESTED_CAPABILITIES,
                 offeredLimits);
         outboundExecutor = new ThreadPoolExecutor(
                 1,
@@ -170,6 +175,14 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             }
         }
         enqueueOutbound(() -> writeHostHello(helloFrame));
+    }
+
+    /** Returns whether the exact completed handshake admitted one capability. */
+    public boolean supports(CanvasWireCapability capability) {
+        Objects.requireNonNull(capability, "capability");
+        synchronized (stateLock) {
+            return state == State.READY && acceptedCapabilities.contains(capability);
+        }
     }
 
     /**
@@ -447,6 +460,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         if (message instanceof CanvasRunnerClosed) {
             synchronized (stateLock) {
                 state = State.CLOSED;
+                acceptedCapabilities = Set.of();
                 latestExpectedRevision = null;
             }
             queueTransportClose();
@@ -461,8 +475,8 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 .orElseThrow();
         if (!Set.copyOf(negotiation.acceptedCapabilities())
                 .containsAll(REQUIRED_CAPABILITIES)) {
-            fail("Canvas runner did not negotiate read-only render, layout, "
-                    + "and selection capabilities.");
+            fail("Canvas runner did not negotiate the required read-only render, "
+                    + "layout and selection capabilities.");
             return false;
         }
         synchronized (stateLock) {
@@ -477,6 +491,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                     wireLimits,
                     negotiation,
                     CanvasProcessDirection.HOST_TO_RUNNER);
+            acceptedCapabilities = Set.copyOf(negotiation.acceptedCapabilities());
             state = State.READY;
         }
         dispatch(() -> listener.ready(hello.engineIdentity()));
@@ -500,15 +515,33 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             dispatch(() -> listener.presented(presented.layoutKey()));
             return true;
         }
-        CanvasRunnerRuntimeEvent.Selection selection =
-                (CanvasRunnerRuntimeEvent.Selection) event;
-        if (!exactSession(selection.intentKey().intentId().sessionId())
-                || !exactSession(selection.intentKey().layoutKey().sessionId())) {
-            fail("Canvas runner selected a widget for a stale or foreign Canvas session.");
+        if (event instanceof CanvasRunnerRuntimeEvent.Selection selection) {
+            if (!exactSession(selection.intentKey().intentId().sessionId())
+                    || !exactSession(selection.intentKey().layoutKey().sessionId())) {
+                fail("Canvas runner selected a widget for a stale or foreign Canvas session.");
+                return false;
+            }
+            dispatch(() -> listener.selection(
+                    selection.intentKey(), selection.widgetId()));
+            return true;
+        }
+        CanvasRunnerRuntimeEvent.PaletteDrop drop =
+                (CanvasRunnerRuntimeEvent.PaletteDrop) event;
+        final boolean paletteDropNegotiated;
+        synchronized (stateLock) {
+            paletteDropNegotiated = acceptedCapabilities.contains(
+                    CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
+        }
+        if (!paletteDropNegotiated) {
+            fail("Canvas runner sent a Palette drop without negotiating its capability.");
             return false;
         }
-        dispatch(() -> listener.selection(
-                selection.intentKey(), selection.widgetId()));
+        if (!exactSession(drop.intentKey().intentId().sessionId())
+                || !exactSession(drop.intentKey().layoutKey().sessionId())) {
+            fail("Canvas runner sent a Palette drop for a stale or foreign Canvas session.");
+            return false;
+        }
+        dispatch(() -> listener.paletteDrop(drop));
         return true;
     }
 
@@ -638,6 +671,10 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         void presented(CanvasLayoutKey layoutKey);
 
         void selection(CanvasIntentKey intentKey, StableId widgetId);
+
+        /** Optional until the owning Designer session wires the mutation slice. */
+        default void paletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop drop) {
+        }
 
         void failed(String reason);
     }

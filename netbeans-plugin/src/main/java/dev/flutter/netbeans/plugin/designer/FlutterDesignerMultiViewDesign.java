@@ -39,17 +39,23 @@ import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityDiagnostic;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityDiagnostic;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
 import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasHost;
+import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPreviewPlatforms.PreviewTarget;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPalette;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragLifecycle;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragRegistry;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPlanner;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
 import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
 import org.netbeans.core.spi.multiview.CloseOperationState;
@@ -79,9 +85,13 @@ import org.openide.windows.TopComponent;
         position = 100)
 public final class FlutterDesignerMultiViewDesign
         implements MultiViewElement, PropertyChangeListener, ExplorerManager.Provider {
+    private static final WidgetTypeId TEXT_WIDGET_TYPE =
+            new WidgetTypeId("flutter.widgets.Text");
+    private static final SlotName CHILDREN_SLOT = new SlotName("children");
     private final Lookup context;
     private final Lookup effectiveLookup;
     private final BooleanSupplier mutationUiEnabled;
+    private final BooleanSupplier paletteTextAppendDndEnabled;
     private final FlutterDesignerDataObject dataObject;
     private final FlutterDesignerDocumentController controller;
     private final UndoRedo undoRedo;
@@ -96,6 +106,9 @@ public final class FlutterDesignerMultiViewDesign
     private final JProgressBar progress;
     private final JProgressBar canvasProgress;
     private final ExplorerManager explorerManager;
+    private final FlutterDesignerPaletteDragRegistry paletteDragRegistry;
+    private final FlutterDesignerPaletteDragLifecycle paletteDragLifecycle;
+    private final FlutterDesignerPaletteDropPlanner paletteDropPlanner;
     private final PaletteController paletteController;
     private final BeanTreeView widgetTree;
     private final JComboBox<PreviewTarget> previewModes;
@@ -128,19 +141,35 @@ public final class FlutterDesignerMultiViewDesign
     private boolean mutationListening;
     private long mutationViewEpoch;
     private boolean platformListening;
+    private boolean designVisible;
 
     public FlutterDesignerMultiViewDesign(Lookup context) {
         this(
                 context,
-                () -> DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED);
+                () -> DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED,
+                () -> DesignerCommandSessionOrchestrator
+                        .PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED);
     }
 
     FlutterDesignerMultiViewDesign(
             Lookup context,
             BooleanSupplier mutationUiEnabled) {
+        this(
+                context,
+                mutationUiEnabled,
+                () -> DesignerCommandSessionOrchestrator
+                        .PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED);
+    }
+
+    FlutterDesignerMultiViewDesign(
+            Lookup context,
+            BooleanSupplier mutationUiEnabled,
+            BooleanSupplier paletteTextAppendDndEnabled) {
         this.context = context;
         this.mutationUiEnabled = Objects.requireNonNull(
                 mutationUiEnabled, "mutationUiEnabled");
+        this.paletteTextAppendDndEnabled = Objects.requireNonNull(
+                paletteTextAppendDndEnabled, "paletteTextAppendDndEnabled");
         dataObject = context.lookup(FlutterDesignerDataObject.class);
         projectPlatforms = dataObject == null
                 ? null
@@ -157,9 +186,16 @@ public final class FlutterDesignerMultiViewDesign
                 : dataObject.getPrimaryFile().getNameExt();
         explorerManager = new ExplorerManager();
         visual = new ExplorerPanel(explorerManager);
+        paletteDragRegistry = new FlutterDesignerPaletteDragRegistry();
+        paletteDragLifecycle = new FlutterDesignerPaletteDragLifecycle(
+                paletteDragRegistry);
+        paletteDropPlanner = new FlutterDesignerPaletteDropPlanner();
         paletteController = FlutterDesignerPalette.create(
                 BuiltInWidgetCatalog.getDefault(),
-                CanvasModelPayloadCodec::supports);
+                CanvasModelPayloadCodec::supports,
+                paletteDragRegistry,
+                this::isPaletteTextAppendDragEnabled,
+                definition -> TEXT_WIDGET_TYPE.equals(definition.typeId()));
         effectiveLookup = new ProxyLookup(
                 ExplorerUtils.createLookup(explorerManager, visual.getActionMap()),
                 Lookups.exclude(context, Node.class),
@@ -217,7 +253,9 @@ public final class FlutterDesignerMultiViewDesign
                 canvasSession = FlutterDesignerNativeCanvasSession.createDefault(
                         canvasHost,
                         this::renderNativeCanvasStatus,
-                        this::selectWidgetFromCanvas);
+                        this::selectWidgetFromCanvas,
+                        this::consumePaletteTextDropToken,
+                        this::applyAdmittedPaletteDrop);
             } catch (IOException | RuntimeException | LinkageError failure) {
                 canvasHost = null;
                 canvasSession = null;
@@ -338,6 +376,12 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentOpened() {
+        if (paletteTextAppendDndEnabled.getAsBoolean()
+                && mutationUiEnabled.getAsBoolean()) {
+            paletteDragLifecycle.install();
+        } else {
+            paletteDragLifecycle.uninstall();
+        }
         if (projectPlatforms != null && !platformListening) {
             platformListening = true;
             projectPlatforms.addChangeListener(projectPlatformListener);
@@ -361,6 +405,9 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentClosed() {
+        designVisible = false;
+        invalidatePaletteDragAuthority();
+        paletteDragLifecycle.uninstall();
         if (projectPlatforms != null && platformListening) {
             platformListening = false;
             projectPlatforms.removeChangeListener(projectPlatformListener);
@@ -390,6 +437,8 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentShowing() {
+        designVisible = true;
+        invalidatePaletteDragAuthority();
         if (nativeCanvasSession != null) {
             nativeCanvasSession.show();
         }
@@ -397,6 +446,8 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentHidden() {
+        designVisible = false;
+        invalidatePaletteDragAuthority();
         if (nativeCanvasSession != null) {
             nativeCanvasSession.hide();
         }
@@ -588,6 +639,7 @@ public final class FlutterDesignerMultiViewDesign
             DesignerDocument document,
             WidgetCatalog catalog,
             FlutterWidgetPropertiesNode.PropertyMutationHandler mutationHandler) {
+        invalidatePaletteDragAuthority();
         StableId retainedSelection = selectedWidgetId().orElse(null);
         currentCanvasDocument = Objects.requireNonNull(document, "document");
         currentCanvasCatalog = Objects.requireNonNull(catalog, "catalog");
@@ -622,6 +674,7 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void withdrawCanvasPresentation() {
+        invalidatePaletteDragAuthority();
         currentCanvasDocument = null;
         currentCanvasCatalog = null;
         clearPresentedCanvasIdentity();
@@ -648,6 +701,7 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void presentCurrentCanvas() {
+        invalidatePaletteDragAuthority();
         DesignerDocument document = currentCanvasDocument;
         WidgetCatalog catalog = currentCanvasCatalog;
         if (nativeCanvasSession == null || document == null || catalog == null) {
@@ -860,6 +914,20 @@ public final class FlutterDesignerMultiViewDesign
             PropertyMutationPresentation presentation) {
         String target = modelName + " — widget " + presentation.widgetId()
                 + ", property " + presentation.propertyName().value();
+        submitDesignerMutation(
+                controllerForEdit,
+                exactToken,
+                command,
+                presentation.operation(),
+                target);
+    }
+
+    private void submitDesignerMutation(
+            FlutterDesignerMutationController controllerForEdit,
+            FlutterDesignerMutationController.RevisionToken exactToken,
+            DesignerCommand command,
+            String operation,
+            String target) {
         long submittingViewEpoch = mutationViewEpoch;
         controllerForEdit.submit(
                         exactToken,
@@ -872,7 +940,7 @@ public final class FlutterDesignerMultiViewDesign
                                 && failure.getCause() != null
                                 ? failure.getCause() : failure;
                         completed = FlutterDesignerMutationController.MutationResult.failed(
-                                presentation.operation(), target, failureReason(cause));
+                                operation, target, failureReason(cause));
                     }
                     if (completed.outcome()
                             == FlutterDesignerMutationController.Outcome.APPLIED) {
@@ -970,6 +1038,94 @@ public final class FlutterDesignerMultiViewDesign
         } finally {
             synchronizingSelection = false;
         }
+    }
+
+    private boolean isPaletteTextAppendDragEnabled() {
+        if (!paletteTextAppendDndEnabled.getAsBoolean()
+                || !mutationUiEnabled.getAsBoolean()
+                || !designVisible
+                || !paletteDragLifecycle.isInstalled()
+                || nativeCanvasSession == null
+                || !nativeCanvasSession.paletteTextAppendDropAvailable()
+                || lastCanvasStatus == null
+                || lastCanvasStatus.stage()
+                != FlutterDesignerNativeCanvasStatus.Stage.RUNNING) {
+            return false;
+        }
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        if (mutationController == null
+                || candidate == null
+                || candidate.status() != FlutterDesignerMutationController.Status.READY
+                || candidate.token().isEmpty()
+                || candidate.document().isEmpty()
+                || candidate.catalog().isEmpty()) {
+            return false;
+        }
+        DesignerDocument document = candidate.document().orElseThrow();
+        WidgetCatalog catalog = candidate.catalog().orElseThrow();
+        return document == currentCanvasDocument
+                && catalog == currentCanvasCatalog
+                && document == presentedCanvasDocument
+                && catalog == presentedCanvasCatalog
+                && catalog.find(TEXT_WIDGET_TYPE).isPresent();
+    }
+
+    private boolean consumePaletteTextDropToken(String token) {
+        return paletteDragLifecycle.consume(token)
+                .filter(TEXT_WIDGET_TYPE::equals)
+                .isPresent();
+    }
+
+    private void applyAdmittedPaletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop drop) {
+        Objects.requireNonNull(drop, "drop");
+        if (!isPaletteTextAppendDragEnabled()) {
+            return;
+        }
+
+        FlutterDesignerMutationController controllerForEdit = mutationController;
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        if (controllerForEdit == null
+                || candidate == null
+                || candidate.token().isEmpty()
+                || candidate.document().isEmpty()
+                || candidate.catalog().isEmpty()) {
+            return;
+        }
+        DesignerDocument document = candidate.document().orElseThrow();
+        WidgetCatalog catalog = candidate.catalog().orElseThrow();
+        if (document != currentCanvasDocument
+                || catalog != currentCanvasCatalog
+                || document != presentedCanvasDocument
+                || catalog != presentedCanvasCatalog
+                || !CHILDREN_SLOT.equals(drop.slotName())) {
+            return;
+        }
+
+        FlutterDesignerPaletteDropPlanner.Result planned = paletteDropPlanner.plan(
+                document,
+                catalog,
+                TEXT_WIDGET_TYPE,
+                drop.parentWidgetId(),
+                drop.slotName(),
+                drop.insertionIndex(),
+                StableId::random);
+        if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
+            return;
+        }
+
+        String target = modelName + " — append Text to widget "
+                + drop.parentWidgetId() + "." + drop.slotName().value()
+                + " at index " + drop.insertionIndex();
+        submitDesignerMutation(
+                controllerForEdit,
+                candidate.token().orElseThrow(),
+                accepted.command(),
+                "Add Flutter Text widget",
+                target);
+    }
+
+    private void invalidatePaletteDragAuthority() {
+        paletteDragLifecycle.revokeAll();
     }
 
     static FlutterDesignerDocumentState openingState(
@@ -1075,8 +1231,17 @@ public final class FlutterDesignerMultiViewDesign
                 .append("Viewport preview and widget-tree selection, the six-item Palette ")
                 .append("and Properties are enabled. Supported properties on Column, Row, ")
                 .append("Padding, Center and Text are writable when exact mutation admission ")
-                .append("is ready; Scaffold properties remain read-only. ")
-                .append("Drag-and-drop and other Designer commands remain disabled.");
+                .append("is ready; Scaffold properties remain read-only. ");
+        if (isPaletteTextAppendDragEnabled()) {
+            detail.append("Text can be dragged from the Palette to the terminal children ")
+                    .append("position of a rendered Row or Column; all other drag-and-drop ")
+                    .append("commands remain disabled.");
+        } else {
+            detail.append("Palette Text drag-and-drop is unavailable because exact mutation ")
+                    .append("admission, the current rendered presentation, the owning-view AWT ")
+                    .append("drag lifecycle, or the native Canvas drop capability is not ready; ")
+                    .append("all other drag-and-drop commands remain disabled.");
+        }
         FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
         if (candidate != null
                 && candidate.status() != FlutterDesignerMutationController.Status.READY) {
@@ -1208,7 +1373,9 @@ public final class FlutterDesignerMultiViewDesign
                 "Selectable widget hierarchy for " + modelName
                 + ". Supported properties on selected Column, Row, Padding, Center and "
                 + "Text widgets are writable when exact mutation admission is ready; "
-                + "Scaffold properties remain read-only.");
+                + "Scaffold properties remain read-only. When the owning-view AWT drag "
+                + "lifecycle and native Canvas drop capability are available, Palette Text "
+                + "may be appended to a rendered Row or Column through the native Canvas.");
         previewModes.getAccessibleContext().setAccessibleName(
                 "Flutter Canvas preview target");
         previewModes.getAccessibleContext().setAccessibleDescription(
@@ -1238,6 +1405,9 @@ public final class FlutterDesignerMultiViewDesign
 
     void renderNativeCanvasStatus(FlutterDesignerNativeCanvasStatus state) {
         lastCanvasStatus = Objects.requireNonNull(state, "state");
+        // Every status transition can replace or re-layout the native surface.
+        // Tokens issued for the preceding pixels must never survive it.
+        invalidatePaletteDragAuthority();
         if (state.stage() == FlutterDesignerNativeCanvasStatus.Stage.FAILED) {
             // A rejected asynchronous present must remain retryable on the
             // next controller publication, even if its model identity is unchanged.
@@ -1320,7 +1490,7 @@ public final class FlutterDesignerMultiViewDesign
                 : NotifyDescriptor.WARNING_MESSAGE;
         NotifyDescriptor descriptor = new NotifyDescriptor.Message(
                 details, messageType);
-        descriptor.setTitle("Flutter Designer Property Change Not Applied");
+        descriptor.setTitle("Flutter Designer Change Not Applied");
         // The caller has already returned to the EDT and fenced this result
         // against componentClosed().  A second notifyLater() hop would let the
         // Design view close between the fence and the actual dialog display.
@@ -1340,7 +1510,7 @@ public final class FlutterDesignerMultiViewDesign
         area.setCaretPosition(0);
         area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         area.getAccessibleContext().setAccessibleName(
-                "Flutter Designer property change details");
+                "Flutter Designer change details");
         area.getAccessibleContext().setAccessibleDescription(
                 "Read-only selectable text containing the complete operation, target "
                 + "and reason. Use Control+A and Control+C to copy it.");
@@ -1349,7 +1519,7 @@ public final class FlutterDesignerMultiViewDesign
         scroll.setPreferredSize(new Dimension(640, 240));
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getAccessibleContext().setAccessibleName(
-                "Flutter Designer property change result");
+                "Flutter Designer change result");
         scroll.getAccessibleContext().setAccessibleDescription(
                 "Scrollable complete result for " + result.operation()
                 + " on " + result.target() + ".");

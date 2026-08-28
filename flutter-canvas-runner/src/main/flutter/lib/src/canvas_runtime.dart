@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'canvas_drop.dart';
 import 'canvas_model.dart';
 import 'sha256.dart';
 
@@ -16,6 +18,13 @@ const _wireFormat = 'netbeans-flutter-canvas-wire';
 const _runtimeFormat = 'netbeans-flutter-canvas-runtime';
 const _protocolVersion = 1;
 const _runnerVersion = '0.1.3-SNAPSHOT';
+const _paletteDropCapability = 'palette.drop.textAppend.v1';
+const _paletteDropChannel = MethodChannel(
+  'dev.flutter.netbeans/canvas_palette_drop',
+);
+final _paletteDropTokenPattern = RegExp(
+  r'^nbfdnd:v1:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+);
 
 /// Keeps stdout reserved for NBFC frames even if runner code uses [print].
 ZoneSpecification protocolOnlyStdoutZone(void Function(String) diagnostic) {
@@ -156,12 +165,14 @@ class NbfcFrameReader {
   }
 }
 
-class CanvasRuntimeController extends ChangeNotifier {
+class CanvasRuntimeController extends ChangeNotifier
+    with WidgetsBindingObserver {
   CanvasRuntimeController({
     Stream<List<int>>? input,
     void Function(List<int>)? output,
     Future<void> Function()? flush,
     void Function(String)? diagnostic,
+    this.nativeDropAvailabilityProbe,
   }) : _reader = NbfcFrameReader(input ?? stdin),
        _output = output ?? stdout.add,
        _flush = flush ?? stdout.flush,
@@ -172,6 +183,8 @@ class CanvasRuntimeController extends ChangeNotifier {
   final void Function(List<int>) _output;
   final Future<void> Function() _flush;
   final void Function(String) _diagnostic;
+  @visibleForTesting
+  final Future<bool> Function()? nativeDropAvailabilityProbe;
   final bool _ownsProcessIo;
 
   CanvasModel? _model;
@@ -181,17 +194,55 @@ class CanvasRuntimeController extends ChangeNotifier {
   _HandshakeLimits _limits = _HandshakeLimits.safe;
   int _runnerWireSequence = 1;
   int _intentSequence = 0;
+  int _layoutSequence = 0;
+  int _layoutPublicationTicket = 0;
   String? _lastPresentedIdentity;
+  CanvasDropResolver? _dropResolver;
+  CanvasDropTarget? _dropHoverTarget;
+  int _nativeHoverGeneration = -1;
+  int _nativeHoverProbeId = -1;
+  String? _nativeHoverToken;
+  bool _nativeHoverGenerationClosed = false;
+  _PreparedNativeDrop? _preparedNativeDrop;
   Future<void> _writeChain = Future.value();
+  bool _paletteDropNegotiated = false;
+  bool _bindingObserverInstalled = false;
+  bool _nativeDropHandlerInstalled = false;
   bool _closed = false;
 
   CanvasModel? get model => _model;
   String? get selectedWidgetId => _selectedWidgetId;
   String? get errorMessage => _errorMessage;
   bool get closed => _closed;
+  CanvasDropTarget? get dropHoverTarget => _dropHoverTarget;
+
+  @visibleForTesting
+  int? get presentedLayoutSequence {
+    final current = _model;
+    return current != null && _lastPresentedIdentity == _identity(current)
+        ? _layoutSequence
+        : null;
+  }
+
+  /// Registers the current Flutter render-tree hit tester without granting it
+  /// model or persistence authority.
+  void setDropResolver(CanvasDropResolver? resolver) {
+    _dropResolver = resolver;
+    if (resolver == null) {
+      _preparedNativeDrop = null;
+      _setDropHoverTarget(null);
+      _invalidateNativeHoverApproval();
+    }
+  }
 
   Future<void> start() async {
     try {
+      if (_ownsProcessIo) {
+        WidgetsBinding.instance.addObserver(this);
+        _bindingObserverInstalled = true;
+        _paletteDropChannel.setMethodCallHandler(_handleNativeDropMethod);
+        _nativeDropHandlerInstalled = true;
+      }
       final first = await _reader.read(
         maxPayloadBytes: _HandshakeLimits.safe.maxControlMessageBytes,
         expectedKind: nbfcControlJson,
@@ -202,7 +253,12 @@ class CanvasRuntimeController extends ChangeNotifier {
       final hello = _decodeHostHello(first.payload);
       _sessionId = hello.sessionId;
       _limits = hello.limits.tightenedToSafe();
-      await _writeControl(_runnerHello(hello));
+      _paletteDropNegotiated =
+          hello.capabilities.contains(_paletteDropCapability) &&
+          await _detectNativeDropAvailability();
+      await _writeControl(
+        _runnerHello(hello, paletteDropAvailable: _paletteDropNegotiated),
+      );
       while (!_closed) {
         final frame = await _reader.read(
           maxPayloadBytes: _limits.maxControlMessageBytes,
@@ -210,6 +266,10 @@ class CanvasRuntimeController extends ChangeNotifier {
         );
         if (frame == null) {
           _closed = true;
+          _lastPresentedIdentity = null;
+          _layoutPublicationTicket++;
+          _preparedNativeDrop = null;
+          _setDropHoverTarget(null);
           notifyListeners();
           return;
         }
@@ -217,12 +277,73 @@ class CanvasRuntimeController extends ChangeNotifier {
       }
     } on Object catch (error) {
       await _failClosed(error);
+    } finally {
+      if (_bindingObserverInstalled) {
+        _bindingObserverInstalled = false;
+        WidgetsBinding.instance.removeObserver(this);
+      }
+      if (_nativeDropHandlerInstalled) {
+        _nativeDropHandlerInstalled = false;
+        _paletteDropChannel.setMethodCallHandler(null);
+      }
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    final current = _model;
+    if (_closed || current == null) {
+      return;
+    }
+    final identity = _identity(current);
+    if (_lastPresentedIdentity != identity) {
+      return;
+    }
+    if (_layoutSequence == 0x7fffffffffffffff) {
+      _lastPresentedIdentity = null;
+      unawaited(
+        _failClosed(StateError('Canvas layout sequence is exhausted.')),
+      );
+      return;
+    }
+    // Interaction is invalid immediately; a new exact layout identity is
+    // published only after Flutter has completed the resized frame.
+    _lastPresentedIdentity = null;
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
+    _invalidateNativeHoverApproval();
+    _scheduleLayoutPublication(current, _layoutSequence + 1);
+  }
+
+  Future<bool> _detectNativeDropAvailability() async {
+    try {
+      final probe = nativeDropAvailabilityProbe;
+      if (probe != null) {
+        return await probe();
+      }
+      // Unit tests and other injected protocol transports do not own a native
+      // FlutterView. Preserve their deterministic protocol fixture unless a
+      // test explicitly supplies a probe.
+      if (!_ownsProcessIo) {
+        return true;
+      }
+      return await _paletteDropChannel.invokeMethod<bool>('isAvailable') ==
+          true;
+    } on Object catch (error) {
+      _diagnostic(
+        'Flutter Canvas native palette DnD is unavailable; '
+        'continuing read-only: $error',
+      );
+      return false;
     }
   }
 
   void selectFromCanvas(String widgetId) {
     final current = _model;
-    if (_closed || current == null || !current.widgetIds.contains(widgetId)) {
+    if (_closed ||
+        current == null ||
+        _lastPresentedIdentity != _identity(current) ||
+        !current.widgetIds.contains(widgetId)) {
       return;
     }
     if (_selectedWidgetId != widgetId) {
@@ -232,11 +353,319 @@ class CanvasRuntimeController extends ChangeNotifier {
     final body = _identityBody(current)
       ..addAll({
         'frameSequence': 0,
-        'layoutSequence': 0,
+        'layoutSequence': _layoutSequence,
         'intentSequence': _intentSequence++,
         'widgetId': widgetId,
       });
     unawaited(_writeRuntime('runner.selection', body));
+  }
+
+  Future<Object?> _handleNativeDropMethod(MethodCall call) async {
+    return switch (call.method) {
+      'paletteHover' => receiveNativePaletteHover(call.arguments),
+      'paletteHoverLeave' => receiveNativePaletteHoverLeave(call.arguments),
+      'paletteDropPrepare' => receiveNativePaletteDropPrepare(call.arguments),
+      'paletteDropCommit' => receiveNativePaletteDropCommit(call.arguments),
+      'paletteDropCancel' => receiveNativePaletteDropCancel(call.arguments),
+      _ => throw MissingPluginException(
+        'Unsupported native Canvas method: ${call.method}',
+      ),
+    };
+  }
+
+  /// Resolves a coalesced native OLE hover probe against current Flutter
+  /// geometry. Only the newest probe in the newest open drag generation may
+  /// publish a visible target.
+  @visibleForTesting
+  Future<bool> receiveNativePaletteHover(Object? arguments) async {
+    if (_closed || !_paletteDropNegotiated) {
+      return false;
+    }
+    final object = _tryNativeObject(arguments, r'$/nativePaletteHover', const {
+      'token',
+      'xMicros',
+      'yMicros',
+      'generation',
+      'probeId',
+    });
+    if (object == null) {
+      return false;
+    }
+    int generation;
+    int probeId;
+    try {
+      generation = _sequence(
+        object['generation'],
+        r'$/nativePaletteHover/generation',
+      );
+      probeId = _sequence(object['probeId'], r'$/nativePaletteHover/probeId');
+    } on FormatException {
+      return false;
+    }
+    if (generation < _nativeHoverGeneration ||
+        (generation == _nativeHoverGeneration &&
+            (_nativeHoverGenerationClosed || probeId <= _nativeHoverProbeId))) {
+      return false;
+    }
+
+    if (generation > _nativeHoverGeneration) {
+      _preparedNativeDrop = null;
+      _nativeHoverGeneration = generation;
+      _nativeHoverProbeId = -1;
+      _nativeHoverToken = null;
+      _nativeHoverGenerationClosed = false;
+      _setDropHoverTarget(null);
+    }
+    _nativeHoverProbeId = probeId;
+
+    try {
+      final token = _boundedText(
+        object['token'],
+        r'$/nativePaletteHover/token',
+        1,
+        160,
+      );
+      if (!_paletteDropTokenPattern.hasMatch(token) ||
+          (_nativeHoverToken != null && _nativeHoverToken != token)) {
+        _nativeHoverGenerationClosed = true;
+        _setDropHoverTarget(null);
+        return false;
+      }
+      _nativeHoverToken = token;
+      final target = _resolveValidDropTarget(
+        _surfaceMicros(object['xMicros'], r'$/nativePaletteHover/xMicros'),
+        _surfaceMicros(object['yMicros'], r'$/nativePaletteHover/yMicros'),
+      );
+      _setDropHoverTarget(target);
+      return target != null;
+    } on FormatException {
+      _setDropHoverTarget(null);
+      return false;
+    }
+  }
+
+  /// Clears hover only when the leave belongs to the current or a newer drag.
+  @visibleForTesting
+  Future<bool> receiveNativePaletteHoverLeave(Object? arguments) async {
+    if (_closed || !_paletteDropNegotiated) {
+      return false;
+    }
+    final object = _tryNativeObject(
+      arguments,
+      r'$/nativePaletteHoverLeave',
+      const {'generation'},
+    );
+    if (object == null) {
+      return false;
+    }
+    try {
+      final generation = _sequence(
+        object['generation'],
+        r'$/nativePaletteHoverLeave/generation',
+      );
+      if (generation < _nativeHoverGeneration) {
+        return false;
+      }
+      _nativeHoverGeneration = generation;
+      _nativeHoverProbeId = -1;
+      _nativeHoverToken = null;
+      _nativeHoverGenerationClosed = true;
+      final prepared = _preparedNativeDrop;
+      if (prepared != null && prepared.generation <= generation) {
+        _preparedNativeDrop = null;
+      }
+      _setDropHoverTarget(null);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// Phase one validates and stores exactly one semantic intent, but emits no
+  /// Java mutation. A timed-out native OLE call can therefore cancel without a
+  /// late `runner.paletteDrop` side effect.
+  @visibleForTesting
+  Future<bool> receiveNativePaletteDropPrepare(Object? arguments) async {
+    if (_closed || !_paletteDropNegotiated) {
+      return false;
+    }
+    final closeGeneration = _tryNativeGeneration(
+      arguments,
+      r'$/nativePaletteDropPrepare/generation',
+    );
+    var prepared = false;
+    try {
+      final request = _NativeDropRequest.decode(
+        arguments,
+        r'$/nativePaletteDropPrepare',
+      );
+      final approvedTarget = _dropHoverTarget;
+      if (request.generation != _nativeHoverGeneration ||
+          request.probeId != _nativeHoverProbeId ||
+          _nativeHoverGenerationClosed ||
+          request.token != _nativeHoverToken ||
+          approvedTarget == null) {
+        return false;
+      }
+      final current = _model;
+      final target = _resolveValidDropTarget(request.xMicros, request.yMicros);
+      if (current == null ||
+          target == null ||
+          !_sameSemanticDropTarget(target, approvedTarget)) {
+        return false;
+      }
+      _preparedNativeDrop = _PreparedNativeDrop(
+        request: request,
+        target: target,
+        presentationSequence: current.presentationSequence,
+        documentId: current.documentId,
+        logicalRevisionId: current.logicalRevisionId,
+        layoutSequence: _layoutSequence,
+      );
+      prepared = true;
+      return true;
+    } on FormatException {
+      return false;
+    } finally {
+      if (closeGeneration == _nativeHoverGeneration) {
+        if (!prepared) {
+          _preparedNativeDrop = null;
+        }
+        _nativeHoverGenerationClosed = true;
+        _nativeHoverToken = null;
+        _setDropHoverTarget(null);
+      } else if (closeGeneration == null) {
+        _preparedNativeDrop = null;
+        _setDropHoverTarget(null);
+      }
+    }
+  }
+
+  /// Phase two is sent only on the native OLE MOVE path. It consumes the
+  /// prepared intent exactly once, revalidates current identity/geometry, and
+  /// only then publishes the unchanged Java-facing runner intent.
+  @visibleForTesting
+  Future<bool> receiveNativePaletteDropCommit(Object? arguments) async {
+    if (_closed || !_paletteDropNegotiated) {
+      return false;
+    }
+    try {
+      final request = _NativeDropRequest.decode(
+        arguments,
+        r'$/nativePaletteDropCommit',
+      );
+      final prepared = _preparedNativeDrop;
+      if (prepared == null || !prepared.matches(request)) {
+        return false;
+      }
+      _preparedNativeDrop = null;
+      final current = _model;
+      if (current == null ||
+          current.presentationSequence != prepared.presentationSequence ||
+          current.documentId != prepared.documentId ||
+          current.logicalRevisionId != prepared.logicalRevisionId ||
+          _layoutSequence != prepared.layoutSequence ||
+          _lastPresentedIdentity != _identity(current)) {
+        return false;
+      }
+      final target = _resolveValidDropTarget(request.xMicros, request.yMicros);
+      if (target == null || !_sameSemanticDropTarget(target, prepared.target)) {
+        return false;
+      }
+      final parent = _findNode(current.root, target.parentWidgetId);
+      final children = parent?.slot('children')?.children;
+      if (parent == null || children == null) {
+        return false;
+      }
+      final body = _identityBody(current)
+        ..addAll({
+          'frameSequence': 0,
+          'layoutSequence': _layoutSequence,
+          'intentSequence': _intentSequence++,
+          'token': request.token,
+          'operation': 'ADD',
+          'parentWidgetId': parent.id,
+          'slotName': 'children',
+          'insertionIndex': children.length,
+        });
+      await _writeRuntime('runner.paletteDrop', body);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// Cancels only the exact prepared physical Drop; stale cancellation cannot
+  /// erase a newer drag generation.
+  @visibleForTesting
+  Future<bool> receiveNativePaletteDropCancel(Object? arguments) async {
+    if (_closed || !_paletteDropNegotiated) {
+      return false;
+    }
+    try {
+      final request = _NativeDropRequest.decode(
+        arguments,
+        r'$/nativePaletteDropCancel',
+      );
+      final prepared = _preparedNativeDrop;
+      if (prepared == null || !prepared.matches(request)) {
+        return false;
+      }
+      _preparedNativeDrop = null;
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  CanvasDropTarget? _resolveValidDropTarget(int xMicros, int yMicros) {
+    final current = _model;
+    final resolver = _dropResolver;
+    if (current == null ||
+        resolver == null ||
+        _lastPresentedIdentity != _identity(current)) {
+      return null;
+    }
+    final target = resolver(xMicros, yMicros);
+    if (target == null || target.slotName != 'children') {
+      return null;
+    }
+    final parent = _findNode(current.root, target.parentWidgetId);
+    final children = parent?.slot('children')?.children;
+    if (parent == null ||
+        (parent.type != 'flutter.widgets.Column' &&
+            parent.type != 'flutter.widgets.Row') ||
+        children == null ||
+        children.length >= 10000 ||
+        target.insertionIndex != children.length) {
+      return null;
+    }
+    return target;
+  }
+
+  void _setDropHoverTarget(CanvasDropTarget? target) {
+    if (_sameDropTarget(_dropHoverTarget, target)) {
+      return;
+    }
+    _dropHoverTarget = target;
+    notifyListeners();
+  }
+
+  void _invalidateNativeHoverApproval() {
+    if (!_ownsProcessIo || !_paletteDropNegotiated || _closed) {
+      return;
+    }
+    unawaited(_sendNativeHoverInvalidation());
+  }
+
+  Future<void> _sendNativeHoverInvalidation() async {
+    try {
+      await _paletteDropChannel.invokeMethod<void>('invalidateHover');
+    } on Object catch (error) {
+      _diagnostic(
+        'Flutter Canvas could not invalidate native hover approval: $error',
+      );
+    }
   }
 
   Future<void> _handleControl(Uint8List payload) async {
@@ -328,25 +757,36 @@ class CanvasRuntimeController extends ChangeNotifier {
     }
     _model = next;
     _selectedWidgetId = null;
+    _layoutSequence = 0;
     _lastPresentedIdentity = null;
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
+    _invalidateNativeHoverApproval();
     notifyListeners();
+    _scheduleLayoutPublication(next, 0);
+  }
+
+  void _scheduleLayoutPublication(CanvasModel model, int layoutSequence) {
+    final ticket = ++_layoutPublicationTicket;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_closed || !identical(_model, next)) {
+      if (_closed ||
+          ticket != _layoutPublicationTicket ||
+          !identical(_model, model)) {
         return;
       }
-      final identity = _identity(next);
-      if (_lastPresentedIdentity == identity) {
-        return;
-      }
+      final identity = _identity(model);
+      _layoutSequence = layoutSequence;
       _lastPresentedIdentity = identity;
+      _invalidateNativeHoverApproval();
       unawaited(
         _writeRuntime(
           'runner.presented',
-          _identityBody(next)
-            ..addAll({'frameSequence': 0, 'layoutSequence': 0}),
+          _identityBody(model)
+            ..addAll({'frameSequence': 0, 'layoutSequence': layoutSequence}),
         ),
       );
     });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   void _handleHostSelection(Map<String, Object?> body) {
@@ -360,6 +800,7 @@ class CanvasRuntimeController extends ChangeNotifier {
     });
     final current = _model;
     if (current == null ||
+        _lastPresentedIdentity != _identity(current) ||
         _sequence(
               body['presentationSequence'],
               r'$/body/presentationSequence',
@@ -370,7 +811,8 @@ class CanvasRuntimeController extends ChangeNotifier {
         _sequence(body['logicalRevisionId'], r'$/body/logicalRevisionId') !=
             current.logicalRevisionId ||
         _sequence(body['frameSequence'], r'$/body/frameSequence') != 0 ||
-        _sequence(body['layoutSequence'], r'$/body/layoutSequence') != 0) {
+        _sequence(body['layoutSequence'], r'$/body/layoutSequence') !=
+            _layoutSequence) {
       return;
     }
     final widgetId = _stableId(body['widgetId'], r'$/body/widgetId');
@@ -415,6 +857,10 @@ class CanvasRuntimeController extends ChangeNotifier {
       'body': <String, Object?>{},
     });
     _closed = true;
+    _lastPresentedIdentity = null;
+    _layoutPublicationTicket++;
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
     notifyListeners();
     await _reader.cancel();
     if (_ownsProcessIo) {
@@ -454,6 +900,10 @@ class CanvasRuntimeController extends ChangeNotifier {
       return;
     }
     _closed = true;
+    _lastPresentedIdentity = null;
+    _layoutPublicationTicket++;
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
     await _reader.cancel();
     final message = _boundedFailureMessage(error);
     _errorMessage = message;
@@ -521,13 +971,14 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 3) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 4) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
     'readOnly.render',
     'readOnly.layout',
     'readOnly.selection',
+    _paletteDropCapability,
   };
   final capabilities = <String>{};
   for (final value in rawCapabilities) {
@@ -551,11 +1002,15 @@ _HostHello _decodeHostHello(Uint8List payload) {
   );
 }
 
-Map<String, Object?> _runnerHello(_HostHello hello) {
+Map<String, Object?> _runnerHello(
+  _HostHello hello, {
+  required bool paletteDropAvailable,
+}) {
   const capabilityOrder = [
     'readOnly.render',
     'readOnly.layout',
     'readOnly.selection',
+    _paletteDropCapability,
   ];
   final limits = hello.limits.tightenedToSafe();
   return {
@@ -575,7 +1030,9 @@ Map<String, Object?> _runnerHello(_HostHello hello) {
       },
       'acceptedCapabilities': [
         for (final capability in capabilityOrder)
-          if (hello.capabilities.contains(capability)) capability,
+          if (hello.capabilities.contains(capability) &&
+              (capability != _paletteDropCapability || paletteDropAvailable))
+            capability,
       ],
       'effectiveLimits': limits.toJson(),
     },
@@ -735,10 +1192,21 @@ Map<String, Object?> _decodeObject(Uint8List bytes, String path) {
 }
 
 Map<String, Object?> _object(Object? value, String path) {
-  if (value is! Map<String, Object?>) {
+  if (value is! Map) {
     throw FormatException('Canvas value must be an object: $path');
   }
-  return value;
+  if (value.length > 64) {
+    throw FormatException('Canvas object has too many fields: $path');
+  }
+  final result = <String, Object?>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (key is! String) {
+      throw FormatException('Canvas object key must be a string: $path');
+    }
+    result[key] = entry.value;
+  }
+  return result;
 }
 
 void _exactKeys(
@@ -769,6 +1237,141 @@ int _sequence(Object? value, String path) {
     );
   }
   return value;
+}
+
+int _surfaceMicros(Object? value, String path) {
+  if (value is! int || value < 0 || value > 1000000) {
+    throw FormatException(
+      'Canvas surface coordinate is outside its normalized range: $path',
+    );
+  }
+  return value;
+}
+
+Map<String, Object?>? _tryNativeObject(
+  Object? value,
+  String path,
+  Set<String> expected,
+) {
+  try {
+    final object = _object(value, path);
+    _exactKeys(object, path, expected);
+    return object;
+  } on FormatException {
+    return null;
+  }
+}
+
+int? _tryNativeGeneration(Object? value, String path) {
+  try {
+    final object = _object(value, r'$/nativePaletteDrop');
+    return _sequence(object['generation'], path);
+  } on FormatException {
+    return null;
+  }
+}
+
+class _NativeDropRequest {
+  const _NativeDropRequest({
+    required this.token,
+    required this.xMicros,
+    required this.yMicros,
+    required this.generation,
+    required this.probeId,
+  });
+
+  final String token;
+  final int xMicros;
+  final int yMicros;
+  final int generation;
+  final int probeId;
+
+  static _NativeDropRequest decode(Object? value, String path) {
+    final object = _object(value, path);
+    _exactKeys(object, path, const {
+      'token',
+      'xMicros',
+      'yMicros',
+      'generation',
+      'probeId',
+    });
+    final token = _boundedText(object['token'], '$path/token', 1, 160);
+    if (!_paletteDropTokenPattern.hasMatch(token)) {
+      throw FormatException('Native palette token is invalid: $path/token');
+    }
+    return _NativeDropRequest(
+      token: token,
+      xMicros: _surfaceMicros(object['xMicros'], '$path/xMicros'),
+      yMicros: _surfaceMicros(object['yMicros'], '$path/yMicros'),
+      generation: _sequence(object['generation'], '$path/generation'),
+      probeId: _sequence(object['probeId'], '$path/probeId'),
+    );
+  }
+}
+
+class _PreparedNativeDrop {
+  const _PreparedNativeDrop({
+    required this.request,
+    required this.target,
+    required this.presentationSequence,
+    required this.documentId,
+    required this.logicalRevisionId,
+    required this.layoutSequence,
+  });
+
+  final _NativeDropRequest request;
+  final CanvasDropTarget target;
+  final int presentationSequence;
+  final String documentId;
+  final int logicalRevisionId;
+  final int layoutSequence;
+
+  int get generation => request.generation;
+
+  bool matches(_NativeDropRequest other) =>
+      request.token == other.token &&
+      request.xMicros == other.xMicros &&
+      request.yMicros == other.yMicros &&
+      request.generation == other.generation &&
+      request.probeId == other.probeId;
+}
+
+bool _sameSemanticDropTarget(CanvasDropTarget left, CanvasDropTarget right) =>
+    left.parentWidgetId == right.parentWidgetId &&
+    left.slotName == right.slotName &&
+    left.insertionIndex == right.insertionIndex;
+
+bool _sameDropTarget(CanvasDropTarget? left, CanvasDropTarget? right) {
+  if (identical(left, right)) {
+    return true;
+  }
+  if (left == null || right == null || !_sameSemanticDropTarget(left, right)) {
+    return false;
+  }
+  final leftZone = left.zone;
+  final rightZone = right.zone;
+  return leftZone == null && rightZone == null ||
+      leftZone != null &&
+          rightZone != null &&
+          leftZone.leftMicros == rightZone.leftMicros &&
+          leftZone.topMicros == rightZone.topMicros &&
+          leftZone.rightMicros == rightZone.rightMicros &&
+          leftZone.bottomMicros == rightZone.bottomMicros;
+}
+
+CanvasNode? _findNode(CanvasNode node, String id) {
+  if (node.id == id) {
+    return node;
+  }
+  for (final slot in node.slots.values) {
+    for (final child in slot.children) {
+      final found = _findNode(child, id);
+      if (found != null) {
+        return found;
+      }
+    }
+  }
+  return null;
 }
 
 String _boundedText(Object? value, String path, int minimum, int maximum) {

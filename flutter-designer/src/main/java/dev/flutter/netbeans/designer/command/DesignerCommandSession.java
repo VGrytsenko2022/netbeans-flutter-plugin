@@ -702,7 +702,8 @@ public final class DesignerCommandSession {
                 anchor,
                 retained.document(),
                 retained.revisionId(),
-                exactLiveSourceTemplate);
+                exactLiveSourceTemplate,
+                retained.generation());
         if (derived.revision().isEmpty()) {
             DesignerCommandDiagnostic failure = derived.diagnostic().orElseThrow();
             throw new IllegalArgumentException(
@@ -713,6 +714,7 @@ public final class DesignerCommandSession {
         if (physical.revisionId() != retained.revisionId()
                 || !physical.document().equals(retained.document())
                 || !physical.fdSnapshot().equals(retained.fdSnapshot())
+                || physical.generation() != retained.generation()
                 || physical.persistenceKind() != retained.persistenceKind()
                 || !exactManagedPayloadsMatch(
                         retained.sourceIntegrity(),
@@ -1137,6 +1139,29 @@ public final class DesignerCommandSession {
         DartGenerationResult generation = new DartRegionGenerator(
                 limits.generationLimits(),
                 limits.validationLimits()).generate(normalized, catalog);
+        return deriveRevision(
+                durable,
+                normalized,
+                revisionId,
+                liveSourceBytes,
+                generation);
+    }
+
+    /**
+     * Completes derivation with one caller-pinned generation identity. Normal
+     * derivation supplies its freshly generated identity; physical-envelope
+     * projection supplies the already-retained command revision identity.
+     */
+    private DerivedRevision deriveRevision(
+            DurableAnchor durable,
+            DesignerDocument semanticDocument,
+            long revisionId,
+            byte[] liveSourceBytes,
+            DartGenerationResult generation) {
+        Objects.requireNonNull(liveSourceBytes, "liveSourceBytes");
+        Objects.requireNonNull(generation, "generation");
+        DesignerDocument normalized = DesignerCommandTransformer.withSource(
+                semanticDocument, durable.document().source());
         if (!generation.successful()) {
             DartGenerationDiagnostic primary = generation.diagnostics().getFirst();
             return DerivedRevision.failure(

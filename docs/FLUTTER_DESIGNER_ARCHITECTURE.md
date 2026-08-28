@@ -1091,10 +1091,13 @@ or partial traffic, and model frames require the exact expected
 kind/length/SHA-256 descriptor before allocation.
 
 After the handshake, a strict runtime control codec carries `host.render`,
-`runner.presented`, `host.selection` and `runner.selection` for the exact
-session, presentation, revision, frame and layout identities. `host.render`
-describes one canonical bounded `CORE_V1` model frame. The runner decodes only
-the six reviewed built-in widget contracts and never loads project code.
+`runner.presented`, `host.selection`, `runner.selection` and the capability-
+gated `runner.paletteDrop` event for exact session, presentation, revision,
+frame and layout identities. The `palette.drop.textAppend.v1` capability is
+limited to the first DnD contract below; negotiating or decoding it does not by
+itself enable Palette mutation. `host.render` describes one canonical bounded
+`CORE_V1` model frame. The runner decodes only the six reviewed built-in widget
+contracts and never loads project code.
 `CATALOG_JSON` remains reserved for a future versioned catalog contract. There
 is no image or pixel-transfer frame kind; the current Windows path renders the
 validated model directly in its native Flutter surface.
@@ -1108,17 +1111,71 @@ evidence is admitted atomically. These identities reject delayed work across
 reload, Undo/Redo, runner restart, close and reopen, including an ABA return to
 the same logical revision.
 
-Drag and drop crosses the boundary in one direction and returns an intent:
+Drag and drop crosses the boundary in one direction and returns an intent. The
+first safe vertical slice is deliberately closed: it creates only the built-in
+`Text` Palette prototype, and only as a terminal append to an existing
+`Row.children` or `Column.children` list. It does not support an arbitrary
+insertion index, reordering, moving an existing widget, another Palette type or
+another constructor slot.
 
-1. Java captures an allowlisted palette/model drag, the exact current session,
-   presentation and revision, and coordinates translated into the native view.
-2. Flutter hit-tests its live widget tree and computes a semantic target/drop
-   operation for the exact accepted layout epoch.
-3. Flutter returns only that revision-bound intent; it does not mutate the
-   model or touch a file.
-4. Java rejects stale, replayed, malformed or no-longer-valid responses,
-   validates the target against the current catalog/domain model, and only then
-   may admit a Designer command.
+1. On Windows, NetBeans starts one native OLE drag for the `Text` Palette item.
+   Java retains the allowlisted prototype behind a bounded, short-lived opaque
+   token. Its wire representation is printable ASCII, at most 160 characters
+   and starts with `nbfdnd:v1:`. The token is process-local and one-shot; it is
+   not widget JSON, a project path, Dart source or mutation authority. The same
+   exact active-view token must cross hover, prepare and the terminal commit or
+   cancel unchanged; only Java resolves it to the retained prototype.
+2. The OLE bridge delivers only that token and native-view coordinates across
+   the child-HWND boundary. OLE reports `MOVE` because the NetBeans Palette
+   offers `ACTION_MOVE`; Palette items are immutable prototypes and are not
+   removed. The semantic Designer operation remains `ADD`, never an
+   existing-widget Move or reorder.
+3. Flutter performs the authoritative hit test against its live tree and
+   accepts only a `Row` or `Column` terminal `children` drop zone from the exact
+   currently presented layout. Native hover starts fail-closed, coalesces
+   bounded probes, rejects stale generation/probe replies and advertises OLE
+   `MOVE` only after the exact latest Flutter approval.
+4. Fast release is admitted only when the exact latest probe was already sent
+   and remains in flight. Hover and prepare share one FIFO `MethodChannel`, so
+   Flutter establishes the token/generation/probe/target state before handling
+   prepare even when the native hover-result callback has not arrived.
+5. Prepare repeats exact token, generation, probe, point, presentation, layout
+   and semantic-target validation and stores at most one candidate. It emits no
+   `runner.paletteDrop`. The synchronous OLE `Drop` pumps its Windows STA for at
+   most 250 ms while waiting for the asynchronous reply. Timeout, error,
+   reentrant cancellation or shutdown fails closed, sends the matching cancel
+   and leave while the channel remains alive, and returns OLE `NONE`. Exact
+   cancel consumes only its matching prepared candidate, so a late prepare
+   result after `NONE` cannot mutate Java state.
+6. Only a timely positive prepare sends an ordered single-use commit and
+   returns OLE `MOVE`. Commit consumes and revalidates the prepared identity,
+   then may publish `runner.paletteDrop` with the token, parent stable ID,
+   `operation = ADD`, `slotName = children`, terminal insertion index and the
+   exact session/presentation/document/logical-revision/frame/layout/intent
+   identities. Flutter does not mutate the model or touch a file.
+7. Java atomically consumes the token and rejects unknown, expired, duplicate,
+   malformed, stale or foreign responses. It rechecks the exact current
+   revision and layout, the current parent type and stable ID, the list slot and
+   `insertionIndex == children.size()`, then materializes the reviewed `Text`
+   creation defaults with a fresh stable ID. OLE `MOVE` is not proof of this
+   Java admission and may still be followed by a fail-closed rejection.
+8. One admitted `AddWidget` command follows the existing deterministic
+   generation, analyzer, paired `.fd`/Dart replacement and `PairSaveCoordinator`
+   adoption path. The successful user action contributes one chronological
+   native Undo/Redo edit; failure before verified adoption changes neither
+   file nor history.
+
+Token consumption is fail-closed: a rejected or failed drop attempt cannot
+reuse the token. Canceled, failed and non-`MOVE` drag completion revokes it
+immediately. Successful OLE `MOVE` retains it only for a bounded three-second
+asynchronous grace, ending earlier on consumption; expiry, another drag, runner
+restart, Canvas close, presentation replacement or a new layout invalidates
+outstanding drag authority. The single
+`Text -> Row|Column.children terminal append` contract is publicly enabled
+after live assembled NetBeans 30 drop → Save → Undo → Redo → Save acceptance.
+This statement does not claim a separate saved-history Undo → Save cycle. All
+DnD outside this contract remains disabled, including Linux, macOS and Web
+backends.
 
 Selection and future property intents follow the same host-authoritative rule.
 Render-profile limits reject a requested native surface above 4096 physical
@@ -1172,8 +1229,13 @@ Implementation proceeds through explicit gates:
    with the Explorer/Nodes widget tree, publish the exact six-item Palette and
    expose selected-node Properties. Enable catalog-driven Set/Reset for the 27
    reviewed non-`Scaffold` fields through one-shot revision-bound pair-save.
-6. [Pending] Implement Java → Flutter hit-test → revision-bound DnD
-   intents. The Palette remains non-mutating until that bridge passes.
+6. [Complete and narrowly enabled] Implement only the Windows native OLE `Text`
+   Palette drag → Flutter hit-test and two-phase prepare/commit → exact
+   revision/layout-bound `Row|Column.children` terminal-append intent →
+   one-shot Java admission → pair-save/Undo command path described above. Its
+   live assembled drop → Save → Undo → Redo → Save acceptance passed. Keep
+   every other DnD operation disabled; this completion does not claim the
+   separate saved-history Undo → Save cycle.
 7. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 8. Enable the broader public writable ten-widget slice only after all gates

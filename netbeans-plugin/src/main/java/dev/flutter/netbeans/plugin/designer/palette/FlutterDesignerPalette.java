@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import javax.swing.Action;
 import org.netbeans.spi.palette.DragAndDropHandler;
@@ -52,8 +53,40 @@ public final class FlutterDesignerPalette {
     public static PaletteController create(
             WidgetCatalog catalog,
             Predicate<? super WidgetDefinition> includeDefinition) {
+        return create(catalog, includeDefinition, READ_ONLY_DND);
+    }
+
+    /**
+     * Creates a palette whose admitted outgoing drags carry one opaque,
+     * short-lived token in {@link DataFlavor#stringFlavor}.
+     *
+     * <p>The token contains no widget definition or mutation authority. Its
+     * authoritative type can be resolved only once through {@code registry}.
+     * Palette-internal imports and reordering remain disabled.</p>
+     */
+    public static PaletteController create(
+            WidgetCatalog catalog,
+            Predicate<? super WidgetDefinition> includeDefinition,
+            FlutterDesignerPaletteDragRegistry registry,
+            BooleanSupplier enabled,
+            Predicate<? super WidgetDefinition> draggableDefinition) {
+        Objects.requireNonNull(registry, "registry");
+        Objects.requireNonNull(enabled, "enabled");
+        Objects.requireNonNull(draggableDefinition, "draggableDefinition");
+        return create(
+                catalog,
+                includeDefinition,
+                new TokenDragAndDropHandler(
+                        registry, enabled, draggableDefinition));
+    }
+
+    private static PaletteController create(
+            WidgetCatalog catalog,
+            Predicate<? super WidgetDefinition> includeDefinition,
+            DragAndDropHandler dragAndDropHandler) {
         Objects.requireNonNull(catalog, "catalog");
         Objects.requireNonNull(includeDefinition, "includeDefinition");
+        Objects.requireNonNull(dragAndDropHandler, "dragAndDropHandler");
 
         Map<String, CategoryBuilder> categories = new LinkedHashMap<>();
         for (WidgetDefinition definition : catalog.paletteDefinitions()) {
@@ -75,7 +108,8 @@ public final class FlutterDesignerPalette {
                 .map(CategoryBuilder::toNode)
                 .toList();
         Node root = new PaletteRootNode(categoryNodes);
-        return PaletteFactory.createPalette(root, READ_ONLY_ACTIONS, null, READ_ONLY_DND);
+        return PaletteFactory.createPalette(
+                root, READ_ONLY_ACTIONS, null, dragAndDropHandler);
     }
 
     private static String categoryDisplayName(String categoryId) {
@@ -229,7 +263,7 @@ public final class FlutterDesignerPalette {
         }
     }
 
-    private static final class ReadOnlyDragAndDropHandler extends DragAndDropHandler {
+    private static class ReadOnlyDragAndDropHandler extends DragAndDropHandler {
         @Override
         public void customize(ExTransferable transferable, Lookup item) {
             // No Canvas mutation flavor is added in this read-only slice.
@@ -257,6 +291,48 @@ public final class FlutterDesignerPalette {
         @Override
         public boolean moveCategory(Lookup category, int index) {
             return false;
+        }
+    }
+
+    private static final class TokenDragAndDropHandler
+            extends ReadOnlyDragAndDropHandler {
+        private final FlutterDesignerPaletteDragRegistry registry;
+        private final BooleanSupplier enabled;
+        private final Predicate<? super WidgetDefinition> draggableDefinition;
+
+        private TokenDragAndDropHandler(
+                FlutterDesignerPaletteDragRegistry registry,
+                BooleanSupplier enabled,
+                Predicate<? super WidgetDefinition> draggableDefinition) {
+            this.registry = registry;
+            this.enabled = enabled;
+            this.draggableDefinition = draggableDefinition;
+        }
+
+        @Override
+        public void customize(ExTransferable transferable, Lookup item) {
+            Objects.requireNonNull(transferable, "transferable");
+            Objects.requireNonNull(item, "item");
+            if (!enabled.getAsBoolean()) {
+                return;
+            }
+            FlutterDesignerPaletteItem paletteItem = item.lookup(
+                    FlutterDesignerPaletteItem.class);
+            WidgetDefinition definition = item.lookup(WidgetDefinition.class);
+            if (paletteItem == null
+                    || definition == null
+                    || !paletteItem.typeId().equals(definition.typeId())
+                    || !draggableDefinition.test(definition)) {
+                return;
+            }
+            registry.issueReplacingOutstanding(definition.typeId()).ifPresent(token ->
+                transferable.put(new ExTransferable.Single(
+                        DataFlavor.stringFlavor) {
+                    @Override
+                    protected Object getData() {
+                        return token;
+                    }
+                }));
         }
     }
 }

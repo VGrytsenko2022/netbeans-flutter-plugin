@@ -389,9 +389,9 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     + "Reason: The selected Flutter Designer revision is stale; "
                     + "select the widget again.",
                     details.getText());
-            assertEquals("Flutter Designer property change details",
+            assertEquals("Flutter Designer change details",
                     details.getAccessibleContext().getAccessibleName());
-            assertEquals("Flutter Designer property change result",
+            assertEquals("Flutter Designer change result",
                     scroll.getAccessibleContext().getAccessibleName());
             details.selectAll();
             assertEquals(details.getText(), details.getSelectedText());
@@ -425,9 +425,9 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     + "Reason: The selected Flutter Designer revision is stale; "
                     + "select the widget again.",
                     details.getText());
-            assertEquals("Flutter Designer property change details",
+            assertEquals("Flutter Designer change details",
                     details.getAccessibleContext().getAccessibleName());
-            assertEquals("Flutter Designer property change result",
+            assertEquals("Flutter Designer change result",
                     scroll.getAccessibleContext().getAccessibleName());
             details.selectAll();
             assertEquals(details.getText(), details.getSelectedText());
@@ -713,8 +713,10 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     + "selection, the six-item Palette and Properties are enabled. "
                     + "Supported properties on Column, Row, Padding, Center and Text are "
                     + "writable when exact mutation admission is ready; Scaffold properties "
-                    + "remain read-only. Drag-and-drop and other Designer commands remain "
-                    + "disabled.",
+                    + "remain read-only. Palette Text drag-and-drop is unavailable because "
+                    + "exact mutation admission, the current rendered presentation, the "
+                    + "owning-view AWT drag lifecycle, or the native Canvas drop capability "
+                    + "is not ready; all other drag-and-drop commands remain disabled.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

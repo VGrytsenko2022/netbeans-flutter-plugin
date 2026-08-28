@@ -105,9 +105,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     CreateAndAttachConsole();
   }
 
-  // Initialize COM, so that it is available for use in the library and/or
-  // plugins.
-  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  // OLE drag-and-drop requires OleInitialize on this single-threaded UI
+  // thread. DnD is optional, so an unavailable OLE apartment must not prevent
+  // the native read-only Flutter Canvas from starting; RegisterDragDrop will
+  // fail closed and the runner will omit the DnD capability.
+  const HRESULT ole_result = ::OleInitialize(nullptr);
+  const bool ole_initialized = SUCCEEDED(ole_result);
 
   flutter::DartProject project(L"data");
 
@@ -117,14 +120,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   const std::optional<RunnerArguments> arguments =
       ParseRunnerArguments(command_line_arguments);
   if (!arguments.has_value()) {
-    ::CoUninitialize();
+    if (ole_initialized) {
+      ::OleUninitialize();
+    }
     return EXIT_FAILURE;
   }
 
   FlutterWindow window(project);
   RECT parent_client{};
   if (!::GetClientRect(arguments->parent, &parent_client)) {
-    ::CoUninitialize();
+    if (ole_initialized) {
+      ::OleUninitialize();
+    }
     return EXIT_FAILURE;
   }
   const auto width = static_cast<unsigned int>(
@@ -136,7 +143,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!window.Create(
           L"NetBeans Flutter Native Canvas", origin, size,
           arguments->parent)) {
-    ::CoUninitialize();
+    if (ole_initialized) {
+      ::OleUninitialize();
+    }
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
@@ -147,6 +156,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
-  ::CoUninitialize();
+  if (ole_initialized) {
+    ::OleUninitialize();
+  }
   return EXIT_SUCCESS;
 }

@@ -18,6 +18,8 @@ import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameKind;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessPayloadDescriptor;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HexFormat;
@@ -38,6 +40,12 @@ public final class CanvasRunnerControlCodec {
     private static final Set<String> SELECTION_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "widgetId");
+    private static final Set<String> PALETTE_DROP_FIELDS = Set.of(
+            "presentationSequence", "documentId", "logicalRevisionId",
+            "frameSequence", "layoutSequence", "intentSequence", "token",
+            "operation", "parentWidgetId", "slotName", "insertionIndex");
+    private static final String PALETTE_DROP_TOKEN_PREFIX = "nbfdnd:v1:";
+    private static final int MAX_PALETTE_DROP_TOKEN_CHARACTERS = 160;
 
     private final JsonFactory jsonFactory;
     private final ObjectMapper mapper;
@@ -95,7 +103,7 @@ public final class CanvasRunnerControlCodec {
         });
     }
 
-    /** Decodes only runner.presented and runner.selection. */
+    /** Decodes only the explicitly supported runner runtime events. */
     public CanvasRunnerRuntimeEvent decode(byte[] bytes)
             throws CanvasRunnerControlException {
         Objects.requireNonNull(bytes, "bytes");
@@ -121,6 +129,7 @@ public final class CanvasRunnerControlCodec {
             return switch (type) {
                 case "runner.presented" -> decodePresented(sessionId, body);
                 case "runner.selection" -> decodeSelection(sessionId, body);
+                case "runner.paletteDrop" -> decodePaletteDrop(sessionId, body);
                 default -> throw invalid("Canvas runtime message type is not supported.");
             };
         } catch (CanvasRunnerControlException failure) {
@@ -156,6 +165,30 @@ public final class CanvasRunnerControlCodec {
         return new CanvasRunnerRuntimeEvent.Selection(
                 new CanvasIntentKey(intentId, layout),
                 StableId.parse(requireText(body, "widgetId")));
+    }
+
+    private static CanvasRunnerRuntimeEvent.PaletteDrop decodePaletteDrop(
+            CanvasSessionId sessionId,
+            JsonNode body) throws CanvasRunnerControlException {
+        requireFields(body, PALETTE_DROP_FIELDS, "runner.paletteDrop body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        CanvasFrameKey frame = new CanvasFrameKey(
+                revision, requireSequence(body, "frameSequence"));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        CanvasIntentId intentId = new CanvasIntentId(
+                sessionId, requireSequence(body, "intentSequence"));
+        requireText(body, "operation", "ADD");
+        String slot = requireText(body, "slotName");
+        if (!"children".equals(slot)) {
+            throw invalid("Canvas runtime field slotName is not supported.");
+        }
+        return new CanvasRunnerRuntimeEvent.PaletteDrop(
+                new CanvasIntentKey(intentId, layout),
+                requirePaletteDropToken(body),
+                parseStableId(body, "parentWidgetId"),
+                new SlotName(slot),
+                requireInsertionIndex(body));
     }
 
     private static CanvasRevisionKey readRevision(
@@ -254,6 +287,44 @@ public final class CanvasRunnerControlCodec {
             throw invalid("Canvas runtime field " + name + " is outside its range.");
         }
         return result;
+    }
+
+    private static String requirePaletteDropToken(JsonNode object)
+            throws CanvasRunnerControlException {
+        String token = requireText(object, "token");
+        if (token.length() > MAX_PALETTE_DROP_TOKEN_CHARACTERS
+                || !token.startsWith(PALETTE_DROP_TOKEN_PREFIX)) {
+            throw invalid("Canvas runtime field token is not a supported Palette drop token.");
+        }
+        for (int index = 0; index < token.length(); index++) {
+            char character = token.charAt(index);
+            if (character < 0x20 || character > 0x7e) {
+                throw invalid("Canvas runtime field token must contain printable ASCII only.");
+            }
+        }
+        return token;
+    }
+
+    private static StableId parseStableId(JsonNode object, String name)
+            throws CanvasRunnerControlException {
+        try {
+            return StableId.parse(requireText(object, name));
+        } catch (IllegalArgumentException failure) {
+            throw invalid("Canvas runtime field " + name + " is not a valid stable id.");
+        }
+    }
+
+    private static int requireInsertionIndex(JsonNode object)
+            throws CanvasRunnerControlException {
+        JsonNode value = required(object, "insertionIndex");
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw invalid("Canvas runtime field insertionIndex must be an integer.");
+        }
+        int index = value.intValue();
+        if (index < 0 || index > WidgetSlot.MAX_LIST_CHILDREN) {
+            throw invalid("Canvas runtime field insertionIndex is outside its range.");
+        }
+        return index;
     }
 
     private static void requireFields(JsonNode object, Set<String> expected, String label)

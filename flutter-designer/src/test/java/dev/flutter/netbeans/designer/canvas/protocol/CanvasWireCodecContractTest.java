@@ -34,7 +34,8 @@ class CanvasWireCodecContractTest {
                         List.of(
                                 CanvasWireCapability.READ_ONLY_SELECTION,
                                 CanvasWireCapability.READ_ONLY_RENDER,
-                                CanvasWireCapability.READ_ONLY_LAYOUT),
+                                CanvasWireCapability.READ_ONLY_LAYOUT,
+                                CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1),
                         HANDSHAKE_LIMITS),
                 new CanvasRunnerHello(
                         SESSION,

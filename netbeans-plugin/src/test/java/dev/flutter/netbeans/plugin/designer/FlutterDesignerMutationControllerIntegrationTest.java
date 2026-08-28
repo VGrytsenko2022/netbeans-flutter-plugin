@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -41,6 +42,7 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.dart.DartEditorKit;
 import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransaction;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPlanner;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyCellValue;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
@@ -302,6 +304,156 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 }
                 analyzerGate.cancel(false);
             }
+        }
+    }
+
+    @Test
+    void paletteTextAppendPlanUsesExactMutationAnalyzerPairSaveAndUndoPipeline()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_palette_text_append", columnExactPair());
+        StableId appendedId = StableId.parse(
+                "ffffffff-ffff-4fff-8fff-ffffffffffff");
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            new WidgetTypeId("flutter.widgets.Text"),
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned);
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append Text to Column.children at index 2")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetSlot.ListSlot children = assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    applied.document().orElseThrow().root().slots().get(CHILDREN));
+            assertEquals(3, children.children().size());
+            WidgetNode appended = children.children().get(2);
+            assertEquals(appendedId, appended.id());
+            assertEquals(new WidgetTypeId("flutter.widgets.Text"), appended.type());
+            assertEquals("Text", ((PropertyValue.StringValue)
+                    appended.properties().get(DATA)).value());
+            assertEquals(1, fixture.analysisCalls().get());
+            String analyzedDart = fixture.analyzedContents().getFirst();
+            assertTrue(analyzedDart.contains("Text("), analyzedDart);
+            assertTrue(analyzedDart.contains("'Text'"), analyzedDart);
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    fixture.coordinator().state().status());
+            PairSaveEvidence appliedEvidence =
+                    fixture.coordinator().stagedEvidence();
+            assertNotNull(appliedEvidence);
+            assertEquals(applied.document().orElseThrow(),
+                    appliedEvidence.preparedPairIdentity()
+                            .prospectiveDocument());
+            byte[] appendedDart = appliedEvidence.candidateDartBytes();
+            byte[] appendedFd = appliedEvidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            assertArrayEquals(appendedDart,
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+            assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                assertFalse(combined.canRedo());
+                combined.undo();
+            });
+
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            applied.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertNull(fixture.coordinator().stagedEvidence());
+            assertFalse(fixture.editor().sourceModified());
+            assertArrayEquals(fixture.baselineDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetSlot.ListSlot redoneChildren = assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    redone.document().orElseThrow().root().slots().get(CHILDREN));
+            WidgetNode redoneAppended = redoneChildren.children().get(2);
+            assertEquals(new WidgetTypeId("flutter.widgets.Text"),
+                    redoneAppended.type());
+            assertEquals("Text", ((PropertyValue.StringValue)
+                    redoneAppended.properties().get(DATA)).value());
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    fixture.coordinator().state().status());
+            PairSaveEvidence redoneEvidence =
+                    fixture.coordinator().stagedEvidence();
+            assertNotNull(redoneEvidence);
+            assertEquals(redone.document().orElseThrow(),
+                    redoneEvidence.preparedPairIdentity()
+                            .prospectiveDocument());
+            assertArrayEquals(appendedDart, redoneEvidence.candidateDartBytes());
+            assertArrayEquals(appendedFd, redoneEvidence.preparedPairIdentity()
+                    .prospectiveFdBytes());
+            assertArrayEquals(appendedDart,
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+            assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertEquals(1, fixture.analysisCalls().get(),
+                    "Redo must replay the analyzed pair without another analysis");
+
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitCurrentWithPair(
+                    fixture.controller(), appendedFd, appendedDart);
+            awaitReadyWithColumnChildIdsAfterToken(
+                    fixture.mutations(),
+                    redone.token().orElseThrow(),
+                    List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertFalse(fixture.editor().sourceModified());
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(appendedDart,
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(appendedFd,
+                    Files.readAllBytes(fixture.fdPath()));
         }
     }
 
@@ -2136,6 +2288,41 @@ class FlutterDesignerMutationControllerIntegrationTest {
         }
         throw new AssertionError("Timed out waiting for mutation READY: "
                 + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot
+            awaitReadyWithColumnChildIdsAfterToken(
+                    FlutterDesignerMutationController controller,
+                    FlutterDesignerMutationController.RevisionToken oldToken,
+                    List<StableId> expectedChildIds) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && current.token().isPresent()
+                    && current.token().orElseThrow() != oldToken
+                    && current.document().isPresent()) {
+                WidgetSlot slot = current.document().orElseThrow()
+                        .root().slots().get(CHILDREN);
+                if (slot instanceof WidgetSlot.ListSlot children
+                        && expectedChildIds.equals(children.children().stream()
+                                .map(WidgetNode::id)
+                                .toList())) {
+                    return current;
+                }
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for Column.children="
+                + expectedChildIds + " after revision token " + oldToken
+                + ": " + controller.snapshot());
     }
 
     private static FlutterDesignerMutationController.Snapshot awaitReadyWithData(

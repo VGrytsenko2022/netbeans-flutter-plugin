@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -13,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -145,6 +147,112 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void tokenizesOnlyAllowlistedTextWithNoDefinitionInTheStringPayload()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> true,
+                definition -> definition.typeId().value().equals(
+                        "flutter.widgets.Text"));
+        Transferable textTransfer = itemNode(
+                controller, "flutter.widgets.Text").drag();
+
+        assertTrue(textTransfer.isDataFlavorSupported(DataFlavor.stringFlavor));
+        String token = assertInstanceOf(
+                String.class,
+                textTransfer.getTransferData(DataFlavor.stringFlavor));
+        assertTrue(token.matches(
+                "nbfdnd:v1:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:"
+                + "[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+        assertFalse(token.contains("flutter.widgets.Text"));
+        assertFalse(token.contains("WidgetDefinition"));
+        assertEquals(
+                "flutter.widgets.Text",
+                registry.consume(token).orElseThrow().value());
+
+        Transferable paddingTransfer = itemNode(
+                controller, "flutter.widgets.Padding").drag();
+        assertFalse(paddingTransfer.isDataFlavorSupported(DataFlavor.stringFlavor));
+        assertEquals(0, registry.outstandingCount());
+    }
+
+    @Test
+    void startingAnotherTextDragRevokesTheCanceledTransferToken()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> true,
+                definition -> definition.typeId().value().equals(
+                        "flutter.widgets.Text"));
+        Transferable canceled = itemNode(
+                controller, "flutter.widgets.Text").drag();
+        String canceledToken = (String) canceled.getTransferData(
+                DataFlavor.stringFlavor);
+
+        Transferable replacement = itemNode(
+                controller, "flutter.widgets.Text").drag();
+        String replacementToken = (String) replacement.getTransferData(
+                DataFlavor.stringFlavor);
+
+        assertEquals(1, registry.outstandingCount());
+        assertTrue(registry.consume(canceledToken).isEmpty());
+        assertEquals(
+                "flutter.widgets.Text",
+                registry.consume(replacementToken).orElseThrow().value());
+    }
+
+    @Test
+    void disabledTokenSourceAddsNoFlavorAndDoesNotEvaluateTheAllowlist()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> false,
+                definition -> {
+                    throw new AssertionError("disabled drag must not consult allowlist");
+                });
+        Transferable transfer = itemNode(
+                controller, "flutter.widgets.Text").drag();
+
+        assertFalse(transfer.isDataFlavorSupported(DataFlavor.stringFlavor));
+        assertEquals(0, registry.outstandingCount());
+    }
+
+    @Test
+    void tokenEnabledPaletteStillRejectsImportsAndReordering() {
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                new FlutterDesignerPaletteDragRegistry(),
+                () -> true,
+                ignored -> true);
+        DragAndDropHandler dragAndDrop = dragAndDrop(controller);
+
+        assertFalse(dragAndDrop.canDrop(
+                Lookup.EMPTY,
+                new DataFlavor[]{DataFlavor.stringFlavor},
+                java.awt.dnd.DnDConstants.ACTION_COPY));
+        assertFalse(dragAndDrop.doDrop(
+                Lookup.EMPTY,
+                new java.awt.datatransfer.StringSelection("forged"),
+                java.awt.dnd.DnDConstants.ACTION_COPY,
+                0));
+        assertFalse(dragAndDrop.canReorderCategories(Lookup.EMPTY));
+        assertFalse(dragAndDrop.moveCategory(Lookup.EMPTY, 0));
+    }
+
+    @Test
     void sixCoreItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
@@ -170,6 +278,19 @@ class FlutterDesignerPaletteTest {
 
     private static Node root(PaletteController controller) {
         return controller.getRoot().lookup(Node.class);
+    }
+
+    private static DragAndDropHandler dragAndDrop(PaletteController controller) {
+        return controller.getRoot().lookup(DragAndDropHandler.class);
+    }
+
+    private static Node itemNode(PaletteController controller, String typeId) {
+        return Arrays.stream(root(controller).getChildren().getNodes(true))
+                .flatMap(category -> Arrays.stream(
+                        category.getChildren().getNodes(true)))
+                .filter(node -> typeId.equals(node.getName()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static List<String> itemLabels(Node category) {

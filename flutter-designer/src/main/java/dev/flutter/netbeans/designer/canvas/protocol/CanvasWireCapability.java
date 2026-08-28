@@ -2,11 +2,12 @@ package dev.flutter.netbeans.designer.canvas.protocol;
 
 import java.util.Arrays;
 
-/** Explicit read-only capabilities understood by protocol version 1. */
+/** Explicit capabilities understood by protocol version 1. */
 public enum CanvasWireCapability {
     READ_ONLY_RENDER("readOnly.render"),
     READ_ONLY_LAYOUT("readOnly.layout"),
-    READ_ONLY_SELECTION("readOnly.selection");
+    READ_ONLY_SELECTION("readOnly.selection"),
+    PALETTE_DROP_TEXT_APPEND_V1("palette.drop.textAppend.v1");
 
     private final String wireValue;
 

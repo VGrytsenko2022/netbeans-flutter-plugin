@@ -100,7 +100,10 @@ class DesignerCommandSessionOrchestratorTest {
         int afterNativeEdit = changes.get();
 
         assertTrue(DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED,
-                "the verified Text.data Properties slice must be publicly enabled");
+                "the verified Properties slice must be publicly enabled");
+        assertTrue(DesignerCommandSessionOrchestrator
+                        .PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED,
+                "the accepted Text append DnD slice must be publicly enabled");
         try (DesignerCommandSessionOrchestrator orchestrator =
                 new DesignerCommandSessionOrchestrator(initial, combined)) {
             assertTrue(combined.designerSessionActive());

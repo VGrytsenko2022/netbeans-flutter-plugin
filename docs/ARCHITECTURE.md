@@ -101,7 +101,7 @@ Rename and Delete close a clean editor, stage both paths under deterministic loc
 
 Pair-aware Cut/Move uses a private one-shot `NodeTransfer.CLIPBOARD_CUT` paste. It keeps the basename and exact pair bytes, stays within one Flutter project, and accepts only an already existing writable destination with an already existing mirrored counterpart folder owned by that exact project. A bounded, strict `pubspec.yaml`/`package_config.json`-bound project Dart inventory blocks outgoing relative directives, incoming references to the old location, references that could acquire the destination, unsafe URI/package aliases, nested packages and conservative case/Unicode collisions. At the final boundary, exact proof-file locks and the actual NetBeans 30 MasterFS child-cache mutexes cover every proof/source/target directory and its physical ancestor chain; inventory verification and commit share one EDT admission, and an unavailable/different MasterFS shape fails closed. Move closes a clean source editor, publishes `.fd` before Dart, locks both targets, retires the source identities through reversible `.nbmove` tombstones, then creates fresh target DataObjects. Rollback restores both exact sources before removing owned targets; if safe recreation cannot be proved, verified targets are retained for recovery. Once exact targets and both source tombstones establish commit, late cleanup/provider failures are recovery warnings rather than a false uncommitted result. This is an in-process guarantee with no durable crash journal, and an external non-NetBeans writer remains a residual race.
 
-Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, and will own migrations. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, six-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 27 catalog-backed fields of `Column`, `Row`, `Padding`, `Center` and `Text`; `Scaffold`, Palette insertion, drag-and-drop and other Canvas mutation remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, and will own migrations. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, six-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 27 catalog-backed fields of `Column`, `Row`, `Padding`, `Center` and `Text`. ADR-025 enables exactly one Palette mutation slice—`Text` as a terminal append to `Row.children` or `Column.children`—after its assembled NetBeans 30 drop, Save, Undo, Redo and Save acceptance passed; `Scaffold`, every other Palette insertion, DnD operation and Canvas mutation remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
 The paired DataObject also owns one read-only document controller shared by
 all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
@@ -247,22 +247,54 @@ the Windows native child surface is the first implementation target, followed
 by Linux and macOS providers. An isolated runner process is preferred wherever
 the platform can safely host and supervise its child surface.
 
-Java-to-Flutter drag/drop sends an allowlisted drag description, exact current
-revision identities and native-view coordinates to Flutter for hit testing.
-Flutter returns only a semantic, revision- and layout-bound intent. The Java
-domain gate rejects stale or invalid responses and remains the only path to a
-Designer command. The runner receives canonical allowlisted model values and
-may receive catalog values only under a future reviewed versioned contract; it
-receives no project paths, Dart source, file handles, Save, Undo/Redo or
-persistence authority. Process separation is not described as an OS security
-sandbox.
+The first Java-to-Flutter drag/drop slice is Windows-only and closed: a native
+OLE drag may carry only the bounded process-local one-shot opaque token issued
+by the active Designer view for the built-in `Text` Palette prototype. The
+same exact token is carried unchanged through hover, prepare and the terminal
+commit or cancel; only Java can resolve it to the retained prototype. The
+embedded Flutter surface receives that token plus native-view coordinates and
+performs the authoritative live-tree hit test for a terminal `Row.children` or
+`Column.children` zone. Windows reports OLE `MOVE` because the NetBeans Palette
+offers `ACTION_MOVE`; Palette entries are immutable prototypes, so this
+transport effect removes nothing. The Designer operation is nevertheless
+always semantic `ADD`, never an existing-widget Move or reorder.
+
+Native hover starts fail-closed and reports `MOVE` only after the exact latest
+Flutter probe is approved. A fast release may enter final validation while the
+exact latest already-sent probe remains in flight: hover and prepare share one
+FIFO `MethodChannel`, so Flutter observes and resolves the hover first. Drop
+then sends an exact prepare which stores one semantic candidate but emits no
+Java event. The Windows STA waits at most 250 ms while pumping COM/window
+messages. Timeout, error, reentrant cancellation or shutdown sends the matching
+cancel/leave when the channel remains alive and returns OLE `NONE`; a late
+prepare result therefore cannot mutate Java state. Only a timely positive
+prepare sends the single-use commit and returns OLE `MOVE`; commit revalidates
+the presentation, layout, token, probe, point and semantic target before it may
+emit `runner.paletteDrop` with `operation = ADD`.
+
+The runtime response is bound to the exact session, presentation, document,
+logical revision, frame, layout and intent sequence. A successful OLE `MOVE`
+retains the token for a bounded three-second asynchronous grace so the committed
+runner event can reach Java; cancel, failure and non-`MOVE` completion revoke it
+immediately, and consumption or grace expiry is final. OLE `MOVE` confirms only
+timely Flutter prepare and commit dispatch, not Java command admission. Java
+still consumes the token atomically, rejects stale/replayed/foreign or
+no-longer-terminal responses, revalidates the current parent and slot, and
+remains the only path to an `AddWidget` command. That command uses the
+established generation, analysis, paired replacement, Save and chronological
+Undo/Redo pipeline. The runner receives no widget payload from the drag,
+project paths, Dart source, file handles, Save, Undo/Redo or persistence
+authority. All other DnD remains disabled; process separation is not described
+as an OS security sandbox.
 
 The current internal slice implements the NetBeans-independent Canvas
 identities/admission gates, bounded native-surface request validation, a pure
 per-MultiView lifecycle controller, the exact version 1 lifecycle handshake and
 fail-stop bounded process framing. After the handshake, bounded runtime control
-publishes one exact validated revision, acknowledges its layout and synchronizes
-selection. The canonical `CORE_V1` model payload admits only reviewed built-in
+publishes one exact validated revision, acknowledges its layout, synchronizes
+selection and capability-gates the narrowly typed `runner.paletteDrop` intent.
+Protocol negotiation and decoding do not authorize mutation. The canonical
+`CORE_V1` model payload admits only reviewed built-in
 definitions for `Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`; the
 isolated Flutter runner uses the same hardcoded allowlist and cannot execute
 arbitrary project code. `CATALOG_JSON` remains reserved for a future versioned
@@ -289,8 +321,13 @@ Set/Reset slice through an exact revision token and analyzed pair-save;
 A standalone
 automated Win32 smoke proves the three-window hierarchy and resize path; its
 `JFrame` is only a test harness and is not part of the plugin UI. There is no
-image or pixel-transfer channel. Full NetBeans focus/DPI/IME/DnD/crash
-acceptance, a platform-neutral SPI, Linux/macOS providers, drag-and-drop,
-structured complex-value editors and the broader Designer mutation surface
-remain outstanding. `PUBLIC_MUTATION_UI_ENABLED` authorizes only the closed
-property allowlist above; it does not authorize Palette insertion or DnD.
+image or pixel-transfer channel. The narrow ADR-025 path is publicly enabled
+after live assembled NetBeans 30 acceptance of drop → Save → Undo → Redo →
+Save. That statement is limited to this exact sequence; it does not claim an
+additional saved-history Undo → Save cycle. Full NetBeans focus/DPI/IME/crash
+acceptance, a platform-neutral SPI, Linux/macOS providers, every broader
+drag-and-drop operation, structured complex-value editors and the broader
+Designer mutation surface remain outstanding. `PUBLIC_MUTATION_UI_ENABLED`
+authorizes only the closed property allowlist above, and
+`PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED` authorizes only the ADR-025 terminal
+Text append.

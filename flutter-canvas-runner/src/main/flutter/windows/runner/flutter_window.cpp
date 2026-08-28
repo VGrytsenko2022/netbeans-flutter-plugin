@@ -1,13 +1,20 @@
 #include "flutter_window.h"
 
+#include <new>
 #include <optional>
 
+#include "canvas_drop_target.h"
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
 
-FlutterWindow::~FlutterWindow() {}
+FlutterWindow::~FlutterWindow() {
+  // Normally WM_DESTROY already performed the full teardown. Keep this
+  // idempotent fallback so the channel is still detached before the controller
+  // member destroys its messenger if window creation exits unusually.
+  RevokeCanvasDropTarget();
+}
 
 bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
@@ -25,7 +32,26 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
-  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  HWND flutter_view = flutter_controller_->view()->GetNativeWindow();
+  if (flutter_view == nullptr || !::IsWindow(flutter_view)) {
+    flutter_controller_ = nullptr;
+    return false;
+  }
+  SetChildContent(flutter_view);
+
+  CanvasDropTarget* drop_target = new (std::nothrow) CanvasDropTarget(
+      flutter_view, flutter_controller_->engine()->messenger());
+  if (drop_target != nullptr) {
+    // DnD is an optional enhancement. Retain the channel endpoint even when
+    // OLE registration fails so Dart can query a definitive false result and
+    // continue with the read-only Canvas capabilities.
+    canvas_drop_target_ = drop_target;
+    const HRESULT registration = ::RegisterDragDrop(flutter_view, drop_target);
+    if (SUCCEEDED(registration)) {
+      drop_target->MarkRegistered();
+      canvas_drop_target_window_ = flutter_view;
+    }
+  }
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -40,11 +66,29 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  RevokeCanvasDropTarget();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
 
   Win32Window::OnDestroy();
+}
+
+void FlutterWindow::RevokeCanvasDropTarget() {
+  if (canvas_drop_target_ != nullptr) {
+    // Detach MethodChannel callbacks while the engine/messenger is still
+    // alive. This can run reentrantly from WM_DESTROY while IDropTarget::Drop
+    // is inside its bounded COM message-pump wait.
+    canvas_drop_target_->Shutdown();
+  }
+  if (canvas_drop_target_window_ != nullptr) {
+    ::RevokeDragDrop(canvas_drop_target_window_);
+    canvas_drop_target_window_ = nullptr;
+  }
+  if (canvas_drop_target_ != nullptr) {
+    canvas_drop_target_->Release();
+    canvas_drop_target_ = nullptr;
+  }
 }
 
 LRESULT

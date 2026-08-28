@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'canvas_drop.dart';
 import 'canvas_model.dart';
 import 'canvas_runtime.dart';
 
@@ -31,6 +32,8 @@ class NativeCanvasApp extends StatelessWidget {
           model: model,
           selectedWidgetId: runtime.selectedWidgetId,
           onSelected: runtime.selectFromCanvas,
+          dropHoverTarget: runtime.dropHoverTarget,
+          onDropResolverChanged: runtime.setDropResolver,
         );
       },
     );
@@ -43,12 +46,16 @@ class CanvasModelApp extends StatelessWidget {
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.dropHoverTarget,
+    this.onDropResolverChanged,
     super.key,
   });
 
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final CanvasDropTarget? dropHoverTarget;
+  final ValueChanged<CanvasDropResolver?>? onDropResolverChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -62,92 +69,379 @@ class CanvasModelApp extends StatelessWidget {
         model: model,
         selectedWidgetId: selectedWidgetId,
         onSelected: onSelected,
+        dropHoverTarget: dropHoverTarget,
+        onDropResolverChanged: onDropResolverChanged,
       ),
     );
   }
 }
 
-class CanvasDocumentView extends StatelessWidget {
+class CanvasDocumentView extends StatefulWidget {
   const CanvasDocumentView({
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.dropHoverTarget,
+    this.onDropResolverChanged,
     super.key,
   });
 
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final CanvasDropTarget? dropHoverTarget;
+  final ValueChanged<CanvasDropResolver?>? onDropResolverChanged;
+
+  @override
+  State<CanvasDocumentView> createState() => _CanvasDocumentViewState();
+}
+
+class _CanvasDocumentViewState extends State<CanvasDocumentView> {
+  static const int _microsPerSurface = 1000000;
+  static const double _minimumTerminalBand = 36;
+
+  final GlobalKey _surfaceKey = GlobalKey();
+  final Map<String, GlobalKey> _nodeKeys = <String, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.onDropResolverChanged?.call(_resolveDrop);
+  }
+
+  @override
+  void didUpdateWidget(CanvasDocumentView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _nodeKeys.removeWhere((id, _) => !widget.model.widgetIds.contains(id));
+    if (oldWidget.onDropResolverChanged != widget.onDropResolverChanged) {
+      oldWidget.onDropResolverChanged?.call(null);
+      widget.onDropResolverChanged?.call(_resolveDrop);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.onDropResolverChanged?.call(null);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final profile = model.profile;
+    final profile = widget.model.profile;
     final viewport = Size(profile.logicalWidth, profile.logicalHeight);
     final dark = profile.brightness == 'dark';
     return Scaffold(
       backgroundColor: dark ? const Color(0xff202124) : const Color(0xffe7e9ed),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final availableWidth = (constraints.maxWidth - 32).clamp(
-            1.0,
-            double.infinity,
-          );
-          final availableHeight = (constraints.maxHeight - 32).clamp(
-            1.0,
-            double.infinity,
-          );
-          final scale = [
-            1.0,
-            availableWidth / viewport.width,
-            availableHeight / viewport.height,
-          ].reduce((left, right) => left < right ? left : right);
-          return Center(
-            child: SizedBox(
-              width: viewport.width * scale,
-              height: viewport.height * scale,
-              child: FittedBox(
-                fit: BoxFit.fill,
-                child: Container(
-                  width: viewport.width,
-                  height: viewport.height,
-                  clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                    color: dark ? const Color(0xff121212) : Colors.white,
-                    border: Border.all(
-                      color: dark
-                          ? const Color(0xff5f6368)
-                          : const Color(0xff9aa0a6),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x33000000),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
-                      size: viewport,
-                      devicePixelRatio: profile.devicePixelRatio,
-                      textScaler: TextScaler.linear(profile.textScaleFactor),
-                      platformBrightness: dark
-                          ? Brightness.dark
-                          : Brightness.light,
-                    ),
-                    child: ClipRect(
-                      child: _CanvasNodeView(
-                        node: model.root,
-                        selectedWidgetId: selectedWidgetId,
-                        onSelected: onSelected,
+      body: SizedBox.expand(
+        key: _surfaceKey,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = (constraints.maxWidth - 32).clamp(
+              1.0,
+              double.infinity,
+            );
+            final availableHeight = (constraints.maxHeight - 32).clamp(
+              1.0,
+              double.infinity,
+            );
+            final scale = [
+              1.0,
+              availableWidth / viewport.width,
+              availableHeight / viewport.height,
+            ].reduce((left, right) => left < right ? left : right);
+            return Stack(
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: viewport.width * scale,
+                    height: viewport.height * scale,
+                    child: FittedBox(
+                      fit: BoxFit.fill,
+                      child: Container(
+                        width: viewport.width,
+                        height: viewport.height,
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(
+                          color: dark ? const Color(0xff121212) : Colors.white,
+                          border: Border.all(
+                            color: dark
+                                ? const Color(0xff5f6368)
+                                : const Color(0xff9aa0a6),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33000000),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: MediaQuery(
+                          data: MediaQuery.of(context).copyWith(
+                            size: viewport,
+                            devicePixelRatio: profile.devicePixelRatio,
+                            textScaler: TextScaler.linear(
+                              profile.textScaleFactor,
+                            ),
+                            platformBrightness: dark
+                                ? Brightness.dark
+                                : Brightness.light,
+                          ),
+                          child: ClipRect(
+                            child: _CanvasNodeView(
+                              node: widget.model.root,
+                              selectedWidgetId: widget.selectedWidgetId,
+                              onSelected: widget.onSelected,
+                              nodeKey: _nodeKey,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+                if (widget.dropHoverTarget?.zone case final zone?)
+                  _DropZoneOverlay(zone: zone, constraints: constraints),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  GlobalKey _nodeKey(String id) =>
+      _nodeKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'canvas-$id'));
+
+  CanvasDropTarget? _resolveDrop(int xMicros, int yMicros) {
+    if (xMicros < 0 ||
+        xMicros > _microsPerSurface ||
+        yMicros < 0 ||
+        yMicros > _microsPerSurface) {
+      return null;
+    }
+    final surface = _renderBox(_surfaceKey);
+    if (surface == null || surface.size.isEmpty) {
+      return null;
+    }
+    final surfaceRect = _globalRect(surface);
+    final point = Offset(
+      surfaceRect.left + surfaceRect.width * xMicros / _microsPerSurface,
+      surfaceRect.top + surfaceRect.height * yMicros / _microsPerSurface,
+    );
+    final candidates = <_DropCandidate>[];
+    _collectDropCandidates(widget.model.root, point, 0, candidates);
+    if (candidates.isEmpty) {
+      return null;
+    }
+    candidates.sort((left, right) {
+      final depth = right.depth.compareTo(left.depth);
+      return depth != 0 ? depth : left.area.compareTo(right.area);
+    });
+    final selected = candidates.first;
+    return CanvasDropTarget(
+      parentWidgetId: selected.node.id,
+      slotName: 'children',
+      insertionIndex: selected.childCount,
+      zone: _normalizeZone(surfaceRect, selected.zone),
+    );
+  }
+
+  CanvasDropZone _normalizeZone(Rect surface, Rect zone) {
+    int micros(double value, double origin, double extent) =>
+        ((value - origin) / extent * _microsPerSurface).round().clamp(
+          0,
+          _microsPerSurface,
+        );
+    return CanvasDropZone(
+      leftMicros: micros(zone.left, surface.left, surface.width),
+      topMicros: micros(zone.top, surface.top, surface.height),
+      rightMicros: micros(zone.right, surface.left, surface.width),
+      bottomMicros: micros(zone.bottom, surface.top, surface.height),
+    );
+  }
+
+  void _collectDropCandidates(
+    CanvasNode node,
+    Offset point,
+    int depth,
+    List<_DropCandidate> result,
+  ) {
+    if ((node.type == 'flutter.widgets.Column' ||
+            node.type == 'flutter.widgets.Row') &&
+        (node.slot('children')?.children.length ?? 0) < 10000) {
+      final box = _renderBox(_nodeKeys[node.id]);
+      if (box != null) {
+        final rect = _globalRect(box);
+        final terminal = _terminalZone(node, rect);
+        if (terminal.contains(point)) {
+          result.add(
+            _DropCandidate(
+              node,
+              depth,
+              rect.width * rect.height,
+              node.slot('children')?.children.length ?? 0,
+              terminal,
             ),
           );
-        },
+        }
+      }
+    }
+    for (final slot in node.slots.values) {
+      for (final child in slot.children) {
+        _collectDropCandidates(child, point, depth + 1, result);
+      }
+    }
+  }
+
+  Rect _terminalZone(CanvasNode node, Rect parent) {
+    if (parent.width <= 0 || parent.height <= 0) {
+      return Rect.zero;
+    }
+    final children = node.slot('children')?.children ?? const <CanvasNode>[];
+    if (children.isEmpty) {
+      final band = _minimumTerminalBand.clamp(
+        1.0,
+        node.type == 'flutter.widgets.Column' ? parent.height : parent.width,
+      );
+      if (node.type == 'flutter.widgets.Column') {
+        return _enumValue(node, 'verticalDirection') == 'up'
+            ? Rect.fromLTRB(
+                parent.left,
+                parent.top,
+                parent.right,
+                parent.top + band,
+              )
+            : Rect.fromLTRB(
+                parent.left,
+                parent.bottom - band,
+                parent.right,
+                parent.bottom,
+              );
+      }
+      return _enumValue(node, 'textDirection') == 'rtl'
+          ? Rect.fromLTRB(
+              parent.left,
+              parent.top,
+              parent.left + band,
+              parent.bottom,
+            )
+          : Rect.fromLTRB(
+              parent.right - band,
+              parent.top,
+              parent.right,
+              parent.bottom,
+            );
+    }
+    final last = _renderBox(_nodeKeys[children.last.id]);
+    if (last == null) {
+      return Rect.zero;
+    }
+    final lastRect = _globalRect(last);
+    if (node.type == 'flutter.widgets.Column') {
+      final upward = _enumValue(node, 'verticalDirection') == 'up';
+      final band = _minimumTerminalBand.clamp(1.0, parent.height);
+      return upward
+          ? Rect.fromLTRB(
+              parent.left,
+              parent.top,
+              parent.right,
+              (lastRect.top + band).clamp(parent.top, parent.bottom),
+            )
+          : Rect.fromLTRB(
+              parent.left,
+              (lastRect.bottom - band).clamp(parent.top, parent.bottom),
+              parent.right,
+              parent.bottom,
+            );
+    }
+    final rightToLeft = _enumValue(node, 'textDirection') == 'rtl';
+    final band = _minimumTerminalBand.clamp(1.0, parent.width);
+    return rightToLeft
+        ? Rect.fromLTRB(
+            parent.left,
+            parent.top,
+            (lastRect.left + band).clamp(parent.left, parent.right),
+            parent.bottom,
+          )
+        : Rect.fromLTRB(
+            (lastRect.right - band).clamp(parent.left, parent.right),
+            parent.top,
+            parent.right,
+            parent.bottom,
+          );
+  }
+
+  static RenderBox? _renderBox(GlobalKey? key) {
+    final renderObject = key?.currentContext?.findRenderObject();
+    return renderObject is RenderBox && renderObject.attached
+        ? renderObject
+        : null;
+  }
+
+  static Rect _globalRect(RenderBox box) => MatrixUtils.transformRect(
+    box.getTransformTo(null),
+    Offset.zero & box.size,
+  );
+
+  static String? _enumValue(CanvasNode node, String propertyName) {
+    final value = node.properties[propertyName]?.value;
+    return value is CanvasEnumValue ? value.value : null;
+  }
+}
+
+class _DropCandidate {
+  const _DropCandidate(
+    this.node,
+    this.depth,
+    this.area,
+    this.childCount,
+    this.zone,
+  );
+
+  final CanvasNode node;
+  final int depth;
+  final double area;
+  final int childCount;
+  final Rect zone;
+}
+
+class _DropZoneOverlay extends StatelessWidget {
+  const _DropZoneOverlay({required this.zone, required this.constraints});
+
+  final CanvasDropZone zone;
+  final BoxConstraints constraints;
+
+  @override
+  Widget build(BuildContext context) {
+    const denominator = 1000000.0;
+    final left = constraints.maxWidth * zone.leftMicros / denominator;
+    final top = constraints.maxHeight * zone.topMicros / denominator;
+    final width =
+        constraints.maxWidth *
+        (zone.rightMicros - zone.leftMicros) /
+        denominator;
+    final height =
+        constraints.maxHeight *
+        (zone.bottomMicros - zone.topMicros) /
+        denominator;
+    return Positioned(
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: IgnorePointer(
+        child: Semantics(
+          label: 'Text append drop zone',
+          child: DecoratedBox(
+            key: const ValueKey('canvas-text-append-drop-zone'),
+            decoration: BoxDecoration(
+              color: const Color(0x261A73E8),
+              border: Border.all(color: const Color(0xff1a73e8), width: 2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -158,11 +452,13 @@ class _CanvasNodeView extends StatelessWidget {
     required this.node,
     required this.selectedWidgetId,
     required this.onSelected,
+    required this.nodeKey,
   });
 
   final CanvasNode node;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final GlobalKey Function(String id) nodeKey;
 
   @override
   Widget build(BuildContext context) {
@@ -181,21 +477,24 @@ class _CanvasNodeView extends StatelessWidget {
       selected: selected,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
+        child: KeyedSubtree(
           key: ValueKey('canvas-widget-${node.id}'),
-          behavior: HitTestBehavior.translucent,
-          onTap: () => onSelected(node.id),
-          child: DecoratedBox(
-            position: DecorationPosition.foreground,
-            decoration: selected
-                ? BoxDecoration(
-                    border: Border.all(
-                      color: const Color(0xff1a73e8),
-                      width: 2,
-                    ),
-                  )
-                : const BoxDecoration(),
-            child: child,
+          child: GestureDetector(
+            key: nodeKey(node.id),
+            behavior: HitTestBehavior.translucent,
+            onTap: () => onSelected(node.id),
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: selected
+                  ? BoxDecoration(
+                      border: Border.all(
+                        color: const Color(0xff1a73e8),
+                        width: 2,
+                      ),
+                    )
+                  : const BoxDecoration(),
+              child: child,
+            ),
           ),
         ),
       ),
@@ -279,6 +578,7 @@ class _CanvasNodeView extends StatelessWidget {
     node: child,
     selectedWidgetId: selectedWidgetId,
     onSelected: onSelected,
+    nodeKey: nodeKey,
   );
 
   String? _string(String name) {

@@ -80,6 +80,35 @@ void main() {
     expect(find.byType(Padding), findsWidgets);
     expect(find.byType(Center), findsWidgets);
 
+    final column = tester
+        .widgetList<Column>(find.byType(Column))
+        .singleWhere((candidate) => candidate.spacing == 12.5);
+    expect(column.mainAxisSize, MainAxisSize.min);
+    expect(column.crossAxisAlignment, CrossAxisAlignment.baseline);
+    expect(column.textDirection, TextDirection.ltr);
+    expect(column.verticalDirection, VerticalDirection.down);
+    expect(column.textBaseline, TextBaseline.alphabetic);
+
+    final row = tester.widget<Row>(find.byType(Row));
+    expect(row.mainAxisAlignment, MainAxisAlignment.end);
+    expect(row.mainAxisSize, MainAxisSize.min);
+    expect(row.crossAxisAlignment, CrossAxisAlignment.baseline);
+    expect(row.textDirection, TextDirection.rtl);
+    expect(row.verticalDirection, VerticalDirection.up);
+    expect(row.textBaseline, TextBaseline.ideographic);
+    expect(row.spacing, 4.0);
+
+    final hello = tester.widget<Text>(find.text('Hello'));
+    expect(hello.textAlign, TextAlign.center);
+    expect(hello.textDirection, TextDirection.ltr);
+    expect(hello.softWrap, isFalse);
+    expect(hello.overflow, TextOverflow.ellipsis);
+    expect(hello.maxLines, 2);
+    expect(hello.semanticsLabel, 'Primary greeting');
+    expect(hello.semanticsIdentifier, 'primary-greeting');
+    expect(hello.textWidthBasis, TextWidthBasis.longestLine);
+    expect(hello.selectionColor, const Color(0xff336699));
+
     const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
     await tester.tap(find.byKey(const ValueKey('canvas-widget-$textId')));
     await tester.pump();

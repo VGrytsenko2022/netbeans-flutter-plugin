@@ -35,6 +35,7 @@ import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.validation.ValidationLimits;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,6 +90,17 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Center\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
+        assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
+                + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
+        assertTrue(json.contains("\"spacing\":{\"kind\":\"double\",\"value\":12.5}"));
+        assertTrue(json.contains("\"semanticsLabel\":{\"kind\":\"string\","
+                + "\"value\":\"Primary greeting\"}"));
+        assertTrue(json.contains("\"semanticsIdentifier\":{\"kind\":\"string\","
+                + "\"value\":\"primary-greeting\"}"));
+        assertTrue(json.contains("\"textWidthBasis\":{\"kind\":\"enum\","
+                + "\"type\":\"TextWidthBasis\",\"value\":\"longestLine\"}"));
+        assertTrue(json.contains("\"selectionColor\":{\"kind\":\"color\","
+                + "\"argb\":\"0xFF336699\"}"));
         assertFalse(json.contains("home_page.dart"));
         assertFalse(json.contains("HomePage"));
         assertFalse(json.contains("managedRegions"));
@@ -155,13 +167,41 @@ class CanvasModelPayloadCodecTest {
         WidgetNode row = new WidgetNode(
                 id("1efdd73a-0602-4200-aa1e-28982f5a22ca"),
                 type("flutter.widgets.Row"),
-                Map.of(),
+                Map.of(
+                        new PropertyName("mainAxisAlignment"),
+                        new PropertyValue.EnumValue("MainAxisAlignment", "end"),
+                        new PropertyName("mainAxisSize"),
+                        new PropertyValue.EnumValue("MainAxisSize", "min"),
+                        new PropertyName("crossAxisAlignment"),
+                        new PropertyValue.EnumValue("CrossAxisAlignment", "baseline"),
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl"),
+                        new PropertyName("verticalDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up"),
+                        new PropertyName("textBaseline"),
+                        new PropertyValue.EnumValue("TextBaseline", "ideographic"),
+                        new PropertyName("spacing"),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(4))),
                 Map.of(new SlotName("children"),
                         new WidgetSlot.ListSlot(List.of(centered))));
         WidgetNode column = new WidgetNode(
                 id("a39c394b-a85e-4d0c-b2c6-87174e20b7fd"),
                 type("flutter.widgets.Column"),
-                Map.of(),
+                Map.of(
+                        new PropertyName("mainAxisAlignment"),
+                        new PropertyValue.EnumValue("MainAxisAlignment", "center"),
+                        new PropertyName("mainAxisSize"),
+                        new PropertyValue.EnumValue("MainAxisSize", "min"),
+                        new PropertyName("crossAxisAlignment"),
+                        new PropertyValue.EnumValue("CrossAxisAlignment", "baseline"),
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr"),
+                        new PropertyName("verticalDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "down"),
+                        new PropertyName("textBaseline"),
+                        new PropertyValue.EnumValue("TextBaseline", "alphabetic"),
+                        new PropertyName("spacing"),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(12.5))),
                 Map.of(new SlotName("children"),
                         new WidgetSlot.ListSlot(List.of(padding, row))));
         Map<PropertyName, PropertyValue> scaffoldProperties = new LinkedHashMap<>();
@@ -183,10 +223,35 @@ class CanvasModelPayloadCodecTest {
     }
 
     private static WidgetNode text(String id, String data) {
+        boolean primary = data.equals("Hello");
         return new WidgetNode(
                 id(id),
                 type("flutter.widgets.Text"),
-                Map.of(new PropertyName("data"), new PropertyValue.StringValue(data)),
+                primary
+                        ? Map.of(
+                                new PropertyName("data"), new PropertyValue.StringValue(data),
+                                new PropertyName("textAlign"),
+                                new PropertyValue.EnumValue("TextAlign", "center"),
+                                new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue("TextDirection", "ltr"),
+                                new PropertyName("softWrap"),
+                                new PropertyValue.BooleanValue(false),
+                                new PropertyName("overflow"),
+                                new PropertyValue.EnumValue("TextOverflow", "ellipsis"),
+                                new PropertyName("maxLines"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                                new PropertyName("semanticsLabel"),
+                                new PropertyValue.StringValue("Primary greeting"),
+                                new PropertyName("semanticsIdentifier"),
+                                new PropertyValue.StringValue("primary-greeting"),
+                                new PropertyName("textWidthBasis"),
+                                new PropertyValue.EnumValue("TextWidthBasis", "longestLine"),
+                                new PropertyName("selectionColor"),
+                                new PropertyValue.ColorValue(0xFF336699L))
+                        : Map.of(
+                                new PropertyName("data"), new PropertyValue.StringValue(data),
+                                new PropertyName("semanticsIdentifier"),
+                                new PropertyValue.StringValue("text-" + id)),
                 Map.of());
     }
 

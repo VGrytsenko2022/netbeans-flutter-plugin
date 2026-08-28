@@ -237,6 +237,7 @@ class CanvasNode {
         '$path/properties/${entry.key}',
       );
     }
+    _validatePropertyRelationships(type, properties, path, budget);
 
     final rawSlots = _object(object['slots'], '$path/slots');
     _expect(
@@ -490,8 +491,24 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       'crossAxisAlignment': _PropertySpec(
         {'enum'},
         enumType: 'CrossAxisAlignment',
-        enumValues: {'start', 'end', 'center', 'stretch'},
+        enumValues: {'start', 'end', 'center', 'stretch', 'baseline'},
       ),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'verticalDirection': _PropertySpec(
+        {'enum'},
+        enumType: 'VerticalDirection',
+        enumValues: {'up', 'down'},
+      ),
+      'textBaseline': _PropertySpec(
+        {'enum'},
+        enumType: 'TextBaseline',
+        enumValues: {'alphabetic', 'ideographic'},
+      ),
+      'spacing': _PropertySpec({'double'}, minimum: 0),
     },
     {'children': 'list'},
   ),
@@ -517,8 +534,24 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       'crossAxisAlignment': _PropertySpec(
         {'enum'},
         enumType: 'CrossAxisAlignment',
-        enumValues: {'start', 'end', 'center', 'stretch'},
+        enumValues: {'start', 'end', 'center', 'stretch', 'baseline'},
       ),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'verticalDirection': _PropertySpec(
+        {'enum'},
+        enumType: 'VerticalDirection',
+        enumValues: {'up', 'down'},
+      ),
+      'textBaseline': _PropertySpec(
+        {'enum'},
+        enumType: 'TextBaseline',
+        enumValues: {'alphabetic', 'ideographic'},
+      ),
+      'spacing': _PropertySpec({'double'}, minimum: 0),
     },
     {'children': 'list'},
   ),
@@ -542,6 +575,11 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       enumType: 'TextAlign',
       enumValues: {'start', 'end', 'left', 'right', 'center', 'justify'},
     ),
+    'textDirection': _PropertySpec(
+      {'enum'},
+      enumType: 'TextDirection',
+      enumValues: {'rtl', 'ltr'},
+    ),
     'softWrap': _PropertySpec({'boolean'}),
     'maxLines': _PropertySpec({'integer'}, minimum: 1),
     'overflow': _PropertySpec(
@@ -549,12 +587,56 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       enumType: 'TextOverflow',
       enumValues: {'clip', 'fade', 'ellipsis', 'visible'},
     ),
+    'semanticsLabel': _PropertySpec({'string'}),
+    'semanticsIdentifier': _PropertySpec({'string'}),
+    'textWidthBasis': _PropertySpec(
+      {'enum'},
+      enumType: 'TextWidthBasis',
+      enumValues: {'parent', 'longestLine'},
+    ),
+    'selectionColor': _PropertySpec({'color'}),
   }, {}),
 };
 
 class _NodeBudget {
   int count = 0;
   final ids = <String>{};
+  final semanticsIdentifierPaths = <String, String>{};
+}
+
+void _validatePropertyRelationships(
+  String type,
+  Map<String, CanvasValue> properties,
+  String path,
+  _NodeBudget budget,
+) {
+  if (type == 'flutter.widgets.Column' || type == 'flutter.widgets.Row') {
+    final crossAxisAlignment = properties['crossAxisAlignment']?.value;
+    if (crossAxisAlignment is CanvasEnumValue &&
+        crossAxisAlignment.value == 'baseline') {
+      _expect(
+        properties.containsKey('textBaseline'),
+        'Canvas $type requires textBaseline when crossAxisAlignment is baseline: '
+        '$path/properties/textBaseline',
+      );
+    }
+  }
+
+  if (type != 'flutter.widgets.Text') {
+    return;
+  }
+  final semanticsIdentifier = properties['semanticsIdentifier']?.value;
+  if (semanticsIdentifier is! String) {
+    return;
+  }
+  final propertyPath = '$path/properties/semanticsIdentifier';
+  final firstPath = budget.semanticsIdentifierPaths[semanticsIdentifier];
+  _expect(
+    firstPath == null,
+    'Canvas Text semanticsIdentifier must be unique: $propertyPath duplicates '
+    '$firstPath',
+  );
+  budget.semanticsIdentifierPaths[semanticsIdentifier] = propertyPath;
 }
 
 Map<String, Object?> _object(Object? value, String path) {

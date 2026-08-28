@@ -640,9 +640,11 @@ limit. Stateful binding, import-prefixed widget bases and locally shadowed
 Flutter base types remain explicitly unsupported until their scope/import and
 symbol-resolution contracts are frozen. The immutable result is intentionally named
 `ON_DISK_DECLARED_MATCH`: it proves `actual == declared`, not that the current
-visual model would generate those bytes. Designer mutation and any
-Design-initiated staged pair Save remain disabled. The implemented three-way
-layer proves the bounded on-disk
+visual model would generate those bytes. This scanner result alone never
+authorizes Designer mutation or a staged pair Save; the typed Properties
+controller must additionally hold the exact current revision and enter the
+one-shot command/pair-save admission path. The implemented three-way layer
+proves the bounded on-disk
 `actual hash == .fd declared hash == current deterministic generator hash`
 relationship and validates a reconstructed candidate, but this still is not a
 write authorization. ADR-016 performs the live/analyzer binding and lock-time
@@ -877,7 +879,8 @@ only after the document/native/coordinator barriers are released. Every queued
 callback is attempted independently, and listener failure cannot retain
 publication ownership or change an already committed semantic result.
 
-This is deliberately not a writable Design surface yet. Scanner/generator
+This is deliberately only a bounded writable Properties slice, not a generally
+writable Design surface. Scanner/generator
 probes, the B→C analyze-before-apply transition, claimed staged C1→C2
 replacement with exact rollback/fresh rebind across chained commands,
 endpoint-specific command admission from retained physical history, durable
@@ -909,22 +912,121 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   sessions have deterministic coverage. Cache reuse additionally requires a
   bounded SHA-256 manifest for the complete launchable Windows runtime. The
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
-  editable Properties, drag-and-drop, Designer mutation and
-  pair-aware workflow/property/callback contracts remain stop-ship work. Until
-  those contracts pass together,
-  `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+  drag-and-drop, `Scaffold` Properties and the broader Designer
+  workflow/property/callback contracts remain stop-ship work. Catalog-driven
+  read/write Properties are enabled only for the 27 reviewed fields of
+  `Column`, `Row`, `Padding`, `Center` and `Text`.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
-The current read-only designer publishes every validated widget as a
+The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-read-only property sheet. The active MultiView element also supplies a
+property sheet. `Column`, `Row`, `Padding`, `Center` and `Text` publish typed
+read/write catalog properties; `Scaffold` intentionally publishes identity and
+read-only context only. The active MultiView element also supplies a
 context-sensitive standard NetBeans Palette containing exactly the six
 reviewed `CORE_V1` definitions. It has no insertion action or mutation
 authority. Palette, Explorer/Nodes, Properties and the MultiView chrome remain
 native NetBeans Swing surfaces.
+
+### Writable Properties API contract (27 fields)
+
+The writable matrix is intentionally closed, catalog-driven and excludes
+`Scaffold`. The seven flex rows below apply independently to both
+[`Column`](https://api.flutter.dev/flutter/widgets/Column/Column.html) and
+[`Row`](https://api.flutter.dev/flutter/widgets/Row/Row.html), so they account
+for 14 fields. All seven are optional named arguments. Restore Default omits
+the argument: for a non-null Dart parameter this selects its constructor
+default; for a nullable parameter it restores `null`/ambient resolution rather
+than writing a literal default into `.fd`.
+
+| Widget(s) | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
+| --- | --- | --- | --- | --- |
+| `Column`, `Row` | `mainAxisAlignment` | `MainAxisAlignment`, optional non-null | Omitted value is `start`; values are `start`, `end`, `center`, `spaceBetween`, `spaceAround`, `spaceEvenly`. | Catalog enum list plus Restore Default. |
+| `Column`, `Row` | `mainAxisSize` | `MainAxisSize`, optional non-null | Omitted value is `max`; values are `min`, `max`. | Catalog enum list plus Restore Default. |
+| `Column`, `Row` | `crossAxisAlignment` | `CrossAxisAlignment`, optional non-null | Omitted value is `center`; values are `start`, `end`, `center`, `stretch`, `baseline`. `baseline` requires an explicit `textBaseline`; for a vertical main axis it behaves like `start`. | Catalog enum list plus Restore Default; reject an unpaired `baseline` transition. |
+| `Column`, `Row` | `textDirection` | `TextDirection?`, optional nullable | Omission resolves through ambient `Directionality`; values are `rtl`, `ltr`. A direction is required when no ambient value can disambiguate the relevant `start`/`end` or row ordering. | Nullable catalog enum list plus Restore Default. |
+| `Column`, `Row` | `verticalDirection` | `VerticalDirection`, optional non-null | Omitted value is `down`; values are `up`, `down`. | Catalog enum list plus Restore Default. |
+| `Column`, `Row` | `textBaseline` | `TextBaseline?`, optional nullable | No baseline is selected when omitted; values are `alphabetic`, `ideographic`. It must be present while `crossAxisAlignment` is `baseline`. | Nullable catalog enum list plus Restore Default; Reset is rejected while baseline alignment remains selected. |
+| `Column`, `Row` | `spacing` | `double`, optional non-null | Omitted value is `0.0`; value must be at least zero. It applies only between children, becomes the minimum inter-child gap for `space*` alignments and can contribute to overflow. | Exact validated decimal field (`DOUBLE`, minimum `0`) plus Restore Default. |
+
+The flex defaults and baseline/ambient-direction rules come from the
+[`Column`](https://api.flutter.dev/flutter/widgets/Column/Column.html),
+[`Row`](https://api.flutter.dev/flutter/widgets/Row/Row.html) and
+[`Flex`](https://api.flutter.dev/flutter/widgets/Flex/Flex.html) constructors.
+The rendering contract explicitly asserts non-negative
+[`spacing`](https://api.flutter.dev/flutter/rendering/RenderFlex/RenderFlex.html),
+and the [`CrossAxisAlignment`](https://api.flutter.dev/flutter/rendering/CrossAxisAlignment.html)
+API defines the vertical-axis baseline behavior.
+
+`Padding` contributes one required field and `Center` contributes two optional
+nullable fields:
+
+| Widget | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
+| --- | --- | --- | --- | --- |
+| `Padding` | `padding` | `EdgeInsetsGeometry`, required named and non-null | There is no Flutter constructor default. Every resolved dimension must be non-negative. Schema v1 intentionally accepts physical `EdgeInsets` only, not directional insets. | Required structured editor with labelled left/top/right/bottom decimal fields and an atomic All sides action; no Restore Default. |
+| `Center` | `widthFactor` | `double?`, optional nullable | When present, width is child width multiplied by the factor; value must be non-negative, including zero. When omitted, constrained width expands and unconstrained width follows the child. | Nullable exact numeric field (`INTEGER` or `DOUBLE`, minimum `0`) plus Restore Default. |
+| `Center` | `heightFactor` | `double?`, optional nullable | Equivalent height rule; value must be non-negative, including zero. | Nullable exact numeric field (`INTEGER` or `DOUBLE`, minimum `0`) plus Restore Default. |
+
+The required [`Padding.padding`](https://api.flutter.dev/flutter/widgets/Padding/Padding.html)
+argument is checked by
+[`RenderPadding`](https://api.flutter.dev/flutter/rendering/RenderPadding/padding.html).
+The value `16` used when the designer creates a new `Padding` is a catalog
+creation default, not a Flutter constructor default. `Center` inherits the
+[`Align.widthFactor`](https://api.flutter.dev/flutter/widgets/Align/widthFactor.html)
+and [`Align.heightFactor`](https://api.flutter.dev/flutter/widgets/Align/heightFactor.html)
+contract; omission retains the layout behavior documented by
+[`Align`](https://api.flutter.dev/flutter/widgets/Align-class.html).
+
+The [`Text`](https://api.flutter.dev/flutter/widgets/Text/Text.html) constructor
+contributes ten fields:
+
+| Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
+| --- | --- | --- | --- |
+| `data` | `String`, required positional and non-null for `Text(data)` | No constructor default. Empty text is a real explicit value. The nullable `Text.data` getter also serves `Text.rich`; it does not make this constructor argument optional. | Required `STRING` editor; no Restore Default. |
+| `textAlign` | `TextAlign?`, optional nullable | Omission resolves through `DefaultTextStyle.textAlign`, then `start`; values are `left`, `right`, `center`, `justify`, `start`, `end`. | Nullable catalog enum list plus Restore Default. |
+| `textDirection` | `TextDirection?`, optional nullable | Omission resolves through ambient `Directionality`; values are `rtl`, `ltr`. It determines bidirectional layout and the meaning of `start`/`end`. | Nullable catalog enum list plus Restore Default. |
+| `softWrap` | `bool?`, optional nullable | Omission inherits `DefaultTextStyle.softWrap`, whose ordinary default is `true`; explicit `false` lays glyphs out as if horizontal space were unlimited. Unset is therefore not the same model value as `true`. | Accessible tri-state checkbox: `<not set>`, `true`, `false`, plus Restore Default. |
+| `overflow` | `TextOverflow?`, optional nullable | Omission resolves through effective `TextStyle.overflow`, then `DefaultTextStyle.overflow` (normally `clip`); values are `clip`, `fade`, `ellipsis`, `visible`. Its behavior depends on `softWrap`. | Nullable catalog enum list plus Restore Default. |
+| `maxLines` | `int?`, optional nullable | A present value must be greater than zero; `1` prevents wrapping. Omission inherits `DefaultTextStyle.maxLines`, so Reset does not necessarily mean unlimited lines. Excess text is truncated according to `overflow`. | Nullable exact integer field, minimum `1` and schema portable-integer maximum, plus Restore Default. |
+| `semanticsLabel` | `String?`, optional nullable | When present, replaces the actual text in this widget's semantics. Empty string remains an explicit value. | Optional `STRING` editor; reset only through Restore Default so empty text and `<not set>` can remain literal values. |
+| `semanticsIdentifier` | `String?`, optional nullable | Identifies the semantics node and is documented as unique; the designer enforces uniqueness within one form. | Optional `STRING` editor plus Restore Default and duplicate-value validation. |
+| `textWidthBasis` | `TextWidthBasis?`, optional nullable | Omission inherits `DefaultTextStyle.textWidthBasis` (normally `parent`); values are `parent`, `longestLine`. | Nullable catalog enum list plus Restore Default. |
+| `selectionColor` | `Color?`, optional nullable | Used only inside a `SelectionContainer`. Omission uses ambient `DefaultSelectionStyle`, then its semi-transparent grey fallback. Flutter interprets `Color(0xAARRGGBB)` with alpha `00` fully transparent and `FF` fully opaque. | Color swatch and custom `JColorChooser`, explicit alpha control `0..255`, exact `0xAARRGGBB` field and Restore Default. |
+
+The exact inherited fallback chain is visible in
+[`Text.build`](https://api.flutter.dev/flutter/widgets/Text/build.html).
+[`Text.maxLines`](https://api.flutter.dev/flutter/widgets/Text/maxLines.html)
+and [`RichText`](https://api.flutter.dev/flutter/widgets/RichText/RichText.html)
+require a non-null line limit to be greater than zero. The semantics contracts
+are documented by
+[`semanticsLabel`](https://api.flutter.dev/flutter/widgets/Text/semanticsLabel.html)
+and
+[`semanticsIdentifier`](https://api.flutter.dev/flutter/widgets/Text/semanticsIdentifier.html).
+[`selectionColor`](https://api.flutter.dev/flutter/widgets/Text/selectionColor.html)
+defines its ambient fallback, while
+[`Color`](https://api.flutter.dev/flutter/dart-ui/Color/Color.html) defines the
+32-bit ARGB layout and alpha semantics. Six-digit RGB input must not be treated
+as opaque because its omitted leading alpha byte is zero.
+
+These 27 fields use catalog constraints for editor selection, value admission,
+Dart generation and Canvas projection. An accepted cell edit creates exactly
+one `SetProperty` bound to the selected stable widget ID and captured document
+revision. NetBeans' native **Restore Default** creates `ResetProperty` only for
+optional arguments. A single-use submission fence prevents duplicate editor
+callbacks from reusing the captured revision; the accepted candidate then
+follows the existing analyzed pair-save and shared Undo/Redo lifecycle.
+Required `Text.data` and `Padding.padding` cannot be reset to omission.
+
+This slice models simple values without pretending that serialized display text
+is a Flutter object graph. `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
+`TextHeightBehavior` and directional edge insets remain unsupported until they
+have dedicated domain values, property editors, generator rules and exact
+native-runner projection. Flex baseline alignment additionally requires an
+explicit `textBaseline`, and `Text.semanticsIdentifier` is unique within one
+designer tree. `Scaffold` remains a separate read-only property-design task.
 
 The Canvas itself is a real native `FlutterView` embedded inside that chrome.
 Flutter paints the widget tree, selection overlay, drop zones and layout guides
@@ -1038,12 +1140,14 @@ its type and constructor metadata are present in the validated catalog; the
 runner may not execute arbitrary unreviewed project code merely because Flutter
 can load it.
 
-The current read-only `CORE_V1` projection intentionally contains exactly
-`Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`. It proves native
-hosting, bounded model publication, exact native adaptive preview profiles and
-stable-ID selection synchronization without granting mutation capabilities.
+The current `CORE_V1` projection intentionally contains exactly `Scaffold`,
+`Column`, `Row`, `Text`, `Padding` and `Center`. It proves native hosting,
+bounded model publication, exact native adaptive preview profiles and stable-ID
+selection synchronization. Host-side property mutation is admitted only for
+the five non-`Scaffold` widget types and 27 properties listed above; the runner
+still receives no persistence authority.
 
-The first public writable vertical slice remains the wider ten-widget set:
+The broader public writable vertical slice remains the ten-widget set:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Text`, `Icon`,
 `SizedBox` and `ElevatedButton`. It must support create, open, edit, save,
 reopen, undo/redo and deterministic Dart generation before additional widgets
@@ -1064,16 +1168,18 @@ Implementation proceeds through explicit gates:
    render one exact validated six-widget revision and support the compatible
    Android/iOS/desktop adaptive profiles with no image-transfer path. The
    separate browser-compiled Web backend remains pending.
-5. [Read-only context complete] Synchronize stable-ID selection with the
-   Explorer/Nodes widget tree, publish the exact six-item Palette and expose
-   selected-node read-only Properties.
-6. [Pending] Implement editable Properties and Java → Flutter hit-test →
-   revision-bound DnD intents behind `PUBLIC_MUTATION_UI_ENABLED=false`.
+5. [Context and bounded Properties complete] Synchronize stable-ID selection
+   with the Explorer/Nodes widget tree, publish the exact six-item Palette and
+   expose selected-node Properties. Enable catalog-driven Set/Reset for the 27
+   reviewed non-`Scaffold` fields through one-shot revision-bound pair-save.
+6. [Pending] Implement Java → Flutter hit-test → revision-bound DnD
+   intents. The Palette remains non-mutating until that bridge passes.
 7. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
-8. Enable the first public writable ten-widget slice only after all gates pass.
+8. Enable the broader public writable ten-widget slice only after all gates
+   pass.
 
-## Remaining decisions before writable UI implementation
+## Remaining decisions for broader writable UI
 
 The chronological model/source cursor, Pair-Save re-anchoring, Source-Save
 durable-anchor overlay, targeted pre-persistence semantic invalidation and the
@@ -1085,15 +1191,18 @@ infrastructure.
    source. Same-folder pair Copy/Paste is implemented under ADR-022; same-project
    mirrored-folder pair Cut/Move and its fresh target lifecycle are implemented
    under ADR-023.
-2. The NetBeans property-editor provider SPI and localized presentation; the
-   built-in domain metadata is now fixed by ADR-010.
+2. Structured property-editor/model contracts for `Scaffold`, complex Flutter
+   values, callbacks and contributed widgets, plus localized presentation. The
+   catalog-driven simple-value provider for the current five-widget slice is
+   implemented; built-in domain metadata is fixed by ADR-010.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
    intent validation required by ADR-021. The bounded `CORE_V1` model payload,
-   direct native rendering and stable-ID read-only selection bridge are already
-   implemented.
+   direct native rendering, stable-ID selection bridge and bounded typed
+   Properties path are already implemented. The Web backend and Linux/macOS
+   native-surface providers remain pending.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

@@ -51,7 +51,7 @@ function Write-Info {
 
 function Add-Failure {
     param([string]$Message)
-    $Failures.Add($Message)
+    [void]$Failures.Add($Message)
     Write-Output "[FAIL] $Message"
 }
 
@@ -194,22 +194,26 @@ function Get-ReportSummary {
         }
         foreach ($suite in $suites) {
             $tests = Get-AttributeInt $suite 'tests'
-            $failures = Get-AttributeInt $suite 'failures'
+            # Do not name this local variable `$failures`: PowerShell variables
+            # are case-insensitive and Add-Failure resolves `$Failures`
+            # dynamically.  A failing report would otherwise shadow the global
+            # failure collection with this integer counter.
+            $failureCount = Get-AttributeInt $suite 'failures'
             $errors = Get-AttributeInt $suite 'errors'
             $skipped = Get-AttributeInt $suite 'skipped'
             $summary.Tests += $tests
-            $summary.Failures += $failures
+            $summary.Failures += $failureCount
             $summary.Errors += $errors
             $summary.Skipped += $skipped
-            if ($failures -gt 0 -or $errors -gt 0) {
-                Add-Failure "$Kind report '$($report.FullName)' has $failures failure(s) and $errors error(s)."
+            if ($failureCount -gt 0 -or $errors -gt 0) {
+                Add-Failure "$Kind report '$($report.FullName)' has $failureCount failure(s) and $errors error(s)."
             }
         }
         foreach ($testcase in @($document.SelectNodes(
                     "//*[local-name()='testcase'][*[local-name()='skipped']]"))) {
             $className = $testcase.GetAttribute('classname')
             if (-not [string]::IsNullOrWhiteSpace($className)) {
-                $summary.SkippedClasses.Add($className)
+                [void]$summary.SkippedClasses.Add($className)
             }
         }
     }
@@ -305,8 +309,11 @@ function Verify-TestReports {
         Add-Failure 'No Failsafe XML reports were found; run the Maven verify phase.'
     }
 
-    $unit = Get-ReportSummary $unitReports.ToArray() 'Surefire'
-    $integration = Get-ReportSummary $integrationReports.ToArray() 'Failsafe'
+    # Add-Failure deliberately writes a user-facing diagnostic. Select the
+    # final summary object so those diagnostics cannot turn the assignment
+    # into a heterogeneous PowerShell array.
+    $unit = @(Get-ReportSummary $unitReports.ToArray() 'Surefire')[-1]
+    $integration = @(Get-ReportSummary $integrationReports.ToArray() 'Failsafe')[-1]
     Write-Info ("Surefire: tests={0}, failures={1}, errors={2}, skipped={3}, reports={4}" -f
         $unit.Tests, $unit.Failures, $unit.Errors, $unit.Skipped, $unitReports.Count)
     Write-Info ("Failsafe: tests={0}, failures={1}, errors={2}, skipped={3}, reports={4}" -f

@@ -89,7 +89,11 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
-                new DartSymbolReference(WIDGETS_IMPORT, "TextOverflow")), enumTypes);
+                new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TextDirection"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TextOverflow"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TextWidthBasis"),
+                new DartSymbolReference(WIDGETS_IMPORT, "VerticalDirection")), enumTypes);
     }
 
     @Test
@@ -150,8 +154,17 @@ class BuiltInWidgetCatalogTest {
         PropertyValueConstraint.EnumValues values =
                 assertInstanceOf(PropertyValueConstraint.EnumValues.class, alignment.constraints().getFirst());
         assertEquals(new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"), values.dartType());
-        assertFalse(values.values().contains("baseline"));
+        assertTrue(values.values().contains("baseline"));
         assertTrue(values.accepts(new PropertyValue.EnumValue("CrossAxisAlignment", "stretch")));
+
+        PropertyDefinition spacing = property(
+                BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Column", "spacing");
+        assertEquals(List.of(PropertyValueKind.DOUBLE), spacing.acceptedKinds().stream().toList());
+        PropertyValueConstraint.DoubleRange spacingRange = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                spacing.constraints().getFirst());
+        assertTrue(spacingRange.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertFalse(spacingRange.accepts(new PropertyValue.DoubleValue(BigDecimal.ONE.negate())));
 
         PropertyDefinition maxLines = property(
                 BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "maxLines");
@@ -164,6 +177,46 @@ class BuiltInWidgetCatalogTest {
         assertEquals(portableMaximum, range.maximum());
         assertTrue(range.accepts(new PropertyValue.IntegerValue(portableMaximum)));
         assertFalse(range.accepts(new PropertyValue.IntegerValue(portableMaximum.add(BigInteger.ONE))));
+    }
+
+    @Test
+    void flexAndTextExposeTheExactReviewedSafePropertySurface() {
+        WidgetDefinition column = definition("flutter.widgets.Column");
+        assertEquals(List.of(
+                "mainAxisAlignment",
+                "mainAxisSize",
+                "crossAxisAlignment",
+                "textDirection",
+                "verticalDirection",
+                "textBaseline",
+                "spacing"), column.properties().stream()
+                        .map(value -> value.name().value())
+                        .toList());
+        assertEquals(7, column.slot(new SlotName("children")).orElseThrow().parameter().order());
+
+        WidgetDefinition text = definition("flutter.widgets.Text");
+        assertEquals(List.of(
+                "data",
+                "textAlign",
+                "textDirection",
+                "softWrap",
+                "overflow",
+                "maxLines",
+                "semanticsLabel",
+                "semanticsIdentifier",
+                "textWidthBasis",
+                "selectionColor"), text.properties().stream()
+                        .map(value -> value.name().value())
+                        .toList());
+        assertEquals(List.of(PropertyValueKind.STRING),
+                property(BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "semanticsLabel")
+                        .acceptedKinds().stream().toList());
+        assertEquals(List.of(PropertyValueKind.STRING),
+                property(BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "semanticsIdentifier")
+                        .acceptedKinds().stream().toList());
+        assertEquals(List.of(PropertyValueKind.COLOR),
+                property(BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "selectionColor")
+                        .acceptedKinds().stream().toList());
     }
 
     @Test

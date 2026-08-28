@@ -51,6 +51,8 @@ class WidgetTreeValidatorTest {
                 "designer.property.unknown",
                 "designer.property.kind",
                 "designer.property.constraint",
+                "designer.property.dependency",
+                "designer.property.uniqueness",
                 "designer.slot.missing",
                 "designer.slot.unknown",
                 "designer.slot.kind",
@@ -70,6 +72,8 @@ class WidgetTreeValidatorTest {
                         WidgetTreeValidator.UNKNOWN_PROPERTY,
                         WidgetTreeValidator.PROPERTY_KIND,
                         WidgetTreeValidator.PROPERTY_CONSTRAINT,
+                        WidgetTreeValidator.PROPERTY_DEPENDENCY,
+                        WidgetTreeValidator.PROPERTY_UNIQUENESS,
                         WidgetTreeValidator.MISSING_SLOT,
                         WidgetTreeValidator.UNKNOWN_SLOT,
                         WidgetTreeValidator.SLOT_KIND,
@@ -105,6 +109,52 @@ class WidgetTreeValidatorTest {
                 document(root), BuiltInWidgetCatalog.getDefault());
 
         assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+    }
+
+    @Test
+    void flexBaselineRequiresAnExactTextBaselineProperty() {
+        Map<PropertyName, PropertyValue> properties = Map.of(
+                name("crossAxisAlignment"),
+                new PropertyValue.EnumValue("CrossAxisAlignment", "baseline"));
+        WidgetNode invalid = node(
+                "column", "flutter.widgets.Column", properties, Map.of());
+
+        ValidationIssue issue = onlyIssue(
+                validator().validate(document(invalid), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+
+        assertEquals("/root/properties/textBaseline", issue.path());
+        assertTrue(issue.message().contains("CrossAxisAlignment.baseline"));
+
+        Map<PropertyName, PropertyValue> validProperties = new LinkedHashMap<>(properties);
+        validProperties.put(name("textBaseline"),
+                new PropertyValue.EnumValue("TextBaseline", "alphabetic"));
+        ValidationResult valid = validator().validate(
+                document(node("column", "flutter.widgets.Column", validProperties, Map.of())),
+                BuiltInWidgetCatalog.getDefault());
+        assertTrue(valid.valid(), () -> "Issues were: " + valid.issues());
+    }
+
+    @Test
+    void textSemanticsIdentifiersAreUniqueAcrossTheWholeTree() {
+        WidgetNode first = node("first", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("First"),
+                name("semanticsIdentifier"), new PropertyValue.StringValue("shared-title")), Map.of());
+        WidgetNode second = node("second", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Second"),
+                name("semanticsIdentifier"), new PropertyValue.StringValue("shared-title")), Map.of());
+        WidgetNode root = node("column", "flutter.widgets.Column", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(first, second))));
+
+        ValidationIssue issue = onlyIssue(
+                validator().validate(document(root), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_UNIQUENESS);
+
+        assertEquals(
+                "/root/slots/children/children/1/properties/semanticsIdentifier",
+                issue.path());
+        assertTrue(issue.message().contains(
+                "/root/slots/children/children/0/properties/semanticsIdentifier"));
     }
 
     @Test

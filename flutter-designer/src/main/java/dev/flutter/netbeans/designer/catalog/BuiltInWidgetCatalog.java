@@ -100,8 +100,16 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("mainAxisSize", 1, false,
                                 enumValues("MainAxisSize", "min", "max")),
                         namedProperty("crossAxisAlignment", 2, false,
-                                enumValues("CrossAxisAlignment", "start", "end", "center", "stretch"))),
-                List.of(listSlot("children", 3, false, ANY_WIDGET)));
+                                enumValues("CrossAxisAlignment", "start", "end", "center", "stretch",
+                                        "baseline")),
+                        namedProperty("textDirection", 3, false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty("verticalDirection", 4, false,
+                                enumValues("VerticalDirection", "up", "down")),
+                        namedProperty("textBaseline", 5, false,
+                                enumValues("TextBaseline", "alphabetic", "ideographic")),
+                        namedProperty("spacing", 6, false, nonNegativeDoubles())),
+                List.of(listSlot("children", 7, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition padding() {
@@ -158,12 +166,19 @@ public final class BuiltInWidgetCatalog {
                                 Optional.of(new PropertyValue.StringValue("Text"))),
                         namedProperty("textAlign", 0, false,
                                 enumValues("TextAlign", "start", "end", "left", "right", "center", "justify")),
-                        namedProperty("softWrap", 1, false, any(PropertyValueKind.BOOLEAN)),
-                        namedProperty("maxLines", 2, false, List.of(
+                        namedProperty("textDirection", 1, false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty("softWrap", 2, false, any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("overflow", 3, false,
+                                enumValues("TextOverflow", "clip", "fade", "ellipsis", "visible")),
+                        namedProperty("maxLines", 4, false, List.of(
                                 new PropertyValueConstraint.IntegerRange(
                                         BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER))),
-                        namedProperty("overflow", 3, false,
-                                enumValues("TextOverflow", "clip", "fade", "ellipsis", "visible"))),
+                        namedProperty("semanticsLabel", 5, false, any(PropertyValueKind.STRING)),
+                        namedProperty("semanticsIdentifier", 6, false, any(PropertyValueKind.STRING)),
+                        namedProperty("textWidthBasis", 7, false,
+                                enumValues("TextWidthBasis", "parent", "longestLine")),
+                        namedProperty("selectionColor", 8, false, any(PropertyValueKind.COLOR))),
                 List.of());
     }
 
@@ -304,6 +319,11 @@ public final class BuiltInWidgetCatalog {
                 new PropertyValueConstraint.IntegerRange(
                         BigInteger.ZERO, DartNumericLiterals.MAX_PORTABLE_INTEGER),
                 new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, true, null, true));
+    }
+
+    private static List<PropertyValueConstraint> nonNegativeDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.ZERO, true, null, true));
     }
 
     private static List<PropertyValueConstraint> enumValues(String type, String... values) {

@@ -1,5 +1,10 @@
 # Architecture Decisions
 
+Status note: ADR-024 supersedes the earlier provisional statements that
+`PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
+contracts remain accepted; only the closed typed Properties slice described by
+ADR-024 is now enabled.
+
 ## ADR-001 — IDE support before Designer
 
 Accepted. A Matisse-like designer is built only after normal Flutter development works well in NetBeans.
@@ -30,7 +35,7 @@ Accepted. Every loaded `FlutterProject` provides `AuxiliaryConfiguration` and `A
 
 ## ADR-008 — `.fd` owns the visual model and guards generated Dart regions
 
-Accepted. A Matisse-like Flutter form is a mirrored project pair: `lib/<relative>/<name>.dart` owns all code outside explicitly marked designer regions, while `.fd_templates/<relative>/<name>.fd` contains the versioned JSON canonical visual model. Schema v1 deliberately keeps `source.dartFile` as the exact Dart basename rather than a project-relative path; the mirrored roots and relative directory identify the physical pair. In the target writable workflow, `Design` edits the `.fd` model and `Source` edits the paired Dart file; the current 0.1.3 Design surface remains read-only. The generator initially owns unique `imports` and `build` regions and stores a normalized SHA-256 for each region in `.fd`. A missing/duplicate marker, unsupported schema, filename/class mismatch, or changed managed payload enters an explicit source-conflict state and blocks automatic writes. The designer preserves user-owned bytes outside the markers, does not format the whole Dart file during a designer save, and never defaults a conflict dialog to overwrite source. The `Flutter Designer Form` New File wizard accepts only `lib` or its descendants and creates both mirrored entries before either is resolved as a DataObject. Details, schema and remaining integration decisions are recorded in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md).
+Accepted. A Matisse-like Flutter form is a mirrored project pair: `lib/<relative>/<name>.dart` owns all code outside explicitly marked designer regions, while `.fd_templates/<relative>/<name>.fd` contains the versioned JSON canonical visual model. Schema v1 deliberately keeps `source.dartFile` as the exact Dart basename rather than a project-relative path; the mirrored roots and relative directory identify the physical pair. In the target writable workflow, `Design` edits the `.fd` model and `Source` edits the paired Dart file; at this ADR's acceptance the 0.1.3 Design surface remained read-only, and ADR-024 later authorizes its bounded typed Properties slice. The generator initially owns unique `imports` and `build` regions and stores a normalized SHA-256 for each region in `.fd`. A missing/duplicate marker, unsupported schema, filename/class mismatch, or changed managed payload enters an explicit source-conflict state and blocks automatic writes. The designer preserves user-owned bytes outside the markers, does not format the whole Dart file during a designer save, and never defaults a conflict dialog to overwrite source. The `Flutter Designer Form` New File wizard accepts only `lib` or its descendants and creates both mirrored entries before either is resolved as a DataObject. Details, schema and remaining integration decisions are recorded in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md).
 
 ## ADR-009 — Dart owns the editor session while `.fd` stays physically visible
 
@@ -238,11 +243,10 @@ their operating-system runtime, fonts, plugins, platform channels, IME or
 accessibility stack. Flutter Web is compile-time/browser identity and therefore
 requires a separate browser backend.
 
-Accepting this ADR does not enable writable UI.
-`DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED` remains `false`
-until the native surface lifecycle, revision fencing, DnD/selection intent
-validation, crash and close recovery, pair Save, Undo/Redo and assembled
-Windows/Linux/macOS runtime gates pass together.
+Accepting this ADR did not by itself enable writable UI. ADR-024 later enables
+only the reviewed typed Properties allowlist after its revision fencing,
+pair-save, Undo/Redo, close and assembled-runtime gates pass. DnD and the
+broader mutation surface remain outside that authorization.
 
 ## ADR-022 — Pair Copy/Paste is a same-folder Node transaction
 
@@ -347,3 +351,31 @@ are location-independent opaque metadata and must not encode `.fd`-relative
 semantics. Those rules make byte-preserving pair Move well-defined; they do not
 relax ADR-022's block on cross-directory Copy, whose duplication contract still
 requires explicit relative-URI rebasing semantics.
+
+## ADR-024 — Typed Properties is a bounded revision-bound mutation slice
+
+Accepted for 0.1.3. The standard NetBeans Properties window is writable only
+for the reviewed simple-value constructor arguments of `Column`, `Row`,
+`Padding`, `Center` and `Text`. The closed allowlist contains 27 properties;
+`Scaffold` stays read-only and is a separate design task. Editor choice and
+value admission come from the immutable widget catalog. Required arguments
+cannot be unset; NetBeans Restore Default emits `ResetProperty` only for an
+optional argument. Complex `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
+`TextHeightBehavior` and directional edge-inset values remain unsupported until
+they have dedicated domain values, editors, generator rules and native-preview
+parity.
+
+Every accepted cell edit creates one exact `SetProperty` or `ResetProperty`
+against the selected stable widget ID and the immutable revision token captured
+when the Node tree was built. A shared one-shot fence prevents a second editor
+callback from reusing that token. Stale, closed, conflicted, unsupported or
+concurrently changing pairs fail closed with the operation, target and reason.
+The candidate must pass catalog/relationship validation, deterministic Dart
+generation and Dart analysis before the existing `PairSaveCoordinator` adopts
+it; the combined Source/model Undo/Redo and Save lifecycle remain authoritative.
+
+`DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED` is therefore
+`true` only for this explicitly admitted Properties path. It does not authorize
+Palette insertion, Java/Flutter DnD, arbitrary Canvas commands, writable
+`Scaffold`, complex/contributed property values, the Web Canvas backend or
+Linux/macOS native-surface providers.

@@ -30,14 +30,14 @@ import org.openide.util.ChangeSupport;
  * pending lease while the visible cursor remains at its exact predecessor.
  * Only a separately verified staging transition may adopt the candidate.
  * Durable persistence uses another identity-bound lease which pins the adopted
- * cursor and precomputes the saved anchor. Until the missing stages are joined
- * by the separately tested replacement pipeline, no production UI constructs
- * this class and
- * {@link #PUBLIC_MUTATION_UI_ENABLED} remains {@code false}.</p>
+ * cursor and precomputes the saved anchor. The DataObject-owned internal
+ * mutation controller joins those stages. Its first fully verified public UI
+ * slice admits only {@code Text.data} through standard NetBeans Properties;
+ * all other properties and Palette mutations remain read-only or disabled.</p>
  */
 final class DesignerCommandSessionOrchestrator
         implements UndoRedo, AutoCloseable {
-    static final boolean PUBLIC_MUTATION_UI_ENABLED = false;
+    static final boolean PUBLIC_MUTATION_UI_ENABLED = true;
     private static final Logger LOGGER = Logger.getLogger(
             DesignerCommandSessionOrchestrator.class.getName());
 
@@ -71,7 +71,23 @@ final class DesignerCommandSessionOrchestrator
      */
     PendingCommandAttempt beginCommand(DesignerCommand command) {
         return beginCommandInternal(
-                Objects.requireNonNull(command, "command"), null);
+                null,
+                Objects.requireNonNull(command, "command"),
+                null);
+    }
+
+    /**
+     * Derives a command only when the cursor still is the exact revision
+     * observed by the caller. The identity check and operation claim happen
+     * under the same monitor, closing the UI-token versus Undo/Redo race.
+     */
+    PendingCommandAttempt beginCommand(
+            DesignerCommandRevision expectedRevision,
+            DesignerCommand command) {
+        return beginCommandInternal(
+                Objects.requireNonNull(expectedRevision, "expectedRevision"),
+                Objects.requireNonNull(command, "command"),
+                null);
     }
 
     /**
@@ -87,17 +103,37 @@ final class DesignerCommandSessionOrchestrator
             DesignerCommand command,
             PreparedDesignerPair exactEndpointPair) {
         return beginCommandInternal(
+                null,
+                Objects.requireNonNull(command, "command"),
+                Objects.requireNonNull(
+                        exactEndpointPair, "exactEndpointPair"));
+    }
+
+    /** Exact-cursor variant used by staged replacement admission. */
+    PendingCommandAttempt beginCommandFromPhysicalEndpoint(
+            DesignerCommandRevision expectedRevision,
+            DesignerCommand command,
+            PreparedDesignerPair exactEndpointPair) {
+        return beginCommandInternal(
+                Objects.requireNonNull(expectedRevision, "expectedRevision"),
                 Objects.requireNonNull(command, "command"),
                 Objects.requireNonNull(
                         exactEndpointPair, "exactEndpointPair"));
     }
 
     private PendingCommandAttempt beginCommandInternal(
+            DesignerCommandRevision expectedRevision,
             DesignerCommand command,
             PreparedDesignerPair exactEndpointPair) {
         Objects.requireNonNull(command, "command");
         DesignerCommandSession captured;
         synchronized (monitor) {
+            requireOpenLocked();
+            if (expectedRevision != null
+                    && session.current() != expectedRevision) {
+                throw new StaleRevisionException(
+                        "The selected Flutter Designer revision changed before the command started.");
+            }
             beginOperationLocked();
             captured = session;
         }
@@ -848,13 +884,25 @@ final class DesignerCommandSessionOrchestrator
             DurableSaveLease lease,
             Runnable peerCommitNoThrow) {
         Objects.requireNonNull(peerCommitNoThrow, "peerCommitNoThrow");
+        return adoptCommittedCloseAwareDeferredEffects(
+                lease, closePending -> peerCommitNoThrow.run());
+    }
+
+    /**
+     * Joins one exact durable command-session re-anchor to a monitor-only peer
+     * assignment which can fail closed when owner shutdown raced the Save.
+     */
+    private DeferredLeaseEffects adoptCommittedCloseAwareDeferredEffects(
+            DurableSaveLease lease,
+            CloseAwareDurableSavePeerCommit peerCommitNoThrow) {
+        Objects.requireNonNull(peerCommitNoThrow, "peerCommitNoThrow");
         boolean closeBinding;
         synchronized (monitor) {
             if (lease.resolution == LeaseResolution.ADOPTED) {
                 return DeferredLeaseEffects.none();
             }
             requireActiveDurableSaveLocked(lease);
-            peerCommitNoThrow.run();
+            peerCommitNoThrow.commit(closeRequested);
             session = lease.precomputedSaved;
             lease.resolution = LeaseResolution.ADOPTED;
             activeDurableSave = null;
@@ -1225,6 +1273,12 @@ final class DesignerCommandSessionOrchestrator
         void commit(boolean ownerClosePending);
     }
 
+    /** Monitor-only durable-save peer assignment with deferred publication. */
+    @FunctionalInterface
+    interface CloseAwareDurableSavePeerCommit {
+        void commit(boolean ownerClosePending);
+    }
+
     /**
      * Result of deriving a command while retaining the predecessor cursor.
      * Only a changed result contains a lease.
@@ -1247,6 +1301,13 @@ final class DesignerCommandSessionOrchestrator
                             "The command result does not retain its exact pending lease identities");
                 }
             });
+        }
+    }
+
+    /** Concrete rejection used by identity-fenced UI admission. */
+    static final class StaleRevisionException extends IllegalStateException {
+        StaleRevisionException(String message) {
+            super(message);
         }
     }
 
@@ -1333,27 +1394,50 @@ final class DesignerCommandSessionOrchestrator
                         "A pending transition lease must bind exact adjacent before and after identities");
             }
             if (physicalPredecessorPairIdentity != null) {
-                PreparedDesignerPair candidatePair = afterRevisionIdentity
-                        .preparedPair().orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "A physical-endpoint command must produce an exact paired candidate"));
                 if (kind != PendingTransitionKind.APPLY
                         || !physicalPredecessorPairIdentity
                                 .prospectiveDocument()
                                 .equals(beforeRevisionIdentity.document())
                         || !physicalPredecessorPairIdentity.prospectiveFd()
-                                .equals(beforeRevisionIdentity.fdSnapshot())
-                        || candidatePair.baselineFd()
-                            != physicalPredecessorPairIdentity.baselineFd()
-                        || candidatePair.dartTransition().baseline()
-                            != physicalPredecessorPairIdentity
-                                    .dartTransition().baseline()
-                        || !Arrays.equals(
-                                candidatePair.liveDartBytes(),
-                                physicalPredecessorPairIdentity
-                                        .liveDartBytes())) {
+                                .equals(beforeRevisionIdentity.fdSnapshot())) {
                     throw new IllegalArgumentException(
-                            "A physical-endpoint command lease must retain the exact predecessor pair and its Dart envelope");
+                            "A physical-endpoint command lease must retain its exact predecessor pair");
+                }
+                if (afterRevisionIdentity.persistenceKind()
+                        == DesignerRevisionPersistenceKind.PAIRED) {
+                    PreparedDesignerPair candidatePair = afterRevisionIdentity
+                            .preparedPair().orElseThrow();
+                    if (candidatePair.baselineFd()
+                                != physicalPredecessorPairIdentity.baselineFd()
+                            || candidatePair.dartTransition().baseline()
+                                != physicalPredecessorPairIdentity
+                                        .dartTransition().baseline()
+                            || !Arrays.equals(
+                                    candidatePair.liveDartBytes(),
+                                    physicalPredecessorPairIdentity
+                                            .liveDartBytes())) {
+                        throw new IllegalArgumentException(
+                                "A physical-endpoint paired target must retain the exact durable anchor and Dart envelope");
+                    }
+                } else if (afterRevisionIdentity.persistenceKind()
+                        == DesignerRevisionPersistenceKind.BASELINE) {
+                    if (afterRevisionIdentity.preparedPair().isPresent()
+                            || afterRevisionIdentity.sourceTransition().isPresent()
+                            || afterRevisionIdentity.fdSnapshot()
+                                != physicalPredecessorPairIdentity.baselineFd()
+                            || !afterRevisionIdentity.document().equals(
+                                    physicalPredecessorPairIdentity
+                                            .baselineDocument())
+                            || !Arrays.equals(
+                                    afterRevisionIdentity.dartCandidateBytes(),
+                                    physicalPredecessorPairIdentity
+                                            .liveDartBytes())) {
+                        throw new IllegalArgumentException(
+                                "A physical-endpoint baseline target must return to the exact durable model and Dart envelope");
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                            "A physical-endpoint command may produce only an exact paired or baseline target");
                 }
             }
         }
@@ -1432,6 +1516,18 @@ final class DesignerCommandSessionOrchestrator
                     exactTarget,
                     peerCommitNoThrow,
                     transitionClaim);
+        }
+
+        DeferredLeaseEffects adoptExactTargetCloseAwareDeferredEffects(
+                DesignerCommandRevision exactTarget,
+                CloseAwareStagedPeerCommit peerCommitNoThrow,
+                Object transitionClaim) {
+            return owner.adoptExactTargetCloseAwareDeferredEffects(
+                    this,
+                    exactTarget,
+                    peerCommitNoThrow,
+                    Objects.requireNonNull(
+                            transitionClaim, "transitionClaim"));
         }
 
         DeferredLeaseEffects adoptStagedDeferredEffects(
@@ -1650,6 +1746,12 @@ final class DesignerCommandSessionOrchestrator
         DeferredLeaseEffects adoptCommittedDeferredEffects(
                 Runnable peerCommitNoThrow) {
             return owner.adoptCommittedDeferredEffects(
+                    this, peerCommitNoThrow);
+        }
+
+        DeferredLeaseEffects adoptCommittedCloseAwareDeferredEffects(
+                CloseAwareDurableSavePeerCommit peerCommitNoThrow) {
+            return owner.adoptCommittedCloseAwareDeferredEffects(
                     this, peerCommitNoThrow);
         }
 

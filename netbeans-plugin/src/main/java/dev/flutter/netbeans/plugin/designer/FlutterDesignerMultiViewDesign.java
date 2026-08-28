@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -31,6 +34,11 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.codec.FdCodecDiagnostic;
+import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.ResetProperty;
+import dev.flutter.netbeans.designer.command.SetProperty;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -73,6 +81,8 @@ public final class FlutterDesignerMultiViewDesign
         implements MultiViewElement, PropertyChangeListener, ExplorerManager.Provider {
     private final Lookup context;
     private final Lookup effectiveLookup;
+    private final BooleanSupplier mutationUiEnabled;
+    private final FlutterDesignerDataObject dataObject;
     private final FlutterDesignerDocumentController controller;
     private final UndoRedo undoRedo;
     private final JPanel visual;
@@ -97,17 +107,41 @@ public final class FlutterDesignerMultiViewDesign
     private final String modelName;
     private final String sourceName;
     private final Map<StableId, Node> widgetNodes = new LinkedHashMap<>();
+    private final AtomicBoolean mutationRefreshRequested = new AtomicBoolean();
+    private final AtomicBoolean mutationRefreshScheduled = new AtomicBoolean();
+    private final PropertyChangeListener mutationListener =
+            this::mutationSnapshotChanged;
+    private FlutterDesignerMutationController mutationController;
+    private FlutterDesignerMutationController.Snapshot mutationSnapshot;
+    private FlutterDesignerDocumentState durableDocumentState;
     private FlutterDesignerDocumentState.Current currentCanvasState;
+    private DesignerDocument currentCanvasDocument;
+    private WidgetCatalog currentCanvasCatalog;
+    private DesignerDocument presentedCanvasDocument;
+    private WidgetCatalog presentedCanvasCatalog;
+    private PreviewTarget presentedCanvasTarget;
     private FlutterDesignerNativeCanvasStatus lastCanvasStatus;
     private boolean previewInitialized;
     private boolean synchronizingSelection;
     private boolean updatingPreviewModes;
     private boolean listening;
+    private boolean mutationListening;
+    private long mutationViewEpoch;
     private boolean platformListening;
 
     public FlutterDesignerMultiViewDesign(Lookup context) {
+        this(
+                context,
+                () -> DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED);
+    }
+
+    FlutterDesignerMultiViewDesign(
+            Lookup context,
+            BooleanSupplier mutationUiEnabled) {
         this.context = context;
-        FlutterDesignerDataObject dataObject = context.lookup(FlutterDesignerDataObject.class);
+        this.mutationUiEnabled = Objects.requireNonNull(
+                mutationUiEnabled, "mutationUiEnabled");
+        dataObject = context.lookup(FlutterDesignerDataObject.class);
         projectPlatforms = dataObject == null
                 ? null
                 : dataObject.getProject().getLookup()
@@ -127,8 +161,8 @@ public final class FlutterDesignerMultiViewDesign
                 BuiltInWidgetCatalog.getDefault(),
                 CanvasModelPayloadCodec::supports);
         effectiveLookup = new ProxyLookup(
-                context,
                 ExplorerUtils.createLookup(explorerManager, visual.getActionMap()),
+                Lookups.exclude(context, Node.class),
                 Lookups.singleton(paletteController));
         widgetTree = createWidgetTree();
         widgetTree.setRootVisible(true);
@@ -310,6 +344,13 @@ public final class FlutterDesignerMultiViewDesign
             projectPlatforms.refresh();
             refreshPreviewChoices(selectedPreviewTarget().orElse(null), null);
         }
+        if (dataObject != null && !mutationListening) {
+            mutationController = dataObject.mutationController();
+            mutationViewEpoch++;
+            mutationListening = true;
+            mutationController.addPropertyChangeListener(mutationListener);
+            scheduleMutationSnapshotRefresh();
+        }
         if (controller != null && !listening) {
             listening = true;
             controller.addPropertyChangeListener(this);
@@ -324,7 +365,18 @@ public final class FlutterDesignerMultiViewDesign
             platformListening = false;
             projectPlatforms.removeChangeListener(projectPlatformListener);
         }
+        if (mutationController != null && mutationListening) {
+            mutationViewEpoch++;
+            mutationListening = false;
+            mutationController.removePropertyChangeListener(mutationListener);
+        }
+        mutationRefreshRequested.set(false);
+        mutationSnapshot = null;
+        durableDocumentState = null;
         currentCanvasState = null;
+        currentCanvasDocument = null;
+        currentCanvasCatalog = null;
+        clearPresentedCanvasIdentity();
         clearWidgetTree();
         if (nativeCanvasSession != null) {
             nativeCanvasSession.close();
@@ -380,14 +432,75 @@ public final class FlutterDesignerMultiViewDesign
         }
     }
 
-    private void render(FlutterDesignerDocumentState state) {
-        progress.setVisible(state instanceof FlutterDesignerDocumentState.Loading);
-        if (state instanceof FlutterDesignerDocumentState.Current current
-                && canvasEligible(current)) {
-            publishCanvas(current);
-        } else {
-            withdrawCanvas();
+    private void mutationSnapshotChanged(PropertyChangeEvent event) {
+        if (FlutterDesignerMutationController.PROP_SNAPSHOT
+                .equals(event.getPropertyName())) {
+            scheduleMutationSnapshotRefresh();
         }
+    }
+
+    /** Coalesces background controller publications into one latest-snapshot EDT refresh. */
+    private void scheduleMutationSnapshotRefresh() {
+        mutationRefreshRequested.set(true);
+        if (mutationRefreshScheduled.compareAndSet(false, true)) {
+            java.awt.EventQueue.invokeLater(this::drainMutationSnapshotRefresh);
+        }
+    }
+
+    private void drainMutationSnapshotRefresh() {
+        while (mutationRefreshRequested.getAndSet(false)) {
+            FlutterDesignerMutationController currentController = mutationController;
+            if (currentController != null && mutationListening) {
+                renderMutationSnapshot(currentController.snapshot());
+            }
+        }
+        mutationRefreshScheduled.set(false);
+        if (mutationListening
+                && mutationRefreshRequested.get()
+                && mutationRefreshScheduled.compareAndSet(false, true)) {
+            java.awt.EventQueue.invokeLater(this::drainMutationSnapshotRefresh);
+        }
+    }
+
+    private void renderMutationSnapshot(
+            FlutterDesignerMutationController.Snapshot snapshot) {
+        mutationSnapshot = snapshot;
+        FlutterDesignerDocumentState durable = durableDocumentState;
+        boolean exactDurableCurrent = durable
+                instanceof FlutterDesignerDocumentState.Current current
+                && canvasEligible(current);
+        publishMutationCanvas(snapshot, exactDurableCurrent);
+        progress.setVisible(
+                durable instanceof FlutterDesignerDocumentState.Loading
+                || snapshot.status() == FlutterDesignerMutationController.Status.APPLYING);
+        if (durable instanceof FlutterDesignerDocumentState.Current current) {
+            // Durable validation remains authoritative; mutation readiness only
+            // enriches its status detail and the writable-node projection.
+            renderCurrent(current);
+        }
+    }
+
+    private void render(FlutterDesignerDocumentState state) {
+        durableDocumentState = state;
+        if (mutationController != null && mutationListening) {
+            // The controller listener is registered first. Read its volatile
+            // latest snapshot rather than replaying event payloads, and retain
+            // its semantic presentation across durable Loading/save/reload.
+            mutationSnapshot = mutationController.snapshot();
+            publishMutationCanvas(mutationSnapshot, false);
+        } else {
+            if (state instanceof FlutterDesignerDocumentState.Current current
+                    && canvasEligible(current)) {
+                publishDurableCanvas(current);
+            } else {
+                withdrawCanvas();
+            }
+        }
+        progress.setVisible(
+                state instanceof FlutterDesignerDocumentState.Loading
+                || mutationSnapshot != null
+                && mutationSnapshot.status()
+                == FlutterDesignerMutationController.Status.APPLYING);
         if (state instanceof FlutterDesignerDocumentState.Idle) {
             setPresentation(
                     "Flutter Designer is ready.",
@@ -437,28 +550,81 @@ public final class FlutterDesignerMultiViewDesign
                 && current.contextIssues().isEmpty();
     }
 
-    private void publishCanvas(FlutterDesignerDocumentState.Current current) {
-        StableId retainedSelection = selectedWidgetId().orElse(null);
+    private void publishDurableCanvas(
+            FlutterDesignerDocumentState.Current current) {
+        publishCanvasPresentation(
+                current.decoded().document(),
+                current.catalog(),
+                null);
         currentCanvasState = current;
+    }
+
+    private void publishMutationCanvas(
+            FlutterDesignerMutationController.Snapshot snapshot,
+            boolean allowMutation) {
+        if (snapshot.document().isEmpty() || snapshot.catalog().isEmpty()) {
+            // Binding the DataObject-owned mutation controller is asynchronous.
+            // Its initial WAITING (or a fail-closed BLOCKED) snapshot therefore
+            // may not have a semantic presentation yet.  Do not blank an exact,
+            // already validated durable Current while that authority is being
+            // resolved: publish it without a mutation handler, so the widget
+            // tree, Properties and Canvas remain useful but strictly read-only.
+            if (durableDocumentState
+                    instanceof FlutterDesignerDocumentState.Current current
+                    && canvasEligible(current)) {
+                publishDurableCanvas(current);
+            } else {
+                withdrawCanvasPresentation();
+            }
+            return;
+        }
+        publishCanvasPresentation(
+                snapshot.document().orElseThrow(),
+                snapshot.catalog().orElseThrow(),
+                allowMutation ? propertyMutationHandler(snapshot) : null);
+    }
+
+    private void publishCanvasPresentation(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            FlutterWidgetPropertiesNode.PropertyMutationHandler mutationHandler) {
+        StableId retainedSelection = selectedWidgetId().orElse(null);
+        currentCanvasDocument = Objects.requireNonNull(document, "document");
+        currentCanvasCatalog = Objects.requireNonNull(catalog, "catalog");
         if (!previewInitialized) {
             previewInitialized = true;
             CanvasPreviewMode initial =
                     dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver
-                            .initialMode(current.decoded().document().canvas());
+                            .initialMode(currentCanvasDocument.canvas());
             refreshPreviewChoices(null, initial);
         }
         rebuildWidgetTree(
-                current.decoded().document().root(),
-                current.catalog(),
-                retainedSelection);
-        presentCurrentCanvas(current);
+                currentCanvasDocument.root(),
+                currentCanvasCatalog,
+                retainedSelection,
+                mutationHandler);
+        presentCurrentCanvas();
+    }
+
+    /** Read-only package seam for proving which revision feeds the Canvas. */
+    DesignerDocument currentCanvasDocumentForTests() {
+        return currentCanvasDocument;
     }
 
     private void withdrawCanvas() {
-        if (currentCanvasState == null && widgetNodes.isEmpty()) {
+        if (currentCanvasState == null
+                && currentCanvasDocument == null
+                && widgetNodes.isEmpty()) {
             return;
         }
         currentCanvasState = null;
+        withdrawCanvasPresentation();
+    }
+
+    private void withdrawCanvasPresentation() {
+        currentCanvasDocument = null;
+        currentCanvasCatalog = null;
+        clearPresentedCanvasIdentity();
         clearWidgetTree();
         if (nativeCanvasSession != null) {
             nativeCanvasSession.withdraw();
@@ -469,9 +635,8 @@ public final class FlutterDesignerMultiViewDesign
         if (updatingPreviewModes) {
             return;
         }
-        FlutterDesignerDocumentState.Current current = currentCanvasState;
-        if (current != null) {
-            presentCurrentCanvas(current);
+        if (currentCanvasDocument != null) {
+            presentCurrentCanvas();
         }
     }
 
@@ -482,12 +647,15 @@ public final class FlutterDesignerMultiViewDesign
                 : Optional.empty();
     }
 
-    private void presentCurrentCanvas(FlutterDesignerDocumentState.Current current) {
-        if (nativeCanvasSession == null) {
+    private void presentCurrentCanvas() {
+        DesignerDocument document = currentCanvasDocument;
+        WidgetCatalog catalog = currentCanvasCatalog;
+        if (nativeCanvasSession == null || document == null || catalog == null) {
             return;
         }
         Optional<PreviewTarget> selected = selectedPreviewTarget();
         if (selected.isEmpty()) {
+            clearPresentedCanvasIdentity();
             nativeCanvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
@@ -499,6 +667,7 @@ public final class FlutterDesignerMultiViewDesign
         }
         PreviewTarget target = selected.orElseThrow();
         if (target.requiresBrowserBackend()) {
+            clearPresentedCanvasIdentity();
             nativeCanvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
@@ -509,11 +678,20 @@ public final class FlutterDesignerMultiViewDesign
                     + "used as a false Web substitute."));
             return;
         }
+        if (presentedCanvasDocument == document
+                && presentedCanvasCatalog == catalog
+                && Objects.equals(presentedCanvasTarget, target)) {
+            selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+            return;
+        }
         nativeCanvasSession.present(
-                current.decoded().document(),
-                current.catalog(),
+                document,
+                catalog,
                 target.mode(),
                 target.targetPlatform());
+        presentedCanvasDocument = document;
+        presentedCanvasCatalog = catalog;
+        presentedCanvasTarget = target;
         selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
     }
 
@@ -562,9 +740,8 @@ public final class FlutterDesignerMultiViewDesign
             PreviewTarget retained = selectedPreviewTarget().orElse(null);
             boolean selectionChanged = refreshPreviewChoices(
                     retained, retained == null ? null : retained.mode());
-            FlutterDesignerDocumentState.Current current = currentCanvasState;
-            if (selectionChanged && current != null) {
-                presentCurrentCanvas(current);
+            if (selectionChanged && currentCanvasDocument != null) {
+                presentCurrentCanvas();
             }
         };
         if (java.awt.EventQueue.isDispatchThread()) {
@@ -601,11 +778,12 @@ public final class FlutterDesignerMultiViewDesign
     private void rebuildWidgetTree(
             WidgetNode root,
             WidgetCatalog catalog,
-            StableId retainedSelection) {
+            StableId retainedSelection,
+            FlutterWidgetPropertiesNode.PropertyMutationHandler mutationHandler) {
         synchronizingSelection = true;
         try {
             widgetNodes.clear();
-            Node rootNode = buildWidgetNode(root, catalog);
+            Node rootNode = buildWidgetNode(root, catalog, mutationHandler);
             explorerManager.setRootContext(rootNode);
             StableId selected = retainedSelection != null
                     && widgetNodes.containsKey(retainedSelection)
@@ -620,15 +798,20 @@ public final class FlutterDesignerMultiViewDesign
         }
     }
 
-    private Node buildWidgetNode(WidgetNode widget, WidgetCatalog catalog) {
+    private Node buildWidgetNode(
+            WidgetNode widget,
+            WidgetCatalog catalog,
+            FlutterWidgetPropertiesNode.PropertyMutationHandler mutationHandler) {
         Children.Array children = new Children.Array();
         for (WidgetSlot slot : widget.slots().values()) {
             switch (slot) {
                 case WidgetSlot.SingleSlot single -> single.child().ifPresent(
-                        child -> children.add(new Node[]{buildWidgetNode(child, catalog)}));
+                        child -> children.add(new Node[]{buildWidgetNode(
+                            child, catalog, mutationHandler)}));
                 case WidgetSlot.ListSlot list -> {
                     for (WidgetNode child : list.children()) {
-                        children.add(new Node[]{buildWidgetNode(child, catalog)});
+                        children.add(new Node[]{buildWidgetNode(
+                            child, catalog, mutationHandler)});
                     }
                 }
             }
@@ -637,9 +820,107 @@ public final class FlutterDesignerMultiViewDesign
                 new IllegalStateException(
                         "Validated Flutter widget type is absent from its catalog: "
                         + widget.type().value()));
-        Node node = new FlutterWidgetPropertiesNode(children, widget, definition);
+        Node node = new FlutterWidgetPropertiesNode(
+                children, widget, definition, mutationHandler);
         widgetNodes.put(widget.id(), node);
         return node;
+    }
+
+    private FlutterWidgetPropertiesNode.PropertyMutationHandler
+            propertyMutationHandler(
+                    FlutterDesignerMutationController.Snapshot candidate) {
+        FlutterDesignerMutationController controllerForEdit = mutationController;
+        if (!mutationUiEnabled.getAsBoolean()
+                || controllerForEdit == null
+                || candidate == null
+                || candidate.status() != FlutterDesignerMutationController.Status.READY
+                || candidate.token().isEmpty()) {
+            return null;
+        }
+        FlutterDesignerMutationController.RevisionToken exactToken =
+                candidate.token().orElseThrow();
+        AtomicBoolean submitted = new AtomicBoolean();
+        return command -> {
+            PropertyMutationPresentation presentation =
+                    propertyMutationPresentation(command);
+            if (submitted.compareAndSet(false, true)) {
+                submitPropertyMutation(
+                        controllerForEdit,
+                        exactToken,
+                        command,
+                        presentation);
+            }
+        };
+    }
+
+    private void submitPropertyMutation(
+            FlutterDesignerMutationController controllerForEdit,
+            FlutterDesignerMutationController.RevisionToken exactToken,
+            DesignerCommand command,
+            PropertyMutationPresentation presentation) {
+        String target = modelName + " — widget " + presentation.widgetId()
+                + ", property " + presentation.propertyName().value();
+        long submittingViewEpoch = mutationViewEpoch;
+        controllerForEdit.submit(
+                        exactToken,
+                        command,
+                        target)
+                .whenComplete((result, failure) -> {
+                    FlutterDesignerMutationController.MutationResult completed = result;
+                    if (failure != null) {
+                        Throwable cause = failure instanceof CompletionException
+                                && failure.getCause() != null
+                                ? failure.getCause() : failure;
+                        completed = FlutterDesignerMutationController.MutationResult.failed(
+                                presentation.operation(), target, failureReason(cause));
+                    }
+                    if (completed.outcome()
+                            == FlutterDesignerMutationController.Outcome.APPLIED) {
+                        return;
+                    }
+                    if (completed.outcome()
+                            == FlutterDesignerMutationController.Outcome.CANCELLED
+                            && controllerForEdit.snapshot().status()
+                            == FlutterDesignerMutationController.Status.CLOSED) {
+                        return;
+                    }
+                    FlutterDesignerMutationController.MutationResult dialogResult =
+                            completed;
+                    java.awt.EventQueue.invokeLater(() -> {
+                        if (!mutationListening
+                                || mutationController != controllerForEdit
+                                || mutationViewEpoch != submittingViewEpoch) {
+                            return;
+                        }
+                        showMutationResult(dialogResult);
+                    });
+                });
+    }
+
+    private static PropertyMutationPresentation propertyMutationPresentation(
+            DesignerCommand command) {
+        Objects.requireNonNull(command, "command");
+        return switch (command) {
+            case SetProperty set -> new PropertyMutationPresentation(
+                    "Set Flutter property", set.widgetId(), set.propertyName());
+            case ResetProperty reset -> new PropertyMutationPresentation(
+                    "Reset Flutter property", reset.widgetId(), reset.propertyName());
+            default -> throw new IllegalArgumentException(
+                    "The Properties mutation handler accepts only SetProperty or ResetProperty; received "
+                    + command.getClass().getSimpleName() + '.');
+        };
+    }
+
+    private record PropertyMutationPresentation(
+            String operation,
+            StableId widgetId,
+            PropertyName propertyName) {
+
+        private PropertyMutationPresentation {
+            Objects.requireNonNull(operation, "operation");
+            Objects.requireNonNull(widgetId, "widgetId");
+            Objects.requireNonNull(propertyName, "propertyName");
+        }
     }
 
     private Optional<StableId> selectedWidgetId() {
@@ -770,17 +1051,43 @@ public final class FlutterDesignerMultiViewDesign
                     threeWayDiagnosticDetail(integrity));
         } else {
             setPresentation(
-                    "Designer ready.",
+                    validatedDesignerStatus(),
                     "Source " + sourceName + "; class " + className
                     + "; root widget " + rootType + ".",
-                    "The on-disk imports and build regions, the SHA-256 values "
-                    + "recorded in " + modelName + ", and the deterministic generated "
-                    + "payloads agree. The validated CORE_V1 model is published to the "
-                    + "isolated native Flutter Canvas. Viewport preview and read-only "
-                    + "widget-tree selection, the six-item Palette and read-only "
-                    + "Properties are enabled; drag-and-drop, property mutation "
-                    + "and Designer commands remain disabled.");
+                    validatedDesignerDetail());
         }
+    }
+
+    private String validatedDesignerStatus() {
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        return candidate != null
+                && candidate.status() == FlutterDesignerMutationController.Status.APPLYING
+                ? candidate.operation() + "..."
+                : "Designer ready.";
+    }
+
+    private String validatedDesignerDetail() {
+        StringBuilder detail = new StringBuilder(
+                "The on-disk imports and build regions, the SHA-256 values recorded in ")
+                .append(modelName)
+                .append(", and the deterministic generated payloads agree. The validated ")
+                .append("CORE_V1 model is published to the isolated native Flutter Canvas. ")
+                .append("Viewport preview and widget-tree selection, the six-item Palette ")
+                .append("and Properties are enabled. Supported properties on Column, Row, ")
+                .append("Padding, Center and Text are writable when exact mutation admission ")
+                .append("is ready; Scaffold properties remain read-only. ")
+                .append("Drag-and-drop and other Designer commands remain disabled.");
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        if (candidate != null
+                && candidate.status() != FlutterDesignerMutationController.Status.READY) {
+            detail.append(' ')
+                    .append(candidate.operation())
+                    .append(" for ")
+                    .append(candidate.target())
+                    .append(": ")
+                    .append(candidate.message());
+        }
+        return detail.toString();
     }
 
     private static String threeWayDiagnosticDetail(
@@ -898,7 +1205,10 @@ public final class FlutterDesignerMultiViewDesign
         widgetTree.getAccessibleContext().setAccessibleName(
                 "Flutter Designer widget tree");
         widgetTree.getAccessibleContext().setAccessibleDescription(
-                "Read-only widget hierarchy for " + modelName + ".");
+                "Selectable widget hierarchy for " + modelName
+                + ". Supported properties on selected Column, Row, Padding, Center and "
+                + "Text widgets are writable when exact mutation admission is ready; "
+                + "Scaffold properties remain read-only.");
         previewModes.getAccessibleContext().setAccessibleName(
                 "Flutter Canvas preview target");
         previewModes.getAccessibleContext().setAccessibleDescription(
@@ -928,6 +1238,11 @@ public final class FlutterDesignerMultiViewDesign
 
     void renderNativeCanvasStatus(FlutterDesignerNativeCanvasStatus state) {
         lastCanvasStatus = Objects.requireNonNull(state, "state");
+        if (state.stage() == FlutterDesignerNativeCanvasStatus.Stage.FAILED) {
+            // A rejected asynchronous present must remain retryable on the
+            // next controller publication, even if its model identity is unchanged.
+            clearPresentedCanvasIdentity();
+        }
         canvasStatusLabel.setText(state.summary());
         canvasStatusLabel.setToolTipText(state.detail());
         canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
@@ -996,6 +1311,51 @@ public final class FlutterDesignerMultiViewDesign
         return scroll;
     }
 
+    private static void showMutationResult(
+            FlutterDesignerMutationController.MutationResult result) {
+        JScrollPane details = createMutationResultDetailsComponent(result);
+        int messageType = result.outcome()
+                == FlutterDesignerMutationController.Outcome.FAILED
+                ? NotifyDescriptor.ERROR_MESSAGE
+                : NotifyDescriptor.WARNING_MESSAGE;
+        NotifyDescriptor descriptor = new NotifyDescriptor.Message(
+                details, messageType);
+        descriptor.setTitle("Flutter Designer Property Change Not Applied");
+        // The caller has already returned to the EDT and fenced this result
+        // against componentClosed().  A second notifyLater() hop would let the
+        // Design view close between the fence and the actual dialog display.
+        DialogDisplayer.getDefault().notify(descriptor);
+    }
+
+    static JScrollPane createMutationResultDetailsComponent(
+            FlutterDesignerMutationController.MutationResult result) {
+        Objects.requireNonNull(result, "result");
+        String text = "Operation: " + result.operation() + "\n"
+                + "Target: " + result.target() + "\n"
+                + "Reason: " + result.reason();
+        JTextArea area = new JTextArea(text, 10, 72);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setCaretPosition(0);
+        area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        area.getAccessibleContext().setAccessibleName(
+                "Flutter Designer property change details");
+        area.getAccessibleContext().setAccessibleDescription(
+                "Read-only selectable text containing the complete operation, target "
+                + "and reason. Use Control+A and Control+C to copy it.");
+
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setPreferredSize(new Dimension(640, 240));
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.getAccessibleContext().setAccessibleName(
+                "Flutter Designer property change result");
+        scroll.getAccessibleContext().setAccessibleDescription(
+                "Scrollable complete result for " + result.operation()
+                + " on " + result.target() + ".");
+        return scroll;
+    }
+
     private static boolean isWindows() {
         return System.getProperty("os.name", "")
                 .toLowerCase(java.util.Locale.ROOT)
@@ -1007,6 +1367,12 @@ public final class FlutterDesignerMultiViewDesign
         return message == null || message.isBlank()
                 ? failure.getClass().getSimpleName()
                 : message;
+    }
+
+    private void clearPresentedCanvasIdentity() {
+        presentedCanvasDocument = null;
+        presentedCanvasCatalog = null;
+        presentedCanvasTarget = null;
     }
 
     private static final class ExplorerPanel extends JPanel

@@ -16,6 +16,58 @@ void main() {
       model.root.slot('body')!.child!.slot('children')!.children,
       hasLength(2),
     );
+    final column = model.root.slot('body')!.child!;
+    expect(column.properties['spacing']!.value, 12.5);
+    expect(
+      (column.properties['crossAxisAlignment']!.value as CanvasEnumValue).value,
+      'baseline',
+    );
+    final text = column
+        .slot('children')!
+        .children
+        .first
+        .slot('child')!
+        .child!
+        .slot('child')!
+        .child!;
+    expect(text.properties['semanticsIdentifier']!.value, 'primary-greeting');
+    expect(text.properties['selectionColor']!.value, 0xff336699);
+  });
+
+  test('rejects baseline alignment without an exact text baseline', () {
+    final json = _modelJson();
+    final properties = _column(json)['properties']! as Map<String, Object?>;
+    properties.remove('textBaseline');
+
+    expect(() => _decode(json), throwsFormatException);
+  });
+
+  test('rejects negative or non-double flex spacing', () {
+    final negative = _modelJson();
+    (_column(negative)['properties']! as Map<String, Object?>)['spacing'] = {
+      'kind': 'double',
+      'value': -0.5,
+    };
+    expect(() => _decode(negative), throwsFormatException);
+
+    final integer = _modelJson();
+    (_column(integer)['properties']! as Map<String, Object?>)['spacing'] = {
+      'kind': 'integer',
+      'value': 1,
+    };
+    expect(() => _decode(integer), throwsFormatException);
+  });
+
+  test('rejects duplicate Text semantics identifiers across the tree', () {
+    final json = _modelJson();
+    final texts = _textNodes(_column(json));
+    final firstProperties = texts[0]['properties']! as Map<String, Object?>;
+    final secondProperties = texts[1]['properties']! as Map<String, Object?>;
+    secondProperties['semanticsIdentifier'] = Map<String, Object?>.from(
+      firstProperties['semanticsIdentifier']! as Map<String, Object?>,
+    );
+
+    expect(() => _decode(json), throwsFormatException);
   });
 
   test('rejects executable or unknown property values', () {
@@ -129,6 +181,32 @@ Map<String, Object?> _modelJson() => {
               'type': 'MainAxisAlignment',
               'value': 'center',
             },
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+            'crossAxisAlignment': {
+              'kind': 'enum',
+              'type': 'CrossAxisAlignment',
+              'value': 'baseline',
+            },
+            'textDirection': {
+              'kind': 'enum',
+              'type': 'TextDirection',
+              'value': 'ltr',
+            },
+            'verticalDirection': {
+              'kind': 'enum',
+              'type': 'VerticalDirection',
+              'value': 'down',
+            },
+            'textBaseline': {
+              'kind': 'enum',
+              'type': 'TextBaseline',
+              'value': 'alphabetic',
+            },
+            'spacing': {'kind': 'double', 'value': 12.5},
           },
           slots: {
             'children': _list([
@@ -164,6 +242,35 @@ Map<String, Object?> _modelJson() => {
                                 'type': 'TextAlign',
                                 'value': 'center',
                               },
+                              'textDirection': {
+                                'kind': 'enum',
+                                'type': 'TextDirection',
+                                'value': 'ltr',
+                              },
+                              'softWrap': {'kind': 'boolean', 'value': false},
+                              'overflow': {
+                                'kind': 'enum',
+                                'type': 'TextOverflow',
+                                'value': 'ellipsis',
+                              },
+                              'maxLines': {'kind': 'integer', 'value': 2},
+                              'semanticsLabel': {
+                                'kind': 'string',
+                                'value': 'Primary greeting',
+                              },
+                              'semanticsIdentifier': {
+                                'kind': 'string',
+                                'value': 'primary-greeting',
+                              },
+                              'textWidthBasis': {
+                                'kind': 'enum',
+                                'type': 'TextWidthBasis',
+                                'value': 'longestLine',
+                              },
+                              'selectionColor': {
+                                'kind': 'color',
+                                'argb': '0xFF336699',
+                              },
                             },
                           ),
                         ),
@@ -175,6 +282,39 @@ Map<String, Object?> _modelJson() => {
               _node(
                 '1035b7df-df9b-442b-9af2-72b4c90f1462',
                 'flutter.widgets.Row',
+                properties: {
+                  'mainAxisAlignment': {
+                    'kind': 'enum',
+                    'type': 'MainAxisAlignment',
+                    'value': 'end',
+                  },
+                  'mainAxisSize': {
+                    'kind': 'enum',
+                    'type': 'MainAxisSize',
+                    'value': 'min',
+                  },
+                  'crossAxisAlignment': {
+                    'kind': 'enum',
+                    'type': 'CrossAxisAlignment',
+                    'value': 'baseline',
+                  },
+                  'textDirection': {
+                    'kind': 'enum',
+                    'type': 'TextDirection',
+                    'value': 'rtl',
+                  },
+                  'verticalDirection': {
+                    'kind': 'enum',
+                    'type': 'VerticalDirection',
+                    'value': 'up',
+                  },
+                  'textBaseline': {
+                    'kind': 'enum',
+                    'type': 'TextBaseline',
+                    'value': 'ideographic',
+                  },
+                  'spacing': {'kind': 'double', 'value': 4.0},
+                },
                 slots: {
                   'children': _list([
                     _node(
@@ -182,6 +322,10 @@ Map<String, Object?> _modelJson() => {
                       'flutter.widgets.Text',
                       properties: {
                         'data': {'kind': 'string', 'value': 'World'},
+                        'semanticsIdentifier': {
+                          'kind': 'string',
+                          'value': 'secondary-greeting',
+                        },
                       },
                     ),
                   ]),
@@ -197,6 +341,10 @@ Map<String, Object?> _modelJson() => {
           'flutter.widgets.Text',
           properties: {
             'data': {'kind': 'string', 'value': 'Action'},
+            'semanticsIdentifier': {
+              'kind': 'string',
+              'value': 'floating-action-label',
+            },
           },
         ),
       ),
@@ -220,3 +368,39 @@ Map<String, Object?> _list(List<Map<String, Object?>> children) => {
   'kind': 'list',
   'children': children,
 };
+
+CanvasModel _decode(Map<String, Object?> json) =>
+    CanvasModel.decode(Uint8List.fromList(utf8.encode(jsonEncode(json))));
+
+Map<String, Object?> _column(Map<String, Object?> json) {
+  final root = json['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  return body['child']! as Map<String, Object?>;
+}
+
+List<Map<String, Object?>> _textNodes(Map<String, Object?> node) {
+  final result = <Map<String, Object?>>[];
+  void visit(Map<String, Object?> current) {
+    if (current['type'] == 'flutter.widgets.Text') {
+      result.add(current);
+    }
+    final slots = current['slots']! as Map<String, Object?>;
+    for (final rawSlot in slots.values) {
+      final slot = rawSlot! as Map<String, Object?>;
+      if (slot['kind'] == 'single') {
+        final child = slot['child'];
+        if (child is Map<String, Object?>) {
+          visit(child);
+        }
+      } else {
+        for (final child in slot['children']! as List<Object?>) {
+          visit(child! as Map<String, Object?>);
+        }
+      }
+    }
+  }
+
+  visit(node);
+  return result;
+}

@@ -217,6 +217,10 @@ class _CanvasNodeView extends StatelessWidget {
     mainAxisAlignment: _mainAxisAlignment(),
     mainAxisSize: _mainAxisSize(),
     crossAxisAlignment: _crossAxisAlignment(),
+    textDirection: _textDirection(),
+    verticalDirection: _verticalDirection(),
+    textBaseline: _textBaseline(),
+    spacing: _number('spacing') ?? 0.0,
     children: _children('children'),
   );
 
@@ -224,6 +228,10 @@ class _CanvasNodeView extends StatelessWidget {
     mainAxisAlignment: _mainAxisAlignment(),
     mainAxisSize: _mainAxisSize(),
     crossAxisAlignment: _crossAxisAlignment(),
+    textDirection: _textDirection(),
+    verticalDirection: _verticalDirection(),
+    textBaseline: _textBaseline(),
+    spacing: _number('spacing') ?? 0.0,
     children: _children('children'),
   );
 
@@ -247,9 +255,14 @@ class _CanvasNodeView extends StatelessWidget {
   Widget _text() => Text(
     _string('data') ?? 'Text',
     textAlign: _textAlign(),
+    textDirection: _textDirection(),
     softWrap: _boolean('softWrap'),
-    maxLines: _integer('maxLines'),
     overflow: _textOverflow(),
+    maxLines: _integer('maxLines'),
+    semanticsLabel: _string('semanticsLabel'),
+    semanticsIdentifier: _string('semanticsIdentifier'),
+    textWidthBasis: _textWidthBasis(),
+    selectionColor: _color('selectionColor'),
   );
 
   Widget? _single(String name) {
@@ -318,8 +331,25 @@ class _CanvasNodeView extends StatelessWidget {
         'start' => CrossAxisAlignment.start,
         'end' => CrossAxisAlignment.end,
         'stretch' => CrossAxisAlignment.stretch,
+        'baseline' => CrossAxisAlignment.baseline,
         _ => CrossAxisAlignment.center,
       };
+
+  TextDirection? _textDirection() => switch (_enum('textDirection')) {
+    'rtl' => TextDirection.rtl,
+    'ltr' => TextDirection.ltr,
+    _ => null,
+  };
+
+  VerticalDirection _verticalDirection() => _enum('verticalDirection') == 'up'
+      ? VerticalDirection.up
+      : VerticalDirection.down;
+
+  TextBaseline? _textBaseline() => switch (_enum('textBaseline')) {
+    'alphabetic' => TextBaseline.alphabetic,
+    'ideographic' => TextBaseline.ideographic,
+    _ => null,
+  };
 
   TextAlign? _textAlign() => switch (_enum('textAlign')) {
     'start' => TextAlign.start,
@@ -336,6 +366,12 @@ class _CanvasNodeView extends StatelessWidget {
     'fade' => TextOverflow.fade,
     'ellipsis' => TextOverflow.ellipsis,
     'visible' => TextOverflow.visible,
+    _ => null,
+  };
+
+  TextWidthBasis? _textWidthBasis() => switch (_enum('textWidthBasis')) {
+    'parent' => TextWidthBasis.parent,
+    'longestLine' => TextWidthBasis.longestLine,
     _ => null,
   };
 }

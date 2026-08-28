@@ -99,7 +99,8 @@ class DesignerCommandSessionOrchestratorTest {
                 }));
         int afterNativeEdit = changes.get();
 
-        assertFalse(DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED);
+        assertTrue(DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED,
+                "the verified Text.data Properties slice must be publicly enabled");
         try (DesignerCommandSessionOrchestrator orchestrator =
                 new DesignerCommandSessionOrchestrator(initial, combined)) {
             assertTrue(combined.designerSessionActive());
@@ -432,6 +433,67 @@ class DesignerCommandSessionOrchestratorTest {
         assertFalse(orchestrator.dirty());
         assertThrows(IllegalStateException.class,
                 orchestrator::currentRevision);
+    }
+
+    @Test
+    void closeAwareDurableAdoptionCommitsExactSavedSessionBeforePublication()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(
+                new UndoRedo.Manager());
+        DesignerCommandSessionOrchestrator orchestrator =
+                new DesignerCommandSessionOrchestrator(session(), combined);
+        applyAndAdopt(orchestrator, new SetProperty(
+                ROOT_ID, DATA, new PropertyValue.StringValue("after")));
+        DesignerCommandRevision dirty = orchestrator.currentRevision();
+        DesignerCommandSessionOrchestrator.DurableSaveLease lease =
+                orchestrator.beginDurableSave();
+        DesignerCommandRevision saved = lease.reanchoredRevision(
+                lease.savedRevisionId());
+        var savedSessionField = DesignerCommandSessionOrchestrator
+                .DurableSaveLease.class.getDeclaredField("precomputedSaved");
+        savedSessionField.setAccessible(true);
+        DesignerCommandSession exactSavedSession =
+                (DesignerCommandSession) savedSessionField.get(lease);
+        var currentSessionField = DesignerCommandSessionOrchestrator.class
+                .getDeclaredField("session");
+        currentSessionField.setAccessible(true);
+        AtomicInteger peerCommits = new AtomicInteger();
+
+        orchestrator.close();
+        assertTrue(combined.designerSessionActive(),
+                "the durable lease must defer binding close until adoption");
+
+        var effects = lease.adoptCommittedCloseAwareDeferredEffects(
+                closePending -> {
+                    assertTrue(closePending,
+                            "the peer commit must see the requested owner close");
+                    assertSame(dirty, orchestrator.currentRevision(),
+                            "the peer commit must run before the saved-session swap");
+                    peerCommits.incrementAndGet();
+                });
+
+        assertEquals(1, peerCommits.get());
+        assertFalse(lease.ownsExactActiveRevision());
+        assertSame(exactSavedSession, currentSessionField.get(orchestrator),
+                "adoption must install the lease's exact precomputed saved session");
+        assertSame(saved, exactSavedSession.current());
+        assertFalse(exactSavedSession.dirty());
+        assertThrows(IllegalStateException.class,
+                orchestrator::currentRevision,
+                "adoption must finish the requested logical close");
+        assertTrue(combined.designerSessionActive(),
+                "binding close is an outward effect and must await publication");
+
+        lease.adoptCommittedCloseAwareDeferredEffects(
+                closePending -> peerCommits.incrementAndGet()).publish();
+        assertEquals(1, peerCommits.get(),
+                "an adopted durable lease must not repeat the peer commit");
+        assertTrue(combined.designerSessionActive());
+
+        effects.publish();
+        assertFalse(combined.designerSessionActive());
+        effects.publish();
+        assertFalse(combined.designerSessionActive());
     }
 
     @Test
@@ -836,6 +898,71 @@ class DesignerCommandSessionOrchestratorTest {
                     <= atC1.limits().maxHistoryEdits() + 1);
             continuationLease.abort();
             assertSame(candidate, orchestrator.currentRevision());
+        }
+    }
+
+    @Test
+    void physicalEndpointCommandMayReturnToExactDirtyBaseline()
+            throws Exception {
+        DesignerCommandSession initial = session();
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(
+                new UndoRedo.Manager());
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                new DesignerCommandSessionOrchestrator(initial, combined)) {
+            applyAndAdopt(orchestrator, new SetProperty(
+                    ROOT_ID, DATA, new PropertyValue.StringValue("C1")));
+            DesignerCommandRevision exactC1 = orchestrator.currentRevision();
+            PreparedDesignerPair physicalC1 = exactC1
+                    .preparedPair().orElseThrow();
+
+            var attempt = orchestrator.beginCommandFromPhysicalEndpoint(
+                    exactC1,
+                    new SetProperty(
+                            ROOT_ID,
+                            DATA,
+                            new PropertyValue.StringValue("before")),
+                    physicalC1);
+            var lease = attempt.lease().orElseThrow();
+            DesignerCommandRevision baseline = lease.candidateRevision();
+
+            assertEquals(DesignerCommandStatus.APPLIED,
+                    attempt.result().status());
+            assertSame(exactC1, orchestrator.currentRevision(),
+                    "physical admission must pin C1 until joint adoption");
+            assertSame(exactC1, lease.predecessorRevision());
+            assertSame(physicalC1,
+                    lease.physicalPredecessorPairIdentity().orElseThrow());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    baseline.persistenceKind());
+            assertTrue(baseline.preparedPair().isEmpty());
+            assertTrue(baseline.sourceTransition().isEmpty());
+            assertSame(physicalC1.baselineFd(), baseline.fdSnapshot());
+            assertEquals(physicalC1.baselineDocument(),
+                    baseline.document());
+            assertArrayEquals(physicalC1.liveDartBytes(),
+                    baseline.dartCandidateBytes());
+            assertTrue(lease.ownsExactActiveTransition());
+
+            Object claim = new Object();
+            AtomicInteger peerCommits = new AtomicInteger();
+            lease.claimForTransition(claim);
+            var effects = lease.adoptExactTargetCloseAwareDeferredEffects(
+                    baseline,
+                    closePending -> {
+                        assertFalse(closePending);
+                        assertSame(exactC1, orchestrator.currentRevision());
+                        peerCommits.incrementAndGet();
+                    },
+                    claim);
+
+            assertEquals(1, peerCommits.get());
+            assertSame(baseline, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty(),
+                    "an explicit new baseline revision stays dirty until Save");
+            assertTrue(orchestrator.canUndo());
+            assertFalse(orchestrator.canRedo());
+            assertFalse(lease.ownsExactActiveTransition());
+            effects.publish();
         }
     }
 

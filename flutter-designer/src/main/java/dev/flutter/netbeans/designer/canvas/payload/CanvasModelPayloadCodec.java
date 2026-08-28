@@ -42,11 +42,19 @@ public final class CanvasModelPayloadCodec {
             "flutter.widgets.Column", Map.of(
                     "mainAxisAlignment", Set.of(PropertyValueKind.ENUM),
                     "mainAxisSize", Set.of(PropertyValueKind.ENUM),
-                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM)),
+                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM),
+                    "textDirection", Set.of(PropertyValueKind.ENUM),
+                    "verticalDirection", Set.of(PropertyValueKind.ENUM),
+                    "textBaseline", Set.of(PropertyValueKind.ENUM),
+                    "spacing", Set.of(PropertyValueKind.DOUBLE)),
             "flutter.widgets.Row", Map.of(
                     "mainAxisAlignment", Set.of(PropertyValueKind.ENUM),
                     "mainAxisSize", Set.of(PropertyValueKind.ENUM),
-                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM)),
+                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM),
+                    "textDirection", Set.of(PropertyValueKind.ENUM),
+                    "verticalDirection", Set.of(PropertyValueKind.ENUM),
+                    "textBaseline", Set.of(PropertyValueKind.ENUM),
+                    "spacing", Set.of(PropertyValueKind.DOUBLE)),
             "flutter.widgets.Padding", Map.of(
                     "padding", Set.of(PropertyValueKind.EDGE_INSETS)),
             "flutter.widgets.Center", Map.of(
@@ -55,9 +63,14 @@ public final class CanvasModelPayloadCodec {
             "flutter.widgets.Text", Map.of(
                     "data", Set.of(PropertyValueKind.STRING),
                     "textAlign", Set.of(PropertyValueKind.ENUM),
+                    "textDirection", Set.of(PropertyValueKind.ENUM),
                     "softWrap", Set.of(PropertyValueKind.BOOLEAN),
                     "maxLines", Set.of(PropertyValueKind.INTEGER),
-                    "overflow", Set.of(PropertyValueKind.ENUM)));
+                    "overflow", Set.of(PropertyValueKind.ENUM),
+                    "semanticsLabel", Set.of(PropertyValueKind.STRING),
+                    "semanticsIdentifier", Set.of(PropertyValueKind.STRING),
+                    "textWidthBasis", Set.of(PropertyValueKind.ENUM),
+                    "selectionColor", Set.of(PropertyValueKind.COLOR)));
     private static final Map<String, Set<String>> SLOTS = Map.of(
             "flutter.material.Scaffold", Set.of("appBar", "body", "floatingActionButton"),
             "flutter.widgets.Column", Set.of("children"),

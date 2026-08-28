@@ -35,6 +35,8 @@ public final class WidgetTreeValidator {
     public static final String UNKNOWN_PROPERTY = "designer.property.unknown";
     public static final String PROPERTY_KIND = "designer.property.kind";
     public static final String PROPERTY_CONSTRAINT = "designer.property.constraint";
+    public static final String PROPERTY_DEPENDENCY = "designer.property.dependency";
+    public static final String PROPERTY_UNIQUENESS = "designer.property.uniqueness";
     public static final String MISSING_SLOT = "designer.slot.missing";
     public static final String UNKNOWN_SLOT = "designer.slot.unknown";
     public static final String SLOT_KIND = "designer.slot.kind";
@@ -70,6 +72,7 @@ public final class WidgetTreeValidator {
 
         IssueCollector issues = new IssueCollector(limits.maxIssues());
         Map<StableId, String> firstIdPaths = new HashMap<>();
+        Map<String, String> firstSemanticsIdentifierPaths = new HashMap<>();
         Deque<NodeFrame> pending = new ArrayDeque<>();
         TraversalFrontier frontier = new TraversalFrontier(limits.maxNodes());
         pending.push(new NodeFrame(document.root(), ROOT_PATH, 1, null));
@@ -122,7 +125,12 @@ public final class WidgetTreeValidator {
                 break;
             }
 
-            validateProperties(node, definition.orElse(null), frame.path(), issues);
+            validateProperties(
+                    node,
+                    definition.orElse(null),
+                    frame.path(),
+                    firstSemanticsIdentifierPaths,
+                    issues);
             List<NodeFrame> children = validateSlotsAndCollectChildren(
                     node,
                     definition.orElse(null),
@@ -208,6 +216,7 @@ public final class WidgetTreeValidator {
             WidgetNode node,
             WidgetDefinition definition,
             String nodePath,
+            Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String propertiesPath = nodePath + "/properties";
         if (node.properties().size() > limits.maxPropertiesPerWidget()) {
@@ -267,6 +276,54 @@ public final class WidgetTreeValidator {
             if (issues.truncated()) {
                 return;
             }
+        }
+        if (!issues.truncated()) {
+            validateBuiltInPropertyRelationships(
+                    node,
+                    propertiesPath,
+                    firstSemanticsIdentifierPaths,
+                    issues);
+        }
+    }
+
+    private static void validateBuiltInPropertyRelationships(
+            WidgetNode node,
+            String propertiesPath,
+            Map<String, String> firstSemanticsIdentifierPaths,
+            IssueCollector issues) {
+        String type = node.type().value();
+        if (type.equals("flutter.widgets.Column") || type.equals("flutter.widgets.Row")) {
+            PropertyValue crossAxisAlignment = node.properties().get(
+                    new PropertyName("crossAxisAlignment"));
+            if (crossAxisAlignment instanceof PropertyValue.EnumValue alignment
+                    && alignment.type().equals("CrossAxisAlignment")
+                    && alignment.value().equals("baseline")
+                    && !node.properties().containsKey(new PropertyName("textBaseline"))) {
+                issues.add(issue(
+                        PROPERTY_DEPENDENCY,
+                        propertiesPath + "/textBaseline",
+                        node.id(),
+                        "Property 'textBaseline' is required when 'crossAxisAlignment' is "
+                        + "CrossAxisAlignment.baseline on widget '" + type + "'."));
+            }
+        }
+
+        if (!type.equals("flutter.widgets.Text")) {
+            return;
+        }
+        PropertyValue value = node.properties().get(new PropertyName("semanticsIdentifier"));
+        if (!(value instanceof PropertyValue.StringValue identifier)) {
+            return;
+        }
+        String propertyPath = propertiesPath + "/semanticsIdentifier";
+        String firstPath = firstSemanticsIdentifierPaths.putIfAbsent(identifier.value(), propertyPath);
+        if (firstPath != null) {
+            issues.add(issue(
+                    PROPERTY_UNIQUENESS,
+                    propertyPath,
+                    node.id(),
+                    "Text semanticsIdentifier '" + identifier.value() + "' at '" + propertyPath
+                    + "' duplicates the identifier first declared at '" + firstPath + "'."));
         }
     }
 

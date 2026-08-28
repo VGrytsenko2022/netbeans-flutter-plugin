@@ -32,15 +32,18 @@ the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
 responsive render profiles and the bounded canonical six-widget `CORE_V1`
-read-only model projection. It deliberately has no dependency on NetBeans APIs
+model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
 The NetBeans adapter lives in `netbeans-plugin`. On Windows it now exposes the
-read-only Design/status surface, Explorer widget tree, exact viewport/adaptive-
+Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
-the tree and Flutter surface. A later writable slice will project commands into
-the Palette and editable Properties. ADR-021 explicitly forbids implementing
+the tree and Flutter surface. The standard Properties window now exposes a
+bounded typed read/write slice for `Column`, `Row`, `Padding`, `Center` and
+`Text`; `Scaffold` remains read-only and is deliberately reserved for a
+separate task. The Palette is still non-mutating and its DnD bridge remains
+future work. ADR-021 explicitly forbids implementing
 the Canvas as Swing-painted widgets or a transferred PNG/JPEG/raw-pixel surface.
 A planned platform SPI will generalize the Windows host to Linux and macOS; the
 current provider keeps the Flutter engine/view in an isolated child runner.
@@ -76,7 +79,37 @@ It receives no project paths, Dart source, file handles or
 file/Save/Undo/Redo authority; Java remains the only command-admission and
 persistence owner. The Java → Flutter hit-test → revision-bound DnD bridge is
 not implemented.
-`PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+
+### Current typed Properties slice
+
+Property rows and editors are derived from the same immutable widget catalog
+used for validation and Dart generation. One accepted edit emits exactly one
+revision-bound `SetProperty` command; NetBeans' native **Restore Default** emits
+`ResetProperty` for optional constructor arguments. The handler is one-shot and
+the resulting candidate follows the existing analyzed pair-save/Undo lifecycle.
+Required arguments, including `Text.data` and `Padding.padding`, cannot be
+reset to omission.
+
+| Widget | Writable properties | Flutter API |
+| --- | --- | --- |
+| `Column` | `mainAxisAlignment`, `mainAxisSize`, `crossAxisAlignment`, `textDirection`, `verticalDirection`, `textBaseline`, `spacing` | [Column](https://api.flutter.dev/flutter/widgets/Column/Column.html) |
+| `Row` | `mainAxisAlignment`, `mainAxisSize`, `crossAxisAlignment`, `textDirection`, `verticalDirection`, `textBaseline`, `spacing` | [Row](https://api.flutter.dev/flutter/widgets/Row/Row.html) |
+| `Padding` | `padding` | [Padding](https://api.flutter.dev/flutter/widgets/Padding/Padding.html) |
+| `Center` | `widthFactor`, `heightFactor` | [Center](https://api.flutter.dev/flutter/widgets/Center/Center.html) |
+| `Text` | `data`, `textAlign`, `textDirection`, `softWrap`, `overflow`, `maxLines`, `semanticsLabel`, `semanticsIdentifier`, `textWidthBasis`, `selectionColor` | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html) |
+
+This is 27 catalog-backed properties across the five non-`Scaffold` widgets.
+Editors cover strings, booleans, bounded integers/doubles, reviewed enums,
+physical non-negative edge insets and ARGB colors. Cross-property validation
+also requires `textBaseline` when flex alignment is `baseline`, and
+`Text.semanticsIdentifier` remains unique in one designer tree.
+
+Complex constructor values are intentionally not flattened into lossy text
+fields: `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
+`TextHeightBehavior` and directional edge insets need dedicated model types,
+editors, generator support and native-preview parity. They are not part of this
+slice. `Scaffold` Properties, Palette insertion/DnD, the separately compiled
+Web Canvas backend and Linux/macOS native-surface providers remain pending.
 
 Important version 1 semantics:
 
@@ -274,17 +307,19 @@ accounting runs before analyzer or document mutation. Adoption preserves
 durable C2/S2, replaces the obsolete redo suffix with the exact
 `B/S0→C1/S0→C3/S0` branch, and carries S0 into the following ordinary command.
 
-These paths are not connected to writable UI. Pre-persistence loss of exact
+These command and pair-save paths now serve the bounded typed Properties UI;
+Palette insertion/DnD and the remaining Designer mutation surfaces are still
+disconnected. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
 Windows native read-only `FlutterView`, six-widget projection, responsive
 profiles, stable-ID tree selection, exact six-item context Palette and
-selected-node read-only Properties are implemented. Editable Properties, the
-runner/DnD mutation bridge, cross-platform providers and the
-pair-aware writable workflow, property and callback contracts remain
-outstanding;
-`PUBLIC_MUTATION_UI_ENABLED` stays `false`.
+selected-node typed Properties are implemented. Properties are writable only
+for the 27 catalog-backed fields of `Column`, `Row`, `Padding`, `Center` and
+`Text`; `Scaffold` stays read-only. The runner/DnD mutation bridge, Web Canvas
+backend, cross-platform providers and the broader property/callback contracts
+remain outstanding.
 
 The `.fd` document codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
 duplicates and trailing content, and keeps the exact bounded input snapshot.

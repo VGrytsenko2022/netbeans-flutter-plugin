@@ -166,8 +166,9 @@ accepted architecture is documented in
   revokes only unprovable Designer authority while retaining native Source
   history. The assembled NetBeans 30 runtime, strict NBM verifier and isolated
   install/activation/reopen/disable/uninstall smoke now pass without critical
-  errors or plugin-owned ordering warnings. Public mutation remains disabled
-  until the visual-surface contracts below are agreed and implemented.
+  errors or plugin-owned ordering warnings. This checkpoint supplied the
+  command/pair-save release boundary later consumed by the bounded typed
+  Properties slice; it did not authorize Palette insertion or DnD.
   - [x] Emit and validate the exact 1:1 generator-owned managed-region Flutter
     occurrence manifest, including strict candidate UTF-16 mapping and exact
     analyzer probe-set equality.
@@ -258,7 +259,8 @@ accepted architecture is documented in
   Properties around a real embedded native `FlutterView`, never a Swing
   PNG/pixel-transfer surface. Target a Windows native child surface first,
   retain a Windows/Linux/macOS platform SPI, and isolate the runner wherever
-  child-surface hosting is feasible. Public mutation remains disabled.
+  child-surface hosting is feasible. Mutation is admitted only through the
+  explicit bounded host-side slices listed below.
 - [x] Establish the pure bounded Canvas lifecycle and version 1 transport
   foundation.
   - [x] Add host-issued session/presentation/frame/layout identities, exact
@@ -322,16 +324,24 @@ accepted architecture is documented in
   read-only Explorer/Nodes widget tree, publishing the selected Node through the
   standard lookup without enabling document mutation.
 - [x] Publish a context-sensitive standard NetBeans Palette for the exact six
-  `CORE_V1` definitions and selected-node standard read-only Properties.
-- [ ] Implement editable Properties integration plus the DnD bridge:
-  Java drag → Flutter hit test → revision/layout-bound semantic intent → Java
-  validation. Keep all mutation admission behind
-  `PUBLIC_MUTATION_UI_ENABLED=false`.
+  `CORE_V1` definitions and selected-node standard Properties baseline.
+- [x] Enable catalog-driven typed read/write Properties for the 27 currently
+  reviewed constructor properties of `Column`, `Row`, `Padding`, `Center` and
+  `Text`. Emit revision-bound one-shot `SetProperty`/`ResetProperty` commands,
+  use native Restore Default for optional values, and route every admitted edit
+  through the existing pair-save/Undo lifecycle. Keep `Scaffold` read-only for
+  its separate property-design task.
+- [ ] Implement the DnD bridge: Java drag → Flutter hit test →
+  revision/layout-bound semantic intent → Java validation. Palette insertion
+  remains non-mutating until this bridge passes its lifecycle and stale-intent
+  gates.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
-- [ ] Enable the first public writable ten-widget slice only after those gates
-  pass.
+- [ ] Enable the broader public writable ten-widget slice only after those
+  gates pass. The current five-widget typed Properties slice does not imply
+  insertion support or writable `Scaffold`/`AppBar`/`Icon`/`SizedBox`/
+  `ElevatedButton` Properties.
 
 ## M5 — bidirectional RAD (later milestone)
 

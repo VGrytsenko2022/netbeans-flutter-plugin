@@ -1072,6 +1072,333 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
+    void sourceSaveAfterSavedDuplicateBaselineRetainsBothSemanticEdgesAndNativeChronology()
+            throws Exception {
+        StagedPair staged = stageRealPair(
+                "saved_duplicate_baseline_source_overlay");
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                staged.orchestrator()) {
+            TestPair pair = staged.pair();
+            PairSaveCoordinator coordinator = pair.coordinator();
+            FlutterDesignerEditorSupport editor =
+                    pair.dataObject().getEditorSupport();
+            FlutterDesignerDocumentController controller =
+                    pair.dataObject().getDocumentController();
+            DesignerCombinedUndoRedo combined =
+                    pair.dataObject().getCombinedUndoRedo();
+            StyledDocument document = editor.getDocument();
+            assertNotNull(document);
+
+            long c0RevisionId = adjacentUndoTargetId(orchestrator);
+            DesignerCommandRevision c1 = orchestrator.currentRevision();
+            long c1RevisionId = c1.revisionId();
+            SaveCookie stableCookie = pair.dataObject()
+                    .getCookie(SaveCookie.class);
+            assertNotNull(stableCookie);
+
+            PairSaveCoordinator.StagedCommandSource c1Source =
+                    coordinator.captureStagedCommandSource();
+            var returnAttempt = c1Source.beginCommand(
+                    setDataProperty("before"));
+            var pendingC2 = returnAttempt.lease().orElseThrow();
+            DesignerCommandRevision dirtyC2 = pendingC2.candidateRevision();
+            long c2RevisionId = dirtyC2.revisionId();
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    dirtyC2.persistenceKind());
+            assertNotEquals(c0RevisionId, c2RevisionId,
+                    "returning to equal durable bytes must allocate a distinct semantic revision");
+            assertEquals(staged.current().decoded().document(),
+                    dirtyC2.document());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    dirtyC2.dartCandidateBytes());
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    dirtyC2.fdBytes());
+
+            try (pendingC2;
+                    PairSaveCoordinator.PairReplacement replacement =
+                            coordinator.beginStagedReplacement(
+                                    c1Source, pendingC2)) {
+                replacement.replaceWithExactBaseline();
+            }
+
+            assertSame(dirtyC2, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty(),
+                    "the duplicate BASELINE revision is semantic-dirty until Save");
+            assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                    coordinator.state().status());
+            assertNull(coordinator.stagedEvidence());
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount(),
+                    "C0-to-C1 and C1-to-C2 must both be retained before Save");
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    editor.liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+            assertSame(stableCookie,
+                    pair.dataObject().getCookie(SaveCookie.class));
+
+            stableCookie.save();
+
+            DesignerCommandRevision savedC2 = orchestrator.currentRevision();
+            assertNotSame(dirtyC2, savedC2,
+                    "semantic BASELINE Save must re-anchor every retained revision identity");
+            assertEquals(c2RevisionId, savedC2.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    savedC2.persistenceKind());
+            assertFalse(orchestrator.dirty());
+            assertFalse(editor.sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    coordinator.state().status());
+            assertNull(coordinator.stagedEvidence());
+            assertNull(coordinator.stagedProofSnapshot());
+            assertNull(pair.dataObject().getCookie(SaveCookie.class));
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount(),
+                    "saving duplicate C2 must not collapse either stable-id semantic edge");
+            FlutterDesignerDocumentState controllerState = controller.state();
+            assertTrue(controllerState
+                    instanceof FlutterDesignerDocumentState.Current);
+            FlutterDesignerDocumentState.Current savedC2Current =
+                    (FlutterDesignerDocumentState.Current) controllerState;
+            assertNotSame(staged.current(), savedC2Current);
+
+            String sourceEdit =
+                    "// saved unmanaged Source S3 above duplicate C2\n";
+            document.insertString(document.getLength(), sourceEdit, null);
+            byte[] sourceS3 = editor.liveSnapshot().markerBearingUtf8();
+            SaveCookie sourceCookie = pair.dataObject()
+                    .getCookie(SaveCookie.class);
+            assertSame(stableCookie, sourceCookie,
+                    "pair and Source saves must share the one stable SaveCookie");
+
+            sourceCookie.save();
+
+            FlutterDesignerDocumentState.Current sourceCurrent =
+                    awaitCurrentWithPair(
+                            controller,
+                            staged.prepared().baselineFdBytes(),
+                            sourceS3);
+            assertNotSame(savedC2Current, sourceCurrent,
+                    "Source Save must adopt the exact newer Dart anchor");
+            DesignerCommandRevision savedSourceC2 =
+                    orchestrator.currentRevision();
+            assertEquals(c2RevisionId, savedSourceC2.revisionId(),
+                    "Source Save must preserve duplicate C2's stable revision id");
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    savedSourceC2.persistenceKind());
+            assertArrayEquals(sourceS3,
+                    savedSourceC2.dartCandidateBytes());
+            assertFalse(orchestrator.dirty());
+            assertFalse(editor.sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    coordinator.state().status());
+            assertNull(pair.dataObject().getCookie(SaveCookie.class));
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount(),
+                    "Source re-anchor must retain both duplicate-baseline semantic edges");
+            String sourceUndoPresentation =
+                    combined.getUndoPresentationName();
+            assertNotEquals("Undo Set Flutter Property",
+                    sourceUndoPresentation,
+                    "the saved unmanaged Source edit must precede semantic Undo");
+            assertArrayEquals(sourceS3, Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+                return null;
+            });
+
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    editor.liveSnapshot().markerBearingUtf8(),
+                    "the first Undo must remove only the saved unmanaged Source edit");
+            assertSame(savedSourceC2, orchestrator.currentRevision(),
+                    "native Source Undo must not move the semantic C2 cursor");
+            assertFalse(orchestrator.dirty());
+            assertTrue(editor.sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                    coordinator.state().status());
+            assertSame(sourceCookie,
+                    pair.dataObject().getCookie(SaveCookie.class));
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount());
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+
+            DesignerCommandRevision historicalC1 =
+                    orchestrator.currentRevision();
+            assertEquals(c1RevisionId, historicalC1.revisionId(),
+                    "the second Undo must traverse C2-to-C1, not skip a duplicate baseline edge");
+            assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                    historicalC1.persistenceKind());
+            assertTrue(orchestrator.dirty());
+            assertArrayEquals(staged.evidence().candidateDartBytes(),
+                    editor.liveSnapshot().markerBearingUtf8());
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    coordinator.state().status());
+            assertNotNull(coordinator.stagedProofSnapshot());
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount());
+            assertArrayEquals(sourceS3, Files.readAllBytes(pair.dartPath()),
+                    "semantic Undo must not rewrite the durable Source anchor");
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+
+            DesignerCommandRevision historicalC0 =
+                    orchestrator.currentRevision();
+            assertEquals(c0RevisionId, historicalC0.revisionId(),
+                    "the third Undo must retain and reach the original C0 stable id");
+            assertNotEquals(c2RevisionId, historicalC0.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    historicalC0.persistenceKind(),
+                    "equal C0 and C2 documents must remain distinct re-anchored BASELINE revisions");
+            assertEquals(savedSourceC2.document(), historicalC0.document());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    editor.liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    historicalC0.fdBytes());
+            assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                    coordinator.state().status());
+            assertNull(coordinator.stagedProofSnapshot(),
+                    "a historical BASELINE below the newer Source savepoint is not a staged pair");
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount(),
+                    "both semantic edges must remain replayable after Source Save");
+            assertSame(sourceCookie,
+                    pair.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(sourceS3, Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+        }
+    }
+
+    @Test
+    void saveFromHistoricalBaselineOverlayCommitsExactOldBytesAndRetainsGraph()
+            throws Exception {
+        HistoricalBaselineOverlayFixture fixture =
+                historicalBaselineOverlayFixture(
+                        "historical_baseline_overlay_save");
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                fixture.orchestrator()) {
+            fixture.stableCookie().save();
+
+            FlutterDesignerDocumentState.Current savedCurrent =
+                    awaitCurrentWithPair(
+                            fixture.controller(),
+                            fixture.baselineFd(),
+                            fixture.historicalDart());
+            DesignerCommandRevision savedC0 = orchestrator.currentRevision();
+            assertNotSame(fixture.historicalC0(), savedC0,
+                    "saving the historical overlay must install the durable re-anchored revision graph");
+            assertEquals(fixture.c0RevisionId(), savedC0.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    savedC0.persistenceKind());
+            assertArrayEquals(fixture.historicalDart(),
+                    savedC0.dartCandidateBytes());
+            assertArrayEquals(fixture.baselineFd(), savedC0.fdBytes());
+            assertFalse(orchestrator.dirty());
+            assertFalse(fixture.editor().sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.pair().coordinator().state().status());
+            assertNull(fixture.pair().coordinator().stagedProofSnapshot());
+            assertNull(fixture.pair().dataObject().getCookie(SaveCookie.class));
+            assertEquals(2,
+                    fixture.pair().coordinator().unsavedPairHistoryEdgeCount(),
+                    "saving historical C0 must retain both stable semantic edges");
+            assertSame(savedCurrent, fixture.controller().state());
+            assertArrayEquals(fixture.historicalDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.historicalDart(),
+                    Files.readAllBytes(fixture.pair().dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.pair().designerPath()));
+
+            replayPairHistory(
+                    fixture.pair(),
+                    DesignerSemanticUndoableEdit.Direction.REDO);
+
+            DesignerCommandRevision redoneC1 = orchestrator.currentRevision();
+            assertEquals(fixture.c1RevisionId(), redoneC1.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                    redoneC1.persistenceKind());
+            assertNotNull(fixture.pair().coordinator().stagedProofSnapshot(),
+                    "the first retained edge must rebind C1 against saved C0");
+            assertEquals(2,
+                    fixture.pair().coordinator().unsavedPairHistoryEdgeCount());
+            assertArrayEquals(fixture.historicalDart(),
+                    Files.readAllBytes(fixture.pair().dartPath()),
+                    "semantic Redo must not rewrite the newly saved C0 pair");
+
+            replayPairHistory(
+                    fixture.pair(),
+                    DesignerSemanticUndoableEdit.Direction.REDO);
+
+            DesignerCommandRevision redoneC2 = orchestrator.currentRevision();
+            assertEquals(fixture.c2RevisionId(), redoneC2.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    redoneC2.persistenceKind());
+            assertTrue(orchestrator.dirty(),
+                    "C2 is a distinct duplicate-baseline revision above saved C0");
+            assertArrayEquals(fixture.historicalDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertNull(fixture.pair().coordinator().stagedProofSnapshot());
+            assertEquals(2,
+                    fixture.pair().coordinator().unsavedPairHistoryEdgeCount(),
+                    "both re-anchored edges must remain replayable after Save");
+            assertArrayEquals(fixture.historicalDart(),
+                    Files.readAllBytes(fixture.pair().dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.pair().designerPath()));
+        }
+    }
+
+    @Test
+    void historicalBaselineOverlayOwnsPropertiesAuthorityButArbitrarySourceDoesNot()
+            throws Exception {
+        HistoricalBaselineOverlayFixture fixture =
+                historicalBaselineOverlayFixture(
+                        "historical_baseline_overlay_properties_authority");
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                fixture.orchestrator()) {
+            PairSaveCoordinator coordinator = fixture.pair().coordinator();
+            DesignerCommandRevision historicalC0 =
+                    orchestrator.currentRevision();
+            long exactEpoch = coordinator.state().epoch();
+
+            assertSame(fixture.historicalC0(), historicalC0);
+            assertTrue(coordinator.ownsExactSemanticBaselineRevision(
+                    exactEpoch, orchestrator, historicalC0),
+                    "the exact historical Source-overlay BASELINE is Designer-owned Properties authority");
+            assertFalse(coordinator.ownsExactSemanticBaselineRevision(
+                    exactEpoch + 1, orchestrator, historicalC0),
+                    "Properties authority must remain epoch-bound");
+
+            StyledDocument document = fixture.editor().getDocument();
+            assertNotNull(document);
+            document.insertString(document.getLength(),
+                    "// arbitrary dirty Source above historical C0\n", null);
+            LiveDartDocumentSnapshot arbitraryLive =
+                    fixture.editor().liveSnapshot();
+
+            assertFalse(Arrays.equals(
+                    fixture.historicalDart(),
+                    arbitraryLive.markerBearingUtf8()));
+            assertTrue(fixture.editor().sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                    coordinator.state().status());
+            assertFalse(coordinator.ownsExactSemanticBaselineRevision(
+                    coordinator.state().epoch(), orchestrator, historicalC0),
+                    "an arbitrary dirty Source edit must not inherit the historical Designer authority");
+            assertSame(fixture.stableCookie(),
+                    fixture.pair().dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(fixture.durableSourceDart(),
+                    Files.readAllBytes(fixture.pair().dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.pair().designerPath()));
+        }
+    }
+
+    @Test
     void sourceSaveAfterFinalSemanticEdgeIsTrimmedReanchorsLiveCommandOwner()
             throws Exception {
         SavedPairHistoryFixture history = saveC1HistoryFixture(
@@ -5271,6 +5598,124 @@ class PairSaveCoordinatorIntegrationTest {
                 "shared-durable-C2-before-physical-command");
     }
 
+    private HistoricalBaselineOverlayFixture historicalBaselineOverlayFixture(
+            String folderName) throws Exception {
+        StagedPair staged = stageRealPair(folderName);
+        DesignerCommandSessionOrchestrator orchestrator =
+                staged.orchestrator();
+        try {
+            TestPair pair = staged.pair();
+            PairSaveCoordinator coordinator = pair.coordinator();
+            FlutterDesignerEditorSupport editor =
+                    pair.dataObject().getEditorSupport();
+            FlutterDesignerDocumentController controller =
+                    pair.dataObject().getDocumentController();
+            DesignerCombinedUndoRedo combined =
+                    pair.dataObject().getCombinedUndoRedo();
+            StyledDocument document = editor.getDocument();
+            assertNotNull(document);
+
+            long c0RevisionId = adjacentUndoTargetId(orchestrator);
+            long c1RevisionId = orchestrator.currentRevision().revisionId();
+            SaveCookie stableCookie = pair.dataObject()
+                    .getCookie(SaveCookie.class);
+            assertNotNull(stableCookie);
+
+            PairSaveCoordinator.StagedCommandSource c1Source =
+                    coordinator.captureStagedCommandSource();
+            var returnAttempt = c1Source.beginCommand(
+                    setDataProperty("before"));
+            var pendingC2 = returnAttempt.lease().orElseThrow();
+            long c2RevisionId = pendingC2.candidateRevision().revisionId();
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    pendingC2.candidateRevision().persistenceKind());
+            try (pendingC2;
+                    PairSaveCoordinator.PairReplacement replacement =
+                            coordinator.beginStagedReplacement(
+                                    c1Source, pendingC2)) {
+                replacement.replaceWithExactBaseline();
+            }
+
+            stableCookie.save();
+            assertFalse(orchestrator.dirty());
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount());
+
+            document.insertString(document.getLength(),
+                    "// durable Source above duplicate BASELINE history\n",
+                    null);
+            byte[] durableSourceDart =
+                    editor.liveSnapshot().markerBearingUtf8();
+            stableCookie.save();
+            FlutterDesignerDocumentState.Current durableSourceCurrent =
+                    awaitCurrentWithPair(
+                            controller,
+                            staged.prepared().baselineFdBytes(),
+                            durableSourceDart);
+            assertSame(durableSourceCurrent, controller.state());
+            assertFalse(editor.sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    coordinator.state().status());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+                return null;
+            });
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    editor.liveSnapshot().markerBearingUtf8());
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+            assertEquals(c1RevisionId,
+                    orchestrator.currentRevision().revisionId());
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+            DesignerCommandRevision historicalC0 =
+                    orchestrator.currentRevision();
+            LiveDartDocumentSnapshot historicalLive = editor.liveSnapshot();
+            assertEquals(c0RevisionId, historicalC0.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    historicalC0.persistenceKind());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    historicalC0.dartCandidateBytes());
+            assertArrayEquals(staged.prepared().baselineDartBytes(),
+                    historicalLive.markerBearingUtf8());
+            assertTrue(orchestrator.dirty());
+            assertTrue(editor.sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.DIRTY_SOURCE,
+                    coordinator.state().status());
+            assertNull(coordinator.stagedProofSnapshot());
+            assertEquals(2, coordinator.unsavedPairHistoryEdgeCount());
+            assertSame(stableCookie,
+                    pair.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(durableSourceDart,
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(staged.prepared().baselineFdBytes(),
+                    Files.readAllBytes(pair.designerPath()));
+
+            return new HistoricalBaselineOverlayFixture(
+                    staged,
+                    pair,
+                    orchestrator,
+                    editor,
+                    controller,
+                    combined,
+                    stableCookie,
+                    c0RevisionId,
+                    c1RevisionId,
+                    c2RevisionId,
+                    historicalC0,
+                    historicalLive,
+                    staged.prepared().baselineDartBytes(),
+                    durableSourceDart,
+                    staged.prepared().baselineFdBytes());
+        } catch (Exception | Error failure) {
+            orchestrator.close();
+            throw failure;
+        }
+    }
+
     private HistoricalPhysicalCommandFixture historicalPhysicalC1S0Fixture(
             SavedPairHistoryFixture history,
             String sourceSuffix,
@@ -6852,6 +7297,44 @@ class PairSaveCoordinatorIntegrationTest {
             oldFd = oldFd.clone();
             savedDart = savedDart.clone();
             savedFd = savedFd.clone();
+        }
+    }
+
+    private record HistoricalBaselineOverlayFixture(
+            StagedPair staged,
+            TestPair pair,
+            DesignerCommandSessionOrchestrator orchestrator,
+            FlutterDesignerEditorSupport editor,
+            FlutterDesignerDocumentController controller,
+            DesignerCombinedUndoRedo combined,
+            SaveCookie stableCookie,
+            long c0RevisionId,
+            long c1RevisionId,
+            long c2RevisionId,
+            DesignerCommandRevision historicalC0,
+            LiveDartDocumentSnapshot historicalLive,
+            byte[] historicalDart,
+            byte[] durableSourceDart,
+            byte[] baselineFd) {
+        HistoricalBaselineOverlayFixture {
+            historicalDart = historicalDart.clone();
+            durableSourceDart = durableSourceDart.clone();
+            baselineFd = baselineFd.clone();
+        }
+
+        @Override
+        public byte[] historicalDart() {
+            return historicalDart.clone();
+        }
+
+        @Override
+        public byte[] durableSourceDart() {
+            return durableSourceDart.clone();
+        }
+
+        @Override
+        public byte[] baselineFd() {
+            return baselineFd.clone();
         }
     }
 

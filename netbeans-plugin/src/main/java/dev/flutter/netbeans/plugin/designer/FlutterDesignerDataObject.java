@@ -20,6 +20,8 @@ public final class FlutterDesignerDataObject extends MultiDataObject {
     private final FlutterDesignerEditorSupport editorSupport;
     private final DesignerCombinedUndoRedo combinedUndoRedo;
     private final PairSaveCoordinator pairSaveCoordinator;
+    private FlutterDesignerMutationController mutationController;
+    private boolean disposing;
 
     public FlutterDesignerDataObject(FileObject primaryDart, MultiFileLoader loader)
             throws DataObjectExistsException, IOException {
@@ -113,6 +115,39 @@ public final class FlutterDesignerDataObject extends MultiDataObject {
 
     PairSaveCoordinator getPairSaveCoordinator() {
         return pairSaveCoordinator;
+    }
+
+    synchronized FlutterDesignerMutationController mutationController() {
+        if (disposing || !isValid()) {
+            throw new IllegalStateException(
+                    "Cannot acquire Flutter Designer mutation services for an invalid DataObject");
+        }
+        if (mutationController == null) {
+            mutationController = new FlutterDesignerMutationController(
+                    this,
+                    documentController,
+                    editorSupport,
+                    pairSaveCoordinator,
+                    combinedUndoRedo);
+        }
+        return mutationController;
+    }
+
+    @Override
+    protected void dispose() {
+        FlutterDesignerMutationController controller;
+        synchronized (this) {
+            disposing = true;
+            controller = mutationController;
+            mutationController = null;
+        }
+        try {
+            if (controller != null) {
+                controller.closeForDataObjectDisposal();
+            }
+        } finally {
+            super.dispose();
+        }
     }
 
     @Override

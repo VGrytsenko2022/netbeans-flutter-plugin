@@ -1012,6 +1012,10 @@ final class FlutterDesignerDataObjectIT {
                             pair.dart(), dataObject.getPrimaryFile());
                 });
                 assertCurrentDesignerModelLoaded(dataObject, pair);
+                assertDesignPublishesSingleWidgetPropertiesNode(
+                        dataObject,
+                        pairedEditor,
+                        openedMultiView.get());
                 assertFalse("Loading Design unexpectedly marked the pair modified",
                         dataObject.isModified());
                 assertNull("Loading Design unexpectedly published a SaveCookie",
@@ -1238,6 +1242,82 @@ final class FlutterDesignerDataObjectIT {
                             "Missing MultiView perspective " + preferredId));
             handler.requestVisible(perspective);
             assertPerspective(handler.getSelectedPerspective(), displayName, preferredId);
+        }
+
+        private void assertDesignPublishesSingleWidgetPropertiesNode(
+                DataObject dataObject,
+                CloneableEditorSupport pairedEditor,
+                CloneableTopComponent multiView) throws Exception {
+            ClassLoader loader = flutterModule().getClassLoader();
+            Class<?> widgetNodeType = Class.forName(
+                    "dev.flutter.netbeans.plugin.designer.properties."
+                            + "FlutterWidgetPropertiesNode",
+                    true,
+                    loader);
+            Class<?> mutationHandlerType = Class.forName(
+                    widgetNodeType.getName() + "$PropertyMutationHandler",
+                    true,
+                    loader);
+            Class<?> designerCommandType = Class.forName(
+                    "dev.flutter.netbeans.designer.command.DesignerCommand",
+                    true,
+                    loader);
+            java.lang.reflect.Method submit = java.util.Arrays.stream(
+                            mutationHandlerType.getDeclaredMethods())
+                    .filter(method -> "submit".equals(method.getName()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "PropertyMutationHandler has no submit method"));
+            assertEquals("PropertyMutationHandler must accept every Designer command",
+                    List.of(designerCommandType),
+                    List.of(submit.getParameterTypes()));
+            assertEquals("PropertyMutationHandler submit must not return a value",
+                    void.class, submit.getReturnType());
+
+            SwingUtilities.invokeAndWait(() -> {
+                requestVisible(multiView, "Design", "flutter.designer.design");
+                multiView.requestActive();
+            });
+            SwingUtilities.invokeAndWait(() -> {
+                Collection<? extends Node> lookupNodes =
+                        multiView.getLookup().lookupAll(Node.class);
+                assertEquals("Design published more than the selected widget Node",
+                        1, lookupNodes.size());
+                Node widgetNode = lookupNodes.iterator().next();
+                assertTrue("Design did not publish FlutterWidgetPropertiesNode",
+                        widgetNodeType.isInstance(widgetNode));
+                assertEquals("The root widget selection was not published",
+                        "SizedBox", widgetNode.getDisplayName());
+
+                Node[] activatedNodes = multiView.getActivatedNodes();
+                assertNotNull("Design did not publish activated Nodes", activatedNodes);
+                assertEquals("The standard Properties contract received multiple Nodes",
+                        1, activatedNodes.length);
+                assertSame("The activated Node differs from the Design lookup Node",
+                        widgetNode, activatedNodes[0]);
+
+                Node.PropertySet propertySet = java.util.Arrays.stream(
+                                widgetNode.getPropertySets())
+                        .filter(set -> "properties".equals(set.getName()))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError(
+                                "The selected widget has no standard properties set"));
+                assertEquals("The selected SizedBox exposed unexpected properties",
+                        List.of("width", "height"),
+                        java.util.Arrays.stream(propertySet.getProperties())
+                                .map(Node.Property::getName)
+                                .toList());
+                for (Node.Property<?> property : propertySet.getProperties()) {
+                    assertFalse("A non-admitted SizedBox property unexpectedly became writable: "
+                            + property.getName(), property.canWrite());
+                }
+
+                assertSame("Filtering the file Node removed the paired DataObject context",
+                        dataObject, multiView.getLookup().lookup(DataObject.class));
+                assertSame("Filtering the file Node removed the paired editor context",
+                        pairedEditor,
+                        multiView.getLookup().lookup(CloneableEditorSupport.class));
+            });
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})

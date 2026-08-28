@@ -52,8 +52,11 @@ import org.netbeans.spi.palette.PaletteController;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.explorer.view.BeanTreeView;
+import org.openide.nodes.AbstractNode;
+import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.util.Lookup;
+import org.openide.util.lookup.Lookups;
 
 class FlutterDesignerMultiViewDesignAccessibilityTest {
 
@@ -109,6 +112,74 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                         property.getValue());
                 assertFalse(property.canWrite());
             }
+        });
+    }
+
+    @Test
+    void excludesTheFileNodeFromTheDesignLookupAndPublishesOnlyTheWidgetNode()
+            throws Exception {
+        onEdt(() -> {
+            record ContextMarker() { }
+            Node fileNode = new AbstractNode(Children.LEAF);
+            fileNode.setDisplayName("new_screen.dart");
+            ContextMarker retainedContextValue = new ContextMarker();
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookups.fixed(
+                            fileNode,
+                            retainedContextValue));
+
+            publish(design, currentState(List.of()));
+
+            List<? extends Node> activeNodes = List.copyOf(
+                    design.getLookup().lookupAll(Node.class));
+            assertEquals(1, activeNodes.size());
+            assertInstanceOf(FlutterWidgetPropertiesNode.class, activeNodes.get(0));
+            assertFalse(activeNodes.contains(fileNode));
+            assertNotNull(activeNodes.get(0).getLookup().lookup(WidgetDefinition.class));
+            assertEquals("flutter.widgets.SizedBox",
+                    activeNodes.get(0).getLookup()
+                            .lookup(WidgetDefinition.class)
+                            .typeId()
+                            .value());
+            assertSame(retainedContextValue,
+                    design.getLookup().lookup(ContextMarker.class));
+            assertNotNull(design.getLookup().lookup(PaletteController.class));
+            assertTrue(java.util.Arrays.stream(activeNodes.get(0).getPropertySets())
+                    .anyMatch(set -> set.getProperties().length > 0));
+        });
+    }
+
+    @Test
+    void retainsEligibleDurableCanvasReadOnlyAcrossEmptyMutationSnapshots()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY, () -> true);
+            FlutterDesignerDocumentState.Current current = currentState(List.of());
+            publish(design, current);
+
+            assertSame(current.decoded().document(),
+                    design.currentCanvasDocumentForTests());
+            assertSingleReadOnlyWidgetNode(design);
+
+            renderMutationSnapshot(
+                    design,
+                    FlutterDesignerMutationController.Snapshot.waiting(
+                            "Waiting for exact mutation admission."));
+            assertSame(current.decoded().document(),
+                    design.currentCanvasDocumentForTests());
+            assertSingleReadOnlyWidgetNode(design);
+
+            renderMutationSnapshot(
+                    design,
+                    FlutterDesignerMutationController.Snapshot.unavailable(
+                            FlutterDesignerMutationController.Status.BLOCKED,
+                            "Prepare Flutter Designer Properties",
+                            "sample.fd",
+                            "Flutter/Dart SDK integration is unavailable."));
+            assertSame(current.decoded().document(),
+                    design.currentCanvasDocumentForTests());
+            assertSingleReadOnlyWidgetNode(design);
         });
     }
 
@@ -293,6 +364,77 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
+    void createsCompleteScrollablePropertyMutationResultDetails() throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMutationController.MutationResult result =
+                    FlutterDesignerMutationController.MutationResult.rejected(
+                            "Set Flutter property",
+                            "home.fd — widget 35ca8ca5, property data",
+                            "The selected Flutter Designer revision is stale; "
+                            + "select the widget again.");
+
+            JScrollPane scroll = FlutterDesignerMultiViewDesign
+                    .createMutationResultDetailsComponent(result);
+            JTextArea details = assertInstanceOf(
+                    JTextArea.class, scroll.getViewport().getView());
+
+            assertFalse(details.isEditable());
+            assertTrue(details.getLineWrap());
+            assertTrue(details.getWrapStyleWord());
+            assertTrue(details.isFocusable());
+            assertEquals(0, details.getCaretPosition());
+            assertEquals(
+                    "Operation: Set Flutter property\n"
+                    + "Target: home.fd — widget 35ca8ca5, property data\n"
+                    + "Reason: The selected Flutter Designer revision is stale; "
+                    + "select the widget again.",
+                    details.getText());
+            assertEquals("Flutter Designer property change details",
+                    details.getAccessibleContext().getAccessibleName());
+            assertEquals("Flutter Designer property change result",
+                    scroll.getAccessibleContext().getAccessibleName());
+            details.selectAll();
+            assertEquals(details.getText(), details.getSelectedText());
+        });
+    }
+
+    @Test
+    void namesResetPropertyMutationInCompleteScrollableResultDetails()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMutationController.MutationResult result =
+                    FlutterDesignerMutationController.MutationResult.rejected(
+                            "Reset Flutter property",
+                            "home.fd — widget 35ca8ca5, property softWrap",
+                            "The selected Flutter Designer revision is stale; "
+                            + "select the widget again.");
+
+            JScrollPane scroll = FlutterDesignerMultiViewDesign
+                    .createMutationResultDetailsComponent(result);
+            JTextArea details = assertInstanceOf(
+                    JTextArea.class, scroll.getViewport().getView());
+
+            assertFalse(details.isEditable());
+            assertTrue(details.getLineWrap());
+            assertTrue(details.getWrapStyleWord());
+            assertTrue(details.isFocusable());
+            assertEquals(0, details.getCaretPosition());
+            assertEquals(
+                    "Operation: Reset Flutter property\n"
+                    + "Target: home.fd — widget 35ca8ca5, property softWrap\n"
+                    + "Reason: The selected Flutter Designer revision is stale; "
+                    + "select the widget again.",
+                    details.getText());
+            assertEquals("Flutter Designer property change details",
+                    details.getAccessibleContext().getAccessibleName());
+            assertEquals("Flutter Designer property change result",
+                    scroll.getAccessibleContext().getAccessibleName());
+            details.selectAll();
+            assertEquals(details.getText(), details.getSelectedText());
+        });
+    }
+
+    @Test
     void namesTheDesignSurfaceAndAssociatesStatusWithLoadingProgress() throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -321,7 +463,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertSame(progress, status.getLabelFor());
             assertFalse(progress.isVisible());
             assertNotNull(progress.getAccessibleContext().getAccessibleDescription());
-            assertNotNull(widgetTree.getAccessibleContext().getAccessibleDescription());
+            assertTrue(widgetTree.getAccessibleContext().getAccessibleDescription()
+                    .contains("Column, Row, Padding, Center and Text widgets are writable"));
             assertEquals(8, previewMode.getItemCount());
             assertNotNull(previewMode.getAccessibleContext().getAccessibleDescription());
         });
@@ -566,10 +709,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in the .fd model, and the deterministic generated "
                     + "payloads agree. The validated CORE_V1 model is published to the "
-                    + "isolated native Flutter Canvas. Viewport preview and read-only "
-                    + "widget-tree selection, the six-item Palette and read-only "
-                    + "Properties are enabled; drag-and-drop, property mutation "
-                    + "and Designer commands remain disabled.",
+                    + "isolated native Flutter Canvas. Viewport preview and widget-tree "
+                    + "selection, the six-item Palette and Properties are enabled. "
+                    + "Supported properties on Column, Row, Padding, Center and Text are "
+                    + "writable when exact mutation admission is ready; Scaffold properties "
+                    + "remain read-only. Drag-and-drop and other Designer commands remain "
+                    + "disabled.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 
@@ -873,6 +1018,32 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 FlutterDesignerDocumentController.PROP_STATE,
                 null,
                 state));
+    }
+
+    private static void renderMutationSnapshot(
+            FlutterDesignerMultiViewDesign design,
+            FlutterDesignerMutationController.Snapshot snapshot)
+            throws ReflectiveOperationException {
+        var method = FlutterDesignerMultiViewDesign.class.getDeclaredMethod(
+                "renderMutationSnapshot",
+                FlutterDesignerMutationController.Snapshot.class);
+        method.setAccessible(true);
+        method.invoke(design, snapshot);
+    }
+
+    private static void assertSingleReadOnlyWidgetNode(
+            FlutterDesignerMultiViewDesign design) throws Exception {
+        List<? extends Node> nodes = List.copyOf(
+                design.getLookup().lookupAll(Node.class));
+        assertEquals(1, nodes.size());
+        Node widget = assertInstanceOf(
+                FlutterWidgetPropertiesNode.class, nodes.get(0));
+        assertEquals("SizedBox", widget.getDisplayName());
+        for (Node.PropertySet set : widget.getPropertySets()) {
+            for (Node.Property<?> property : set.getProperties()) {
+                assertFalse(property.canWrite(), property.getName());
+            }
+        }
     }
 
     private static void assertPreviewChoices(

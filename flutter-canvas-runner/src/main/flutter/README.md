@@ -8,15 +8,27 @@ PNG, screenshots or raw pixel frames.
 
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
-reviewed decoder accepts exactly `Scaffold`, `Column`, `Row`, `Text`, `Padding`,
-`Center` and `SizedBox`, with reviewed typed properties and slots. It rejects unknown
-widgets, fields and values instead of loading arbitrary project Dart code.
-Model protocol v5 also carries the resolved project-theme id, seed, brightness,
+reviewed decoder accepts exactly `Scaffold`, `Column`, `Row`, `Text`, `Icon`,
+`Padding`, `Center` and `SizedBox`, with reviewed typed properties and slots. It
+rejects unknown widgets, fields and values instead of loading arbitrary project
+Dart code.
+Model protocol v6 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table and 15-role TextTheme override table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
 `TextTheme.copyWith` order as generated Dart before applying form-local Text
-properties. Protocol v5 additionally preserves physical `EdgeInsets` versus
-text-direction-aware `EdgeInsetsDirectional` for exact Padding preview parity.
+properties. It preserves physical `EdgeInsets` versus text-direction-aware
+`EdgeInsetsDirectional` for exact Padding preview parity and adds a strict
+typed nullable `IconData` value. The runner constructs the real Flutter
+`Icon` with the same 13 positional/named constructor arguments as generated
+Dart. For the reviewed built-in, strict admission permits only **None** or an
+exact bundled Material glyph; arbitrary/custom font metadata is rejected.
+`Icon` is a leaf. Omitted size, fill, weight, grade, optical size, color,
+shadows, and text-scaling behavior inherit `IconTheme`; `blendMode` and
+`fontWeight` remain direct local arguments. Invisible or zero-size results
+retain a designer-only selectable target without changing Flutter layout. The
+host's searchable Material registry has
+8,825 entries locked to Flutter 3.44.8; Material-font glyphs require the
+generated application to keep `flutter.uses-material-design: true`.
 
 The runner renders exact compatible responsive/adaptive profiles on its bound
 Windows Flutter engine. Android, iOS, macOS and Linux targets are applied through
@@ -62,7 +74,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-seven reviewed Canvas widgets; the runner only renders validated revisions, performs
+eight reviewed Canvas widgets. Palette insertion is the closed 56-cell product
+of those eight draggable sources and seven reviewed destination slots. The
+runner only renders validated revisions, performs
 bounded hit testing, returns revision-bound Palette intents and paints optional
 move feedback. Catalog JSON is reserved for a future versioned
 catalog contract, and Linux/macOS native hosts remain separate work.

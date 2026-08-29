@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
+import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.ColorSource;
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ public final class PropertyValueFormatter {
             case PropertyValue.AssetValue assetValue -> "asset " + quote(assetValue.path());
             case PropertyValue.CallbackValue callbackValue -> callbackValue.handler();
             case PropertyValue.DartExpressionValue expressionValue -> expressionValue.code();
+            case PropertyValue.IconDataValue iconData -> iconData(iconData);
             case PropertyValue.ThemeTokenValue theme ->
                 "theme " + theme.token().wireId();
             case PropertyValue.PaintValue paint -> "Paint(" + color(paint.color())
@@ -59,6 +61,31 @@ public final class PropertyValueFormatter {
                     variations.items().stream()
                             .map(item -> item.axis() + '=' + number(item.value())).toList());
         };
+    }
+
+    private static String iconData(PropertyValue.IconDataValue value) {
+        if (value.equals(PropertyValue.IconDataValue.none())) {
+            return "None";
+        }
+        if (value.fontFamily().equals(java.util.Optional.of(
+                MaterialIconRegistry.FONT_FAMILY))
+                && value.fontPackage().isEmpty()
+                && value.fontFamilyFallback().isEmpty()) {
+            int codePoint = value.codePoint().orElseThrow();
+            return MaterialIconRegistry.bundled().entries().stream()
+                    .filter(icon -> icon.codePoint() == codePoint
+                    && icon.matchTextDirection() == value.matchTextDirection())
+                    .findFirst()
+                    .map(icon -> "Icons." + icon.name()
+                    + " (U+%04X)".formatted(codePoint))
+                    .orElseGet(() -> "IconData(U+%04X, MaterialIcons)"
+                            .formatted(codePoint));
+        }
+        return value.codePoint()
+                .map(point -> "IconData(U+%04X".formatted(point)
+                + value.fontFamily().map(family -> ", " + family).orElse("")
+                + ")")
+                .orElse("None");
     }
 
     private static String color(ColorSource source) {

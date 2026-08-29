@@ -81,7 +81,7 @@ class CanvasRunnerBuildServiceTest {
             assertEquals(workingDirectory, workingDirectory.toAbsolutePath().normalize());
             assertTrue(workingDirectory.startsWith(temporary.resolve("cache").toAbsolutePath()));
             assertEquals(List.of(sdk.flutterExecutable().toString(),
-                    "build", "windows", "--release"), command);
+                    "build", "windows", "--release", "--no-tree-shake-icons"), command);
             writeRuntime(workingDirectory);
             return new TestProcess(0, "build ok\n", false);
         };

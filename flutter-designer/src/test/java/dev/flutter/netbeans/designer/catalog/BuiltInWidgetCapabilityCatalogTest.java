@@ -25,7 +25,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
-            "flutter.widgets.Text");
+            "flutter.widgets.Text",
+            "flutter.widgets.Icon");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.widgets.Column",
@@ -33,7 +34,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
-            "flutter.widgets.Text");
+            "flutter.widgets.Text",
+            "flutter.widgets.Icon");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -67,8 +69,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     void nonInteractiveBuiltInsRemainFailClosed() {
         Set<String> unsupported = Set.of(
                 "flutter.material.AppBar",
-                "flutter.material.ElevatedButton",
-                "flutter.widgets.Icon");
+                "flutter.material.ElevatedButton");
         for (WidgetDefinition definition
                 : BuiltInWidgetCatalog.getDefault().definitions()) {
             if (unsupported.contains(definition.typeId().value())) {
@@ -162,6 +163,31 @@ class BuiltInWidgetCapabilityCatalogTest {
                         SlotCardinality.SINGLE, false, 0, 1),
                 projection("flutter.widgets.SizedBox").slotContracts().get(
                         new SlotName("child")));
+
+        var icon = projection("flutter.widgets.Icon");
+        var iconData = icon.propertyContracts().get(new PropertyName("icon"));
+        assertTrue(iconData.required());
+        assertEquals(Set.of(PropertyValueKind.ICON_DATA), iconData.acceptedKinds());
+        assertEquals(Optional.of(
+                "iconData:58873:TWF0ZXJpYWxJY29ucw:-:0:-"),
+                iconData.creationDefaultFingerprint());
+        assertEquals(
+                "materialIcons:3.44.8:058e0af2c2:8825:"
+                + "ba88e3e23962ada6537523aa113811d9719b988412815bf084f50a0aa78137f0",
+                iconData.constraintFingerprints().get(PropertyValueKind.ICON_DATA));
+        assertEquals("0:1:1:1", icon.propertyContracts()
+                .get(new PropertyName("fill")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("0:0:32768:0", icon.propertyContracts()
+                .get(new PropertyName("weight")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("-32768:1:32768:0", icon.propertyContracts()
+                .get(new PropertyName("grade")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("0:0:32768:0", icon.propertyContracts()
+                .get(new PropertyName("opticalSize")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertTrue(icon.slotContracts().isEmpty());
     }
 
     @Test

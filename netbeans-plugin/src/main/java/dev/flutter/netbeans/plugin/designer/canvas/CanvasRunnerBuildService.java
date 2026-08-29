@@ -34,7 +34,8 @@ public final class CanvasRunnerBuildService {
     static final int MAX_DIAGNOSTIC_CHARS = 64 * 1024;
     static final String EXPECTED_EXECUTABLE = "netbeans_flutter_canvas_runner.exe";
     static final String BUILD_MODE = "release";
-    static final String BUILD_PROFILE = "windows-" + BUILD_MODE + "-v1";
+    static final String BUILD_PROFILE = "windows-" + BUILD_MODE
+            + "-dynamic-icons-no-tree-shake-v2";
     private static final String WINDOWS_CACHE_DIRECTORY = "nb-fcr";
     private static final String BUILD_MARKER = ".netbeans-canvas-runner-build";
     private static final ConcurrentHashMap<String, BuildLock> JVM_BUILD_LOCKS =
@@ -167,7 +168,8 @@ public final class CanvasRunnerBuildService {
                     sdk.flutterExecutable().toString(),
                     "build",
                     "windows",
-                    "--" + BUILD_MODE);
+                    "--" + BUILD_MODE,
+                    "--no-tree-shake-icons");
             Process process = processStarter.start(command, sourceDirectory);
             BoundedDiagnostics diagnostics = new BoundedDiagnostics(MAX_DIAGNOSTIC_CHARS);
             Thread drainer = Thread.ofVirtual()

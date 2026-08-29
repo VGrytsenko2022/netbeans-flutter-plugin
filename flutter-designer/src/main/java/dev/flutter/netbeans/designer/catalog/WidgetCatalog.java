@@ -15,7 +15,7 @@ import java.util.TreeSet;
 
 /** Immutable, deterministically iterable widget-definition catalog. */
 public final class WidgetCatalog {
-    public static final int API_VERSION = 2;
+    public static final int API_VERSION = 3;
 
     private static final Comparator<WidgetDefinition> PALETTE_ORDER = Comparator
             .comparingInt((WidgetDefinition value) -> value.palette().categoryOrder())

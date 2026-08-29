@@ -88,6 +88,10 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.FontVariationListValues.class::isInstance)) {
             editorKind = EditorKind.FONT_VARIATION_LIST;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.ICON_DATA))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.MaterialIconValues.class::isInstance)) {
+            editorKind = EditorKind.ICON_DATA;
         } else {
             return Optional.empty();
         }
@@ -109,7 +113,8 @@ final class FlutterTypedPropertyEditors {
         PAINT,
         SHADOW_LIST,
         FONT_FEATURE_LIST,
-        FONT_VARIATION_LIST
+        FONT_VARIATION_LIST,
+        ICON_DATA
     }
 
     record Binding(
@@ -184,7 +189,8 @@ final class FlutterTypedPropertyEditors {
                 case COLOR -> new ColorEditor(this);
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
-                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST ->
+                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
+                        ICON_DATA ->
                     new StructuredEditor(this);
             };
         }

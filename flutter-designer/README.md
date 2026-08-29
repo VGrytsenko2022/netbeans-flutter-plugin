@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical seven-widget Canvas
+responsive render profiles and the bounded canonical eight-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -41,11 +41,12 @@ target preview toolbar and a real embedded native `FlutterView`, together with t
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
 bounded typed read/write slice for `Column`, `Row`, `Padding`, `Center`,
-`SizedBox` and `Text`; `Scaffold` remains read-only and is deliberately reserved for a
+`SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
 separate task. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-matrix: any of the seven exact capability-reviewed sources may target a reviewed empty
-single slot or terminal `Row.children`/`Column.children` position. Existing-widget
+56-cell matrix: each of the eight exact capability-reviewed sources may target
+any of seven reviewed destinations, subject to empty-single or terminal-list
+admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
 disabled.
@@ -59,12 +60,12 @@ identities and stale/replay admission rules, the explicit Mobile, Tablet,
 Desktop and Web preview-mode identity, native-surface request validation, pure
 backend contracts and per-MultiView lifecycle controller, plus the bounded
 version 1 lifecycle control codec/session gate, process framing and canonical
-reviewed Canvas model payload. Model payload version 5 carries the exact resolved
+reviewed Canvas model payload. Model payload version 6 carries the exact resolved
 project-theme identity, seed, brightness and typed ColorScheme/TextTheme
 override tables; generated Dart and Flutter Canvas apply those tables in the
-same order before form-local Text overrides. The payload admits exactly
-`Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center` and `SizedBox` from the reviewed
-built-in catalog and
+same order before form-local Text overrides. Version 6 adds the closed typed
+`IconData` projection. The payload admits exactly `Scaffold`, `Column`, `Row`,
+`Text`, `Icon`, `Padding`, `Center` and `SizedBox` from the reviewed built-in catalog and
 excludes project paths, Dart source, callbacks, extensions and persistence
 authority. The frame-kind whitelist remains control JSON, model JSON and catalog
 JSON; catalog JSON is reserved for a future versioned contract. There is no
@@ -79,7 +80,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical seven-widget model, renders it
+tests. The isolated runner decodes the canonical eight-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -110,6 +111,7 @@ reset to omission.
 | `Center` | `widthFactor`, `heightFactor` | [Center](https://api.flutter.dev/flutter/widgets/Center/Center.html) |
 | `SizedBox` | `width`, `height` | [SizedBox](https://api.flutter.dev/flutter/widgets/SizedBox/SizedBox.html) |
 | `Text` | 59 typed leaves in the seven sets below | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html), [TextStyle](https://api.flutter.dev/flutter/painting/TextStyle/TextStyle.html), [StrutStyle](https://api.flutter.dev/flutter/painting/StrutStyle/StrutStyle.html) |
+| `Icon` | `icon`, `size`, `fill`, `weight`, `grade`, `opticalSize`, `color`, `shadows`, `semanticLabel`, `textDirection`, `applyTextScaling`, `blendMode`, `fontWeight` | [Icon](https://api.flutter.dev/flutter/widgets/Icon/Icon.html), [IconData](https://api.flutter.dev/flutter/widgets/IconData-class.html) |
 
 | `Text` Properties set | Count | Typed leaf names |
 | --- | ---: | --- |
@@ -121,7 +123,7 @@ reset to omission.
 | Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` |
 | Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` |
 
-This is 78 catalog-backed properties across the six non-`Scaffold` widgets.
+This is 91 catalog-backed property rows across the seven non-`Scaffold` widgets.
 Editors cover single-line strings, newline-delimited font fallback lists,
 accessible optional boolean checkboxes, exact constrained integer/double
 controls, reviewed enums, physical non-negative edge insets, ARGB/theme-aware
@@ -147,17 +149,32 @@ variable-font axes. Semantic `ColorScheme` and `TextTheme` roles follow the
 active light, dark or custom project theme without coupling a form to a theme
 definition id; literal ARGB values remain available. Missing list properties
 mean inheritance/omission, while explicitly empty lists clear an inherited
-list. Schema-v1 documents migrate in memory and are written as canonical v2 on
-their next admitted Designer edit.
+list. Schema v3 distinguishes physical from directional edge insets. Current
+schema v4 adds one closed typed nullable `IconData` value containing only a
+validated Unicode scalar and font metadata; arbitrary Dart expressions are not
+used for icons. Schema-v1/v2/v3 documents migrate in memory and are written as
+canonical v4 on their next admitted Designer edit.
+
+`Icon` is a leaf with no slots. Its 13 constructor properties preserve Flutter
+theme behavior: omitted theme-backed fields inherit from `IconTheme`, while
+explicit values override them identically in generated Dart and native Canvas.
+`blendMode` and `fontWeight` are direct local arguments and do not inherit from
+`IconTheme`; an explicit variable-font `weight` axis overrides `fontWeight` at
+render time.
+The built-in `icon` editor admits only **None** or one of 8,825 bundled Material
+Icons locked to Flutter 3.44.8. Schema v4 keeps `IconData` generic and typed for
+future reviewed definitions, but the current built-in exposes no custom metadata
+entry. Material font glyphs require
+`flutter.uses-material-design: true` in the application `pubspec.yaml`.
 
 The deprecated `Text.textScaleFactor` argument and `key` are not exposed;
 `textScalerFactor` targets the current `textScaler` API. Arbitrary shaders,
 color filters, image filters and raw Dart escape expressions remain excluded.
-Directional edge insets, `Scaffold` Properties,
+`Scaffold` Properties,
 broader Palette insertion/DnD, the optional runtime-faithful browser Canvas
 backend and Linux/macOS native-surface providers remain pending.
 
-Important version 2 semantics:
+Important current document semantics:
 
 - an omitted property or slot means "omit the Dart constructor argument";
 - an empty string is a real value, not omission;
@@ -173,7 +190,7 @@ Important version 2 semantics:
   generator-selected import aliases are not persisted;
 - asset paths are relative to the Flutter project/pubspec root, never to the
   `.fd` file, and are therefore not rebased by pair Move;
-- schema-v1/v2 `extensions` are location-independent opaque metadata and must not
+- supported-version `extensions` are location-independent opaque metadata and must not
   encode `.fd`-relative semantics;
 - Dart expressions are opaque source values and are never evaluated here.
 
@@ -355,35 +372,39 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the seven-source insertion matrix
-described below. Pre-persistence loss of exact
+disconnected. That stage is superseded by the eight-source insertion matrix
+described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, seven-widget projection, responsive
-profiles, stable-ID tree selection, exact seven-item context Palette and
+Windows native read-only `FlutterView`, eight-widget projection, responsive
+profiles, stable-ID tree selection, exact eight-item context Palette and
 selected-node typed Properties are implemented. Properties are writable only
-for the 78 catalog-backed fields of `Column`, `Row`, `Padding`, `Center`,
-`SizedBox` and `Text`, including the 59-leaf Text projection above; `Scaffold` stays read-only.
-Palette DnD is enabled for the seven exact capability-reviewed source definitions and the
-catalog-authorized empty-single or terminal-list targets. The
+for the 91 catalog-backed fields of `Column`, `Row`, `Padding`, `Center`,
+`SizedBox`, `Text` and `Icon`, including the 59-leaf Text and 13-property Icon
+projections above; `Scaffold` stays read-only.
+Palette DnD is enabled for the eight exact capability-reviewed source definitions and the
+seven catalog-authorized empty-single or terminal-list targets, for 56 exact
+compatibility cells. The
 optional runtime-faithful browser Canvas backend, cross-platform providers and
 the broader property/callback contracts remain outstanding. The native-engine
 Web responsive layout preview is already available.
 
 The `.fd` document codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
 duplicates and trailing content, and keeps the exact bounded input snapshot.
-Current version 2 data maps directly to the domain model; version 1 migrates in
-memory without an open-time write, and a completely parsed newer version
+Current version 4 data maps directly to the domain model; versions 1 through 3
+migrate in memory without an open-time write, and a completely parsed newer version
 remains raw/read-only and cannot be down-saved. Canonical output is
 UTF-8 without BOM, two-space/LF formatted, has one final LF, fixed core-field
 order and lexically sorted dynamic keys. `$schema` is never fetched.
 
-Catalog contributors use a reverse-DNS id, target catalog API version 1, and
+Catalog contributors use a reverse-DNS id, target catalog API version 3, and
 own only widget type ids below `<contributorId>.`. Composition is atomic per
 contributor: invalid metadata never partially enters the effective catalog.
 Every effective Palette category id also has one stable category order;
-conflicting contributors are rejected before type resolution.
+conflicting contributors are rejected before type resolution. API-1 and API-2
+contributors are rejected explicitly because the exported sealed value model
+changed incompatibly for directional edge insets and typed `IconData`.
 
 The accepted contract and module boundaries are documented in
 `docs/FLUTTER_DESIGNER_ARCHITECTURE.md`.

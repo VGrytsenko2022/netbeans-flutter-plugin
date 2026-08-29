@@ -57,8 +57,6 @@ class FlutterWidgetIconRegistryTest {
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("flutter.material.AppBar")).isEmpty());
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
-                new WidgetTypeId("flutter.widgets.Icon")).isEmpty());
-        assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("flutter.material.ElevatedButton")).isEmpty());
     }
 
@@ -272,6 +270,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg");
         expected.put("flutter.widgets.Center", ICON_ROOT + "center.svg");
         expected.put("flutter.widgets.Column", ICON_ROOT + "column.svg");
+        expected.put("flutter.widgets.Icon", ICON_ROOT + "icon.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");

@@ -54,6 +54,7 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Icon'), isEmpty);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Text'), isEmpty);
     expect(
       canvasEmptyChildDropSlot.accepts(currentChildCount: 0, insertionIndex: 1),
@@ -2139,6 +2140,241 @@ void main() {
       );
     },
   );
+
+  testWidgets('renders every Icon argument through the real Flutter widget', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.iconModelBytesForViewTest());
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+
+    final iconFinder = find.descendant(
+      of: find.byKey(
+        const ValueKey('canvas-widget-${fixture.iconWidgetIdForViewTest}'),
+      ),
+      matching: find.byType(Icon),
+    );
+    final icon = tester.widget<Icon>(iconFinder);
+    final iconData = icon.icon!;
+    expect(iconData.codePoint, 0xe5fc);
+    expect(iconData.fontFamily, 'MaterialIcons');
+    expect(iconData.fontPackage, isNull);
+    expect(iconData.matchTextDirection, isTrue);
+    expect(iconData.fontFamilyFallback, isNull);
+    expect(icon.size, 32);
+    expect(icon.fill, 0.75);
+    expect(icon.weight, 600);
+    expect(icon.grade, -25);
+    expect(icon.opticalSize, 24);
+    final context = tester.element(iconFinder);
+    expect(icon.color, Theme.of(context).colorScheme.primary);
+    expect(icon.shadows, hasLength(1));
+    expect(icon.shadows!.single.color, Theme.of(context).colorScheme.shadow);
+    expect(icon.shadows!.single.offset, const Offset(-1, 2));
+    expect(icon.shadows!.single.blurRadius, 3);
+    expect(icon.semanticLabel, 'Reviewed icon');
+    expect(icon.textDirection, TextDirection.rtl);
+    expect(icon.applyTextScaling, isFalse);
+    expect(icon.blendMode, BlendMode.multiply);
+    expect(icon.fontWeight, FontWeight.w700);
+    expect(
+      find.byKey(
+        const ValueKey(
+          'canvas-widget-outline-${fixture.iconWidgetIdForViewTest}',
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'preserves IconTheme inheritance, null IconData and explicit empty shadows',
+    (tester) async {
+      const inherited = IconThemeData(
+        size: 41,
+        color: Color(0xff123456),
+        fill: 0.3,
+        weight: 525,
+        grade: 12,
+        opticalSize: 18,
+        shadows: [
+          Shadow(color: Color(0xff654321), offset: Offset(1, 2), blurRadius: 3),
+        ],
+      );
+      Future<void> pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          fixture.iconModelBytesForViewTest(properties: properties),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(iconTheme: inherited),
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+            ),
+          ),
+        );
+      }
+
+      Finder iconFinder() => find.descendant(
+        of: find.byKey(
+          const ValueKey('canvas-widget-${fixture.iconWidgetIdForViewTest}'),
+        ),
+        matching: find.byType(Icon),
+      );
+
+      await pump({
+        'icon': fixture.iconDataValueForViewTest(fontFamily: 'MaterialIcons'),
+      });
+      final inheritedIcon = tester.widget<Icon>(iconFinder());
+      expect(inheritedIcon.icon, isNotNull);
+      expect(inheritedIcon.size, isNull);
+      expect(inheritedIcon.color, isNull);
+      expect(inheritedIcon.fill, isNull);
+      expect(inheritedIcon.weight, isNull);
+      expect(inheritedIcon.grade, isNull);
+      expect(inheritedIcon.opticalSize, isNull);
+      expect(inheritedIcon.shadows, isNull);
+      expect(tester.getSize(iconFinder()), const Size.square(41));
+      final richText = tester.widget<RichText>(
+        find.descendant(of: iconFinder(), matching: find.byType(RichText)),
+      );
+      final inheritedStyle = (richText.text as TextSpan).style!;
+      expect(inheritedStyle.color, inherited.color);
+      expect(inheritedStyle.fontSize, 41);
+      expect(
+        {
+          for (final variation in inheritedStyle.fontVariations!)
+            variation.axis: variation.value,
+        },
+        const {'FILL': 0.3, 'wght': 525.0, 'GRAD': 12.0, 'opsz': 18.0},
+      );
+      expect(inheritedStyle.shadows, inherited.shadows);
+
+      await pump({
+        'icon': fixture.iconDataValueForViewTest(fontFamily: 'MaterialIcons'),
+        'shadows': {'kind': 'shadowList', 'items': <Object?>[]},
+      });
+      final emptyShadowStyle =
+          (tester
+                      .widget<RichText>(
+                        find.descendant(
+                          of: iconFinder(),
+                          matching: find.byType(RichText),
+                        ),
+                      )
+                      .text
+                  as TextSpan)
+              .style!;
+      expect(emptyShadowStyle.shadows, isEmpty);
+
+      await pump({
+        'icon': fixture.iconDataValueForViewTest(
+          codePoint: null,
+          fontFamily: null,
+        ),
+      });
+      final icon = tester.widget<Icon>(iconFinder());
+      expect(icon.icon, isNull);
+      expect(icon.size, isNull);
+      expect(icon.color, isNull);
+      expect(icon.fill, isNull);
+      expect(icon.weight, isNull);
+      expect(icon.grade, isNull);
+      expect(icon.opticalSize, isNull);
+      expect(icon.shadows, isNull);
+      expect(tester.getSize(iconFinder()), const Size.square(41));
+      expect(
+        find.descendant(of: iconFinder(), matching: find.byType(RichText)),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps zero-size and clear Icons selectable with overlapping targets',
+    (tester) async {
+      const firstId = fixture.iconWidgetIdForViewTest;
+      const secondId = 'a77ba7a9-61e8-438c-908f-aa495c49e7d7';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(_modelWithZeroIconSiblings([firstId, secondId])),
+          ),
+        ),
+      );
+      String? selected;
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: selected,
+          onSelected: (value) => selected = value,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.getSize(find.byKey(const ValueKey('canvas-widget-$firstId'))),
+        Size.zero,
+      );
+      final group = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-group-$firstId'),
+      );
+      expect(group, findsOneWidget);
+      expect(tester.getSize(group), const Size.square(36));
+      await tester.tap(group);
+      expect(selected, firstId);
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: selected,
+          onSelected: (value) => selected = value,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-group-$firstId'),
+        ),
+      );
+      expect(selected, secondId);
+
+      final clearModel = CanvasModel.decode(
+        fixture.iconModelBytesForViewTest(
+          properties: {
+            'icon': fixture.iconDataValueForViewTest(
+              fontFamily: 'MaterialIcons',
+            ),
+            'size': {'kind': 'double', 'value': 24.0},
+            'blendMode': {
+              'kind': 'enum',
+              'type': 'BlendMode',
+              'value': 'clear',
+            },
+          },
+        ),
+      );
+      selected = null;
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: clearModel,
+          selectedWidgetId: null,
+          onSelected: (value) => selected = value,
+        ),
+      );
+      final clearTarget = find.byKey(
+        const ValueKey('canvas-widget-${fixture.iconWidgetIdForViewTest}'),
+      );
+      expect(tester.getSize(clearTarget), const Size.square(24));
+      expect(tester.widget<Icon>(find.byType(Icon)).blendMode, BlendMode.clear);
+      await tester.tap(clearTarget);
+      expect(selected, fixture.iconWidgetIdForViewTest);
+    },
+  );
 }
 
 Map<String, Object?> _modelJsonForView() =>
@@ -2195,6 +2431,38 @@ Map<String, Object?> _modelWithEmptySizedBoxSiblings(List<String> widgetIds) {
               'slots': <String, Object?>{
                 'child': <String, Object?>{'kind': 'single', 'child': null},
               },
+            },
+        ],
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithZeroIconSiblings(List<String> widgetIds) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Column',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'children': <String, Object?>{
+        'kind': 'list',
+        'children': <Object?>[
+          for (final id in widgetIds)
+            <String, Object?>{
+              'id': id,
+              'type': 'flutter.widgets.Icon',
+              'properties': <String, Object?>{
+                'icon': fixture.iconDataValueForViewTest(
+                  fontFamily: 'MaterialIcons',
+                ),
+                'size': <String, Object?>{'kind': 'double', 'value': 0.0},
+              },
+              'slots': <String, Object?>{},
             },
         ],
       },

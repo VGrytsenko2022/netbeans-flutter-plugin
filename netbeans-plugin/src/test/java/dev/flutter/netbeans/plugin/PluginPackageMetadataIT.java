@@ -121,6 +121,8 @@ class PluginPackageMetadataIT {
             "META-INF/netbeans-flutter-designer/schema/fd-v2.schema.json";
     private static final String DESIGNER_SCHEMA_V3 =
             "META-INF/netbeans-flutter-designer/schema/fd-v3.schema.json";
+    private static final String DESIGNER_SCHEMA_V4 =
+            "META-INF/netbeans-flutter-designer/schema/fd-v4.schema.json";
     private static final Set<String> DESIGNER_PUBLIC_PACKAGES = Set.of(
             "dev.flutter.netbeans.designer.catalog.*",
             "dev.flutter.netbeans.designer.model.*");
@@ -129,6 +131,9 @@ class PluginPackageMetadataIT {
             DESIGNER_SCHEMA_V1,
             DESIGNER_SCHEMA_V2,
             DESIGNER_SCHEMA_V3,
+            DESIGNER_SCHEMA_V4,
+            "dev/flutter/netbeans/designer/catalog/MaterialIconRegistry.class",
+            "dev/flutter/netbeans/designer/catalog/material-icons-3.44.8.tsv",
             "dev/flutter/netbeans/designer/generation/DartRegionGenerator.class",
             "dev/flutter/netbeans/designer/generation/DartGenerationResult.class",
             "dev/flutter/netbeans/designer/generation/DartGenerationLimits.class",

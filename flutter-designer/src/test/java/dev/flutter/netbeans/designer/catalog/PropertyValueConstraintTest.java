@@ -163,7 +163,63 @@ class PropertyValueConstraintTest {
                 () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.FONT_VARIATION_LIST));
         assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.ICON_DATA));
+        assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.CALLBACK));
+    }
+
+    @Test
+    void iconDataConstraintAcceptsOnlyTheTypedValidatedValue() {
+        PropertyValueConstraint.IconDataValues icons =
+                new PropertyValueConstraint.IconDataValues();
+        assertTrue(icons.accepts(PropertyValue.IconDataValue.none()));
+        assertTrue(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(0xE5F9), Optional.of("MaterialIcons"),
+                Optional.empty(), false, List.of())));
+        assertFalse(icons.accepts(new PropertyValue.DartExpressionValue("Icons.star")));
+        assertEquals("typed nullable IconData metadata", icons.description());
+    }
+
+    @Test
+    void materialIconConstraintAcceptsOnlyNoneOrExactBundledRegistryGlyphs() {
+        PropertyValueConstraint.MaterialIconValues icons =
+                new PropertyValueConstraint.MaterialIconValues();
+        MaterialIconRegistry.MaterialIcon star = MaterialIconRegistry.bundled()
+                .find("star").orElseThrow();
+        MaterialIconRegistry.MaterialIcon arrowBack = MaterialIconRegistry.bundled()
+                .find("arrow_back").orElseThrow();
+
+        assertTrue(icons.accepts(PropertyValue.IconDataValue.none()));
+        assertTrue(icons.accepts(material(star)));
+        assertTrue(icons.accepts(material(arrowBack)));
+        assertFalse(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(star.codePoint()), Optional.of("CustomIcons"),
+                Optional.empty(), false, List.of())));
+        assertFalse(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(star.codePoint()), Optional.of("MaterialIcons"),
+                Optional.of("package"), false, List.of())));
+        assertFalse(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(star.codePoint()), Optional.of("MaterialIcons"),
+                Optional.empty(), false, List.of("Fallback"))));
+        assertFalse(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(arrowBack.codePoint()), Optional.of("MaterialIcons"),
+                Optional.empty(), !arrowBack.matchTextDirection(), List.of())));
+        assertFalse(icons.accepts(new PropertyValue.IconDataValue(
+                Optional.of(1), Optional.of("MaterialIcons"),
+                Optional.empty(), false, List.of())));
+        assertTrue(icons.description().contains("Flutter 3.44.8"));
+        assertTrue(icons.description().contains("uses-material-design"));
+    }
+
+    private static PropertyValue.IconDataValue material(
+            MaterialIconRegistry.MaterialIcon icon) {
+        return new PropertyValue.IconDataValue(
+                Optional.of(icon.codePoint()),
+                Optional.of(icon.fontFamily()),
+                Optional.empty(),
+                icon.matchTextDirection(),
+                List.of());
     }
 
     @Test

@@ -60,7 +60,7 @@ Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith`. Canvas model protocol v5 carries the same resolved role
+`TextTheme.copyWith`. Canvas model protocol v6 carries the same resolved role
 tables and applies that order before form-local Text overrides. Theme
 definitions remain independent of every form `.fd` model.
 
@@ -122,7 +122,7 @@ NetBeans 30's bundled YAML language continues to recognize `pubspec.yaml` as `te
 
 ## Designer boundary
 
-The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A complete form maps `lib/<relative>/<name>.dart` to `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired Dart file own only generated source. Current schema v3 keeps `source.dartFile` as the exact Dart basename, without a path separator; schema-v1/v2 documents are migrated in memory and become canonical v3 only on an admitted edit. The mirrored relative directory is enforced by the NetBeans project adapter. `AssetValue` paths resolve from the Flutter project/pubspec root, never from the `.fd` location, and schema-v1/v2/v3 `extensions` are location-independent opaque metadata that must not encode `.fd`-relative semantics. User code outside the guarded regions is preserved.
+The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A complete form maps `lib/<relative>/<name>.dart` to `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired Dart file own only generated source. Current schema v4 keeps `source.dartFile` as the exact Dart basename, without a path separator, and adds a closed typed nullable `IconData` value; schema-v1/v2/v3 documents are migrated in memory and become canonical v4 only on an admitted edit. The mirrored relative directory is enforced by the NetBeans project adapter. `AssetValue` paths resolve from the Flutter project/pubspec root, never from the `.fd` location, and supported-version `extensions` are location-independent opaque metadata that must not encode `.fd`-relative semantics. User code outside the guarded regions is preserved.
 
 The NetBeans edge keeps `.dart` as the technical primary of the single designer editing session, with one Dart `DataEditorSupport` backing the dedicated `Design`/`Source` MultiView and guarded-section persistence. The mirrored `.fd` is not hidden as a cross-folder secondary entry: a separate visible, non-editing model DataObject appears under `.fd_templates` and delegates Open plus the shared pair-aware Copy, Cut, Rename and Delete operations to that one Dart-owned session. Generic DataObject Copy/Move remains disabled so no one-file operation can escape one pair member.
 
@@ -130,7 +130,7 @@ Rename and Delete close a clean editor, stage both paths under deterministic loc
 
 Pair-aware Cut/Move uses a private one-shot `NodeTransfer.CLIPBOARD_CUT` paste. It keeps the basename and exact pair bytes, stays within one Flutter project, and accepts only an already existing writable destination with an already existing mirrored counterpart folder owned by that exact project. A bounded, strict `pubspec.yaml`/`package_config.json`-bound project Dart inventory blocks outgoing relative directives, incoming references to the old location, references that could acquire the destination, unsafe URI/package aliases, nested packages and conservative case/Unicode collisions. At the final boundary, exact proof-file locks and the actual NetBeans 30 MasterFS child-cache mutexes cover every proof/source/target directory and its physical ancestor chain; inventory verification and commit share one EDT admission, and an unavailable/different MasterFS shape fails closed. Move closes a clean source editor, publishes `.fd` before Dart, locks both targets, retires the source identities through reversible `.nbmove` tombstones, then creates fresh target DataObjects. Rollback restores both exact sources before removing owned targets; if safe recreation cannot be proved, verified targets are retained for recovery. Once exact targets and both source tombstones establish commit, late cleanup/provider failures are recovery warnings rather than a false uncommitted result. This is an in-process guarantee with no durable crash journal, and an external non-NetBeans writer remains a residual race.
 
-Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, and owns v1-to-v2 migration. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, seven-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 78 catalog-backed fields of `Column`, `Row`, `Padding`, `Center`, `SizedBox` and `Text`. Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; every optional leaf can be reset to omission. Semantic Material `ColorScheme` and `TextTheme` references are stable roles rather than project-theme definition ids, so they follow light, dark and custom themes without breaking when a custom definition is renamed or disabled. Generation and native Canvas projection assemble the same leaves into real `TextStyle`, `Paint`, `Shadow`, `FontFeature`, `FontVariation`, `StrutStyle`, `Locale`, `TextScaler` and `TextHeightBehavior` values. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix. The current contract adds the complete `SizedBox` vertical slice and admits seven exact capability-gated Palette sources through the catalog-authorized 49-cell empty-single/terminal-list matrix. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner; cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, including migration of schema v1-v3 to v4. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, eight-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 91 catalog-backed fields of `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; Icon contributes its typed nullable positional `IconData` plus all 12 supported named constructor properties. Semantic Material `ColorScheme`, `TextTheme` and the theme-backed subset of `IconTheme` inheritance are preserved identically by generated Dart and native Canvas; Icon `blendMode` and `fontWeight` remain direct local arguments. The bundled searchable Material Icons registry contains 8,825 entries locked to Flutter 3.44.8 and requires `flutter.uses-material-design: true` in generated applications. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix; the historical SizedBox expansion followed. The current contract admits eight exact capability-gated Palette sources through the catalog-authorized 56-cell empty-single/terminal-list matrix across seven valid destination slots. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner; cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
 The paired DataObject also owns one read-only document controller shared by
 all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
@@ -285,7 +285,7 @@ the platform can safely host and supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current seven-definition
+historical source restriction is superseded by the current eight-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. The
 same exact token is carried unchanged through hover, prepare and the terminal
@@ -322,7 +322,7 @@ remains the only path to an `AddWidget` command. That command uses the
 established generation, analysis, paired replacement, Save and chronological
 Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
-authority. DnD outside the seven-source empty-single/terminal-list insertion
+authority. DnD outside the eight-source empty-single/terminal-list insertion
 matrix remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -333,9 +333,9 @@ fail-stop bounded process framing. After the handshake, bounded runtime control
 publishes one exact validated revision, acknowledges its layout, synchronizes
 selection and capability-gates the narrowly typed `runner.paletteDrop` intent.
 Protocol negotiation and decoding do not authorize mutation. The canonical
-protocol-v5 model payload admits only exact reviewed built-in definitions with
-the Canvas capability: `Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center`
-and `SizedBox`. Java fingerprints the complete property/slot schema and the
+protocol-v6 model payload admits only exact reviewed built-in definitions with
+the Canvas capability: `Scaffold`, `Column`, `Row`, `Text`, `Icon`, `Padding`,
+`Center` and `SizedBox`. Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
 future versioned catalog contract.
@@ -355,9 +355,9 @@ an empty configured set leaves the selector empty and Canvas unavailable.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact seven widgets carrying
-the Create capability. `Column`, `Row`, `Padding`, `Center`, `SizedBox` and
-`Text` admit the reviewed 78-property
+Design lookup supplies a Palette filtered to the exact eight widgets carrying
+the Create capability. `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text`
+and `Icon` admit the reviewed 91-property
 Set/Reset slice through an exact revision token and analyzed pair-save. The 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

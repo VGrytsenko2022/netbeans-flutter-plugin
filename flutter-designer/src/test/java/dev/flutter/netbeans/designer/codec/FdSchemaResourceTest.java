@@ -19,6 +19,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v2.schema.json");
     private static final Path V3_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v3.schema.json");
+    private static final Path V4_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v4.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -72,6 +74,30 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\"end\""));
     }
 
+    @Test
+    void packagesTheCanonicalV4SchemaWithTypedNullableIconData() throws IOException {
+        byte[] packaged = loadPackagedV4Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(V4_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v4 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v4");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("\"$id\": \"urn:netbeans-flutter-designer:schema:fd:4\""));
+        assertTrue(schema.contains("\"const\": 4"));
+        assertTrue(schema.contains("\"iconDataValue\""));
+        assertTrue(schema.contains("\"const\": \"iconData\""));
+        assertTrue(schema.contains("\"maximum\": 1114111"));
+        assertTrue(schema.contains("\"maxItems\": 32"));
+        assertTrue(schema.contains("\"uniqueItems\": true"));
+        assertTrue(schema.contains("\\\\u2028-\\\\u202E"));
+        assertTrue(schema.contains("\\\\u001C-\\\\u0020\\\\u1680"));
+        assertTrue(schema.contains("\\\\u2000-\\\\u2006\\\\u2008-\\\\u200A"));
+        assertFalse(schema.contains("(?!\\\\s)"));
+    }
+
     private static byte[] loadPackagedV1Schema() throws IOException {
         ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
         assertNotNull(loader.getResource(FdSchemas.V1_RESOURCE),
@@ -98,6 +124,23 @@ class FdSchemaResourceTest {
                 "The canonical schema v3 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV3()) {
             assertNotNull(input, "The canonical schema v3 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV4Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V4_RESOURCE),
+                "The canonical schema v4 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV4()) {
+            assertNotNull(input, "The canonical schema v4 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadCurrentSchema() throws IOException {
+        try (InputStream input = FdSchemas.openCurrent()) {
+            assertNotNull(input, "The current schema resource must be readable");
             return input.readAllBytes();
         }
     }

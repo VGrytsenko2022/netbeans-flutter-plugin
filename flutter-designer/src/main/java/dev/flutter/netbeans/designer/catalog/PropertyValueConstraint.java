@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -16,6 +17,8 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.AnyValue,
         PropertyValueConstraint.StringLength,
         PropertyValueConstraint.StringPattern,
+        PropertyValueConstraint.IconDataValues,
+        PropertyValueConstraint.MaterialIconValues,
         PropertyValueConstraint.ThemeTokenValues,
         PropertyValueConstraint.PaintValues,
         PropertyValueConstraint.ShadowListValues,
@@ -44,6 +47,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.PAINT
                     || kind == PropertyValueKind.SHADOW_LIST
                     || kind == PropertyValueKind.FONT_VARIATION_LIST
+                    || kind == PropertyValueKind.ICON_DATA
                     || kind == PropertyValueKind.CALLBACK) {
                 throw new IllegalArgumentException(
                         kind.wireName() + " requires a typed catalog constraint");
@@ -239,6 +243,63 @@ public sealed interface PropertyValueConstraint permits
         public boolean accepts(PropertyValue value) {
             return value instanceof PropertyValue.StringValue stringValue
                     && Pattern.matches(regularExpression, stringValue.value());
+        }
+    }
+
+    /** Accepts the complete validated nullable IconData metadata value. */
+    record IconDataValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.ICON_DATA;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.IconDataValue;
+        }
+
+        @Override
+        public String description() {
+            return "typed nullable IconData metadata";
+        }
+    }
+
+    /** Accepts None or an exact glyph from the bundled reviewed Material registry. */
+    record MaterialIconValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.ICON_DATA;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            if (!(value instanceof PropertyValue.IconDataValue iconData)) {
+                return false;
+            }
+            if (iconData.equals(PropertyValue.IconDataValue.none())) {
+                return true;
+            }
+            MaterialIconRegistry registry = MaterialIconRegistry.bundled();
+            if (!iconData.fontFamily().equals(Optional.of(
+                    registry.metadata().fontFamily()))
+                    || iconData.fontPackage().isPresent()
+                    || !iconData.fontFamilyFallback().isEmpty()) {
+                return false;
+            }
+            int codePoint = iconData.codePoint().orElseThrow();
+            return registry.entries().stream().anyMatch(candidate ->
+                    candidate.codePoint() == codePoint
+                    && candidate.matchTextDirection()
+                    == iconData.matchTextDirection());
+        }
+
+        @Override
+        public String description() {
+            MaterialIconRegistry.SourceMetadata metadata =
+                    MaterialIconRegistry.bundled().metadata();
+            return "None or a bundled Flutter " + metadata.flutterVersion()
+                    + " Material Icons glyph; project requirement "
+                    + metadata.projectRequirement();
         }
     }
 

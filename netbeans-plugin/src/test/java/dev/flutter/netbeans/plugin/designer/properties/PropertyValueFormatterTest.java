@@ -45,6 +45,13 @@ class PropertyValueFormatterTest {
                 new PropertyValue.CallbackValue("handleTap")));
         assertEquals("const SizedBox.shrink()", PropertyValueFormatter.format(
                 new PropertyValue.DartExpressionValue("const SizedBox.shrink()")));
+        assertEquals("Icons.star (U+E5F9)", PropertyValueFormatter.format(
+                new PropertyValue.IconDataValue(
+                        java.util.Optional.of(0xE5F9),
+                        java.util.Optional.of("MaterialIcons"),
+                        java.util.Optional.empty(), false, java.util.List.of())));
+        assertEquals("None", PropertyValueFormatter.format(
+                PropertyValue.IconDataValue.none()));
         assertEquals("theme material.textTheme.bodyMedium", PropertyValueFormatter.format(
                 new PropertyValue.ThemeTokenValue(
                         new ThemeToken("material.textTheme.bodyMedium"))));

@@ -12,6 +12,7 @@ public enum PropertyValueKind {
     ASSET("asset"),
     CALLBACK("callback"),
     DART_EXPRESSION("dartExpression"),
+    ICON_DATA("iconData"),
     THEME_TOKEN("themeToken"),
     PAINT("paint"),
     SHADOW_LIST("shadowList"),

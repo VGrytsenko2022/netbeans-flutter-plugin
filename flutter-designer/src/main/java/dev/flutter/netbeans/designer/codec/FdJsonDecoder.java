@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import dev.flutter.netbeans.designer.catalog.DartNumericLiterals;
+import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.CanvasPreferences;
 import dev.flutter.netbeans.designer.model.ColorSource;
@@ -574,7 +575,9 @@ final class FdJsonDecoder {
 
             final StableId finalDocumentId = documentId;
             final DartSourceDescriptor finalSource = source;
-            final WidgetNode finalRoot = root;
+            final WidgetNode finalRoot = sourceVersion < 4
+                    ? migrateLegacyIconDefaults(root)
+                    : root;
             final Optional<String> finalSchemaReference = schemaSeen
                     ? migrateSchemaReference(schemaReference, sourceVersion) : Optional.empty();
             final Optional<CanvasPreferences> finalCanvas = canvasSeen
@@ -599,12 +602,66 @@ final class FdJsonDecoder {
         }
         return Optional.of(switch (reference.orElseThrow()) {
             case "urn:netbeans-flutter-designer:schema:fd:1",
-                    "urn:netbeans-flutter-designer:schema:fd:2" ->
-                    "urn:netbeans-flutter-designer:schema:fd:3";
-            case "../fd-v1.schema.json", "../fd-v2.schema.json" ->
-                    "../fd-v3.schema.json";
+                    "urn:netbeans-flutter-designer:schema:fd:2",
+                    "urn:netbeans-flutter-designer:schema:fd:3" ->
+                    "urn:netbeans-flutter-designer:schema:fd:4";
+            case "../fd-v1.schema.json", "../fd-v2.schema.json",
+                    "../fd-v3.schema.json" -> "../fd-v4.schema.json";
             default -> reference.orElseThrow();
         });
+    }
+
+    private static WidgetNode migrateLegacyIconDefaults(WidgetNode node) {
+        LinkedHashMap<PropertyName, PropertyValue> properties =
+                new LinkedHashMap<>(node.properties());
+        boolean changed = false;
+        PropertyName iconName = new PropertyName("icon");
+        if (node.type().value().equals("flutter.widgets.Icon")
+                && properties.get(iconName)
+                instanceof PropertyValue.DartExpressionValue expression) {
+            Optional<PropertyValue.IconDataValue> migrated =
+                    migrateLegacyMaterialIcon(expression.code());
+            if (migrated.isPresent()) {
+                properties.put(iconName, migrated.orElseThrow());
+                changed = true;
+            }
+        }
+
+        LinkedHashMap<SlotName, WidgetSlot> slots = new LinkedHashMap<>();
+        for (Map.Entry<SlotName, WidgetSlot> entry : node.slots().entrySet()) {
+            WidgetSlot original = entry.getValue();
+            WidgetSlot migrated = switch (original) {
+                case WidgetSlot.SingleSlot single -> single.child()
+                        .map(FdJsonDecoder::migrateLegacyIconDefaults)
+                        .map(WidgetSlot.SingleSlot::of)
+                        .orElseGet(WidgetSlot.SingleSlot::empty);
+                case WidgetSlot.ListSlot list -> new WidgetSlot.ListSlot(
+                        list.children().stream()
+                                .map(FdJsonDecoder::migrateLegacyIconDefaults)
+                                .toList());
+            };
+            slots.put(entry.getKey(), migrated);
+            changed |= !migrated.equals(original);
+        }
+        return changed
+                ? new WidgetNode(
+                        node.id(), node.type(), properties, slots, node.extensions())
+                : node;
+    }
+
+    private static Optional<PropertyValue.IconDataValue> migrateLegacyMaterialIcon(
+            String expression) {
+        String prefix = "Icons.";
+        if (!expression.startsWith(prefix)) {
+            return Optional.empty();
+        }
+        return MaterialIconRegistry.bundled().find(expression.substring(prefix.length()))
+                .map(icon -> new PropertyValue.IconDataValue(
+                Optional.of(icon.codePoint()),
+                Optional.of(icon.fontFamily()),
+                Optional.empty(),
+                icon.matchTextDirection(),
+                List.of()));
     }
 
     private DartSourceDescriptor readSource(
@@ -1153,6 +1210,37 @@ final class FdJsonDecoder {
                         pointer(base, "code"),
                         () -> new PropertyValue.DartExpressionValue(code));
             }
+            case "iconData" -> {
+                if (sourceVersion < 4) {
+                    throw invalidValue(
+                            parser,
+                            pointer(base, "kind"),
+                            "IconData values require schema version 4.");
+                }
+                enforceAllowedFields(
+                        parser,
+                        fields,
+                        base,
+                        Set.of(
+                                "kind", "codePoint", "fontFamily", "fontPackage",
+                                "matchTextDirection", "fontFamilyFallback"));
+                Optional<Integer> codePoint = jsonOptionalInteger(
+                        fields, "codePoint", base);
+                Optional<String> fontFamily = jsonOptionalString(
+                        fields, "fontFamily", base);
+                Optional<String> fontPackage = jsonOptionalString(
+                        fields, "fontPackage", base);
+                boolean matchTextDirection = jsonBoolean(
+                        fields, "matchTextDirection", base);
+                List<String> fontFamilyFallback = jsonStringArray(
+                        fields, "fontFamilyFallback", base);
+                yield modelValue(base, () -> new PropertyValue.IconDataValue(
+                        codePoint,
+                        fontFamily,
+                        fontPackage,
+                        matchTextDirection,
+                        fontFamilyFallback));
+            }
             case "themeToken" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "token"));
                 String tokenValue = jsonString(fields, "token", base);
@@ -1623,6 +1711,67 @@ final class FdJsonDecoder {
                     "The field must be a boolean.");
         }
         return booleanValue.value();
+    }
+
+    private Optional<String> jsonOptionalString(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        JsonValue value = requiredJson(fields, field, base);
+        if (value instanceof JsonValue.NullValue) {
+            return Optional.empty();
+        }
+        if (!(value instanceof JsonValue.StringValue stringValue)) {
+            throw failure(
+                    FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                    pointer(base, field),
+                    "The field must be a string or null.");
+        }
+        return Optional.of(stringValue.value());
+    }
+
+    private Optional<Integer> jsonOptionalInteger(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        JsonValue value = requiredJson(fields, field, base);
+        if (value instanceof JsonValue.NullValue) {
+            return Optional.empty();
+        }
+        if (!(value instanceof JsonValue.NumberValue numberValue)) {
+            throw failure(
+                    FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                    pointer(base, field),
+                    "The field must be an integer or null.");
+        }
+        try {
+            return Optional.of(numberValue.value().intValueExact());
+        } catch (ArithmeticException failure) {
+            throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, field),
+                    "The field must be a 32-bit mathematical integer.");
+        }
+    }
+
+    private List<String> jsonStringArray(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        List<JsonValue> values = jsonArray(requiredJson(fields, field, base),
+                pointer(base, field));
+        List<String> result = new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            JsonValue value = values.get(index);
+            if (!(value instanceof JsonValue.StringValue stringValue)) {
+                throw failure(
+                        FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                        pointer(pointer(base, field), Integer.toString(index)),
+                        "The array item must be a string.");
+            }
+            result.add(stringValue.value());
+        }
+        return List.copyOf(result);
     }
 
     private BigDecimal jsonNumber(Map<String, JsonValue> fields, String field, String base)

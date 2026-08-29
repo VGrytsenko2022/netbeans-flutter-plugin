@@ -352,6 +352,262 @@ void main() {
     }
   });
 
+  test('decodes the complete strict Icon contract and nullable IconData', () {
+    final decoded = _decode(
+      _iconModel(properties: iconPropertiesForViewTest()),
+    ).root.slot('body')!.child!.slot('child')!.child!;
+    final icon = decoded.properties['icon']!.value as CanvasIconDataValue;
+    expect(icon.codePoint, 0xe5fc);
+    expect(icon.fontFamily, 'MaterialIcons');
+    expect(icon.fontPackage, isNull);
+    expect(icon.matchTextDirection, isTrue);
+    expect(icon.fontFamilyFallback, isEmpty);
+    expect(decoded.properties['size']!.value, 32);
+    expect(decoded.properties['fill']!.value, 0.75);
+    expect(decoded.properties['weight']!.value, 600.0);
+    expect(decoded.properties['grade']!.value, -25.0);
+    expect(decoded.properties['opticalSize']!.value, 24.0);
+    expect(decoded.properties['color']!.value, isA<CanvasThemeToken>());
+    expect(
+      decoded.properties['shadows']!.value,
+      isA<List<CanvasShadowValue>>(),
+    );
+    expect(
+      (decoded.properties['blendMode']!.value as CanvasEnumValue).value,
+      'multiply',
+    );
+    expect(
+      (decoded.properties['fontWeight']!.value as CanvasEnumValue).value,
+      'w700',
+    );
+
+    final empty = _decode(
+      _iconModel(
+        properties: {
+          'icon': iconDataValueForViewTest(codePoint: null, fontFamily: null),
+        },
+      ),
+    ).root.slot('body')!.child!.slot('child')!.child!;
+    final emptyIcon = empty.properties['icon']!.value as CanvasIconDataValue;
+    expect(emptyIcon.codePoint, isNull);
+    expect(emptyIcon.fontFamily, isNull);
+    expect(emptyIcon.fontPackage, isNull);
+    expect(emptyIcon.matchTextDirection, isFalse);
+    expect(emptyIcon.fontFamilyFallback, isEmpty);
+  });
+
+  test('enforces exact IconData scalar, metadata and wire-shape rules', () {
+    void expectIconData(Map<String, Object?> value, Matcher matcher) {
+      expect(
+        () => _decode(_iconModel(properties: {'icon': value})),
+        matcher,
+        reason: value.toString(),
+      );
+    }
+
+    expectIconData(iconDataValueForViewTest(), returnsNormally);
+    expectIconData(
+      iconDataValueForViewTest(codePoint: null, fontFamily: null),
+      returnsNormally,
+    );
+
+    expectIconData(
+      iconDataValueForViewTest(codePoint: 0xe29f),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(matchTextDirection: true),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(codePoint: 0xe5fc),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(codePoint: 0xe67e),
+      returnsNormally,
+    );
+    expectIconData(
+      iconDataValueForViewTest(codePoint: 0xe67e, matchTextDirection: true),
+      returnsNormally,
+    );
+
+    for (final scalar in const [0, 0x10ffff]) {
+      expectIconData(
+        iconDataValueForViewTest(codePoint: scalar, fontFamily: 'Family'),
+        throwsFormatException,
+      );
+    }
+    for (final scalar in const [-1, 0xd800, 0xdfff, 0x110000]) {
+      expectIconData(
+        iconDataValueForViewTest(codePoint: scalar),
+        throwsFormatException,
+      );
+    }
+
+    final validAstral = String.fromCharCode(0x1f600) * 256;
+    expectIconData(
+      iconDataValueForViewTest(fontFamily: validAstral),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(
+        fontFamily: validAstral + String.fromCharCode(0x1f601),
+      ),
+      throwsFormatException,
+    );
+    for (final metadata in <String>[
+      '',
+      ' Family',
+      'Family ',
+      'A\u0000B',
+      String.fromCharCode(0x061c),
+      String.fromCharCode(0x200e),
+      String.fromCharCode(0x200f),
+      String.fromCharCode(0x2028),
+      String.fromCharCode(0x202e),
+      String.fromCharCode(0x2066),
+      String.fromCharCode(0x2069),
+      String.fromCharCode(0xfeff),
+      String.fromCharCode(0xd800),
+    ]) {
+      expectIconData(
+        iconDataValueForViewTest(fontFamily: metadata),
+        throwsFormatException,
+      );
+    }
+
+    expectIconData(
+      iconDataValueForViewTest(fontPackage: 'package'),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(codePoint: null, fontFamily: 'MaterialIcons'),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(
+        fontFamilyFallback: List<String>.generate(33, (index) => 'F$index'),
+      ),
+      throwsFormatException,
+    );
+    expectIconData(
+      iconDataValueForViewTest(fontFamilyFallback: const ['Same', 'Same']),
+      throwsFormatException,
+    );
+
+    final missing = iconDataValueForViewTest()..remove('fontPackage');
+    expectIconData(missing, throwsFormatException);
+    final extra = iconDataValueForViewTest()..['extra'] = true;
+    expectIconData(extra, throwsFormatException);
+    final wrongList = iconDataValueForViewTest()
+      ..['fontFamilyFallback'] = 'Fallback';
+    expectIconData(wrongList, throwsFormatException);
+  });
+
+  test('enforces every Icon constructor bound, enum and leaf contract', () {
+    void expectProperty(
+      String name,
+      Map<String, Object?> value,
+      Matcher matcher,
+    ) {
+      expect(
+        () => _decode(
+          _iconModel(
+            properties: {'icon': iconDataValueForViewTest(), name: value},
+          ),
+        ),
+        matcher,
+        reason: '$name=$value',
+      );
+    }
+
+    for (final candidate in const [
+      {'kind': 'integer', 'value': 0},
+      {'kind': 'integer', 'value': 9007199254740991},
+      {'kind': 'double', 'value': 0.0},
+    ]) {
+      expectProperty('size', candidate, returnsNormally);
+    }
+    expectProperty('size', const {
+      'kind': 'integer',
+      'value': -1,
+    }, throwsFormatException);
+    for (final value in const [0.0, 1.0]) {
+      expectProperty('fill', {
+        'kind': 'double',
+        'value': value,
+      }, returnsNormally);
+    }
+    for (final value in const [-0.01, 1.01]) {
+      expectProperty('fill', {
+        'kind': 'double',
+        'value': value,
+      }, throwsFormatException);
+    }
+    expectProperty('fill', const {
+      'kind': 'integer',
+      'value': 1,
+    }, throwsFormatException);
+    for (final name in const ['weight', 'opticalSize']) {
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 0.0,
+      }, throwsFormatException);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 0.001,
+      }, returnsNormally);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 32767.999,
+      }, returnsNormally);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 32768.0,
+      }, throwsFormatException);
+    }
+    for (final value in const [-32768.0, 32767.999]) {
+      expectProperty('grade', {
+        'kind': 'double',
+        'value': value,
+      }, returnsNormally);
+    }
+    for (final value in const [-32768.001, 32768.0]) {
+      expectProperty('grade', {
+        'kind': 'double',
+        'value': value,
+      }, throwsFormatException);
+    }
+    expectProperty('textDirection', const {
+      'kind': 'enum',
+      'type': 'TextDirection',
+      'value': 'auto',
+    }, throwsFormatException);
+    expectProperty('blendMode', const {
+      'kind': 'enum',
+      'type': 'BlendMode',
+      'value': 'futureMode',
+    }, throwsFormatException);
+    expectProperty('fontWeight', const {
+      'kind': 'enum',
+      'type': 'FontWeight',
+      'value': 'bold',
+    }, throwsFormatException);
+
+    final missingRequired = _iconModel(properties: const {});
+    expect(() => _decode(missingRequired), throwsFormatException);
+    final unknownSlot = _iconModel(
+      properties: {'icon': iconDataValueForViewTest()},
+    );
+    final iconNode = _findNodeByType(
+      unknownSlot['root']! as Map<String, Object?>,
+      'flutter.widgets.Icon',
+    );
+    iconNode['slots'] = {'child': _single(null)};
+    expect(() => _decode(unknownSlot), throwsFormatException);
+  });
+
   test('rejects duplicate Text semantics identifiers across the tree', () {
     final json = _modelJson();
     final texts = _textNodes(_column(json));
@@ -830,6 +1086,59 @@ void main() {
 Uint8List modelBytesForViewTest() =>
     Uint8List.fromList(utf8.encode(jsonEncode(_modelJson())));
 
+const iconWidgetIdForViewTest = 'b3403b57-2a86-4aed-bec6-3a245af290bd';
+
+Map<String, Object?> iconDataValueForViewTest({
+  int? codePoint = 0xe5f9,
+  String? fontFamily = 'MaterialIcons',
+  String? fontPackage,
+  bool matchTextDirection = false,
+  List<String> fontFamilyFallback = const [],
+}) => {
+  'kind': 'iconData',
+  'codePoint': codePoint,
+  'fontFamily': fontFamily,
+  'fontPackage': fontPackage,
+  'matchTextDirection': matchTextDirection,
+  'fontFamilyFallback': fontFamilyFallback,
+};
+
+Map<String, Object?> iconPropertiesForViewTest() => {
+  'icon': iconDataValueForViewTest(codePoint: 0xe5fc, matchTextDirection: true),
+  'size': {'kind': 'integer', 'value': 32},
+  'fill': {'kind': 'double', 'value': 0.75},
+  'weight': {'kind': 'double', 'value': 600.0},
+  'grade': {'kind': 'double', 'value': -25.0},
+  'opticalSize': {'kind': 'double', 'value': 24.0},
+  'color': {'kind': 'themeToken', 'token': 'material.colorScheme.primary'},
+  'shadows': {
+    'kind': 'shadowList',
+    'items': [
+      {
+        'id': 'a019424b-d086-4745-9f69-7e72844ffc7c',
+        'color': {'kind': 'theme', 'token': 'material.colorScheme.shadow'},
+        'offsetX': -1.0,
+        'offsetY': 2.0,
+        'blurRadius': 3.0,
+      },
+    ],
+  },
+  'semanticLabel': {'kind': 'string', 'value': 'Reviewed icon'},
+  'textDirection': {'kind': 'enum', 'type': 'TextDirection', 'value': 'rtl'},
+  'applyTextScaling': {'kind': 'boolean', 'value': false},
+  'blendMode': {'kind': 'enum', 'type': 'BlendMode', 'value': 'multiply'},
+  'fontWeight': {'kind': 'enum', 'type': 'FontWeight', 'value': 'w700'},
+};
+
+Uint8List iconModelBytesForViewTest({Map<String, Object?>? properties}) =>
+    Uint8List.fromList(
+      utf8.encode(
+        jsonEncode(
+          _iconModel(properties: properties ?? iconPropertiesForViewTest()),
+        ),
+      ),
+    );
+
 Uint8List expandedTextModelBytesForViewTest() {
   final json = _modelJson();
   _helloProperties(json).addAll(_expandedTextProperties());
@@ -1002,7 +1311,7 @@ Map<String, Object?> _expandedTextProperties() => {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 5,
+  'protocolVersion': 6,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
@@ -1212,6 +1521,57 @@ Map<String, Object?> _modelJson() => {
     },
   ),
 };
+
+Map<String, Object?> _iconModel({required Map<String, Object?> properties}) {
+  final model = _modelJson();
+  final root = model['root']! as Map<String, Object?>;
+  final slots = root['slots']! as Map<String, Object?>;
+  slots['body'] = _single(
+    _node(
+      'f0901ec9-b86a-4843-a119-75bce467efb8',
+      'flutter.widgets.Center',
+      slots: {
+        'child': _single(
+          _node(
+            iconWidgetIdForViewTest,
+            'flutter.widgets.Icon',
+            properties: properties,
+          ),
+        ),
+      },
+    ),
+  );
+  slots.remove('floatingActionButton');
+  return model;
+}
+
+Map<String, Object?> _findNodeByType(Map<String, Object?> node, String type) {
+  if (node['type'] == type) {
+    return node;
+  }
+  for (final rawSlot in (node['slots']! as Map<String, Object?>).values) {
+    final slot = rawSlot! as Map<String, Object?>;
+    final child = slot['child'];
+    if (child is Map<String, Object?>) {
+      try {
+        return _findNodeByType(child, type);
+      } on StateError {
+        // Continue with sibling slots.
+      }
+    }
+    final children = slot['children'];
+    if (children is List<Object?>) {
+      for (final child in children.cast<Map<String, Object?>>()) {
+        try {
+          return _findNodeByType(child, type);
+        } on StateError {
+          // Continue with sibling children.
+        }
+      }
+    }
+  }
+  throw StateError('Fixture does not contain $type.');
+}
 
 Map<String, Object?> _theme(Map<String, Object?> model) {
   final profile = model['profile']! as Map<String, Object?>;

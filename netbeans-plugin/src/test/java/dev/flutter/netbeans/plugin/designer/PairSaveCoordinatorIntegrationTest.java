@@ -732,7 +732,7 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
-    void firstSaveAfterV1MigrationReanchorsCanonicalV3PropertyHistory()
+    void firstSaveAfterV1MigrationReanchorsCanonicalV4PropertyHistory()
             throws Exception {
         SetProperty foreground = new SetProperty(
                 ROOT_ID,
@@ -740,7 +740,7 @@ class PairSaveCoordinatorIntegrationTest {
                 new PropertyValue.ThemeTokenValue(new ThemeToken(
                         "material.colorScheme.primaryFixed")));
         StagedPair c1 = stageLegacyV1RealPair(
-                "saved_history_v1_to_v3_property_migration",
+                "saved_history_v1_to_v4_property_migration",
                 foreground);
         try (DesignerCommandSessionOrchestrator orchestrator =
                 c1.orchestrator()) {
@@ -749,7 +749,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .contains("\"schemaVersion\": 1"));
             assertTrue(new String(
                     c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 3"));
+                    .contains("\"schemaVersion\": 4"));
 
             SetProperty background = new SetProperty(
                     ROOT_ID,
@@ -765,7 +765,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .encode(c1.current().decoded().document()).copyBytes();
             assertTrue(new String(
                     canonicalC0Fd, StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 3"));
+                    .contains("\"schemaVersion\": 4"));
             assertFalse(Arrays.equals(
                     c1.prepared().baselineFdBytes(), canonicalC0Fd));
 
@@ -6454,11 +6454,11 @@ class PairSaveCoordinatorIntegrationTest {
             String canonical = new String(
                     baselineFd, StandardCharsets.UTF_8);
             String legacy = canonical.replace(
-                    "\"schemaVersion\": 3",
+                    "\"schemaVersion\": 4",
                     "\"schemaVersion\": 1");
             if (legacy.equals(canonical)) {
                 throw new AssertionError(
-                        "The canonical fixture did not declare schema v3");
+                        "The canonical fixture did not declare schema v4");
             }
             baselineFd = legacy.getBytes(StandardCharsets.UTF_8);
         }

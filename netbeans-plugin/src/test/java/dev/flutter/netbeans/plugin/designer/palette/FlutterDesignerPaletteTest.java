@@ -38,13 +38,13 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Text",
+            "flutter.widgets.Icon",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of(
             "flutter.material.AppBar",
-            "flutter.material.ElevatedButton",
-            "flutter.widgets.Icon");
+            "flutter.material.ElevatedButton");
 
     @Test
     void preservesCatalogCategoryAndItemOrderWithLocalizedCategoryLabels() {
@@ -79,7 +79,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of("Scaffold"), itemLabels(categories[0]));
         assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("Text"), itemLabels(categories[2]));
+        assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
                 CATALOG,
@@ -305,7 +305,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void sevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void eightCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -324,7 +324,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(7, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(8, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

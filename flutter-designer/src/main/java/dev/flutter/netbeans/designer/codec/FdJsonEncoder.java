@@ -407,6 +407,30 @@ final class FdJsonEncoder {
             context.stringField("handler", callbackValue.handler(), pointer + "/handler");
         } else if (value instanceof PropertyValue.DartExpressionValue expressionValue) {
             context.stringField("code", expressionValue.code(), pointer + "/code");
+        } else if (value instanceof PropertyValue.IconDataValue iconData) {
+            context.fieldName("codePoint", pointer + "/codePoint");
+            if (iconData.codePoint().isPresent()) {
+                context.numberValue(
+                        Integer.toString(iconData.codePoint().orElseThrow()),
+                        pointer + "/codePoint");
+            } else {
+                context.nullValue(pointer + "/codePoint");
+            }
+            writeOptionalStringField(
+                    "fontFamily", iconData.fontFamily(), pointer, context);
+            writeOptionalStringField(
+                    "fontPackage", iconData.fontPackage(), pointer, context);
+            context.booleanField(
+                    "matchTextDirection", iconData.matchTextDirection(),
+                    pointer + "/matchTextDirection");
+            context.fieldName("fontFamilyFallback", pointer + "/fontFamilyFallback");
+            context.startArray(pointer + "/fontFamilyFallback");
+            for (int index = 0; index < iconData.fontFamilyFallback().size(); index++) {
+                context.stringValue(
+                        iconData.fontFamilyFallback().get(index),
+                        pointer + "/fontFamilyFallback/" + index);
+            }
+            context.endArray(pointer + "/fontFamilyFallback");
         } else if (value instanceof PropertyValue.ThemeTokenValue themeTokenValue) {
             context.stringField(
                     "token", themeTokenValue.token().wireId(), pointer + "/token");
@@ -454,6 +478,20 @@ final class FdJsonEncoder {
                             + value.getClass().getName()));
         }
         context.endObject(pointer);
+    }
+
+    private static void writeOptionalStringField(
+            String field,
+            java.util.Optional<String> value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String valuePointer = pointer + '/' + field;
+        context.fieldName(field, valuePointer);
+        if (value.isPresent()) {
+            context.stringValue(value.orElseThrow(), valuePointer);
+        } else {
+            context.nullValue(valuePointer);
+        }
     }
 
     private static void writeColorSource(

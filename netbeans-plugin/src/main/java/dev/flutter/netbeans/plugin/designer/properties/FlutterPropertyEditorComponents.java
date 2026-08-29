@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
+import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -27,11 +28,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import javax.swing.JButton;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -65,6 +69,12 @@ final class FlutterPropertyEditorComponents {
     static final String COLOR_ALPHA_NAME = "flutter.color.alpha";
     static final String EDGE_ALL_NAME = "flutter.edgeInsets.all";
     static final String NEWLINE_LIST_TEXT_NAME = "flutter.newlineList.text";
+    static final String MATERIAL_ICON_SEARCH_NAME = "flutter.materialIcon.search";
+    static final String MATERIAL_ICON_RESULTS_NAME = "flutter.materialIcon.results";
+    static final String MATERIAL_ICON_NONE_NAME = "flutter.materialIcon.none";
+    static final String MATERIAL_ICON_STATUS_NAME = "flutter.materialIcon.status";
+    static final String MATERIAL_ICON_REQUIREMENT_NAME =
+            "flutter.materialIcon.requirement";
 
     private FlutterPropertyEditorComponents() {
     }
@@ -84,7 +94,7 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
-                    FONT_VARIATION_LIST -> true;
+                    FONT_VARIATION_LIST, ICON_DATA -> true;
             default -> false;
         };
     }
@@ -106,6 +116,8 @@ final class FlutterPropertyEditorComponents {
             case THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST -> FlutterComplexPropertyEditorComponents
                     .customEditor(editor, binding, environment);
+            case ICON_DATA -> new MaterialIconDataCustomEditor(
+                    editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No custom editor for " + binding.editorKind());
         };
@@ -670,6 +682,228 @@ final class FlutterPropertyEditorComponents {
                     ? FlutterPropertyCellValue.unset()
                     : FlutterPropertyCellValue.explicit(
                             new PropertyValue.StringValue(textArea.getText())));
+        }
+    }
+
+    /** Searchable, registry-backed selector for the built-in Icon property. */
+    private static final class MaterialIconDataCustomEditor
+            extends CommitOnValidPanel {
+        private static final MaterialIconRegistry REGISTRY =
+                MaterialIconRegistry.bundled();
+
+        private final JCheckBox none = new JCheckBox("None (empty icon)");
+        private final JTextField search = new JTextField(28);
+        private final DefaultListModel<MaterialIconRegistry.MaterialIcon> resultModel =
+                new DefaultListModel<>();
+        private final JList<MaterialIconRegistry.MaterialIcon> results =
+                new JList<>(resultModel);
+        private final JLabel status = new JLabel();
+        private final JLabel requirement = new JLabel(
+                "Requires flutter.uses-material-design: true");
+        private boolean updating;
+
+        MaterialIconDataCustomEditor(
+                PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding,
+                PropertyEnv environment) {
+            super(editor, binding, environment);
+            setLayout(new BorderLayout(0, 8));
+            setName("flutter.materialIcon.custom");
+            setPreferredSize(new Dimension(620, 430));
+            getAccessibleContext().setAccessibleName("Material icon selector");
+            getAccessibleContext().setAccessibleDescription(
+                    "Searches the complete bundled Flutter 3.44.8 Material Icons registry; "
+                    + "no arbitrary IconData or Dart expression is accepted.");
+
+            none.setName(MATERIAL_ICON_NONE_NAME);
+            none.getAccessibleContext().setAccessibleName("No icon");
+            none.getAccessibleContext().setAccessibleDescription(
+                    "Stores the explicit nullable IconData value None.");
+
+            search.setName(MATERIAL_ICON_SEARCH_NAME);
+            search.getAccessibleContext().setAccessibleName("Search Material icons");
+            search.getAccessibleContext().setAccessibleDescription(
+                    "Search by Flutter Icons identifier; up to 100 deterministic results are shown.");
+            JLabel searchLabel = new JLabel("Search:");
+            searchLabel.setLabelFor(search);
+            JPanel controls = new JPanel(new BorderLayout(8, 4));
+            controls.add(none, BorderLayout.NORTH);
+            JPanel searchRow = new JPanel(new BorderLayout(8, 0));
+            searchRow.add(searchLabel, BorderLayout.WEST);
+            searchRow.add(search, BorderLayout.CENTER);
+            controls.add(searchRow, BorderLayout.CENTER);
+            add(controls, BorderLayout.NORTH);
+
+            results.setName(MATERIAL_ICON_RESULTS_NAME);
+            results.setSelectionMode(
+                    javax.swing.ListSelectionModel.SINGLE_SELECTION);
+            results.setCellRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                        JList<?> list,
+                        Object value,
+                        int index,
+                        boolean selected,
+                        boolean focused) {
+                    super.getListCellRendererComponent(
+                            list, value, index, selected, focused);
+                    if (value instanceof MaterialIconRegistry.MaterialIcon icon) {
+                        setText(icon.displayLabel() + "   Icons." + icon.name()
+                                + "   U+%04X".formatted(icon.codePoint())
+                                + (icon.matchTextDirection() ? "   RTL" : ""));
+                    }
+                    return this;
+                }
+            });
+            results.getAccessibleContext().setAccessibleName(
+                    "Material icon search results");
+            results.getAccessibleContext().setAccessibleDescription(
+                    "Reviewed Flutter Material icons matching the search query.");
+            add(new JScrollPane(results), BorderLayout.CENTER);
+
+            status.setName(MATERIAL_ICON_STATUS_NAME);
+            status.getAccessibleContext().setAccessibleName(
+                    "Material icon result count");
+            requirement.setName(MATERIAL_ICON_REQUIREMENT_NAME);
+            requirement.getAccessibleContext().setAccessibleName(
+                    "Material icon project requirement");
+            requirement.getAccessibleContext().setAccessibleDescription(
+                    "The Flutter project must bundle the MaterialIcons font.");
+            JPanel footer = new JPanel(new BorderLayout(12, 0));
+            footer.add(status, BorderLayout.WEST);
+            footer.add(requirement, BorderLayout.EAST);
+            add(footer, BorderLayout.SOUTH);
+
+            PropertyValue.IconDataValue initial = initialValue().explicitValue()
+                    .map(PropertyValue.IconDataValue.class::cast)
+                    .orElseThrow();
+            updating = true;
+            try {
+                if (initial.equals(PropertyValue.IconDataValue.none())) {
+                    none.setSelected(true);
+                    setRegistryEnabled(false);
+                    stageValid(FlutterPropertyCellValue.explicit(initial));
+                } else {
+                    MaterialIconRegistry.MaterialIcon selected = findExact(initial)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "The current IconData is not in the bundled Material registry."));
+                    search.setText(selected.name());
+                    REGISTRY.search(
+                            selected.name(),
+                            MaterialIconRegistry.MAX_SEARCH_RESULTS)
+                            .forEach(resultModel::addElement);
+                    updateStatus();
+                    results.setSelectedValue(selected, true);
+                    stageValid(FlutterPropertyCellValue.explicit(initial));
+                }
+            } finally {
+                updating = false;
+            }
+            updateStatus();
+
+            none.addActionListener(ignored -> noneChanged());
+            search.getDocument().addDocumentListener(
+                    documentListener(() -> refreshResults(null)));
+            results.addListSelectionListener(ignored -> selectionChanged());
+            activate();
+        }
+
+        private void noneChanged() {
+            if (updating) {
+                return;
+            }
+            setRegistryEnabled(!none.isSelected());
+            if (none.isSelected()) {
+                results.clearSelection();
+                markValid(FlutterPropertyCellValue.explicit(
+                        PropertyValue.IconDataValue.none()));
+            } else {
+                refreshResults(null);
+                environment.setState(PropertyEnv.STATE_INVALID);
+            }
+        }
+
+        private void refreshResults(MaterialIconRegistry.MaterialIcon preferred) {
+            if (updating || none.isSelected()) {
+                return;
+            }
+            updating = true;
+            try {
+                MaterialIconRegistry.MaterialIcon previous = preferred != null
+                        ? preferred : results.getSelectedValue();
+                resultModel.clear();
+                REGISTRY.search(search.getText(), MaterialIconRegistry.MAX_SEARCH_RESULTS)
+                        .forEach(resultModel::addElement);
+                updateStatus();
+                if (previous != null && resultModel.contains(previous)) {
+                    results.setSelectedValue(previous, true);
+                } else {
+                    results.clearSelection();
+                }
+            } catch (IllegalArgumentException failure) {
+                updateStatus();
+                markInvalid(failure.getMessage(), search);
+                return;
+            } finally {
+                updating = false;
+            }
+            clearInvalid(search,
+                    "Search by Flutter Icons identifier; up to 100 results.");
+            if (results.getSelectedValue() == null) {
+                environment.setState(PropertyEnv.STATE_INVALID);
+            }
+        }
+
+        private void selectionChanged() {
+            if (updating || none.isSelected() || results.getValueIsAdjusting()) {
+                return;
+            }
+            MaterialIconRegistry.MaterialIcon selected = results.getSelectedValue();
+            if (selected == null) {
+                environment.setState(PropertyEnv.STATE_INVALID);
+                return;
+            }
+            markValid(FlutterPropertyCellValue.explicit(toValue(selected)));
+        }
+
+        private void setRegistryEnabled(boolean enabled) {
+            search.setEnabled(enabled);
+            results.setEnabled(enabled);
+        }
+
+        private void updateStatus() {
+            String summary = resultModel.size() + " results · "
+                    + String.format(Locale.ROOT, "%,d", REGISTRY.entries().size())
+                    + " total · Flutter " + REGISTRY.metadata().flutterVersion();
+            status.setText(summary);
+            status.getAccessibleContext().setAccessibleName(
+                    "Material icon search status: " + summary);
+            status.getAccessibleContext().setAccessibleDescription(summary);
+        }
+
+        private static Optional<MaterialIconRegistry.MaterialIcon> findExact(
+                PropertyValue.IconDataValue value) {
+            if (!value.fontFamily().equals(Optional.of(
+                    REGISTRY.metadata().fontFamily()))
+                    || value.fontPackage().isPresent()
+                    || !value.fontFamilyFallback().isEmpty()) {
+                return Optional.empty();
+            }
+            int codePoint = value.codePoint().orElse(-1);
+            return REGISTRY.entries().stream().filter(candidate ->
+                    candidate.codePoint() == codePoint
+                    && candidate.matchTextDirection()
+                    == value.matchTextDirection()).findFirst();
+        }
+
+        private static PropertyValue.IconDataValue toValue(
+                MaterialIconRegistry.MaterialIcon icon) {
+            return new PropertyValue.IconDataValue(
+                    Optional.of(icon.codePoint()),
+                    Optional.of(icon.fontFamily()),
+                    Optional.empty(),
+                    icon.matchTextDirection(),
+                    java.util.List.of());
         }
     }
 
@@ -1326,6 +1560,33 @@ final class FlutterPropertyEditorComponents {
                 action.run();
             }
         };
+    }
+
+    private static void addRow(
+            JPanel panel,
+            int row,
+            String labelText,
+            JComponent field,
+            String hintText) {
+        GridBagConstraints labelConstraints = new GridBagConstraints();
+        labelConstraints.gridx = 0;
+        labelConstraints.gridy = row;
+        labelConstraints.anchor = GridBagConstraints.LINE_END;
+        labelConstraints.insets = new Insets(3, 3, 3, 6);
+        JLabel label = new JLabel(labelText);
+        label.setLabelFor(field);
+        panel.add(label, labelConstraints);
+
+        GridBagConstraints fieldConstraints = new GridBagConstraints();
+        fieldConstraints.gridx = 1;
+        fieldConstraints.gridy = row;
+        fieldConstraints.weightx = 1;
+        fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
+        fieldConstraints.insets = new Insets(3, 3, 3, 3);
+        panel.add(field, fieldConstraints);
+        if (hintText != null) {
+            field.setToolTipText(hintText);
+        }
     }
 
     private static void setEnabledRecursively(Component component, boolean enabled) {

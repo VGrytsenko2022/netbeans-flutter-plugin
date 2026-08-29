@@ -75,6 +75,9 @@ class BuiltInWidgetCatalogTest {
         assertEquals(expected, actual);
         assertTrue(BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .allMatch(value -> value.importUris().contains(value.dartLibraryUri())));
+        assertEquals(List.of(WIDGETS_IMPORT),
+                definition("flutter.widgets.Icon").importUris(),
+                "Typed IconData does not require an otherwise-unused material.dart import");
     }
 
     @Test
@@ -90,6 +93,7 @@ class BuiltInWidgetCatalogTest {
                 .toList();
 
         assertEquals(List.of(
+                new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
@@ -132,7 +136,12 @@ class BuiltInWidgetCatalogTest {
         PropertyValue.EdgeInsetsValue insets = assertInstanceOf(PropertyValue.EdgeInsetsValue.class, padding);
         assertEquals(BigDecimal.valueOf(16), insets.left());
 
-        assertEquals(new PropertyValue.DartExpressionValue("Icons.star"),
+        assertEquals(new PropertyValue.IconDataValue(
+                        java.util.Optional.of(0xE5F9),
+                        java.util.Optional.of("MaterialIcons"),
+                        java.util.Optional.empty(),
+                        false,
+                        List.of()),
                 property(catalog, "flutter.widgets.Icon", "icon").creationDefault().orElseThrow());
         assertEquals(new PropertyValue.DartExpressionValue("null"),
                 property(catalog, "flutter.material.ElevatedButton", "onPressed")
@@ -314,6 +323,67 @@ class BuiltInWidgetCatalogTest {
                 BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Center", "heightFactor"));
         assertAcceptsZero(property(
                 BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Icon", "size"));
+    }
+
+    @Test
+    void iconExposesTheCompleteReviewedFlutter344ConstructorSurface() {
+        WidgetDefinition icon = definition("flutter.widgets.Icon");
+        assertEquals(List.of(
+                "icon", "size", "fill", "weight", "grade", "opticalSize",
+                "color", "shadows", "semanticLabel", "textDirection",
+                "applyTextScaling", "blendMode", "fontWeight"),
+                icon.properties().stream().map(value -> value.name().value()).toList());
+        assertEquals(IconWidgetPropertySchema.definitions().keySet(),
+                icon.properties().stream().map(value -> value.name().value())
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+        assertTrue(icon.slots().isEmpty());
+
+        PropertyDefinition iconData = property(
+                BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Icon", "icon");
+        assertEquals(DartParameter.positional(0), iconData.parameter());
+        assertEquals(List.of(PropertyValueKind.ICON_DATA),
+                iconData.acceptedKinds().stream().toList());
+        assertInstanceOf(PropertyValueConstraint.MaterialIconValues.class,
+                iconData.constraints().getFirst());
+
+        assertDoubleRange(icon, "fill", BigDecimal.ZERO, true, BigDecimal.ONE, true);
+        assertDoubleRange(icon, "weight", BigDecimal.ZERO, false,
+                BigDecimal.valueOf(32768), false);
+        assertDoubleRange(icon, "grade", BigDecimal.valueOf(-32768), true,
+                BigDecimal.valueOf(32768), false);
+        assertDoubleRange(icon, "opticalSize", BigDecimal.ZERO, false,
+                BigDecimal.valueOf(32768), false);
+        assertEquals(List.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                icon.property(new PropertyName("color")).orElseThrow()
+                        .acceptedKinds().stream().toList());
+        assertEquals(List.of(PropertyValueKind.SHADOW_LIST),
+                icon.property(new PropertyName("shadows")).orElseThrow()
+                        .acceptedKinds().stream().toList());
+        assertTrue(IconWidgetPropertySchema.find(new PropertyName("weight")).orElseThrow()
+                .description().contains("overrides Font weight"));
+        String fontWeightDescription = IconWidgetPropertySchema
+                .find(new PropertyName("fontWeight")).orElseThrow().description();
+        assertTrue(fontWeightDescription.contains("not inherited from IconTheme"));
+        assertTrue(fontWeightDescription.contains("Weight axis overrides"));
+        assertTrue(IconWidgetPropertySchema.find(new PropertyName("shadows")).orElseThrow()
+                .description().contains("explicit empty list"));
+    }
+
+    private static void assertDoubleRange(
+            WidgetDefinition definition,
+            String name,
+            BigDecimal minimum,
+            boolean minimumInclusive,
+            BigDecimal maximum,
+            boolean maximumInclusive) {
+        PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                definition.property(new PropertyName(name)).orElseThrow()
+                        .constraints().getFirst());
+        assertEquals(minimum, range.minimum());
+        assertEquals(minimumInclusive, range.minimumInclusive());
+        assertEquals(maximum, range.maximum());
+        assertEquals(maximumInclusive, range.maximumInclusive());
     }
 
     @Test

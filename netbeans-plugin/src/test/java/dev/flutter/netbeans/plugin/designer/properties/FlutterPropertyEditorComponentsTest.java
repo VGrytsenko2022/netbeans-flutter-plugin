@@ -13,6 +13,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartNumericLiterals;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
+import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -44,6 +45,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
+import javax.swing.JList;
 import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
@@ -750,6 +752,118 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void iconDataEditorSearchesTheFullRegistryAndNeverOffersArbitraryMetadata()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Icon", "icon"));
+        PropertyValue.IconDataValue star = new PropertyValue.IconDataValue(
+                java.util.Optional.of(0xE5F9),
+                java.util.Optional.of("MaterialIcons"),
+                java.util.Optional.empty(), false, List.of());
+        PropertyEditor registryEditor = binding.createEditor();
+        registryEditor.setValue(FlutterPropertyCellValue.explicit(star));
+        PropertyEnv registryEnvironment = PropertyEnv.create(descriptor(
+                "Icon data", "Typed nullable IconData metadata."));
+        ((ExPropertyEditor) registryEditor).attachEnv(registryEnvironment);
+
+        onEdt(() -> {
+            Component panel = registryEditor.getCustomEditor();
+            JTextField search = findNamed(panel, JTextField.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_SEARCH_NAME);
+            JList<?> results = findNamed(panel, JList.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_RESULTS_NAME);
+            JCheckBox none = findNamed(panel, JCheckBox.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_NONE_NAME);
+            javax.swing.JLabel status = findNamed(panel, javax.swing.JLabel.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_STATUS_NAME);
+            javax.swing.JLabel requirement = findNamed(panel, javax.swing.JLabel.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_REQUIREMENT_NAME);
+            assertNotNull(search);
+            assertNotNull(results);
+            assertNotNull(none);
+            assertNotNull(status);
+            assertNotNull(requirement);
+            assertEquals("star", search.getText());
+            MaterialIconRegistry.MaterialIcon selected = assertInstanceOf(
+                    MaterialIconRegistry.MaterialIcon.class,
+                    results.getSelectedValue());
+            assertEquals("star", selected.name());
+            assertFalse(none.isSelected());
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("no arbitrary IconData"));
+            assertNull(findNamed(panel, JTextField.class,
+                    "flutter.iconData.codePoint"));
+            assertNull(findNamed(panel, JTextField.class,
+                    "flutter.iconData.fontFamily"));
+            assertNull(findFirst(panel, JComboBox.class));
+            assertEquals(results.getModel().getSize()
+                    + " results · 8,825 total · Flutter 3.44.8",
+                    status.getText());
+            assertEquals("Material icon search status: " + status.getText(),
+                    status.getAccessibleContext().getAccessibleName());
+            assertEquals(status.getText(),
+                    status.getAccessibleContext().getAccessibleDescription());
+            assertEquals("Requires flutter.uses-material-design: true",
+                    requirement.getText());
+
+            search.setText("arrow back");
+            assertTrue(results.getModel().getSize() > 0);
+            MaterialIconRegistry.MaterialIcon arrowBack = assertInstanceOf(
+                    MaterialIconRegistry.MaterialIcon.class,
+                    results.getModel().getElementAt(0));
+            assertEquals("arrow_back", arrowBack.name());
+            assertTrue(arrowBack.matchTextDirection());
+            Component rendered = renderedListCell(results, arrowBack);
+            assertTrue(assertInstanceOf(javax.swing.JLabel.class, rendered)
+                    .getText().endsWith("RTL"));
+            assertEquals(results.getModel().getSize()
+                    + " results · 8,825 total · Flutter 3.44.8",
+                    status.getText());
+            assertEquals("Material icon search status: " + status.getText(),
+                    status.getAccessibleContext().getAccessibleName());
+            assertEquals(status.getText(),
+                    status.getAccessibleContext().getAccessibleDescription());
+            results.setSelectedIndex(0);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    registryEnvironment.getState());
+            registryEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.IconDataValue(
+                            java.util.Optional.of(arrowBack.codePoint()),
+                            java.util.Optional.of("MaterialIcons"),
+                            java.util.Optional.empty(),
+                            arrowBack.matchTextDirection(),
+                            List.of())), registryEditor.getValue());
+            return null;
+        });
+
+        PropertyEditor noneEditor = binding.createEditor();
+        noneEditor.setValue(FlutterPropertyCellValue.explicit(star));
+        PropertyEnv noneEnvironment = PropertyEnv.create(descriptor(
+                "Icon data", "Typed nullable IconData metadata."));
+        ((ExPropertyEditor) noneEditor).attachEnv(noneEnvironment);
+        onEdt(() -> {
+            Component panel = noneEditor.getCustomEditor();
+            JCheckBox none = findNamed(panel, JCheckBox.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_NONE_NAME);
+            JTextField search = findNamed(panel, JTextField.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_SEARCH_NAME);
+            JList<?> results = findNamed(panel, JList.class,
+                    FlutterPropertyEditorComponents.MATERIAL_ICON_RESULTS_NAME);
+            none.doClick();
+            assertFalse(search.isEnabled());
+            assertFalse(results.isEnabled());
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    noneEnvironment.getState());
+            noneEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            PropertyValue.IconDataValue.none()),
+                    noneEditor.getValue());
+            return null;
+        });
+    }
+
+    @Test
     void paintEditorCommitsTheCompleteStructuredDraftAndCanBeEditedAgain()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(complexProperty(
@@ -1170,6 +1284,13 @@ class FlutterPropertyEditorComponentsTest {
             }
         }
         return null;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Component renderedListCell(JList<?> list, Object value) {
+        javax.swing.ListCellRenderer renderer = list.getCellRenderer();
+        return renderer.getListCellRendererComponent(
+                list, value, 0, false, false);
     }
 
     private static <T extends Component> T findFirst(

@@ -73,7 +73,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
-                "flutter.widgets.Text"),
+                "flutter.widgets.Text",
+                "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -81,7 +82,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactSevenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactEightWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -92,7 +93,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":5"));
+        assertTrue(json.contains("\"protocolVersion\":6"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -106,6 +107,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Center\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.SizedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
         assertTrue(json.contains("\"height\":{\"kind\":\"double\",\"value\":48.5}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
@@ -126,6 +128,11 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"styleColor\":{\"kind\":\"color\","
                 + "\"argb\":\"0xFF112233\"}"));
         assertTrue(json.contains("\"textScalerFactor\":{\"kind\":\"double\",\"value\":1.25}"));
+        assertTrue(json.contains("\"icon\":{\"kind\":\"iconData\","
+                + "\"codePoint\":57490,\"fontFamily\":\"MaterialIcons\","
+                + "\"fontPackage\":null,"
+                + "\"matchTextDirection\":true,"
+                + "\"fontFamilyFallback\":[]}"), json);
         assertFalse(json.contains("home_page.dart"));
         assertFalse(json.contains("HomePage"));
         assertFalse(json.contains("managedRegions"));
@@ -201,7 +208,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":5"), json);
+        assertTrue(json.contains("\"protocolVersion\":6"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -413,7 +420,7 @@ class CanvasModelPayloadCodecTest {
                         new PropertyName("spacing"),
                         new PropertyValue.DoubleValue(BigDecimal.valueOf(12.5))),
                 Map.of(new SlotName("children"),
-                        new WidgetSlot.ListSlot(List.of(padding, row))));
+                        new WidgetSlot.ListSlot(List.of(padding, row, icon()))));
         Map<PropertyName, PropertyValue> scaffoldProperties = new LinkedHashMap<>();
         PropertyName background = new PropertyName("backgroundColor");
         PropertyName resize = new PropertyName("resizeToAvoidBottomInset");
@@ -470,6 +477,21 @@ class CanvasModelPayloadCodecTest {
                                 new PropertyName("data"), new PropertyValue.StringValue(data),
                                 new PropertyName("semanticsIdentifier"),
                                 new PropertyValue.StringValue("text-" + id)),
+                Map.of());
+    }
+
+    private static WidgetNode icon() {
+        return new WidgetNode(
+                id("c247b460-bbf5-43f3-b7cf-5fba6e8944ed"),
+                type("flutter.widgets.Icon"),
+                Map.of(
+                        new PropertyName("icon"),
+                        new PropertyValue.IconDataValue(
+                                Optional.of(0xE092),
+                                Optional.of("MaterialIcons"),
+                                Optional.empty(),
+                                true,
+                                List.of())),
                 Map.of());
     }
 

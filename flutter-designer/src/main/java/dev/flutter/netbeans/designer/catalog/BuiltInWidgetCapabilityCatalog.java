@@ -37,6 +37,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.ENUM,
                     PropertyValueKind.COLOR,
                     PropertyValueKind.EDGE_INSETS,
+                    PropertyValueKind.ICON_DATA,
                     PropertyValueKind.THEME_TOKEN,
                     PropertyValueKind.PAINT,
                     PropertyValueKind.SHADOW_LIST,
@@ -131,7 +132,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Padding", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Center", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Text", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Icon", Set.of()),
+            Map.entry("flutter.widgets.Icon", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SizedBox", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -162,6 +163,20 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final Map<PropertyValueKind, CanvasNumericBounds>
             POSITIVE_DOUBLE_BOUNDS = Map.of(
                     PropertyValueKind.DOUBLE, POSITIVE_NUMERIC);
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
+            ZERO_TO_ONE_DOUBLE_BOUNDS = Map.of(
+                    PropertyValueKind.DOUBLE,
+                    bounds(BigDecimal.ZERO, true, BigDecimal.ONE, true));
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
+            POSITIVE_FONT_AXIS_DOUBLE_BOUNDS = Map.of(
+                    PropertyValueKind.DOUBLE,
+                    bounds(BigDecimal.ZERO, false,
+                            BigDecimal.valueOf(32768), false));
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
+            GRADE_AXIS_DOUBLE_BOUNDS = Map.of(
+                    PropertyValueKind.DOUBLE,
+                    bounds(BigDecimal.valueOf(-32768), true,
+                            BigDecimal.valueOf(32768), false));
     private static final Map<PropertyValueKind, CanvasNumericBounds>
             UNBOUNDED_DOUBLE_BOUNDS = Map.of(
                     PropertyValueKind.DOUBLE, UNBOUNDED_NUMERIC);
@@ -210,6 +225,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                             NON_NEGATIVE_NUMBER_BOUNDS,
                             PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE)),
                     Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
 
     static {
@@ -503,6 +519,49 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Map.of());
     }
 
+    private static CanvasProjection iconProjection() {
+        return projection(Map.ofEntries(
+                requiredDefaultConstrainedProperty(
+                        "icon",
+                        "iconData:58873:TWF0ZXJpYWxJY29ucw:-:0:-",
+                        PropertyValueKind.ICON_DATA,
+                        "materialIcons:3.44.8:058e0af2c2:8825:"
+                        + "ba88e3e23962ada6537523aa113811d9719b988412815bf084f50a0aa78137f0"),
+                numericProperty(
+                        "size", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "fill", ZERO_TO_ONE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "weight", POSITIVE_FONT_AXIS_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "grade", GRADE_AXIS_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "opticalSize", POSITIVE_FONT_AXIS_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                colorOrThemeProperty("color"),
+                shadowProperty("shadows"),
+                property("semanticLabel", PropertyValueKind.STRING),
+                enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                property("applyTextScaling", PropertyValueKind.BOOLEAN),
+                enumProperty(
+                        "blendMode", "BlendMode",
+                        "clear", "src", "dst", "srcOver", "dstOver",
+                        "srcIn", "dstIn", "srcOut", "dstOut", "srcATop", "dstATop",
+                        "xor", "plus", "modulate", "screen", "overlay", "darken",
+                        "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
+                        "difference", "exclusion", "multiply", "hue", "saturation",
+                        "color", "luminosity"),
+                enumProperty(
+                        "fontWeight", "FontWeight",
+                        "w100", "w200", "w300", "w400", "w500",
+                        "w600", "w700", "w800", "w900")),
+                Map.of());
+    }
+
     private static CanvasProjection projection(
             Map<String, CanvasPropertyContract> properties,
             Map<String, CanvasSlotContract> slots) {
@@ -663,6 +722,20 @@ public final class BuiltInWidgetCapabilityCatalog {
                 anyConstraintFingerprints(kinds)));
     }
 
+    private static Map.Entry<String, CanvasPropertyContract>
+            requiredDefaultConstrainedProperty(
+                    String name,
+                    String creationDefaultFingerprint,
+                    PropertyValueKind kind,
+                    String constraintFingerprint) {
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(kind),
+                true,
+                Optional.of(creationDefaultFingerprint),
+                Map.of(),
+                Map.of(kind, constraintFingerprint)));
+    }
+
     private static Map<PropertyValueKind, String> anyConstraintFingerprints(
             PropertyValueKind... kinds) {
         LinkedHashMap<PropertyValueKind, String> result = new LinkedHashMap<>();
@@ -772,6 +845,18 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.StringPattern pattern) {
             return "pattern:" + base64(pattern.regularExpression());
         }
+        if (constraint instanceof PropertyValueConstraint.IconDataValues) {
+            return "iconData:0:1114111:55296:57343:256:32:1:1:"
+                    + "061C,200E,200F,2028-202E,2066-2069,FEFF";
+        }
+        if (constraint instanceof PropertyValueConstraint.MaterialIconValues) {
+            MaterialIconRegistry.SourceMetadata metadata =
+                    MaterialIconRegistry.bundled().metadata();
+            return "materialIcons:" + metadata.flutterVersion()
+                    + ':' + metadata.flutterRevision()
+                    + ':' + metadata.iconCount()
+                    + ':' + metadata.sourceSha256();
+        }
         if (constraint instanceof PropertyValueConstraint.EnumValues values) {
             return "enum:" + base64(values.dartType().libraryUri()) + ':'
                     + values.dartType().name() + ':'
@@ -817,6 +902,20 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + decimalText(insets.top()) + ','
                     + decimalText(insets.end()) + ','
                     + decimalText(insets.bottom());
+        }
+        if (value instanceof PropertyValue.IconDataValue icon) {
+            return "iconData:"
+                    + icon.codePoint().map(String::valueOf).orElse("-") + ':'
+                    + icon.fontFamily().map(BuiltInWidgetCapabilityCatalog::base64)
+                            .orElse("-") + ':'
+                    + icon.fontPackage().map(BuiltInWidgetCapabilityCatalog::base64)
+                            .orElse("-") + ':'
+                    + (icon.matchTextDirection() ? '1' : '0') + ':'
+                    + (icon.fontFamilyFallback().isEmpty()
+                            ? "-"
+                            : icon.fontFamilyFallback().stream()
+                                    .map(BuiltInWidgetCapabilityCatalog::base64)
+                                    .collect(Collectors.joining(",")));
         }
         throw new ExceptionInInitializerError(
                 "Canvas creation default requires a reviewed typed fingerprint for "

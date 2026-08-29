@@ -34,7 +34,7 @@ import java.util.Map;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 5;
+    public static final int VERSION = 6;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -111,6 +111,17 @@ public final class CanvasModelPayloadCodec {
                 if (kinds == null || !kinds.contains(entry.getValue().kind())) {
                     throw new CanvasModelPayloadException(
                             "The reviewed Canvas catalog cannot project property "
+                            + entry.getKey().value() + " on " + type + '.');
+                }
+                var property = active.property(entry.getKey()).orElseThrow(
+                        () -> new CanvasModelPayloadException(
+                                "The active Canvas catalog is missing property "
+                                + entry.getKey().value() + " on " + type + '.'));
+                if (property.constraints().stream().noneMatch(
+                        constraint -> constraint.kind() == entry.getValue().kind()
+                        && constraint.accepts(entry.getValue()))) {
+                    throw new CanvasModelPayloadException(
+                            "The reviewed Canvas catalog rejects the value of property "
                             + entry.getKey().value() + " on " + type + '.');
                 }
             }
@@ -329,6 +340,8 @@ public final class CanvasModelPayloadCodec {
                 json.writeStringField("kind", "themeToken");
                 json.writeStringField("token", token.token().wireId());
             }
+            case PropertyValue.IconDataValue iconData ->
+                writeIconData(json, iconData);
             case PropertyValue.PaintValue paint -> writePaint(json, paint);
             case PropertyValue.ShadowListValue shadows -> writeShadows(json, shadows);
             case PropertyValue.FontFeatureListValue features -> writeFontFeatures(json, features);
@@ -339,6 +352,34 @@ public final class CanvasModelPayloadCodec {
             case PropertyValue.DartExpressionValue ignored -> throw unsupported(value);
         }
         json.writeEndObject();
+    }
+
+    private static void writeIconData(
+            JsonGenerator json,
+            PropertyValue.IconDataValue iconData) throws IOException {
+        json.writeStringField("kind", "iconData");
+        if (iconData.codePoint().isPresent()) {
+            json.writeNumberField("codePoint", iconData.codePoint().orElseThrow());
+        } else {
+            json.writeNullField("codePoint");
+        }
+        if (iconData.fontFamily().isPresent()) {
+            json.writeStringField("fontFamily", iconData.fontFamily().orElseThrow());
+        } else {
+            json.writeNullField("fontFamily");
+        }
+        if (iconData.fontPackage().isPresent()) {
+            json.writeStringField("fontPackage", iconData.fontPackage().orElseThrow());
+        } else {
+            json.writeNullField("fontPackage");
+        }
+        json.writeBooleanField(
+                "matchTextDirection", iconData.matchTextDirection());
+        json.writeArrayFieldStart("fontFamilyFallback");
+        for (String fallback : iconData.fontFamilyFallback()) {
+            json.writeString(fallback);
+        }
+        json.writeEndArray();
     }
 
     private static void writePaint(JsonGenerator json, PropertyValue.PaintValue paint)

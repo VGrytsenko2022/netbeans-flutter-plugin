@@ -46,6 +46,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId PADDING = type("flutter.widgets.Padding");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
+    private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName FLOATING_ACTION_BUTTON =
@@ -54,6 +55,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final SlotName CHILD = new SlotName("child");
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName PADDING_VALUE = new PropertyName("padding");
+    private static final PropertyName ICON_VALUE = new PropertyName("icon");
     private static final StableId DOCUMENT_ID = id("14f6c16f-893b-44d0-b809-edbd51bbcdaa");
     private static final StableId ROOT_ID = id("0209809f-351a-4ce7-8c07-1ec625b1e109");
     private static final StableId FIRST_ID = id("710c4ad9-c3cf-434e-af1e-5217ac38aa92");
@@ -146,7 +148,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Center.child", CENTER, CHILD),
                 target("SizedBox.child", SIZED_BOX, CHILD));
 
-        assertEquals(7, sources.size());
+        assertEquals(8, sources.size());
         assertEquals(7, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
@@ -674,6 +676,16 @@ class FlutterDesignerPaletteDropPlannerTest {
                         "Text",
                         TEXT,
                         Map.of(DATA, new PropertyValue.StringValue("Text")),
+                        Map.of()),
+                new CoreSourceCase(
+                        "Icon",
+                        ICON,
+                        Map.of(ICON_VALUE, new PropertyValue.IconDataValue(
+                                Optional.of(0xE5F9),
+                                Optional.of("MaterialIcons"),
+                                Optional.empty(),
+                                false,
+                                List.of())),
                         Map.of()));
     }
 

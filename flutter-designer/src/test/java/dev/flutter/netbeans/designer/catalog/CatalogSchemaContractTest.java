@@ -12,7 +12,8 @@ class CatalogSchemaContractTest {
     void valueKindsRetainTheExactCurrentSchemaDiscriminators() {
         assertEquals(List.of(
                 "string", "boolean", "integer", "double", "enum", "color",
-                "edgeInsets", "asset", "callback", "dartExpression", "themeToken",
+                "edgeInsets", "asset", "callback", "dartExpression", "iconData",
+                "themeToken",
                 "paint", "shadowList", "fontFeatureList", "fontVariationList"),
                 List.of(PropertyValueKind.values()).stream().map(PropertyValueKind::wireName).toList());
     }

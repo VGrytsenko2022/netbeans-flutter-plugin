@@ -1,9 +1,22 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'material_icon_registry.dart';
+
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 5;
+const canvasModelProtocolVersion = 6;
 const maxCanvasSequence = 9007199254740991;
+const _maxCanvasIconCodePoint = 0x10ffff;
+const _canvasIconSurrogateStart = 0xd800;
+const _canvasIconSurrogateEnd = 0xdfff;
+const _maxCanvasIconMetadataLength = 256;
+const _maxCanvasIconFontFamilyFallbacks = 32;
+const _canvasIconDataConstraintFingerprint =
+    'iconData:0:1114111:55296:57343:256:32:1:1:'
+    '061C,200E,200F,2028-202E,2066-2069,FEFF';
+const _canvasMaterialIconConstraintFingerprint =
+    'materialIcons:3.44.8:058e0af2c2:8825:'
+    'ba88e3e23962ada6537523aa113811d9719b988412815bf084f50a0aa78137f0';
 
 const canvasColorSchemeThemeTokens = <String>{
   'material.colorScheme.primary',
@@ -927,6 +940,23 @@ class CanvasValue {
           kind,
           CanvasEdgeInsetsDirectional(start, top, end, bottom),
         );
+      case 'iconData':
+        final iconData = _decodeIconData(object, path);
+        if (spec.materialIconsOnly) {
+          _expect(
+            iconData.codePoint == null ||
+                (iconData.fontFamily == 'MaterialIcons' &&
+                    iconData.fontPackage == null &&
+                    iconData.fontFamilyFallback.isEmpty &&
+                    isReviewedMaterialIconDataPair(
+                      iconData.codePoint!,
+                      iconData.matchTextDirection,
+                    )),
+            'Canvas built-in IconData must be None or use the reviewed '
+            'MaterialIcons registry: $path',
+          );
+        }
+        return CanvasValue(kind as String, iconData);
       case 'themeToken':
         _exactKeys(object, path, const {'kind', 'token'});
         final token = _themeToken(object['token'], '$path/token');
@@ -985,6 +1015,22 @@ class CanvasEnumValue {
   const CanvasEnumValue(this.type, this.value);
   final String type;
   final String value;
+}
+
+class CanvasIconDataValue {
+  const CanvasIconDataValue({
+    required this.codePoint,
+    required this.fontFamily,
+    required this.fontPackage,
+    required this.matchTextDirection,
+    required this.fontFamilyFallback,
+  });
+
+  final int? codePoint;
+  final String? fontFamily;
+  final String? fontPackage;
+  final bool matchTextDirection;
+  final List<String> fontFamilyFallback;
 }
 
 class CanvasEdgeInsets {
@@ -1091,6 +1137,166 @@ class CanvasFontVariationValue {
   final String axis;
   final double value;
 }
+
+CanvasIconDataValue _decodeIconData(Map<String, Object?> object, String path) {
+  _exactKeys(object, path, const {
+    'kind',
+    'codePoint',
+    'fontFamily',
+    'fontPackage',
+    'matchTextDirection',
+    'fontFamilyFallback',
+  });
+  final rawCodePoint = object['codePoint'];
+  _expect(
+    rawCodePoint == null || rawCodePoint is int,
+    'Canvas IconData codePoint must be an integer or null: $path/codePoint',
+  );
+  final codePoint = rawCodePoint as int?;
+  if (codePoint != null) {
+    _expect(
+      codePoint >= 0 &&
+          codePoint <= _maxCanvasIconCodePoint &&
+          (codePoint < _canvasIconSurrogateStart ||
+              codePoint > _canvasIconSurrogateEnd),
+      'Canvas IconData codePoint must be a Unicode scalar: $path/codePoint',
+    );
+  }
+  final fontFamily = _nullableIconMetadata(
+    object['fontFamily'],
+    '$path/fontFamily',
+  );
+  final fontPackage = _nullableIconMetadata(
+    object['fontPackage'],
+    '$path/fontPackage',
+  );
+  _expect(
+    object['matchTextDirection'] is bool,
+    'Canvas IconData matchTextDirection must be a boolean: '
+    '$path/matchTextDirection',
+  );
+  final matchTextDirection = object['matchTextDirection']! as bool;
+  final rawFallback = object['fontFamilyFallback'];
+  _expect(
+    rawFallback is List<Object?>,
+    'Canvas IconData fontFamilyFallback must be an array: '
+    '$path/fontFamilyFallback',
+  );
+  final fallbackValues = rawFallback! as List<Object?>;
+  _expect(
+    fallbackValues.length <= _maxCanvasIconFontFamilyFallbacks,
+    'Canvas IconData fontFamilyFallback has too many entries: '
+    '$path/fontFamilyFallback',
+  );
+  final fontFamilyFallback = <String>[];
+  final uniqueFallbacks = <String>{};
+  for (var index = 0; index < fallbackValues.length; index++) {
+    final fallback = _requiredIconMetadata(
+      fallbackValues[index],
+      '$path/fontFamilyFallback/$index',
+    );
+    _expect(
+      uniqueFallbacks.add(fallback),
+      'Canvas IconData fontFamilyFallback entries must be unique: '
+      '$path/fontFamilyFallback/$index',
+    );
+    fontFamilyFallback.add(fallback);
+  }
+  _expect(
+    fontPackage == null || fontFamily != null,
+    'Canvas IconData fontPackage requires fontFamily: $path/fontPackage',
+  );
+  if (codePoint == null) {
+    _expect(
+      fontFamily == null &&
+          fontPackage == null &&
+          !matchTextDirection &&
+          fontFamilyFallback.isEmpty,
+      'Canvas null IconData cannot carry font metadata: $path',
+    );
+  }
+  return CanvasIconDataValue(
+    codePoint: codePoint,
+    fontFamily: fontFamily,
+    fontPackage: fontPackage,
+    matchTextDirection: matchTextDirection,
+    fontFamilyFallback: List.unmodifiable(fontFamilyFallback),
+  );
+}
+
+String? _nullableIconMetadata(Object? value, String path) =>
+    value == null ? null : _requiredIconMetadata(value, path);
+
+String _requiredIconMetadata(Object? value, String path) {
+  _expect(value is String, 'Canvas IconData metadata must be a string: $path');
+  final text = value! as String;
+  final codePoints = _validatedUnicodeCodePoints(text, path);
+  _expect(
+    codePoints.isNotEmpty && codePoints.length <= _maxCanvasIconMetadataLength,
+    'Canvas IconData metadata length is outside 1..'
+    '$_maxCanvasIconMetadataLength: $path',
+  );
+  _expect(
+    !_isCanvasMetadataWhitespace(codePoints.first) &&
+        !_isCanvasMetadataWhitespace(codePoints.last),
+    'Canvas IconData metadata must not have surrounding whitespace: $path',
+  );
+  for (final codePoint in codePoints) {
+    _expect(
+      !_isIsoControl(codePoint) &&
+          !_isRejectedIconMetadataBidiControl(codePoint),
+      'Canvas IconData metadata must contain printable characters only: $path',
+    );
+  }
+  return text;
+}
+
+List<int> _validatedUnicodeCodePoints(String value, String path) {
+  final result = <int>[];
+  final units = value.codeUnits;
+  for (var index = 0; index < units.length; index++) {
+    final unit = units[index];
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      _expect(
+        index + 1 < units.length &&
+            units[index + 1] >= 0xdc00 &&
+            units[index + 1] <= 0xdfff,
+        'Canvas IconData metadata contains an unpaired surrogate: $path',
+      );
+      final low = units[++index];
+      result.add(0x10000 + ((unit - 0xd800) << 10) + (low - 0xdc00));
+      continue;
+    }
+    _expect(
+      unit < 0xdc00 || unit > 0xdfff,
+      'Canvas IconData metadata contains an unpaired surrogate: $path',
+    );
+    result.add(unit);
+  }
+  return result;
+}
+
+bool _isIsoControl(int codePoint) =>
+    codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+
+bool _isRejectedIconMetadataBidiControl(int codePoint) =>
+    codePoint == 0x061c ||
+    codePoint == 0x200e ||
+    codePoint == 0x200f ||
+    (codePoint >= 0x2028 && codePoint <= 0x202e) ||
+    (codePoint >= 0x2066 && codePoint <= 0x2069) ||
+    codePoint == 0xfeff;
+
+bool _isCanvasMetadataWhitespace(int codePoint) =>
+    (codePoint >= 0x09 && codePoint <= 0x0d) ||
+    (codePoint >= 0x1c && codePoint <= 0x20) ||
+    codePoint == 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x2006) ||
+    (codePoint >= 0x2008 && codePoint <= 0x200a) ||
+    codePoint == 0x2028 ||
+    codePoint == 0x2029 ||
+    codePoint == 0x205f ||
+    codePoint == 0x3000;
 
 CanvasPaint _decodePaint(Map<String, Object?> object, String path) {
   const required = {
@@ -1410,6 +1616,7 @@ class _PropertySpec {
     this.stringPattern,
     this.themeTokens = const {},
     this.edgeInsetsNonNegative = false,
+    this.materialIconsOnly = false,
   });
   final Set<String> kinds;
   final bool required;
@@ -1424,6 +1631,7 @@ class _PropertySpec {
   final String? stringPattern;
   final Set<String> themeTokens;
   final bool edgeInsetsNonNegative;
+  final bool materialIconsOnly;
 }
 
 class _NumericBounds {
@@ -1474,6 +1682,24 @@ const _nonNegativeDoubleBounds = <String, _NumericBounds>{
 };
 const _positiveDoubleBounds = <String, _NumericBounds>{
   'double': _NumericBounds(minimum: 0, minimumInclusive: false),
+};
+const _positiveFontVariationBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(
+    minimum: 0,
+    minimumInclusive: false,
+    maximum: 32768,
+    maximumInclusive: false,
+  ),
+};
+const _gradeFontVariationBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(
+    minimum: -32768,
+    maximum: 32768,
+    maximumInclusive: false,
+  ),
+};
+const _zeroToOneDoubleBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(minimum: 0, maximum: 1),
 };
 const _nonNegativeNumberBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
@@ -1684,6 +1910,48 @@ const _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Icon': _WidgetSpec({
+    'icon': _PropertySpec(
+      {'iconData'},
+      required: true,
+      creationDefaultFingerprint: 'iconData:58873:TWF0ZXJpYWxJY29ucw:-:0:-',
+      materialIconsOnly: true,
+    ),
+    'size': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'fill': _PropertySpec({'double'}, numericBounds: _zeroToOneDoubleBounds),
+    'weight': _PropertySpec({
+      'double',
+    }, numericBounds: _positiveFontVariationBounds),
+    'grade': _PropertySpec({
+      'double',
+    }, numericBounds: _gradeFontVariationBounds),
+    'opticalSize': _PropertySpec({
+      'double',
+    }, numericBounds: _positiveFontVariationBounds),
+    'color': _PropertySpec({
+      'color',
+      'themeToken',
+    }, themeTokens: canvasColorSchemeThemeTokens),
+    'shadows': _PropertySpec({'shadowList'}),
+    'semanticLabel': _PropertySpec({'string'}),
+    'textDirection': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextDirection',
+      enumValues: {'rtl', 'ltr'},
+    ),
+    'applyTextScaling': _PropertySpec({'boolean'}),
+    'blendMode': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'BlendMode',
+      enumValues: _blendModes,
+    ),
+    'fontWeight': _fontWeightProperty,
+  }, {}),
   'flutter.widgets.SizedBox': _WidgetSpec(
     {
       'width': _PropertySpec({
@@ -1851,6 +2119,20 @@ P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextB
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
 S|children|list|0|0|10000
+W|flutter.widgets.Icon
+P|applyTextScaling|boolean|0|-|-|boolean:any
+P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fill|double|0|-|double:0:1:1:1|double:range:0:1:1:1
+P|fontWeight|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FontWeight:w100,w200,w300,w400,w500,w600,w700,w800,w900
+P|grade|double|0|-|double:-32768:1:32768:0|double:range:-32768:1:32768:0
+P|icon|iconData|1|iconData:58873:TWF0ZXJpYWxJY29ucw:-:0:-|-|iconData:materialIcons:3.44.8:058e0af2c2:8825:ba88e3e23962ada6537523aa113811d9719b988412815bf084f50a0aa78137f0
+P|opticalSize|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+P|semanticLabel|string|0|-|-|string:any
+P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
 W|flutter.widgets.Padding
 P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
 S|child|single|0|0|1
@@ -1975,6 +2257,11 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
 
 String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   final numeric = spec.numericBounds[kind];
+  if (kind == 'iconData') {
+    return spec.materialIconsOnly
+        ? _canvasMaterialIconConstraintFingerprint
+        : _canvasIconDataConstraintFingerprint;
+  }
   if (kind == 'edgeInsets' || kind == 'edgeInsetsDirectional') {
     _expect(numeric != null, 'Canvas EdgeInsets schema is incomplete.');
     return 'edgeInsets:${spec.edgeInsetsNonNegative ? 1 : 0}:'

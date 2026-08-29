@@ -1231,6 +1231,24 @@ final class FlutterDesignerDataObjectIT {
             return null;
         }
 
+        private <T extends Component> T findComponentByNameOrNull(
+                Component root,
+                Class<T> type,
+                String name) {
+            if (type.isInstance(root) && name.equals(root.getName())) {
+                return type.cast(root);
+            }
+            if (root instanceof Container container) {
+                for (Component child : container.getComponents()) {
+                    T found = findComponentByNameOrNull(child, type, name);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+            return null;
+        }
+
         private void requestVisible(
                 CloneableTopComponent multiView,
                 String displayName,
@@ -1336,6 +1354,194 @@ final class FlutterDesignerDataObjectIT {
                         pairedEditor,
                         multiView.getLookup().lookup(CloneableEditorSupport.class));
             });
+            SwingUtilities.invokeAndWait(() -> {
+                try {
+                    assertPackagedIconPropertiesContract(
+                            loader, widgetNodeType, mutationHandlerType);
+                } catch (ReflectiveOperationException exception) {
+                    throw new AssertionError(
+                            "The packaged Icon Properties contract could not be inspected",
+                            exception);
+                }
+            });
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private void assertPackagedIconPropertiesContract(
+                ClassLoader loader,
+                Class<?> widgetNodeType,
+                Class<?> mutationHandlerType) throws ReflectiveOperationException {
+            Class<?> catalogType = Class.forName(
+                    "dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog",
+                    true,
+                    loader);
+            Class<?> widgetTypeIdType = Class.forName(
+                    "dev.flutter.netbeans.designer.model.WidgetTypeId",
+                    true,
+                    loader);
+            Object widgetTypeId = widgetTypeIdType.getConstructor(String.class)
+                    .newInstance("flutter.widgets.Icon");
+            Object catalog = catalogType.getMethod("getDefault").invoke(null);
+            java.util.Optional<?> definitionResult = (java.util.Optional<?>) catalog.getClass()
+                    .getMethod("find", widgetTypeIdType)
+                    .invoke(catalog, widgetTypeId);
+            Object definition = definitionResult.orElseThrow(() ->
+                    new AssertionError("The packaged catalog has no Icon definition"));
+
+            Class<?> definitionType = Class.forName(
+                    "dev.flutter.netbeans.designer.catalog.WidgetDefinition",
+                    true,
+                    loader);
+            Class<?> stableIdType = Class.forName(
+                    "dev.flutter.netbeans.designer.model.StableId",
+                    true,
+                    loader);
+            Object stableId = stableIdType.getMethod("parse", String.class).invoke(
+                    null, "8fa803b7-e387-4667-93e3-70fdd29c95e8");
+            Class<?> prototypeFactoryType = Class.forName(
+                    "dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory",
+                    true,
+                    loader);
+            Object widget = prototypeFactoryType
+                    .getMethod("create", definitionType, stableIdType)
+                    .invoke(null, definition, stableId);
+            Class<?> widgetModelType = Class.forName(
+                    "dev.flutter.netbeans.designer.model.WidgetNode",
+                    true,
+                    loader);
+
+            List<Object> commands = new ArrayList<>();
+            Object mutationHandler = java.lang.reflect.Proxy.newProxyInstance(
+                    mutationHandlerType.getClassLoader(),
+                    new Class<?>[]{mutationHandlerType},
+                    (proxy, method, arguments) -> {
+                        if ("submit".equals(method.getName())) {
+                            commands.add(arguments[0]);
+                            return null;
+                        }
+                        if ("toString".equals(method.getName())) {
+                            return "runtime Icon mutation recorder";
+                        }
+                        return null;
+                    });
+            Node iconNode = (Node) widgetNodeType.getConstructor(
+                    org.openide.nodes.Children.class,
+                    widgetModelType,
+                    definitionType,
+                    mutationHandlerType).newInstance(
+                            org.openide.nodes.Children.LEAF,
+                            widget,
+                            definition,
+                            mutationHandler);
+
+            assertEquals("The packaged Icon node has the wrong property groups",
+                    List.of(
+                            "identity",
+                            "iconData",
+                            "iconAppearance",
+                            "iconVariableFont",
+                            "iconAccessibility"),
+                    java.util.Arrays.stream(iconNode.getPropertySets())
+                            .map(Node.PropertySet::getName)
+                            .toList());
+            Node.Property<?> iconProperty = java.util.Arrays.stream(
+                            iconNode.getPropertySets())
+                    .flatMap(set -> java.util.Arrays.stream(set.getProperties()))
+                    .filter(property -> "icon".equals(property.getName()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "The packaged Icon node has no icon property"));
+            assertTrue("The reviewed Icon.icon property is not writable",
+                    iconProperty.canWrite());
+            java.beans.PropertyEditor editor = iconProperty.getPropertyEditor();
+            editor.setValue(iconProperty.getValue());
+            assertEquals("The packaged Icon default was not the reviewed star glyph",
+                    "Icons.star (U+E5F9)", editor.getAsText());
+            assertTrue("The packaged Icon.icon property has no registry editor",
+                    editor.supportsCustomEditor());
+
+            Class<?> propertyEnvType = Class.forName(
+                    "org.openide.explorer.propertysheet.PropertyEnv",
+                    true,
+                    loader);
+            Object environment = propertyEnvType
+                    .getMethod(
+                            "create",
+                            java.beans.FeatureDescriptor.class,
+                            Object[].class)
+                    .invoke(
+                            null,
+                            new java.beans.FeatureDescriptor(),
+                            new Object[0]);
+            Class<?> exPropertyEditorType = Class.forName(
+                    "org.openide.explorer.propertysheet.ExPropertyEditor",
+                    true,
+                    loader);
+            exPropertyEditorType.getMethod("attachEnv", propertyEnvType)
+                    .invoke(editor, environment);
+            Component custom = editor.getCustomEditor();
+            javax.swing.JTextField search = findComponentByNameOrNull(
+                    custom,
+                    javax.swing.JTextField.class,
+                    "flutter.materialIcon.search");
+            javax.swing.JList<?> results = findComponentByNameOrNull(
+                    custom,
+                    javax.swing.JList.class,
+                    "flutter.materialIcon.results");
+            javax.swing.JLabel status = findComponentByNameOrNull(
+                    custom,
+                    javax.swing.JLabel.class,
+                    "flutter.materialIcon.status");
+            javax.swing.JLabel requirement = findComponentByNameOrNull(
+                    custom,
+                    javax.swing.JLabel.class,
+                    "flutter.materialIcon.requirement");
+            assertNotNull("The packaged Material selector has no search field", search);
+            assertNotNull("The packaged Material selector has no result list", results);
+            assertNotNull("The packaged Material selector has no status", status);
+            assertNotNull("The packaged Material selector has no project requirement",
+                    requirement);
+            assertEquals("The packaged Material selector did not select star",
+                    "star", search.getText());
+            assertEquals("The packaged Material selector has the wrong compact status",
+                    results.getModel().getSize()
+                    + " results · 8,825 total · Flutter 3.44.8",
+                    status.getText());
+            assertEquals("The packaged Material selector hides the pubspec requirement",
+                    "Requires flutter.uses-material-design: true",
+                    requirement.getText());
+            assertNull("The packaged built-in Icon editor exposed arbitrary code points",
+                    findComponentByNameOrNull(
+                            custom,
+                            javax.swing.JTextField.class,
+                            "flutter.iconData.codePoint"));
+
+            Class<?> propertyValueType = Class.forName(
+                    "dev.flutter.netbeans.designer.model.PropertyValue",
+                    true,
+                    loader);
+            Class<?> iconDataValueType = Class.forName(
+                    "dev.flutter.netbeans.designer.model.PropertyValue$IconDataValue",
+                    true,
+                    loader);
+            Object none = iconDataValueType.getMethod("none").invoke(null);
+            Class<?> cellValueType = Class.forName(
+                    "dev.flutter.netbeans.plugin.designer.properties."
+                    + "FlutterPropertyCellValue",
+                    true,
+                    loader);
+            Object cell = cellValueType.getMethod("explicit", propertyValueType)
+                    .invoke(null, none);
+            ((Node.Property) iconProperty).setValue(cell);
+            assertEquals("Changing Icon.icon emitted more than one Designer command",
+                    1, commands.size());
+            Object command = commands.get(0);
+            assertEquals("Changing Icon.icon emitted the wrong command kind",
+                    "SetProperty", command.getClass().getSimpleName());
+            Object propertyName = command.getClass().getMethod("propertyName")
+                    .invoke(command);
+            assertEquals("The Material selector must never invent a semanticLabel",
+                    "icon", propertyName.toString());
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
@@ -1585,7 +1791,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 3,
+                      "schemaVersion": 4,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",

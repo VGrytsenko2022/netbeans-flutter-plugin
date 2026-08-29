@@ -52,7 +52,7 @@ class FdDocumentCodecContractTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV3() throws Exception {
+    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV4() throws Exception {
         byte[] documented = Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT));
 
         FdDecodeResult.Current first = current(codec.decode(documented));
@@ -60,7 +60,7 @@ class FdDocumentCodecContractTest {
                 () -> assertEquals(1, first.sourceSchemaVersion()),
                 () -> assertTrue(first.migrated()),
                 () -> assertTrue(first.original().contentEquals(documented)),
-                () -> assertEquals("../fd-v3.schema.json",
+                () -> assertEquals("../fd-v4.schema.json",
                         first.document().schemaReference().orElseThrow()),
                 () -> assertEquals("home_page.dart", first.document().source().dartFile()),
                 () -> assertEquals("HomePage", first.document().source().className()),
@@ -68,13 +68,13 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(first.document());
         String encodedJson = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(encodedJson.contains("\"schemaVersion\": 3"));
-        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v3.schema.json\""));
+        assertTrue(encodedJson.contains("\"schemaVersion\": 4"));
+        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v4.schema.json\""));
         assertFalse(Arrays.equals(documented, encoded.copyBytes()));
 
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertFalse(roundTrip.migrated());
-        assertEquals(3, roundTrip.sourceSchemaVersion());
+        assertEquals(4, roundTrip.sourceSchemaVersion());
         assertEquals(first.document(), roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes(),
                 "decode/encode must reach a stable fixed point");
@@ -84,11 +84,11 @@ class FdDocumentCodecContractTest {
 
     @Test
     void dispatchesACompleteFutureDocumentWithoutInterpretingItsBody() throws Exception {
-        byte[] versionFour = replaceAscii(
+        byte[] versionFive = replaceAscii(
                 Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT)),
                 "\"schemaVersion\": 1",
-                "\"schemaVersion\": 4");
-        String futureJson = new String(versionFour, StandardCharsets.UTF_8);
+                "\"schemaVersion\": 5");
+        String futureJson = new String(versionFive, StandardCharsets.UTF_8);
         int closingBrace = futureJson.lastIndexOf('}');
         byte[] future = utf8(futureJson.substring(0, closingBrace)
                 + ",\n  \"futureOnly\": {\"newShape\": true}\n"
@@ -98,7 +98,7 @@ class FdDocumentCodecContractTest {
                 FdDecodeResult.UnsupportedNewer.class,
                 codec.decode(future));
         assertAll(
-                () -> assertEquals(BigInteger.valueOf(4), result.declaredSchemaVersion()),
+                () -> assertEquals(BigInteger.valueOf(5), result.declaredSchemaVersion()),
                 () -> assertArrayEquals(future, result.original().copyBytes()));
 
         future[0] ^= 1;
@@ -108,14 +108,14 @@ class FdDocumentCodecContractTest {
 
     @Test
     void malformedFutureInputIsInvalidRatherThanUnsupported() throws Exception {
-        byte[] future = utf8(minimalDocument("3", "{}"));
+        byte[] future = utf8(minimalDocument("5", "{}"));
         byte[] withTrailingGarbage = Arrays.copyOf(future, future.length + 1);
         withTrailingGarbage[withTrailingGarbage.length - 1] = 'x';
 
         FdDecodeResult.Invalid invalid = invalid(codec.decode(withTrailingGarbage));
         assertAll(
                 () -> assertEquals(
-                        BigInteger.valueOf(3),
+                        BigInteger.valueOf(5),
                         invalid.declaredSchemaVersion().orElseThrow()),
                 () -> assertTrue(hasDiagnostic(invalid, FdCodecDiagnosticCode.TRAILING_CONTENT)),
                 () -> assertArrayEquals(withTrailingGarbage, invalid.original().copyBytes()));
@@ -173,19 +173,26 @@ class FdDocumentCodecContractTest {
             assertTrue(result.migrated(), migratedVersion);
         }
 
-        for (String currentVersion : new String[]{"3", "3.0", "3e0", "30e-1"}) {
+        for (String migratedVersion : new String[]{"3", "3.0", "3e0", "30e-1"}) {
+            FdDecodeResult.Current result = current(
+                    codec.decode(utf8(minimalDocument(migratedVersion, "{}"))));
+            assertEquals(3, result.sourceSchemaVersion(), migratedVersion);
+            assertTrue(result.migrated(), migratedVersion);
+        }
+
+        for (String currentVersion : new String[]{"4", "4.0", "4e0", "40e-1"}) {
             FdDecodeResult.Current result = current(
                     codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
-            assertEquals(3, result.sourceSchemaVersion(), currentVersion);
+            assertEquals(4, result.sourceSchemaVersion(), currentVersion);
             assertFalse(result.migrated(), currentVersion);
         }
 
-        for (String futureVersion : new String[]{"4", "4.0", "4e0", "40e-1"}) {
+        for (String futureVersion : new String[]{"5", "5.0", "5e0", "50e-1"}) {
             FdDecodeResult.UnsupportedNewer result = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(utf8(minimalDocument(futureVersion, "{}"))),
                     futureVersion);
-            assertEquals(BigInteger.valueOf(4), result.declaredSchemaVersion(), futureVersion);
+            assertEquals(BigInteger.valueOf(5), result.declaredSchemaVersion(), futureVersion);
         }
 
         FdDecodeResult.Invalid fractional = invalid(
@@ -194,20 +201,20 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void migratesKnownOlderSchemaReferencesToV3() throws Exception {
+    void migratesKnownOlderSchemaReferencesToV4() throws Exception {
         String canonical = minimalDocument("1", "{}").replace(
                 "{\n  \"format\"",
                 "{\n  \"$schema\": \"urn:netbeans-flutter-designer:schema:fd:1\",\n"
                 + "  \"format\"");
         FdDecodeResult.Current migrated = current(codec.decode(utf8(canonical)));
         assertEquals(
-                "urn:netbeans-flutter-designer:schema:fd:3",
+                "urn:netbeans-flutter-designer:schema:fd:4",
                 migrated.document().schemaReference().orElseThrow());
         String encoded = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
         assertTrue(encoded.contains(
-                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:3\""));
-        assertTrue(encoded.contains("\"schemaVersion\": 3"));
+                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:4\""));
+        assertTrue(encoded.contains("\"schemaVersion\": 4"));
 
         String arbitrary = canonical.replace(
                 "urn:netbeans-flutter-designer:schema:fd:1",
@@ -405,7 +412,7 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void migratesEveryStructuredV2ValueToCanonicalV3() throws Exception {
+    void migratesEveryStructuredV2ValueToCanonicalV4() throws Exception {
         byte[] source = resourceBytes(ALL_V2_FEATURES_RESOURCE);
         FdDecodeResult.Current decoded = current(codec.decode(source));
         DesignerDocument document = decoded.document();
@@ -448,7 +455,7 @@ class FdDocumentCodecContractTest {
         OriginalFdBytes encoded = codec.encode(document);
         assertFalse(Arrays.equals(source, encoded.copyBytes()));
         assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8)
-                .contains("\"schemaVersion\": 3"));
+                .contains("\"schemaVersion\": 4"));
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertEquals(document, roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
@@ -480,6 +487,146 @@ class FdDocumentCodecContractTest {
                 "\"schemaVersion\": 3", "\"schemaVersion\": 2");
         FdDecodeResult.Invalid invalid = invalid(codec.decode(utf8(mislabeledV2)));
         assertTrue(hasDiagnostic(invalid, FdCodecDiagnosticCode.INVALID_VALUE));
+    }
+
+    @Test
+    void roundTripsCanonicalTypedIconDataIncludingExplicitNull() throws Exception {
+        String iconJson = "{\"kind\":\"iconData\","
+                + "\"codePoint\":128640,"
+                + "\"fontFamily\":\"Custom Icons\","
+                + "\"fontPackage\":\"my_icons\","
+                + "\"matchTextDirection\":true,"
+                + "\"fontFamilyFallback\":[\"Fallback One\",\"Fallback Two\"]}";
+        String source = minimalDocument("4", "{}").replace(
+                "\"properties\": {}",
+                "\"properties\": {\"icon\":" + iconJson + "}");
+        FdDecodeResult.Current decoded = current(codec.decode(utf8(source)));
+        PropertyValue.IconDataValue icon = assertInstanceOf(
+                PropertyValue.IconDataValue.class,
+                property(decoded.document(), "icon"));
+        assertEquals(0x1F680, icon.codePoint().orElseThrow());
+        assertEquals("Custom Icons", icon.fontFamily().orElseThrow());
+        assertEquals("my_icons", icon.fontPackage().orElseThrow());
+        assertTrue(icon.matchTextDirection());
+        assertEquals(List.of("Fallback One", "Fallback Two"),
+                icon.fontFamilyFallback());
+
+        byte[] canonical = codec.encode(decoded.document()).copyBytes();
+        String json = new String(canonical, StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"kind\": \"iconData\",\n"
+                + "        \"codePoint\": 128640,\n"
+                + "        \"fontFamily\": \"Custom Icons\",\n"
+                + "        \"fontPackage\": \"my_icons\",\n"
+                + "        \"matchTextDirection\": true,\n"
+                + "        \"fontFamilyFallback\": ["));
+        assertArrayEquals(canonical, codec.encode(
+                current(codec.decode(canonical)).document()).copyBytes());
+
+        String none = source.replace(iconJson,
+                "{\"kind\":\"iconData\",\"codePoint\":null,"
+                + "\"fontFamily\":null,\"fontPackage\":null,"
+                + "\"matchTextDirection\":false,\"fontFamilyFallback\":[]}");
+        PropertyValue.IconDataValue empty = assertInstanceOf(
+                PropertyValue.IconDataValue.class,
+                property(current(codec.decode(utf8(none))).document(), "icon"));
+        assertEquals(PropertyValue.IconDataValue.none(), empty);
+    }
+
+    @Test
+    void migratesEveryExactRegisteredLegacyIconAndLeavesOtherExpressionsOpaque()
+            throws Exception {
+        String legacy = minimalDocument("3", "{}")
+                .replace("flutter.widgets.Text", "flutter.widgets.Icon")
+                .replace(
+                        "\"properties\": {}",
+                        "\"properties\": {\"icon\":{\"kind\":\"dartExpression\","
+                        + "\"code\":\"Icons.star\"}}");
+
+        FdDecodeResult.Current migrated = current(codec.decode(utf8(legacy)));
+        assertEquals(3, migrated.sourceSchemaVersion());
+        assertTrue(migrated.migrated());
+        PropertyValue.IconDataValue star = assertInstanceOf(
+                PropertyValue.IconDataValue.class,
+                property(migrated.document(), "icon"));
+        assertEquals(0xE5F9, star.codePoint().orElseThrow());
+        assertEquals("MaterialIcons", star.fontFamily().orElseThrow());
+        assertTrue(star.fontPackage().isEmpty());
+        assertFalse(star.matchTextDirection());
+        assertTrue(star.fontFamilyFallback().isEmpty());
+
+        String canonical = new String(
+                codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
+        assertTrue(canonical.contains("\"schemaVersion\": 4"), canonical);
+        assertTrue(canonical.contains("\"kind\": \"iconData\""), canonical);
+        assertFalse(canonical.contains("Icons.star"), canonical);
+
+        String favoriteLegacy = legacy.replace("Icons.star", "Icons.favorite");
+        PropertyValue.IconDataValue favorite = assertInstanceOf(
+                PropertyValue.IconDataValue.class,
+                property(current(codec.decode(utf8(favoriteLegacy))).document(), "icon"));
+        assertEquals(0xE25B, favorite.codePoint().orElseThrow());
+        assertFalse(favorite.matchTextDirection());
+
+        String rtlLegacy = legacy.replace("Icons.star", "Icons.arrow_back");
+        PropertyValue.IconDataValue arrowBack = assertInstanceOf(
+                PropertyValue.IconDataValue.class,
+                property(current(codec.decode(utf8(rtlLegacy))).document(), "icon"));
+        assertEquals(0xE092, arrowBack.codePoint().orElseThrow());
+        assertTrue(arrowBack.matchTextDirection());
+
+        String arbitrary = legacy.replace("Icons.star", "Icons.not_in_locked_registry");
+        PropertyValue.DartExpressionValue untouched = assertInstanceOf(
+                PropertyValue.DartExpressionValue.class,
+                property(current(codec.decode(utf8(arbitrary))).document(), "icon"));
+        assertEquals("Icons.not_in_locked_registry", untouched.code());
+
+        String invocation = legacy.replace("Icons.star", "Icons.favorite.toString()");
+        assertInstanceOf(PropertyValue.DartExpressionValue.class,
+                property(current(codec.decode(utf8(invocation))).document(), "icon"));
+    }
+
+    @Test
+    void rejectsMalformedOrUnsafeTypedIconData() throws Exception {
+        String base = minimalDocument("4", "{}");
+        String valid = "{\"kind\":\"iconData\",\"codePoint\":58873,"
+                + "\"fontFamily\":\"MaterialIcons\",\"fontPackage\":null,"
+                + "\"matchTextDirection\":false,\"fontFamilyFallback\":[]}";
+        List<String> invalidValues = List.of(
+                valid.replace("\"codePoint\":58873,", ""),
+                valid.replace("58873", "55296"),
+                valid.replace("58873", "1114112"),
+                valid.replace("\"MaterialIcons\"", "\"Bad\\nFamily\""),
+                valid.replace("\"MaterialIcons\"", "\"A\\u202eB\""),
+                valid.replace("\"fontPackage\":null",
+                        "\"fontFamily\":null,\"fontPackage\":\"pkg\"")
+                        .replace("\"fontFamily\":\"MaterialIcons\",", ""),
+                valid.replace("\"codePoint\":58873",
+                        "\"codePoint\":null")
+                        .replace("\"fontFamily\":\"MaterialIcons\"",
+                                "\"fontFamily\":\"Illegal metadata\""),
+                valid.replace("\"fontFamilyFallback\":[]",
+                        "\"fontFamilyFallback\":[\"A\",\"A\"]"),
+                valid.replace("\"fontFamilyFallback\":[]",
+                        "\"fontFamilyFallback\":{}"),
+                valid.replace("}", ",\"expression\":\"Icons.star\"}"));
+
+        for (String invalidValue : invalidValues) {
+            String document = base.replace(
+                    "\"properties\": {}",
+                    "\"properties\": {\"icon\":" + invalidValue + "}");
+            assertInstanceOf(FdDecodeResult.Invalid.class,
+                    codec.decode(utf8(document)), invalidValue);
+        }
+
+        String mislabeledV3 = minimalDocument("3", "{}").replace(
+                "\"properties\": {}",
+                "\"properties\": {\"icon\":" + valid + "}");
+        FdDecodeResult.Invalid versionFailure = invalid(
+                codec.decode(utf8(mislabeledV3)));
+        assertTrue(versionFailure.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.pointer().equals("/root/properties/icon/kind")
+                && diagnostic.message().contains("schema version 4")),
+                () -> versionFailure.diagnostics().toString());
     }
 
     @Test

@@ -9,10 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
+import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
@@ -260,14 +263,21 @@ class FlutterWidgetPropertiesNodeTest {
                                 BigDecimal.valueOf(16), BigDecimal.valueOf(16))),
                 "flutter.widgets.Text", Map.of(
                         new PropertyName("data"),
-                        new PropertyValue.StringValue("Hello Flutter")));
+                        new PropertyValue.StringValue("Hello Flutter")),
+                "flutter.widgets.Icon", Map.of(
+                        new PropertyName("icon"),
+                        new PropertyValue.IconDataValue(
+                                java.util.Optional.of(0xE5F9),
+                                java.util.Optional.of("MaterialIcons"),
+                                java.util.Optional.empty(), false, List.of())));
         List<String> types = List.of(
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
-                "flutter.widgets.Text");
+                "flutter.widgets.Text",
+                "flutter.widgets.Icon");
 
         int writableCount = 0;
         for (String type : types) {
@@ -297,8 +307,8 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(78, writableCount,
-                "the reviewed non-Scaffold surface includes all 59 Text leaves");
+        assertEquals(91, writableCount,
+                "the reviewed non-Scaffold surface includes all Text and Icon leaves");
     }
 
     @Test
@@ -487,12 +497,12 @@ class FlutterWidgetPropertiesNodeTest {
 
     @Test
     void propertiesOutsideTheReviewedCapabilitySurfaceRemainReadOnly() {
-        WidgetDefinition definition = definition("flutter.widgets.Icon");
+        WidgetDefinition definition = definition("flutter.material.ElevatedButton");
         WidgetNode widget = new WidgetNode(
                 StableId.parse("b20f626c-e6bd-45d8-aef1-26382ba3ffb6"),
                 definition.typeId(),
-                Map.of(new PropertyName("icon"),
-                        new PropertyValue.DartExpressionValue("Icons.star")),
+                Map.of(new PropertyName("onPressed"),
+                        new PropertyValue.DartExpressionValue("null")),
                 Map.of(),
                 Extensions.empty());
         FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
@@ -502,6 +512,95 @@ class FlutterWidgetPropertiesNodeTest {
             assertFalse(property.canWrite(), property.getName());
             assertEquals(String.class, property.getValueType());
         }
+    }
+
+    @Test
+    void iconProjectsTheExactEnterpriseGroupsAndWritableConstructorSurface()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Icon");
+        StableId id = StableId.parse("04150536-0251-41a0-b7ab-d1b5a8bd7543");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(List.of(
+                FlutterWidgetPropertiesNode.IDENTITY_SET_NAME,
+                IconWidgetPropertySchema.Group.DATA.setName(),
+                IconWidgetPropertySchema.Group.APPEARANCE.setName(),
+                IconWidgetPropertySchema.Group.VARIABLE_FONT.setName(),
+                IconWidgetPropertySchema.Group.ACCESSIBILITY.setName()),
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        assertEquals(List.of("icon"), names(sets[1].getProperties()));
+        assertEquals(List.of("size", "color", "shadows", "blendMode"),
+                names(sets[2].getProperties()));
+        assertEquals(List.of(
+                "fill", "weight", "grade", "opticalSize", "fontWeight"),
+                names(sets[3].getProperties()));
+        assertEquals(List.of(
+                "semanticLabel", "textDirection", "applyTextScaling"),
+                names(sets[4].getProperties()));
+
+        for (Node.PropertySet set : Arrays.copyOfRange(sets, 1, sets.length)) {
+            for (Node.Property<?> property : set.getProperties()) {
+                assertTrue(property.canWrite(), property.getName());
+                assertEquals(FlutterPropertyCellValue.class,
+                        property.getValueType(), property.getName());
+            }
+        }
+        Node.Property<?> icon = property(node, "icon");
+        assertFalse(icon.supportsDefaultValue(),
+                "the required positional nullable IconData is explicit, including None");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.IconDataValue(
+                                java.util.Optional.of(0xE5F9),
+                                java.util.Optional.of("MaterialIcons"),
+                                java.util.Optional.empty(), false, List.of())),
+                icon.getValue());
+        PropertyEditor iconEditor = icon.getPropertyEditor();
+        assertTrue(iconEditor.supportsCustomEditor());
+        iconEditor.setValue(icon.getValue());
+        assertEquals("Icons.star (U+E5F9)", iconEditor.getAsText());
+        assertTrue(property(node, "weight").getShortDescription()
+                .contains("overrides Font weight"));
+        String fontWeightDescription = property(node, "fontWeight").getShortDescription();
+        assertTrue(fontWeightDescription.contains("not inherited from IconTheme"));
+        assertTrue(fontWeightDescription.contains("Weight axis overrides"));
+        assertTrue(property(node, "shadows").getShortDescription()
+                .contains("explicit empty list"));
+
+        cellProperty(property(node, "fontWeight")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.EnumValue("FontWeight", "w700")));
+        cellProperty(property(node, "weight")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(650))));
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("fontWeight"),
+                        new PropertyValue.EnumValue("FontWeight", "w700")),
+                new SetProperty(id, new PropertyName("weight"),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(650)))),
+                commands,
+                "both Flutter-valid values remain exact; help documents wght precedence");
+
+        commands.clear();
+        MaterialIconRegistry.MaterialIcon arrowBack = MaterialIconRegistry.bundled()
+                .find("arrow_back").orElseThrow();
+        PropertyValue.IconDataValue arrowBackValue =
+                new PropertyValue.IconDataValue(
+                        java.util.Optional.of(arrowBack.codePoint()),
+                        java.util.Optional.of(arrowBack.fontFamily()),
+                        java.util.Optional.empty(),
+                        arrowBack.matchTextDirection(),
+                        List.of());
+        cellProperty(icon).setValue(
+                FlutterPropertyCellValue.explicit(arrowBackValue));
+        assertEquals(List.of(new SetProperty(
+                        id, new PropertyName("icon"), arrowBackValue)),
+                commands,
+                "selecting an RTL glyph changes only Icon.icon and must never "
+                + "invent a semanticLabel");
     }
 
     @Test
@@ -823,7 +922,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void sevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void eightCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -832,14 +931,15 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
-                "flutter.widgets.Text");
+                "flutter.widgets.Text",
+                "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
-            WidgetNode widget = WidgetNode.empty(
-                    StableId.parse("5cf3483b-d627-41b4-bb1d-4a321aa36da4"),
-                    definition.typeId());
+            WidgetNode widget = WidgetNodePrototypeFactory.create(
+                    definition,
+                    StableId.parse("5cf3483b-d627-41b4-bb1d-4a321aa36da4"));
             FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
                     Children.LEAF, widget, definition);
             String expectedIcon = FlutterWidgetIconRegistry
@@ -850,7 +950,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(7, iconPaths.size(),
+        assertEquals(8, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

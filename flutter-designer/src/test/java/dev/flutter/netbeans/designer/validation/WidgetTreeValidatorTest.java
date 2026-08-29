@@ -54,6 +54,7 @@ class WidgetTreeValidatorTest {
                 "designer.property.constraint",
                 "designer.property.dependency",
                 "designer.property.conflict",
+                "designer.property.override",
                 "designer.property.uniqueness",
                 "designer.slot.missing",
                 "designer.slot.unknown",
@@ -76,6 +77,7 @@ class WidgetTreeValidatorTest {
                         WidgetTreeValidator.PROPERTY_CONSTRAINT,
                         WidgetTreeValidator.PROPERTY_DEPENDENCY,
                         WidgetTreeValidator.PROPERTY_CONFLICT,
+                        WidgetTreeValidator.PROPERTY_OVERRIDE,
                         WidgetTreeValidator.PROPERTY_UNIQUENESS,
                         WidgetTreeValidator.MISSING_SLOT,
                         WidgetTreeValidator.UNKNOWN_SLOT,
@@ -242,6 +244,28 @@ class WidgetTreeValidatorTest {
         assertTrue(result.issues().stream()
                 .filter(issue -> issue.code().equals(WidgetTreeValidator.PROPERTY_CONFLICT))
                 .allMatch(issue -> issue.message().contains("mutually exclusive")));
+    }
+
+    @Test
+    void iconWeightAxisWarnsThatItOverridesFontWeightWithoutBlockingGeneration() {
+        WidgetNode icon = node("icon", "flutter.widgets.Icon", Map.of(
+                name("icon"), new PropertyValue.IconDataValue(
+                        Optional.of(0xE5F9), Optional.of("MaterialIcons"),
+                        Optional.empty(), false, List.of()),
+                name("weight"), new PropertyValue.DoubleValue(BigDecimal.valueOf(600)),
+                name("fontWeight"), new PropertyValue.EnumValue("FontWeight", "w700")),
+                Map.of());
+
+        ValidationResult result = validator().validate(
+                document(icon), BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.valid(), () -> "Warnings must not block generation: " + result.issues());
+        assertEquals(1, result.warnings().size());
+        ValidationIssue warning = result.warnings().getFirst();
+        assertEquals(WidgetTreeValidator.PROPERTY_OVERRIDE, warning.code());
+        assertEquals(ValidationSeverity.WARNING, warning.severity());
+        assertEquals("/root/properties/fontWeight", warning.path());
+        assertTrue(warning.message().contains("overrides 'fontWeight'"));
     }
 
     @Test

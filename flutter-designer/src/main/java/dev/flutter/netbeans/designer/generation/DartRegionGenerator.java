@@ -1051,6 +1051,9 @@ public final class DartRegionGenerator {
                     + "' contains an opaque Dart expression; generation profile "
                     + PROFILE_ID + " rejects expressions instead of parsing or rewriting them."));
         }
+        if (value instanceof PropertyValue.IconDataValue iconData) {
+            return renderIconData(iconData, path, widgetId, context);
+        }
         if (value instanceof PropertyValue.StringValue string) {
             return scalar(
                     dartString(string.value(), path, widgetId, context.maxRenderedUtf8Bytes()), true,
@@ -1186,6 +1189,62 @@ public final class DartRegionGenerator {
                 Optional.of(DartManagedRegionId.BUILD),
                 "Generation profile " + PROFILE_ID + " does not recognize property value kind "
                 + value.kind().wireName() + "."));
+    }
+
+    private RenderedValue renderIconData(
+            PropertyValue.IconDataValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (value.codePoint().isEmpty()) {
+            return scalar("null", true, path, widgetId, context);
+        }
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "IconData");
+        StringBuilder rendered = new StringBuilder("const ");
+        int symbolOffset = rendered.length();
+        rendered.append(symbol.text())
+                .append("(0x")
+                .append(Integer.toHexString(value.codePoint().orElseThrow())
+                        .toUpperCase(java.util.Locale.ROOT));
+        value.fontFamily().ifPresent(family -> rendered
+                .append(", fontFamily: ")
+                .append(dartString(
+                        family, path, widgetId, context.maxRenderedUtf8Bytes())));
+        value.fontPackage().ifPresent(fontPackage -> rendered
+                .append(", fontPackage: ")
+                .append(dartString(
+                        fontPackage, path, widgetId,
+                        context.maxRenderedUtf8Bytes())));
+        if (value.matchTextDirection()) {
+            rendered.append(", matchTextDirection: true");
+        }
+        if (!value.fontFamilyFallback().isEmpty()) {
+            rendered.append(", fontFamilyFallback: <String>[");
+            for (int index = 0; index < value.fontFamilyFallback().size(); index++) {
+                if (index > 0) {
+                    rendered.append(", ");
+                }
+                rendered.append(dartString(
+                        value.fontFamilyFallback().get(index),
+                        path, widgetId, context.maxRenderedUtf8Bytes()));
+            }
+            rendered.append(']');
+        }
+        rendered.append(')');
+        return scalar(
+                rendered.toString(),
+                true,
+                path,
+                widgetId,
+                context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":property:icon:icon-data-type",
+                        symbolOffset + symbol.nameOffset(),
+                        symbol.name(),
+                        symbol.libraryUri(),
+                        path,
+                        Optional.of(widgetId))));
     }
 
     private String dartString(

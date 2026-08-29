@@ -384,18 +384,29 @@ accepted architecture is documented in
   slice: `SizedBox` now has exact Create/Canvas/DnD/Properties capabilities,
   nullable non-negative width/height editors, its named `child` slot,
   deterministic generation, native rendering and Palette/tree/Canvas DnD.
-  The active Palette/runner contract is seven widgets and the compatibility
-  matrix is 49 cells, including `SizedBox.child`. Java and Dart independently
+  At that milestone the Palette/runner contract was seven widgets and the
+  compatibility matrix was 49 cells, including `SizedBox.child`. Java and Dart independently
   fingerprint the exact property/slot schema and fail closed on an altered or
   merely same-id definition. Same-tree existing-widget move/reorder remains
   enabled through its separately reviewed compatibility planner.
+- [x] Supersede the SizedBox milestone with the complete `Icon` vertical slice.
+  Schema v4 adds typed nullable `IconData` without arbitrary Dart expressions;
+  Canvas payload protocol v6 and deterministic generation construct the same
+  real Flutter `Icon`, including inheritance for its theme-backed fields while
+  keeping `blendMode` and `fontWeight` local. `Icon` exposes its 13
+  typed constructor properties, a built-in chooser for **None** or one of 8,825
+  bundled Material Icons locked to Flutter 3.44.8, and requires
+  `flutter.uses-material-design: true` for Material glyphs. It is a leaf with no
+  slots. The active surface is eight Create/Canvas/DnD sources, 91 writable
+  property rows across seven non-`Scaffold` widgets, and exactly 56 insertion
+  cells across the unchanged seven valid destination slots.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
 - [ ] Admit the remaining built-ins only as complete vertical slices after
-  those gates pass. The current six-widget typed Properties slice does not
-  imply writable `Scaffold`/`AppBar`/`Icon`/`ElevatedButton` Properties or any
-  Create/Canvas/DnD capability for `AppBar`, `Icon` or `ElevatedButton`.
+  those gates pass. The current seven-widget non-`Scaffold` typed Properties
+  slice does not imply writable `Scaffold`/`AppBar`/`ElevatedButton` Properties
+  or any Create/Canvas/DnD capability for `AppBar` or `ElevatedButton`.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

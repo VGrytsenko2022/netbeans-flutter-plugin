@@ -3,9 +3,9 @@
 Status note: ADR-024 and ADR-027 supersede the earlier provisional statements that
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted. ADR-025 records the historical Text-only and later
-six-source insertion milestones; ADR-030 now governs the current seven-widget,
-49-cell capability-gated surface including the complete `SizedBox` vertical
-slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
+six-source insertion milestones; ADR-030 records the subsequent seven-widget
+`SizedBox` milestone, and ADR-031 governs the current eight-widget, 56-cell
+capability-gated surface including the complete `Icon` vertical slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
 ADR-029 authorizes exact named-slot management. None authorizes cross-form
 movement, arbitrary native Canvas mutation or unreviewed slots.
 
@@ -58,7 +58,7 @@ Accepted. `flutter-designer` uses a locally constrained streaming JSON codec ins
 
 ## ADR-012 — The 0.1.3 catalog contributor API is public but provisional
 
-Accepted for 0.1.3. The main NetBeans module exports exactly `dev.flutter.netbeans.designer.catalog` and `dev.flutter.netbeans.designer.model`, because the catalog metadata constructors expose model identifier and value types in their public signatures. Contributor NBMs use a normal specification dependency on `dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor` through the default Lookup, and reuse the host module's single packaged `flutter-designer.jar`; an extension must never bundle another copy. Codec, validation and NetBeans-edge packages remain private. API 1 was frozen for 0.1.3-compatible patch builds. The direction-aware edge-insets model deliberately establishes `API_VERSION == 2`, because adding a permitted subtype to the exported sealed `PropertyValue` surface is source-incompatible; API-1 contributors are rejected explicitly rather than loaded under a changed contract. This is not yet a permanent 1.0 compatibility promise. Further incompatible evolution should move the SPI to a dedicated module/new package boundary rather than silently breaking extensions behind an existing API version.
+Accepted for 0.1.3. The main NetBeans module exports exactly `dev.flutter.netbeans.designer.catalog` and `dev.flutter.netbeans.designer.model`, because the catalog metadata constructors expose model identifier and value types in their public signatures. Contributor NBMs use a normal specification dependency on `dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor` through the default Lookup, and reuse the host module's single packaged `flutter-designer.jar`; an extension must never bundle another copy. Codec, validation and NetBeans-edge packages remain private. API 1 was frozen for 0.1.3-compatible patch builds. The direction-aware edge-insets model deliberately established `API_VERSION == 2`, because adding a permitted subtype to the exported sealed `PropertyValue` surface is source-incompatible; API-1 contributors are rejected explicitly rather than loaded under a changed contract. Typed `IconDataValue` and `PropertyValueKind.ICON_DATA` establish the next incompatible boundary at `API_VERSION == 3`; API-1 and API-2 contributors fail closed before their definitions are loaded. This is not yet a permanent 1.0 compatibility promise. Further incompatible evolution should move the SPI to a dedicated module/new package boundary rather than silently breaking extensions behind an existing API version.
 
 ## ADR-013 — On-disk declared integrity is read-only evidence, not a write gate
 
@@ -225,16 +225,17 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024, ADR-027 and ADR-030 make 78 catalog-backed non-`Scaffold`
-Properties fields writable, including the 59-leaf Text projection and two
-`SizedBox` dimensions. ADR-025 historically made only built-in `Text` publicly
-draggable and later admitted six sources; ADR-030 supersedes those surface
-counts with the seven-source, 49-cell capability-gated matrix. Same-tree
+framing. ADR-024, ADR-027, ADR-030 and ADR-031 make 91 catalog-backed
+non-`Scaffold` Properties fields writable, including the 59-leaf Text
+projection, two `SizedBox` dimensions and 13 typed Icon constructor properties.
+ADR-025 historically made only built-in `Text` publicly draggable and later
+admitted six sources; ADR-030 records the seven-source stage, while ADR-031
+supersedes those surface counts with the eight-source, 56-cell capability-gated matrix. Same-tree
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v5 model payload accepts only exact reviewed Canvas-capable built-ins:
-`Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center` and `SizedBox`; the
+protocol-v6 model payload accepts only exact reviewed Canvas-capable built-ins:
+`Scaffold`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and `SizedBox`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract.
@@ -245,11 +246,11 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated seven-widget model for Mobile, Tablet, Desktop
+Canvas now renders the validated eight-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those seven Create-capable definitions, and the DnD-capable set uses the reviewed
-49-cell insertion matrix. No image or pixel-transfer frame kind exists.
+those eight Create-capable definitions, and the DnD-capable set uses the reviewed
+56-cell insertion matrix across seven valid destination slots. No image or pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -568,7 +569,8 @@ invalid draft cannot silently replace the persisted theme pair.
 
 Canvas inherits the project default unless its existing `canvas.themeMode`
 selects a preview brightness. It consumes a validated theme definition and
-revision digest, not project Dart code. Canvas model protocol v5 carries the
+revision digest, not project Dart code. At this theme milestone Canvas model
+protocol v5 carried the
 complete resolved ColorScheme and TextTheme override tables. Generated Dart and
 Canvas both apply `ColorScheme.fromSeed`, `ColorScheme.copyWith`,
 `ThemeData.from`, then `TextTheme.copyWith`; form-local Text leaves are applied
@@ -584,8 +586,8 @@ disabled.
 ## ADR-027 — TextStyle uses structured values and semantic theme roles
 
 Accepted for 0.1.3. TextStyle structured values were introduced in `.fd` v2;
-the current `.fd` schema is v3. Schema-v1 and schema-v2 documents are decoded
-through explicit migrations and are written as canonical v3 only after an
+at this ADR milestone the `.fd` schema was v3. Schema-v1 and schema-v2 documents were decoded
+through explicit migrations and written as canonical v3 only after an
 admitted edit; a newer schema fails closed. The Java domain model,
 JSON codec, immutable catalog, Dart generator, native Canvas payload and Flutter
 runner share the same closed structured-value contract.
@@ -619,7 +621,7 @@ Schema v3 adds a semantic distinction between physical `EdgeInsets` and
 text-direction-aware `EdgeInsetsDirectional`. Existing physical v1/v2 payloads
 retain their exact side values during migration. The editor offers All,
 Symmetric, Physical and Directional modes, while persistence and Dart generation
-canonicalize them to `fromLTRB` or `fromSTEB`. Canvas model protocol v5 preserves
+canonicalize them to `fromLTRB` or `fromSTEB`. At this milestone Canvas model protocol v5 preserved
 the same distinction so RTL preview cannot silently exchange physical sides.
 
 ## ADR-028 — Existing widgets move only through exact same-tree planning
@@ -731,7 +733,7 @@ reopen and chronological Undo/Redo. An empty `SizedBox()` keeps its real 0×0
 Flutter layout; only a designer overlay supplies a selectable target, and
 coincident zero-size siblings cycle deterministically without changing layout.
 
-The current active surface therefore contains exactly seven reviewed built-ins:
+At the ADR-030 milestone the active surface contained exactly seven reviewed built-ins:
 `Scaffold`, `Column`, `Row`, `Padding`, `Center`, `SizedBox` and `Text`. All seven
 are Create/Canvas/DnD-capable; the six non-`Scaffold` definitions expose 78
 writable fields. The insertion compatibility contract is the complete 49-cell
@@ -741,4 +743,34 @@ matrix across seven sources and the seven reviewed destinations:
 `Scaffold.appBar`, cross-form/native-surface movement and every definition or
 schema without the exact reviewed capability remain fail-closed. ADR-025's
 six-widget/36-cell wording remains the historical milestone it originally
-accepted; this decision supersedes it only for the current surface.
+accepted; this decision superseded it only for the then-current surface.
+
+## ADR-031 — Icon is a complete typed vertical slice
+
+Accepted for the next 0.1.3 Designer stage. `Icon` is admitted only as the same
+complete canonical built-in across Properties, Create, Canvas, Palette DnD,
+deterministic Dart generation, Save/reopen and Undo/Redo. It is a leaf with no
+slots. Its required positional `icon` value is schema-v4 typed nullable
+`IconData`, never an executable Dart expression, and the 12 reviewed named
+constructor arguments bring the active writable surface to 91 property rows
+across seven non-`Scaffold` widgets.
+
+The built-in Icon editor admits only **None** or an exact glyph from a bundled,
+reviewed registry of exactly 8,825 public Material Icons locked to Flutter
+3.44.8. Material font use requires
+`flutter.uses-material-design: true`; the plugin must report the requirement and
+must not invent a substitute glyph. Omitted theme-backed Icon values inherit
+`IconTheme`; `blendMode` and `fontWeight` remain local, while generated Dart and
+the native Canvas construct the same real `IconData` and `Icon` arguments. The
+Java capability fingerprint and independent
+Dart protocol-v6 decoder enforce exact property types, numeric bounds, defaults
+and leaf cardinality.
+
+The current active surface is therefore exactly eight built-ins: `Scaffold`,
+`Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. All eight
+are Create/Canvas/Palette-DnD sources; the seven non-`Scaffold` definitions are
+read/write. Since Icon adds no destination slot, eight sources across the same
+seven reviewed destinations form exactly 56 compatibility cells. `AppBar`,
+`ElevatedButton`, writable `Scaffold` properties, unreviewed slots and every
+definition without exact capability parity remain fail-closed. ADR-025's 36-cell
+and ADR-030's 49-cell counts remain their historical accepted milestones.

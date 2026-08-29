@@ -648,22 +648,71 @@ class DartRegionGeneratorTest {
 
     @Test
     void rejectsOpaqueExpressionAtomicallyAtItsExactModelPath() {
-        WidgetNode icon = new WidgetNode(
-                StableId.random(),
-                new WidgetTypeId("flutter.widgets.Icon"),
-                Map.of(property("icon"), new PropertyValue.DartExpressionValue("Icons.star")),
-                Map.of(),
+        WidgetDefinition buttonDefinition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.material.ElevatedButton"))
+                .orElseThrow();
+        StableId id = StableId.random();
+        WidgetNode prototype = dev.flutter.netbeans.designer.catalog
+                .WidgetNodePrototypeFactory.create(buttonDefinition, id);
+        WidgetNode button = new WidgetNode(
+                id,
+                buttonDefinition.typeId(),
+                Map.of(property("onPressed"),
+                        new PropertyValue.DartExpressionValue("null")),
+                prototype.slots(),
                 Extensions.empty());
 
         DartGenerationResult result = new DartRegionGenerator().generate(
-                document(icon, WidgetClassKind.STATELESS), BuiltInWidgetCatalog.getDefault());
+                document(button, WidgetClassKind.STATELESS), BuiltInWidgetCatalog.getDefault());
 
         assertFalse(result.successful());
         assertTrue(result.generated().isEmpty());
         DartGenerationDiagnostic diagnostic = result.diagnostics().getFirst();
         assertEquals(DartGenerationDiagnosticCode.DART_EXPRESSION_UNSUPPORTED, diagnostic.code());
-        assertEquals("/root/properties/icon", diagnostic.path());
+        assertEquals("/root/properties/onPressed", diagnostic.path());
         assertEquals(Optional.of(DartManagedRegionId.BUILD), diagnostic.region());
+    }
+
+    @Test
+    void emitsTypedConstIconDataAndNullableIconWithoutOpaqueExpressions() {
+        WidgetDefinition iconDefinition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow();
+        StableId customId = StableId.random();
+        PropertyValue.IconDataValue arrowBack = new PropertyValue.IconDataValue(
+                Optional.of(0xE092),
+                Optional.of("MaterialIcons"),
+                Optional.empty(),
+                true,
+                List.of());
+        WidgetNode materialIcon = new WidgetNode(
+                customId,
+                iconDefinition.typeId(),
+                Map.of(property("icon"), arrowBack),
+                Map.of(),
+                Extensions.empty());
+
+        GeneratedDartRegions materialGenerated = new DartRegionGenerator().generate(
+                document(materialIcon, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        assertTrue(materialGenerated.build().payload().contains(
+                "const IconData(0xE092, fontFamily: 'MaterialIcons', "
+                + "matchTextDirection: true)"),
+                materialGenerated.build().payload());
+        assertFalse(materialGenerated.build().payload().contains("Icons."));
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                materialGenerated.imports().payload());
+        assertFalse(materialGenerated.imports().payload().contains("material.dart"));
+
+        WidgetNode emptyIcon = new WidgetNode(
+                StableId.random(),
+                iconDefinition.typeId(),
+                Map.of(property("icon"), PropertyValue.IconDataValue.none()),
+                Map.of(),
+                Extensions.empty());
+        GeneratedDartRegions emptyGenerated = new DartRegionGenerator().generate(
+                document(emptyIcon, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        assertTrue(emptyGenerated.build().payload().contains("Icon(null)"));
     }
 
     @Test

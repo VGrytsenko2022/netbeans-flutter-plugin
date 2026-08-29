@@ -23,6 +23,7 @@ public sealed interface PropertyValue permits
         PropertyValue.AssetValue,
         PropertyValue.CallbackValue,
         PropertyValue.DartExpressionValue,
+        PropertyValue.IconDataValue,
         PropertyValue.ThemeTokenValue,
         PropertyValue.PaintValue,
         PropertyValue.ShadowListValue,
@@ -188,6 +189,106 @@ public sealed interface PropertyValue permits
         @Override
         public PropertyValueKind kind() {
             return PropertyValueKind.DART_EXPRESSION;
+        }
+    }
+
+    /**
+     * Safe, serializable representation of the nullable {@code Icon.icon}
+     * value and Flutter's const {@code IconData} constructor metadata.
+     */
+    record IconDataValue(
+            Optional<Integer> codePoint,
+            Optional<String> fontFamily,
+            Optional<String> fontPackage,
+            boolean matchTextDirection,
+            List<String> fontFamilyFallback) implements PropertyValue {
+        public static final int MAX_CODE_POINT = 0x10FFFF;
+        public static final int MAX_TEXT_LENGTH = 256;
+        public static final int MAX_FONT_FAMILY_FALLBACKS = 32;
+
+        public IconDataValue {
+            Objects.requireNonNull(codePoint, "codePoint");
+            Objects.requireNonNull(fontFamily, "fontFamily");
+            Objects.requireNonNull(fontPackage, "fontPackage");
+            Objects.requireNonNull(fontFamilyFallback, "fontFamilyFallback");
+            codePoint = codePoint.map(IconDataValue::validCodePoint);
+            fontFamily = fontFamily.map(value -> safeMetadata(
+                    value, "fontFamily"));
+            fontPackage = fontPackage.map(value -> safeMetadata(
+                    value, "fontPackage"));
+            if (fontPackage.isPresent() && fontFamily.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "fontPackage requires fontFamily");
+            }
+            if (fontFamilyFallback.size() > MAX_FONT_FAMILY_FALLBACKS) {
+                throw new IllegalArgumentException(
+                        "fontFamilyFallback may contain at most "
+                        + MAX_FONT_FAMILY_FALLBACKS + " values");
+            }
+            java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+            for (String fallback : fontFamilyFallback) {
+                String accepted = safeMetadata(fallback, "fontFamilyFallback");
+                if (!unique.add(accepted)) {
+                    throw new IllegalArgumentException(
+                            "Duplicate fontFamilyFallback: " + accepted);
+                }
+            }
+            fontFamilyFallback = List.copyOf(unique);
+            if (codePoint.isEmpty()
+                    && (fontFamily.isPresent()
+                    || fontPackage.isPresent()
+                    || matchTextDirection
+                    || !fontFamilyFallback.isEmpty())) {
+                throw new IllegalArgumentException(
+                        "Null IconData cannot carry font metadata");
+            }
+        }
+
+        public static IconDataValue none() {
+            return new IconDataValue(
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    false, List.of());
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.ICON_DATA;
+        }
+
+        private static int validCodePoint(int value) {
+            if (value < 0 || value > MAX_CODE_POINT
+                    || (value >= 0xD800 && value <= 0xDFFF)) {
+                throw new IllegalArgumentException(
+                        "IconData codePoint must be a Unicode scalar value");
+            }
+            return value;
+        }
+
+        private static String safeMetadata(String value, String label) {
+            Objects.requireNonNull(value, label);
+            int length = value.codePointCount(0, value.length());
+            if (length < 1 || length > MAX_TEXT_LENGTH
+                    || !value.equals(value.strip())) {
+                throw new IllegalArgumentException(
+                        label + " must contain 1.." + MAX_TEXT_LENGTH
+                        + " characters of trimmed printable text");
+            }
+            for (int offset = 0; offset < value.length();) {
+                int codePoint = value.codePointAt(offset);
+                if (Character.isISOControl(codePoint)
+                        || codePoint == 0x061C
+                        || codePoint == 0x200E
+                        || codePoint == 0x200F
+                        || (codePoint >= 0x2028 && codePoint <= 0x202E)
+                        || (codePoint >= 0x2066 && codePoint <= 0x2069)
+                        || codePoint == 0xFEFF
+                        || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+                    throw new IllegalArgumentException(
+                            label + " must contain printable characters only");
+                }
+                offset += Character.charCount(codePoint);
+            }
+            return value;
         }
     }
 

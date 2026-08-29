@@ -37,6 +37,7 @@ public final class WidgetTreeValidator {
     public static final String PROPERTY_CONSTRAINT = "designer.property.constraint";
     public static final String PROPERTY_DEPENDENCY = "designer.property.dependency";
     public static final String PROPERTY_CONFLICT = "designer.property.conflict";
+    public static final String PROPERTY_OVERRIDE = "designer.property.override";
     public static final String PROPERTY_UNIQUENESS = "designer.property.uniqueness";
     public static final String MISSING_SLOT = "designer.slot.missing";
     public static final String UNKNOWN_SLOT = "designer.slot.unknown";
@@ -307,6 +308,19 @@ public final class WidgetTreeValidator {
                         "Property 'textBaseline' is required when 'crossAxisAlignment' is "
                         + "CrossAxisAlignment.baseline on widget '" + type + "'."));
             }
+        }
+
+        if (type.equals("flutter.widgets.Icon")) {
+            if (node.properties().containsKey(new PropertyName("weight"))
+                    && node.properties().containsKey(new PropertyName("fontWeight"))) {
+                issues.add(warning(
+                        PROPERTY_OVERRIDE,
+                        propertiesPath + "/fontWeight",
+                        node.id(),
+                        "Icon property 'weight' emits the variable-font wght axis and "
+                        + "overrides 'fontWeight' while both values are set."));
+            }
+            return;
         }
 
         if (!type.equals("flutter.widgets.Text")) {
@@ -634,6 +648,19 @@ public final class WidgetTreeValidator {
         return new ValidationIssue(
                 code,
                 ValidationSeverity.ERROR,
+                path,
+                Optional.of(widgetId),
+                message);
+    }
+
+    private static ValidationIssue warning(
+            String code,
+            String path,
+            StableId widgetId,
+            String message) {
+        return new ValidationIssue(
+                code,
+                ValidationSeverity.WARNING,
                 path,
                 Optional.of(widgetId),
                 message);

@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
@@ -160,6 +161,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
         if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
             addTextPropertySets(sheet, hasSlotTab);
+        } else if (IconWidgetPropertySchema.ICON_TYPE.equals(widget.type())) {
+            addIconPropertySets(sheet, hasSlotTab);
         } else {
             Sheet.Set properties = createGenericPropertySet();
             assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -345,11 +348,34 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addIconPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<IconWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(IconWidgetPropertySchema.Group.class);
+        for (IconWidgetPropertySchema.Group group
+                : IconWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            IconWidgetPropertySchema.Definition schema =
+                    IconWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in Icon property is missing its presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()));
+        }
+    }
+
     private Node.Property<?> projectProperty(
             PropertyDefinition property,
             Optional<TextWidgetPropertySchema.Definition> textSchema) {
-        PropertyValue explicitValue = widget.properties().get(property.name());
-        var binding = writableBinding(property, textSchema);
         String projectedDisplayName = textSchema
                 .map(TextWidgetPropertySchema.Definition::displayName)
                 .orElseGet(() -> displayName(property.name()));
@@ -357,6 +383,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .map(TextWidgetPropertySchema.Definition::description)
                 .orElseGet(() -> "Explicit model value for "
                 + property.name().value() + ".");
+        return projectProperty(
+                property,
+                textSchema,
+                projectedDisplayName,
+                projectedDescription);
+    }
+
+    private Node.Property<?> projectProperty(
+            PropertyDefinition property,
+            Optional<TextWidgetPropertySchema.Definition> textSchema,
+            String projectedDisplayName,
+            String projectedDescription) {
+        PropertyValue explicitValue = widget.properties().get(property.name());
+        var binding = writableBinding(property, textSchema);
         if (binding.isPresent()) {
             return writableProperty(
                     binding.orElseThrow(), explicitValue,

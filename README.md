@@ -27,9 +27,9 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the seven capability-authorized Palette widgets (`Scaffold`,
-    `Column`, `Row`, `Padding`, `Center`, `SizedBox` and `Text`) through the
-    fail-closed 49-cell catalog compatibility matrix, with paired generation,
+    accepts the eight capability-authorized Palette widgets (`Scaffold`,
+    `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`) through
+    the fail-closed 56-cell catalog compatibility matrix, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
     parent has one unambiguous compatible slot; ambiguous multi-slot parents
@@ -97,8 +97,10 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 - Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
   a complete Designer pair. The target is restricted to `lib` or one of its
   subfolders. A Dart target such as `lib/account/profile.dart` is paired with
-  the JSON model `.fd_templates/account/profile.fd`; the current schema-v3
-  `source.dartFile` value remains the Dart basename `profile.dart`.
+  the JSON model `.fd_templates/account/profile.fd`; the current schema-v4
+  `source.dartFile` value remains the Dart basename `profile.dart`. Schema v4
+  adds a closed typed nullable `IconData` value and never stores an executable
+  Dart expression for an icon.
 - Dart sources and Flutter Designer `.fd` models use distinct theme-aware file
   icons in Projects, Files, and the corresponding New File wizard entries.
 - NetBeans `Delete` is available on either member of a complete Designer pair
@@ -233,8 +235,9 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated protocol-v5 model restricted by the exact built-in capability
-gate to `Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center` and `SizedBox`.
+bounded validated protocol-v6 model restricted by the exact built-in capability
+gate to `Scaffold`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
+`SizedBox`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
 targets and carries each target into Flutter's adaptive theme semantics on the
@@ -242,9 +245,8 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The six non-`Scaffold` widgets expose 78 typed
-read/write properties: the prior 76-field contract plus nullable non-negative
-`SizedBox.width` and `SizedBox.height`. `Text` contributes 59 independently editable leaves in
+tree and standard Properties. The seven non-`Scaffold` widgets expose 91 typed
+read/write property rows. `Text` contributes 59 independently editable leaves in
 seven sections; every optional leaf supports Restore Default, and generated
 Dart and native Canvas assemble them identically into `TextStyle`,
 `StrutStyle`, `Locale`, `TextScaler` and `TextHeightBehavior`. Text colors,
@@ -254,9 +256,17 @@ all explicit leaves remain local overrides. Structured editors cover the safe
 serializable `Paint` subset, ordered `Shadow` values, OpenType `FontFeature`
 tags and `FontVariation` axes. The deprecated `Text.textScaleFactor` argument,
 `key`, arbitrary Dart expressions and unsupported shader/filter object graphs
-remain outside this slice. The active Design lookup supplies the standard NetBeans Palette
-with those exact seven items. The catalog compatibility matrix admits every one
-of those seven sources into empty `Scaffold.body`,
+remain outside this slice. `Icon` contributes its typed positional `icon`
+value plus all 12 supported named constructor properties. Its searchable
+bundled Material Icons catalog contains 8,825 entries locked to Flutter 3.44.8;
+the built-in chooser admits only **None** or one exact registry glyph. Generated
+applications must keep `flutter.uses-material-design: true`
+so those glyphs are available at runtime. `Icon` is a leaf; its omitted
+theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
+remain direct local arguments. Generated Dart and the native Canvas have exact
+argument parity. The active Design lookup supplies the standard NetBeans Palette
+with those exact eight items. The catalog compatibility matrix admits every one
+of those eight sources into empty `Scaffold.body`,
 `Scaffold.floatingActionButton`, `Center.child`, `Padding.child` and
 `SizedBox.child` slots, or
 at the terminal index of `Row.children` and `Column.children`. An empty

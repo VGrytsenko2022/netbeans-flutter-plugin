@@ -41,6 +41,81 @@ class PropertyValueTest {
     }
 
     @Test
+    void iconDataAcceptsUnicodeScalarsAndEnforcesNullableMetadataInvariants() {
+        PropertyValue.IconDataValue star = new PropertyValue.IconDataValue(
+                Optional.of(0xE5F9), Optional.of("MaterialIcons"),
+                Optional.empty(), false, List.of("Fallback A", "Fallback B"));
+        assertEquals(PropertyValueKind.ICON_DATA, star.kind());
+        assertEquals(0xE5F9, star.codePoint().orElseThrow());
+        assertEquals(PropertyValue.IconDataValue.none(),
+                new PropertyValue.IconDataValue(
+                        Optional.empty(), Optional.empty(), Optional.empty(),
+                        false, List.of()));
+        assertThrows(UnsupportedOperationException.class,
+                () -> star.fontFamilyFallback().add("Other"));
+
+        for (int invalid : List.of(-1, 0xD800, 0xDFFF, 0x110000)) {
+            assertThrows(IllegalArgumentException.class, () -> icon(invalid, "Family"));
+        }
+        assertEquals(0x10FFFF, icon(0x10FFFF, "Family").codePoint().orElseThrow());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.IconDataValue(
+                        Optional.empty(), Optional.of("Family"), Optional.empty(),
+                        false, List.of()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.IconDataValue(
+                        Optional.of(1), Optional.empty(), Optional.of("package"),
+                        false, List.of()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.IconDataValue(
+                        Optional.of(1), Optional.of("Family"), Optional.empty(),
+                        false, List.of("A", "A")));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.IconDataValue(
+                        Optional.of(1), Optional.of("Family"), Optional.empty(),
+                        false, java.util.Collections.nCopies(33, "A")));
+    }
+
+    @Test
+    void iconDataMetadataRejectsOnlyTheExactSourceUnsafeCharacters() {
+        List<Integer> rejected = new java.util.ArrayList<>(List.of(
+                0, 0x1F, 0x7F, 0x061C, 0x200E, 0x200F,
+                0x2028, 0x2029, 0x202A, 0x202E,
+                0x2066, 0x2069, 0xFEFF));
+        for (int codePoint : rejected) {
+            String unsafe = "A" + new String(Character.toChars(codePoint)) + "B";
+            assertThrows(IllegalArgumentException.class,
+                    () -> icon(1, unsafe), "U+%04X".formatted(codePoint));
+        }
+        assertEquals("A\u200BB", icon(1, "A\u200BB").fontFamily().orElseThrow(),
+                "unlisted Unicode format characters remain supported");
+        for (int surroundingWhitespace : List.of(
+                0x20, 0x1680,
+                0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
+                0x2008, 0x2009, 0x200A, 0x205F, 0x3000)) {
+            String whitespace = new String(Character.toChars(surroundingWhitespace));
+            assertThrows(IllegalArgumentException.class,
+                    () -> icon(1, whitespace + "padded"),
+                    "leading U+%04X".formatted(surroundingWhitespace));
+            assertThrows(IllegalArgumentException.class,
+                    () -> icon(1, "padded" + whitespace),
+                    "trailing U+%04X".formatted(surroundingWhitespace));
+        }
+        assertEquals("A B", icon(1, "A B").fontFamily().orElseThrow());
+        for (String edgeAccepted : List.of("\u00A0A\u00A0", "\u2007A\u2007", "\u202FA\u202F")) {
+            assertEquals(edgeAccepted,
+                    icon(1, edgeAccepted).fontFamily().orElseThrow());
+        }
+        assertThrows(IllegalArgumentException.class, () -> icon(1, "x".repeat(257)));
+    }
+
+    private static PropertyValue.IconDataValue icon(int codePoint, String family) {
+        return new PropertyValue.IconDataValue(
+                Optional.of(codePoint), Optional.of(family), Optional.empty(),
+                false, List.of());
+    }
+
+    @Test
     void keepsArbitraryIntegersAndNormalizesDecimalSemanticEquality() {
         BigInteger huge = BigInteger.ONE.shiftLeft(4096);
         assertEquals(huge, new PropertyValue.IntegerValue(huge).value());

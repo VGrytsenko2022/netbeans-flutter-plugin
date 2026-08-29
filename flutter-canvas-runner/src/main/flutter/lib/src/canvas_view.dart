@@ -276,6 +276,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                         rect: target.rect,
                         child: _ZeroSizedWidgetTarget(
                           widgetIds: target.widgetIds,
+                          widgetTypes: target.widgetTypes,
                           selectedWidgetId: widget.selectedWidgetId,
                           dark: dark,
                           onSelected: _selectWidget,
@@ -358,8 +359,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         currentGeometry.renderedWidth,
         currentGeometry.renderedHeight,
       );
-      final coincidentTargets = <Rect, List<String>>{};
-      for (final node in _emptySizedBoxes(widget.model.root)) {
+      final coincidentTargets = <Rect, List<CanvasNode>>{};
+      for (final node in _zeroSizedDesignerTargets(widget.model.root)) {
         final box = _renderBox(_nodeKeys[node.id]);
         if (box == null || !box.size.isEmpty) {
           continue;
@@ -370,13 +371,18 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           viewportRect,
           minimumExtent: _minimumZeroSizedWidgetTarget,
         );
-        coincidentTargets.putIfAbsent(target, () => <String>[]).add(node.id);
+        coincidentTargets.putIfAbsent(target, () => <CanvasNode>[]).add(node);
       }
       final targets = <_ZeroSizedWidgetTargetGroup>[
         for (final target in coincidentTargets.entries)
           _ZeroSizedWidgetTargetGroup(
             rect: target.key,
-            widgetIds: List.unmodifiable(target.value),
+            widgetIds: List.unmodifiable([
+              for (final node in target.value) node.id,
+            ]),
+            widgetTypes: List.unmodifiable([
+              for (final node in target.value) node.type,
+            ]),
           ),
       ];
       if (_sameTargets(_zeroSizedWidgetTargets, targets)) {
@@ -386,14 +392,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     });
   }
 
-  Iterable<CanvasNode> _emptySizedBoxes(CanvasNode node) sync* {
-    if (node.type == 'flutter.widgets.SizedBox' &&
-        (node.slot('child')?.children.isEmpty ?? true)) {
+  Iterable<CanvasNode> _zeroSizedDesignerTargets(CanvasNode node) sync* {
+    if ((node.type == 'flutter.widgets.SizedBox' &&
+            (node.slot('child')?.children.isEmpty ?? true)) ||
+        node.type == 'flutter.widgets.Icon') {
       yield node;
     }
     for (final slot in node.slots.values) {
       for (final child in slot.children) {
-        yield* _emptySizedBoxes(child);
+        yield* _zeroSizedDesignerTargets(child);
       }
     }
   }
@@ -409,7 +416,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final leftTarget = left[targetIndex];
       final rightTarget = right[targetIndex];
       if (leftTarget.rect != rightTarget.rect ||
-          leftTarget.widgetIds.length != rightTarget.widgetIds.length) {
+          leftTarget.widgetIds.length != rightTarget.widgetIds.length ||
+          leftTarget.widgetTypes.length != rightTarget.widgetTypes.length) {
         return false;
       }
       for (
@@ -418,7 +426,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         widgetIndex++
       ) {
         if (leftTarget.widgetIds[widgetIndex] !=
-            rightTarget.widgetIds[widgetIndex]) {
+                rightTarget.widgetIds[widgetIndex] ||
+            leftTarget.widgetTypes[widgetIndex] !=
+                rightTarget.widgetTypes[widgetIndex]) {
           return false;
         }
       }
@@ -1283,6 +1293,7 @@ class _CanvasNodeView extends StatelessWidget {
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.SizedBox' => _sizedBox(),
+      'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Text' => _text(context),
       _ => const SizedBox.shrink(),
     };
@@ -1408,6 +1419,41 @@ class _CanvasNodeView extends StatelessWidget {
     height: _number('height'),
     child: _single('child'),
   );
+
+  Widget _icon(BuildContext context) {
+    final value = node.properties['icon']!.value as CanvasIconDataValue;
+    final icon = value.codePoint == null
+        ? null
+        : IconData(
+            // The designer intentionally reconstructs reviewed wire metadata
+            // at runtime; it never evaluates an arbitrary Dart expression.
+            // ignore: non_const_argument_for_const_parameter
+            value.codePoint!,
+            // ignore: non_const_argument_for_const_parameter
+            fontFamily: value.fontFamily,
+            // ignore: non_const_argument_for_const_parameter
+            fontPackage: value.fontPackage,
+            matchTextDirection: value.matchTextDirection,
+            fontFamilyFallback: value.fontFamilyFallback.isEmpty
+                ? null
+                : value.fontFamilyFallback,
+          );
+    return Icon(
+      icon,
+      size: _number('size'),
+      fill: _number('fill'),
+      weight: _number('weight'),
+      grade: _number('grade'),
+      opticalSize: _number('opticalSize'),
+      color: _resolvedColor(context, 'color'),
+      shadows: _shadows(context, 'shadows'),
+      semanticLabel: _string('semanticLabel'),
+      textDirection: _textDirection(),
+      applyTextScaling: _boolean('applyTextScaling'),
+      blendMode: _optionalBlendMode('blendMode'),
+      fontWeight: _fontWeight('fontWeight'),
+    );
+  }
 
   Widget _text(BuildContext context) => Text(
     _string('data')!,
@@ -1830,6 +1876,11 @@ class _CanvasNodeView extends StatelessWidget {
     _ => BlendMode.srcOver,
   };
 
+  BlendMode? _optionalBlendMode(String name) {
+    final value = _enum(name);
+    return value == null ? null : _blendMode(value);
+  }
+
   String? _enum(String name) {
     final property = node.properties[name];
     final value = property?.value;
@@ -1941,21 +1992,25 @@ class _ZeroSizedWidgetTargetGroup {
   const _ZeroSizedWidgetTargetGroup({
     required this.rect,
     required this.widgetIds,
+    required this.widgetTypes,
   });
 
   final Rect rect;
   final List<String> widgetIds;
+  final List<String> widgetTypes;
 }
 
 class _ZeroSizedWidgetTarget extends StatelessWidget {
   const _ZeroSizedWidgetTarget({
     required this.widgetIds,
+    required this.widgetTypes,
     required this.selectedWidgetId,
     required this.dark,
     required this.onSelected,
   });
 
   final List<String> widgetIds;
+  final List<String> widgetTypes;
   final String? selectedWidgetId;
   final bool dark;
   final ValueChanged<String> onSelected;
@@ -1969,8 +2024,11 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       _grouped ? 'group-${widgetIds.first}' : widgetIds.single;
 
   String get _cyclingMessage =>
-      '${widgetIds.length} overlapping empty SizedBox widgets. '
-      'Activate repeatedly to cycle selection.';
+      widgetTypes.every((type) => type == 'flutter.widgets.SizedBox')
+      ? '${widgetIds.length} overlapping empty SizedBox widgets. '
+            'Activate repeatedly to cycle selection.'
+      : '${widgetIds.length} overlapping zero-size widgets. '
+            'Activate repeatedly to cycle selection.';
 
   void _activate() {
     final selectedIndex = selectedWidgetId == null
@@ -2005,7 +2063,9 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       ),
     );
     return Semantics(
-      label: _grouped ? _cyclingMessage : 'SizedBox ${widgetIds.single}',
+      label: _grouped
+          ? _cyclingMessage
+          : '${_displayType(widgetTypes.single)} ${widgetIds.single}',
       selected: _selected,
       child: _grouped
           ? Tooltip(message: _cyclingMessage, child: interaction)

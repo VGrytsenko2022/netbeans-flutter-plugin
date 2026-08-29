@@ -13,7 +13,7 @@ public record DesignerDocument(
         Extensions extensions) {
 
     public static final String FORMAT = "netbeans-flutter-designer";
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
 
     public DesignerDocument {
         Objects.requireNonNull(schemaReference, "schemaReference");

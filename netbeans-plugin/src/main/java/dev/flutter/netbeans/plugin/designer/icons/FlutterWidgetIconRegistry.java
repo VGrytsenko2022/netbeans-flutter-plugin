@@ -25,6 +25,7 @@ public final class FlutterWidgetIconRegistry {
             "flutter.widgets.Padding", ICON_ROOT + "padding.svg",
             "flutter.widgets.Center", ICON_ROOT + "center.svg",
             "flutter.widgets.Text", ICON_ROOT + "text.svg",
+            "flutter.widgets.Icon", ICON_ROOT + "icon.svg",
             "flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");
 
     private FlutterWidgetIconRegistry() {

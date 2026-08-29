@@ -263,18 +263,42 @@ public final class BuiltInWidgetCatalog {
                 "Icon",
                 true,
                 WIDGETS_IMPORT,
-                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT),
+                List.of(WIDGETS_IMPORT),
                 Set.of(),
                 palette("flutter.basic", 300, 20, "Icon"),
                 List.of(
                         new PropertyDefinition(
                                 new PropertyName("icon"),
                                 DartParameter.positional(0),
-                                any(PropertyValueKind.DART_EXPRESSION),
-                                Optional.of(new PropertyValue.DartExpressionValue("Icons.star"))),
+                                List.of(new PropertyValueConstraint.MaterialIconValues()),
+                                Optional.of(new PropertyValue.IconDataValue(
+                                        Optional.of(0xE5F9),
+                                        Optional.of("MaterialIcons"),
+                                        Optional.empty(),
+                                        false,
+                                        List.of()))),
                         namedProperty("size", 0, false, nonNegativeNumbers()),
-                        namedProperty("color", 1, false, any(PropertyValueKind.COLOR)),
-                        namedProperty("semanticLabel", 2, false, any(PropertyValueKind.STRING))),
+                        namedProperty("fill", 1, false, zeroToOneDoubles()),
+                        namedProperty("weight", 2, false, positiveFontAxisDoubles()),
+                        namedProperty("grade", 3, false, gradeAxisDoubles()),
+                        namedProperty("opticalSize", 4, false, positiveFontAxisDoubles()),
+                        namedProperty("color", 5, false, colorOrTheme()),
+                        namedProperty("shadows", 6, false, shadowValues()),
+                        namedProperty("semanticLabel", 7, false, any(PropertyValueKind.STRING)),
+                        namedProperty("textDirection", 8, false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty("applyTextScaling", 9, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("blendMode", 10, false, enumValues(
+                                "BlendMode", "clear", "src", "dst", "srcOver", "dstOver",
+                                "srcIn", "dstIn", "srcOut", "dstOut", "srcATop", "dstATop",
+                                "xor", "plus", "modulate", "screen", "overlay", "darken",
+                                "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
+                                "difference", "exclusion", "multiply", "hue", "saturation",
+                                "color", "luminosity")),
+                        namedProperty("fontWeight", 11, false,
+                                enumValues("FontWeight", "w100", "w200", "w300", "w400",
+                                        "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
     }
 
@@ -430,6 +454,22 @@ public final class BuiltInWidgetCatalog {
     private static List<PropertyValueConstraint> positiveDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
                 BigDecimal.ZERO, false, null, true));
+    }
+
+    private static List<PropertyValueConstraint> zeroToOneDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.ZERO, true, BigDecimal.ONE, true));
+    }
+
+    private static List<PropertyValueConstraint> positiveFontAxisDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.ZERO, false, BigDecimal.valueOf(32768), false));
+    }
+
+    private static List<PropertyValueConstraint> gradeAxisDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.valueOf(-32768), true,
+                BigDecimal.valueOf(32768), false));
     }
 
     private static List<PropertyValueConstraint> finiteDoubles() {

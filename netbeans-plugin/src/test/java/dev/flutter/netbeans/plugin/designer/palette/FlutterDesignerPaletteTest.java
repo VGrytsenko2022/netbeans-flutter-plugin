@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -39,6 +40,11 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Text",
             "flutter.widgets.Padding",
             "flutter.widgets.Center");
+    private static final Set<String> NON_CANVAS_BUILT_INS = Set.of(
+            "flutter.material.AppBar",
+            "flutter.material.ElevatedButton",
+            "flutter.widgets.Icon",
+            "flutter.widgets.SizedBox");
 
     @Test
     void preservesCatalogCategoryAndItemOrderWithLocalizedCategoryLabels() {
@@ -181,6 +187,51 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void tokenizesEveryCanvasSupportedPaletteWidgetWithItsAuthoritativeType()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                CanvasModelPayloadCodec::supports,
+                registry,
+                () -> true,
+                CanvasModelPayloadCodec::supports);
+
+        assertEquals(CORE_V1, itemTypeIds(controller),
+                "the Canvas Palette must expose exactly the payload-codec surface");
+        assertTrue(java.util.Collections.disjoint(
+                itemTypeIds(controller), NON_CANVAS_BUILT_INS));
+        for (String typeId : CORE_V1.stream().sorted().toList()) {
+            Transferable transfer = itemNode(controller, typeId).drag();
+            assertTrue(transfer.isDataFlavorSupported(DataFlavor.stringFlavor), typeId);
+            String token = assertInstanceOf(
+                    String.class,
+                    transfer.getTransferData(DataFlavor.stringFlavor),
+                    typeId);
+            assertEquals(typeId, registry.consume(token).orElseThrow().value(), typeId);
+            assertTrue(registry.consume(token).isEmpty(),
+                    typeId + " token must be one-shot");
+        }
+        assertEquals(0, registry.outstandingCount());
+
+        FlutterDesignerPaletteDragRegistry allCatalogRegistry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController allCatalog = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                allCatalogRegistry,
+                () -> true,
+                CanvasModelPayloadCodec::supports);
+        for (String typeId : NON_CANVAS_BUILT_INS.stream().sorted().toList()) {
+            Transferable transfer = itemNode(allCatalog, typeId).drag();
+            assertFalse(transfer.isDataFlavorSupported(DataFlavor.stringFlavor),
+                    typeId + " must not become draggable through the Canvas token path");
+        }
+        assertEquals(0, allCatalogRegistry.outstandingCount());
+    }
+
+    @Test
     void startingAnotherTextDragRevokesTheCanceledTransferToken()
             throws Exception {
         FlutterDesignerPaletteDragRegistry registry =
@@ -291,6 +342,15 @@ class FlutterDesignerPaletteTest {
                 .filter(node -> typeId.equals(node.getName()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static Set<String> itemTypeIds(PaletteController controller) {
+        return Set.copyOf(Arrays.stream(
+                        root(controller).getChildren().getNodes(true))
+                .flatMap(category -> Arrays.stream(
+                        category.getChildren().getNodes(true)))
+                .map(Node::getName)
+                .toList());
     }
 
     private static List<String> itemLabels(Node category) {

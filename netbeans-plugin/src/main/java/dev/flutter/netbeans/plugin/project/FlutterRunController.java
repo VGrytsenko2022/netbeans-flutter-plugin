@@ -470,6 +470,7 @@ public final class FlutterRunController implements AutoCloseable {
         boolean accepted = submitExclusive(
                 debug ? "restart Flutter project in Debug mode" : "restart Flutter project in Run mode",
                 operation -> {
+                    saveModifiedProjectDataObjects(operation);
                     writeLine(operation.lifecycle(), "Restarting " + projectInfo.name() + " in "
                             + (debug ? "Debug" : "Run") + " mode...");
                     failPendingAction(current);
@@ -488,7 +489,7 @@ public final class FlutterRunController implements AutoCloseable {
                             debug,
                             actionCompletion,
                             requestedTarget,
-                            operation.lifecycle());
+                            operation);
                 },
                 () -> actionCompletion.finish(false));
         if (!accepted) {
@@ -507,7 +508,7 @@ public final class FlutterRunController implements AutoCloseable {
                         debug,
                         actionCompletion,
                         requestedTarget,
-                        operation.lifecycle()),
+                        operation),
                 () -> actionCompletion.finish(false));
         if (!accepted) {
             actionCompletion.finish(false);
@@ -518,8 +519,9 @@ public final class FlutterRunController implements AutoCloseable {
             boolean debug,
             ActionProgressCompletion actionCompletion,
             FlutterDevice requestedTarget,
-            long lifecycle)
+            PendingOperation operation)
             throws Exception {
+        long lifecycle = operation.lifecycle();
         FlutterSdk sdk = requireFlutterSdk(
                 debug ? "debug the Flutter project" : "run the Flutter project");
         FlutterDevice target = requireTarget(sdk, requestedTarget);
@@ -539,14 +541,15 @@ public final class FlutterRunController implements AutoCloseable {
             actionCompletion.finish(false);
             return;
         }
-        writeLine(lifecycle, (debug ? "Debugging " : "Running ") + projectInfo.name()
-                + " on " + deviceLabel(target) + "...");
         if (!isLifecycleActive(lifecycle)) {
             actionCompletion.finish(false);
             return;
         }
 
+        saveModifiedProjectDataObjects(operation);
         RunSession created = dependencies.startSession(sdk, projectRoot, target.id(), debug);
+        writeLine(lifecycle, (debug ? "Debugging " : "Running ") + projectInfo.name()
+                + " on " + deviceLabel(target) + "...");
         SessionProgress progress = null;
         synchronized (lock) {
             if (isLifecycleActive(lifecycle)) {
@@ -580,6 +583,13 @@ public final class FlutterRunController implements AutoCloseable {
         if (debug) {
             attachDebugger(created, sdk, target.id(), lifecycle);
         }
+    }
+
+    private void saveModifiedProjectDataObjects(PendingOperation operation)
+            throws Exception {
+        operation.checkCancelled();
+        dependencies.saveModifiedProjectDataObjects(project);
+        operation.checkCancelled();
     }
 
     private void attachDebugger(
@@ -1817,7 +1827,18 @@ public final class FlutterRunController implements AutoCloseable {
         }
         FutureTask<T> future = new FutureTask<>(task);
         EventQueue.invokeAndWait(future);
-        return future.get();
+        try {
+            return future.get();
+        } catch (ExecutionException failure) {
+            Throwable cause = failure.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("NetBeans UI dispatch failed", cause);
+        }
     }
 
     private static boolean isTerminal(RunState state) {
@@ -2132,6 +2153,10 @@ public final class FlutterRunController implements AutoCloseable {
                         + " Configure it in Tools > Options > Flutter.");
             }
             return status.flutterSdk().get();
+        }
+
+        void saveModifiedProjectDataObjects(FlutterProject project) throws IOException {
+            FlutterProjectSavePreflight.save(project);
         }
 
         DartSdk requireDartSdk(String operation) throws IOException {

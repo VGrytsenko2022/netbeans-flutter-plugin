@@ -27,6 +27,22 @@ class CanvasPreviewProfileResolverTest {
     }
 
     @Test
+    void exposesCanonicalViewportsForPreviewLabelsWithoutDuplicatingSizes() {
+        assertEquals(new CanvasViewport(390, 844),
+                CanvasPreviewProfileResolver.defaultViewport(
+                        CanvasPreviewMode.MOBILE));
+        assertEquals(new CanvasViewport(800, 1280),
+                CanvasPreviewProfileResolver.defaultViewport(
+                        CanvasPreviewMode.TABLET));
+        assertEquals(new CanvasViewport(1280, 800),
+                CanvasPreviewProfileResolver.defaultViewport(
+                        CanvasPreviewMode.DESKTOP));
+        assertEquals(new CanvasViewport(1440, 900),
+                CanvasPreviewProfileResolver.defaultViewport(
+                        CanvasPreviewMode.WEB));
+    }
+
+    @Test
     void appliesSavedViewportOnlyToItsInferredModeAndResolvesTheme() {
         CanvasPreferences preferences = new CanvasPreferences(
                 Optional.of("phone"),
@@ -77,6 +93,33 @@ class CanvasPreviewProfileResolverTest {
                         CanvasTargetPlatform.ANDROID,
                         Optional.empty(),
                         ENGINE));
+    }
+
+    @Test
+    void preservesTheAlreadyVerifiedProjectThemeWithoutResolvingItAgain() {
+        CanvasPreferences preferences = new CanvasPreferences(
+                Optional.of("phone"),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(DesignerThemeMode.DARK),
+                Optional.empty(),
+                Optional.empty());
+        CanvasResolvedTheme verified = new CanvasResolvedTheme(
+                "project_light",
+                0xFF123456,
+                CanvasThemeBrightness.LIGHT,
+                "C".repeat(64));
+
+        CanvasRenderProfile profile = CanvasPreviewProfileResolver.resolve(
+                CanvasPreviewMode.MOBILE,
+                CanvasTargetPlatform.ANDROID,
+                Optional.of(preferences),
+                ENGINE,
+                verified);
+
+        assertEquals(verified, profile.theme());
     }
 
     private static void assertProfile(

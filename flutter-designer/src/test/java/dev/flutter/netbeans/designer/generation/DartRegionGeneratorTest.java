@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.Extensions;
@@ -22,6 +23,7 @@ import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -174,6 +176,241 @@ class DartRegionGeneratorTest {
                 generated.symbolOccurrences().stream()
                         .map(GeneratedDartSymbolOccurrence::symbolName)
                         .toList());
+    }
+
+    @Test
+    void assemblesExpandedTextLeavesIntoTypedFlutterObjects() {
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(property("data"), new PropertyValue.StringValue("Styled"));
+        properties.put(property("localeLanguageCode"), new PropertyValue.StringValue("uk"));
+        properties.put(property("localeScriptCode"), new PropertyValue.StringValue("Cyrl"));
+        properties.put(property("localeCountryCode"), new PropertyValue.StringValue("UA"));
+        properties.put(property("textScalerFactor"),
+                new PropertyValue.DoubleValue(new BigDecimal("1.25")));
+        properties.put(property("textHeightApplyFirstAscent"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(property("textHeightLeadingDistribution"),
+                new PropertyValue.EnumValue("TextLeadingDistribution", "even"));
+        properties.put(property("styleColor"), new PropertyValue.ColorValue(0xFF112233L));
+        properties.put(property("styleFontSize"),
+                new PropertyValue.DoubleValue(new BigDecimal("18")));
+        properties.put(property("styleFontWeight"),
+                new PropertyValue.EnumValue("FontWeight", "w700"));
+        properties.put(property("styleFontStyle"),
+                new PropertyValue.EnumValue("FontStyle", "italic"));
+        properties.put(property("styleLetterSpacing"),
+                new PropertyValue.DoubleValue(new BigDecimal("-0.25")));
+        properties.put(property("styleLocaleLanguageCode"),
+                new PropertyValue.StringValue("en"));
+        properties.put(property("styleFontFamily"),
+                new PropertyValue.StringValue("Inter"));
+        properties.put(property("styleFontFamilyFallback"),
+                new PropertyValue.StringValue("Noto Sans\nRoboto"));
+        properties.put(property("styleDecorationUnderline"),
+                new PropertyValue.BooleanValue(true));
+        properties.put(property("styleDecorationLineThrough"),
+                new PropertyValue.BooleanValue(true));
+        properties.put(property("strutFontSize"),
+                new PropertyValue.DoubleValue(new BigDecimal("16")));
+        properties.put(property("strutLeading"),
+                new PropertyValue.DoubleValue(new BigDecimal("0.5")));
+        properties.put(property("strutForceHeight"),
+                new PropertyValue.BooleanValue(true));
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Text"),
+                properties,
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        String build = result.generated().orElseThrow().build().payload();
+        assertTrue(build.contains("return Text("), build);
+        assertTrue(build.contains("style: TextStyle("), build);
+        assertTrue(build.contains("color: const Color(0xFF112233)"), build);
+        assertTrue(build.contains("fontSize: 18.0"), build);
+        assertTrue(build.contains("fontWeight: FontWeight.w700"), build);
+        assertTrue(build.contains("fontStyle: FontStyle.italic"), build);
+        assertTrue(build.contains("letterSpacing: -0.25"), build);
+        assertTrue(build.contains(
+                "locale: const Locale.fromSubtags(languageCode: 'en')"), build);
+        assertTrue(build.contains(
+                "fontFamilyFallback: const <String>['Noto Sans', 'Roboto']"), build);
+        assertTrue(build.contains(
+                "decoration: TextDecoration.combine(const <TextDecoration>["
+                + "TextDecoration.underline, TextDecoration.lineThrough])"), build);
+        assertTrue(build.contains("strutStyle: const StrutStyle("), build);
+        assertTrue(build.contains("fontSize: 16.0"), build);
+        assertTrue(build.contains("leading: 0.5"), build);
+        assertTrue(build.contains("forceStrutHeight: true"), build);
+        assertTrue(build.contains(
+                "locale: const Locale.fromSubtags(languageCode: 'uk', "
+                + "scriptCode: 'Cyrl', countryCode: 'UA')"), build);
+        assertTrue(build.contains("textScaler: const TextScaler.linear(1.25)"), build);
+        assertTrue(build.contains("textHeightBehavior: const TextHeightBehavior("), build);
+        assertTrue(build.contains("applyHeightToFirstAscent: false"), build);
+        assertTrue(build.contains("leadingDistribution: TextLeadingDistribution.even"), build);
+    }
+
+    @Test
+    void emitsThemeBoundComplexTextStyleWithTypedConstructors() {
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(property("data"), new PropertyValue.StringValue("Styled"));
+        properties.put(property("selectionColor"), new PropertyValue.ThemeTokenValue(
+                new ThemeToken("material.colorScheme.primary")));
+        properties.put(property("styleThemeTextStyle"), new PropertyValue.ThemeTokenValue(
+                new ThemeToken("material.textTheme.bodyLarge")));
+        properties.put(property("styleFontSize"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(21)));
+        properties.put(property("styleForeground"), new PropertyValue.PaintValue(
+                new ColorSource.Theme(new ThemeToken("material.colorScheme.secondary")),
+                PropertyValue.PaintValue.BlendMode.SRC_OVER,
+                PropertyValue.PaintValue.Style.STROKE,
+                new BigDecimal("2.5"),
+                PropertyValue.PaintValue.StrokeCap.ROUND,
+                PropertyValue.PaintValue.StrokeJoin.BEVEL,
+                BigDecimal.valueOf(4),
+                true,
+                PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                false,
+                Optional.of(new PropertyValue.PaintValue.BlurMask(
+                        PropertyValue.PaintValue.BlurStyle.OUTER,
+                        new BigDecimal("1.5")))));
+        properties.put(property("styleShadows"), new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("192489fb-3bbb-46c5-9bac-c988f412218c"),
+                        new ColorSource.Theme(new ThemeToken("material.colorScheme.shadow")),
+                        new BigDecimal("-1.25"), new BigDecimal("2.5"),
+                        BigDecimal.valueOf(4)))));
+        properties.put(property("styleFontFeatures"),
+                new PropertyValue.FontFeatureListValue(List.of(
+                        new PropertyValue.FontFeatureListValue.FontFeature(
+                                StableId.parse("d8ca6ff9-1aa5-4bb1-944b-fdd475b5359d"),
+                                "liga", 1))));
+        properties.put(property("styleFontVariations"),
+                new PropertyValue.FontVariationListValue(List.of(
+                        new PropertyValue.FontVariationListValue.FontVariation(
+                                StableId.parse("2115406c-c05d-4323-81a2-7cfe7ea35dc4"),
+                                "wght", BigDecimal.valueOf(700)))));
+        properties.put(property("styleDecorationColor"),
+                new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.error")));
+        WidgetNode root = new WidgetNode(
+                StableId.random(), new WidgetTypeId("flutter.widgets.Text"),
+                properties, Map.of(), Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        String build = generated.build().payload();
+        assertTrue(build.contains(
+                "selectionColor: Theme.of(context).colorScheme.primary"), build);
+        assertTrue(build.contains(
+                "(Theme.of(context).textTheme.bodyLarge ?? const TextStyle()).copyWith("),
+                build);
+        assertTrue(build.contains("fontSize: 21.0"), build);
+        assertTrue(build.contains("foreground: (Paint()"), build);
+        assertTrue(build.contains("..color = Theme.of(context).colorScheme.secondary"), build);
+        assertTrue(build.contains("..style = PaintingStyle.stroke"), build);
+        assertTrue(build.contains("..strokeWidth = 2.5"), build);
+        assertTrue(build.contains("..maskFilter = const MaskFilter.blur(BlurStyle.outer, 1.5)"),
+                build);
+        assertTrue(build.contains("shadows: <Shadow>[Shadow("), build);
+        assertTrue(build.contains("color: Theme.of(context).colorScheme.shadow"), build);
+        assertTrue(build.contains("offset: const Offset(-1.25, 2.5)"), build);
+        assertTrue(build.contains(
+                "fontFeatures: const <FontFeature>[const FontFeature('liga', 1)]"), build);
+        assertTrue(build.contains(
+                "fontVariations: const <FontVariation>[const FontVariation('wght', 700.0)]"),
+                build);
+        assertTrue(build.contains(
+                "decorationColor: Theme.of(context).colorScheme.error"), build);
+        assertFalse(build.contains("const Text('Styled'"), build);
+    }
+
+    @Test
+    void emitsAThemeOnlyTextStyleWithTheMaterialUmbrellaImport() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(
+                        property("data"), new PropertyValue.StringValue("Theme only"),
+                        property("styleThemeTextStyle"),
+                        new PropertyValue.ThemeTokenValue(
+                                new ThemeToken("material.textTheme.bodyMedium"))),
+                Map.of(),
+                Extensions.empty());
+
+        GeneratedDartRegions generated = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        String build = generated.build().payload();
+        assertTrue(build.contains(
+                "style: Theme.of(context).textTheme.bodyMedium"), build);
+        assertFalse(build.contains("copyWith("), build);
+    }
+
+    @Test
+    void nestedThemeColorAloneSelectsTheMaterialUmbrellaImport() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(
+                        property("data"), new PropertyValue.StringValue("Nested theme"),
+                        property("styleForeground"),
+                        PropertyValue.PaintValue.defaults(new ColorSource.Theme(
+                                new ThemeToken("material.colorScheme.primary")))),
+                Map.of(),
+                Extensions.empty());
+
+        GeneratedDartRegions generated = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        assertTrue(generated.build().payload().contains(
+                "..color = Theme.of(context).colorScheme.primary"),
+                generated.build().payload());
+    }
+
+    @Test
+    void preservesExplicitEmptyComplexTextStyleLists() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(
+                        property("data"), new PropertyValue.StringValue("Empty"),
+                        property("styleShadows"), new PropertyValue.ShadowListValue(List.of()),
+                        property("styleFontFeatures"),
+                        new PropertyValue.FontFeatureListValue(List.of()),
+                        property("styleFontVariations"),
+                        new PropertyValue.FontVariationListValue(List.of())),
+                Map.of(),
+                Extensions.empty());
+
+        String build = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow().build().payload();
+
+        assertTrue(build.contains("shadows: const <Shadow>[]"), build);
+        assertTrue(build.contains("fontFeatures: const <FontFeature>[]"), build);
+        assertTrue(build.contains("fontVariations: const <FontVariation>[]"), build);
     }
 
     @Test

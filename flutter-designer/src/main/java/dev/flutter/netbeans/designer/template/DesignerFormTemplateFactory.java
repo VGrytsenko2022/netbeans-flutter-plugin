@@ -46,7 +46,7 @@ public final class DesignerFormTemplateFactory {
 
     /**
      * Creates a stateless {@code Scaffold -> Center -> Text} starter form.
-     * The Dart filename is the basename stored in schema-v1 source metadata;
+     * The Dart filename is the basename stored in versioned .fd source metadata;
      * the NetBeans integration owns its physical {@code lib} mapping.
      */
     public DesignerFormTemplate create(String dartFile, String className)

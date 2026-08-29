@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
+import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.ResetProperty;
@@ -59,7 +60,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void exposesIdentityThenCatalogPropertiesInCatalogOrderAsReadOnlyStrings() throws Exception {
+    void exposesIdentityThenSevenSchemaDrivenTextGroupsAsReadOnlyStrings() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Text");
         StableId id = StableId.parse("c613fb29-9fde-4a4c-a94e-76bd02626153");
         LinkedHashMap<PropertyName, PropertyValue> explicit = new LinkedHashMap<>();
@@ -72,28 +73,59 @@ class FlutterWidgetPropertiesNodeTest {
 
         Node.PropertySet[] sets = node.getPropertySets();
 
-        assertEquals(2, sets.length);
+        assertEquals(8, sets.length);
         assertEquals(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME, sets[0].getName());
-        assertEquals(FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME, sets[1].getName());
+        assertEquals(List.of(
+                FlutterWidgetPropertiesNode.IDENTITY_SET_NAME,
+                TextWidgetPropertySchema.Group.CONTENT.setName(),
+                TextWidgetPropertySchema.Group.ACCESSIBILITY.setName(),
+                TextWidgetPropertySchema.Group.LOCALE_AND_SCALING.setName(),
+                TextWidgetPropertySchema.Group.STYLE.setName(),
+                TextWidgetPropertySchema.Group.STYLE_PAINT.setName(),
+                TextWidgetPropertySchema.Group.STYLE_TYPOGRAPHY.setName(),
+                TextWidgetPropertySchema.Group.STRUT.setName()),
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        for (int index = 0; index < TextWidgetPropertySchema.Group.values().length; index++) {
+            TextWidgetPropertySchema.Group group =
+                    TextWidgetPropertySchema.Group.values()[index];
+            assertEquals(group.displayName(), sets[index + 1].getDisplayName());
+            assertEquals(group.description(), sets[index + 1].getShortDescription());
+        }
         assertEquals(
                 java.util.List.of("stableId", "type"),
                 names(sets[0].getProperties()));
         assertEquals(
                 java.util.List.of(
                         "data", "textAlign", "textDirection", "softWrap",
-                        "overflow", "maxLines", "semanticsLabel",
-                        "semanticsIdentifier", "textWidthBasis", "selectionColor"),
+                        "overflow", "maxLines", "textWidthBasis", "selectionColor"),
                 names(sets[1].getProperties()));
+        assertEquals(List.of("semanticsLabel", "semanticsIdentifier"),
+                names(sets[2].getProperties()));
+        assertEquals(List.of(
+                "localeLanguageCode", "localeScriptCode", "localeCountryCode",
+                "textScalerFactor", "textHeightApplyFirstAscent",
+                "textHeightApplyLastDescent", "textHeightLeadingDistribution"),
+                names(sets[3].getProperties()));
+        assertEquals(25, sets[4].getProperties().length);
+        assertEquals(List.of(
+                "styleInherit", "styleColor", "styleBackgroundColor",
+                "styleFontSize", "styleFontWeight", "styleFontStyle"),
+                names(Arrays.copyOfRange(sets[4].getProperties(), 0, 6)));
+        assertEquals(List.of(
+                "styleDecorationColor", "styleForeground", "styleBackground",
+                "styleShadows"), names(sets[5].getProperties()));
+        assertEquals(List.of("styleFontFeatures", "styleFontVariations"),
+                names(sets[6].getProperties()));
+        assertEquals(11, sets[7].getProperties().length);
         assertEquals(id.toString(), sets[0].getProperties()[0].getValue());
         assertEquals("flutter.widgets.Text", sets[0].getProperties()[1].getValue());
         assertEquals("\"Hello\\nFlutter\"", sets[1].getProperties()[0].getValue());
         assertEquals(FlutterWidgetPropertiesNode.NOT_SET, sets[1].getProperties()[1].getValue());
         assertEquals(FlutterWidgetPropertiesNode.NOT_SET, sets[1].getProperties()[2].getValue());
         assertEquals("false", sets[1].getProperties()[3].getValue());
-        for (int index = 4; index < sets[1].getProperties().length; index++) {
-            assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
-                    sets[1].getProperties()[index].getValue());
-        }
+        assertEquals("Font size", property(node, "styleFontSize").getDisplayName());
+        assertEquals("Font size in logical pixels.",
+                property(node, "styleFontSize").getShortDescription());
         for (Node.PropertySet set : sets) {
             for (Node.Property<?> property : set.getProperties()) {
                 assertFalse(property.canWrite(), property.getName());
@@ -132,7 +164,10 @@ class FlutterWidgetPropertiesNodeTest {
             FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
                     Children.LEAF, widget, definition, ignored -> { });
 
-            Node.Property<?>[] properties = node.getPropertySets()[1].getProperties();
+            Node.Property<?>[] properties = Arrays.stream(node.getPropertySets())
+                    .skip(1)
+                    .flatMap(set -> Arrays.stream(set.getProperties()))
+                    .toArray(Node.Property<?>[]::new);
             assertEquals(definition.properties().size(), properties.length, type);
             for (Node.Property<?> property : properties) {
                 assertTrue(property.canWrite(), type + "." + property.getName());
@@ -142,8 +177,8 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(27, writableCount,
-                "the reviewed non-Scaffold CORE_V1 surface is an exact closed 27-field contract");
+        assertEquals(76, writableCount,
+                "the reviewed non-Scaffold surface includes all 59 Text leaves");
     }
 
     @Test
@@ -181,6 +216,71 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.StringValue("before")),
                 property.getValue(),
                 "The immutable node must keep showing the last confirmed model value");
+    }
+
+    @Test
+    void expandedTextStyleFieldsKeepCatalogEditorsAndDispatchRepeatedCommands()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Text");
+        StableId id = StableId.parse("84d15627-41ae-44c5-8ae0-22b29fecc0fe");
+        WidgetNode widget = textWidget(id, "Text");
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        PropertyEditor fontSize = property(node, "styleFontSize").getPropertyEditor();
+        PropertyEditor fontWeight = property(node, "styleFontWeight").getPropertyEditor();
+        PropertyEditor fontStyle = property(node, "styleFontStyle").getPropertyEditor();
+        PropertyEditor color = property(node, "styleColor").getPropertyEditor();
+        assertThrows(IllegalArgumentException.class,
+                () -> fontSize.setAsText("-1"));
+        fontSize.setAsText("16.5");
+        fontWeight.setAsText("w600");
+        fontStyle.setAsText("italic");
+        color.setAsText("0xFF336699");
+
+        Node.Property<FlutterPropertyCellValue> fontSizeProperty = cellProperty(
+                property(node, "styleFontSize"));
+        fontSizeProperty.setValue(cell(fontSize));
+        fontSizeProperty.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.DoubleValue(new BigDecimal("18"))));
+        cellProperty(property(node, "styleFontWeight")).setValue(cell(fontWeight));
+        cellProperty(property(node, "styleFontStyle")).setValue(cell(fontStyle));
+        cellProperty(property(node, "styleColor")).setValue(cell(color));
+
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("styleFontSize"),
+                        new PropertyValue.DoubleValue(new BigDecimal("16.5"))),
+                new SetProperty(id, new PropertyName("styleFontSize"),
+                        new PropertyValue.DoubleValue(new BigDecimal("18"))),
+                new SetProperty(id, new PropertyName("styleFontWeight"),
+                        new PropertyValue.EnumValue("FontWeight", "w600")),
+                new SetProperty(id, new PropertyName("styleFontStyle"),
+                        new PropertyValue.EnumValue("FontStyle", "italic")),
+                new SetProperty(id, new PropertyName("styleColor"),
+                        PropertyValue.ColorValue.fromWireArgb("0xFF336699"))),
+                commands);
+    }
+
+    @Test
+    void fontFallbackEditorShowsSummaryAndStoresNewlineDelimitedString()
+            throws Exception {
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                textWidget(StableId.parse(
+                        "01652231-9468-4b23-9a52-14d4fa012215"), "Text"),
+                definition("flutter.widgets.Text"),
+                ignored -> { });
+        PropertyEditor editor = property(node, "styleFontFamilyFallback")
+                .getPropertyEditor();
+
+        editor.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.StringValue("Noto Sans\nNoto Color Emoji")));
+        assertEquals("Noto Sans, Noto Color Emoji", editor.getAsText());
+        editor.setAsText("Inter, Roboto, Noto Sans");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.StringValue("Inter\nRoboto\nNoto Sans")),
+                editor.getValue());
     }
 
     @Test
@@ -343,6 +443,32 @@ class FlutterWidgetPropertiesNodeTest {
                                 FlutterPropertyCellValue.NOT_SET_TEXT)),
                 editor.getValue(),
                 "the presentation token remains a valid literal String value");
+    }
+
+    @Test
+    void localeStringEditorsRejectInvalidSubtagsBeforeDispatchingACommand()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Text");
+        StableId id = StableId.parse("a4b21569-6e59-4922-8f17-1502d46414ee");
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, textWidget(id, "Text"), definition, commands::add);
+
+        PropertyEditor language = property(node, "localeLanguageCode").getPropertyEditor();
+        PropertyEditor script = property(node, "localeScriptCode").getPropertyEditor();
+        PropertyEditor country = property(node, "localeCountryCode").getPropertyEditor();
+
+        assertThrows(IllegalArgumentException.class, () -> language.setAsText("EN"));
+        assertThrows(IllegalArgumentException.class, () -> script.setAsText("cyrl"));
+        assertThrows(IllegalArgumentException.class, () -> country.setAsText("ua"));
+        assertEquals(List.of(), commands);
+
+        language.setAsText("uk");
+        cellProperty(property(node, "localeLanguageCode")).setValue(cell(language));
+        assertEquals(List.of(new SetProperty(
+                id,
+                new PropertyName("localeLanguageCode"),
+                new PropertyValue.StringValue("uk"))), commands);
     }
 
     @Test

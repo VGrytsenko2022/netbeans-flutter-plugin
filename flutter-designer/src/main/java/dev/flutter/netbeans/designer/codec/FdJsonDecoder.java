@@ -11,8 +11,10 @@ import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
+import dev.flutter.netbeans.designer.catalog.DartNumericLiterals;
 import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.CanvasPreferences;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
@@ -24,6 +26,7 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -129,22 +132,23 @@ final class FdJsonDecoder {
         if (comparison > 0) {
             return new FdDecodeResult.UnsupportedNewer(envelope.schemaVersion(), original);
         }
-        if (comparison < 0) {
+        if (envelope.schemaVersion().compareTo(BigInteger.ONE) < 0) {
             return invalid(
                     original,
                     declaredVersion,
                     FdCodecDiagnostic.withoutLocation(
                             FdCodecDiagnosticCode.UNSUPPORTED_OLDER_VERSION,
                             "/schemaVersion",
-                            "The declared schema version is older than the supported version."));
+                            "The declared schema version is older than the supported migration range."));
         }
 
         try {
-            DesignerDocument document = readCurrentDocument(json);
+            int sourceVersion = envelope.schemaVersion().intValueExact();
+            DesignerDocument document = readCurrentDocument(json, sourceVersion);
             return new FdDecodeResult.Current(
                     document,
-                    DesignerDocument.SCHEMA_VERSION,
-                    false,
+                    sourceVersion,
+                    sourceVersion != DesignerDocument.SCHEMA_VERSION,
                     original);
         } catch (DecodeFailure failure) {
             return invalid(original, declaredVersion, failure.diagnostic());
@@ -172,7 +176,7 @@ final class FdJsonDecoder {
                     FdCodecDiagnostic.withoutLocation(
                             FdCodecDiagnosticCode.INVALID_VALUE,
                             "",
-                            "The document does not satisfy the version 1 contract."));
+                            "The document does not satisfy its declared Flutter Designer contract."));
         }
     }
 
@@ -463,7 +467,8 @@ final class FdJsonDecoder {
         }
     }
 
-    private DesignerDocument readCurrentDocument(String json) throws IOException, DecodeFailure {
+    private DesignerDocument readCurrentDocument(String json, int sourceVersion)
+            throws IOException, DecodeFailure {
         DecodeContext context = new DecodeContext();
         try (JsonParser parser = jsonFactory.createParser(json)) {
             requireToken(parser, parser.nextToken(), JsonToken.START_OBJECT, "", "object");
@@ -507,12 +512,12 @@ final class FdJsonDecoder {
                     case "schemaVersion" -> {
                         versionSeen = true;
                         BigInteger value = requireMathematicalInteger(parser, valueToken, pointer);
-                        if (!CURRENT_VERSION.equals(value)) {
+                        if (!BigInteger.valueOf(sourceVersion).equals(value)) {
                             throw locatedFailure(
                                     parser,
                                     FdCodecDiagnosticCode.INVALID_VALUE,
                                     pointer,
-                                    "The version 1 decoder requires schemaVersion 1.");
+                                    "The document schemaVersion changed during version dispatch.");
                         }
                     }
                     case "documentId" -> {
@@ -530,7 +535,7 @@ final class FdJsonDecoder {
                     }
                     case "root" -> {
                         rootSeen = true;
-                        root = readWidget(parser, valueToken, pointer, 1, context);
+                        root = readWidget(parser, valueToken, pointer, 1, context, sourceVersion);
                     }
                     case "extensions" -> {
                         extensionsSeen = true;
@@ -540,7 +545,7 @@ final class FdJsonDecoder {
                             parser,
                             FdCodecDiagnosticCode.UNKNOWN_FIELD,
                             pointer,
-                            "The version 1 document contains an unknown core field.");
+                            "The document contains an unknown core field.");
                 }
             }
 
@@ -571,7 +576,7 @@ final class FdJsonDecoder {
             final DartSourceDescriptor finalSource = source;
             final WidgetNode finalRoot = root;
             final Optional<String> finalSchemaReference = schemaSeen
-                    ? schemaReference : Optional.empty();
+                    ? migrateSchemaReference(schemaReference, sourceVersion) : Optional.empty();
             final Optional<CanvasPreferences> finalCanvas = canvasSeen
                     ? canvas : Optional.empty();
             final Extensions finalExtensions = extensionsSeen
@@ -584,6 +589,20 @@ final class FdJsonDecoder {
                     finalRoot,
                     finalExtensions));
         }
+    }
+
+    private static Optional<String> migrateSchemaReference(
+            Optional<String> reference,
+            int sourceVersion) {
+        if (sourceVersion != 1 || reference.isEmpty()) {
+            return reference;
+        }
+        return Optional.of(switch (reference.orElseThrow()) {
+            case "urn:netbeans-flutter-designer:schema:fd:1" ->
+                    "urn:netbeans-flutter-designer:schema:fd:2";
+            case "../fd-v1.schema.json" -> "../fd-v2.schema.json";
+            default -> reference.orElseThrow();
+        });
     }
 
     private DartSourceDescriptor readSource(
@@ -915,7 +934,8 @@ final class FdJsonDecoder {
             JsonToken token,
             String base,
             int depth,
-            DecodeContext context) throws IOException, DecodeFailure {
+            DecodeContext context,
+            int sourceVersion) throws IOException, DecodeFailure {
         if (depth > Math.min(limits.maxWidgetDepth(), SAFE_WIDGET_RECURSION_DEPTH)) {
             throw resourceLimit(parser, base, "The widget tree exceeds the configured depth limit.");
         }
@@ -949,11 +969,12 @@ final class FdJsonDecoder {
                 }
                 case "properties" -> {
                     propertiesSeen = true;
-                    properties = readProperties(parser, valueToken, pointer);
+                    properties = readProperties(parser, valueToken, pointer, sourceVersion);
                 }
                 case "slots" -> {
                     slotsSeen = true;
-                    slots = readSlots(parser, valueToken, pointer, depth, context);
+                    slots = readSlots(
+                            parser, valueToken, pointer, depth, context, sourceVersion);
                 }
                 case "extensions" -> {
                     extensionsSeen = true;
@@ -990,7 +1011,8 @@ final class FdJsonDecoder {
     private Map<PropertyName, PropertyValue> readProperties(
             JsonParser parser,
             JsonToken token,
-            String base) throws IOException, DecodeFailure {
+            String base,
+            int sourceVersion) throws IOException, DecodeFailure {
         requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
         LinkedHashMap<PropertyName, PropertyValue> values = new LinkedHashMap<>();
         while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -1005,7 +1027,7 @@ final class FdJsonDecoder {
             String pointer = pointer(base, field);
             PropertyName name = modelValue(pointer, () -> new PropertyName(field));
             JsonToken valueToken = requiredNext(parser, pointer);
-            values.put(name, readPropertyValue(parser, valueToken, pointer));
+            values.put(name, readPropertyValue(parser, valueToken, pointer, sourceVersion));
         }
         return values;
     }
@@ -1013,48 +1035,51 @@ final class FdJsonDecoder {
     private PropertyValue readPropertyValue(
             JsonParser parser,
             JsonToken token,
-            String base) throws IOException, DecodeFailure {
+            String base,
+            int sourceVersion) throws IOException, DecodeFailure {
         requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
-        LinkedHashMap<String, RawScalar> fields = new LinkedHashMap<>();
-        Set<String> unionFields = Set.of(
-                "kind", "value", "type", "argb", "left", "top", "right", "bottom",
-                "path", "handler", "code");
+        LinkedHashMap<String, JsonValue> fields = new LinkedHashMap<>();
         while (parser.nextToken() != JsonToken.END_OBJECT) {
             requireCurrent(parser, JsonToken.FIELD_NAME, base, "field name");
             String field = checkedFieldName(parser, base);
             String pointer = pointer(base, field);
-            if (!unionFields.contains(field)) {
-                throw unknownField(parser, pointer);
-            }
             JsonToken valueToken = requiredNext(parser, pointer);
-            fields.put(field, readRawScalar(parser, valueToken, pointer));
+            fields.put(field, readPropertyJsonValue(parser, valueToken, pointer, 1));
         }
-        String kind = rawString(fields, "kind", base);
+        String kind = jsonString(fields, "kind", base);
+        if (sourceVersion == 1 && !Set.of(
+                "string", "boolean", "integer", "double", "enum", "color",
+                "edgeInsets", "asset", "callback", "dartExpression").contains(kind)) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "Schema version 1 does not define this property kind.");
+        }
         return switch (kind) {
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
-                String value = rawString(fields, "value", base);
+                String value = jsonString(fields, "value", base);
                 yield modelValue(base, () -> new PropertyValue.StringValue(value));
             }
             case "boolean" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
-                boolean value = rawBoolean(fields, "value", base);
+                boolean value = jsonBoolean(fields, "value", base);
                 yield new PropertyValue.BooleanValue(value);
             }
             case "integer" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
-                BigInteger value = rawInteger(fields, "value", base);
+                BigInteger value = jsonInteger(fields, "value", base);
                 yield modelValue(base, () -> new PropertyValue.IntegerValue(value));
             }
             case "double" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
-                BigDecimal value = rawNumber(fields, "value", base);
+                BigDecimal value = jsonNumber(fields, "value", base);
                 yield modelValue(base, () -> new PropertyValue.DoubleValue(value));
             }
             case "enum" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "type", "value"));
-                String type = rawString(fields, "type", base);
-                String value = rawString(fields, "value", base);
+                String type = jsonString(fields, "type", base);
+                String value = jsonString(fields, "value", base);
                 modelValue(
                         pointer(base, "type"),
                         () -> new PropertyValue.EnumValue(type, "value"));
@@ -1065,7 +1090,7 @@ final class FdJsonDecoder {
             }
             case "color" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "argb"));
-                String argb = rawString(fields, "argb", base);
+                String argb = jsonString(fields, "argb", base);
                 yield modelValue(
                         pointer(base, "argb"),
                         () -> PropertyValue.ColorValue.fromWireArgb(argb));
@@ -1076,36 +1101,264 @@ final class FdJsonDecoder {
                         fields,
                         base,
                         Set.of("kind", "left", "top", "right", "bottom"));
-                BigDecimal left = rawNumber(fields, "left", base);
-                BigDecimal top = rawNumber(fields, "top", base);
-                BigDecimal right = rawNumber(fields, "right", base);
-                BigDecimal bottom = rawNumber(fields, "bottom", base);
+                BigDecimal left = jsonNumber(fields, "left", base);
+                BigDecimal top = jsonNumber(fields, "top", base);
+                BigDecimal right = jsonNumber(fields, "right", base);
+                BigDecimal bottom = jsonNumber(fields, "bottom", base);
                 yield modelValue(base, () -> new PropertyValue.EdgeInsetsValue(
                         left, top, right, bottom));
             }
             case "asset" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "path"));
-                String path = rawString(fields, "path", base);
+                String path = jsonString(fields, "path", base);
                 yield modelValue(
                         pointer(base, "path"),
                         () -> new PropertyValue.AssetValue(path));
             }
             case "callback" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "handler"));
-                String handler = rawString(fields, "handler", base);
+                String handler = jsonString(fields, "handler", base);
                 yield modelValue(
                         pointer(base, "handler"),
                         () -> new PropertyValue.CallbackValue(handler));
             }
             case "dartExpression" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "code"));
-                String code = rawString(fields, "code", base);
+                String code = jsonString(fields, "code", base);
                 yield modelValue(
                         pointer(base, "code"),
                         () -> new PropertyValue.DartExpressionValue(code));
             }
+            case "themeToken" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "token"));
+                String tokenValue = jsonString(fields, "token", base);
+                ThemeToken themeToken = modelValue(
+                        pointer(base, "token"), () -> new ThemeToken(tokenValue));
+                yield new PropertyValue.ThemeTokenValue(themeToken);
+            }
+            case "paint" -> {
+                enforceAllowedFields(
+                        parser,
+                        fields,
+                        base,
+                        Set.of(
+                                "kind", "color", "blendMode", "style", "strokeWidth",
+                                "strokeCap", "strokeJoin", "strokeMiterLimit", "antiAlias",
+                                "filterQuality", "invertColors", "maskFilter"));
+                ColorSource color = readColorSource(requiredJson(fields, "color", base),
+                        pointer(base, "color"));
+                String blendModeName = jsonString(fields, "blendMode", base);
+                PropertyValue.PaintValue.BlendMode blendMode = modelValue(
+                        pointer(base, "blendMode"),
+                        () -> PropertyValue.PaintValue.BlendMode.fromWireName(
+                                blendModeName));
+                String styleName = jsonString(fields, "style", base);
+                PropertyValue.PaintValue.Style style = modelValue(
+                        pointer(base, "style"),
+                        () -> PropertyValue.PaintValue.Style.fromWireName(
+                                styleName));
+                BigDecimal strokeWidth = jsonDartDouble(fields, "strokeWidth", base);
+                String strokeCapName = jsonString(fields, "strokeCap", base);
+                PropertyValue.PaintValue.StrokeCap strokeCap = modelValue(
+                        pointer(base, "strokeCap"),
+                        () -> PropertyValue.PaintValue.StrokeCap.fromWireName(
+                                strokeCapName));
+                String strokeJoinName = jsonString(fields, "strokeJoin", base);
+                PropertyValue.PaintValue.StrokeJoin strokeJoin = modelValue(
+                        pointer(base, "strokeJoin"),
+                        () -> PropertyValue.PaintValue.StrokeJoin.fromWireName(
+                                strokeJoinName));
+                BigDecimal strokeMiterLimit = jsonDartDouble(
+                        fields, "strokeMiterLimit", base);
+                boolean antiAlias = jsonBoolean(fields, "antiAlias", base);
+                String filterQualityName = jsonString(fields, "filterQuality", base);
+                PropertyValue.PaintValue.FilterQuality filterQuality = modelValue(
+                        pointer(base, "filterQuality"),
+                        () -> PropertyValue.PaintValue.FilterQuality.fromWireName(
+                                filterQualityName));
+                boolean invertColors = jsonBoolean(fields, "invertColors", base);
+                Optional<PropertyValue.PaintValue.BlurMask> maskFilter = fields.containsKey("maskFilter")
+                        ? Optional.of(readBlurMask(
+                                fields.get("maskFilter"), pointer(base, "maskFilter")))
+                        : Optional.empty();
+                yield modelValue(base, () -> new PropertyValue.PaintValue(
+                        color,
+                        blendMode,
+                        style,
+                        strokeWidth,
+                        strokeCap,
+                        strokeJoin,
+                        strokeMiterLimit,
+                        antiAlias,
+                        filterQuality,
+                        invertColors,
+                        maskFilter));
+            }
+            case "shadowList" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "items"));
+                yield readShadowList(requiredJson(fields, "items", base), pointer(base, "items"));
+            }
+            case "fontFeatureList" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "items"));
+                yield readFontFeatureList(
+                        requiredJson(fields, "items", base), pointer(base, "items"));
+            }
+            case "fontVariationList" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "items"));
+                yield readFontVariationList(
+                        requiredJson(fields, "items", base), pointer(base, "items"));
+            }
             default -> throw invalidValue(parser, pointer(base, "kind"), "Unknown property kind.");
         };
+    }
+
+    private JsonValue readPropertyJsonValue(
+            JsonParser parser,
+            JsonToken token,
+            String base,
+            int depth) throws IOException, DecodeFailure {
+        if (depth > 8) {
+            throw resourceLimit(parser, base, "A structured property exceeds its nesting limit.");
+        }
+        return switch (token) {
+            case VALUE_NULL -> JsonValue.NullValue.INSTANCE;
+            case VALUE_TRUE -> new JsonValue.BooleanValue(true);
+            case VALUE_FALSE -> new JsonValue.BooleanValue(false);
+            case VALUE_STRING -> new JsonValue.StringValue(checkedString(parser, base));
+            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT ->
+                    new JsonValue.NumberValue(checkedDecimal(parser, base));
+            case START_ARRAY -> {
+                List<JsonValue> values = new ArrayList<>();
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    if (values.size() >= PropertyValue.ShadowListValue.MAX_ITEMS) {
+                        throw resourceLimit(
+                                parser, base, "A structured property list exceeds 256 items.");
+                    }
+                    String itemPointer = pointer(base, Integer.toString(values.size()));
+                    values.add(readPropertyJsonValue(
+                            parser, parser.currentToken(), itemPointer, depth + 1));
+                }
+                yield new JsonValue.ArrayValue(values);
+            }
+            case START_OBJECT -> {
+                LinkedHashMap<String, JsonValue> values = new LinkedHashMap<>();
+                while (parser.nextToken() != JsonToken.END_OBJECT) {
+                    if (values.size() >= 32) {
+                        throw resourceLimit(
+                                parser, base, "A structured property object exceeds 32 fields.");
+                    }
+                    requireCurrent(parser, JsonToken.FIELD_NAME, base, "field name");
+                    String field = checkedFieldName(parser, base);
+                    String fieldPointer = pointer(base, field);
+                    JsonToken valueToken = requiredNext(parser, fieldPointer);
+                    values.put(field, readPropertyJsonValue(
+                            parser, valueToken, fieldPointer, depth + 1));
+                }
+                yield new JsonValue.ObjectValue(values);
+            }
+            default -> throw wrongType(parser, base, "JSON value");
+        };
+    }
+
+    private ColorSource readColorSource(JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        String kind = jsonString(fields, "kind", base);
+        return switch (kind) {
+            case "literal" -> {
+                enforceAllowedFields(fields, base, Set.of("kind", "argb"));
+                String argb = jsonString(fields, "argb", base);
+                yield modelValue(
+                        pointer(base, "argb"), () -> ColorSource.Literal.fromWireArgb(argb));
+            }
+            case "theme" -> {
+                enforceAllowedFields(fields, base, Set.of("kind", "token"));
+                String token = jsonString(fields, "token", base);
+                yield modelValue(base, () -> new ColorSource.Theme(new ThemeToken(token)));
+            }
+            default -> throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, "kind"),
+                    "Unknown color source kind.");
+        };
+    }
+
+    private PropertyValue.PaintValue.BlurMask readBlurMask(JsonValue value, String base)
+            throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("style", "sigma"));
+        String styleName = jsonString(fields, "style", base);
+        PropertyValue.PaintValue.BlurStyle style = modelValue(
+                pointer(base, "style"),
+                () -> PropertyValue.PaintValue.BlurStyle.fromWireName(
+                        styleName));
+        BigDecimal sigma = jsonDartDouble(fields, "sigma", base);
+        return modelValue(base, () -> new PropertyValue.PaintValue.BlurMask(style, sigma));
+    }
+
+    private PropertyValue.ShadowListValue readShadowList(JsonValue value, String base)
+            throws DecodeFailure {
+        List<JsonValue> values = jsonArray(value, base);
+        List<PropertyValue.ShadowListValue.Shadow> items = new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            String itemPointer = pointer(base, Integer.toString(index));
+            Map<String, JsonValue> fields = jsonObject(values.get(index), itemPointer);
+            enforceAllowedFields(
+                    fields,
+                    itemPointer,
+                    Set.of("id", "color", "offsetX", "offsetY", "blurRadius"));
+            String idText = jsonString(fields, "id", itemPointer);
+            StableId id = modelValue(pointer(itemPointer, "id"), () -> StableId.parse(idText));
+            ColorSource color = readColorSource(
+                    requiredJson(fields, "color", itemPointer), pointer(itemPointer, "color"));
+            BigDecimal offsetX = jsonDartDouble(fields, "offsetX", itemPointer);
+            BigDecimal offsetY = jsonDartDouble(fields, "offsetY", itemPointer);
+            BigDecimal blurRadius = jsonDartDouble(fields, "blurRadius", itemPointer);
+            items.add(modelValue(itemPointer, () -> new PropertyValue.ShadowListValue.Shadow(
+                    id, color, offsetX, offsetY, blurRadius)));
+        }
+        return modelValue(base, () -> new PropertyValue.ShadowListValue(items));
+    }
+
+    private PropertyValue.FontFeatureListValue readFontFeatureList(JsonValue value, String base)
+            throws DecodeFailure {
+        List<JsonValue> values = jsonArray(value, base);
+        List<PropertyValue.FontFeatureListValue.FontFeature> items =
+                new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            String itemPointer = pointer(base, Integer.toString(index));
+            Map<String, JsonValue> fields = jsonObject(values.get(index), itemPointer);
+            enforceAllowedFields(fields, itemPointer, Set.of("id", "tag", "value"));
+            String idText = jsonString(fields, "id", itemPointer);
+            StableId id = modelValue(pointer(itemPointer, "id"), () -> StableId.parse(idText));
+            String tag = jsonString(fields, "tag", itemPointer);
+            BigInteger rawValue = jsonInteger(fields, "value", itemPointer);
+            int featureValue = modelValue(
+                    pointer(itemPointer, "value"), rawValue::intValueExact);
+            items.add(modelValue(itemPointer, () ->
+                    new PropertyValue.FontFeatureListValue.FontFeature(id, tag, featureValue)));
+        }
+        return modelValue(base, () -> new PropertyValue.FontFeatureListValue(items));
+    }
+
+    private PropertyValue.FontVariationListValue readFontVariationList(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        List<JsonValue> values = jsonArray(value, base);
+        List<PropertyValue.FontVariationListValue.FontVariation> items =
+                new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            String itemPointer = pointer(base, Integer.toString(index));
+            Map<String, JsonValue> fields = jsonObject(values.get(index), itemPointer);
+            enforceAllowedFields(fields, itemPointer, Set.of("id", "axis", "value"));
+            String idText = jsonString(fields, "id", itemPointer);
+            StableId id = modelValue(pointer(itemPointer, "id"), () -> StableId.parse(idText));
+            String axis = jsonString(fields, "axis", itemPointer);
+            BigDecimal variationValue = jsonDartDouble(fields, "value", itemPointer);
+            items.add(modelValue(itemPointer, () ->
+                    new PropertyValue.FontVariationListValue.FontVariation(
+                            id, axis, variationValue)));
+        }
+        return modelValue(base, () -> new PropertyValue.FontVariationListValue(items));
     }
 
     private Map<SlotName, WidgetSlot> readSlots(
@@ -1113,7 +1366,8 @@ final class FdJsonDecoder {
             JsonToken token,
             String base,
             int widgetDepth,
-            DecodeContext context) throws IOException, DecodeFailure {
+            DecodeContext context,
+            int sourceVersion) throws IOException, DecodeFailure {
         requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
         LinkedHashMap<SlotName, WidgetSlot> values = new LinkedHashMap<>();
         while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -1128,7 +1382,8 @@ final class FdJsonDecoder {
             String pointer = pointer(base, field);
             SlotName name = modelValue(pointer, () -> new SlotName(field));
             JsonToken valueToken = requiredNext(parser, pointer);
-            values.put(name, readSlot(parser, valueToken, pointer, widgetDepth, context));
+            values.put(name, readSlot(
+                    parser, valueToken, pointer, widgetDepth, context, sourceVersion));
         }
         return values;
     }
@@ -1138,7 +1393,8 @@ final class FdJsonDecoder {
             JsonToken token,
             String base,
             int widgetDepth,
-            DecodeContext context) throws IOException, DecodeFailure {
+            DecodeContext context,
+            int sourceVersion) throws IOException, DecodeFailure {
         requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
         String kind = null;
         WidgetNode child = null;
@@ -1162,13 +1418,23 @@ final class FdJsonDecoder {
                         child = null;
                     } else {
                         child = readWidget(
-                                parser, valueToken, pointer, widgetDepth + 1, context);
+                                parser,
+                                valueToken,
+                                pointer,
+                                widgetDepth + 1,
+                                context,
+                                sourceVersion);
                     }
                 }
                 case "children" -> {
                     childrenSeen = true;
                     children = readWidgetList(
-                            parser, valueToken, pointer, widgetDepth + 1, context);
+                            parser,
+                            valueToken,
+                            pointer,
+                            widgetDepth + 1,
+                            context,
+                            sourceVersion);
                 }
                 default -> throw unknownField(parser, pointer);
             }
@@ -1205,7 +1471,8 @@ final class FdJsonDecoder {
             JsonToken token,
             String base,
             int childDepth,
-            DecodeContext context) throws IOException, DecodeFailure {
+            DecodeContext context,
+            int sourceVersion) throws IOException, DecodeFailure {
         requireToken(parser, token, JsonToken.START_ARRAY, base, "array");
         List<WidgetNode> children = new ArrayList<>();
         while (parser.nextToken() != JsonToken.END_ARRAY) {
@@ -1217,7 +1484,13 @@ final class FdJsonDecoder {
                         "A list slot exceeds the configured child-count limit.");
             }
             String pointer = pointer(base, Integer.toString(children.size()));
-            children.add(readWidget(parser, parser.currentToken(), pointer, childDepth, context));
+            children.add(readWidget(
+                    parser,
+                    parser.currentToken(),
+                    pointer,
+                    childDepth,
+                    context,
+                    sourceVersion));
         }
         return children;
     }
@@ -1304,60 +1577,59 @@ final class FdJsonDecoder {
         };
     }
 
-    private RawScalar readRawScalar(
-            JsonParser parser,
-            JsonToken token,
-            String pointer) throws IOException, DecodeFailure {
-        return switch (token) {
-            case VALUE_STRING -> new RawScalar(token, checkedString(parser, pointer));
-            case VALUE_TRUE -> new RawScalar(token, Boolean.TRUE);
-            case VALUE_FALSE -> new RawScalar(token, Boolean.FALSE);
-            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT ->
-                    new RawScalar(token, checkedDecimal(parser, pointer));
-            case VALUE_NULL -> new RawScalar(token, null);
-            default -> throw wrongType(parser, pointer, "scalar value");
-        };
-    }
-
-    private String rawString(Map<String, RawScalar> fields, String field, String base)
+    private String jsonString(Map<String, JsonValue> fields, String field, String base)
             throws DecodeFailure {
-        RawScalar raw = requiredRaw(fields, field, base);
-        if (raw.token() != JsonToken.VALUE_STRING) {
+        JsonValue value = requiredJson(fields, field, base);
+        if (!(value instanceof JsonValue.StringValue stringValue)) {
             throw failure(
                     FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
                     pointer(base, field),
                     "The field must be a string.");
         }
-        return (String) raw.value();
+        return stringValue.value();
     }
 
-    private boolean rawBoolean(Map<String, RawScalar> fields, String field, String base)
+    private boolean jsonBoolean(Map<String, JsonValue> fields, String field, String base)
             throws DecodeFailure {
-        RawScalar raw = requiredRaw(fields, field, base);
-        if (raw.token() != JsonToken.VALUE_TRUE && raw.token() != JsonToken.VALUE_FALSE) {
+        JsonValue value = requiredJson(fields, field, base);
+        if (!(value instanceof JsonValue.BooleanValue booleanValue)) {
             throw failure(
                     FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
                     pointer(base, field),
                     "The field must be a boolean.");
         }
-        return (Boolean) raw.value();
+        return booleanValue.value();
     }
 
-    private BigDecimal rawNumber(Map<String, RawScalar> fields, String field, String base)
+    private BigDecimal jsonNumber(Map<String, JsonValue> fields, String field, String base)
             throws DecodeFailure {
-        RawScalar raw = requiredRaw(fields, field, base);
-        if (!raw.token().isNumeric()) {
+        JsonValue value = requiredJson(fields, field, base);
+        if (!(value instanceof JsonValue.NumberValue numberValue)) {
             throw failure(
                     FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
                     pointer(base, field),
                     "The field must be a number.");
         }
-        return (BigDecimal) raw.value();
+        return numberValue.value();
     }
 
-    private BigInteger rawInteger(Map<String, RawScalar> fields, String field, String base)
+    private BigDecimal jsonDartDouble(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        BigDecimal value = jsonNumber(fields, field, base);
+        if (!DartNumericLiterals.isRepresentableDouble(value)) {
+            throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, field),
+                    "The field must be exactly representable as a finite Dart double.");
+        }
+        return value;
+    }
+
+    private BigInteger jsonInteger(Map<String, JsonValue> fields, String field, String base)
             throws DecodeFailure {
-        BigDecimal value = rawNumber(fields, field, base);
+        BigDecimal value = jsonNumber(fields, field, base);
         try {
             return value.toBigIntegerExact();
         } catch (ArithmeticException failure) {
@@ -1368,26 +1640,62 @@ final class FdJsonDecoder {
         }
     }
 
-    private RawScalar requiredRaw(Map<String, RawScalar> fields, String field, String base)
+    private JsonValue requiredJson(Map<String, JsonValue> fields, String field, String base)
             throws DecodeFailure {
-        RawScalar raw = fields.get(field);
-        if (raw == null) {
+        JsonValue value = fields.get(field);
+        if (value == null) {
             throw failure(
                     FdCodecDiagnosticCode.MISSING_REQUIRED_FIELD,
                     pointer(base, field),
                     "A required field is missing.");
         }
-        return raw;
+        return value;
+    }
+
+    private Map<String, JsonValue> jsonObject(JsonValue value, String pointer)
+            throws DecodeFailure {
+        if (!(value instanceof JsonValue.ObjectValue objectValue)) {
+            throw failure(
+                    FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                    pointer,
+                    "The field must be an object.");
+        }
+        return objectValue.values();
+    }
+
+    private List<JsonValue> jsonArray(JsonValue value, String pointer)
+            throws DecodeFailure {
+        if (!(value instanceof JsonValue.ArrayValue arrayValue)) {
+            throw failure(
+                    FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                    pointer,
+                    "The field must be an array.");
+        }
+        return arrayValue.values();
     }
 
     private void enforceAllowedFields(
             JsonParser parser,
-            LinkedHashMap<String, RawScalar> fields,
+            Map<String, JsonValue> fields,
             String base,
             Set<String> allowed) throws DecodeFailure {
         for (String field : fields.keySet()) {
             if (!allowed.contains(field)) {
                 throw unknownField(parser, pointer(base, field));
+            }
+        }
+    }
+
+    private void enforceAllowedFields(
+            Map<String, JsonValue> fields,
+            String base,
+            Set<String> allowed) throws DecodeFailure {
+        for (String field : fields.keySet()) {
+            if (!allowed.contains(field)) {
+                throw failure(
+                        FdCodecDiagnosticCode.UNKNOWN_FIELD,
+                        pointer(base, field),
+                        "The object contains an unknown field.");
             }
         }
     }
@@ -1661,9 +1969,6 @@ final class FdJsonDecoder {
     }
 
     private record Envelope(String format, BigInteger schemaVersion) {
-    }
-
-    private record RawScalar(JsonToken token, Object value) {
     }
 
     private static final class ScanFrame {

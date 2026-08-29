@@ -90,7 +90,7 @@ public record FdCodecLimits(
         }
         if (maxListChildren > DEFAULT_MAX_LIST_CHILDREN) {
             throw new IllegalArgumentException(
-                    "maxListChildren cannot exceed the schema version 1 maximum "
+                    "maxListChildren cannot exceed the supported schema maximum "
                             + DEFAULT_MAX_LIST_CHILDREN);
         }
     }

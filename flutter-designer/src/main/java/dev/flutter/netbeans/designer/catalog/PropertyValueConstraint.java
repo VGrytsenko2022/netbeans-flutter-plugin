@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.designer.catalog;
 
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import java.math.BigDecimal;
@@ -7,11 +8,18 @@ import java.math.BigInteger;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
-/** Declarative constraint for one schema-v1 property-value kind. */
+/** Declarative constraint for one persisted property-value kind. */
 public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.AnyValue,
         PropertyValueConstraint.StringLength,
+        PropertyValueConstraint.StringPattern,
+        PropertyValueConstraint.ThemeTokenValues,
+        PropertyValueConstraint.PaintValues,
+        PropertyValueConstraint.ShadowListValues,
+        PropertyValueConstraint.FontVariationListValues,
         PropertyValueConstraint.IntegerRange,
         PropertyValueConstraint.DoubleRange,
         PropertyValueConstraint.EnumValues,
@@ -32,6 +40,10 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.DOUBLE
                     || kind == PropertyValueKind.ENUM
                     || kind == PropertyValueKind.EDGE_INSETS
+                    || kind == PropertyValueKind.THEME_TOKEN
+                    || kind == PropertyValueKind.PAINT
+                    || kind == PropertyValueKind.SHADOW_LIST
+                    || kind == PropertyValueKind.FONT_VARIATION_LIST
                     || kind == PropertyValueKind.CALLBACK) {
                 throw new IllegalArgumentException(
                         kind.wireName() + " requires a typed catalog constraint");
@@ -47,6 +59,129 @@ public sealed interface PropertyValueConstraint permits
         public String description() {
             return kind.wireName();
         }
+    }
+
+    /** Accepts theme tokens from one reviewed semantic role registry. */
+    record ThemeTokenValues(List<String> wireIds) implements PropertyValueConstraint {
+        public ThemeTokenValues {
+            Objects.requireNonNull(wireIds, "wireIds");
+            wireIds = List.copyOf(wireIds);
+            if (wireIds.isEmpty() || wireIds.size() != new HashSet<>(wireIds).size()) {
+                throw new IllegalArgumentException("Theme token ids must be non-empty and unique");
+            }
+            wireIds.forEach(value -> new dev.flutter.netbeans.designer.model.ThemeToken(value));
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.THEME_TOKEN;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.ThemeTokenValue token
+                    && wireIds.contains(token.token().wireId());
+        }
+
+        @Override
+        public String description() {
+            return "reviewed Material theme tokens " + wireIds;
+        }
+    }
+
+    /** Accepts the typed Paint subset and only reviewed nested theme colors. */
+    record PaintValues(List<String> colorThemeTokenIds) implements PropertyValueConstraint {
+        public PaintValues {
+            colorThemeTokenIds = themeTokenIds(colorThemeTokenIds);
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.PAINT;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.PaintValue paint
+                    && acceptsColorSource(paint.color(), colorThemeTokenIds)
+                    && DartNumericLiterals.isRepresentableDouble(paint.strokeWidth())
+                    && DartNumericLiterals.isRepresentableDouble(
+                            paint.strokeMiterLimit())
+                    && paint.maskFilter().map(mask ->
+                        DartNumericLiterals.isRepresentableDouble(mask.sigma()))
+                            .orElse(true);
+        }
+
+        @Override
+        public String description() {
+            return "typed Paint with a literal or reviewed Material theme color";
+        }
+    }
+
+    /** Accepts ordered Shadows and only reviewed nested theme colors. */
+    record ShadowListValues(List<String> colorThemeTokenIds)
+            implements PropertyValueConstraint {
+        public ShadowListValues {
+            colorThemeTokenIds = themeTokenIds(colorThemeTokenIds);
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.SHADOW_LIST;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.ShadowListValue shadows
+                    && shadows.items().stream().allMatch(shadow ->
+                        acceptsColorSource(shadow.color(), colorThemeTokenIds)
+                        && DartNumericLiterals.isRepresentableDouble(shadow.offsetX())
+                        && DartNumericLiterals.isRepresentableDouble(shadow.offsetY())
+                        && DartNumericLiterals.isRepresentableDouble(
+                                shadow.blurRadius()));
+        }
+
+        @Override
+        public String description() {
+            return "ordered Shadows with literal or reviewed Material theme colors";
+        }
+    }
+
+    /** Accepts ordered variable-font axes whose values survive Dart-double emission. */
+    record FontVariationListValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.FONT_VARIATION_LIST;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.FontVariationListValue variations
+                    && variations.items().stream().allMatch(variation ->
+                        DartNumericLiterals.isRepresentableDouble(variation.value()));
+        }
+
+        @Override
+        public String description() {
+            return "ordered FontVariation values exactly representable as Dart doubles";
+        }
+    }
+
+    private static List<String> themeTokenIds(List<String> values) {
+        Objects.requireNonNull(values, "colorThemeTokenIds");
+        List<String> copied = List.copyOf(values);
+        if (copied.isEmpty() || copied.size() != new HashSet<>(copied).size()) {
+            throw new IllegalArgumentException("Theme token ids must be non-empty and unique");
+        }
+        copied.forEach(value -> new dev.flutter.netbeans.designer.model.ThemeToken(value));
+        return copied;
+    }
+
+    private static boolean acceptsColorSource(ColorSource source, List<String> tokens) {
+        return switch (source) {
+            case ColorSource.Literal ignored -> true;
+            case ColorSource.Theme theme -> tokens.contains(theme.token().wireId());
+        };
     }
 
     record StringLength(int minimum, int maximum) implements PropertyValueConstraint {
@@ -73,6 +208,37 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "string length " + minimum + ".." + maximum;
+        }
+    }
+
+    /** Accepts strings that fully match a catalog-owned regular expression. */
+    record StringPattern(String regularExpression, String description)
+            implements PropertyValueConstraint {
+        public StringPattern {
+            Objects.requireNonNull(regularExpression, "regularExpression");
+            Objects.requireNonNull(description, "description");
+            if (regularExpression.isBlank()) {
+                throw new IllegalArgumentException("String pattern must not be blank");
+            }
+            if (description.isBlank()) {
+                throw new IllegalArgumentException("String pattern description must not be blank");
+            }
+            try {
+                Pattern.compile(regularExpression);
+            } catch (PatternSyntaxException failure) {
+                throw new IllegalArgumentException("Invalid string pattern", failure);
+            }
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.STRING;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.StringValue stringValue
+                    && Pattern.matches(regularExpression, stringValue.value());
         }
     }
 

@@ -62,6 +62,7 @@ final class FlutterPropertyEditorComponents {
     static final String COLOR_ARGB_NAME = "flutter.color.argb";
     static final String COLOR_ALPHA_NAME = "flutter.color.alpha";
     static final String EDGE_ALL_NAME = "flutter.edgeInsets.all";
+    static final String NEWLINE_LIST_TEXT_NAME = "flutter.newlineList.text";
 
     private FlutterPropertyEditorComponents() {
     }
@@ -79,7 +80,9 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, EDGE_INSETS, COLOR -> true;
+            case STRING, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
+                    THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    FONT_VARIATION_LIST -> true;
             default -> false;
         };
     }
@@ -93,9 +96,14 @@ final class FlutterPropertyEditorComponents {
                 : PropertyEnv.create(new FeatureDescriptor());
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
+            case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
+                    editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
             case COLOR -> new ColorCustomEditor(editor, binding, environment);
+            case THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    FONT_VARIATION_LIST -> FlutterComplexPropertyEditorComponents
+                    .customEditor(editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No custom editor for " + binding.editorKind());
         };
@@ -133,6 +141,14 @@ final class FlutterPropertyEditorComponents {
             graphics.setColor(original);
             FontMetrics metrics = graphics.getFontMetrics();
             graphics.drawString(colorValue.wireArgb(), x + swatch + 6,
+                    box.y + (box.height + metrics.getAscent()
+                    - metrics.getDescent()) / 2);
+        } else if (cell.explicitValue().orElse(null)
+                instanceof PropertyValue.ThemeTokenValue theme) {
+            graphics.setColor(original);
+            FontMetrics metrics = graphics.getFontMetrics();
+            graphics.drawString("Theme: "
+                    + FlutterThemePropertyRoles.displayRole(theme.token()), x,
                     box.y + (box.height + metrics.getAscent()
                     - metrics.getDescent()) / 2);
         } else {
@@ -464,7 +480,11 @@ final class FlutterPropertyEditorComponents {
         private void show(FlutterPropertyCellValue value) {
             updating = true;
             try {
-                field.setText(format(binding, value));
+                // "<not set>" is presentation text for the inactive property
+                // cell, not an editable numeric literal. Start an optional
+                // unset value with an empty draft so the user can type the
+                // number immediately without first deleting the placeholder.
+                field.setText(value.isExplicit() ? format(binding, value) : "");
                 setValid(true, acceptedDescription(binding));
             } finally {
                 updating = false;
@@ -513,7 +533,7 @@ final class FlutterPropertyEditorComponents {
         }
     }
 
-    private abstract static class CommitOnValidPanel extends JPanel
+    abstract static class CommitOnValidPanel extends JPanel
             implements PropertyChangeListener {
         final PropertyEditor editor;
         final FlutterTypedPropertyEditors.Binding binding;
@@ -543,9 +563,14 @@ final class FlutterPropertyEditorComponents {
         }
 
         final void markValid(FlutterPropertyCellValue candidate) {
+            stageValid(candidate);
+            environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION);
+        }
+
+        /** Stores a validated draft while an existing OK validation is in progress. */
+        final void stageValid(FlutterPropertyCellValue candidate) {
             draft = binding.validate(candidate);
             draftValid = true;
-            environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION);
         }
 
         final void markInvalid(String message, JComponent component) {
@@ -563,12 +588,18 @@ final class FlutterPropertyEditorComponents {
             component.getAccessibleContext().setAccessibleDescription(description);
         }
 
+        /** Gives compound controls a last chance to finish their local cell edit. */
+        boolean prepareCommit() {
+            return true;
+        }
+
         @Override
         public final void propertyChange(PropertyChangeEvent event) {
             if (PropertyEnv.PROP_STATE.equals(event.getPropertyName())
                     && event.getNewValue() == PropertyEnv.STATE_VALID
-                    && draftValid
-                    && !committed) {
+                    && !committed
+                    && prepareCommit()
+                    && draftValid) {
                 committed = true;
                 editor.setValue(binding.validate(draft));
             }
@@ -637,6 +668,79 @@ final class FlutterPropertyEditorComponents {
                     ? FlutterPropertyCellValue.unset()
                     : FlutterPropertyCellValue.explicit(
                             new PropertyValue.StringValue(textArea.getText())));
+        }
+    }
+
+    private static final class NewlineListCustomEditor
+            extends CommitOnValidPanel {
+        private final JTextArea textArea = new JTextArea(12, 48);
+        private final JCheckBox useDefault = new JCheckBox(
+                "Use inherited/default value (omit argument)");
+        private boolean updating;
+
+        NewlineListCustomEditor(
+                PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding,
+                PropertyEnv environment) {
+            super(editor, binding, environment);
+            setLayout(new BorderLayout(0, 8));
+            setName("flutter.newlineList.custom");
+            setPreferredSize(new Dimension(520, 320));
+            getAccessibleContext().setAccessibleName(
+                    binding.definition().name().value() + " font fallback editor");
+            getAccessibleContext().setAccessibleDescription(
+                    "Edits an ordered list of Flutter font families, one family per line.");
+
+            JLabel instruction = new JLabel("One font family per line");
+            instruction.setLabelFor(textArea);
+            textArea.setLineWrap(false);
+            textArea.setName(NEWLINE_LIST_TEXT_NAME);
+            textArea.getAccessibleContext().setAccessibleName(
+                    binding.definition().name().value() + " font families");
+            textArea.getAccessibleContext().setAccessibleDescription(
+                    "Ordered Flutter font fallback families; blank lines are ignored.");
+            JPanel content = new JPanel(new BorderLayout(0, 4));
+            content.add(instruction, BorderLayout.NORTH);
+            content.add(new JScrollPane(textArea), BorderLayout.CENTER);
+            add(content, BorderLayout.CENTER);
+
+            if (binding.optional()) {
+                useDefault.getAccessibleContext().setAccessibleDescription(
+                        "When selected, removes this font fallback list.");
+                add(useDefault, BorderLayout.NORTH);
+                useDefault.addActionListener(ignored -> updateDraft());
+            }
+            FlutterPropertyCellValue initial = initialValue();
+            updating = true;
+            try {
+                boolean unset = initial.explicitValue().isEmpty();
+                useDefault.setSelected(unset);
+                textArea.setEnabled(!unset);
+                textArea.setText(initial.explicitValue()
+                        .map(PropertyValue.StringValue.class::cast)
+                        .map(PropertyValue.StringValue::value)
+                        .orElse(""));
+                textArea.setCaretPosition(0);
+            } finally {
+                updating = false;
+            }
+            textArea.getDocument().addDocumentListener(
+                    documentListener(this::updateDraft));
+            activate();
+        }
+
+        private void updateDraft() {
+            if (updating) {
+                return;
+            }
+            boolean unset = binding.optional() && useDefault.isSelected();
+            textArea.setEnabled(!unset);
+            markValid(unset
+                    ? FlutterPropertyCellValue.unset()
+                    : FlutterPropertyCellValue.explicit(
+                            new PropertyValue.StringValue(
+                                    FlutterTypedPropertyEditors.normalizeNewlineList(
+                                            textArea.getText()))));
         }
     }
 

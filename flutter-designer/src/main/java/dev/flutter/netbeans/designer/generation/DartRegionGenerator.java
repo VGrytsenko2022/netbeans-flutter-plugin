@@ -2,19 +2,24 @@ package dev.flutter.netbeans.designer.generation;
 
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
+import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.ColorSource;
+import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
 import dev.flutter.netbeans.designer.validation.ValidationLimits;
 import dev.flutter.netbeans.designer.validation.ValidationResult;
@@ -38,7 +43,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-/** Pure deterministic generator for schema-v1 managed Dart payloads. */
+/** Pure deterministic generator for versioned .fd managed Dart payloads. */
 public final class DartRegionGenerator {
     public static final String PROFILE_ID = "fd-dart-regions-v1";
 
@@ -49,6 +54,9 @@ public final class DartRegionGenerator {
             .comparing((ConstructorArgument value) -> value.parameter().style())
             .thenComparingInt(value -> value.parameter().order())
             .thenComparing(ConstructorArgument::name);
+    private static final Comparator<CompositeMember> COMPOSITE_MEMBER_ORDER = Comparator
+            .comparingInt(CompositeMember::order)
+            .thenComparing(CompositeMember::name);
 
     private final DartGenerationLimits limits;
     private final WidgetTreeValidator validator;
@@ -201,6 +209,7 @@ public final class DartRegionGenerator {
 
     private GenerationContext createContext(WidgetNode root, WidgetCatalog catalog) {
         TreeMap<String, WidgetDefinition> usedDefinitions = new TreeMap<>();
+        boolean requiresMaterialTheme = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
         while (!pending.isEmpty()) {
@@ -214,6 +223,8 @@ public final class DartRegionGenerator {
                     "Validated widget type '" + current.node().type().value()
                     + "' disappeared from the generation catalog.")));
             usedDefinitions.putIfAbsent(definition.typeId().value(), definition);
+            requiresMaterialTheme |= current.node().properties().values().stream()
+                    .anyMatch(DartRegionGenerator::requiresMaterialTheme);
 
             ArrayList<WidgetAtPath> children = new ArrayList<>();
             for (Map.Entry<SlotName, WidgetSlot> entry : current.node().slots().entrySet()) {
@@ -235,7 +246,7 @@ public final class DartRegionGenerator {
         }
 
         ImportPlanner planner = ImportPlanner.create(
-                usedDefinitions.values(), limits.maxImports());
+                usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
     }
 
@@ -255,6 +266,10 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)
+                    && TextWidgetPropertySchema.isCompound(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
@@ -275,6 +290,10 @@ public final class DartRegionGenerator {
                         true,
                         renderSlot(value, slotPath, baseIndent + 2, context)));
             }
+        }
+        if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)) {
+            appendTextCompoundArguments(
+                    node, definition, path, baseIndent + 2, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
 
@@ -356,6 +375,629 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(baseIndent) + ')');
         return lines.build(constant);
+    }
+
+    private void appendTextCompoundArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        Map<TextWidgetPropertySchema.Target, List<TextMember>> grouped = new HashMap<>();
+        for (PropertyDefinition property : definition.properties()) {
+            TextWidgetPropertySchema.Definition binding = TextWidgetPropertySchema
+                    .find(property.name()).orElse(null);
+            if (binding == null || binding.target() == TextWidgetPropertySchema.Target.DIRECT) {
+                continue;
+            }
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) {
+                continue;
+            }
+            String propertyPath = path + "/properties/" + pointer(property.name().value());
+            RenderedValue rendered = switch (binding.encoding()) {
+                case SCALAR -> renderProperty(
+                        value, property, propertyPath, node.id(), context);
+                case NEWLINE_STRING_LIST -> renderStringList(
+                        value, propertyPath, node.id(), context);
+                case DECORATION_FLAG -> renderProperty(
+                        value, property, propertyPath, node.id(), context);
+            };
+            grouped.computeIfAbsent(binding.target(), ignored -> new ArrayList<>())
+                    .add(new TextMember(property, binding, value, rendered));
+        }
+
+        addTextLocaleArgument(
+                grouped.get(TextWidgetPropertySchema.Target.TEXT_LOCALE),
+                "locale", 2, valueIndent, path, node.id(), context, arguments);
+
+        List<TextMember> scalers = grouped.get(TextWidgetPropertySchema.Target.TEXT_SCALER);
+        if (scalers != null && !scalers.isEmpty()) {
+            TextMember scaler = scalers.getFirst();
+            RenderedValue rendered = renderPositionalComposite(
+                    "TextScaler", Optional.of("linear"), scaler.rendered(),
+                    scaler.propertyPath(path), node.id(), context);
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(3, false), "textScaler", false, rendered));
+        }
+
+        List<TextMember> height = grouped.get(
+                TextWidgetPropertySchema.Target.TEXT_HEIGHT_BEHAVIOR);
+        if (height != null && !height.isEmpty()) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(7, false),
+                    "textHeightBehavior",
+                    false,
+                    renderNamedComposite(
+                            "TextHeightBehavior", Optional.empty(), height,
+                            valueIndent, path + "/properties/textHeightBehavior",
+                            node.id(), context)));
+        }
+
+        ArrayList<CompositeMember> styleMembers = scalarMembers(
+                grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE));
+        RenderedValue styleLocale = renderLocale(
+                grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE_LOCALE),
+                valueIndent + 2, path + "/properties/styleLocale", node.id(), context);
+        if (styleLocale != null) {
+            styleMembers.add(new CompositeMember("locale", 11, styleLocale));
+        }
+        RenderedValue decoration = renderTextDecoration(
+                grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE_DECORATION),
+                path + "/properties/styleDecoration", node.id(), context);
+        if (decoration != null) {
+            styleMembers.add(new CompositeMember("decoration", 17, decoration));
+        }
+        List<TextMember> themeStyles = grouped.get(
+                TextWidgetPropertySchema.Target.TEXT_STYLE_THEME);
+        RenderedValue themeStyle = themeStyles == null || themeStyles.isEmpty()
+                ? null : themeStyles.getFirst().rendered();
+        if (themeStyle != null && styleMembers.isEmpty()) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(0, false), "style", false, themeStyle));
+        } else if (themeStyle != null) {
+            styleMembers.sort(COMPOSITE_MEMBER_ORDER);
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(0, false),
+                    "style",
+                    false,
+                    renderTextStyleCopyWith(
+                            themeStyle, styleMembers, path + "/properties/style",
+                            node.id(), context)));
+        } else if (!styleMembers.isEmpty()) {
+            styleMembers.sort(COMPOSITE_MEMBER_ORDER);
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(0, false),
+                    "style",
+                    false,
+                    renderNamedCompositeMembers(
+                            "TextStyle", Optional.empty(), styleMembers,
+                            valueIndent, path + "/properties/style", node.id(), context)));
+        }
+
+        List<TextMember> strut = grouped.get(TextWidgetPropertySchema.Target.STRUT_STYLE);
+        if (strut != null && !strut.isEmpty()) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(1, false),
+                    "strutStyle",
+                    false,
+                    renderNamedComposite(
+                            "StrutStyle", Optional.empty(), strut,
+                            valueIndent, path + "/properties/strutStyle",
+                            node.id(), context)));
+        }
+    }
+
+    private void addTextLocaleArgument(
+            List<TextMember> members,
+            String argumentName,
+            int argumentOrder,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        RenderedValue locale = renderLocale(
+                members, valueIndent, path + "/properties/locale", widgetId, context);
+        if (locale != null) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(argumentOrder, false),
+                    argumentName,
+                    false,
+                    locale));
+        }
+    }
+
+    private RenderedValue renderLocale(
+            List<TextMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
+        return renderNamedComposite(
+                "Locale", Optional.of("fromSubtags"), members,
+                valueIndent, path, widgetId, context);
+    }
+
+    private RenderedValue renderTextDecoration(
+            List<TextMember> members,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
+        ArrayList<String> enabled = new ArrayList<>();
+        for (TextMember member : members) {
+            PropertyValue value = nodeValue(member);
+            if (value instanceof PropertyValue.BooleanValue flag && flag.value()) {
+                enabled.add(member.binding().dartName());
+            }
+        }
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextDecoration");
+        if (enabled.isEmpty()) {
+            return scalar(symbol.text() + ".none", true, path, widgetId, context);
+        }
+        if (enabled.size() == 1) {
+            return scalar(symbol.text() + "." + enabled.getFirst(),
+                    true, path, widgetId, context);
+        }
+        String values = enabled.stream()
+                .map(value -> symbol.text() + "." + value)
+                .reduce((left, right) -> left + ", " + right)
+                .orElseThrow();
+        return scalar(
+                symbol.text() + ".combine(const <" + symbol.text() + ">[" + values + "])",
+                false, path, widgetId, context);
+    }
+
+    private static PropertyValue nodeValue(TextMember member) {
+        return member.value();
+    }
+
+    private ArrayList<CompositeMember> scalarMembers(List<TextMember> members) {
+        ArrayList<CompositeMember> result = new ArrayList<>();
+        if (members == null) {
+            return result;
+        }
+        for (TextMember member : members) {
+            result.add(new CompositeMember(
+                    member.binding().dartName(),
+                    member.binding().dartOrder(),
+                    member.rendered()));
+        }
+        return result;
+    }
+
+    private RenderedValue renderNamedComposite(
+            String dartClass,
+            Optional<String> namedConstructor,
+            List<TextMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> values = scalarMembers(members);
+        values.sort(COMPOSITE_MEMBER_ORDER);
+        return renderNamedCompositeMembers(
+                dartClass, namedConstructor, values, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderNamedCompositeMembers(
+            String dartClass,
+            Optional<String> namedConstructor,
+            List<CompositeMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        boolean constant = members.stream().allMatch(
+                member -> member.rendered().constant());
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        String constructor = (constant ? "const " : "") + symbol.text()
+                + namedConstructor.map(value -> "." + value).orElse("");
+        GeneratedDartSymbolOccurrence classOccurrence = occurrence(
+                "widget:" + widgetId + ":compound:" + dartClass + ':' + path,
+                (constant ? "const ".length() : 0) + symbol.nameOffset(),
+                symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId));
+
+        StringBuilder inline = new StringBuilder(constructor).append('(');
+        ArrayList<GeneratedDartSymbolOccurrence> inlineOccurrences = new ArrayList<>();
+        inlineOccurrences.add(classOccurrence);
+        for (int index = 0; index < members.size(); index++) {
+            if (index > 0) {
+                inline.append(", ");
+            }
+            CompositeMember member = members.get(index);
+            inline.append(member.name()).append(": ");
+            int valueOffset = inline.length();
+            inline.append(member.rendered().joined());
+            shiftInto(inlineOccurrences, member.rendered().symbolOccurrences(), valueOffset);
+        }
+        inline.append(')');
+        if (members.stream().allMatch(value -> value.rendered().lines().size() == 1)
+                && inline.codePointCount(0, inline.length()) <= INLINE_CONSTRUCTOR_LIMIT) {
+            return scalar(inline.toString(), constant, path, widgetId, context,
+                    inlineOccurrences);
+        }
+
+        LineAccumulator lines = new LineAccumulator(
+                context.maxRenderedUtf8Bytes(), path, widgetId);
+        lines.add(constructor + "(", List.of(classOccurrence));
+        int memberIndent = valueIndent + 2;
+        for (CompositeMember member : members) {
+            String prefix = spaces(memberIndent) + member.name() + ": ";
+            lines.addBlock(
+                    prefix + member.rendered().joined() + ',',
+                    member.rendered().symbolOccurrences(),
+                    prefix.length());
+        }
+        lines.add(spaces(valueIndent) + ')');
+        return lines.build(constant);
+    }
+
+    private RenderedValue renderPositionalComposite(
+            String dartClass,
+            Optional<String> namedConstructor,
+            RenderedValue argument,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        boolean constant = argument.constant();
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        String constructor = (constant ? "const " : "") + symbol.text()
+                + namedConstructor.map(value -> "." + value).orElse("");
+        String text = constructor + '(' + argument.joined() + ')';
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":compound:" + dartClass + ':' + path,
+                (constant ? "const ".length() : 0) + symbol.nameOffset(),
+                symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId)));
+        shiftInto(occurrences, argument.symbolOccurrences(), constructor.length() + 1);
+        return scalar(text, constant, path, widgetId, context, occurrences);
+    }
+
+    private RenderedValue renderStringList(
+            PropertyValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (!(value instanceof PropertyValue.StringValue string)) {
+            throw abort(diagnostic(
+                    DartGenerationDiagnosticCode.INTERNAL_CATALOG_INCONSISTENCY,
+                    path, Optional.of(widgetId), Optional.of(DartManagedRegionId.BUILD),
+                    "A newline-delimited string list requires a string model value."));
+        }
+        List<String> values = string.value().lines()
+                .map(String::strip)
+                .filter(item -> !item.isEmpty())
+                .toList();
+        StringBuilder rendered = new StringBuilder("const <String>[");
+        for (int index = 0; index < values.size(); index++) {
+            if (index > 0) {
+                rendered.append(", ");
+            }
+            rendered.append(dartString(
+                    values.get(index), path, widgetId,
+                    context.maxRenderedUtf8Bytes()));
+        }
+        rendered.append(']');
+        return scalar(rendered.toString(), true, path, widgetId, context);
+    }
+
+    private RenderedValue renderThemeToken(
+            ThemeToken token,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        String receiver;
+        if (MaterialThemeTokenCatalog.colorRole(token).isPresent()) {
+            receiver = "colorScheme." + MaterialThemeTokenCatalog.colorRole(token).orElseThrow();
+        } else if (MaterialThemeTokenCatalog.textStyleRole(token).isPresent()) {
+            receiver = "textTheme." + MaterialThemeTokenCatalog.textStyleRole(token).orElseThrow();
+        } else {
+            throw abort(diagnostic(
+                    DartGenerationDiagnosticCode.INTERNAL_CATALOG_INCONSISTENCY,
+                    path,
+                    Optional.of(widgetId),
+                    Optional.of(DartManagedRegionId.BUILD),
+                    "Validated property contains an unreviewed Material theme token '"
+                    + token.wireId() + "'."));
+        }
+        RenderedSymbol theme = context.planner().renderedSymbol(MATERIAL_IMPORT, "Theme");
+        String rendered = theme.text() + ".of(context)." + receiver;
+        return scalar(
+                rendered,
+                false,
+                path,
+                widgetId,
+                context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":theme-token:" + token.wireId(),
+                        theme.nameOffset(),
+                        theme.name(),
+                        theme.libraryUri(),
+                        path,
+                        Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderColorSource(
+            ColorSource source,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        return switch (source) {
+            case ColorSource.Literal literal -> {
+                RenderedSymbol color = context.planner().renderedSymbol(WIDGETS_IMPORT, "Color");
+                String rendered = "const " + color.text() + "(" + literal.wireArgb() + ")";
+                yield scalar(
+                        rendered,
+                        true,
+                        path,
+                        widgetId,
+                        context,
+                        List.of(occurrence(
+                                "widget:" + widgetId + ":structured-color:" + path,
+                                "const ".length() + color.nameOffset(),
+                                color.name(),
+                                color.libraryUri(),
+                                path,
+                                Optional.of(widgetId))));
+            }
+            case ColorSource.Theme theme ->
+                renderThemeToken(theme.token(), path, widgetId, context);
+        };
+    }
+
+    private RenderedValue renderPaint(
+            PropertyValue.PaintValue paint,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol paintType = context.planner().renderedSymbol(WIDGETS_IMPORT, "Paint");
+        RenderedValue color = renderColorSource(
+                paint.color(), path + "/color", widgetId, context);
+        StringBuilder rendered = new StringBuilder("(");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        int paintOffset = rendered.length();
+        rendered.append(paintType.text()).append("()")
+                .append("..color = ");
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":paint:" + path,
+                paintOffset + paintType.nameOffset(),
+                paintType.name(),
+                paintType.libraryUri(),
+                path,
+                Optional.of(widgetId)));
+        appendRendered(rendered, occurrences, color);
+        appendEnumCascade(rendered, occurrences, "blendMode", "BlendMode",
+                paint.blendMode().wireName(), path, widgetId, context);
+        appendEnumCascade(rendered, occurrences, "style", "PaintingStyle",
+                paint.style().wireName(), path, widgetId, context);
+        rendered.append("..strokeWidth = ").append(dartDouble(paint.strokeWidth()));
+        appendEnumCascade(rendered, occurrences, "strokeCap", "StrokeCap",
+                paint.strokeCap().wireName(), path, widgetId, context);
+        appendEnumCascade(rendered, occurrences, "strokeJoin", "StrokeJoin",
+                paint.strokeJoin().wireName(), path, widgetId, context);
+        rendered.append("..strokeMiterLimit = ")
+                .append(dartDouble(paint.strokeMiterLimit()))
+                .append("..isAntiAlias = ").append(paint.antiAlias());
+        appendEnumCascade(rendered, occurrences, "filterQuality", "FilterQuality",
+                paint.filterQuality().wireName(), path, widgetId, context);
+        rendered.append("..invertColors = ").append(paint.invertColors());
+        if (paint.maskFilter().isPresent()) {
+            PropertyValue.PaintValue.BlurMask mask = paint.maskFilter().orElseThrow();
+            RenderedSymbol maskFilter = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "MaskFilter");
+            RenderedSymbol blurStyle = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "BlurStyle");
+            rendered.append("..maskFilter = const ");
+            int maskOffset = rendered.length();
+            rendered.append(maskFilter.text()).append(".blur(");
+            occurrences.add(occurrence(
+                    "widget:" + widgetId + ":paint-mask:" + path,
+                    maskOffset + maskFilter.nameOffset(), maskFilter.name(),
+                    maskFilter.libraryUri(), path, Optional.of(widgetId)));
+            int blurOffset = rendered.length();
+            rendered.append(blurStyle.text()).append('.').append(mask.style().wireName())
+                    .append(", ").append(dartDouble(mask.sigma())).append(')');
+            occurrences.add(occurrence(
+                    "widget:" + widgetId + ":paint-blur-style:" + path,
+                    blurOffset + blurStyle.nameOffset(), blurStyle.name(),
+                    blurStyle.libraryUri(), path, Optional.of(widgetId)));
+        }
+        rendered.append(')');
+        return scalar(rendered.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private void appendEnumCascade(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String property,
+            String dartType,
+            String value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, dartType);
+        rendered.append("..").append(property).append(" = ");
+        int offset = rendered.length();
+        rendered.append(symbol.text()).append('.').append(value);
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":paint-enum:" + property + ':' + path,
+                offset + symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                path, Optional.of(widgetId)));
+    }
+
+    private RenderedValue renderShadows(
+            PropertyValue.ShadowListValue shadows,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol shadowType = context.planner().renderedSymbol(WIDGETS_IMPORT, "Shadow");
+        RenderedSymbol offsetType = context.planner().renderedSymbol(WIDGETS_IMPORT, "Offset");
+        ArrayList<RenderedValue> items = new ArrayList<>();
+        for (int index = 0; index < shadows.items().size(); index++) {
+            PropertyValue.ShadowListValue.Shadow shadow = shadows.items().get(index);
+            String itemPath = path + "/items/" + index;
+            RenderedValue color = renderColorSource(
+                    shadow.color(), itemPath + "/color", widgetId, context);
+            StringBuilder item = new StringBuilder();
+            ArrayList<GeneratedDartSymbolOccurrence> itemOccurrences = new ArrayList<>();
+            if (color.constant()) {
+                item.append("const ");
+            }
+            int shadowOffset = item.length();
+            item.append(shadowType.text()).append("(color: ");
+            itemOccurrences.add(occurrence(
+                    "widget:" + widgetId + ":shadow:" + shadow.id(),
+                    shadowOffset + shadowType.nameOffset(), shadowType.name(),
+                    shadowType.libraryUri(), itemPath, Optional.of(widgetId)));
+            appendRendered(item, itemOccurrences, color);
+            item.append(", offset: const ");
+            int offsetOffset = item.length();
+            item.append(offsetType.text()).append('(')
+                    .append(dartDouble(shadow.offsetX())).append(", ")
+                    .append(dartDouble(shadow.offsetY())).append("), blurRadius: ")
+                    .append(dartDouble(shadow.blurRadius())).append(')');
+            itemOccurrences.add(occurrence(
+                    "widget:" + widgetId + ":shadow-offset:" + shadow.id(),
+                    offsetOffset + offsetType.nameOffset(), offsetType.name(),
+                    offsetType.libraryUri(), itemPath, Optional.of(widgetId)));
+            items.add(scalar(item.toString(), color.constant(), itemPath,
+                    widgetId, context, itemOccurrences));
+        }
+        return renderTypedList(
+                shadowType, items, "shadows", path, widgetId, context);
+    }
+
+    private RenderedValue renderFontFeatures(
+            PropertyValue.FontFeatureListValue features,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "FontFeature");
+        ArrayList<RenderedValue> items = new ArrayList<>();
+        for (int index = 0; index < features.items().size(); index++) {
+            PropertyValue.FontFeatureListValue.FontFeature feature = features.items().get(index);
+            String itemPath = path + "/items/" + index;
+            String prefix = "const " + type.text() + '(';
+            String item = prefix + dartString(
+                    feature.tag(), itemPath + "/tag", widgetId,
+                    context.maxRenderedUtf8Bytes()) + ", " + feature.value() + ')';
+            items.add(scalar(item, true, itemPath, widgetId, context,
+                    List.of(occurrence(
+                            "widget:" + widgetId + ":font-feature:" + feature.id(),
+                            "const ".length() + type.nameOffset(), type.name(),
+                            type.libraryUri(), itemPath, Optional.of(widgetId)))));
+        }
+        return renderTypedList(type, items, "font-features", path, widgetId, context);
+    }
+
+    private RenderedValue renderFontVariations(
+            PropertyValue.FontVariationListValue variations,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "FontVariation");
+        ArrayList<RenderedValue> items = new ArrayList<>();
+        for (int index = 0; index < variations.items().size(); index++) {
+            PropertyValue.FontVariationListValue.FontVariation variation =
+                    variations.items().get(index);
+            String itemPath = path + "/items/" + index;
+            String item = "const " + type.text() + '(' + dartString(
+                    variation.axis(), itemPath + "/axis", widgetId,
+                    context.maxRenderedUtf8Bytes()) + ", "
+                    + dartDouble(variation.value()) + ')';
+            items.add(scalar(item, true, itemPath, widgetId, context,
+                    List.of(occurrence(
+                            "widget:" + widgetId + ":font-variation:" + variation.id(),
+                            "const ".length() + type.nameOffset(), type.name(),
+                            type.libraryUri(), itemPath, Optional.of(widgetId)))));
+        }
+        return renderTypedList(type, items, "font-variations", path, widgetId, context);
+    }
+
+    private RenderedValue renderTypedList(
+            RenderedSymbol elementType,
+            List<RenderedValue> items,
+            String occurrenceKind,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        boolean constant = items.stream().allMatch(RenderedValue::constant);
+        StringBuilder rendered = new StringBuilder(constant ? "const <" : "<");
+        int typeOffset = rendered.length();
+        rendered.append(elementType.text()).append(">[");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ':' + occurrenceKind + ":element-type",
+                typeOffset + elementType.nameOffset(), elementType.name(),
+                elementType.libraryUri(), path, Optional.of(widgetId)));
+        for (int index = 0; index < items.size(); index++) {
+            if (index > 0) {
+                rendered.append(", ");
+            }
+            appendRendered(rendered, occurrences, items.get(index));
+        }
+        rendered.append(']');
+        return scalar(rendered.toString(), constant, path, widgetId, context, occurrences);
+    }
+
+    private RenderedValue renderTextStyleCopyWith(
+            RenderedValue base,
+            List<CompositeMember> members,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol textStyle = context.planner().renderedSymbol(WIDGETS_IMPORT, "TextStyle");
+        StringBuilder rendered = new StringBuilder("(");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendRendered(rendered, occurrences, base);
+        rendered.append(" ?? const ");
+        int typeOffset = rendered.length();
+        rendered.append(textStyle.text()).append("()).copyWith(");
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":theme-style-fallback",
+                typeOffset + textStyle.nameOffset(), textStyle.name(),
+                textStyle.libraryUri(), path, Optional.of(widgetId)));
+        for (int index = 0; index < members.size(); index++) {
+            if (index > 0) {
+                rendered.append(", ");
+            }
+            CompositeMember member = members.get(index);
+            rendered.append(member.name()).append(": ");
+            appendRendered(rendered, occurrences, member.rendered());
+        }
+        rendered.append(')');
+        return scalar(rendered.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private static void appendRendered(
+            StringBuilder destination,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            RenderedValue value) {
+        int offset = destination.length();
+        destination.append(value.joined());
+        shiftInto(occurrences, value.symbolOccurrences(), offset);
+    }
+
+    private static boolean requiresMaterialTheme(PropertyValue value) {
+        return switch (value) {
+            case PropertyValue.ThemeTokenValue ignored -> true;
+            case PropertyValue.PaintValue paint -> paint.color() instanceof ColorSource.Theme;
+            case PropertyValue.ShadowListValue shadows -> shadows.items().stream()
+                    .anyMatch(shadow -> shadow.color() instanceof ColorSource.Theme);
+            default -> false;
+        };
     }
 
     private RenderedValue renderSlot(
@@ -490,6 +1132,21 @@ public final class DartRegionGenerator {
                             symbol.libraryUri(),
                             path,
                             Optional.of(widgetId))));
+        }
+        if (value instanceof PropertyValue.ThemeTokenValue token) {
+            return renderThemeToken(token.token(), path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.PaintValue paint) {
+            return renderPaint(paint, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.ShadowListValue shadows) {
+            return renderShadows(shadows, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.FontFeatureListValue features) {
+            return renderFontFeatures(features, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.FontVariationListValue variations) {
+            return renderFontVariations(variations, path, widgetId, context);
         }
         if (value instanceof PropertyValue.AssetValue asset) {
             return scalar(
@@ -834,6 +1491,23 @@ public final class DartRegionGenerator {
             RenderedValue value) {
     }
 
+    private record TextMember(
+            PropertyDefinition property,
+            TextWidgetPropertySchema.Definition binding,
+            PropertyValue value,
+            RenderedValue rendered) {
+
+        String propertyPath(String widgetPath) {
+            return widgetPath + "/properties/" + pointer(property.name().value());
+        }
+    }
+
+    private record CompositeMember(
+            String name,
+            int order,
+            RenderedValue rendered) {
+    }
+
     private record RenderedValue(
             List<String> lines,
             boolean constant,
@@ -965,9 +1639,10 @@ public final class DartRegionGenerator {
 
         static ImportPlanner create(
                 Iterable<WidgetDefinition> definitions,
-                int maximumImports) {
+                int maximumImports,
+                boolean requiresMaterialTheme) {
             TreeSet<String> uris = new TreeSet<>();
-            uris.add(WIDGETS_IMPORT);
+            uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
                     if (uri.equals(MATERIAL_IMPORT)) {

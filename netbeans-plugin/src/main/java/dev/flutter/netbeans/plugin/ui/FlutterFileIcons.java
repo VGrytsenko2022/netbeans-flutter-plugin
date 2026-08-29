@@ -6,6 +6,8 @@ public final class FlutterFileIcons {
             "dev/flutter/netbeans/plugin/ui/icons/dartFile16.svg";
     public static final String DESIGNER_FILE_ICON_PATH =
             "dev/flutter/netbeans/plugin/ui/icons/flutterDesignerFile16.svg";
+    public static final String THEME_FILE_ICON_PATH =
+            "dev/flutter/netbeans/plugin/ui/icons/flutterThemeFile16.svg";
 
     private FlutterFileIcons() {
     }

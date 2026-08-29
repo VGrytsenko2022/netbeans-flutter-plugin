@@ -2,10 +2,12 @@ package dev.flutter.netbeans.designer.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PropertyValueTest {
@@ -105,5 +107,111 @@ class PropertyValueTest {
         assertThrows(NullPointerException.class, () -> new PropertyValue.DoubleValue(null));
         assertThrows(NullPointerException.class,
                 () -> new PropertyValue.EdgeInsetsValue(null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+    }
+
+    @Test
+    void validatesThemeTokensAndRestrictsNestedColorSourcesToColorSchemeRoles() {
+        ThemeToken color = new ThemeToken("material.colorScheme.primary");
+        ThemeToken text = new ThemeToken("material.textTheme.bodyMedium");
+
+        assertTrue(color.isColorSchemeToken());
+        assertTrue(text.isTextThemeToken());
+        assertEquals("bodyMedium", text.role());
+        assertEquals(PropertyValueKind.THEME_TOKEN,
+                new PropertyValue.ThemeTokenValue(text).kind());
+        assertEquals("0xFFAABBCC", new ColorSource.Literal(0xFFAABBCCL).wireArgb());
+        assertEquals(color, new ColorSource.Theme(color).token());
+
+        assertThrows(IllegalArgumentException.class, () -> new ThemeToken("primary"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ThemeToken("material.colorScheme.Primary"));
+        assertThrows(IllegalArgumentException.class, () -> new ColorSource.Theme(text));
+    }
+
+    @Test
+    void modelsOnlyTheReviewedSafePaintSurface() {
+        PropertyValue.PaintValue defaults = PropertyValue.PaintValue.defaults(
+                new ColorSource.Theme(new ThemeToken("material.colorScheme.onSurface")));
+        assertEquals(PropertyValue.PaintValue.BlendMode.SRC_OVER, defaults.blendMode());
+        assertEquals(PropertyValue.PaintValue.Style.FILL, defaults.style());
+        assertEquals(BigDecimal.valueOf(4), defaults.strokeMiterLimit());
+        assertTrue(defaults.maskFilter().isEmpty());
+
+        PropertyValue.PaintValue blurred = new PropertyValue.PaintValue(
+                new ColorSource.Literal(0xFF000000L),
+                PropertyValue.PaintValue.BlendMode.MULTIPLY,
+                PropertyValue.PaintValue.Style.STROKE,
+                new BigDecimal("2.5"),
+                PropertyValue.PaintValue.StrokeCap.ROUND,
+                PropertyValue.PaintValue.StrokeJoin.BEVEL,
+                BigDecimal.TEN,
+                false,
+                PropertyValue.PaintValue.FilterQuality.HIGH,
+                true,
+                Optional.of(new PropertyValue.PaintValue.BlurMask(
+                        PropertyValue.PaintValue.BlurStyle.OUTER,
+                        new BigDecimal("3.5"))));
+        assertEquals(PropertyValueKind.PAINT, blurred.kind());
+        assertEquals("multiply", blurred.blendMode().wireName());
+
+        assertThrows(IllegalArgumentException.class, () -> new PropertyValue.PaintValue.BlurMask(
+                PropertyValue.PaintValue.BlurStyle.NORMAL, BigDecimal.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> new PropertyValue.PaintValue(
+                new ColorSource.Literal(0),
+                PropertyValue.PaintValue.BlendMode.SRC_OVER,
+                PropertyValue.PaintValue.Style.FILL,
+                BigDecimal.ONE.negate(),
+                PropertyValue.PaintValue.StrokeCap.BUTT,
+                PropertyValue.PaintValue.StrokeJoin.MITER,
+                BigDecimal.ONE,
+                true,
+                PropertyValue.PaintValue.FilterQuality.NONE,
+                false,
+                Optional.empty()));
+    }
+
+    @Test
+    void validatesOrderedShadowAndOpenTypeLists() {
+        StableId firstId = StableId.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        StableId secondId = StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+        ColorSource black = new ColorSource.Literal(0xFF000000L);
+        PropertyValue.ShadowListValue.Shadow shadow =
+                new PropertyValue.ShadowListValue.Shadow(
+                        firstId, black, BigDecimal.ONE.negate(), BigDecimal.TWO, BigDecimal.ZERO);
+        PropertyValue.ShadowListValue shadows = new PropertyValue.ShadowListValue(List.of(shadow));
+        assertEquals(firstId, shadows.items().getFirst().id());
+        assertThrows(UnsupportedOperationException.class, () -> shadows.items().add(shadow));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ShadowListValue(List.of(shadow, shadow)));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ShadowListValue.Shadow(
+                        secondId, black, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE.negate()));
+
+        PropertyValue.FontFeatureListValue.FontFeature liga =
+                new PropertyValue.FontFeatureListValue.FontFeature(firstId, "liga", 1);
+        assertEquals(List.of(liga), new PropertyValue.FontFeatureListValue(List.of(liga)).items());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontFeatureListValue.FontFeature(secondId, "lig", 1));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontFeatureListValue.FontFeature(secondId, "liga", -1));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontFeatureListValue(List.of(
+                        liga,
+                        new PropertyValue.FontFeatureListValue.FontFeature(
+                                secondId, "liga", 0))));
+
+        PropertyValue.FontVariationListValue.FontVariation weight =
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        firstId, "wght", new BigDecimal("700"));
+        assertEquals(List.of(weight), new PropertyValue.FontVariationListValue(List.of(weight)).items());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        secondId, "wght", new BigDecimal("1000.1")));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        secondId, "slnt", new BigDecimal("90")));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        secondId, "ABÇD", BigDecimal.ZERO));
     }
 }

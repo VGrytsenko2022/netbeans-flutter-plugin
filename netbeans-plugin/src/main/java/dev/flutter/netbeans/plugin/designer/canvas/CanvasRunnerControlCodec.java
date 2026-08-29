@@ -40,12 +40,15 @@ public final class CanvasRunnerControlCodec {
     private static final Set<String> SELECTION_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "widgetId");
+    private static final Set<String> DELETE_SELECTION_FIELDS = SELECTION_FIELDS;
     private static final Set<String> PALETTE_DROP_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "token",
             "operation", "parentWidgetId", "slotName", "insertionIndex");
     private static final String PALETTE_DROP_TOKEN_PREFIX = "nbfdnd:v1:";
     private static final int MAX_PALETTE_DROP_TOKEN_CHARACTERS = 160;
+    private static final Set<String> PALETTE_DROP_SLOTS = Set.of(
+            "children", "child", "body", "floatingActionButton");
 
     private final JsonFactory jsonFactory;
     private final ObjectMapper mapper;
@@ -130,6 +133,8 @@ public final class CanvasRunnerControlCodec {
                 case "runner.presented" -> decodePresented(sessionId, body);
                 case "runner.selection" -> decodeSelection(sessionId, body);
                 case "runner.paletteDrop" -> decodePaletteDrop(sessionId, body);
+                case "runner.deleteSelection" -> decodeDeleteSelection(
+                        sessionId, body);
                 default -> throw invalid("Canvas runtime message type is not supported.");
             };
         } catch (CanvasRunnerControlException failure) {
@@ -180,7 +185,7 @@ public final class CanvasRunnerControlCodec {
                 sessionId, requireSequence(body, "intentSequence"));
         requireText(body, "operation", "ADD");
         String slot = requireText(body, "slotName");
-        if (!"children".equals(slot)) {
+        if (!PALETTE_DROP_SLOTS.contains(slot)) {
             throw invalid("Canvas runtime field slotName is not supported.");
         }
         return new CanvasRunnerRuntimeEvent.PaletteDrop(
@@ -189,6 +194,23 @@ public final class CanvasRunnerControlCodec {
                 parseStableId(body, "parentWidgetId"),
                 new SlotName(slot),
                 requireInsertionIndex(body));
+    }
+
+    private static CanvasRunnerRuntimeEvent.DeleteSelection decodeDeleteSelection(
+            CanvasSessionId sessionId,
+            JsonNode body) throws CanvasRunnerControlException {
+        requireFields(
+                body, DELETE_SELECTION_FIELDS, "runner.deleteSelection body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        CanvasFrameKey frame = new CanvasFrameKey(
+                revision, requireSequence(body, "frameSequence"));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        CanvasIntentId intentId = new CanvasIntentId(
+                sessionId, requireSequence(body, "intentSequence"));
+        return new CanvasRunnerRuntimeEvent.DeleteSelection(
+                new CanvasIntentKey(intentId, layout),
+                parseStableId(body, "widgetId"));
     }
 
     private static CanvasRevisionKey readRevision(

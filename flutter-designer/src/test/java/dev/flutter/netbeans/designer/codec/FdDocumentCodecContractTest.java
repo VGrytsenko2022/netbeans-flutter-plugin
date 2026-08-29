@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.designer.codec;
 
 import dev.flutter.netbeans.designer.model.CanvasOrientation;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.ExtensionKey;
@@ -8,7 +9,9 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
+import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.json.JsonValue;
 import java.io.IOException;
@@ -20,6 +23,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -29,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FdDocumentCodecContractTest {
@@ -36,6 +43,8 @@ class FdDocumentCodecContractTest {
             Path.of("docs", "flutter-designer", "examples", "home_page.fd");
     private static final String ALL_FEATURES_RESOURCE =
             "dev/flutter/netbeans/designer/codec/all-v1-features.fd";
+    private static final String ALL_V2_FEATURES_RESOURCE =
+            "dev/flutter/netbeans/designer/codec/all-v2-features.fd";
     private static final byte[] UTF_8_BOM = {
         (byte) 0xEF, (byte) 0xBB, (byte) 0xBF
     };
@@ -43,23 +52,29 @@ class FdDocumentCodecContractTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void decodesTheDocumentedGoldenAndEncodesItByteForByteCanonically() throws Exception {
+    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV2() throws Exception {
         byte[] documented = Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT));
 
         FdDecodeResult.Current first = current(codec.decode(documented));
         assertAll(
-                () -> assertEquals(DesignerDocument.SCHEMA_VERSION, first.sourceSchemaVersion()),
-                () -> assertFalse(first.migrated()),
+                () -> assertEquals(1, first.sourceSchemaVersion()),
+                () -> assertTrue(first.migrated()),
                 () -> assertTrue(first.original().contentEquals(documented)),
+                () -> assertEquals("../fd-v2.schema.json",
+                        first.document().schemaReference().orElseThrow()),
                 () -> assertEquals("home_page.dart", first.document().source().dartFile()),
                 () -> assertEquals("HomePage", first.document().source().className()),
                 () -> assertEquals("flutter.material.Scaffold", first.document().root().type().value()));
 
         OriginalFdBytes encoded = codec.encode(first.document());
-        assertArrayEquals(documented, encoded.copyBytes(),
-                "The checked-in home_page.fd is the canonical v1 golden");
+        String encodedJson = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
+        assertTrue(encodedJson.contains("\"schemaVersion\": 2"));
+        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v2.schema.json\""));
+        assertFalse(Arrays.equals(documented, encoded.copyBytes()));
 
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
+        assertFalse(roundTrip.migrated());
+        assertEquals(2, roundTrip.sourceSchemaVersion());
         assertEquals(first.document(), roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes(),
                 "decode/encode must reach a stable fixed point");
@@ -68,12 +83,12 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void dispatchesACompleteFutureDocumentWithoutInterpretingItsV1Body() throws Exception {
-        byte[] versionTwo = replaceAscii(
+    void dispatchesACompleteFutureDocumentWithoutInterpretingItsBody() throws Exception {
+        byte[] versionThree = replaceAscii(
                 Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT)),
                 "\"schemaVersion\": 1",
-                "\"schemaVersion\": 2");
-        String futureJson = new String(versionTwo, StandardCharsets.UTF_8);
+                "\"schemaVersion\": 3");
+        String futureJson = new String(versionThree, StandardCharsets.UTF_8);
         int closingBrace = futureJson.lastIndexOf('}');
         byte[] future = utf8(futureJson.substring(0, closingBrace)
                 + ",\n  \"futureOnly\": {\"newShape\": true}\n"
@@ -83,7 +98,7 @@ class FdDocumentCodecContractTest {
                 FdDecodeResult.UnsupportedNewer.class,
                 codec.decode(future));
         assertAll(
-                () -> assertEquals(BigInteger.valueOf(2), result.declaredSchemaVersion()),
+                () -> assertEquals(BigInteger.valueOf(3), result.declaredSchemaVersion()),
                 () -> assertArrayEquals(future, result.original().copyBytes()));
 
         future[0] ^= 1;
@@ -93,14 +108,14 @@ class FdDocumentCodecContractTest {
 
     @Test
     void malformedFutureInputIsInvalidRatherThanUnsupported() throws Exception {
-        byte[] future = utf8(minimalDocument("2", "{}"));
+        byte[] future = utf8(minimalDocument("3", "{}"));
         byte[] withTrailingGarbage = Arrays.copyOf(future, future.length + 1);
         withTrailingGarbage[withTrailingGarbage.length - 1] = 'x';
 
         FdDecodeResult.Invalid invalid = invalid(codec.decode(withTrailingGarbage));
         assertAll(
                 () -> assertEquals(
-                        BigInteger.valueOf(2),
+                        BigInteger.valueOf(3),
                         invalid.declaredSchemaVersion().orElseThrow()),
                 () -> assertTrue(hasDiagnostic(invalid, FdCodecDiagnosticCode.TRAILING_CONTENT)),
                 () -> assertArrayEquals(withTrailingGarbage, invalid.original().copyBytes()));
@@ -144,23 +159,56 @@ class FdDocumentCodecContractTest {
 
     @Test
     void treatsSchemaVersionAsAMathematicalInteger() throws Exception {
-        for (String currentVersion : new String[]{"1", "1.0", "1e0", "10e-1"}) {
+        for (String migratedVersion : new String[]{"1", "1.0", "1e0", "10e-1"}) {
             FdDecodeResult.Current result = current(
-                    codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
-            assertEquals(1, result.sourceSchemaVersion(), currentVersion);
+                    codec.decode(utf8(minimalDocument(migratedVersion, "{}"))));
+            assertEquals(1, result.sourceSchemaVersion(), migratedVersion);
+            assertTrue(result.migrated(), migratedVersion);
         }
 
-        for (String futureVersion : new String[]{"2", "2.0", "2e0", "20e-1"}) {
+        for (String currentVersion : new String[]{"2", "2.0", "2e0", "20e-1"}) {
+            FdDecodeResult.Current result = current(
+                    codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
+            assertEquals(2, result.sourceSchemaVersion(), currentVersion);
+            assertFalse(result.migrated(), currentVersion);
+        }
+
+        for (String futureVersion : new String[]{"3", "3.0", "3e0", "30e-1"}) {
             FdDecodeResult.UnsupportedNewer result = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(utf8(minimalDocument(futureVersion, "{}"))),
                     futureVersion);
-            assertEquals(BigInteger.valueOf(2), result.declaredSchemaVersion(), futureVersion);
+            assertEquals(BigInteger.valueOf(3), result.declaredSchemaVersion(), futureVersion);
         }
 
         FdDecodeResult.Invalid fractional = invalid(
                 codec.decode(utf8(minimalDocument("1.5", "{}"))));
         assertTrue(hasDiagnostic(fractional, FdCodecDiagnosticCode.INVALID_VALUE));
+    }
+
+    @Test
+    void migratesOnlyKnownV1SchemaReferencesToV2() throws Exception {
+        String canonical = minimalDocument("1", "{}").replace(
+                "{\n  \"format\"",
+                "{\n  \"$schema\": \"urn:netbeans-flutter-designer:schema:fd:1\",\n"
+                + "  \"format\"");
+        FdDecodeResult.Current migrated = current(codec.decode(utf8(canonical)));
+        assertEquals(
+                "urn:netbeans-flutter-designer:schema:fd:2",
+                migrated.document().schemaReference().orElseThrow());
+        String encoded = new String(
+                codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
+        assertTrue(encoded.contains(
+                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:2\""));
+        assertTrue(encoded.contains("\"schemaVersion\": 2"));
+
+        String arbitrary = canonical.replace(
+                "urn:netbeans-flutter-designer:schema:fd:1",
+                "urn:example:custom-schema:1");
+        assertEquals(
+                "urn:example:custom-schema:1",
+                current(codec.decode(utf8(arbitrary)))
+                        .document().schemaReference().orElseThrow());
     }
 
     @Test
@@ -218,7 +266,19 @@ class FdDocumentCodecContractTest {
         Set<PropertyValueKind> actualKinds = document.root().properties().values().stream()
                 .map(PropertyValue::kind)
                 .collect(Collectors.toSet());
-        assertEquals(EnumSet.allOf(PropertyValueKind.class), actualKinds);
+        assertEquals(EnumSet.of(
+                PropertyValueKind.STRING,
+                PropertyValueKind.BOOLEAN,
+                PropertyValueKind.INTEGER,
+                PropertyValueKind.DOUBLE,
+                PropertyValueKind.ENUM,
+                PropertyValueKind.COLOR,
+                PropertyValueKind.EDGE_INSETS,
+                PropertyValueKind.ASSET,
+                PropertyValueKind.CALLBACK,
+                PropertyValueKind.DART_EXPRESSION), actualKinds);
+        assertEquals(1, decoded.sourceSchemaVersion());
+        assertTrue(decoded.migrated());
         assertEquals(
                 "Привіт, Flutter 🌍",
                 assertInstanceOf(PropertyValue.StringValue.class,
@@ -337,8 +397,205 @@ class FdDocumentCodecContractTest {
         assertArrayEquals(canonical, codec.encode(document).copyBytes());
     }
 
+    @Test
+    void roundTripsEveryStructuredV2ValueByteForByteCanonically() throws Exception {
+        byte[] source = resourceBytes(ALL_V2_FEATURES_RESOURCE);
+        FdDecodeResult.Current decoded = current(codec.decode(source));
+        DesignerDocument document = decoded.document();
+
+        assertEquals(2, decoded.sourceSchemaVersion());
+        assertFalse(decoded.migrated());
+        assertEquals(Set.of(
+                PropertyValueKind.THEME_TOKEN,
+                PropertyValueKind.PAINT,
+                PropertyValueKind.SHADOW_LIST,
+                PropertyValueKind.FONT_FEATURE_LIST,
+                PropertyValueKind.FONT_VARIATION_LIST),
+                document.root().properties().values().stream()
+                        .map(PropertyValue::kind)
+                        .collect(Collectors.toSet()));
+
+        PropertyValue.PaintValue paint = assertInstanceOf(
+                PropertyValue.PaintValue.class, property(document, "bPaint"));
+        assertAll(
+                () -> assertEquals(PropertyValue.PaintValue.BlendMode.MULTIPLY,
+                        paint.blendMode()),
+                () -> assertEquals(new BigDecimal("2.5"), paint.strokeWidth()),
+                () -> assertEquals("0xFFAABBCC",
+                        assertInstanceOf(ColorSource.Literal.class, paint.color()).wireArgb()),
+                () -> assertEquals(new BigDecimal("3.5"),
+                        paint.maskFilter().orElseThrow().sigma()));
+        PropertyValue.ShadowListValue shadows = assertInstanceOf(
+                PropertyValue.ShadowListValue.class, property(document, "cShadows"));
+        assertEquals(
+                "material.colorScheme.shadow",
+                assertInstanceOf(ColorSource.Theme.class,
+                        shadows.items().getFirst().color()).token().wireId());
+        assertEquals("liga", assertInstanceOf(
+                PropertyValue.FontFeatureListValue.class,
+                property(document, "dFeatures")).items().getFirst().tag());
+        assertEquals(new BigDecimal("7E+2"), assertInstanceOf(
+                PropertyValue.FontVariationListValue.class,
+                property(document, "eVariations")).items().getFirst().value());
+
+        OriginalFdBytes encoded = codec.encode(document);
+        assertArrayEquals(source, encoded.copyBytes());
+        FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
+        assertEquals(document, roundTrip.document());
+        assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
+    }
+
+    @Test
+    void rejectsMalformedComplexValuesAndV2KindsInsideV1() throws Exception {
+        String valid = new String(resourceBytes(ALL_V2_FEATURES_RESOURCE), StandardCharsets.UTF_8);
+        String[] invalidDocuments = {
+            valid.replace("material.textTheme.bodyMedium", "material.textTheme.BodyMedium"),
+            valid.replace("material.colorScheme.shadow", "material.textTheme.bodyMedium"),
+            valid.replace("\"strokeWidth\": 2.5", "\"strokeWidth\": -1"),
+            valid.replace("\"strokeWidth\": 2.5", "\"strokeWidth\": 1E+400"),
+            valid.replace("\"strokeMiterLimit\": 4", "\"strokeMiterLimit\": 1E-400"),
+            valid.replace("\"sigma\": 3.5", "\"sigma\": 0"),
+            valid.replace(
+                    "\"sigma\": 3.5",
+                    "\"sigma\": 1.234567890123456789"),
+            valid.replace("\"offsetX\": -1", "\"offsetX\": 1E+400"),
+            valid.replace("\"offsetY\": 2", "\"offsetY\": 1E-400"),
+            valid.replace("\"blurRadius\": 3", "\"blurRadius\": -1"),
+            valid.replace(
+                    "\"blurRadius\": 3",
+                    "\"blurRadius\": 1.234567890123456789"),
+            valid.replace("\"tag\": \"liga\"", "\"tag\": \"lig\""),
+            valid.replace("\"value\": 1", "\"value\": 2147483648"),
+            valid.replace("\"value\": 700", "\"value\": 1001"),
+            valid.replace(
+                    "\"value\": 700",
+                    "\"value\": 700.000000000000000001"),
+            valid.replace("\"axis\": \"wght\"", "\"axis\": \"badÇ\""),
+            valid.replace(
+                    "\"invertColors\": false,",
+                    "\"invertColors\": false,\n        \"shader\": \"raw\",")
+        };
+        for (String invalidDocument : invalidDocuments) {
+            FdDecodeResult.Invalid invalid = invalid(codec.decode(utf8(invalidDocument)));
+            assertTrue(invalid.diagnostics().stream().anyMatch(diagnostic ->
+                    diagnostic.code() == FdCodecDiagnosticCode.INVALID_VALUE
+                    || diagnostic.code() == FdCodecDiagnosticCode.UNKNOWN_FIELD),
+                    () -> invalid.diagnostics().toString());
+        }
+
+        String v1WithThemeToken = minimalDocument("1", "{}").replace(
+                "\"properties\": {},",
+                "\"properties\": {\n"
+                + "      \"style\": {\"kind\": \"themeToken\", "
+                + "\"token\": \"material.textTheme.bodyMedium\"}\n"
+                + "    },");
+        FdDecodeResult.Invalid invalidV1 = invalid(codec.decode(utf8(v1WithThemeToken)));
+        assertTrue(hasDiagnostic(invalidV1, FdCodecDiagnosticCode.INVALID_VALUE));
+    }
+
+    @Test
+    void canonicalWriterRejectsEveryNonRepresentableComplexNumericLeaf()
+            throws Exception {
+        DesignerDocument base = current(codec.decode(
+                resourceBytes(ALL_V2_FEATURES_RESOURCE))).document();
+        BigDecimal overflow = new BigDecimal("1E+400");
+        BigDecimal underflow = new BigDecimal("1E-400");
+        BigDecimal excessPrecision = new BigDecimal("1.234567890123456789");
+
+        assertEncodeRejects(base, "bPaint",
+                paint(overflow, BigDecimal.valueOf(4), BigDecimal.ONE),
+                "/strokeWidth");
+        assertEncodeRejects(base, "bPaint",
+                paint(BigDecimal.ZERO, underflow, BigDecimal.ONE),
+                "/strokeMiterLimit");
+        assertEncodeRejects(base, "bPaint",
+                paint(BigDecimal.ZERO, BigDecimal.valueOf(4), excessPrecision),
+                "/maskFilter/sigma");
+        assertEncodeRejects(base, "cShadows",
+                shadows(overflow, BigDecimal.ZERO, BigDecimal.ZERO),
+                "/offsetX");
+        assertEncodeRejects(base, "cShadows",
+                shadows(BigDecimal.ZERO, underflow, BigDecimal.ZERO),
+                "/offsetY");
+        assertEncodeRejects(base, "cShadows",
+                shadows(BigDecimal.ZERO, BigDecimal.ZERO, excessPrecision),
+                "/blurRadius");
+        assertEncodeRejects(base, "eVariations", variations(underflow), "/value");
+        assertEncodeRejects(base, "eVariations", variations(excessPrecision), "/value");
+    }
+
     private static PropertyValue property(DesignerDocument document, String name) {
         return document.root().properties().get(new PropertyName(name));
+    }
+
+    private void assertEncodeRejects(
+            DesignerDocument base,
+            String propertyName,
+            PropertyValue value,
+            String pointerSuffix) {
+        LinkedHashMap<PropertyName, PropertyValue> properties =
+                new LinkedHashMap<>(base.root().properties());
+        properties.put(new PropertyName(propertyName), value);
+        WidgetNode root = new WidgetNode(
+                base.root().id(),
+                base.root().type(),
+                properties,
+                base.root().slots(),
+                base.root().extensions());
+        DesignerDocument document = new DesignerDocument(
+                base.schemaReference(),
+                base.documentId(),
+                base.source(),
+                base.canvas(),
+                root,
+                base.extensions());
+
+        FdEncodeException failure = assertThrows(
+                FdEncodeException.class, () -> codec.encode(document));
+        assertEquals(FdCodecDiagnosticCode.INVALID_VALUE,
+                failure.diagnostic().code());
+        assertTrue(failure.diagnostic().pointer().endsWith(pointerSuffix),
+                () -> failure.diagnostic().toString());
+    }
+
+    private static PropertyValue.PaintValue paint(
+            BigDecimal strokeWidth,
+            BigDecimal strokeMiterLimit,
+            BigDecimal sigma) {
+        return new PropertyValue.PaintValue(
+                new ColorSource.Literal(0xFF112233L),
+                PropertyValue.PaintValue.BlendMode.SRC_OVER,
+                PropertyValue.PaintValue.Style.FILL,
+                strokeWidth,
+                PropertyValue.PaintValue.StrokeCap.BUTT,
+                PropertyValue.PaintValue.StrokeJoin.MITER,
+                strokeMiterLimit,
+                true,
+                PropertyValue.PaintValue.FilterQuality.NONE,
+                false,
+                Optional.of(new PropertyValue.PaintValue.BlurMask(
+                        PropertyValue.PaintValue.BlurStyle.NORMAL, sigma)));
+    }
+
+    private static PropertyValue.ShadowListValue shadows(
+            BigDecimal offsetX,
+            BigDecimal offsetY,
+            BigDecimal blurRadius) {
+        return new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("42d383f3-6054-426d-822e-c5eb8f8ae304"),
+                        new ColorSource.Literal(0xFF112233L),
+                        offsetX,
+                        offsetY,
+                        blurRadius)));
+    }
+
+    private static PropertyValue.FontVariationListValue variations(BigDecimal value) {
+        return new PropertyValue.FontVariationListValue(List.of(
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        StableId.parse("16c65ef9-0791-49f1-9499-c2f6e626e94f"),
+                        "GRAD",
+                        value)));
     }
 
     private static FdDecodeResult.Current current(FdDecodeResult result) {

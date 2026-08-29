@@ -6,6 +6,48 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- Catalog-driven native Canvas insertion for all six CORE_V1 Palette widgets:
+  `Scaffold`, `Column`, `Row`, `Padding`, `Center` and `Text`. Java preserves the
+  exact one-shot Palette type through the native round trip and revalidates the
+  complete 36-cell compatibility matrix before creating an `AddWidget` command.
+  Flutter exposes only empty `Scaffold.body`,
+  `Scaffold.floatingActionButton`, `Padding.child` and `Center.child` targets or
+  terminal `Row/Column.children`; occupied, non-terminal, stale, replayed,
+  trait-incompatible and non-CORE_V1 drops remain fail-closed.
+- Project-wide Flutter theme foundations. Every newly created application now
+  receives a strict versioned `.fd_templates/project.fdtheme`, deterministic
+  hash-guarded `lib/theme/app_theme.dart`, built-in Light and Dark Material seed
+  themes, `ThemeMode.system`, and transactional `MaterialApp` wiring while
+  retaining Flutter's standard counter sample and widget test. Theme
+  definitions are never stored in an individual `.fd` form.
+- A NetBeans `Edit Flutter Themes...` workflow and dedicated `.fdtheme` file
+  type. The custom-theme editor is a singleton `Themes` tab beside `Palette`,
+  with Save/Reload, default mode, active light/dark references,
+  Add/Duplicate/Remove, stable id, display name, brightness and a seed color
+  chooser. Its compact `General`, `Colors` and `Typography` tabs expose all 46
+  supported non-deprecated Material `ColorScheme` roles and all 15 Material 3
+  `TextTheme` roles, with 13 typed optional `TextStyle` fields per role. Schema
+  v2 adds `Enable project themes`; schema v3 adds an enable switch to every
+  definition; schema v4 adds the typed role overrides. Schema v1-v3 remains
+  readable with empty overrides and explicit Save emits canonical v4. Disabled
+  definitions remain in the descriptor and are omitted from generated Dart.
+  Disabling project themes preserves the complete catalog while runtime and
+  Canvas use Flutter defaults. Descriptor and generated Dart saves are
+  exact-baseline, hash-conflict guarded and paired; manually changed generated
+  Dart is never overwritten. Existing applications without the descriptor can
+  explicitly initialize the same default pair when their `main.dart` still has
+  the recognized Flutter template shape.
+- Native Canvas theme synchronization now resolves the verified project theme
+  shared by every Designer form, carries its exact id/ARGB seed/brightness,
+  complete ColorScheme/TextTheme override tables and semantic digest over the
+  isolated model protocol-v4 boundary, and assembles them in the same order as
+  generated Dart: seed scheme, `ColorScheme.copyWith`, `ThemeData.from`, then
+  `TextTheme.copyWith`. Form-local Text properties are applied last and remain
+  intentional overrides. Open Canvas tabs coalesce theme file changes and
+  re-render; a present invalid descriptor, missing generated Dart file or hash
+  mismatch withdraws preview with the concrete reason. Older projects with no
+  descriptor retain the bounded legacy preview and are not modified merely by
+  opening a form.
 - A `Target Platforms` step in the Flutter Application wizard with Recommended, Mobile, Desktop, Web, All, and custom selections. The exact non-empty canonical selection is passed to `flutter create --platforms=...` and every requested real directory is verified before the project is opened.
 - Safe later platform scaffolding for existing Flutter applications through `Flutter > Add Flutter Platforms...` and the project context menu. Only absent canonical paths are offered, occupied directories/files/symbolic links are never overwritten, unsupported Flutter project types fail closed, and execution uses native Output, progress, cancellation, and postcondition checks.
 - The first isolated native Flutter Canvas host foundation for each open `.fd` Design tab: versioned runner sources are packaged in the NBM, built outside the EDT, integrity-checked and cached by SDK/source identity, launched as a separate process, and attached as a verified Windows child window without PNG or pixel-frame transport.
@@ -15,8 +57,26 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   and `Center`. The Design toolbar selects Mobile, Tablet, Desktop or Web
   responsive viewport profiles, while stable widget IDs synchronize selection
   between the real Flutter surface and the read-only Explorer tree. The runner
-  receives no project paths, Dart source or persistence authority; Palette,
-  drag-and-drop, editable Properties and Designer mutation remain disabled.
+  receives no project paths, Dart source or persistence authority. Later
+  host-authorized Properties and DnD slices retain that boundary.
+- Expanded `Text` Properties from ten direct arguments to 59 typed leaves in
+  seven sets: Text, Accessibility, Locale and scaling, Text style, Paint and
+  effects, Advanced typography and Strut style. NetBeans supplies bounded
+  string and newline-list editors, optional boolean checkboxes, constrained
+  numeric controls, closed enum lists, literal/theme-aware color editing, a
+  transactional safe-subset `Paint` editor and ordered Shadow/OpenType tables.
+  Deterministic Dart generation and the native Canvas share exact assembly into
+  `TextStyle`, `StrutStyle`, `Locale.fromSubtags`, `TextScaler.linear` and
+  `TextHeightBehavior`, including decoration combining and font fallback lists.
+  Semantic Material `ColorScheme` and `TextTheme` roles follow the active
+  project theme; explicit fields remain local overrides. The deprecated
+  `Text.textScaleFactor` argument, `key` and arbitrary Dart/shader/filter graphs
+  remain outside the closed typed slice.
+- Added canonical Flutter Designer `.fd` schema v2 with typed `themeToken`,
+  `paint`, `shadowList`, `fontFeatureList` and `fontVariationList` values.
+  Existing v1 documents migrate in memory, canonical schema references advance
+  to v2, malformed or future inputs remain fail-closed, and the next admitted
+  edit persists canonical v2 without silently changing a file merely on open.
 - Flutter Designer preview availability now follows the active project's real
   generated platform directories and preserves the exact adaptive target:
   Android exposes Android Phone/Tablet, iOS exposes iPhone/iPad, each desktop
@@ -25,9 +85,9 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   the exact choice (then the same viewport mode), and fall back deterministically
   when it disappears. Android/iOS/macOS/Linux choices now reach Flutter's
   `ThemeData.platform` instead of being hardcoded to Windows. A project with no
-  configured platform disables Preview. Web selection reports the missing
-  browser Canvas backend explicitly and is no longer rendered by a misleading
-  Windows-engine substitute.
+  configured platform disables Preview. Web now renders its exact browser-sized
+  responsive viewport through the native Canvas as an explicit layout preview;
+  it does not claim `kIsWeb` or browser-only runtime fidelity.
 - Native NetBeans 30 Flutter-project deletion through the standard confirmation dialog, with one shared Move/Delete data provider, exact plugin-owned metadata inventory for the keep-sources path, project-service shutdown, private-state cleanup, retry-safe lifecycle callbacks, and regression coverage that preserves Dart, Flutter Designer, and foreign metadata files.
 - Pair-aware Flutter Designer form deletion from either visible `.dart` or `.fd` node. Only a complete, clean, writable mirrored pair is admitted; unsafe symlink/junction escapes and hard-linked identities fail closed. The operation closes an open clean shared editor, locks both paths deterministically, stages reversible private tombstones, removes both members, and exact-byte verifies any pre-commit rollback.
 - Pair-aware Flutter Designer form rename from either visible `.dart` or `.fd` node. A canonical lower-snake-case target renames both mirrored files and updates only schema-v1 `source.dartFile`, preserving the exact Dart bytes, `source.className`, document identity, widget tree, canvas preferences, extensions, and managed-region hashes. Complete, clean, writable current-version pairs are staged under deterministic locks, verified at their target paths, and exact-byte restored on a pre-commit failure; this is an in-process rollback guarantee, not a durable crash-recovery journal.
@@ -75,17 +135,23 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 - Packaged NetBeans 30 coverage now proves one shared Design/Source Undo identity and the public CES dirty→Save→Undo→Redo savepoint lifecycle. The strict release verifier and isolated clean-install lifecycle pass through activation, SDK auto-discovery, project reopen, disable, uninstall and fresh-cache cleanup with no critical log entries or plugin-owned ordering warnings.
 - A new Designer command may now branch from an exact noncanonical saved-history endpoint such as `C1/S0`. An opaque staged command-source token binds the logical owner, endpoint-specific `SavedHistoryProof`, live identity, monotonic NetBeans document version and coordinator epochs; even edit-to-exact-revert ABA is rejected before replacement publication. The pending lease derives and pins `C3/S0` from that exact pair until joint analyzer/document/pair/command adoption. The generalized replacement/recovery path accepts analyzer-free saved predecessors without fabricating analyzer evidence, rejects canonical-pair or stale-token substitution without mutation, preserves the older native semantic graph across an atomically rolled-back failed apply, and counts the candidate with all physical history variants before analyzer or CES work. Adoption preserves durable `C2/S2`, truncates the obsolete `S2/C2` redo suffix, installs the exact `B/S0→C1/S0→C3/S0` branch, and keeps `S0` sticky for the following ordinary command.
 
-- The active Flutter Designer `Design` lookup now publishes the standard NetBeans Palette filtered by the native Canvas' single `CORE_V1` capability predicate to exactly `Scaffold`, `Column`, `Row`, `Padding`, `Center` and `Text`. Stable-ID tree/Canvas selection drives standard selected-Node read-only Properties; Palette actions, drag/drop and Designer-model mutation remain disabled. Palette and Properties open once on the first Design activation without taking focus from the editor.
+- The active Flutter Designer `Design` lookup now publishes the standard NetBeans Palette filtered by the native Canvas' single `CORE_V1` capability predicate to exactly `Scaffold`, `Column`, `Row`, `Padding`, `Center` and `Text`. Stable-ID tree/Canvas selection drives standard selected-Node Properties: 76 catalog-backed fields are writable across the five non-`Scaffold` widgets, including the 59-leaf Text projection. The historical first DnD vertical slice admitted only built-in `Text`; it is superseded in this release by the catalog-driven six-source compatibility matrix described above. The widget catalog remains the Java authority for source type, slot cardinality and acceptance. Palette and Properties open once on the first Design activation without taking focus from the editor.
 
 ### Fixed
 
+- The first Pair Save after editing a schema-v1 `.fd` model now re-anchors
+  retained semantic history to the proven canonical schema-v2 revision instead
+  of mixing the raw v1 baseline into a new durable endpoint. Repeated Properties
+  edits can therefore Save and traverse Undo history without the former
+  `physical history variant` / `durable anchor` derivation error; exact
+  historical Dart envelopes and strict byte-identity checks remain intact.
 - Run-target and emulator discovery is now intersected with the real platform scaffolding of the active Flutter application. An Android-only project no longer advertises Windows, Web, or iOS targets, stale toolbar selections are revalidated before Run/Debug, non-application project types fail closed, and a successful `Add Flutter Platforms...` refreshes the target combo immediately.
 
 ### Changed
 
 - The Flutter Designer footer is now a single compact status row. Normal state shows only `Designer ready.` and the current Canvas summary; full model/source/hash diagnostics remain available through tooltips and accessibility metadata, while the existing Canvas `Details...` dialog remains reserved for failed or unavailable native rendering.
 - `.dart` is the technical primary NetBeans entry for a designer pair while `.fd` remains the canonical visual-model source of truth. Dart-only Save As remains withheld until a dedicated pair-aware Save As flow is implemented.
-- Designer mutation remains intentionally disabled even though scanner/generator probes, the shared capacity budget, first-stage and chained analyzed replacement, exact rollback/rebind, native Source/model replay, Pair/Source Save re-anchoring, noncanonical physical-endpoint command admission, exact `.fd`-only commits, non-destructive pre-persistence recovery, the isolated native Canvas host, bounded six-widget read-only projection, stable-ID selection bridge, context Palette, read-only Properties and the NetBeans 30 runtime/release gate now pass. Writable UI still requires editable Properties and the revision-bound drag/drop mutation workflow; `PUBLIC_MUTATION_UI_ENABLED` remains `false`.
+- Designer mutation remains closed except for the admitted revision-bound 76-property Set/Reset path and the separately fenced catalog-driven insertion path for all six `CORE_V1` Palette sources. That path supersedes the historical Text-only vertical slice and accepts only the reviewed empty-single or terminal-list cells in the 36-cell compatibility matrix. Scanner/generator probes, analyzed replacement, exact rollback/rebind, native Source/model replay, Pair/Source Save re-anchoring, the isolated native Canvas host and the NetBeans 30 runtime/release gate remain authoritative; `Scaffold` Properties, non-insertion Palette operations and unreviewed object graphs stay disabled.
 - Moved the `.fd` MIME resolver away from NetBeans 30's built-in position `350` and left the Dart `UndoableEditWrapper` unpositioned with the other heterogeneous Dart MIME services, eliminating both plugin-owned layer-ordering warnings found by isolated install smoke.
 - Corrected pre-release version 1 schema bounds before a codec ships: widget type ids now accept the intended 1–255 characters, enum type names require non-empty dot-separated Dart identifiers, and the reserved Dart identifier `Function` is no longer accepted as a generated class name.
 

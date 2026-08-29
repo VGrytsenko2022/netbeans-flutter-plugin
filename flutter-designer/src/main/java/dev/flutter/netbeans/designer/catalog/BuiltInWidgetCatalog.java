@@ -178,7 +178,82 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("semanticsIdentifier", 6, false, any(PropertyValueKind.STRING)),
                         namedProperty("textWidthBasis", 7, false,
                                 enumValues("TextWidthBasis", "parent", "longestLine")),
-                        namedProperty("selectionColor", 8, false, any(PropertyValueKind.COLOR))),
+                        namedProperty("selectionColor", 8, false, colorOrTheme()),
+
+                        // Text.locale, projected as independently editable subtags.
+                        namedProperty("localeLanguageCode", 9, false, localeLanguageCode()),
+                        namedProperty("localeScriptCode", 10, false, localeScriptCode()),
+                        namedProperty("localeCountryCode", 11, false, localeCountryCode()),
+                        namedProperty("textScalerFactor", 12, false, nonNegativeDoubles()),
+                        namedProperty("textHeightApplyFirstAscent", 13, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("textHeightApplyLastDescent", 14, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("textHeightLeadingDistribution", 15, false,
+                                enumValues("TextLeadingDistribution", "proportional", "even")),
+
+                        // Text.style -> a semantic TextTheme base with independently
+                        // resettable, typed local overrides.
+                        namedProperty("styleThemeTextStyle", 52, false, textStyleTheme()),
+                        namedProperty("styleInherit", 16, false, any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("styleColor", 17, false, colorOrTheme()),
+                        namedProperty("styleBackgroundColor", 18, false, colorOrTheme()),
+                        namedProperty("styleFontSize", 19, false, nonNegativeDoubles()),
+                        namedProperty("styleFontWeight", 20, false,
+                                enumValues("FontWeight", "w100", "w200", "w300", "w400", "w500",
+                                        "w600", "w700", "w800", "w900")),
+                        namedProperty("styleFontStyle", 21, false,
+                                enumValues("FontStyle", "normal", "italic")),
+                        namedProperty("styleLetterSpacing", 22, false, finiteDoubles()),
+                        namedProperty("styleWordSpacing", 23, false, finiteDoubles()),
+                        namedProperty("styleTextBaseline", 24, false,
+                                enumValues("TextBaseline", "alphabetic", "ideographic")),
+                        namedProperty("styleHeight", 25, false, finiteDoubles()),
+                        namedProperty("styleLeadingDistribution", 26, false,
+                                enumValues("TextLeadingDistribution", "proportional", "even")),
+                        namedProperty("styleLocaleLanguageCode", 27, false, localeLanguageCode()),
+                        namedProperty("styleLocaleScriptCode", 28, false, localeScriptCode()),
+                        namedProperty("styleLocaleCountryCode", 29, false, localeCountryCode()),
+                        namedProperty("styleDecorationUnderline", 30, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("styleDecorationOverline", 31, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("styleDecorationLineThrough", 32, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("styleForeground", 53, false, paintValues()),
+                        namedProperty("styleBackground", 54, false, paintValues()),
+                        namedProperty("styleShadows", 55, false, shadowValues()),
+                        namedProperty("styleFontFeatures", 56, false,
+                                any(PropertyValueKind.FONT_FEATURE_LIST)),
+                        namedProperty("styleFontVariations", 57, false,
+                                fontVariationValues()),
+                        namedProperty("styleDecorationColor", 33, false, colorOrTheme()),
+                        namedProperty("styleDecorationStyle", 34, false,
+                                enumValues("TextDecorationStyle", "solid", "double", "dotted", "dashed", "wavy")),
+                        namedProperty("styleDecorationThickness", 35, false, finiteDoubles()),
+                        namedProperty("styleDebugLabel", 36, false, any(PropertyValueKind.STRING)),
+                        namedProperty("styleFontFamily", 37, false, stringLength(1, 256)),
+                        namedProperty("styleFontFamilyFallback", 38, false, stringLength(0, 4096)),
+                        namedProperty("stylePackage", 39, false, stringLength(1, 256)),
+                        namedProperty("styleOverflow", 40, false,
+                                enumValues("TextOverflow", "clip", "fade", "ellipsis", "visible")),
+
+                        // Text.strutStyle -> StrutStyle(...).
+                        namedProperty("strutFontFamily", 41, false, stringLength(1, 256)),
+                        namedProperty("strutFontFamilyFallback", 42, false, stringLength(0, 4096)),
+                        namedProperty("strutFontSize", 43, false, positiveDoubles()),
+                        namedProperty("strutHeight", 44, false, finiteDoubles()),
+                        namedProperty("strutLeadingDistribution", 45, false,
+                                enumValues("TextLeadingDistribution", "proportional", "even")),
+                        namedProperty("strutLeading", 46, false, nonNegativeDoubles()),
+                        namedProperty("strutFontWeight", 47, false,
+                                enumValues("FontWeight", "w100", "w200", "w300", "w400", "w500",
+                                        "w600", "w700", "w800", "w900")),
+                        namedProperty("strutFontStyle", 48, false,
+                                enumValues("FontStyle", "normal", "italic")),
+                        namedProperty("strutForceHeight", 49, false, any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("strutDebugLabel", 50, false, any(PropertyValueKind.STRING)),
+                        namedProperty("strutPackage", 51, false, stringLength(1, 256))),
                 List.of());
     }
 
@@ -314,6 +389,32 @@ public final class BuiltInWidgetCatalog {
         return List.of(new PropertyValueConstraint.AnyValue(kind));
     }
 
+    private static List<PropertyValueConstraint> colorOrTheme() {
+        return List.of(
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.COLOR),
+                new PropertyValueConstraint.ThemeTokenValues(
+                        MaterialThemeTokenCatalog.colorRoles().keySet().stream().sorted().toList()));
+    }
+
+    private static List<PropertyValueConstraint> textStyleTheme() {
+        return List.of(new PropertyValueConstraint.ThemeTokenValues(
+                MaterialThemeTokenCatalog.textStyleRoles().keySet().stream().sorted().toList()));
+    }
+
+    private static List<PropertyValueConstraint> paintValues() {
+        return List.of(new PropertyValueConstraint.PaintValues(
+                MaterialThemeTokenCatalog.colorRoles().keySet().stream().sorted().toList()));
+    }
+
+    private static List<PropertyValueConstraint> shadowValues() {
+        return List.of(new PropertyValueConstraint.ShadowListValues(
+                MaterialThemeTokenCatalog.colorRoles().keySet().stream().sorted().toList()));
+    }
+
+    private static List<PropertyValueConstraint> fontVariationValues() {
+        return List.of(new PropertyValueConstraint.FontVariationListValues());
+    }
+
     private static List<PropertyValueConstraint> nonNegativeNumbers() {
         return List.of(
                 new PropertyValueConstraint.IntegerRange(
@@ -324,6 +425,45 @@ public final class BuiltInWidgetCatalog {
     private static List<PropertyValueConstraint> nonNegativeDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
                 BigDecimal.ZERO, true, null, true));
+    }
+
+    private static List<PropertyValueConstraint> positiveDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.ZERO, false, null, true));
+    }
+
+    private static List<PropertyValueConstraint> finiteDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                null, true, null, true));
+    }
+
+    private static List<PropertyValueConstraint> stringLength(int minimum, int maximum) {
+        return List.of(new PropertyValueConstraint.StringLength(minimum, maximum));
+    }
+
+    private static List<PropertyValueConstraint> localeLanguageCode() {
+        return stringPattern(
+                "(?:[a-z]{2,3}|[a-z]{5,8})",
+                "locale language code: two or three, or five through eight lowercase letters");
+    }
+
+    private static List<PropertyValueConstraint> localeScriptCode() {
+        return stringPattern(
+                "[A-Z][a-z]{3}",
+                "locale script code: one uppercase letter followed by three lowercase letters");
+    }
+
+    private static List<PropertyValueConstraint> localeCountryCode() {
+        return stringPattern(
+                "(?:[A-Z]{2}|[0-9]{3})",
+                "locale country code: two uppercase letters or three digits");
+    }
+
+    private static List<PropertyValueConstraint> stringPattern(
+            String regularExpression,
+            String description) {
+        return List.of(new PropertyValueConstraint.StringPattern(
+                regularExpression, description));
     }
 
     private static List<PropertyValueConstraint> enumValues(String type, String... values) {

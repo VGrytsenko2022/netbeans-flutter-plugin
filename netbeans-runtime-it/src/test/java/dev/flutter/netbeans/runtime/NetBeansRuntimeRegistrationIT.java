@@ -41,7 +41,9 @@ import org.openide.util.ContextAwareAction;
 import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
 import org.openide.windows.CloneableTopComponent;
+import org.openide.windows.Mode;
 import org.openide.windows.TopComponent;
+import org.openide.windows.WindowManager;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -87,6 +89,9 @@ final class NetBeansRuntimeRegistrationIT {
             action(
                     "dev-flutter-netbeans-plugin-run-StopFlutterAction.shadow",
                     "Actions/Flutter/dev-flutter-netbeans-plugin-run-StopFlutterAction.instance"),
+            action(
+                    "dev-flutter-netbeans-plugin-theme-EditFlutterThemesAction.shadow",
+                    "Actions/Flutter/dev-flutter-netbeans-plugin-theme-EditFlutterThemesAction.instance"),
             action(
                     "dev-flutter-netbeans-plugin-tooling-AddFlutterPlatformsAction.shadow",
                     "Actions/Flutter/dev-flutter-netbeans-plugin-tooling-AddFlutterPlatformsAction.instance"),
@@ -273,6 +278,7 @@ final class NetBeansRuntimeRegistrationIT {
             assertOrdinaryDartFilesOpenThroughExplorerActions();
             assertFlutterMenuActions();
             assertFlutterToolbarActions();
+            assertFlutterThemesWindowRegistration();
         }
 
         private void assertFlutterModuleActive() {
@@ -545,6 +551,27 @@ final class NetBeansRuntimeRegistrationIT {
                             + "dev-flutter-netbeans-plugin-run-HotReloadFlutterAction-separatorBefore.instance");
             assertEquals("Hot Reload toolbar separator has the wrong position",
                     355, separator.getAttribute("position"));
+        }
+
+        private void assertFlutterThemesWindowRegistration() throws Exception {
+            assertConfigFile(
+                    "Windows2/Components/FlutterThemesTopComponent.settings");
+            assertConfigFile(
+                    "Windows2/Modes/commonpalette/FlutterThemesTopComponent.wstcref");
+
+            TopComponent themes = onEdt(() -> WindowManager.getDefault()
+                    .findTopComponent("FlutterThemesTopComponent"));
+            assertNotNull("The registered Flutter Themes TopComponent is unavailable",
+                    themes);
+            onEdt(() -> {
+                themes.open();
+                Mode mode = WindowManager.getDefault().findMode(themes);
+                assertNotNull("The Flutter Themes TopComponent has no window mode", mode);
+                assertEquals("Flutter Themes must be docked beside Palette",
+                        "commonpalette", mode.getName());
+                themes.close();
+                return null;
+            });
         }
 
         private void assertActionIconResource(Action action, String iconBase) {

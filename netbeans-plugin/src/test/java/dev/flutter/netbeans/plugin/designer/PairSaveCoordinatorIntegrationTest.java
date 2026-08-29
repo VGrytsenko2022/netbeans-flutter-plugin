@@ -20,6 +20,7 @@ import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.DesignerCommandLimits;
 import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
 import dev.flutter.netbeans.designer.command.DesignerCommandSession;
@@ -35,6 +36,7 @@ import dev.flutter.netbeans.designer.model.ManagedRegions;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
@@ -48,6 +50,7 @@ import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionIssue
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionResult;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionStatus;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
+import dev.flutter.netbeans.plugin.project.FlutterProjectSavePreflight;
 import dev.flutter.netbeans.plugin.settings.FlutterSettings;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainConfig;
 import java.awt.EventQueue;
@@ -77,6 +80,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.text.StyledDocument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.netbeans.api.actions.Savable;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.api.editor.guards.GuardedSectionManager;
 import org.netbeans.api.editor.guards.SimpleSection;
@@ -548,6 +552,30 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
+    void runSavePreflightCommitsExactStagedDartAndFdPair() throws Exception {
+        StagedPair staged = stageRealPair("run_save_preflight_pair");
+        Path projectRoot = staged.pair().dartPath().getParent().getParent();
+        assertTrue(staged.pair().dataObject().isModified());
+        assertNotNull(staged.pair().dataObject().getCookie(SaveCookie.class));
+        assertNotNull(staged.pair().dataObject().getLookup().lookup(Savable.class));
+        assertArrayEquals(staged.prepared().baselineDartBytes(),
+                Files.readAllBytes(staged.pair().dartPath()));
+        assertArrayEquals(staged.prepared().baselineFdBytes(),
+                Files.readAllBytes(staged.pair().designerPath()));
+
+        FlutterProjectSavePreflight.save(projectRoot);
+
+        assertArrayEquals(staged.prepared().prospectiveDartBytes(),
+                Files.readAllBytes(staged.pair().dartPath()));
+        assertArrayEquals(staged.prepared().prospectiveFdBytes(),
+                Files.readAllBytes(staged.pair().designerPath()));
+        assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                staged.pair().coordinator().state().status());
+        assertFalse(staged.pair().dataObject().isModified());
+        assertNull(staged.pair().dataObject().getCookie(SaveCookie.class));
+    }
+
+    @Test
     void confirmedPairCommitJointlyReanchorsCommandBeforePairCallbacks()
             throws Exception {
         StagedPair staged = stageRealPair("joint_commit_reanchor");
@@ -700,6 +728,96 @@ class PairSaveCoordinatorIntegrationTest {
                     Files.readAllBytes(pair.dartPath()));
             assertArrayEquals(history.oldFd(),
                     Files.readAllBytes(pair.designerPath()));
+        }
+    }
+
+    @Test
+    void firstSaveAfterV1MigrationReanchorsCanonicalV2PropertyHistory()
+            throws Exception {
+        SetProperty foreground = new SetProperty(
+                ROOT_ID,
+                new PropertyName("styleColor"),
+                new PropertyValue.ThemeTokenValue(new ThemeToken(
+                        "material.colorScheme.primaryFixed")));
+        StagedPair c1 = stageLegacyV1RealPair(
+                "saved_history_v1_to_v2_property_migration",
+                foreground);
+        try (DesignerCommandSessionOrchestrator orchestrator =
+                c1.orchestrator()) {
+            assertTrue(new String(
+                    c1.prepared().baselineFdBytes(), StandardCharsets.UTF_8)
+                    .contains("\"schemaVersion\": 1"));
+            assertTrue(new String(
+                    c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
+                    .contains("\"schemaVersion\": 2"));
+
+            SetProperty background = new SetProperty(
+                    ROOT_ID,
+                    new PropertyName("styleBackgroundColor"),
+                    new PropertyValue.ThemeTokenValue(new ThemeToken(
+                            "material.colorScheme.onPrimary")));
+            PairSaveEvidence c2 = replaceOnce(
+                    c1, orchestrator, c1.evidence(), background);
+            SaveCookie stableCookie = c1.pair().dataObject()
+                    .getCookie(SaveCookie.class);
+            assertNotNull(stableCookie);
+            byte[] canonicalC0Fd = new FdDocumentCodec()
+                    .encode(c1.current().decoded().document()).copyBytes();
+            assertTrue(new String(
+                    canonicalC0Fd, StandardCharsets.UTF_8)
+                    .contains("\"schemaVersion\": 2"));
+            assertFalse(Arrays.equals(
+                    c1.prepared().baselineFdBytes(), canonicalC0Fd));
+
+            stableCookie.save();
+
+            FlutterDesignerDocumentState.Current savedC2Current =
+                    awaitCurrentWithPair(
+                    c1.pair().dataObject().getDocumentController(),
+                    c2.preparedPairIdentity().prospectiveFdBytes(),
+                    c2.candidateDartBytes());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    orchestrator.currentRevision().persistenceKind());
+            assertFalse(orchestrator.dirty());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    c1.pair().coordinator().state().status());
+            assertEquals(2,
+                    c1.pair().coordinator().unsavedPairHistoryEdgeCount());
+            assertSavedPairRemainsDurable(c1.pair(), c2);
+
+            replayPairHistory(
+                    c1.pair(), DesignerSemanticUndoableEdit.Direction.UNDO);
+            DesignerCommandRevision historicalC1 =
+                    orchestrator.currentRevision();
+            assertSavedHistoryProof(
+                    c1.pair(),
+                    savedC2Current,
+                    historicalC1,
+                    PairSaveCoordinator.StagedPairProofKind
+                            .REANCHORED_ANALYZED,
+                    c2.candidateDartBytes(),
+                    c2.preparedPairIdentity().prospectiveFdBytes(),
+                    c1.evidence().candidateDartBytes(),
+                    c1.evidence().preparedPairIdentity()
+                            .prospectiveFdBytes());
+
+            replayPairHistory(
+                    c1.pair(), DesignerSemanticUndoableEdit.Direction.UNDO);
+            DesignerCommandRevision historicalC0 =
+                    orchestrator.currentRevision();
+            assertSavedHistoryProof(
+                    c1.pair(),
+                    savedC2Current,
+                    historicalC0,
+                    PairSaveCoordinator.StagedPairProofKind.FORMER_DURABLE,
+                    c2.candidateDartBytes(),
+                    c2.preparedPairIdentity().prospectiveFdBytes(),
+                    c1.prepared().baselineDartBytes(),
+                    canonicalC0Fd);
+            assertFalse(Arrays.equals(
+                    c1.prepared().baselineFdBytes(), historicalC0.fdBytes()),
+                    "post-migration history must not resurrect raw schema-v1 bytes");
+            assertSavedPairRemainsDurable(c1.pair(), c2);
         }
     }
 
@@ -6029,10 +6147,18 @@ class PairSaveCoordinatorIntegrationTest {
             DesignerCommandSessionOrchestrator orchestrator,
             PairSaveEvidence predecessor,
             String value) throws Exception {
-        var pending = orchestrator.beginCommand(new SetProperty(
+        return replaceOnce(staged, orchestrator, predecessor, new SetProperty(
                 ROOT_ID,
                 DATA,
-                new PropertyValue.StringValue(value)))
+                new PropertyValue.StringValue(value)));
+    }
+
+    private PairSaveEvidence replaceOnce(
+            StagedPair staged,
+            DesignerCommandSessionOrchestrator orchestrator,
+            PairSaveEvidence predecessor,
+            DesignerCommand command) throws Exception {
+        var pending = orchestrator.beginCommand(command)
                 .lease().orElseThrow();
         try (pending;
                 PairSaveCoordinator.PairReplacement replacement =
@@ -6242,12 +6368,40 @@ class PairSaveCoordinatorIntegrationTest {
                 .orElseThrow();
     }
 
+    private StagedPair stageLegacyV1RealPair(
+            String folderName,
+            DesignerCommand firstCommand) throws Exception {
+        return stageRealPair(
+                folderName,
+                true,
+                BeforeApplyAction.NONE,
+                null,
+                null,
+                new InitialPairPlan(true, firstCommand)).orElseThrow();
+    }
+
     private Optional<StagedPair> stageRealPair(
             String folderName,
             boolean acceptEvidence,
             BeforeApplyAction beforeApplyAction,
             FirstCommandPublicationProbe publicationProbe,
             AggregateBudgetPlan aggregateBudgetPlan) throws Exception {
+        return stageRealPair(
+                folderName,
+                acceptEvidence,
+                beforeApplyAction,
+                publicationProbe,
+                aggregateBudgetPlan,
+                null);
+    }
+
+    private Optional<StagedPair> stageRealPair(
+            String folderName,
+            boolean acceptEvidence,
+            BeforeApplyAction beforeApplyAction,
+            FirstCommandPublicationProbe publicationProbe,
+            AggregateBudgetPlan aggregateBudgetPlan,
+            InitialPairPlan initialPairPlan) throws Exception {
         Path projectRoot = Files.createDirectories(
                 temporaryDirectory.resolve(folderName));
         Path lib = Files.createDirectories(projectRoot.resolve("lib"));
@@ -6296,6 +6450,18 @@ class PairSaveCoordinatorIntegrationTest {
                 generatedBefore.build().payload());
         byte[] baselineFd = new FdDocumentCodec()
                 .encode(baselineDocument).copyBytes();
+        if (initialPairPlan != null && initialPairPlan.legacyV1()) {
+            String canonical = new String(
+                    baselineFd, StandardCharsets.UTF_8);
+            String legacy = canonical.replace(
+                    "\"schemaVersion\": 2",
+                    "\"schemaVersion\": 1");
+            if (legacy.equals(canonical)) {
+                throw new AssertionError(
+                        "The canonical fixture did not declare schema v2");
+            }
+            baselineFd = legacy.getBytes(StandardCharsets.UTF_8);
+        }
         Files.write(dartPath, baselineDart);
         Files.write(designerPath, baselineFd);
         FileUtil.refreshFor(projectRoot.toFile());
@@ -6358,10 +6524,13 @@ class PairSaveCoordinatorIntegrationTest {
                 new DesignerCommandSessionOrchestrator(
                         baselineSession,
                         dataObject.getCombinedUndoRedo());
-        var pendingAttempt = orchestrator.beginCommand(new SetProperty(
-                ROOT_ID,
-                DATA,
-                new PropertyValue.StringValue("after")));
+        DesignerCommand firstCommand = initialPairPlan == null
+                ? new SetProperty(
+                        ROOT_ID,
+                        DATA,
+                        new PropertyValue.StringValue("after"))
+                : initialPairPlan.firstCommand();
+        var pendingAttempt = orchestrator.beginCommand(firstCommand);
         var pendingCommand = pendingAttempt.lease().orElseThrow();
         PreparedDesignerPair prepared = pendingCommand.candidateRevision()
                 .preparedPair().orElseThrow();
@@ -7322,6 +7491,18 @@ class PairSaveCoordinatorIntegrationTest {
                 String sourceSuffix,
                 String secondCommandValue) {
             this(sourceSuffix, secondCommandValue, null);
+        }
+    }
+
+    private record InitialPairPlan(
+            boolean legacyV1,
+            DesignerCommand firstCommand) {
+        InitialPairPlan {
+            if (!legacyV1) {
+                throw new IllegalArgumentException(
+                        "The test-only initial pair plan currently models only legacy v1 input");
+            }
+            java.util.Objects.requireNonNull(firstCommand, "firstCommand");
         }
     }
 

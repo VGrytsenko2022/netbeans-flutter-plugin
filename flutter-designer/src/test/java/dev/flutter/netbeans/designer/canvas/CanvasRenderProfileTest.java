@@ -12,7 +12,10 @@ class CanvasRenderProfileTest {
     private static final CanvasLocale UKRAINIAN = new CanvasLocale("uk-UA");
     private static final CanvasTextScaleFactor TEXT_SCALE = new CanvasTextScaleFactor(1.0d);
     private static final CanvasResolvedTheme THEME = new CanvasResolvedTheme(
-            "material-dark-default-v1", CanvasThemeBrightness.DARK);
+            "material_dark_default_v1",
+            0xFF6750A4,
+            CanvasThemeBrightness.DARK,
+            "A".repeat(64));
     private static final CanvasEngineIdentity ENGINE = new CanvasEngineIdentity(
             "3.44.8",
             "8505e1763e6f6647b7f94d0be8a0448a2e59f83c",
@@ -193,20 +196,37 @@ class CanvasRenderProfileTest {
     @Test
     void themeIdentityDistinguishesCustomThemesWithTheSameBrightness() {
         CanvasResolvedTheme first = new CanvasResolvedTheme(
-                "brand-a-v1", CanvasThemeBrightness.LIGHT);
+                "brand_a_v1", 0xFF112233, CanvasThemeBrightness.LIGHT,
+                "A".repeat(64));
         CanvasResolvedTheme second = new CanvasResolvedTheme(
-                "brand-b-v1", CanvasThemeBrightness.LIGHT);
+                "brand_b_v1", 0xFF112233, CanvasThemeBrightness.LIGHT,
+                "B".repeat(64));
 
         assertNotEquals(first, second);
         assertThrows(NullPointerException.class,
-                () -> new CanvasResolvedTheme(null, CanvasThemeBrightness.LIGHT));
+                () -> new CanvasResolvedTheme(
+                        null, 0, CanvasThemeBrightness.LIGHT, "A".repeat(64)));
         assertThrows(NullPointerException.class,
-                () -> new CanvasResolvedTheme("brand", null));
-        assertThrows(IllegalArgumentException.class,
-                () -> new CanvasResolvedTheme(" brand", CanvasThemeBrightness.LIGHT));
+                () -> new CanvasResolvedTheme("brand", 0, null, "A".repeat(64)));
+        assertThrows(NullPointerException.class,
+                () -> new CanvasResolvedTheme(
+                        "brand", 0, CanvasThemeBrightness.LIGHT, null));
         assertThrows(IllegalArgumentException.class,
                 () -> new CanvasResolvedTheme(
-                        "x".repeat(129), CanvasThemeBrightness.LIGHT));
+                        " brand", 0, CanvasThemeBrightness.LIGHT, "A".repeat(64)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CanvasResolvedTheme(
+                        "x".repeat(129), 0, CanvasThemeBrightness.LIGHT,
+                        "A".repeat(64)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CanvasResolvedTheme(
+                        "brand", 0, CanvasThemeBrightness.LIGHT,
+                        "a".repeat(64)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CanvasResolvedTheme(
+                        "brand", 0x7F112233, CanvasThemeBrightness.LIGHT,
+                        "A".repeat(64)));
+        assertEquals("0xFF112233", first.seedArgbLiteral());
     }
 
     @Test

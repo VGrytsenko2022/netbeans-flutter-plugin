@@ -1,8 +1,11 @@
 package dev.flutter.netbeans.designer.catalog;
 
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
@@ -46,6 +49,28 @@ class PropertyValueConstraintTest {
         PropertyValueConstraint.StringLength oneCharacter = new PropertyValueConstraint.StringLength(1, 1);
         assertTrue(oneCharacter.accepts(new PropertyValue.StringValue("\uD83D\uDE80")));
         assertFalse(oneCharacter.accepts(new PropertyValue.StringValue("ab")));
+    }
+
+    @Test
+    void stringPatternRequiresAFullMatchAndRejectsInvalidCatalogMetadata() {
+        PropertyValueConstraint.StringPattern languageCode =
+                new PropertyValueConstraint.StringPattern(
+                        "(?:[a-z]{2,3}|[a-z]{5,8})",
+                        "Flutter locale language code");
+
+        assertTrue(languageCode.accepts(new PropertyValue.StringValue("uk")));
+        assertTrue(languageCode.accepts(new PropertyValue.StringValue("fil")));
+        assertTrue(languageCode.accepts(new PropertyValue.StringValue("language")));
+        assertFalse(languageCode.accepts(new PropertyValue.StringValue("EN")));
+        assertFalse(languageCode.accepts(new PropertyValue.StringValue("e")));
+        assertFalse(languageCode.accepts(new PropertyValue.StringValue("uk-UA")));
+        assertFalse(languageCode.accepts(new PropertyValue.BooleanValue(true)));
+        assertEquals("Flutter locale language code", languageCode.description());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.StringPattern("[", "invalid regex"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.StringPattern("[a-z]+", " "));
     }
 
     @Test
@@ -125,7 +150,85 @@ class PropertyValueConstraintTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.EDGE_INSETS));
         assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.THEME_TOKEN));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.PAINT));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.SHADOW_LIST));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.FONT_VARIATION_LIST));
+        assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.CALLBACK));
+    }
+
+    @Test
+    void structuredNumericConstraintsRejectNonRepresentableDartDoubles() {
+        List<String> reviewed = List.of("material.colorScheme.primary");
+        PropertyValueConstraint.PaintValues paints =
+                new PropertyValueConstraint.PaintValues(reviewed);
+        PropertyValueConstraint.ShadowListValues shadows =
+                new PropertyValueConstraint.ShadowListValues(reviewed);
+        PropertyValueConstraint.FontVariationListValues variations =
+                new PropertyValueConstraint.FontVariationListValues();
+
+        List<BigDecimal> rejected = List.of(
+                new BigDecimal("1E+400"),
+                new BigDecimal("1E-400"),
+                new BigDecimal("1.234567890123456789"));
+        for (BigDecimal value : rejected) {
+            assertFalse(paints.accepts(paint(value, BigDecimal.valueOf(4), BigDecimal.ONE)),
+                    () -> "strokeWidth accepted " + value);
+            assertFalse(paints.accepts(paint(BigDecimal.ZERO, value, BigDecimal.ONE)),
+                    () -> "strokeMiterLimit accepted " + value);
+            if (value.signum() > 0) {
+                assertFalse(paints.accepts(paint(
+                        BigDecimal.ZERO, BigDecimal.valueOf(4), value)),
+                        () -> "maskFilter sigma accepted " + value);
+            }
+
+            assertFalse(shadows.accepts(shadows(value, BigDecimal.ZERO, BigDecimal.ZERO)),
+                    () -> "Shadow offsetX accepted " + value);
+            assertFalse(shadows.accepts(shadows(BigDecimal.ZERO, value, BigDecimal.ZERO)),
+                    () -> "Shadow offsetY accepted " + value);
+            if (value.signum() >= 0) {
+                assertFalse(shadows.accepts(shadows(
+                        BigDecimal.ZERO, BigDecimal.ZERO, value)),
+                        () -> "Shadow blurRadius accepted " + value);
+            }
+
+            if (value.compareTo(BigDecimal.valueOf(-32768)) >= 0
+                    && value.compareTo(BigDecimal.valueOf(32768)) < 0) {
+                assertFalse(variations.accepts(variations(value)),
+                        () -> "FontVariation value accepted " + value);
+            }
+        }
+    }
+
+    @Test
+    void structuredThemeConstraintsRejectUnreviewedDirectAndNestedRoles() {
+        List<String> reviewed = List.of("material.colorScheme.primary");
+        ThemeToken reviewedToken = new ThemeToken("material.colorScheme.primary");
+        ThemeToken unknownToken = new ThemeToken("material.colorScheme.futureRole");
+
+        PropertyValueConstraint.ThemeTokenValues tokens =
+                new PropertyValueConstraint.ThemeTokenValues(reviewed);
+        assertTrue(tokens.accepts(new PropertyValue.ThemeTokenValue(reviewedToken)));
+        assertFalse(tokens.accepts(new PropertyValue.ThemeTokenValue(unknownToken)));
+
+        PropertyValueConstraint.PaintValues paints =
+                new PropertyValueConstraint.PaintValues(reviewed);
+        assertTrue(paints.accepts(PropertyValue.PaintValue.defaults(
+                new ColorSource.Literal(0xFF112233L))));
+        assertTrue(paints.accepts(PropertyValue.PaintValue.defaults(
+                new ColorSource.Theme(reviewedToken))));
+        assertFalse(paints.accepts(PropertyValue.PaintValue.defaults(
+                new ColorSource.Theme(unknownToken))));
+
+        PropertyValueConstraint.ShadowListValues shadows =
+                new PropertyValueConstraint.ShadowListValues(reviewed);
+        assertTrue(shadows.accepts(shadows(new ColorSource.Theme(reviewedToken))));
+        assertFalse(shadows.accepts(shadows(new ColorSource.Theme(unknownToken))));
     }
 
     @Test
@@ -173,5 +276,55 @@ class PropertyValueConstraintTest {
                 new BigDecimal(top),
                 new BigDecimal(right),
                 new BigDecimal(bottom));
+    }
+
+    private static PropertyValue.ShadowListValue shadows(ColorSource color) {
+        return new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("8b41dc76-ef62-4b91-84a5-79e00f2fd774"),
+                        color,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO)));
+    }
+
+    private static PropertyValue.PaintValue paint(
+            BigDecimal strokeWidth,
+            BigDecimal strokeMiterLimit,
+            BigDecimal sigma) {
+        return new PropertyValue.PaintValue(
+                new ColorSource.Literal(0xFF112233L),
+                PropertyValue.PaintValue.BlendMode.SRC_OVER,
+                PropertyValue.PaintValue.Style.FILL,
+                strokeWidth,
+                PropertyValue.PaintValue.StrokeCap.BUTT,
+                PropertyValue.PaintValue.StrokeJoin.MITER,
+                strokeMiterLimit,
+                true,
+                PropertyValue.PaintValue.FilterQuality.NONE,
+                false,
+                Optional.of(new PropertyValue.PaintValue.BlurMask(
+                        PropertyValue.PaintValue.BlurStyle.NORMAL, sigma)));
+    }
+
+    private static PropertyValue.ShadowListValue shadows(
+            BigDecimal offsetX,
+            BigDecimal offsetY,
+            BigDecimal blurRadius) {
+        return new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("8b41dc76-ef62-4b91-84a5-79e00f2fd774"),
+                        new ColorSource.Literal(0xFF112233L),
+                        offsetX,
+                        offsetY,
+                        blurRadius)));
+    }
+
+    private static PropertyValue.FontVariationListValue variations(BigDecimal value) {
+        return new PropertyValue.FontVariationListValue(List.of(
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        StableId.parse("21b26e93-af43-411e-902d-76a76097ba87"),
+                        "GRAD",
+                        value)));
     }
 }

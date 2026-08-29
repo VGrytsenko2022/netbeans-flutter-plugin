@@ -21,8 +21,11 @@ The current usable workflow is:
 11. On Windows, open a valid paired `.dart`/`.fd` Designer document in a
     read-only native Flutter Canvas, switch among exact Android/iOS/desktop
     adaptive preview targets allowed by the project, and synchronize stable
-    widget selection between the Canvas and the read-only widget tree. Web is
-    listed only for a project with `web/` and reports the pending browser backend.
+    widget selection between the Canvas and the read-only widget tree. A project
+    with `web/` also receives a browser-sized Web layout preview on the native
+    engine; browser-only runtime behavior is not emulated. The Windows Canvas
+    accepts the six reviewed CORE_V1 Palette widgets through the catalog
+    compatibility matrix, with paired generation, analysis, Save and Undo/Redo.
 
 With the core IDE workflow stable, version 0.1.3 is now building the
 Matisse-like Flutter Designer in staged, non-authorizing slices.
@@ -68,14 +71,14 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 
 ## Create or open a Flutter project
 
-- Choose `File > New Project > Flutter > Flutter Application` to generate the standard base application with the configured SDK. Its `Target Platforms` step supports Android, iOS, Web, Windows, macOS, and Linux with Recommended, Mobile, Desktop, Web, All, and custom selections. The wizard passes the non-empty selection to `flutter create --template app --platforms=...`, verifies the requested platform directories, opens the generated project, and selects `lib/main.dart`.
+- Choose `File > New Project > Flutter > Flutter Application` to generate the standard base application with the configured SDK. Its `Target Platforms` step supports Android, iOS, Web, Windows, macOS, and Linux with Recommended, Mobile, Desktop, Web, All, and custom selections. The wizard passes the non-empty selection to `flutter create --template app --platforms=...`, verifies the requested platform directories, adds the project-wide Light/Dark theme catalog described below, opens the generated project, and selects `lib/main.dart`.
 - Choose `File > Open Project` and select any existing Flutter directory containing `pubspec.yaml` and `lib`. It opens as a native NetBeans project with Flutter identity, a logical file tree, Dart source groups, and standard project operations.
 - To extend an existing Flutter application (`project_type: app`), choose `Flutter > Add Flutter Platforms...` or the same command in the project's context menu. Only canonical paths that are completely absent can be selected; an existing directory, file, or symbolic link is treated as occupied and is never overwritten. The operation uses the configured Flutter SDK, native Output and progress, then verifies that Flutter created every selected real directory. Flutter module, package, plugin, and unknown project types are rejected with a concrete reason.
 - In an open Flutter project choose `File > New File > Dart > Dart Class`. The wizard uses the selected project folder, converts an UpperCamelCase name such as `OrderRepository` to `order_repository.dart`, writes the class and opens it in the Dart editor.
 - Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
   a complete Designer pair. The target is restricted to `lib` or one of its
   subfolders. A Dart target such as `lib/account/profile.dart` is paired with
-  the JSON model `.fd_templates/account/profile.fd`; the schema-v1
+  the JSON model `.fd_templates/account/profile.fd`; the current schema-v2
   `source.dartFile` value remains the Dart basename `profile.dart`.
 - Dart sources and Flutter Designer `.fd` models use distinct theme-aware file
   icons in Projects, Files, and the corresponding New File wizard entries.
@@ -85,7 +88,7 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
   disk; incomplete, unsafe, read-only or unsaved pairs fail closed.
 - NetBeans `Rename` is also available from either member of a complete, clean
   current-version pair. A canonical lower-snake-case basename renames both
-  mirrored files and updates only schema-v1 `source.dartFile`; the Dart bytes and
+  mirrored files and updates only the current `.fd` `source.dartFile`; the Dart bytes and
   `source.className` are deliberately unchanged. The implementation stages both
   paths, writes and verifies the canonical model metadata, and exact-byte rolls
   back a failed operation. This is an in-process rollback guarantee rather than
@@ -111,6 +114,51 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
   guessed. Generic DataObject Move remains unavailable. Schema-v1 asset paths are relative to the
   Flutter project/pubspec root, never to the `.fd` location, and opaque
   `extensions` metadata must remain location-independent.
+
+## Project-wide Flutter themes
+
+New Flutter applications contain one shared theme source at
+`.fd_templates/project.fdtheme` and its deterministic generated Dart API at
+`lib/theme/app_theme.dart`. The defaults are Light and Dark Material seed
+themes with `ThemeMode.system`; `lib/main.dart` is wired to `AppTheme.light`,
+`AppTheme.dark` and `AppTheme.mode`. Individual `.fd` files do not duplicate
+theme definitions, so every Designer form and runtime screen can consume the
+same project catalog.
+
+Choose `Flutter > Edit Flutter Themes...` (also available from a Flutter
+project's context menu), or open `project.fdtheme`. NetBeans opens the docked
+`Themes` tab beside `Palette`, with explicit Save and Reload actions. The editor
+changes the default mode and active light/dark definitions, and can add,
+duplicate, edit, enable, disable or remove custom definitions. A disabled
+definition remains in the descriptor catalog but is omitted from the generated
+Dart map. `Enable project themes` can make `MaterialApp` use Flutter's defaults
+without deleting the catalog; enabling it again restores the selected project
+definitions. The editor's `General`, `Colors` and `Typography` tabs expose all
+46 supported non-deprecated Material `ColorScheme` roles and all 15 Material 3
+`TextTheme` roles. Each text role has 13 typed optional fields for colors,
+font metrics/family, weight/style and decoration; omission means inherit the
+seed-derived Material value, while text colors may use either an exact ARGB
+literal or another semantic `ColorScheme` role.
+
+Schema v2 adds the portable project-wide switch, schema v3 adds per-definition
+switches, and the current schema v4 adds the typed color and typography role
+overrides. Schema v1-v3 descriptors remain readable and acquire empty override
+tables in memory; an explicit Save writes canonical v4. Generated Dart applies
+the same ordered `ColorScheme.copyWith` and `TextTheme.copyWith` construction as
+the native Canvas. The generated Dart file is marked as generated and guarded
+by the SHA-256 stored in the descriptor; if it was edited outside the theme
+editor, Save reports the conflict and leaves those bytes untouched.
+
+Opening an older project does not create or rewrite theme files automatically.
+Invoking the editor offers explicit default-theme initialization only when the
+existing `lib/main.dart` matches the safely recognized Flutter application
+template; unsupported or occupied paths fail without partial writes. The file
+formats are documented by the frozen
+[`project-theme-v1.schema.json`](docs/flutter-designer/project-theme-v1.schema.json),
+[`project-theme-v2.schema.json`](docs/flutter-designer/project-theme-v2.schema.json)
+and [`project-theme-v3.schema.json`](docs/flutter-designer/project-theme-v3.schema.json)
+contracts, plus the current
+[`project-theme-v4.schema.json`](docs/flutter-designer/project-theme-v4.schema.json).
 
 ## Run and debug a Flutter application
 
@@ -163,20 +211,34 @@ This project is licensed under the [Apache License, Version 2.0](LICENSE).
 
 This is an architectural starter, not yet a production Flutter plugin. Flutter/Dart SDK settings, first-start discovery, platform-selective application creation and later platform addition, Dart-class creation, native project recognition, Dart lexer/highlighting and typing indentation, validated diagnostics/completion/import assistance/navigation/refactoring/formatting/Quick Fixes through the Dart LSP bridge, visible Analysis Server lifecycle, the automatically refreshed standard NetBeans toolbar selector for Desktop/Mobile/Web targets, target-aware Build/Clean/Clean and Build, Android Device Manager, cancellable configured-emulator launch, Run/Debug through Flutter's machine and DAP protocols, cancellable native progress, confirmed session restart, Hot Reload/Restart/Stop, project-scoped browser DevTools launch, native Pub Get/Analyze/Test execution, standard Test Results mapping, and `pubspec.yaml` completion/semantic diagnostics are implemented. Version 0.1.2 focused on lifecycle hardening and native NetBeans integration.
 
-The unreleased 0.1.3 Designer now includes the first Windows native read-only
-Canvas slice. Each eligible `.fd` Design tab embeds an isolated real
+The unreleased 0.1.3 Designer now includes the first Windows native Canvas
+slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
 bounded validated `CORE_V1` model restricted to `Scaffold`, `Column`, `Row`,
 `Text`, `Padding` and `Center`. The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
 targets and carries each target into Flutter's adaptive theme semantics on the
 bound Windows engine. These are appearance previews, not device runtimes. Web
-fails explicitly until its separate browser backend exists. Stable widget IDs synchronize
-selection between the Canvas, the read-only Explorer widget tree and standard
-read-only Properties. The active Design lookup supplies the standard NetBeans
-Palette with those exact six items. Palette insertion, drag-and-drop, editable
-Properties, Designer commands and model mutation remain disabled; the standard
-pair-aware Copy/Paste, Cut/Move, Rename and Delete described above are enabled;
-Linux/macOS native hosts and writable UI are future work. Embedded DevTools and
-its Flutter Inspector are a separate future
-milestone.
+uses the same native engine with an exact browser-sized responsive viewport;
+it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
+IDs synchronize selection between the Canvas, the read-only Explorer widget
+tree and standard Properties. The five non-`Scaffold` widgets expose 76 typed
+read/write properties. `Text` contributes 59 independently editable leaves in
+seven sections; every optional leaf supports Restore Default, and generated
+Dart and native Canvas assemble them identically into `TextStyle`,
+`StrutStyle`, `Locale`, `TextScaler` and `TextHeightBehavior`. Text colors,
+paints and shadows may use either exact ARGB values or semantic Material
+`ColorScheme` roles; a `TextTheme` role can be selected as the base style and
+all explicit leaves remain local overrides. Structured editors cover the safe
+serializable `Paint` subset, ordered `Shadow` values, OpenType `FontFeature`
+tags and `FontVariation` axes. The deprecated `Text.textScaleFactor` argument,
+`key`, arbitrary Dart expressions and unsupported shader/filter object graphs
+remain outside this slice. The active Design lookup supplies the standard NetBeans Palette
+with those exact six items. The catalog compatibility matrix admits every one
+of those six sources into empty `Scaffold.body`,
+`Scaffold.floatingActionButton`, `Center.child` and `Padding.child` slots, or
+at the terminal index of `Row.children` and `Column.children`. The standard
+pair-aware Copy/Paste, Cut/Move, Rename and Delete
+described above are also enabled; Linux/macOS native hosts and the broader
+writable UI remain future work. Embedded DevTools and its Flutter Inspector are
+a separate future milestone.

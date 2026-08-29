@@ -5877,8 +5877,14 @@ final class PairSaveCoordinator implements Node.Cookie,
             if (oldEndpoint instanceof BaselineHistoryEndpoint
                     || oldEndpoint
                         instanceof SourceOverlayBaselineHistoryEndpoint) {
+                // A schema migration may canonicalize the retained semantic
+                // revision while preserving its exact Dart envelope.  The
+                // re-anchored revision is the authoritative post-migration
+                // .fd candidate; retaining the legacy raw .fd bytes here
+                // would make an otherwise proven physical endpoint
+                // impossible to derive from the new durable anchor.
                 seed = new FormerDurableHistorySeed(
-                        oldEndpoint.dartBytes(), oldEndpoint.revision().fdBytes());
+                        oldEndpoint.dartBytes(), revision.fdBytes());
             } else if (oldEndpoint instanceof PairedHistoryEndpoint paired) {
                 seed = new ReanchoredAnalyzedHistorySeed(paired.seed());
             } else if (oldEndpoint
@@ -6088,8 +6094,14 @@ final class PairSaveCoordinator implements Node.Cookie,
             if (oldEndpoint instanceof BaselineHistoryEndpoint
                     || oldEndpoint
                         instanceof SourceOverlayBaselineHistoryEndpoint) {
+                // A schema migration may canonicalize the retained semantic
+                // revision while preserving its exact Dart envelope.  The
+                // re-anchored revision is the authoritative post-migration
+                // .fd candidate; retaining the legacy raw .fd bytes here
+                // would make an otherwise proven physical endpoint
+                // impossible to derive from the new durable anchor.
                 seed = new FormerDurableHistorySeed(
-                        oldEndpoint.dartBytes(), oldEndpoint.revision().fdBytes());
+                        oldEndpoint.dartBytes(), revision.fdBytes());
             } else if (oldEndpoint instanceof PairedHistoryEndpoint paired) {
                 seed = new ReanchoredAnalyzedHistorySeed(paired.seed());
             } else if (oldEndpoint
@@ -8938,7 +8950,12 @@ final class PairSaveCoordinator implements Node.Cookie,
         byte[] candidateFdBytes();
     }
 
-    /** Exact bytes which were the durable pair immediately before this Save. */
+    /**
+     * Exact post-reanchor representation of the former durable semantic
+     * position. The Dart bytes preserve its historical physical envelope;
+     * the .fd bytes use the proven representation under the new durable
+     * anchor, so an admitted schema migration is not resurrected by Undo.
+     */
     private record FormerDurableHistorySeed(
             byte[] candidateDartBytes,
             byte[] candidateFdBytes) implements SavedHistorySeed {

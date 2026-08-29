@@ -42,8 +42,12 @@ transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
 bounded typed read/write slice for `Column`, `Row`, `Padding`, `Center` and
 `Text`; `Scaffold` remains read-only and is deliberately reserved for a
-separate task. The Palette is still non-mutating and its DnD bridge remains
-future work. ADR-021 explicitly forbids implementing
+separate task. The historical first mutating Palette vertical slice admitted
+only a terminal `Text` append. It is superseded by the current catalog-driven
+matrix: any of the six exact `CORE_V1` sources may target a reviewed empty
+single slot or terminal `Row.children`/`Column.children` position. Reorder,
+existing-widget move and non-`CORE_V1` Palette operations remain disabled.
+ADR-021 explicitly forbids implementing
 the Canvas as Swing-painted widgets or a transferred PNG/JPEG/raw-pixel surface.
 A planned platform SPI will generalize the Windows host to Linux and macOS; the
 current provider keeps the Flutter engine/view in an isolated child runner.
@@ -53,8 +57,12 @@ identities and stale/replay admission rules, the explicit Mobile, Tablet,
 Desktop and Web preview-mode identity, native-surface request validation, pure
 backend contracts and per-MultiView lifecycle controller, plus the bounded
 version 1 lifecycle control codec/session gate, process framing and canonical
-`CORE_V1` model payload. That payload admits exactly `Scaffold`, `Column`,
-`Row`, `Text`, `Padding` and `Center` from the reviewed built-in catalog and
+`CORE_V1` model payload. Model payload version 4 carries the exact resolved
+project-theme identity, seed, brightness and typed ColorScheme/TextTheme
+override tables; generated Dart and Flutter Canvas apply those tables in the
+same order before form-local Text overrides. The payload admits exactly
+`Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center` from the reviewed
+built-in catalog and
 excludes project paths, Dart source, callbacks, extensions and persistence
 authority. The frame-kind whitelist remains control JSON, model JSON and catalog
 JSON; catalog JSON is reserved for a future versioned contract. There is no
@@ -73,8 +81,10 @@ tests. The isolated runner decodes the canonical six-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
-host remains Windows. Web is an explicit pending browser backend, not a Windows
-engine rendering relabeled as Web.
+host remains Windows. Web uses its exact browser-sized responsive viewport on
+that native engine as a layout preview. It does not claim `kIsWeb`, DOM,
+browser fonts, plugins or platform-channel behavior; those require an optional
+future browser-compiled backend.
 It receives no project paths, Dart source, file handles or
 file/Save/Undo/Redo authority; Java remains the only command-admission and
 persistence owner. The Java → Flutter hit-test → revision-bound DnD bridge is
@@ -96,22 +106,55 @@ reset to omission.
 | `Row` | `mainAxisAlignment`, `mainAxisSize`, `crossAxisAlignment`, `textDirection`, `verticalDirection`, `textBaseline`, `spacing` | [Row](https://api.flutter.dev/flutter/widgets/Row/Row.html) |
 | `Padding` | `padding` | [Padding](https://api.flutter.dev/flutter/widgets/Padding/Padding.html) |
 | `Center` | `widthFactor`, `heightFactor` | [Center](https://api.flutter.dev/flutter/widgets/Center/Center.html) |
-| `Text` | `data`, `textAlign`, `textDirection`, `softWrap`, `overflow`, `maxLines`, `semanticsLabel`, `semanticsIdentifier`, `textWidthBasis`, `selectionColor` | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html) |
+| `Text` | 59 typed leaves in the seven sets below | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html), [TextStyle](https://api.flutter.dev/flutter/painting/TextStyle/TextStyle.html), [StrutStyle](https://api.flutter.dev/flutter/painting/StrutStyle/StrutStyle.html) |
 
-This is 27 catalog-backed properties across the five non-`Scaffold` widgets.
-Editors cover strings, booleans, bounded integers/doubles, reviewed enums,
-physical non-negative edge insets and ARGB colors. Cross-property validation
-also requires `textBaseline` when flex alignment is `baseline`, and
-`Text.semanticsIdentifier` remains unique in one designer tree.
+| `Text` Properties set | Count | Typed leaf names |
+| --- | ---: | --- |
+| Text | 8 | `data`, `textAlign`, `textDirection`, `softWrap`, `overflow`, `maxLines`, `textWidthBasis`, `selectionColor` |
+| Accessibility | 2 | `semanticsLabel`, `semanticsIdentifier` |
+| Locale and scaling | 7 | `localeLanguageCode`, `localeScriptCode`, `localeCountryCode`, `textScalerFactor`, `textHeightApplyFirstAscent`, `textHeightApplyLastDescent`, `textHeightLeadingDistribution` |
+| Text style | 25 | `styleThemeTextStyle`, `styleInherit`, `styleColor`, `styleBackgroundColor`, `styleFontSize`, `styleFontWeight`, `styleFontStyle`, `styleLetterSpacing`, `styleWordSpacing`, `styleTextBaseline`, `styleHeight`, `styleLeadingDistribution`, `styleLocaleLanguageCode`, `styleLocaleScriptCode`, `styleLocaleCountryCode`, `styleDecorationUnderline`, `styleDecorationOverline`, `styleDecorationLineThrough`, `styleDecorationStyle`, `styleDecorationThickness`, `styleDebugLabel`, `styleFontFamily`, `styleFontFamilyFallback`, `stylePackage`, `styleOverflow` |
+| Paint and effects | 4 | `styleForeground`, `styleBackground`, `styleShadows`, `styleDecorationColor` |
+| Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` |
+| Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` |
 
-Complex constructor values are intentionally not flattened into lossy text
-fields: `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
-`TextHeightBehavior` and directional edge insets need dedicated model types,
-editors, generator support and native-preview parity. They are not part of this
-slice. `Scaffold` Properties, Palette insertion/DnD, the separately compiled
-Web Canvas backend and Linux/macOS native-surface providers remain pending.
+This is 76 catalog-backed properties across the five non-`Scaffold` widgets.
+Editors cover single-line strings, newline-delimited font fallback lists,
+accessible optional boolean checkboxes, exact constrained integer/double
+controls, reviewed enums, physical non-negative edge insets, ARGB/theme-aware
+color editors, a structured `Paint` editor and ordered Shadow/OpenType tables.
+Cross-property validation also requires `textBaseline` when
+flex alignment is `baseline`, keeps `Text.semanticsIdentifier` unique in one
+designer tree, rejects mutually exclusive color/Paint pairs and rejects a font
+`package` without a family or fallback. `styleFontSize` is finite and
+non-negative because Flutter passes it through `TextScaler.scale`.
 
-Important version 1 semantics:
+The `.fd` model stores those 59 values as independently editable typed leaves;
+each optional leaf can also be reset to omission.
+Deterministic Dart generation groups them into optional `TextStyle`,
+`StrutStyle`, `Locale.fromSubtags`, `TextScaler.linear` and
+`TextHeightBehavior` constructor values; the isolated native Canvas performs
+the same grouping into real Flutter objects. An absent group remains an omitted
+constructor argument, so Properties, generated Dart and Canvas have the same
+semantics.
+
+Schema v2 adds closed structured values for Material theme tokens, the safe
+serializable `Paint` subset, ordered `Shadow` values, OpenType features and
+variable-font axes. Semantic `ColorScheme` and `TextTheme` roles follow the
+active light, dark or custom project theme without coupling a form to a theme
+definition id; literal ARGB values remain available. Missing list properties
+mean inheritance/omission, while explicitly empty lists clear an inherited
+list. Schema-v1 documents migrate in memory and are written as canonical v2 on
+their next admitted Designer edit.
+
+The deprecated `Text.textScaleFactor` argument and `key` are not exposed;
+`textScalerFactor` targets the current `textScaler` API. Arbitrary shaders,
+color filters, image filters and raw Dart escape expressions remain excluded.
+Directional edge insets, `Scaffold` Properties,
+broader Palette insertion/DnD, the optional runtime-faithful browser Canvas
+backend and Linux/macOS native-surface providers remain pending.
+
+Important version 2 semantics:
 
 - an omitted property or slot means "omit the Dart constructor argument";
 - an empty string is a real value, not omission;
@@ -127,7 +170,7 @@ Important version 1 semantics:
   generator-selected import aliases are not persisted;
 - asset paths are relative to the Flutter project/pubspec root, never to the
   `.fd` file, and are therefore not rebased by pair Move;
-- schema-v1 `extensions` are location-independent opaque metadata and must not
+- schema-v1/v2 `extensions` are location-independent opaque metadata and must not
   encode `.fd`-relative semantics;
 - Dart expressions are opaque source values and are never evaluated here.
 
@@ -307,24 +350,29 @@ accounting runs before analyzer or document mutation. Adoption preserves
 durable C2/S2, replaces the obsolete redo suffix with the exact
 `B/S0→C1/S0→C3/S0` branch, and carries S0 into the following ordinary command.
 
-These command and pair-save paths now serve the bounded typed Properties UI;
-Palette insertion/DnD and the remaining Designer mutation surfaces are still
-disconnected. Pre-persistence loss of exact
+These command and pair-save paths originally served only the bounded typed
+Properties UI; at that historical stage Palette insertion/DnD was still
+disconnected. That stage is superseded by the six-source insertion matrix
+described below. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
 Windows native read-only `FlutterView`, six-widget projection, responsive
 profiles, stable-ID tree selection, exact six-item context Palette and
 selected-node typed Properties are implemented. Properties are writable only
-for the 27 catalog-backed fields of `Column`, `Row`, `Padding`, `Center` and
-`Text`; `Scaffold` stays read-only. The runner/DnD mutation bridge, Web Canvas
-backend, cross-platform providers and the broader property/callback contracts
-remain outstanding.
+for the 76 catalog-backed fields of `Column`, `Row`, `Padding`, `Center` and
+`Text`, including the 59-leaf Text projection above; `Scaffold` stays read-only.
+Palette DnD is enabled for the six exact CORE_V1 source definitions and the
+catalog-authorized empty-single or terminal-list targets. The
+optional runtime-faithful browser Canvas backend, cross-platform providers and
+the broader property/callback contracts remain outstanding. The native-engine
+Web responsive layout preview is already available.
 
 The `.fd` document codec accepts strict UTF-8 JSON (with an optional input BOM), rejects
 duplicates and trailing content, and keeps the exact bounded input snapshot.
-Current version 1 data maps to the domain model; a completely parsed newer
-version remains raw/read-only and cannot be down-saved. Canonical output is
+Current version 2 data maps directly to the domain model; version 1 migrates in
+memory without an open-time write, and a completely parsed newer version
+remains raw/read-only and cannot be down-saved. Canonical output is
 UTF-8 without BOM, two-space/LF formatted, has one final LF, fixed core-field
 order and lexically sorted dynamic keys. `$schema` is never fetched.
 

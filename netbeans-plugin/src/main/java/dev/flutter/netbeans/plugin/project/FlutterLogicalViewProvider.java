@@ -161,6 +161,12 @@ final class FlutterLogicalViewProvider implements LogicalViewProvider {
             actions.add(projectCommand(
                     FlutterProjectActionProvider.COMMAND_ADD_PLATFORMS,
                     Bundle.CTL_AddPlatformsProjectAction()));
+            Action editThemes = Actions.forID(
+                    "Flutter",
+                    "dev.flutter.netbeans.plugin.theme.EditFlutterThemesAction");
+            if (editThemes != null) {
+                actions.add(editThemes);
+            }
             actions.add(null);
             actions.add(projectCommand(
                     FlutterProjectActionProvider.COMMAND_PUB_GET,

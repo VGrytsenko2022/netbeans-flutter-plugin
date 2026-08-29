@@ -18,9 +18,12 @@ import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasTextScaleFactor;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.CanvasViewport;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
@@ -29,6 +32,7 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -41,6 +45,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class CanvasModelPayloadCodecTest {
@@ -51,7 +57,9 @@ class CanvasModelPayloadCodecTest {
             CanvasTargetPlatform.ANDROID,
             new CanvasViewport(390, 844),
             new CanvasDevicePixelRatio(1),
-            new CanvasResolvedTheme("material.default.light", CanvasThemeBrightness.LIGHT),
+            new CanvasResolvedTheme(
+                    "light", 0xFF6750A4, CanvasThemeBrightness.LIGHT,
+                    "A".repeat(64)),
             new CanvasLocale("en-US"),
             new CanvasTextScaleFactor(1),
             new CanvasEngineIdentity("3.44.8", "framework", "engine", "3.12.0"));
@@ -83,6 +91,13 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
+        assertTrue(json.contains("\"protocolVersion\":4"));
+        assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
+        assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
+        assertTrue(json.contains("\"brightness\":\"light\""));
+        assertTrue(json.contains("\"digestIdentity\":\"" + "A".repeat(64) + "\""));
+        assertTrue(json.contains("\"colorScheme\":{}"));
+        assertTrue(json.contains("\"textTheme\":{}"));
         assertTrue(json.contains("\"type\":\"flutter.material.Scaffold\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Column\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Row\""));
@@ -101,6 +116,12 @@ class CanvasModelPayloadCodecTest {
                 + "\"type\":\"TextWidthBasis\",\"value\":\"longestLine\"}"));
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"color\","
                 + "\"argb\":\"0xFF336699\"}"));
+        assertTrue(json.contains("\"styleFontSize\":{\"kind\":\"double\",\"value\":18"));
+        assertTrue(json.contains("\"styleFontWeight\":{\"kind\":\"enum\","
+                + "\"type\":\"FontWeight\",\"value\":\"w700\"}"));
+        assertTrue(json.contains("\"styleColor\":{\"kind\":\"color\","
+                + "\"argb\":\"0xFF112233\"}"));
+        assertTrue(json.contains("\"textScalerFactor\":{\"kind\":\"double\",\"value\":1.25}"));
         assertFalse(json.contains("home_page.dart"));
         assertFalse(json.contains("HomePage"));
         assertFalse(json.contains("managedRegions"));
@@ -135,14 +156,168 @@ class CanvasModelPayloadCodecTest {
         assertTrue(failure.getMessage().contains("flutter.material.AppBar"));
     }
 
+    @Test
+    void projectsThemeBoundComplexTextValuesInProtocolV4() throws Exception {
+        WidgetNode text = new WidgetNode(
+                id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
+                type("flutter.widgets.Text"),
+                Map.ofEntries(
+                        Map.entry(new PropertyName("data"),
+                                new PropertyValue.StringValue("Styled")),
+                        Map.entry(new PropertyName("selectionColor"),
+                                new PropertyValue.ThemeTokenValue(
+                                        new ThemeToken("material.colorScheme.primary"))),
+                        Map.entry(new PropertyName("styleThemeTextStyle"),
+                                new PropertyValue.ThemeTokenValue(
+                                        new ThemeToken("material.textTheme.bodyLarge"))),
+                        Map.entry(new PropertyName("styleForeground"),
+                                PropertyValue.PaintValue.defaults(new ColorSource.Theme(
+                                        new ThemeToken("material.colorScheme.secondary")))),
+                        Map.entry(new PropertyName("styleShadows"),
+                                new PropertyValue.ShadowListValue(List.of(
+                                        new PropertyValue.ShadowListValue.Shadow(
+                                                id("192489fb-3bbb-46c5-9bac-c988f412218c"),
+                                                new ColorSource.Literal(0x80445566L),
+                                                BigDecimal.ZERO, BigDecimal.ONE,
+                                                BigDecimal.valueOf(2))))),
+                        Map.entry(new PropertyName("styleFontFeatures"),
+                                new PropertyValue.FontFeatureListValue(List.of(
+                                        new PropertyValue.FontFeatureListValue.FontFeature(
+                                                id("d8ca6ff9-1aa5-4bb1-944b-fdd475b5359d"),
+                                                "liga", 1)))),
+                        Map.entry(new PropertyName("styleFontVariations"),
+                                new PropertyValue.FontVariationListValue(List.of(
+                                        new PropertyValue.FontVariationListValue.FontVariation(
+                                                id("2115406c-c05d-4323-81a2-7cfe7ea35dc4"),
+                                                "wght", BigDecimal.valueOf(700)))))),
+                Map.of());
+        DesignerDocument document = new DesignerDocument(DOCUMENT_ID, source(), text);
+
+        String json = new String(
+                new CanvasModelPayloadCodec().encode(request(document)),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":4"), json);
+        assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
+                + "\"token\":\"material.colorScheme.primary\"}"), json);
+        assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
+                + "\"token\":\"material.textTheme.bodyLarge\"}"), json);
+        assertTrue(json.contains("\"styleForeground\":{\"kind\":\"paint\","
+                + "\"color\":{\"kind\":\"theme\","
+                + "\"token\":\"material.colorScheme.secondary\"}"), json);
+        assertTrue(json.contains("\"blendMode\":\"srcOver\""), json);
+        assertTrue(json.contains("\"styleShadows\":{\"kind\":\"shadowList\","), json);
+        assertTrue(json.contains("\"color\":{\"kind\":\"literal\","
+                + "\"argb\":\"0x80445566\"}"), json);
+        assertTrue(json.contains("\"styleFontFeatures\":{\"kind\":\"fontFeatureList\","), json);
+        assertTrue(json.contains("\"tag\":\"liga\",\"value\":1"), json);
+        assertTrue(json.contains("\"styleFontVariations\":{\"kind\":\"fontVariationList\","), json);
+        Matcher variation = Pattern.compile(
+                "\\\"axis\\\":\\\"wght\\\",\\\"value\\\":([^,}]+)")
+                .matcher(json);
+        assertTrue(variation.find(), json);
+        assertEquals(0, BigDecimal.valueOf(700).compareTo(
+                new BigDecimal(variation.group(1))));
+    }
+
+    @Test
+    void projectsResolvedThemeOverridesInCanonicalProtocolV4Order() throws Exception {
+        CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
+                Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
+                Optional.empty(), Optional.of(16.0d), Optional.of("w600"),
+                Optional.of("italic"), Optional.empty(), Optional.empty(),
+                Optional.of(1.4d), Optional.of("Noto Sans"),
+                Optional.of(java.util.Set.of("lineThrough", "underline")),
+                Optional.of(new CanvasThemeColorValue.Literal(0xFF123456)),
+                Optional.of("dashed"), Optional.of(2.0d));
+        CanvasResolvedTheme resolved = new CanvasResolvedTheme(
+                "light", 0xFF6750A4, CanvasThemeBrightness.LIGHT,
+                "B".repeat(64),
+                Map.of("surface", 0xFF020202, "primary", 0xFF010101),
+                Map.of("bodyMedium", body));
+        CanvasRenderProfile profile = new CanvasRenderProfile(
+                CanvasPreviewMode.MOBILE, CanvasTargetPlatform.ANDROID,
+                new CanvasViewport(390, 844), new CanvasDevicePixelRatio(1),
+                resolved, new CanvasLocale("en-US"), new CanvasTextScaleFactor(1),
+                new CanvasEngineIdentity("3.44.8", "framework", "engine", "3.12.0"));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(
+                request(profile, document(false))), StandardCharsets.UTF_8);
+
+        assertTrue(json.indexOf("\"primary\":\"0xFF010101\"")
+                < json.indexOf("\"surface\":\"0xFF020202\""), json);
+        assertTrue(json.contains("\"color\":{\"kind\":\"colorScheme\","
+                + "\"role\":\"onSurface\"}"), json);
+        assertTrue(json.contains("\"decoration\":[\"underline\",\"lineThrough\"]"), json);
+        assertTrue(json.contains("\"decorationColor\":{\"kind\":\"argb\","
+                + "\"argb\":\"0xFF123456\"}"), json);
+    }
+
+    @Test
+    void rejectsNonRepresentableComplexNumbersBeforeCanvasProjection() {
+        BigDecimal overflow = new BigDecimal("1E+400");
+        BigDecimal underflow = new BigDecimal("1E-400");
+        BigDecimal excessPrecision = new BigDecimal("1.234567890123456789");
+
+        assertCanvasAdmissionRejects(new PropertyValue.PaintValue(
+                new ColorSource.Literal(0xFF112233L),
+                PropertyValue.PaintValue.BlendMode.SRC_OVER,
+                PropertyValue.PaintValue.Style.FILL,
+                overflow,
+                PropertyValue.PaintValue.StrokeCap.BUTT,
+                PropertyValue.PaintValue.StrokeJoin.MITER,
+                BigDecimal.valueOf(4),
+                true,
+                PropertyValue.PaintValue.FilterQuality.NONE,
+                false,
+                Optional.empty()), "styleForeground");
+        assertCanvasAdmissionRejects(new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        id("c53f7722-6a78-4d72-b87f-7279370fc2c7"),
+                        new ColorSource.Literal(0xFF112233L),
+                        underflow,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO))), "styleShadows");
+        assertCanvasAdmissionRejects(new PropertyValue.FontVariationListValue(List.of(
+                new PropertyValue.FontVariationListValue.FontVariation(
+                        id("188bc869-8f94-444a-a4f9-e83a8248042b"),
+                        "GRAD",
+                        excessPrecision))), "styleFontVariations");
+    }
+
+    private static void assertCanvasAdmissionRejects(
+            PropertyValue value,
+            String propertyName) {
+        WidgetNode text = new WidgetNode(
+                id("a3e7471d-f073-4930-b85a-7ba7f04158aa"),
+                type("flutter.widgets.Text"),
+                Map.of(
+                        new PropertyName("data"),
+                        new PropertyValue.StringValue("Styled"),
+                        new PropertyName(propertyName),
+                        value),
+                Map.of());
+        DesignerDocument invalid = new DesignerDocument(DOCUMENT_ID, source(), text);
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class, () -> request(invalid));
+        assertTrue(failure.getMessage().contains("designer.property.constraint"),
+                failure::getMessage);
+    }
+
     private static CanvasRenderRequest request(DesignerDocument document) {
+        return request(PROFILE, document);
+    }
+
+    private static CanvasRenderRequest request(
+            CanvasRenderProfile profile, DesignerDocument document) {
         var catalog = BuiltInWidgetCatalog.getDefault();
         var snapshot = ValidatedCanvasRevisionSnapshot.captureReadOnly(
                 0, document, catalog, ValidationLimits.defaults());
         var gate = new CanvasPresentationGate(
                 CanvasSessionId.parse("2c8ca807-93f6-4c6b-b16b-a2c1a438d79b"),
                 DOCUMENT_ID);
-        return gate.present(PROFILE, snapshot);
+        return gate.present(profile, snapshot);
     }
 
     private static DesignerDocument document(boolean reversePropertyOrder) {
@@ -228,26 +403,34 @@ class CanvasModelPayloadCodecTest {
                 id(id),
                 type("flutter.widgets.Text"),
                 primary
-                        ? Map.of(
-                                new PropertyName("data"), new PropertyValue.StringValue(data),
-                                new PropertyName("textAlign"),
-                                new PropertyValue.EnumValue("TextAlign", "center"),
-                                new PropertyName("textDirection"),
-                                new PropertyValue.EnumValue("TextDirection", "ltr"),
-                                new PropertyName("softWrap"),
-                                new PropertyValue.BooleanValue(false),
-                                new PropertyName("overflow"),
-                                new PropertyValue.EnumValue("TextOverflow", "ellipsis"),
-                                new PropertyName("maxLines"),
-                                new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
-                                new PropertyName("semanticsLabel"),
-                                new PropertyValue.StringValue("Primary greeting"),
-                                new PropertyName("semanticsIdentifier"),
-                                new PropertyValue.StringValue("primary-greeting"),
-                                new PropertyName("textWidthBasis"),
-                                new PropertyValue.EnumValue("TextWidthBasis", "longestLine"),
-                                new PropertyName("selectionColor"),
-                                new PropertyValue.ColorValue(0xFF336699L))
+                        ? Map.ofEntries(
+                                Map.entry(new PropertyName("data"), new PropertyValue.StringValue(data)),
+                                Map.entry(new PropertyName("textAlign"),
+                                        new PropertyValue.EnumValue("TextAlign", "center")),
+                                Map.entry(new PropertyName("textDirection"),
+                                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                                Map.entry(new PropertyName("softWrap"),
+                                        new PropertyValue.BooleanValue(false)),
+                                Map.entry(new PropertyName("overflow"),
+                                        new PropertyValue.EnumValue("TextOverflow", "ellipsis")),
+                                Map.entry(new PropertyName("maxLines"),
+                                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                                Map.entry(new PropertyName("semanticsLabel"),
+                                        new PropertyValue.StringValue("Primary greeting")),
+                                Map.entry(new PropertyName("semanticsIdentifier"),
+                                        new PropertyValue.StringValue("primary-greeting")),
+                                Map.entry(new PropertyName("textWidthBasis"),
+                                        new PropertyValue.EnumValue("TextWidthBasis", "longestLine")),
+                                Map.entry(new PropertyName("selectionColor"),
+                                        new PropertyValue.ColorValue(0xFF336699L)),
+                                Map.entry(new PropertyName("styleFontSize"),
+                                        new PropertyValue.DoubleValue(BigDecimal.valueOf(18))),
+                                Map.entry(new PropertyName("styleFontWeight"),
+                                        new PropertyValue.EnumValue("FontWeight", "w700")),
+                                Map.entry(new PropertyName("styleColor"),
+                                        new PropertyValue.ColorValue(0xFF112233L)),
+                                Map.entry(new PropertyName("textScalerFactor"),
+                                        new PropertyValue.DoubleValue(new BigDecimal("1.25"))))
                         : Map.of(
                                 new PropertyName("data"), new PropertyValue.StringValue(data),
                                 new PropertyName("semanticsIdentifier"),

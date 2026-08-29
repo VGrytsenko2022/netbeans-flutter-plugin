@@ -4,9 +4,12 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderProfile;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyName;
@@ -32,7 +35,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 1;
+    public static final int VERSION = 4;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private static final Map<String, Map<String, Set<PropertyValueKind>>> PROPERTIES = Map.of(
@@ -60,17 +63,66 @@ public final class CanvasModelPayloadCodec {
             "flutter.widgets.Center", Map.of(
                     "widthFactor", Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     "heightFactor", Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE)),
-            "flutter.widgets.Text", Map.of(
-                    "data", Set.of(PropertyValueKind.STRING),
-                    "textAlign", Set.of(PropertyValueKind.ENUM),
-                    "textDirection", Set.of(PropertyValueKind.ENUM),
-                    "softWrap", Set.of(PropertyValueKind.BOOLEAN),
-                    "maxLines", Set.of(PropertyValueKind.INTEGER),
-                    "overflow", Set.of(PropertyValueKind.ENUM),
-                    "semanticsLabel", Set.of(PropertyValueKind.STRING),
-                    "semanticsIdentifier", Set.of(PropertyValueKind.STRING),
-                    "textWidthBasis", Set.of(PropertyValueKind.ENUM),
-                    "selectionColor", Set.of(PropertyValueKind.COLOR)));
+            "flutter.widgets.Text", Map.ofEntries(
+                    property("data", PropertyValueKind.STRING),
+                    property("textAlign", PropertyValueKind.ENUM),
+                    property("textDirection", PropertyValueKind.ENUM),
+                    property("softWrap", PropertyValueKind.BOOLEAN),
+                    property("maxLines", PropertyValueKind.INTEGER),
+                    property("overflow", PropertyValueKind.ENUM),
+                    property("semanticsLabel", PropertyValueKind.STRING),
+                    property("semanticsIdentifier", PropertyValueKind.STRING),
+                    property("textWidthBasis", PropertyValueKind.ENUM),
+                    property("selectionColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                    property("localeLanguageCode", PropertyValueKind.STRING),
+                    property("localeScriptCode", PropertyValueKind.STRING),
+                    property("localeCountryCode", PropertyValueKind.STRING),
+                    property("textScalerFactor", PropertyValueKind.DOUBLE),
+                    property("textHeightApplyFirstAscent", PropertyValueKind.BOOLEAN),
+                    property("textHeightApplyLastDescent", PropertyValueKind.BOOLEAN),
+                    property("textHeightLeadingDistribution", PropertyValueKind.ENUM),
+                    property("styleInherit", PropertyValueKind.BOOLEAN),
+                    property("styleThemeTextStyle", PropertyValueKind.THEME_TOKEN),
+                    property("styleColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                    property("styleBackgroundColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                    property("styleFontSize", PropertyValueKind.DOUBLE),
+                    property("styleFontWeight", PropertyValueKind.ENUM),
+                    property("styleFontStyle", PropertyValueKind.ENUM),
+                    property("styleLetterSpacing", PropertyValueKind.DOUBLE),
+                    property("styleWordSpacing", PropertyValueKind.DOUBLE),
+                    property("styleTextBaseline", PropertyValueKind.ENUM),
+                    property("styleHeight", PropertyValueKind.DOUBLE),
+                    property("styleLeadingDistribution", PropertyValueKind.ENUM),
+                    property("styleLocaleLanguageCode", PropertyValueKind.STRING),
+                    property("styleLocaleScriptCode", PropertyValueKind.STRING),
+                    property("styleLocaleCountryCode", PropertyValueKind.STRING),
+                    property("styleDecorationUnderline", PropertyValueKind.BOOLEAN),
+                    property("styleDecorationOverline", PropertyValueKind.BOOLEAN),
+                    property("styleDecorationLineThrough", PropertyValueKind.BOOLEAN),
+                    property("styleForeground", PropertyValueKind.PAINT),
+                    property("styleBackground", PropertyValueKind.PAINT),
+                    property("styleShadows", PropertyValueKind.SHADOW_LIST),
+                    property("styleFontFeatures", PropertyValueKind.FONT_FEATURE_LIST),
+                    property("styleFontVariations", PropertyValueKind.FONT_VARIATION_LIST),
+                    property("styleDecorationColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                    property("styleDecorationStyle", PropertyValueKind.ENUM),
+                    property("styleDecorationThickness", PropertyValueKind.DOUBLE),
+                    property("styleDebugLabel", PropertyValueKind.STRING),
+                    property("styleFontFamily", PropertyValueKind.STRING),
+                    property("styleFontFamilyFallback", PropertyValueKind.STRING),
+                    property("stylePackage", PropertyValueKind.STRING),
+                    property("styleOverflow", PropertyValueKind.ENUM),
+                    property("strutFontFamily", PropertyValueKind.STRING),
+                    property("strutFontFamilyFallback", PropertyValueKind.STRING),
+                    property("strutFontSize", PropertyValueKind.DOUBLE),
+                    property("strutHeight", PropertyValueKind.DOUBLE),
+                    property("strutLeadingDistribution", PropertyValueKind.ENUM),
+                    property("strutLeading", PropertyValueKind.DOUBLE),
+                    property("strutFontWeight", PropertyValueKind.ENUM),
+                    property("strutFontStyle", PropertyValueKind.ENUM),
+                    property("strutForceHeight", PropertyValueKind.BOOLEAN),
+                    property("strutDebugLabel", PropertyValueKind.STRING),
+                    property("strutPackage", PropertyValueKind.STRING)));
     private static final Map<String, Set<String>> SLOTS = Map.of(
             "flutter.material.Scaffold", Set.of("appBar", "body", "floatingActionButton"),
             "flutter.widgets.Column", Set.of("children"),
@@ -80,6 +132,12 @@ public final class CanvasModelPayloadCodec {
             "flutter.widgets.Text", Set.of());
 
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
+
+    private static Map.Entry<String, Set<PropertyValueKind>> property(
+            String name,
+            PropertyValueKind... kinds) {
+        return Map.entry(name, Set.of(kinds));
+    }
 
     /**
      * Returns whether the definition is one of the reviewed built-in widget
@@ -195,13 +253,96 @@ public final class CanvasModelPayloadCodec {
         json.writeNumberField("logicalWidth", profile.viewport().logicalWidth());
         json.writeNumberField("logicalHeight", profile.viewport().logicalHeight());
         json.writeNumberField("devicePixelRatio", profile.devicePixelRatio().value());
+        json.writeObjectFieldStart("theme");
+        json.writeStringField("definitionId", profile.theme().definitionId());
+        json.writeStringField("seedArgb", profile.theme().seedArgbLiteral());
         json.writeStringField(
                 "brightness", profile.theme().brightness().name().toLowerCase(
                         java.util.Locale.ROOT));
-        json.writeStringField("themeIdentity", profile.theme().themeIdentity());
+        json.writeStringField("digestIdentity", profile.theme().digestIdentity());
+        json.writeObjectFieldStart("colorScheme");
+        for (Map.Entry<String, Integer> entry
+                : profile.theme().colorSchemeOverrides().entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey()).toList()) {
+            json.writeStringField(entry.getKey(), "0x%08X".formatted(entry.getValue()));
+        }
+        json.writeEndObject();
+        json.writeObjectFieldStart("textTheme");
+        for (Map.Entry<String, CanvasThemeTextStyleOverride> entry
+                : profile.theme().textThemeOverrides().entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey()).toList()) {
+            json.writeObjectFieldStart(entry.getKey());
+            writeTextStyleOverride(json, entry.getValue());
+            json.writeEndObject();
+        }
+        json.writeEndObject();
+        json.writeEndObject();
         json.writeStringField("locale", profile.locale().languageTag());
         json.writeNumberField("textScaleFactor", profile.textScaleFactor().value());
         json.writeEndObject();
+    }
+
+    private static void writeTextStyleOverride(
+            JsonGenerator json, CanvasThemeTextStyleOverride style) throws IOException {
+        writeThemeColor(json, "color", style.color());
+        writeThemeColor(json, "backgroundColor", style.backgroundColor());
+        writeDouble(json, "fontSize", style.fontSize());
+        if (style.fontWeight().isPresent()) {
+            json.writeStringField("fontWeight", style.fontWeight().orElseThrow());
+        }
+        if (style.fontStyle().isPresent()) {
+            json.writeStringField("fontStyle", style.fontStyle().orElseThrow());
+        }
+        writeDouble(json, "letterSpacing", style.letterSpacing());
+        writeDouble(json, "wordSpacing", style.wordSpacing());
+        writeDouble(json, "height", style.height());
+        if (style.fontFamily().isPresent()) {
+            json.writeStringField("fontFamily", style.fontFamily().orElseThrow());
+        }
+        if (style.decoration().isPresent()) {
+            json.writeArrayFieldStart("decoration");
+            for (String line : java.util.List.of(
+                    "underline", "overline", "lineThrough")) {
+                if (style.decoration().orElseThrow().contains(line)) {
+                    json.writeString(line);
+                }
+            }
+            json.writeEndArray();
+        }
+        writeThemeColor(json, "decorationColor", style.decorationColor());
+        if (style.decorationStyle().isPresent()) {
+            json.writeStringField("decorationStyle", style.decorationStyle().orElseThrow());
+        }
+        writeDouble(json, "decorationThickness", style.decorationThickness());
+    }
+
+    private static void writeThemeColor(
+            JsonGenerator json,
+            String field,
+            java.util.Optional<CanvasThemeColorValue> value) throws IOException {
+        if (value.isEmpty()) {
+            return;
+        }
+        json.writeObjectFieldStart(field);
+        switch (value.orElseThrow()) {
+            case CanvasThemeColorValue.Literal literal -> {
+                json.writeStringField("kind", "argb");
+                json.writeStringField("argb", literal.argbLiteral());
+            }
+            case CanvasThemeColorValue.ColorRole role -> {
+                json.writeStringField("kind", "colorScheme");
+                json.writeStringField("role", role.role());
+            }
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeDouble(
+            JsonGenerator json, String field, java.util.Optional<Double> value)
+            throws IOException {
+        if (value.isPresent()) {
+            json.writeNumberField(field, value.orElseThrow());
+        }
     }
 
     private static void writeWidget(JsonGenerator json, WidgetNode widget)
@@ -289,9 +430,105 @@ public final class CanvasModelPayloadCodec {
                 json.writeNumberField("right", insets.right());
                 json.writeNumberField("bottom", insets.bottom());
             }
+            case PropertyValue.ThemeTokenValue token -> {
+                json.writeStringField("kind", "themeToken");
+                json.writeStringField("token", token.token().wireId());
+            }
+            case PropertyValue.PaintValue paint -> writePaint(json, paint);
+            case PropertyValue.ShadowListValue shadows -> writeShadows(json, shadows);
+            case PropertyValue.FontFeatureListValue features -> writeFontFeatures(json, features);
+            case PropertyValue.FontVariationListValue variations ->
+                writeFontVariations(json, variations);
             case PropertyValue.AssetValue ignored -> throw unsupported(value);
             case PropertyValue.CallbackValue ignored -> throw unsupported(value);
             case PropertyValue.DartExpressionValue ignored -> throw unsupported(value);
+        }
+        json.writeEndObject();
+    }
+
+    private static void writePaint(JsonGenerator json, PropertyValue.PaintValue paint)
+            throws IOException {
+        json.writeStringField("kind", "paint");
+        json.writeFieldName("color");
+        writeColorSource(json, paint.color());
+        json.writeStringField("blendMode", paint.blendMode().wireName());
+        json.writeStringField("style", paint.style().wireName());
+        json.writeNumberField("strokeWidth", paint.strokeWidth());
+        json.writeStringField("strokeCap", paint.strokeCap().wireName());
+        json.writeStringField("strokeJoin", paint.strokeJoin().wireName());
+        json.writeNumberField("strokeMiterLimit", paint.strokeMiterLimit());
+        json.writeBooleanField("antiAlias", paint.antiAlias());
+        json.writeStringField("filterQuality", paint.filterQuality().wireName());
+        json.writeBooleanField("invertColors", paint.invertColors());
+        if (paint.maskFilter().isPresent()) {
+            PropertyValue.PaintValue.BlurMask mask = paint.maskFilter().orElseThrow();
+            json.writeObjectFieldStart("maskFilter");
+            json.writeStringField("style", mask.style().wireName());
+            json.writeNumberField("sigma", mask.sigma());
+            json.writeEndObject();
+        }
+    }
+
+    private static void writeShadows(
+            JsonGenerator json,
+            PropertyValue.ShadowListValue shadows) throws IOException {
+        json.writeStringField("kind", "shadowList");
+        json.writeArrayFieldStart("items");
+        for (PropertyValue.ShadowListValue.Shadow shadow : shadows.items()) {
+            json.writeStartObject();
+            json.writeStringField("id", shadow.id().toString());
+            json.writeFieldName("color");
+            writeColorSource(json, shadow.color());
+            json.writeNumberField("offsetX", shadow.offsetX());
+            json.writeNumberField("offsetY", shadow.offsetY());
+            json.writeNumberField("blurRadius", shadow.blurRadius());
+            json.writeEndObject();
+        }
+        json.writeEndArray();
+    }
+
+    private static void writeFontFeatures(
+            JsonGenerator json,
+            PropertyValue.FontFeatureListValue features) throws IOException {
+        json.writeStringField("kind", "fontFeatureList");
+        json.writeArrayFieldStart("items");
+        for (PropertyValue.FontFeatureListValue.FontFeature feature : features.items()) {
+            json.writeStartObject();
+            json.writeStringField("id", feature.id().toString());
+            json.writeStringField("tag", feature.tag());
+            json.writeNumberField("value", feature.value());
+            json.writeEndObject();
+        }
+        json.writeEndArray();
+    }
+
+    private static void writeFontVariations(
+            JsonGenerator json,
+            PropertyValue.FontVariationListValue variations) throws IOException {
+        json.writeStringField("kind", "fontVariationList");
+        json.writeArrayFieldStart("items");
+        for (PropertyValue.FontVariationListValue.FontVariation variation : variations.items()) {
+            json.writeStartObject();
+            json.writeStringField("id", variation.id().toString());
+            json.writeStringField("axis", variation.axis());
+            json.writeNumberField("value", variation.value());
+            json.writeEndObject();
+        }
+        json.writeEndArray();
+    }
+
+    private static void writeColorSource(JsonGenerator json, ColorSource source)
+            throws IOException {
+        json.writeStartObject();
+        switch (source) {
+            case ColorSource.Literal literal -> {
+                json.writeStringField("kind", "literal");
+                json.writeStringField("argb", literal.wireArgb());
+            }
+            case ColorSource.Theme theme -> {
+                json.writeStringField("kind", "theme");
+                json.writeStringField("token", theme.token().wireId());
+            }
         }
         json.writeEndObject();
     }

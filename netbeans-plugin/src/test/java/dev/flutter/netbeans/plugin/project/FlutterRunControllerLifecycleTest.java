@@ -11,6 +11,7 @@ import dev.flutter.netbeans.api.FlutterSdk;
 import dev.flutter.netbeans.api.RunState;
 import dev.flutter.netbeans.project.FlutterProjectPlatform;
 import dev.flutter.netbeans.run.FlutterEmulator;
+import java.awt.EventQueue;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -38,6 +39,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.netbeans.spi.project.ActionProgress;
 import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ProjectState;
@@ -231,6 +234,59 @@ class FlutterRunControllerLifecycleTest {
         assertFalse(dependencies.executor.hasTasks());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {ActionProvider.COMMAND_RUN, ActionProvider.COMMAND_DEBUG})
+    void savePreflightCompletesBeforeRunAndDebugBackendStart(String command) {
+        dependencies.planSession();
+        RecordingActionProgress action = new RecordingActionProgress();
+
+        controller.invoke(command, action, TARGET);
+        dependencies.executor.runNext();
+
+        boolean debug = ActionProvider.COMMAND_DEBUG.equals(command);
+        assertEquals(List.of("save", "start:" + debug), dependencies.launchEvents);
+        assertEquals(1, dependencies.savePreflightCalls);
+        assertEquals(List.of(debug), dependencies.startedDebugModes);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {ActionProvider.COMMAND_RUN, ActionProvider.COMMAND_DEBUG})
+    void savePreflightFailureBlocksRunAndDebug(String command) {
+        dependencies.savePreflightFailure = new IOException(
+                "cannot save accumulated Flutter project changes in lib/main.dart: disk full");
+        RecordingActionProgress action = new RecordingActionProgress();
+
+        controller.invoke(command, action, TARGET);
+        dependencies.executor.runAll();
+
+        assertEquals(List.of("save"), dependencies.launchEvents);
+        assertEquals(1, dependencies.savePreflightCalls);
+        assertTrue(dependencies.startedSessions.isEmpty());
+        assertEquals(List.of(false), action.finishedValues());
+        assertTrue(dependencies.containsOutput("lib/main.dart"));
+        assertTrue(dependencies.containsOutput("disk full"));
+    }
+
+    @Test
+    void restartSaveFailureLeavesCurrentSessionRunning() {
+        FakeRunSession current = dependencies.planSession();
+        RecordingActionProgress initial = startRun(current);
+        assertEquals(List.of(true), initial.finishedValues());
+        dependencies.confirmRestart = true;
+        dependencies.savePreflightFailure = new IOException(
+                "cannot save accumulated Flutter project changes in lib/main.dart: read-only");
+        RecordingActionProgress restart = new RecordingActionProgress();
+
+        controller.invoke(ActionProvider.COMMAND_RUN, restart, TARGET);
+        dependencies.executor.runAll();
+
+        assertEquals(0, current.quitCalls);
+        assertEquals(1, dependencies.startedSessions.size());
+        assertEquals(List.of(false), restart.finishedValues());
+        assertTrue(controller.isCommandEnabled(FlutterProjectActionProvider.COMMAND_STOP));
+        assertEquals(List.of("save", "start:false", "save"), dependencies.launchEvents);
+    }
+
     @Test
     void restartYesReplacesSessionAndIgnoresStaleExitCompletion() {
         FakeRunSession previous = dependencies.planSession();
@@ -245,6 +301,10 @@ class FlutterRunControllerLifecycleTest {
 
         assertEquals(1, previous.quitCalls);
         assertEquals(2, dependencies.startedSessions.size());
+        assertEquals(List.of(
+                "save", "start:false",
+                "save", "quit", "save", "start:false"),
+                dependencies.launchEvents);
         assertEquals(1, dependencies.confirmationCalls);
         assertEquals("Restart Flutter Application", dependencies.lastConfirmation.getTitle());
         assertEquals(List.of(true), initial.finishedValues());
@@ -542,6 +602,7 @@ class FlutterRunControllerLifecycleTest {
         private final List<Boolean> startedDebugModes = new ArrayList<>();
         private final List<RecordingRunProgress> progress = new ArrayList<>();
         private final List<RecordingOutput> outputTabs = new ArrayList<>();
+        private final List<String> launchEvents = new ArrayList<>();
         private boolean confirmRestart;
         private int confirmationCalls;
         private org.openide.NotifyDescriptor.Confirmation lastConfirmation;
@@ -557,6 +618,8 @@ class FlutterRunControllerLifecycleTest {
         private FlutterEmulator emulatorChoice;
         private CountDownLatch deviceListEntered;
         private CountDownLatch releaseDeviceList;
+        private int savePreflightCalls;
+        private IOException savePreflightFailure;
 
         FakeDependencies(Path root, FlutterDevice target) {
             this.sdk = new FlutterSdk(root.resolve("fake-flutter-sdk"),
@@ -567,7 +630,7 @@ class FlutterRunControllerLifecycleTest {
         }
 
         FakeRunSession planSession() {
-            FakeRunSession session = new FakeRunSession();
+            FakeRunSession session = new FakeRunSession(launchEvents);
             plannedSessions.addLast(session);
             return session;
         }
@@ -665,6 +728,17 @@ class FlutterRunControllerLifecycleTest {
         }
 
         @Override
+        void saveModifiedProjectDataObjects(FlutterProject project) throws IOException {
+            assertFalse(EventQueue.isDispatchThread(),
+                    "the durable launch save must not block the NetBeans event thread");
+            savePreflightCalls++;
+            launchEvents.add("save");
+            if (savePreflightFailure != null) {
+                throw savePreflightFailure;
+            }
+        }
+
+        @Override
         List<FlutterDevice> listDevices(FlutterSdk ignoredSdk, Path ignoredRoot) {
             List<FlutterDevice> snapshot = devices;
             if (deviceListEntered != null) {
@@ -685,6 +759,7 @@ class FlutterRunControllerLifecycleTest {
                 Path ignoredRoot,
                 String deviceId,
                 boolean debug) throws IOException {
+            launchEvents.add("start:" + debug);
             if (sessionStartEntered != null) {
                 sessionStartEntered.countDown();
                 awaitUninterruptibly(releaseSessionStart);
@@ -779,6 +854,7 @@ class FlutterRunControllerLifecycleTest {
     }
 
     private static final class FakeRunSession implements FlutterRunController.RunSession {
+        private final List<String> launchEvents;
         private final List<Consumer<RunState>> stateListeners = new ArrayList<>();
         private final CompletableFuture<Integer> exit = new CompletableFuture<>();
         private final CompletableFuture<URI> vmService = new CompletableFuture<>();
@@ -788,6 +864,10 @@ class FlutterRunControllerLifecycleTest {
         private int hotReloadCalls;
         private int hotRestartCalls;
         private boolean completeExitOnClose = true;
+
+        FakeRunSession(List<String> launchEvents) {
+            this.launchEvents = launchEvents;
+        }
 
         @Override
         public RunState state() {
@@ -834,6 +914,7 @@ class FlutterRunControllerLifecycleTest {
         @Override
         public void quit() {
             quitCalls++;
+            launchEvents.add("quit");
             transition(RunState.STOPPING);
             transition(RunState.STOPPED);
             exit.complete(0);

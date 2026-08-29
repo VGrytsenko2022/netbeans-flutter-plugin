@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import java.math.BigDecimal;
 import java.util.Objects;
 
@@ -32,7 +33,47 @@ public final class PropertyValueFormatter {
             case PropertyValue.AssetValue assetValue -> "asset " + quote(assetValue.path());
             case PropertyValue.CallbackValue callbackValue -> callbackValue.handler();
             case PropertyValue.DartExpressionValue expressionValue -> expressionValue.code();
+            case PropertyValue.ThemeTokenValue theme ->
+                "theme " + theme.token().wireId();
+            case PropertyValue.PaintValue paint -> "Paint(" + color(paint.color())
+                    + ", " + paint.style().wireName()
+                    + ", " + paint.blendMode().wireName()
+                    + (paint.maskFilter().isPresent() ? ", blur" : "") + ')';
+            case PropertyValue.ShadowListValue shadows -> listSummary(
+                    shadows.items().size(), "shadow", "shadows",
+                    shadows.items().stream()
+                            .map(item -> color(item.color()) + " @ "
+                            + number(item.offsetX()) + ',' + number(item.offsetY()))
+                            .toList());
+            case PropertyValue.FontFeatureListValue features -> listSummary(
+                    features.items().size(), "feature", "features",
+                    features.items().stream()
+                            .map(item -> item.tag() + '=' + item.value()).toList());
+            case PropertyValue.FontVariationListValue variations -> listSummary(
+                    variations.items().size(), "axis", "axes",
+                    variations.items().stream()
+                            .map(item -> item.axis() + '=' + number(item.value())).toList());
         };
+    }
+
+    private static String color(ColorSource source) {
+        return switch (source) {
+            case ColorSource.Literal literal -> literal.wireArgb();
+            case ColorSource.Theme theme -> "theme:" + theme.token().role();
+        };
+    }
+
+    private static String listSummary(
+            int size, String singular, String plural, java.util.List<String> items) {
+        if (size == 0) {
+            return "0 " + plural;
+        }
+        String details = items.stream().limit(3)
+                .reduce((left, right) -> left + ", " + right).orElse("");
+        if (size > 3) {
+            details += ", …";
+        }
+        return size + " " + (size == 1 ? singular : plural) + ": " + details;
     }
 
     private static String number(BigDecimal value) {

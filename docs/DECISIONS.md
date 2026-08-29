@@ -1,11 +1,12 @@
 # Architecture Decisions
 
-Status note: ADR-024 supersedes the earlier provisional statements that
+Status note: ADR-024 and ADR-027 supersede the earlier provisional statements that
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted; only the closed typed Properties slice described by
-ADR-024 is now enabled. ADR-025 separately enables exactly one `Text` terminal-
-append DnD slice after its assembled NetBeans 30 acceptance passed; it does not
-authorize any broader Palette or Canvas mutation.
+ADR-024/ADR-027 is now enabled. ADR-025 initially enabled one historical
+Text-only insertion vertical slice. Its current superseding contract enables
+the catalog-authorized 36-cell matrix for all six exact `CORE_V1` Palette
+sources; it does not authorize non-insertion DnD or broader Canvas mutation.
 
 ## ADR-001 — IDE support before Designer
 
@@ -124,6 +125,13 @@ Chronology, not view ownership, selects the next operation. Thus `S1 → M1 → 
 
 Pair Save adopts the exact command session's durable-save lease and marks the current native position as the saved pair without clearing history. Undo away from that saved tuple makes the pair dirty; Redo back to the same tuple makes it clean again. A newer Source entry above a durably committed model entry remains dirty and is never discarded. A failure proved before entering `CloneableEditorSupport.saveDocument()` may remain retryable. Once that call begins, however, NetBeans 30 moves its private `UndoRedoManager` savepoint before requesting the output stream and exposes no public rollback for that marker. Therefore every non-committed outcome after entry, including a verified zero-write or fully restored filesystem result, clears staged authority and invalidates the command session in a sticky conflict while preserving the native history exactly as CES left it. Partial writes, unknown native-edit admission, missing manager acknowledgement, failed exact replay or unrecoverable callback ordering use the same fail-closed rule instead of calling `discardAllEdits()` or guessing which side won.
 
+If that first admitted model edit migrated a raw schema-v1 `.fd` baseline to a
+canonical schema-v2 command revision, Pair Save re-anchors retained semantic
+endpoints from the proven canonical v2 revision, not from the raw v1 bytes.
+Exact historical Dart envelopes remain unchanged, but Undo cannot resurrect an
+old model encoding or create a physical variant that is incompatible with the
+new durable anchor.
+
 The saved-history slice now proves both `B→C1→Save` and the complete `B→C1→C2→Save` chain. Two semantic Undo operations reach `C1` then former durable `B`; two Redo operations return through `C1` to the exact clean `C2` savepoint while durable `C2` bytes remain unchanged. Re-anchored analyzed endpoints use analyzer-free `REANCHORED_ANALYZED` proof, former durable endpoints use `FORMER_DURABLE`, and neither fabricates fresh `PairSaveEvidence`. An unmanaged `S2` entry can remain chronologically above a saved model edge, including an edit racing after durable output. Successful Pair Save verifies live content without mutating native history, adopts a synchronously derived saved `Current`, and publishes controller, command and Pair effects in EDT order. A stale controller generation or other post-commit split-authority risk invalidates the command session and enters conflict instead of partially adopting it.
 
 Ordinary Source Save over that retained semantic graph uses a separate identity-bound `SourceAnchorLease`, acquired before entering CES. The lease pins the exact saved `BASELINE`, prospective Source bytes and stable logical revision, and blocks commands, Undo/Redo, another durable lease and another Source anchor until explicit adoption, abort or fail-closed invalidation. Preflight captures the exact virtual CES serialization without advancing its private savepoint. Re-anchoring is allowed only when both managed payloads are byte-for-byte identical to the saved semantic revision; equal normalized hashes are deliberately insufficient. After an exact committed output, `S2` becomes the durable command `BASELINE`, while every retained historical candidate is re-derived against `S2` using its exact retained live-source template. Stable logical revision ids remain stable, but all proof and immutable revision identities are rebuilt from the new durable anchor.
@@ -202,10 +210,12 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024 makes only 27 catalog-backed non-`Scaffold` Properties fields
-writable. ADR-025 makes only `Text` terminal append to `Row.children` or
-`Column.children` publicly draggable; all other Palette mutations remain
-disabled. A separate post-handshake runtime control codec publishes one exact
+framing. ADR-024 and ADR-027 make only 76 catalog-backed non-`Scaffold`
+Properties fields writable, including the 59-leaf Text projection. ADR-025
+historically made only built-in `Text` publicly draggable. That vertical slice
+is superseded by the current six-`CORE_V1` source matrix for reviewed empty
+single slots and terminal `Row.children`/`Column.children` positions; all
+non-insertion Palette mutations remain disabled. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
 `CORE_V1` model payload accepts only reviewed built-in definitions for
@@ -223,8 +233,8 @@ close/build/launch/attach/exit races plus two simultaneous sessions. The native
 Canvas now renders the validated six-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those six reviewed definitions; only ADR-025's built-in `Text` terminal append
-has an insertion action. No image or pixel-transfer frame kind exists.
+those six reviewed definitions; only ADR-025's reviewed built-in `Text`
+insertion targets have an action. No image or pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -233,9 +243,10 @@ open Design views on canonical folder creation, deletion or rename; the exact
 choice is retained first, then the same responsive mode, and otherwise the first
 canonical target is selected. An empty snapshot disables Preview and does not
 fall back to Mobile. Android/iOS/macOS/Linux targets reach Flutter
-`ThemeData.platform` on the Windows engine. Selecting Web reports that the
-separately compiled browser backend is absent and never relabels a Windows frame
-as Web.
+`ThemeData.platform` on the Windows engine. Selecting Web renders the exact Web
+responsive viewport on that same engine as a design-time layout preview. The UI
+states that browser-only runtime behavior is not emulated; a future compiled
+browser backend is required only for browser-runtime fidelity.
 The platform-neutral SPI, completed broader Windows acceptance matrix,
 Linux/macOS providers, broader drag-and-drop, remaining Properties and the
 broader Designer mutation surface remain foundation gates.
@@ -247,15 +258,17 @@ runtime. The Windows-first embedded Canvas is authentic only for its bound
 Windows Flutter engine, resolved theme, locale, viewport, text scale and
 device-pixel ratio. Android/iOS/macOS/Linux adaptive appearance does not claim
 their operating-system runtime, fonts, plugins, platform channels, IME or
-accessibility stack. Flutter Web is compile-time/browser identity and therefore
-requires a separate browser backend.
+accessibility stack. Likewise the native Web layout preview does not claim
+`kIsWeb`, browser fonts, DOM, plugins or platform channels. Those require a
+separate browser backend.
 
 Accepting this ADR did not by itself enable writable UI. ADR-024 later enables
 only the reviewed typed Properties allowlist after its revision fencing,
-pair-save, Undo/Redo, close and assembled-runtime gates pass. ADR-025 later
-enables one separately bounded `Text` terminal-append DnD transaction after its
-own assembled acceptance; every broader DnD and mutation surface remains
-outside both authorizations.
+pair-save, Undo/Redo, close and assembled-runtime gates pass. ADR-025 first
+enabled one separately bounded historical `Text` insertion transaction after
+its own assembled acceptance, then superseded that source/slot restriction with
+the reviewed six-`CORE_V1` 36-cell insertion matrix. Non-insertion DnD and every
+broader mutation surface remain outside both authorizations.
 
 ## ADR-022 — Pair Copy/Paste is a same-folder Node transaction
 
@@ -364,15 +377,26 @@ requires explicit relative-URI rebasing semantics.
 ## ADR-024 — Typed Properties is a bounded revision-bound mutation slice
 
 Accepted for 0.1.3. The standard NetBeans Properties window is writable only
-for the reviewed simple-value constructor arguments of `Column`, `Row`,
-`Padding`, `Center` and `Text`. The closed allowlist contains 27 properties;
-`Scaffold` stays read-only and is a separate design task. Editor choice and
-value admission come from the immutable widget catalog. Required arguments
-cannot be unset; NetBeans Restore Default emits `ResetProperty` only for an
-optional argument. Complex `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
-`TextHeightBehavior` and directional edge-inset values remain unsupported until
-they have dedicated domain values, editors, generator rules and native-preview
-parity.
+for the reviewed constructor arguments of `Column`, `Row`, `Padding`, `Center`
+and `Text`. The closed allowlist contains 76 properties; `Scaffold` stays
+read-only and is a separate design task. `Text` contributes 59 typed leaves in
+seven sets: Text (8), Accessibility (2), Locale and scaling (7), Text style (25),
+Paint and effects (4), Advanced typography (2) and Strut style (11). Editor
+choice and value admission come from the immutable
+widget catalog: bounded strings and newline font-family lists, optional boolean
+checkboxes, exact constrained integers/doubles, closed enums, physical edge
+insets and ARGB colors. Required arguments cannot be unset; NetBeans Restore
+Default emits `ResetProperty` only for an optional argument.
+
+Those Text leaves are not lossy serialized composites. Deterministic Dart
+generation and the native Canvas use the same mapping to construct optional
+`TextStyle`, `StrutStyle`, `Locale.fromSubtags`, `TextScaler.linear` and
+`TextHeightBehavior` values, and omit a composite when none of its leaves is
+present. The deprecated `Text.textScaleFactor` argument and `key` are not
+exposed. ADR-027 adds a closed, typed subset for `Paint`, shadows, font features,
+font variations and semantic theme roles; raw Dart expressions are not an
+alternative representation. Directional edge-inset values remain outside the
+current contract.
 
 Every accepted cell edit creates one exact `SetProperty` or `ResetProperty`
 against the selected stable widget ID and the immutable revision token captured
@@ -386,23 +410,31 @@ it; the combined Source/model Undo/Redo and Save lifecycle remain authoritative.
 `DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED` is therefore
 `true` only for this explicitly admitted Properties path. It does not authorize
 Palette insertion, Java/Flutter DnD, arbitrary Canvas commands, writable
-`Scaffold`, complex/contributed property values, the Web Canvas backend or
-Linux/macOS native-surface providers.
+`Scaffold`, contributed properties, unreviewed nested object/list graphs, the
+optional runtime-faithful browser Canvas backend or Linux/macOS native-surface
+providers. This does not disable the bounded native-engine Web responsive
+layout preview accepted by
+ADR-021.
 
-## ADR-025 — First DnD is one native Text terminal-append transaction
+## ADR-025 — Native DnD is one catalog-authorized CORE_V1 insertion transaction
 
-Accepted and enabled as the only first DnD implementation target for 0.1.3.
-The source is exactly the built-in `Text` item in the standard NetBeans
-Palette. The target is exactly an existing `Row.children` or
-`Column.children` list, and the only Designer operation is terminal append.
-The returned insertion index must equal the current child count at Java
-admission. Arbitrary indices, before/between-child insertion, existing-widget
-move/reorder, cross-form drag, every other Palette type or slot, and
-Linux/macOS/Web DnD are outside this decision and remain disabled.
+Accepted and enabled for the six exact CORE_V1 definitions in the standard
+NetBeans Palette: `Scaffold`, `Column`, `Row`, `Padding`, `Center` and `Text`.
+The target is either the terminal position of an existing
+`Row.children`/`Column.children` list or an empty `Scaffold.body`,
+`Scaffold.floatingActionButton`, `Padding.child` or `Center.child` single slot at
+index zero. This is the complete 36-cell ANY_WIDGET matrix for the current six
+sources. `Scaffold.appBar` remains unavailable because none of those sources has
+the required `PreferredSizeWidget` trait. Java resolves the exact source,
+parent and slot through the current widget catalog and revalidates cardinality,
+acceptance, capacity and insertion index. Arbitrary list indices,
+before/between-child insertion, occupied single-child slots, existing-widget
+move/reorder, cross-form drag, non-CORE_V1 Palette types, unreviewed slots and
+Linux/macOS/Web DnD remain disabled.
 
 Windows uses a native OLE bridge because the drop crosses from Swing-owned
 Palette chrome into the embedded child-HWND Flutter surface. At drag start,
-Java stores the allowlisted `Text` prototype behind a bounded, short-lived,
+Java stores the allowlisted source type behind a bounded, short-lived,
 process-local opaque token. Its wire form is printable ASCII, no longer than
 160 characters and begins with `nbfdnd:v1:`. The token is one-shot and conveys
 neither widget JSON nor a stable ID, file path, Dart source, catalog authority
@@ -425,7 +457,7 @@ visuals. Native hover starts fail-closed and advertises `MOVE` only after the
 exact latest Flutter probe is approved. Fast release may proceed to final
 validation only while the exact latest already-sent probe remains in flight;
 hover and prepare use one FIFO `MethodChannel`, so Flutter observes the hover
-first. Under the negotiated `palette.drop.textAppend.v1` capability, prepare
+first. Under the negotiated `palette.drop.catalogInsert.v1` capability, prepare
 revalidates generation, token, probe, point, presentation and semantic target
 and stores one candidate without emitting `runner.paletteDrop`. Windows pumps
 its STA for at most 250 ms waiting for that reply. Timeout, error, reentrant
@@ -435,18 +467,21 @@ a timely positive prepare sends a single-use commit and returns OLE `MOVE`.
 Commit revalidates the same identity and may then emit one
 `runner.paletteDrop` containing the exact session, presentation, document,
 logical revision, frame, layout and intent sequences, the opaque token,
-`operation = ADD`, parent stable ID, `slotName = children`, and terminal
-insertion index. Flutter never resolves the token into a prototype and never
-mutates the canonical model or either file.
+`operation = ADD`, parent stable ID, the reviewed `slotName`, and its exact
+insertion index. The current native geometry admits the terminal
+`Row/Column.children` position or an empty `Scaffold.body`,
+`Scaffold.floatingActionButton`, `Padding.child` or `Center.child` at index zero.
+Flutter never resolves the token into a prototype and never mutates the
+canonical model or either file.
 
 Java consumes the token atomically before command admission; an unknown,
 expired, duplicate or already consumed token fails closed and is never made
 reusable after rejection. It then rechecks the exact current revision and
-accepted layout, confirms that the current stable parent is a `Row` or `Column`
-with the `children` list and that the index still equals its size, and creates
-the reviewed `Text` prototype with a fresh host-owned stable ID. Any stale,
-foreign, malformed or concurrently invalidated fact produces no command and no
-file or history change.
+accepted layout, resolves the parent and slot through the current widget
+catalog, verifies cardinality, acceptance, capacity and index, and creates the
+exact consumed CORE_V1 prototype with a fresh host-owned stable ID. Any stale, foreign,
+malformed or concurrently invalidated fact produces no command and no file or
+history change.
 
 OLE `MOVE` confirms timely Flutter prepare and commit dispatch, not Java
 admission. Only a drop subsequently admitted by Java becomes one bounded
@@ -459,3 +494,105 @@ passed live assembled Windows NetBeans 30 drop → Save → Undo → Redo → Sa
 acceptance. This acceptance statement does not include a separate saved-history
 Undo → Save cycle. ADR-024's Properties authorization does not implicitly
 authorize this path, and all DnD outside this exact slice stays disabled.
+
+## ADR-026 — Project themes are shared versioned resources
+
+Accepted for 0.1.3. Theme definitions belong to the Flutter project and are
+never embedded in a `.fd` form. The canonical descriptor is
+`.fd_templates/project.fdtheme`; deterministic runtime Dart is generated at
+`lib/theme/app_theme.dart`. New applications receive one light and one dark
+Material seed theme, `ThemeMode.system`, and exact `MaterialApp.theme`,
+`darkTheme` and `themeMode` wiring while retaining the standard counter sample
+and widget test.
+
+Schema v1 admits a bounded catalog of stable ids, display names, brightness and
+opaque `0xFFRRGGBB` seed colors. Schema v2 adds the required project-portable
+boolean `enabled`. Schema v3 adds a required `enabled` state to each catalog
+definition. Schema v4 adds closed typed override tables for the 46 supported
+nondeprecated Material `ColorScheme` roles and the 15 Material 3 `TextTheme`
+roles. Each text role admits optional color, background color, font size,
+weight, style, letter spacing, word spacing, height, family, composable
+decoration, decoration color/style/thickness fields. Theme-level text colors
+may be literal ARGB values or semantic references to the same ColorScheme role
+catalog. Omission means inherit the seed-derived Material value; an explicitly
+empty decoration means `TextDecoration.none`.
+
+Schema v1-v3 definitions migrate in memory with empty override tables, while an
+explicit save emits canonical v4. An individually disabled definition remains
+in the canonical descriptor but is omitted from the generated Dart map. While
+project themes are globally enabled, the selected light/dark references must
+point to enabled definitions of the required brightness. Global disable
+preserves those references and individual states, generated nullable accessors
+return `null`, and both MaterialApp and Canvas use bounded Flutter defaults.
+Re-enabling restores the selected definitions without reconstructing deleted
+state. Component themes, shapes, theme extensions, Paint/shadow/OpenType/font-
+variation graphs, shaders, filters and arbitrary Dart expressions remain
+outside this schema and must not enter through an opaque escape hatch; they
+require typed fields, generation rules, preview parity and a schema migration.
+
+The generated Dart hash is part of the descriptor and is verified before a
+read or write is trusted. Descriptor and generated Dart updates use one
+staged, exact-byte-verified transaction with in-process rollback. A manually
+changed generated file is a conflict and is never overwritten. Initial project
+provisioning additionally transforms only the uniquely recognized fresh
+Flutter `MaterialApp` template; an unsupported source shape fails before any
+theme artifact is published. The managed MaterialApp references stay stable;
+disabled generated accessors are nullable and return `null`, so toggling never
+rewrites developer-owned `main.dart`.
+
+The theme editor is a singleton docked TopComponent in NetBeans'
+`commonpalette` mode next to Palette. Opening the canonical descriptor or the
+Flutter menu action loads that project into the tab; Save and Reload make draft
+ownership explicit, per-definition enablement and custom-theme CRUD are edited
+there, and baseline conflicts fail closed. Its `General`, `Colors` and
+`Typography` tabs expose the complete schema-v4 role catalog through typed
+editors; each optional role or field has an explicit inherit/reset path, and an
+invalid draft cannot silently replace the persisted theme pair.
+
+Canvas inherits the project default unless its existing `canvas.themeMode`
+selects a preview brightness. It consumes a validated theme definition and
+revision digest, not project Dart code. Canvas model protocol v4 carries the
+complete resolved ColorScheme and TextTheme override tables. Generated Dart and
+Canvas both apply `ColorScheme.fromSeed`, `ColorScheme.copyWith`,
+`ThemeData.from`, then `TextTheme.copyWith`; form-local Text leaves are applied
+after that base and therefore remain intentional local overrides. An older
+project with no descriptor uses the bounded legacy preview without being
+modified merely by opening it. Once any descriptor exists, invalid JSON,
+unsafe paths, missing generated Dart or a hash mismatch makes the theme
+unavailable and withdraws the preview rather than silently reverting to another
+appearance. A valid globally disabled descriptor instead selects the
+intentional compatible Material fallback and reports that project themes are
+disabled.
+
+## ADR-027 — TextStyle uses schema-v2 structured values and semantic theme roles
+
+Accepted for 0.1.3. The current `.fd` schema is v2. Schema-v1 documents are
+decoded through an explicit identity migration and are written as canonical v2
+only after an admitted edit; a newer schema fails closed. The Java domain model,
+JSON codec, immutable catalog, Dart generator, native Canvas payload and Flutter
+runner share the same closed structured-value contract.
+
+Theme integration is semantic rather than coupled to a concrete theme
+definition. A widget may select one reviewed `material.textTheme.<role>` as its
+base `TextStyle`, then layer local properties through `copyWith`. Color-bearing
+fields may store either a literal ARGB color or one reviewed
+`material.colorScheme.<role>`. Switching the project light/dark/custom theme
+therefore changes every inherited field without rewriting any `.fd` document;
+an explicit local value remains an intentional override.
+
+The additional Text fields are `styleThemeTextStyle`, `styleForeground`,
+`styleBackground`, `styleShadows`, `styleFontFeatures` and
+`styleFontVariations`. Paint is a deliberately safe subset: color, blend mode,
+painting style, stroke geometry, antialiasing, filter quality, invert-colors and
+an optional blur mask. Shaders, color/image filters and raw Dart are excluded.
+Shadows, OpenType features and font variations are ordered stable-ID lists. An
+absent list means inherit/omit; an explicitly empty list means clear. The
+catalog rejects `styleColor` with `styleForeground` and
+`styleBackgroundColor` with `styleBackground`.
+
+Properties uses compact type-aware editors and commits each custom-editor OK as
+one immutable revision-bound value; Cancel is a no-op and Restore Default emits
+the existing reset command. Nested theme colors use the same catalog allowlist
+as top-level colors. Deterministic Dart and Canvas parity is mandatory for every
+admitted value. `styleFontSize` is finite and non-negative, matching Flutter's
+text-scaling contract.

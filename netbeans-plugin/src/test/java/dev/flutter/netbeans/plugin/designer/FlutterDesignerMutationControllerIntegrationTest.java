@@ -19,10 +19,13 @@ import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
 import dev.flutter.netbeans.designer.command.MoveWidget;
+import dev.flutter.netbeans.designer.command.RemoveWidget;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
@@ -49,6 +52,7 @@ import dev.flutter.netbeans.plugin.project.FlutterProject;
 import dev.flutter.netbeans.plugin.settings.FlutterSettings;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainConfig;
 import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -69,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.Action;
 import javax.swing.JProgressBar;
 import javax.swing.text.StyledDocument;
 import org.junit.jupiter.api.Test;
@@ -93,10 +98,18 @@ class FlutterDesignerMutationControllerIntegrationTest {
             "dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     private static final StableId SECOND_ID = StableId.parse(
             "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+    private static final StableId SCAFFOLD_ID = StableId.parse(
+            "11111111-1111-4111-8111-111111111111");
+    private static final StableId CENTER_ID = StableId.parse(
+            "22222222-2222-4222-8222-222222222222");
+    private static final StableId NESTED_TEXT_ID = StableId.parse(
+            "33333333-3333-4333-8333-333333333333");
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName SOFT_WRAP = new PropertyName("softWrap");
     private static final PropertyName TEXT_ALIGN = new PropertyName("textAlign");
     private static final SlotName CHILDREN = new SlotName("children");
+    private static final SlotName BODY = new SlotName("body");
+    private static final SlotName CHILD = new SlotName("child");
 
     @TempDir
     Path temporaryDirectory;
@@ -308,7 +321,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
-    void paletteTextAppendPlanUsesExactMutationAnalyzerPairSaveAndUndoPipeline()
+    void paletteTextInsertionUsesExactMutationAnalyzerPairSaveAndUndoPipeline()
             throws Exception {
         MutationFixture fixture = fixture(
                 "mutation_palette_text_append", columnExactPair());
@@ -454,6 +467,605 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     Files.readAllBytes(fixture.dartPath()));
             assertArrayEquals(appendedFd,
                     Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void palettePaddingAppendUsesExactAnalysisUndoRedoAndSavedPair()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_palette_padding_append", columnExactPair());
+        StableId appendedId = StableId.parse(
+                "45454545-4545-4545-8545-454545454545");
+        WidgetTypeId paddingType = new WidgetTypeId(
+                "flutter.widgets.Padding");
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            paddingType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected a terminal Column.children Padding placement");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append Padding to Column.children at index 2")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode appended = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(paddingType, appended.type());
+            assertInstanceOf(PropertyValue.EdgeInsetsValue.class,
+                    appended.properties().get(new PropertyName("padding")));
+            WidgetSlot.SingleSlot emptyChild = assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    appended.slots().get(CHILD));
+            assertTrue(emptyChild.child().isEmpty());
+            assertEquals(1, fixture.analysisCalls().get());
+            String analyzedDart = fixture.analyzedContents().getFirst();
+            assertTrue(analyzedDart.contains("Padding("), analyzedDart);
+
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    fixture.coordinator().state().status());
+            PairSaveEvidence appliedEvidence =
+                    fixture.coordinator().stagedEvidence();
+            assertNotNull(appliedEvidence);
+            assertEquals(applied.document().orElseThrow(),
+                    appliedEvidence.preparedPairIdentity()
+                            .prospectiveDocument());
+            byte[] appendedDart = appliedEvidence.candidateDartBytes();
+            byte[] appendedFd = appliedEvidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            GeneratedDartRegions exactGenerated = new DartRegionGenerator()
+                    .generate(applied.document().orElseThrow(),
+                            applied.catalog().orElseThrow())
+                    .generated().orElseThrow();
+            assertArrayEquals(
+                    source(exactGenerated).getBytes(StandardCharsets.UTF_8),
+                    appendedDart,
+                    "the staged Dart candidate must be the exact generated Padding source");
+            assertArrayEquals(
+                    new FdDocumentCodec().encode(
+                            applied.document().orElseThrow()).copyBytes(),
+                    appendedFd,
+                    "the staged .fd candidate must encode the exact applied model");
+            DesignerDocument decodedFd = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(appendedFd)).document();
+            assertEquals(paddingType,
+                    findModelWidget(decodedFd.root(), appendedId).type(),
+                    "the physical .fd candidate must retain the exact Padding type id");
+            assertArrayEquals(appendedDart,
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            applied.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertNull(fixture.coordinator().stagedEvidence());
+            assertArrayEquals(fixture.baselineDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(paddingType,
+                    findModelWidget(redone.document().orElseThrow().root(),
+                            appendedId).type());
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    fixture.coordinator().state().status());
+            PairSaveEvidence redoneEvidence =
+                    fixture.coordinator().stagedEvidence();
+            assertNotNull(redoneEvidence);
+            assertArrayEquals(appendedDart, redoneEvidence.candidateDartBytes());
+            assertArrayEquals(appendedFd, redoneEvidence.preparedPairIdentity()
+                    .prospectiveFdBytes());
+            assertEquals(1, fixture.analysisCalls().get(),
+                    "Undo and Redo must replay the exact analyzed Padding pair");
+
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(
+                    fixture.controller(), appendedFd, appendedDart);
+            awaitReadyWithColumnChildIdsAfterToken(
+                    fixture.mutations(),
+                    redone.token().orElseThrow(),
+                    List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(appendedDart,
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(appendedFd,
+                    Files.readAllBytes(fixture.fdPath()));
+            FdDecodeResult.Current savedFd = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(
+                            Files.readAllBytes(fixture.fdPath())));
+            assertEquals(paddingType,
+                    findModelWidget(savedFd.document().root(), appendedId).type(),
+                    "Pair Save must persist the exact non-Text widget type");
+        }
+    }
+
+    @Test
+    void deletedCenterTextCanBeDroppedBackThroughTheExactMutationPipeline()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_palette_center_text_readd",
+                scaffoldCenterTextExactPair());
+        StableId replacementTextId = StableId.parse(
+                "44444444-4444-4444-8444-444444444444");
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerMutationController.MutationResult removed =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            new RemoveWidget(NESTED_TEXT_ID),
+                            "home_page.fd — remove Text from Center.child")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    removed.outcome(), removed::reason);
+            FlutterDesignerMutationController.Snapshot emptyCenter =
+                    awaitReadyWithCenterChildAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            null);
+
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            emptyCenter.document().orElseThrow(),
+                            emptyCenter.catalog().orElseThrow(),
+                            new WidgetTypeId("flutter.widgets.Text"),
+                            CENTER_ID,
+                            CHILD,
+                            0,
+                            () -> replacementTextId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected a Center.child Text placement");
+
+            FlutterDesignerMutationController.MutationResult added =
+                    fixture.mutations().submit(
+                            emptyCenter.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — add Text to Center.child")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    added.outcome(), added::reason);
+            FlutterDesignerMutationController.Snapshot readded =
+                    awaitReadyWithCenterChildAfterToken(
+                            fixture.mutations(),
+                            emptyCenter.token().orElseThrow(),
+                            replacementTextId);
+
+            WidgetNode center = findModelWidget(
+                    readded.document().orElseThrow().root(), CENTER_ID);
+            WidgetSlot.SingleSlot childSlot = assertInstanceOf(
+                    WidgetSlot.SingleSlot.class, center.slots().get(CHILD));
+            WidgetNode replacement = childSlot.child().orElseThrow();
+            assertEquals(replacementTextId, replacement.id());
+            assertEquals(new WidgetTypeId("flutter.widgets.Text"),
+                    replacement.type());
+            assertEquals(new PropertyValue.StringValue("Text"),
+                    replacement.properties().get(DATA));
+            assertEquals(2, fixture.analysisCalls().get(),
+                    "Delete and re-add must each analyze exactly one candidate");
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    fixture.coordinator().state().status());
+            assertEquals(readded.document().orElseThrow(),
+                    fixture.coordinator().stagedEvidence()
+                            .preparedPairIdentity().prospectiveDocument());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(combined::undo);
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithCenterChildAfterToken(
+                            fixture.mutations(),
+                            readded.token().orElseThrow(),
+                            null);
+            onEdt(combined::redo);
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithCenterChildAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            replacementTextId);
+            assertEquals(readded.document().orElseThrow(),
+                    redone.document().orElseThrow());
+            assertEquals(2, fixture.analysisCalls().get(),
+                    "Undo and Redo must reuse the exact analyzed pairs");
+        }
+    }
+
+    @Test
+    void deleteActionRemovesSelectedColumnChildAndPreservesExactUndoRedoPipeline()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_multiview_delete_widget", columnExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+
+                Node first = awaitWidgetNode(design, FIRST_ID);
+                Action delete = deleteWidgetAction(design);
+                onEdt(() -> {
+                    design.getExplorerManager().setSelectedNodes(
+                            new Node[]{first});
+                    assertTrue(delete.isEnabled(),
+                            "exactly one selected non-root widget must enable Delete");
+                    delete.actionPerformed(new ActionEvent(
+                            design,
+                            ActionEvent.ACTION_PERFORMED,
+                            FlutterDesignerMultiViewDesign
+                                    .DELETE_WIDGET_ACTION_KEY));
+                });
+
+                FlutterDesignerMutationController.Snapshot applied =
+                        awaitReadyWithColumnChildIdsAfterToken(
+                                fixture.mutations(),
+                                ready.token().orElseThrow(),
+                                List.of(SECOND_ID));
+                awaitSelectedWidget(design, COLUMN_ID);
+                onEdt(() -> {
+                    assertEquals(
+                            COLUMN_ID,
+                            design.getLookup().lookup(Node.class)
+                                    .getLookup().lookup(StableId.class));
+                    assertEquals(
+                            applied.document().orElseThrow(),
+                            design.currentCanvasDocumentForTests(),
+                            "tree selection and Canvas must consume the confirmed delete revision");
+                    assertFalse(delete.isEnabled(),
+                            "the root selected after deletion must not be deletable");
+                });
+                assertEquals(1, fixture.analysisCalls().get());
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        fixture.coordinator().state().status());
+                assertNotNull(fixture.coordinator().stagedEvidence());
+                assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+                DesignerCombinedUndoRedo combined = fixture.dataObject()
+                        .getCombinedUndoRedo();
+                onEdt(() -> {
+                    assertTrue(combined.canUndo());
+                    assertFalse(combined.canRedo());
+                    combined.undo();
+                });
+
+                FlutterDesignerMutationController.Snapshot undone =
+                        awaitReadyWithColumnChildIdsAfterToken(
+                                fixture.mutations(),
+                                applied.token().orElseThrow(),
+                                List.of(FIRST_ID, SECOND_ID));
+                assertEquals(ready.document().orElseThrow(),
+                        undone.document().orElseThrow(),
+                        "Undo must restore the exact deleted widget identity and order");
+                assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                        fixture.coordinator().state().status());
+                assertNull(fixture.coordinator().stagedEvidence());
+                assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+                onEdt(() -> {
+                    assertTrue(combined.canRedo());
+                    combined.redo();
+                });
+
+                FlutterDesignerMutationController.Snapshot redone =
+                        awaitReadyWithColumnChildIdsAfterToken(
+                                fixture.mutations(),
+                                undone.token().orElseThrow(),
+                                List.of(SECOND_ID));
+                awaitSelectedWidget(design, COLUMN_ID);
+                assertEquals(applied.document().orElseThrow(),
+                        redone.document().orElseThrow(),
+                        "Redo must replay the exact analyzed deletion");
+                assertEquals(1, fixture.analysisCalls().get(),
+                        "Undo and Redo must not rerun Dart analysis");
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        fixture.coordinator().state().status());
+                assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+            } finally {
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void deleteActionCascadesAcrossSelectedCenterSubtreeWithExactUndoRedo()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_multiview_delete_widget_subtree",
+                scaffoldCenterTextExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            DesignerDocument exactNestedDocument =
+                    ready.document().orElseThrow();
+            assertTrue(containsWidget(exactNestedDocument.root(), CENTER_ID));
+            assertTrue(containsWidget(exactNestedDocument.root(), NESTED_TEXT_ID));
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+
+                Node center = awaitWidgetNode(design, CENTER_ID);
+                Action delete = deleteWidgetAction(design);
+                onEdt(() -> {
+                    design.getExplorerManager().setSelectedNodes(
+                            new Node[]{center});
+                    assertTrue(delete.isEnabled());
+                    delete.actionPerformed(new ActionEvent(
+                            design,
+                            ActionEvent.ACTION_PERFORMED,
+                            FlutterDesignerMultiViewDesign
+                                    .DELETE_WIDGET_ACTION_KEY));
+                });
+
+                FlutterDesignerMutationController.Snapshot applied =
+                        awaitReadyWithScaffoldBodyAfterToken(
+                                fixture.mutations(),
+                                ready.token().orElseThrow(),
+                                false);
+                DesignerDocument deletedDocument =
+                        applied.document().orElseThrow();
+                assertEquals(SCAFFOLD_ID, deletedDocument.root().id(),
+                        "cascade deletion must preserve the required root");
+                assertFalse(containsWidget(deletedDocument.root(), CENTER_ID));
+                assertFalse(containsWidget(
+                        deletedDocument.root(), NESTED_TEXT_ID),
+                        "deleting Center must delete its nested Text atomically");
+                awaitSelectedWidget(design, SCAFFOLD_ID);
+                onEdt(() -> assertFalse(delete.isEnabled(),
+                        "the preserved Scaffold root must remain non-deletable"));
+
+                assertEquals(1, fixture.analysisCalls().get());
+                String analyzedAfterDelete = fixture.analyzedContents().getFirst();
+                assertTrue(analyzedAfterDelete.contains("Scaffold("),
+                        analyzedAfterDelete);
+                assertFalse(analyzedAfterDelete.contains("Center("),
+                        analyzedAfterDelete);
+                assertFalse(analyzedAfterDelete.contains("Text("),
+                        analyzedAfterDelete);
+                assertFalse(analyzedAfterDelete.contains("nested subtree"),
+                        analyzedAfterDelete);
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        fixture.coordinator().state().status());
+                assertNotNull(fixture.coordinator().stagedEvidence());
+                assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+                DesignerCombinedUndoRedo combined = fixture.dataObject()
+                        .getCombinedUndoRedo();
+                onEdt(() -> {
+                    assertTrue(combined.canUndo());
+                    combined.undo();
+                });
+
+                FlutterDesignerMutationController.Snapshot undone =
+                        awaitReadyWithScaffoldBodyAfterToken(
+                                fixture.mutations(),
+                                applied.token().orElseThrow(),
+                                true);
+                assertEquals(exactNestedDocument,
+                        undone.document().orElseThrow(),
+                        "Undo must restore the exact nested Center/Text subtree");
+                assertTrue(containsWidget(
+                        undone.document().orElseThrow().root(), CENTER_ID));
+                assertTrue(containsWidget(
+                        undone.document().orElseThrow().root(), NESTED_TEXT_ID));
+                assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                        fixture.coordinator().state().status());
+
+                onEdt(() -> {
+                    assertTrue(combined.canRedo());
+                    combined.redo();
+                });
+
+                FlutterDesignerMutationController.Snapshot redone =
+                        awaitReadyWithScaffoldBodyAfterToken(
+                                fixture.mutations(),
+                                undone.token().orElseThrow(),
+                                false);
+                assertEquals(deletedDocument,
+                        redone.document().orElseThrow(),
+                        "Redo must replay the exact analyzed cascade deletion");
+                assertFalse(containsWidget(
+                        redone.document().orElseThrow().root(), CENTER_ID));
+                assertFalse(containsWidget(
+                        redone.document().orElseThrow().root(), NESTED_TEXT_ID));
+                awaitSelectedWidget(design, SCAFFOLD_ID);
+                assertEquals(1, fixture.analysisCalls().get(),
+                        "semantic Undo/Redo must reuse the analyzed pair");
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        fixture.coordinator().state().status());
+            } finally {
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void deleteActionRejectsRootAndEmptySelectionBeforeAnalyzerAdmission()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_multiview_delete_widget_no_selection",
+                columnExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+
+                Node root = awaitWidgetNode(design, COLUMN_ID);
+                Action delete = deleteWidgetAction(design);
+                onEdt(() -> {
+                    design.getExplorerManager().setSelectedNodes(
+                            new Node[]{root});
+                    assertFalse(delete.isEnabled(),
+                            "the document root must never enable widget deletion");
+                    delete.actionPerformed(new ActionEvent(
+                            design,
+                            ActionEvent.ACTION_PERFORMED,
+                            FlutterDesignerMultiViewDesign
+                                    .DELETE_WIDGET_ACTION_KEY));
+
+                    design.getExplorerManager().setSelectedNodes(new Node[0]);
+                    assertFalse(delete.isEnabled(),
+                            "an empty selection must keep Delete disabled");
+                    delete.actionPerformed(new ActionEvent(
+                            design,
+                            ActionEvent.ACTION_PERFORMED,
+                            FlutterDesignerMultiViewDesign
+                                    .DELETE_WIDGET_ACTION_KEY));
+                });
+
+                onEdt(() -> {
+                    // Drain action/listener work posted by the MultiView.
+                });
+                assertEquals(0, fixture.analysisCalls().get(),
+                        "root and empty selection must reject before analyzer admission");
+                assertSame(ready.token().orElseThrow(),
+                        fixture.mutations().snapshot().token().orElseThrow());
+                assertEquals(ready.document().orElseThrow(),
+                        fixture.mutations().snapshot().document().orElseThrow());
+                assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                        fixture.coordinator().state().status());
+                assertNull(fixture.coordinator().stagedEvidence());
+                assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+                assertFalse(fixture.dataObject().getCombinedUndoRedo()
+                        .designerSessionActive());
+            } finally {
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void canvasSelectionRefreshesDeleteActionForChildAndRoot() throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_multiview_delete_canvas_selection_action",
+                columnExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+
+        try (fixture) {
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+                awaitWidgetNode(design, FIRST_ID);
+                Action delete = deleteWidgetAction(design);
+
+                onEdt(() -> {
+                    selectWidgetFromCanvas(design, FIRST_ID);
+                    assertEquals(FIRST_ID, selectedWidgetId(design));
+                    assertTrue(delete.isEnabled(),
+                            "Canvas selection of a child must enable Delete");
+
+                    selectWidgetFromCanvas(design, COLUMN_ID);
+                    assertEquals(COLUMN_ID, selectedWidgetId(design));
+                    assertFalse(delete.isEnabled(),
+                            "Canvas selection of the root must disable Delete");
+                });
+
+                assertEquals(0, fixture.analysisCalls().get(),
+                        "selection synchronization must not submit a mutation");
+                assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                        fixture.coordinator().state().status());
+                assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            } finally {
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
         }
     }
 
@@ -2175,6 +2787,23 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new FdDocumentCodec().encode(exact).copyBytes());
     }
 
+    private ExactPair scaffoldCenterTextExactPair() throws Exception {
+        DesignerDocument provisional = scaffoldCenterTextDocument(
+                descriptor("0".repeat(64), "0".repeat(64)));
+        GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
+                .generate(provisional, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DesignerDocument exact = scaffoldCenterTextDocument(descriptor(
+                provisionalGenerated.imports().normalizedSha256(),
+                provisionalGenerated.build().normalizedSha256()));
+        GeneratedDartRegions generated = new DartRegionGenerator()
+                .generate(exact, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        return new ExactPair(
+                source(generated).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+    }
+
     private FakeSdk fakeSdk(String name) throws Exception {
         Path flutterRoot = Files.createDirectories(
                 temporaryDirectory.resolve(name));
@@ -2325,6 +2954,125 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 + ": " + controller.snapshot());
     }
 
+    private static FlutterDesignerMutationController.Snapshot
+            awaitReadyWithScaffoldBodyAfterToken(
+                    FlutterDesignerMutationController controller,
+                    FlutterDesignerMutationController.RevisionToken oldToken,
+                    boolean expectedNestedSubtree) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && current.token().isPresent()
+                    && current.token().orElseThrow() != oldToken
+                    && current.document().isPresent()) {
+                WidgetNode root = current.document().orElseThrow().root();
+                boolean hasCenter = containsWidget(root, CENTER_ID);
+                boolean hasText = containsWidget(root, NESTED_TEXT_ID);
+                if (SCAFFOLD_ID.equals(root.id())
+                        && hasCenter == expectedNestedSubtree
+                        && hasText == expectedNestedSubtree) {
+                    return current;
+                }
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for Scaffold subtree present="
+                + expectedNestedSubtree + " after revision token " + oldToken
+                + ": " + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot
+            awaitReadyWithCenterChildAfterToken(
+                    FlutterDesignerMutationController controller,
+                    FlutterDesignerMutationController.RevisionToken oldToken,
+                    StableId expectedChildId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && current.token().isPresent()
+                    && current.token().orElseThrow() != oldToken
+                    && current.document().isPresent()) {
+                WidgetNode center = findModelWidget(
+                        current.document().orElseThrow().root(), CENTER_ID);
+                WidgetSlot slot = center == null
+                        ? null : center.slots().get(CHILD);
+                StableId actualChildId = slot instanceof WidgetSlot.SingleSlot single
+                        && single.child().isPresent()
+                                ? single.child().orElseThrow().id()
+                                : null;
+                if (Objects.equals(expectedChildId, actualChildId)) {
+                    return current;
+                }
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for Center.child="
+                + expectedChildId + " after revision token " + oldToken
+                + ": " + controller.snapshot());
+    }
+
+    private static WidgetNode findModelWidget(
+            WidgetNode node,
+            StableId widgetId) {
+        if (widgetId.equals(node.id())) {
+            return node;
+        }
+        for (WidgetSlot slot : node.slots().values()) {
+            for (WidgetNode child : switch (slot) {
+                case WidgetSlot.SingleSlot single ->
+                    single.child().stream().toList();
+                case WidgetSlot.ListSlot list -> list.children();
+            }) {
+                WidgetNode found = findModelWidget(child, widgetId);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean containsWidget(WidgetNode node, StableId widgetId) {
+        if (widgetId.equals(node.id())) {
+            return true;
+        }
+        for (WidgetSlot slot : node.slots().values()) {
+            switch (slot) {
+                case WidgetSlot.SingleSlot single -> {
+                    if (single.child().isPresent()
+                            && containsWidget(
+                                    single.child().orElseThrow(), widgetId)) {
+                        return true;
+                    }
+                }
+                case WidgetSlot.ListSlot list -> {
+                    for (WidgetNode child : list.children()) {
+                        if (containsWidget(child, widgetId)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static FlutterDesignerMutationController.Snapshot awaitReadyWithData(
             FlutterDesignerMutationController controller,
             String expectedData) throws Exception {
@@ -2414,6 +3162,81 @@ class FlutterDesignerMutationControllerIntegrationTest {
         }
         throw new AssertionError("Timed out waiting for mutation " + expected
                 + ": " + controller.snapshot());
+    }
+
+    private static Action deleteWidgetAction(
+            FlutterDesignerMultiViewDesign design) {
+        Action action = design.getVisualRepresentation().getActionMap().get(
+                FlutterDesignerMultiViewDesign.DELETE_WIDGET_ACTION_KEY);
+        assertNotNull(action,
+                "the MultiView ActionMap must publish its Delete command");
+        return action;
+    }
+
+    private static void selectWidgetFromCanvas(
+            FlutterDesignerMultiViewDesign design,
+            StableId widgetId) throws Exception {
+        Method method = FlutterDesignerMultiViewDesign.class.getDeclaredMethod(
+                "selectWidgetFromCanvas", StableId.class);
+        method.setAccessible(true);
+        method.invoke(design, widgetId);
+    }
+
+    private static StableId selectedWidgetId(
+            FlutterDesignerMultiViewDesign design) {
+        Node[] selected = design.getExplorerManager().getSelectedNodes();
+        assertEquals(1, selected.length);
+        return selected[0].getLookup().lookup(StableId.class);
+    }
+
+    private static Node awaitWidgetNode(
+            FlutterDesignerMultiViewDesign design,
+            StableId widgetId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        AtomicReference<Node> matching = new AtomicReference<>();
+        while (System.nanoTime() < deadline) {
+            onEdt(() -> matching.set(findWidgetNode(
+                    design.getExplorerManager().getRootContext(), widgetId)));
+            if (matching.get() != null) {
+                return matching.get();
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for widget Node " + widgetId);
+    }
+
+    private static void awaitSelectedWidget(
+            FlutterDesignerMultiViewDesign design,
+            StableId widgetId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        AtomicReference<StableId> selected = new AtomicReference<>();
+        while (System.nanoTime() < deadline) {
+            onEdt(() -> {
+                Node[] nodes = design.getExplorerManager().getSelectedNodes();
+                selected.set(nodes.length == 1
+                        ? nodes[0].getLookup().lookup(StableId.class)
+                        : null);
+            });
+            if (widgetId.equals(selected.get())) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for selected widget "
+                + widgetId + "; last selection=" + selected.get());
+    }
+
+    private static Node findWidgetNode(Node node, StableId widgetId) {
+        if (widgetId.equals(node.getLookup().lookup(StableId.class))) {
+            return node;
+        }
+        for (Node child : node.getChildren().getNodes(true)) {
+            Node matching = findWidgetNode(child, widgetId);
+            if (matching != null) {
+                return matching;
+            }
+        }
+        return null;
     }
 
     private static Node awaitSelectedTextNode(
@@ -2508,11 +3331,11 @@ class FlutterDesignerMutationControllerIntegrationTest {
         assertEquals("Text", node.getDisplayName());
         assertEquals(TEXT_ID, node.getLookup().lookup(StableId.class));
         Node.PropertySet properties = Arrays.stream(node.getPropertySets())
-                .filter(set -> FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME
+                .filter(set -> TextWidgetPropertySchema.Group.CONTENT.setName()
                         .equals(set.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError(
-                        "The selected Text node has no Properties set"));
+                        "The selected Text node has no Text property set"));
         assertTrue(properties.getProperties().length >= 5,
                 "the Text integration fixture must expose the typed Properties surface");
 
@@ -2528,7 +3351,12 @@ class FlutterDesignerMutationControllerIntegrationTest {
         assertNotNull(data);
         assertEquals(textDataDisplay(expectedData, dataWritable), data.getValue());
         assertEquals(dataWritable, data.canWrite());
-        assertEquals(dataWritable ? properties.getProperties().length : 0, writable,
+        int projectedProperties = Arrays.stream(node.getPropertySets())
+                .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME
+                        .equals(set.getName()))
+                .mapToInt(set -> set.getProperties().length)
+                .sum();
+        assertEquals(dataWritable ? projectedProperties : 0, writable,
                 "every property in the admitted Text Node must share the exact snapshot writer");
         if (dataWritable) {
             assertEquals(FlutterPropertyCellValue.class, data.getValueType());
@@ -2842,6 +3670,27 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Map.of(CHILDREN,
                         new WidgetSlot.ListSlot(List.of(first, second))));
         return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static DesignerDocument scaffoldCenterTextDocument(
+            DartSourceDescriptor source) {
+        WidgetNode text = new WidgetNode(
+                NESTED_TEXT_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA,
+                        new PropertyValue.StringValue("nested subtree")),
+                Map.of());
+        WidgetNode center = new WidgetNode(
+                CENTER_ID,
+                new WidgetTypeId("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(text)));
+        WidgetNode scaffold = new WidgetNode(
+                SCAFFOLD_ID,
+                new WidgetTypeId("flutter.material.Scaffold"),
+                Map.of(),
+                Map.of(BODY, WidgetSlot.SingleSlot.of(center)));
+        return new DesignerDocument(DOCUMENT_ID, source, scaffold);
     }
 
     private static DartSourceDescriptor descriptor(

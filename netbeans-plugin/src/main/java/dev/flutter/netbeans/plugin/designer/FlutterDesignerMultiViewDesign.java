@@ -3,9 +3,12 @@ package dev.flutter.netbeans.plugin.designer;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +17,8 @@ import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -26,20 +31,23 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.event.ChangeListener;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
+import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.codec.FdCodecDiagnostic;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.RemoveWidget;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.PropertyName;
-import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -85,13 +93,11 @@ import org.openide.windows.TopComponent;
         position = 100)
 public final class FlutterDesignerMultiViewDesign
         implements MultiViewElement, PropertyChangeListener, ExplorerManager.Provider {
-    private static final WidgetTypeId TEXT_WIDGET_TYPE =
-            new WidgetTypeId("flutter.widgets.Text");
-    private static final SlotName CHILDREN_SLOT = new SlotName("children");
+    static final String DELETE_WIDGET_ACTION_KEY = "delete";
     private final Lookup context;
     private final Lookup effectiveLookup;
     private final BooleanSupplier mutationUiEnabled;
-    private final BooleanSupplier paletteTextAppendDndEnabled;
+    private final BooleanSupplier paletteCatalogInsertDndEnabled;
     private final FlutterDesignerDataObject dataObject;
     private final FlutterDesignerDocumentController controller;
     private final UndoRedo undoRedo;
@@ -106,6 +112,7 @@ public final class FlutterDesignerMultiViewDesign
     private final JProgressBar progress;
     private final JProgressBar canvasProgress;
     private final ExplorerManager explorerManager;
+    private final Action deleteWidgetAction;
     private final FlutterDesignerPaletteDragRegistry paletteDragRegistry;
     private final FlutterDesignerPaletteDragLifecycle paletteDragLifecycle;
     private final FlutterDesignerPaletteDropPlanner paletteDropPlanner;
@@ -113,6 +120,8 @@ public final class FlutterDesignerMultiViewDesign
     private final BeanTreeView widgetTree;
     private final JComboBox<PreviewTarget> previewModes;
     private final FlutterProjectPlatformProvider projectPlatforms;
+    private final FlutterDesignerProjectThemeResolver projectThemeResolver =
+            new FlutterDesignerProjectThemeResolver();
     private final ChangeListener projectPlatformListener =
             event -> projectPlatformsChanged();
     private final WindowsNativeCanvasHost nativeCanvasHost;
@@ -125,20 +134,27 @@ public final class FlutterDesignerMultiViewDesign
     private final PropertyChangeListener mutationListener =
             this::mutationSnapshotChanged;
     private FlutterDesignerMutationController mutationController;
+    private FlutterDesignerProjectThemeResolutionController
+            projectThemeResolutionController;
+    private FlutterDesignerProjectThemeWatcher projectThemeWatcher;
+    private String projectThemeSetupFailure;
     private FlutterDesignerMutationController.Snapshot mutationSnapshot;
     private FlutterDesignerDocumentState durableDocumentState;
     private FlutterDesignerDocumentState.Current currentCanvasState;
     private DesignerDocument currentCanvasDocument;
     private WidgetCatalog currentCanvasCatalog;
+    private boolean currentCanvasMutationEnabled;
     private DesignerDocument presentedCanvasDocument;
     private WidgetCatalog presentedCanvasCatalog;
     private PreviewTarget presentedCanvasTarget;
+    private CanvasResolvedTheme presentedCanvasTheme;
     private FlutterDesignerNativeCanvasStatus lastCanvasStatus;
     private boolean previewInitialized;
     private boolean synchronizingSelection;
     private boolean updatingPreviewModes;
     private boolean listening;
     private boolean mutationListening;
+    private boolean deleteWidgetSubmitting;
     private long mutationViewEpoch;
     private boolean platformListening;
     private boolean designVisible;
@@ -148,7 +164,7 @@ public final class FlutterDesignerMultiViewDesign
                 context,
                 () -> DesignerCommandSessionOrchestrator.PUBLIC_MUTATION_UI_ENABLED,
                 () -> DesignerCommandSessionOrchestrator
-                        .PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED);
+                        .PUBLIC_PALETTE_CATALOG_INSERT_DND_ENABLED);
     }
 
     FlutterDesignerMultiViewDesign(
@@ -158,18 +174,18 @@ public final class FlutterDesignerMultiViewDesign
                 context,
                 mutationUiEnabled,
                 () -> DesignerCommandSessionOrchestrator
-                        .PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED);
+                        .PUBLIC_PALETTE_CATALOG_INSERT_DND_ENABLED);
     }
 
     FlutterDesignerMultiViewDesign(
             Lookup context,
             BooleanSupplier mutationUiEnabled,
-            BooleanSupplier paletteTextAppendDndEnabled) {
+            BooleanSupplier paletteCatalogInsertDndEnabled) {
         this.context = context;
         this.mutationUiEnabled = Objects.requireNonNull(
                 mutationUiEnabled, "mutationUiEnabled");
-        this.paletteTextAppendDndEnabled = Objects.requireNonNull(
-                paletteTextAppendDndEnabled, "paletteTextAppendDndEnabled");
+        this.paletteCatalogInsertDndEnabled = Objects.requireNonNull(
+                paletteCatalogInsertDndEnabled, "paletteCatalogInsertDndEnabled");
         dataObject = context.lookup(FlutterDesignerDataObject.class);
         projectPlatforms = dataObject == null
                 ? null
@@ -186,6 +202,17 @@ public final class FlutterDesignerMultiViewDesign
                 : dataObject.getPrimaryFile().getNameExt();
         explorerManager = new ExplorerManager();
         visual = new ExplorerPanel(explorerManager);
+        deleteWidgetAction = new AbstractAction("Delete Flutter Widget") {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                deleteSelectedWidget();
+            }
+        };
+        deleteWidgetAction.putValue(
+                Action.SHORT_DESCRIPTION,
+                "Remove the selected non-root Flutter widget and its descendants");
+        deleteWidgetAction.setEnabled(false);
+        visual.getActionMap().put(DELETE_WIDGET_ACTION_KEY, deleteWidgetAction);
         paletteDragRegistry = new FlutterDesignerPaletteDragRegistry();
         paletteDragLifecycle = new FlutterDesignerPaletteDragLifecycle(
                 paletteDragRegistry);
@@ -194,8 +221,8 @@ public final class FlutterDesignerMultiViewDesign
                 BuiltInWidgetCatalog.getDefault(),
                 CanvasModelPayloadCodec::supports,
                 paletteDragRegistry,
-                this::isPaletteTextAppendDragEnabled,
-                definition -> TEXT_WIDGET_TYPE.equals(definition.typeId()));
+                this::isPaletteCatalogInsertDragEnabled,
+                CanvasModelPayloadCodec::supports);
         effectiveLookup = new ProxyLookup(
                 ExplorerUtils.createLookup(explorerManager, visual.getActionMap()),
                 Lookups.exclude(context, Node.class),
@@ -206,6 +233,14 @@ public final class FlutterDesignerMultiViewDesign
         widgetTree.setPopupAllowed(false);
         widgetTree.setMinimumSize(new java.awt.Dimension(180, 120));
         widgetTree.setPreferredSize(new java.awt.Dimension(240, 500));
+        KeyStroke deleteKey = KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0);
+        deleteWidgetAction.putValue(Action.ACCELERATOR_KEY, deleteKey);
+        widgetTree.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                .put(deleteKey, DELETE_WIDGET_ACTION_KEY);
+        widgetTree.getActionMap().put(
+                DELETE_WIDGET_ACTION_KEY, deleteWidgetAction);
+        visual.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                .put(deleteKey, DELETE_WIDGET_ACTION_KEY);
         explorerManager.setRootContext(Node.EMPTY);
         explorerManager.addPropertyChangeListener(this::explorerSelectionChanged);
         statusPanel = new JPanel(new BorderLayout(16, 0));
@@ -254,8 +289,10 @@ public final class FlutterDesignerMultiViewDesign
                         canvasHost,
                         this::renderNativeCanvasStatus,
                         this::selectWidgetFromCanvas,
-                        this::consumePaletteTextDropToken,
-                        this::applyAdmittedPaletteDrop);
+                        this::consumePaletteDropToken,
+                        this::applyAdmittedPaletteDrop,
+                        deletion -> deleteSelectedWidgetFromCanvas(
+                                deletion.widgetId()));
             } catch (IOException | RuntimeException | LinkageError failure) {
                 canvasHost = null;
                 canvasSession = null;
@@ -299,8 +336,14 @@ public final class FlutterDesignerMultiViewDesign
         previewModes = new JComboBox<>(availablePreviewChoices()
                 .toArray(PreviewTarget[]::new));
         previewModes.setEnabled(previewModes.getItemCount() > 0);
+        int widestPreviewLabel = FlutterDesignerPreviewPlatforms.allTargets().stream()
+                .mapToInt(target -> previewModes.getFontMetrics(previewModes.getFont())
+                        .stringWidth(target.toString()))
+                .max()
+                .orElse(0);
         previewModes.setMaximumSize(new java.awt.Dimension(
-                220, previewModes.getPreferredSize().height));
+                Math.max(220, widestPreviewLabel + 48),
+                previewModes.getPreferredSize().height));
         previewLabel.setLabelFor(previewModes);
         toolbar.add(previewLabel);
         toolbar.add(previewModes);
@@ -376,7 +419,9 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentOpened() {
-        if (paletteTextAppendDndEnabled.getAsBoolean()
+        deleteWidgetSubmitting = false;
+        updateDeleteWidgetAction();
+        if (paletteCatalogInsertDndEnabled.getAsBoolean()
                 && mutationUiEnabled.getAsBoolean()) {
             paletteDragLifecycle.install();
         } else {
@@ -387,6 +432,35 @@ public final class FlutterDesignerMultiViewDesign
             projectPlatforms.addChangeListener(projectPlatformListener);
             projectPlatforms.refresh();
             refreshPreviewChoices(selectedPreviewTarget().orElse(null), null);
+        }
+        if (dataObject != null
+                && nativeCanvasSession != null
+                && projectThemeResolutionController == null) {
+            try {
+                Path projectRoot = Path.of(
+                        dataObject.getProject().getProjectDirectory().toURI())
+                        .toAbsolutePath().normalize();
+                projectThemeResolutionController =
+                        new FlutterDesignerProjectThemeResolutionController(
+                                projectRoot,
+                                projectThemeResolver,
+                                this::projectThemeResolutionChanged);
+                projectThemeWatcher = new FlutterDesignerProjectThemeWatcher(
+                        dataObject.getProject().getProjectDirectory(),
+                        this::projectThemeFilesChanged);
+                projectThemeWatcher.open();
+                projectThemeSetupFailure = null;
+            } catch (RuntimeException failure) {
+                if (projectThemeWatcher != null) {
+                    projectThemeWatcher.close();
+                    projectThemeWatcher = null;
+                }
+                if (projectThemeResolutionController != null) {
+                    projectThemeResolutionController.close();
+                    projectThemeResolutionController = null;
+                }
+                projectThemeSetupFailure = failureReason(failure);
+            }
         }
         if (dataObject != null && !mutationListening) {
             mutationController = dataObject.mutationController();
@@ -406,12 +480,22 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentClosed() {
         designVisible = false;
+        deleteWidgetSubmitting = false;
         invalidatePaletteDragAuthority();
         paletteDragLifecycle.uninstall();
         if (projectPlatforms != null && platformListening) {
             platformListening = false;
             projectPlatforms.removeChangeListener(projectPlatformListener);
         }
+        if (projectThemeWatcher != null) {
+            projectThemeWatcher.close();
+            projectThemeWatcher = null;
+        }
+        if (projectThemeResolutionController != null) {
+            projectThemeResolutionController.close();
+            projectThemeResolutionController = null;
+        }
+        projectThemeSetupFailure = null;
         if (mutationController != null && mutationListening) {
             mutationViewEpoch++;
             mutationListening = false;
@@ -423,6 +507,7 @@ public final class FlutterDesignerMultiViewDesign
         currentCanvasState = null;
         currentCanvasDocument = null;
         currentCanvasCatalog = null;
+        currentCanvasMutationEnabled = false;
         clearPresentedCanvasIdentity();
         clearWidgetTree();
         if (nativeCanvasSession != null) {
@@ -572,7 +657,8 @@ public final class FlutterDesignerMultiViewDesign
                     "Flutter Designer model opened read-only.",
                     "Model: " + modelName + ".",
                     "Schema version " + newer.decoded().declaredSchemaVersion()
-                    + " is newer than supported version 1.");
+                    + " is newer than supported version "
+                    + DesignerDocument.SCHEMA_VERSION + ".");
         } else if (state instanceof FlutterDesignerDocumentState.Invalid invalid) {
             FdCodecDiagnostic diagnostic = invalid.decoded().diagnostics().get(0);
             String pointer = diagnostic.pointer().isEmpty() ? "/" : diagnostic.pointer();
@@ -643,6 +729,7 @@ public final class FlutterDesignerMultiViewDesign
         StableId retainedSelection = selectedWidgetId().orElse(null);
         currentCanvasDocument = Objects.requireNonNull(document, "document");
         currentCanvasCatalog = Objects.requireNonNull(catalog, "catalog");
+        currentCanvasMutationEnabled = mutationHandler != null;
         if (!previewInitialized) {
             previewInitialized = true;
             CanvasPreviewMode initial =
@@ -677,6 +764,7 @@ public final class FlutterDesignerMultiViewDesign
         invalidatePaletteDragAuthority();
         currentCanvasDocument = null;
         currentCanvasCatalog = null;
+        currentCanvasMutationEnabled = false;
         clearPresentedCanvasIdentity();
         clearWidgetTree();
         if (nativeCanvasSession != null) {
@@ -720,21 +808,62 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         PreviewTarget target = selected.orElseThrow();
-        if (target.requiresBrowserBackend()) {
+        if (dataObject == null) {
             clearPresentedCanvasIdentity();
             nativeCanvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Flutter Web Canvas is unavailable.",
-                    "Target: " + modelName + " — Web. Reason: Web is a separate "
-                    + "browser-compiled Flutter runtime; the embedded browser Canvas "
-                    + "backend is not implemented. The Windows Flutter engine is not "
-                    + "used as a false Web substitute."));
+                    "Native Flutter Canvas is unavailable.",
+                    "Target: " + modelName + " project theme. Reason: the owning "
+                    + "Flutter project is unavailable."));
             return;
         }
+        if (projectThemeResolutionController == null) {
+            clearPresentedCanvasIdentity();
+            nativeCanvasSession.withdraw();
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    "Native Flutter Canvas is unavailable.",
+                    "Target: " + modelName + " project theme. Reason: the project "
+                    + "theme verifier is unavailable"
+                    + (projectThemeSetupFailure == null
+                            ? "."
+                            : ": " + projectThemeSetupFailure + ".")));
+            return;
+        }
+        Optional<DesignerThemeMode> previewOverride = document.canvas()
+                .flatMap(preferences -> preferences.themeMode());
+        Optional<FlutterDesignerProjectThemeResolver.Resolution> cachedTheme =
+                projectThemeResolutionController.request(
+                        previewOverride,
+                        FlutterDesignerProjectThemeResolver.uiBrightness());
+        if (cachedTheme.isEmpty()) {
+            clearPresentedCanvasIdentity();
+            nativeCanvasSession.withdraw();
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.STARTING,
+                    "Resolving Flutter project theme...",
+                    "Target: " + modelName + " project theme. Verifying the bounded "
+                    + "descriptor and generated Dart hash outside the UI thread."));
+            return;
+        }
+        FlutterDesignerProjectThemeResolver.Resolution themeResolution =
+                cachedTheme.orElseThrow();
+        if (!themeResolution.available()) {
+            clearPresentedCanvasIdentity();
+            nativeCanvasSession.withdraw();
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    "Native Flutter Canvas theme is unavailable.",
+                    "Target: " + modelName + " project theme. Reason: "
+                    + themeResolution.detail()));
+            return;
+        }
+        CanvasResolvedTheme resolvedTheme = themeResolution.theme().orElseThrow();
         if (presentedCanvasDocument == document
                 && presentedCanvasCatalog == catalog
-                && Objects.equals(presentedCanvasTarget, target)) {
+                && Objects.equals(presentedCanvasTarget, target)
+                && Objects.equals(presentedCanvasTheme, resolvedTheme)) {
             selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
             return;
         }
@@ -742,10 +871,12 @@ public final class FlutterDesignerMultiViewDesign
                 document,
                 catalog,
                 target.mode(),
-                target.targetPlatform());
+                target.targetPlatform(),
+                resolvedTheme);
         presentedCanvasDocument = document;
         presentedCanvasCatalog = catalog;
         presentedCanvasTarget = target;
+        presentedCanvasTheme = resolvedTheme;
         selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
     }
 
@@ -805,6 +936,33 @@ public final class FlutterDesignerMultiViewDesign
         }
     }
 
+    private void projectThemeFilesChanged() {
+        if (projectThemeWatcher == null
+                || projectThemeResolutionController == null) {
+            return;
+        }
+        projectThemeResolutionController.invalidate();
+        refreshCanvasAfterProjectThemeChange();
+    }
+
+    private void projectThemeResolutionChanged() {
+        if (projectThemeResolutionController == null) {
+            return;
+        }
+        refreshCanvasAfterProjectThemeChange();
+    }
+
+    private void refreshCanvasAfterProjectThemeChange() {
+        if (currentCanvasDocument == null) {
+            return;
+        }
+        // A verified theme revision is part of the presentation identity.
+        // Clearing first also guarantees that a repaired theme is published
+        // after an earlier fail-closed withdrawal.
+        clearPresentedCanvasIdentity();
+        presentCurrentCanvas();
+    }
+
     private void updatePreviewModeAccessibility() {
         String description;
         if (projectPlatforms == null) {
@@ -823,7 +981,8 @@ public final class FlutterDesignerMultiViewDesign
             description = "Available previews match the configured Flutter project "
                     + "platforms: " + available + ". Android, iOS, macOS and Linux "
                     + "choices use Flutter adaptive appearance on the embedded Windows "
-                    + "engine. Web requires a separate browser backend.";
+                    + "engine. Web uses a responsive browser-sized viewport on the same "
+                    + "native engine; browser-only runtime behavior is not emulated.";
         }
         previewModes.setToolTipText(description);
         previewModes.getAccessibleContext().setAccessibleDescription(description);
@@ -850,6 +1009,7 @@ public final class FlutterDesignerMultiViewDesign
         } finally {
             synchronizingSelection = false;
         }
+        updateDeleteWidgetAction();
     }
 
     private Node buildWidgetNode(
@@ -928,6 +1088,25 @@ public final class FlutterDesignerMultiViewDesign
             DesignerCommand command,
             String operation,
             String target) {
+        submitDesignerMutation(
+                controllerForEdit,
+                exactToken,
+                command,
+                operation,
+                target,
+                ignored -> {
+                });
+    }
+
+    private void submitDesignerMutation(
+            FlutterDesignerMutationController controllerForEdit,
+            FlutterDesignerMutationController.RevisionToken exactToken,
+            DesignerCommand command,
+            String operation,
+            String target,
+            Consumer<FlutterDesignerMutationController.MutationResult>
+                    activeViewCompletion) {
+        Objects.requireNonNull(activeViewCompletion, "activeViewCompletion");
         long submittingViewEpoch = mutationViewEpoch;
         controllerForEdit.submit(
                         exactToken,
@@ -942,17 +1121,7 @@ public final class FlutterDesignerMultiViewDesign
                         completed = FlutterDesignerMutationController.MutationResult.failed(
                                 operation, target, failureReason(cause));
                     }
-                    if (completed.outcome()
-                            == FlutterDesignerMutationController.Outcome.APPLIED) {
-                        return;
-                    }
-                    if (completed.outcome()
-                            == FlutterDesignerMutationController.Outcome.CANCELLED
-                            && controllerForEdit.snapshot().status()
-                            == FlutterDesignerMutationController.Status.CLOSED) {
-                        return;
-                    }
-                    FlutterDesignerMutationController.MutationResult dialogResult =
+                    FlutterDesignerMutationController.MutationResult completedResult =
                             completed;
                     java.awt.EventQueue.invokeLater(() -> {
                         if (!mutationListening
@@ -960,7 +1129,18 @@ public final class FlutterDesignerMultiViewDesign
                                 || mutationViewEpoch != submittingViewEpoch) {
                             return;
                         }
-                        showMutationResult(dialogResult);
+                        activeViewCompletion.accept(completedResult);
+                        if (completedResult.outcome()
+                                == FlutterDesignerMutationController.Outcome.APPLIED) {
+                            return;
+                        }
+                        if (completedResult.outcome()
+                                == FlutterDesignerMutationController.Outcome.CANCELLED
+                                && controllerForEdit.snapshot().status()
+                                == FlutterDesignerMutationController.Status.CLOSED) {
+                            return;
+                        }
+                        showMutationResult(completedResult);
                     });
                 });
     }
@@ -998,6 +1178,120 @@ public final class FlutterDesignerMultiViewDesign
                 : Optional.empty();
     }
 
+    private void deleteSelectedWidget() {
+        DeleteWidgetAdmission admission = deleteWidgetAdmission().orElse(null);
+        if (admission == null) {
+            updateDeleteWidgetAction();
+            return;
+        }
+
+        deleteWidgetSubmitting = true;
+        updateDeleteWidgetAction();
+        String target = modelName + " — widget " + admission.widgetId();
+        submitDesignerMutation(
+                admission.controller(),
+                admission.token(),
+                new RemoveWidget(admission.widgetId()),
+                "Remove Flutter widget",
+                target,
+                result -> deleteWidgetCompleted(admission, result));
+    }
+
+    private void deleteSelectedWidgetFromCanvas(StableId expectedWidgetId) {
+        Objects.requireNonNull(expectedWidgetId, "expectedWidgetId");
+        if (selectedWidgetId().filter(expectedWidgetId::equals).isEmpty()) {
+            return;
+        }
+        deleteSelectedWidget();
+    }
+
+    private Optional<DeleteWidgetAdmission> deleteWidgetAdmission() {
+        FlutterDesignerMutationController controllerForDelete = mutationController;
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        if (deleteWidgetSubmitting
+                || !mutationUiEnabled.getAsBoolean()
+                || !mutationListening
+                || controllerForDelete == null
+                || candidate == null
+                || candidate.status()
+                != FlutterDesignerMutationController.Status.READY
+                || candidate.token().isEmpty()
+                || candidate.document().isEmpty()
+                || candidate.catalog().isEmpty()
+                || !currentCanvasMutationEnabled
+                || candidate.document().orElseThrow() != currentCanvasDocument
+                || candidate.catalog().orElseThrow() != currentCanvasCatalog) {
+            return Optional.empty();
+        }
+
+        Node[] selected = explorerManager.getSelectedNodes();
+        if (selected.length != 1) {
+            return Optional.empty();
+        }
+        Node selectedNode = selected[0];
+        StableId widgetId = selectedNode.getLookup().lookup(StableId.class);
+        if (widgetId == null
+                || widgetNodes.get(widgetId) != selectedNode
+                || candidate.document().orElseThrow().root().id().equals(widgetId)) {
+            return Optional.empty();
+        }
+        Node parentNode = selectedNode.getParentNode();
+        StableId parentWidgetId = parentNode == null
+                ? null : parentNode.getLookup().lookup(StableId.class);
+        if (parentWidgetId == null || !widgetNodes.containsKey(parentWidgetId)) {
+            return Optional.empty();
+        }
+        return Optional.of(new DeleteWidgetAdmission(
+                controllerForDelete,
+                candidate.token().orElseThrow(),
+                widgetId,
+                parentWidgetId));
+    }
+
+    private void deleteWidgetCompleted(
+            DeleteWidgetAdmission admission,
+            FlutterDesignerMutationController.MutationResult result) {
+        deleteWidgetSubmitting = false;
+        if (result.outcome() == FlutterDesignerMutationController.Outcome.APPLIED) {
+            selectWidgetAfterMutation(admission.parentWidgetId());
+        }
+        updateDeleteWidgetAction();
+    }
+
+    private void selectWidgetAfterMutation(StableId widgetId) {
+        Node node = widgetNodes.get(widgetId);
+        if (node == null) {
+            return;
+        }
+        try {
+            explorerManager.setSelectedNodes(new Node[]{node});
+        } catch (java.beans.PropertyVetoException failure) {
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                    "Select parent Flutter widget failed.",
+                    "Target: widget " + widgetId + ". Reason: "
+                    + failureReason(failure)));
+        }
+    }
+
+    private void updateDeleteWidgetAction() {
+        deleteWidgetAction.setEnabled(deleteWidgetAdmission().isPresent());
+    }
+
+    private record DeleteWidgetAdmission(
+            FlutterDesignerMutationController controller,
+            FlutterDesignerMutationController.RevisionToken token,
+            StableId widgetId,
+            StableId parentWidgetId) {
+
+        private DeleteWidgetAdmission {
+            Objects.requireNonNull(controller, "controller");
+            Objects.requireNonNull(token, "token");
+            Objects.requireNonNull(widgetId, "widgetId");
+            Objects.requireNonNull(parentWidgetId, "parentWidgetId");
+        }
+    }
+
     private void clearWidgetTree() {
         synchronizingSelection = true;
         try {
@@ -1010,15 +1304,18 @@ public final class FlutterDesignerMultiViewDesign
         } finally {
             synchronizingSelection = false;
         }
+        updateDeleteWidgetAction();
     }
 
     private void explorerSelectionChanged(PropertyChangeEvent event) {
         if (synchronizingSelection
-                || !ExplorerManager.PROP_SELECTED_NODES.equals(event.getPropertyName())
-                || nativeCanvasSession == null) {
+                || !ExplorerManager.PROP_SELECTED_NODES.equals(event.getPropertyName())) {
             return;
         }
-        selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+        updateDeleteWidgetAction();
+        if (nativeCanvasSession != null) {
+            selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+        }
     }
 
     private void selectWidgetFromCanvas(StableId widgetId) {
@@ -1038,15 +1335,16 @@ public final class FlutterDesignerMultiViewDesign
         } finally {
             synchronizingSelection = false;
         }
+        updateDeleteWidgetAction();
     }
 
-    private boolean isPaletteTextAppendDragEnabled() {
-        if (!paletteTextAppendDndEnabled.getAsBoolean()
+    private boolean isPaletteCatalogInsertDragEnabled() {
+        if (!paletteCatalogInsertDndEnabled.getAsBoolean()
                 || !mutationUiEnabled.getAsBoolean()
                 || !designVisible
                 || !paletteDragLifecycle.isInstalled()
                 || nativeCanvasSession == null
-                || !nativeCanvasSession.paletteTextAppendDropAvailable()
+                || !nativeCanvasSession.paletteCatalogInsertDropAvailable()
                 || lastCanvasStatus == null
                 || lastCanvasStatus.stage()
                 != FlutterDesignerNativeCanvasStatus.Stage.RUNNING) {
@@ -1067,18 +1365,29 @@ public final class FlutterDesignerMultiViewDesign
                 && catalog == currentCanvasCatalog
                 && document == presentedCanvasDocument
                 && catalog == presentedCanvasCatalog
-                && catalog.find(TEXT_WIDGET_TYPE).isPresent();
+                && catalog.paletteDefinitions().stream()
+                        .anyMatch(CanvasModelPayloadCodec::supports);
     }
 
-    private boolean consumePaletteTextDropToken(String token) {
+    private Optional<WidgetTypeId> consumePaletteDropToken(String token) {
         return paletteDragLifecycle.consume(token)
-                .filter(TEXT_WIDGET_TYPE::equals)
-                .isPresent();
+                .filter(widgetType -> {
+                    FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+                    if (candidate == null || candidate.catalog().isEmpty()) {
+                        return false;
+                    }
+                    return candidate.catalog().orElseThrow().find(widgetType)
+                            .filter(CanvasModelPayloadCodec::supports)
+                            .isPresent();
+                });
     }
 
-    private void applyAdmittedPaletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop drop) {
-        Objects.requireNonNull(drop, "drop");
-        if (!isPaletteTextAppendDragEnabled()) {
+    private void applyAdmittedPaletteDrop(
+            FlutterDesignerNativeCanvasSession.AdmittedPaletteDrop admission) {
+        Objects.requireNonNull(admission, "admission");
+        CanvasRunnerRuntimeEvent.PaletteDrop drop = admission.drop();
+        WidgetTypeId widgetType = admission.widgetType();
+        if (!isPaletteCatalogInsertDragEnabled()) {
             return;
         }
 
@@ -1097,14 +1406,16 @@ public final class FlutterDesignerMultiViewDesign
                 || catalog != currentCanvasCatalog
                 || document != presentedCanvasDocument
                 || catalog != presentedCanvasCatalog
-                || !CHILDREN_SLOT.equals(drop.slotName())) {
+                || catalog.find(widgetType)
+                        .filter(CanvasModelPayloadCodec::supports)
+                        .isEmpty()) {
             return;
         }
 
         FlutterDesignerPaletteDropPlanner.Result planned = paletteDropPlanner.plan(
                 document,
                 catalog,
-                TEXT_WIDGET_TYPE,
+                widgetType,
                 drop.parentWidgetId(),
                 drop.slotName(),
                 drop.insertionIndex(),
@@ -1113,14 +1424,16 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
 
-        String target = modelName + " — append Text to widget "
+        String widgetDisplayName = catalog.find(widgetType).orElseThrow()
+                .palette().displayName();
+        String target = modelName + " — add " + widgetDisplayName + " to widget "
                 + drop.parentWidgetId() + "." + drop.slotName().value()
                 + " at index " + drop.insertionIndex();
         submitDesignerMutation(
                 controllerForEdit,
                 candidate.token().orElseThrow(),
                 accepted.command(),
-                "Add Flutter Text widget",
+                "Add Flutter " + widgetDisplayName + " widget",
                 target);
     }
 
@@ -1232,15 +1545,15 @@ public final class FlutterDesignerMultiViewDesign
                 .append("and Properties are enabled. Supported properties on Column, Row, ")
                 .append("Padding, Center and Text are writable when exact mutation admission ")
                 .append("is ready; Scaffold properties remain read-only. ");
-        if (isPaletteTextAppendDragEnabled()) {
-            detail.append("Text can be dragged from the Palette to the terminal children ")
-                    .append("position of a rendered Row or Column; all other drag-and-drop ")
-                    .append("commands remain disabled.");
+        if (isPaletteCatalogInsertDragEnabled()) {
+            detail.append("Canvas-supported widgets can be dragged from the Palette into ")
+                    .append("catalog-compatible empty single slots or terminal list slots; ")
+                    .append("non-insertion drag-and-drop commands remain disabled.");
         } else {
-            detail.append("Palette Text drag-and-drop is unavailable because exact mutation ")
+            detail.append("Palette widget drag-and-drop is unavailable because exact mutation ")
                     .append("admission, the current rendered presentation, the owning-view AWT ")
                     .append("drag lifecycle, or the native Canvas drop capability is not ready; ")
-                    .append("all other drag-and-drop commands remain disabled.");
+                    .append("non-insertion drag-and-drop commands remain disabled.");
         }
         FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
         if (candidate != null
@@ -1374,14 +1687,16 @@ public final class FlutterDesignerMultiViewDesign
                 + ". Supported properties on selected Column, Row, Padding, Center and "
                 + "Text widgets are writable when exact mutation admission is ready; "
                 + "Scaffold properties remain read-only. When the owning-view AWT drag "
-                + "lifecycle and native Canvas drop capability are available, Palette Text "
-                + "may be appended to a rendered Row or Column through the native Canvas.");
+                + "lifecycle and native Canvas drop capability are available, Canvas-supported "
+                + "Palette widgets may be inserted into catalog-compatible empty single slots "
+                + "or terminal list slots through the native Canvas.");
         previewModes.getAccessibleContext().setAccessibleName(
                 "Flutter Canvas preview target");
         previewModes.getAccessibleContext().setAccessibleDescription(
                 "Select an exact responsive viewport and adaptive platform target. "
-                + "The concrete native Canvas engine remains Windows; Web requires "
-                + "a separate browser backend.");
+                + "The concrete native Canvas engine remains Windows. Web is rendered "
+                + "as a responsive browser-sized layout preview; browser-only runtime "
+                + "behavior is not emulated.");
         canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
                 canvasStatusLabel.getText());
         canvasProgress.getAccessibleContext().setAccessibleDescription(
@@ -1543,6 +1858,7 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasDocument = null;
         presentedCanvasCatalog = null;
         presentedCanvasTarget = null;
+        presentedCanvasTheme = null;
     }
 
     private static final class ExplorerPanel extends JPanel

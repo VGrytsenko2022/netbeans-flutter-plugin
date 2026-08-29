@@ -48,7 +48,7 @@ public final class DesignerPairRenamePlanner {
             return rejected(
                     DesignerPairRenameResult.Code.INVALID_ORIGINAL_FILENAME,
                     "/source/dartFile",
-                    "The current Dart filename is outside the schema-v1 contract.");
+                    "The current Dart filename is outside the .fd pairing contract.");
         }
         if (!validDartFile(targetDartFile)) {
             return rejected(

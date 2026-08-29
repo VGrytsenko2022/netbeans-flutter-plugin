@@ -32,14 +32,14 @@ import org.openide.util.ChangeSupport;
  * Durable persistence uses another identity-bound lease which pins the adopted
  * cursor and precomputes the saved anchor. The DataObject-owned internal
  * mutation controller joins those stages. The public mutation UI admits the
- * catalog-backed Properties slice and one deliberately narrow Palette DnD
- * slice: {@code Text} may be appended to {@code Row.children} or
- * {@code Column.children}. Other Palette mutations remain disabled.</p>
+ * catalog-backed Properties slice and catalog-validated Palette insertion for
+ * the reviewed Canvas widget set. Slot acceptance, cardinality and capacity
+ * remain authoritative in the bound catalog.</p>
  */
 final class DesignerCommandSessionOrchestrator
         implements UndoRedo, AutoCloseable {
     static final boolean PUBLIC_MUTATION_UI_ENABLED = true;
-    static final boolean PUBLIC_PALETTE_TEXT_APPEND_DND_ENABLED = true;
+    static final boolean PUBLIC_PALETTE_CATALOG_INSERT_DND_ENABLED = true;
     private static final Logger LOGGER = Logger.getLogger(
             DesignerCommandSessionOrchestrator.class.getName());
 

@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -77,7 +78,8 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
-            CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
+            CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1);
 
     private Harness harness;
 
@@ -108,7 +110,7 @@ class CanvasRunnerProcessChannelTest {
         assertEquals(ENGINE, harness.listener.engine);
         assertTrue(harness.channel.isReady());
         assertTrue(harness.channel.supports(
-                CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1));
+                CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1));
     }
 
     @Test
@@ -303,7 +305,7 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
-    void dispatchesPresentedSelectionAndPaletteDropForTheExactSession()
+    void dispatchesPresentedSelectionPaletteDropAndDeleteForTheExactSession()
             throws Exception {
         harness = Harness.ready();
         CanvasRenderRequest request = renderRequest(harness.sessionId);
@@ -315,10 +317,12 @@ class CanvasRunnerProcessChannelTest {
         harness.sendRuntime(selection(revision, 3, 5, 9, widgetId));
         harness.sendRuntime(paletteDrop(
                 revision, 3, 5, 10, token, widgetId, 2));
+        harness.sendRuntime(deleteSelection(revision, 3, 5, 11, widgetId));
 
         assertTrue(harness.listener.presented.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.selection.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.paletteDrop.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.deleteSelection.await(2, TimeUnit.SECONDS));
         CanvasLayoutKey layout = harness.listener.layout;
         assertEquals(new CanvasLayoutKey(new CanvasFrameKey(revision, 3), 5), layout);
         assertEquals(widgetId, harness.listener.widgetId);
@@ -332,11 +336,42 @@ class CanvasRunnerProcessChannelTest {
         assertEquals(new SlotName("children"), drop.slotName());
         assertEquals(2, drop.insertionIndex());
         assertEquals(1, harness.listener.paletteDropCalls.get());
+        assertEquals(new CanvasIntentKey(
+                new CanvasIntentId(harness.sessionId, 11), layout),
+                harness.listener.deletion.intentKey());
+        assertEquals(widgetId, harness.listener.deletion.widgetId());
+        assertEquals(1, harness.listener.deleteSelectionCalls.get());
         assertTrue(harness.listener.failureReason == null);
     }
 
     @Test
-    void paletteDropCodecRejectsUnsupportedOperationAndSlot() {
+    void deleteSelectionCodecRequiresExactBoundedIdentityAndStableWidget() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId widgetId = request.snapshot().document().root().id();
+        String valid = deleteSelection(
+                request.revisionKey(), 3, 5, 10, widgetId);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+
+        CanvasRunnerRuntimeEvent.DeleteSelection decoded = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.DeleteSelection.class,
+                assertDoesNotThrow(() -> codec.decode(
+                        valid.getBytes(StandardCharsets.UTF_8))));
+        assertEquals(widgetId, decoded.widgetId());
+        List<String> malformed = List.of(
+                valid.replace("\"widgetId\":", "\"unexpected\":true,\"widgetId\":"),
+                valid.replace(",\"intentSequence\":10", ""),
+                valid.replace(widgetId.toString(), "not-a-stable-id"),
+                valid.replace("\"layoutSequence\":5", "\"layoutSequence\":-1"),
+                valid.replace("\"intentSequence\":10", "\"intentSequence\":2.5"));
+        for (String payload : malformed) {
+            assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(payload.getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    @Test
+    void paletteDropCodecAcceptsReviewedCatalogSlotsAndRejectsAppBar() {
         CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
         StableId parent = request.snapshot().document().root().id();
         String valid = paletteDrop(
@@ -350,14 +385,45 @@ class CanvasRunnerProcessChannelTest {
                         "\"operation\":\"ADD\"",
                         "\"operation\":\"MOVE\"")
                         .getBytes(StandardCharsets.UTF_8)));
+        CanvasRunnerRuntimeEvent.PaletteDrop single = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.PaletteDrop.class,
+                assertDoesNotThrow(() -> codec.decode(valid.replace(
+                        "\"slotName\":\"children\"",
+                        "\"slotName\":\"child\"")
+                        .replace("\"insertionIndex\":2",
+                                 "\"insertionIndex\":0")
+                        .getBytes(StandardCharsets.UTF_8))));
+        CanvasRunnerRuntimeEvent.PaletteDrop body = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.PaletteDrop.class,
+                assertDoesNotThrow(() -> codec.decode(valid.replace(
+                        "\"slotName\":\"children\"",
+                        "\"slotName\":\"body\"")
+                        .replace("\"insertionIndex\":2",
+                                "\"insertionIndex\":0")
+                        .getBytes(StandardCharsets.UTF_8))));
+        CanvasRunnerRuntimeEvent.PaletteDrop floatingActionButton = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.PaletteDrop.class,
+                assertDoesNotThrow(() -> codec.decode(valid.replace(
+                        "\"slotName\":\"children\"",
+                        "\"slotName\":\"floatingActionButton\"")
+                        .replace("\"insertionIndex\":2",
+                                "\"insertionIndex\":0")
+                        .getBytes(StandardCharsets.UTF_8))));
         CanvasRunnerControlException slot = assertThrows(
                 CanvasRunnerControlException.class,
                 () -> codec.decode(valid.replace(
                         "\"slotName\":\"children\"",
-                        "\"slotName\":\"child\"")
+                        "\"slotName\":\"appBar\"")
                         .getBytes(StandardCharsets.UTF_8)));
 
         assertTrue(operation.getMessage().contains("operation"));
+        assertEquals(new SlotName("child"), single.slotName());
+        assertEquals(0, single.insertionIndex());
+        assertEquals(new SlotName("body"), body.slotName());
+        assertEquals(0, body.insertionIndex());
+        assertEquals(new SlotName("floatingActionButton"),
+                floatingActionButton.slotName());
+        assertEquals(0, floatingActionButton.insertionIndex());
         assertTrue(slot.getMessage().contains("slotName"));
     }
 
@@ -440,6 +506,22 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
+    void rejectsADeleteIntentFromAnotherSessionWithoutDispatchingIt()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        StableId widgetId = request.snapshot().document().root().id();
+
+        harness.sendRuntime(deleteSelection(
+                request.revisionKey(), 0, 0, 0, widgetId));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("stale or foreign"));
+        assertEquals(0, harness.listener.deleteSelectionCalls.get());
+        assertFalse(harness.channel.isReady());
+    }
+
+    @Test
     void keepsReadOnlyCanvasReadyWhenOptionalPaletteDropIsUnavailable()
             throws Exception {
         harness = new Harness();
@@ -453,7 +535,7 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         assertTrue(harness.channel.isReady());
         assertFalse(harness.channel.supports(
-                CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1));
+                CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1));
 
         CanvasRenderRequest request = renderRequest(harness.sessionId);
         StableId parent = request.snapshot().document().root().id();
@@ -464,6 +546,28 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.failureReason.contains("without negotiating"));
         assertEquals(0, harness.listener.paletteDropCalls.get());
+        assertFalse(harness.channel.isReady());
+    }
+
+    @Test
+    void rejectsDeleteIntentWhenOptionalCapabilityWasNotNegotiated()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.sendHello(List.of(
+                CanvasWireCapability.READ_ONLY_RENDER,
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION));
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        StableId widgetId = request.snapshot().document().root().id();
+        harness.sendRuntime(deleteSelection(
+                request.revisionKey(), 0, 0, 0, widgetId));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("without negotiating"));
+        assertEquals(0, harness.listener.deleteSelectionCalls.get());
         assertFalse(harness.channel.isReady());
     }
 
@@ -655,8 +759,10 @@ class CanvasRunnerProcessChannelTest {
                 new CanvasViewport(390, 844),
                 new CanvasDevicePixelRatio(1),
                 new CanvasResolvedTheme(
-                        "material-light-default-v1",
-                        CanvasThemeBrightness.LIGHT),
+                        "material_light_default_v1",
+                        0xFF6750A4,
+                        CanvasThemeBrightness.LIGHT,
+                        "A".repeat(64)),
                 new CanvasLocale("uk-UA"),
                 new CanvasTextScaleFactor(1),
                 ENGINE);
@@ -715,6 +821,21 @@ class CanvasRunnerProcessChannelTest {
                         + ",\"parentWidgetId\":\"" + parentWidgetId + "\""
                         + ",\"slotName\":\"children\""
                         + ",\"insertionIndex\":" + insertionIndex);
+    }
+
+    private static String deleteSelection(
+            CanvasRevisionKey revision,
+            long frame,
+            long layout,
+            long intent,
+            StableId widgetId) {
+        return runtimeEnvelope(
+                revision,
+                "runner.deleteSelection",
+                "\"frameSequence\":" + frame
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"intentSequence\":" + intent
+                        + ",\"widgetId\":\"" + widgetId + "\"");
     }
 
     private static String runtimeEnvelope(
@@ -950,13 +1071,16 @@ class CanvasRunnerProcessChannelTest {
         private final CountDownLatch presented = new CountDownLatch(1);
         private final CountDownLatch selection = new CountDownLatch(1);
         private final CountDownLatch paletteDrop = new CountDownLatch(1);
+        private final CountDownLatch deleteSelection = new CountDownLatch(1);
         private final CountDownLatch failed = new CountDownLatch(1);
         private final AtomicInteger paletteDropCalls = new AtomicInteger();
+        private final AtomicInteger deleteSelectionCalls = new AtomicInteger();
         private volatile CanvasEngineIdentity engine;
         private volatile CanvasLayoutKey layout;
         private volatile CanvasIntentKey intent;
         private volatile StableId widgetId;
         private volatile CanvasRunnerRuntimeEvent.PaletteDrop drop;
+        private volatile CanvasRunnerRuntimeEvent.DeleteSelection deletion;
         private volatile String failureReason;
 
         @Override
@@ -983,6 +1107,14 @@ class CanvasRunnerProcessChannelTest {
             drop = value;
             paletteDropCalls.incrementAndGet();
             paletteDrop.countDown();
+        }
+
+        @Override
+        public void deleteSelection(
+                CanvasRunnerRuntimeEvent.DeleteSelection value) {
+            deletion = value;
+            deleteSelectionCalls.incrementAndGet();
+            deleteSelection.countDown();
         }
 
         @Override

@@ -47,6 +47,7 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.netbeans.api.actions.Savable;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.lexer.TokenHierarchy;
@@ -76,6 +77,7 @@ import org.netbeans.spi.editor.hints.Fix;
 import org.netbeans.spi.editor.hints.LazyFixList;
 import org.netbeans.spi.editor.hints.Severity;
 import org.openide.cookies.EditorCookie;
+import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -177,6 +179,7 @@ final class DartEditorEndToEndIT {
             Path formatPath = projectPath.resolve("lib/format.dart");
             Path importPath = projectPath.resolve("lib/missing_import.dart");
             Path syntaxErrorPath = projectPath.resolve("lib/syntax_error.dart");
+            Path preflightPath = projectPath.resolve("lib/run_preflight.dart");
 
             FileUtil.refreshFor(projectPath.toFile());
             FileObject projectDirectory = requireFileObject(projectPath);
@@ -186,6 +189,7 @@ final class DartEditorEndToEndIT {
             FileObject formatFile = requireFileObject(formatPath);
             FileObject importFile = requireFileObject(importPath);
             FileObject syntaxErrorFile = requireFileObject(syntaxErrorPath);
+            FileObject preflightFile = requireFileObject(preflightPath);
 
             project = ProjectManager.getDefault().findProject(projectDirectory);
             assertNotNull("The assembled runtime did not recognize the Flutter project", project);
@@ -201,6 +205,7 @@ final class DartEditorEndToEndIT {
                 StyledDocument formatDocument = openDocument(formatFile);
                 StyledDocument importDocument = openDocument(importFile);
                 StyledDocument syntaxErrorDocument = openDocument(syntaxErrorFile);
+                assertRunSavePreflightSavesOrdinaryDart(preflightFile, preflightPath);
 
                 assertDartSyntaxHighlighting(mainDocument);
 
@@ -273,6 +278,7 @@ final class DartEditorEndToEndIT {
                 closeDocument(formatFile);
                 closeDocument(importFile);
                 closeDocument(syntaxErrorFile);
+                closeDocument(preflightFile);
                 closeDocument(helperFile);
             }
         }
@@ -313,7 +319,43 @@ final class DartEditorEndToEndIT {
                       final value = ;
                     }
                     """, StandardCharsets.UTF_8);
+            Files.writeString(lib.resolve("run_preflight.dart"),
+                    "void runPreflightFixture() {}\n", StandardCharsets.UTF_8);
             return root.toAbsolutePath().normalize();
+        }
+
+        private void assertRunSavePreflightSavesOrdinaryDart(
+                FileObject file,
+                Path path) throws Exception {
+            DataObject dataObject = DataObject.find(file);
+            EditorCookie editor = dataObject.getLookup().lookup(EditorCookie.class);
+            assertNotNull("Ordinary Dart preflight fixture has no EditorCookie", editor);
+            StyledDocument document = editor.openDocument();
+            String edit = "// accumulated editor change before Run\n";
+            document.insertString(document.getLength(), edit, null);
+            assertTrue("Ordinary Dart edit did not mark its DataObject modified",
+                    dataObject.isModified());
+            assertNotNull("Ordinary Dart edit exposed no SaveCookie",
+                    dataObject.getLookup().lookup(SaveCookie.class));
+            assertNotNull("Ordinary Dart edit exposed no modern Savable",
+                    dataObject.getLookup().lookup(Savable.class));
+            assertFalse("Ordinary Dart edit reached disk before the Run preflight",
+                    Files.readString(path, StandardCharsets.UTF_8).contains(edit.trim()));
+
+            Class<?> preflight = Class.forName(
+                    "dev.flutter.netbeans.plugin.project.FlutterProjectSavePreflight",
+                    true,
+                    flutterModule().getClassLoader());
+            Method save = preflight.getMethod("save", Project.class);
+            save.invoke(null, project);
+
+            assertEquals("Run preflight did not persist the exact ordinary Dart document",
+                    document.getText(0, document.getLength()),
+                    Files.readString(path, StandardCharsets.UTF_8));
+            assertFalse("Run preflight left the ordinary Dart DataObject modified",
+                    dataObject.isModified());
+            assertNull("Run preflight left an ordinary Dart SaveCookie published",
+                    dataObject.getLookup().lookup(SaveCookie.class));
         }
 
         private void configureStandaloneDartSdk(Path dartExecutable) throws Exception {

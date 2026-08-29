@@ -1,6 +1,6 @@
 package dev.flutter.netbeans.designer.model;
 
-/** Typed property-value discriminators defined by schema version 1. */
+/** Typed property-value discriminators defined through the current schema version. */
 public enum PropertyValueKind {
     STRING("string"),
     BOOLEAN("boolean"),
@@ -11,7 +11,12 @@ public enum PropertyValueKind {
     EDGE_INSETS("edgeInsets"),
     ASSET("asset"),
     CALLBACK("callback"),
-    DART_EXPRESSION("dartExpression");
+    DART_EXPRESSION("dartExpression"),
+    THEME_TOKEN("themeToken"),
+    PAINT("paint"),
+    SHADOW_LIST("shadowList"),
+    FONT_FEATURE_LIST("fontFeatureList"),
+    FONT_VARIATION_LIST("fontVariationList");
 
     private final String wireName;
 

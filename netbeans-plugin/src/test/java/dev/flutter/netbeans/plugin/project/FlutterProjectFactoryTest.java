@@ -124,6 +124,11 @@ class FlutterProjectFactoryTest {
         assertEquals("Clean and Build", FlutterLogicalViewProvider.REBUILD_ACTION_LABEL);
         assertEquals("Clean", FlutterLogicalViewProvider.CLEAN_ACTION_LABEL);
         assertNull(popup[5]);
+        int themeAction = indexOfAction(popup, "Edit Flutter Themes...");
+        assertTrue(themeAction > 6);
+        assertNull(popup[themeAction + 1],
+                "theme editor must stay in the target/configuration action group");
+        assertEquals(1, countActions(popup, "Edit Flutter Themes..."));
 
         runController.close();
         toolingController.close();
@@ -133,6 +138,24 @@ class FlutterProjectFactoryTest {
         toolingController.open();
         assertTrue(runController.isCommandEnabled(ActionProvider.COMMAND_RUN));
         assertTrue(toolingController.isCommandEnabled(ActionProvider.COMMAND_TEST));
+    }
+
+    private static int indexOfAction(javax.swing.Action[] actions, String name) {
+        for (int index = 0; index < actions.length; index++) {
+            if (actions[index] != null
+                    && name.equals(actions[index].getValue(javax.swing.Action.NAME))) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private static long countActions(javax.swing.Action[] actions, String name) {
+        return java.util.Arrays.stream(actions)
+                .filter(java.util.Objects::nonNull)
+                .filter(action -> name.equals(
+                        action.getValue(javax.swing.Action.NAME)))
+                .count();
     }
 
     @Test

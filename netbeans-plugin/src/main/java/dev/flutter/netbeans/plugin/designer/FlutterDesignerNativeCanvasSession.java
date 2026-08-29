@@ -11,16 +11,20 @@ import dev.flutter.netbeans.designer.canvas.CanvasPresentationGate;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
+import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.validation.ValidationLimits;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildResult;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildService;
@@ -43,12 +47,13 @@ import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import javax.swing.Timer;
 
 /** Per-MultiView lifecycle for the isolated native Windows FlutterView. */
@@ -62,8 +67,10 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private final RuntimeServices runtime;
     private final Consumer<FlutterDesignerNativeCanvasStatus> listener;
     private final Consumer<StableId> selectionListener;
-    private final Predicate<String> paletteDropTokenConsumer;
-    private final Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener;
+    private final Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver;
+    private final Consumer<AdmittedPaletteDrop> paletteDropListener;
+    private final Consumer<CanvasRunnerRuntimeEvent.DeleteSelection>
+            deleteSelectionListener;
     private final CanvasModelPayloadCodec payloadCodec = new CanvasModelPayloadCodec();
     private CanvasRunnerBuildResult prepared;
     private CompletableFuture<CanvasRunnerBuildResult> buildFuture;
@@ -88,43 +95,43 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private StableId desiredSelection;
     private PendingPresentation pendingPresentation;
     private boolean requestedVisible;
-    private boolean paletteTextAppendDropAvailable;
+    private boolean paletteCatalogInsertDropAvailable;
     private boolean launchPending;
     private boolean closed;
 
     static FlutterDesignerNativeCanvasSession createDefault(
             WindowsNativeCanvasHost host,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) throws IOException {
-        return createDefault(host, listener, ignored -> { }, ignored -> { });
+        return createDefault(
+                host,
+                listener,
+                ignored -> { },
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     static FlutterDesignerNativeCanvasSession createDefault(
             WindowsNativeCanvasHost host,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener) throws IOException {
-        return createDefault(host, listener, selectionListener, ignored -> { });
-    }
-
-    static FlutterDesignerNativeCanvasSession createDefault(
-            WindowsNativeCanvasHost host,
-            Consumer<FlutterDesignerNativeCanvasStatus> listener,
-            Consumer<StableId> selectionListener,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener)
-            throws IOException {
         return createDefault(
                 host,
                 listener,
                 selectionListener,
-                ignored -> true,
-                paletteDropListener);
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     static FlutterDesignerNativeCanvasSession createDefault(
             WindowsNativeCanvasHost host,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener,
-            Predicate<String> paletteDropTokenConsumer,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener)
+            Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver,
+            Consumer<AdmittedPaletteDrop> paletteDropListener,
+            Consumer<CanvasRunnerRuntimeEvent.DeleteSelection>
+                    deleteSelectionListener)
             throws IOException {
         return new FlutterDesignerNativeCanvasSession(
                 host,
@@ -132,8 +139,9 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 new FlutterToolchainService(),
                 listener,
                 selectionListener,
-                paletteDropTokenConsumer,
-                paletteDropListener);
+                paletteDropTokenResolver,
+                paletteDropListener,
+                deleteSelectionListener);
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -141,7 +149,15 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             CanvasRunnerBuildService builds,
             FlutterToolchainService toolchains,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) {
-        this(host, builds, toolchains, listener, ignored -> { }, ignored -> { });
+        this(
+                host,
+                builds,
+                toolchains,
+                listener,
+                ignored -> { },
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -150,24 +166,15 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             FlutterToolchainService toolchains,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener) {
-        this(host, builds, toolchains, listener, selectionListener, ignored -> { });
-    }
-
-    FlutterDesignerNativeCanvasSession(
-            WindowsNativeCanvasHost host,
-            CanvasRunnerBuildService builds,
-            FlutterToolchainService toolchains,
-            Consumer<FlutterDesignerNativeCanvasStatus> listener,
-            Consumer<StableId> selectionListener,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener) {
         this(
                 host,
                 builds,
                 toolchains,
                 listener,
                 selectionListener,
-                ignored -> true,
-                paletteDropListener);
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -176,18 +183,27 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             FlutterToolchainService toolchains,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener,
-            Predicate<String> paletteDropTokenConsumer,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener) {
+            Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver,
+            Consumer<AdmittedPaletteDrop> paletteDropListener,
+            Consumer<CanvasRunnerRuntimeEvent.DeleteSelection>
+                    deleteSelectionListener) {
         this(new WindowsHostAdapter(host), defaultRuntime(builds, toolchains),
-                listener, selectionListener, paletteDropTokenConsumer,
-                paletteDropListener);
+                listener, selectionListener, paletteDropTokenResolver,
+                paletteDropListener, deleteSelectionListener);
     }
 
     FlutterDesignerNativeCanvasSession(
             NativeCanvasHost host,
             RuntimeServices runtime,
             Consumer<FlutterDesignerNativeCanvasStatus> listener) {
-        this(host, runtime, listener, ignored -> { }, ignored -> { });
+        this(
+                host,
+                runtime,
+                listener,
+                ignored -> { },
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -195,22 +211,14 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             RuntimeServices runtime,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener) {
-        this(host, runtime, listener, selectionListener, ignored -> { });
-    }
-
-    FlutterDesignerNativeCanvasSession(
-            NativeCanvasHost host,
-            RuntimeServices runtime,
-            Consumer<FlutterDesignerNativeCanvasStatus> listener,
-            Consumer<StableId> selectionListener,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener) {
         this(
                 host,
                 runtime,
                 listener,
                 selectionListener,
-                ignored -> true,
-                paletteDropListener);
+                ignored -> Optional.empty(),
+                ignored -> { },
+                ignored -> { });
     }
 
     FlutterDesignerNativeCanvasSession(
@@ -218,18 +226,22 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             RuntimeServices runtime,
             Consumer<FlutterDesignerNativeCanvasStatus> listener,
             Consumer<StableId> selectionListener,
-            Predicate<String> paletteDropTokenConsumer,
-            Consumer<CanvasRunnerRuntimeEvent.PaletteDrop> paletteDropListener) {
+            Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver,
+            Consumer<AdmittedPaletteDrop> paletteDropListener,
+            Consumer<CanvasRunnerRuntimeEvent.DeleteSelection>
+                    deleteSelectionListener) {
         requireEventDispatchThread();
         this.host = Objects.requireNonNull(host, "host");
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         this.listener = Objects.requireNonNull(listener, "listener");
         this.selectionListener = Objects.requireNonNull(
                 selectionListener, "selectionListener");
-        this.paletteDropTokenConsumer = Objects.requireNonNull(
-                paletteDropTokenConsumer, "paletteDropTokenConsumer");
+        this.paletteDropTokenResolver = Objects.requireNonNull(
+                paletteDropTokenResolver, "paletteDropTokenResolver");
         this.paletteDropListener = Objects.requireNonNull(
                 paletteDropListener, "paletteDropListener");
+        this.deleteSelectionListener = Objects.requireNonNull(
+                deleteSelectionListener, "deleteSelectionListener");
         host.onPeerReady(this::startIfPossible);
         host.onPeerLost(this::peerLost);
         host.onAttachmentFailed(this::attachmentFailed);
@@ -263,12 +275,38 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
     }
 
-    /** Publishes the latest validated read-only document for this Design view. */
+    /**
+     * Compatibility seam for protocol tests and legacy callers without a
+     * verified project theme. Production project-backed Design views always
+     * call the exact-theme overload below.
+     */
     void present(
             DesignerDocument document,
             WidgetCatalog catalog,
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform) {
+        DesignerThemeMode requestedMode = Objects.requireNonNull(document, "document")
+                .canvas()
+                .flatMap(preferences -> preferences.themeMode())
+                .orElse(DesignerThemeMode.LIGHT);
+        CanvasThemeBrightness brightness = requestedMode == DesignerThemeMode.DARK
+                ? CanvasThemeBrightness.DARK
+                : CanvasThemeBrightness.LIGHT;
+        present(
+                document,
+                catalog,
+                previewMode,
+                targetPlatform,
+                CanvasPreviewProfileResolver.legacyTheme(brightness));
+    }
+
+    /** Publishes the latest validated read-only document for this Design view. */
+    void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme) {
         requireEventDispatchThread();
         if (closed) {
             return;
@@ -297,6 +335,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 snapshot,
                 Objects.requireNonNull(previewMode, "previewMode"),
                 Objects.requireNonNull(targetPlatform, "targetPlatform"),
+                Objects.requireNonNull(resolvedTheme, "resolvedTheme"),
                 widgetIds);
         currentRenderRequest = null;
         currentLayout = null;
@@ -837,6 +876,12 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                     }
 
                     @Override
+                    public void deleteSelection(
+                            CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
+                        processChannelDeleteSelection(sessionId, deletion);
+                    }
+
+                    @Override
                     public void failed(String reason) {
                         processChannelFailed(sessionId, reason);
                     }
@@ -864,8 +909,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
         canvasEngineIdentity = Objects.requireNonNull(engineIdentity, "engineIdentity");
         CanvasRunnerProcessChannel channel = processChannel;
-        paletteTextAppendDropAvailable = channel != null
-                && channel.supports(CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
+        paletteCatalogInsertDropAvailable = channel != null
+                && channel.supports(CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1);
         publishPendingPresentation();
     }
 
@@ -893,7 +938,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                             pending.previewMode(),
                             pending.targetPlatform(),
                             pending.snapshot().document().canvas(),
-                            canvasEngineIdentity),
+                            canvasEngineIdentity,
+                            pending.resolvedTheme()),
                     pending.snapshot());
         } catch (IllegalArgumentException | IllegalStateException failure) {
             publishFailure(
@@ -1072,9 +1118,11 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         if (!isCurrentChannel(sessionId)) {
             return;
         }
-        boolean tokenAccepted = false;
+        Optional<WidgetTypeId> authoritativeWidgetType = Optional.empty();
         try {
-            tokenAccepted = paletteDropTokenConsumer.test(drop.token());
+            authoritativeWidgetType = Objects.requireNonNull(
+                    paletteDropTokenResolver.apply(drop.token()),
+                    "paletteDropTokenResolver result");
         } catch (RuntimeException | LinkageError failure) {
             // The replay sequence is still consumed below so one bad token
             // cannot wedge all later interaction intents for this session.
@@ -1085,7 +1133,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
         CanvasIntentAdmission replay = replayGate.consume(
                 drop.intentKey(), CanvasIntentReplayPolicy.ONE_SHOT);
-        if (!tokenAccepted
+        if (authoritativeWidgetType.isEmpty()
                 || !replay.firstDelivery()
                 || !requestedVisible
                 || presentationGate == null
@@ -1095,12 +1143,44 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                         != CanvasAdmission.ACCEPTED) {
             return;
         }
-        paletteDropListener.accept(drop);
+        paletteDropListener.accept(new AdmittedPaletteDrop(
+                authoritativeWidgetType.orElseThrow(), drop));
     }
 
-    boolean paletteTextAppendDropAvailable() {
+    private void processChannelDeleteSelection(
+            CanvasSessionId sessionId,
+            CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
         requireEventDispatchThread();
-        return paletteTextAppendDropAvailable;
+        Objects.requireNonNull(deletion, "deletion");
+        if (!isCurrentChannel(sessionId)) {
+            return;
+        }
+        CanvasIntentReplayGate replayGate = intentReplayGate;
+        if (replayGate == null) {
+            return;
+        }
+        CanvasIntentAdmission replay = replayGate.consume(
+                deletion.intentKey(), CanvasIntentReplayPolicy.ONE_SHOT);
+        if (!replay.firstDelivery()
+                || !requestedVisible
+                || presentationGate == null
+                || currentLayout == null
+                || currentRenderRequest == null
+                || !currentWidgetIds.contains(deletion.widgetId())
+                || deletion.widgetId().equals(currentRenderRequest.snapshot()
+                        .document().root().id())
+                || !Objects.equals(desiredSelection, deletion.widgetId())
+                || presentationGate.admitSelection(
+                        deletion.intentKey().layoutKey())
+                        != CanvasAdmission.ACCEPTED) {
+            return;
+        }
+        deleteSelectionListener.accept(deletion);
+    }
+
+    boolean paletteCatalogInsertDropAvailable() {
+        requireEventDispatchThread();
+        return paletteCatalogInsertDropAvailable;
     }
 
     private void processChannelFailed(CanvasSessionId sessionId, String reason) {
@@ -1133,7 +1213,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         currentRenderRequest = null;
         currentLayout = null;
         currentWidgetIds = Set.of();
-        paletteTextAppendDropAvailable = false;
+        paletteCatalogInsertDropAvailable = false;
         presentationDocumentId = null;
         if (presentationGate != null) {
             presentationGate.close();
@@ -1150,7 +1230,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         processChannel = null;
         canvasSessionId = null;
         canvasEngineIdentity = null;
-        paletteTextAppendDropAvailable = false;
+        paletteCatalogInsertDropAvailable = false;
         nextPresentationSequence = 0;
         if (current != null) {
             current.close();
@@ -1472,11 +1552,22 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
     }
 
+    /** One opaque drag token resolved once to its authoritative Palette type. */
+    record AdmittedPaletteDrop(
+            WidgetTypeId widgetType,
+            CanvasRunnerRuntimeEvent.PaletteDrop drop) {
+        AdmittedPaletteDrop {
+            Objects.requireNonNull(widgetType, "widgetType");
+            Objects.requireNonNull(drop, "drop");
+        }
+    }
+
     private record PendingPresentation(
             long publicationGeneration,
             ValidatedCanvasRevisionSnapshot snapshot,
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme,
             Set<StableId> widgetIds) {
         private PendingPresentation {
             if (publicationGeneration <= 0) {
@@ -1486,6 +1577,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             Objects.requireNonNull(snapshot, "snapshot");
             Objects.requireNonNull(previewMode, "previewMode");
             Objects.requireNonNull(targetPlatform, "targetPlatform");
+            Objects.requireNonNull(resolvedTheme, "resolvedTheme");
             widgetIds = Set.copyOf(Objects.requireNonNull(widgetIds, "widgetIds"));
         }
     }

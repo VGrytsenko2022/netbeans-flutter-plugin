@@ -475,8 +475,10 @@ class CanvasLifecycleControllerTest {
                 new CanvasViewport(390.0d, 844.0d),
                 new CanvasDevicePixelRatio(3.0d),
                 new CanvasResolvedTheme(
-                        "material-light-default-v1",
-                        CanvasThemeBrightness.LIGHT),
+                        "material_light_default_v1",
+                        0xFF6750A4,
+                        CanvasThemeBrightness.LIGHT,
+                        "A".repeat(64)),
                 new CanvasLocale("uk-UA"),
                 new CanvasTextScaleFactor(1.0d),
                 engine);

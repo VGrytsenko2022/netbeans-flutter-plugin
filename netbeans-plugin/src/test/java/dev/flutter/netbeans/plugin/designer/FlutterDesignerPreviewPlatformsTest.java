@@ -1,7 +1,6 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
@@ -53,6 +52,22 @@ class FlutterDesignerPreviewPlatformsTest {
     }
 
     @Test
+    void appendsTheCanonicalLogicalViewportToEveryVisibleLabel() {
+        assertEquals(List.of(
+                "Android Phone — 390×844",
+                "iPhone — 390×844",
+                "Android Tablet — 800×1280",
+                "iPad — 800×1280",
+                "Windows Desktop — 1280×800",
+                "macOS Desktop — 1280×800",
+                "Linux Desktop — 1280×800",
+                "Web — 1440×900"),
+                FlutterDesignerPreviewPlatforms.allTargets().stream()
+                        .map(PreviewTarget::toString)
+                        .toList());
+    }
+
+    @Test
     void resolvedProjectWithoutPlatformsHasNoCompatiblePreview() {
         assertTrue(FlutterDesignerPreviewPlatforms.compatibleTargets(Set.of()).isEmpty());
     }
@@ -75,12 +90,6 @@ class FlutterDesignerPreviewPlatformsTest {
         assertEquals(Optional.empty(),
                 FlutterDesignerPreviewPlatforms.preferredOrFirst(
                         List.of(), windows, CanvasPreviewMode.DESKTOP));
-    }
-
-    @Test
-    void onlyWebTargetRequiresTheSeparateBrowserBackend() {
-        assertFalse(target(FlutterProjectPlatform.WINDOWS, 0).requiresBrowserBackend());
-        assertTrue(target(FlutterProjectPlatform.WEB, 0).requiresBrowserBackend());
     }
 
     private static void assertTargets(

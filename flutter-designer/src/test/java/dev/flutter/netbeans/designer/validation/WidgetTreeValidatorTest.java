@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
@@ -52,6 +53,7 @@ class WidgetTreeValidatorTest {
                 "designer.property.kind",
                 "designer.property.constraint",
                 "designer.property.dependency",
+                "designer.property.conflict",
                 "designer.property.uniqueness",
                 "designer.slot.missing",
                 "designer.slot.unknown",
@@ -73,6 +75,7 @@ class WidgetTreeValidatorTest {
                         WidgetTreeValidator.PROPERTY_KIND,
                         WidgetTreeValidator.PROPERTY_CONSTRAINT,
                         WidgetTreeValidator.PROPERTY_DEPENDENCY,
+                        WidgetTreeValidator.PROPERTY_CONFLICT,
                         WidgetTreeValidator.PROPERTY_UNIQUENESS,
                         WidgetTreeValidator.MISSING_SLOT,
                         WidgetTreeValidator.UNKNOWN_SLOT,
@@ -155,6 +158,90 @@ class WidgetTreeValidatorTest {
                 issue.path());
         assertTrue(issue.message().contains(
                 "/root/slots/children/children/0/properties/semanticsIdentifier"));
+    }
+
+    @Test
+    void textLocaleSubtagsUseFlutterCasingAndShapeRules() {
+        WidgetNode invalid = node("text", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Hello"),
+                name("localeLanguageCode"), new PropertyValue.StringValue("EN"),
+                name("localeScriptCode"), new PropertyValue.StringValue("cyrl"),
+                name("localeCountryCode"), new PropertyValue.StringValue("ua")), Map.of());
+
+        ValidationResult result = validator().validate(
+                document(invalid), BuiltInWidgetCatalog.getDefault());
+
+        assertEquals(3, result.issues().stream()
+                .filter(issue -> issue.code().equals(WidgetTreeValidator.PROPERTY_CONSTRAINT))
+                .count());
+
+        WidgetNode valid = node("text", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Hello"),
+                name("localeLanguageCode"), new PropertyValue.StringValue("uk"),
+                name("localeScriptCode"), new PropertyValue.StringValue("Cyrl"),
+                name("localeCountryCode"), new PropertyValue.StringValue("UA")), Map.of());
+        ValidationResult accepted = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(accepted.valid(), () -> "Issues were: " + accepted.issues());
+    }
+
+    @Test
+    void textFontPackagesRequireAConfiguredFamilyOrFallbackList() {
+        WidgetNode invalid = node("text", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Hello"),
+                name("stylePackage"), new PropertyValue.StringValue("brand_fonts"),
+                name("strutPackage"), new PropertyValue.StringValue("brand_fonts")), Map.of());
+
+        ValidationResult result = validator().validate(
+                document(invalid), BuiltInWidgetCatalog.getDefault());
+
+        assertEquals(List.of(
+                "/root/properties/strutPackage",
+                "/root/properties/stylePackage"),
+                result.issues().stream()
+                        .filter(issue -> issue.code().equals(
+                                WidgetTreeValidator.PROPERTY_DEPENDENCY))
+                        .map(ValidationIssue::path)
+                        .sorted()
+                        .toList());
+
+        WidgetNode valid = node("text", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Hello"),
+                name("stylePackage"), new PropertyValue.StringValue("brand_fonts"),
+                name("styleFontFamily"), new PropertyValue.StringValue("Brand Sans"),
+                name("strutPackage"), new PropertyValue.StringValue("brand_fonts"),
+                name("strutFontFamilyFallback"), new PropertyValue.StringValue("Noto Sans")),
+                Map.of());
+        ValidationResult accepted = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(accepted.valid(), () -> "Issues were: " + accepted.issues());
+    }
+
+    @Test
+    void textStyleColorAndPaintPairsAreMutuallyExclusive() {
+        WidgetNode invalid = node("text", "flutter.widgets.Text", Map.of(
+                name("data"), new PropertyValue.StringValue("Hello"),
+                name("styleColor"), new PropertyValue.ColorValue(0xFF112233L),
+                name("styleForeground"), PropertyValue.PaintValue.defaults(
+                        new ColorSource.Literal(0xFF445566L)),
+                name("styleBackgroundColor"), new PropertyValue.ColorValue(0xFF778899L),
+                name("styleBackground"), PropertyValue.PaintValue.defaults(
+                        new ColorSource.Literal(0xFFAABBCCL))), Map.of());
+
+        ValidationResult result = validator().validate(
+                document(invalid), BuiltInWidgetCatalog.getDefault());
+
+        assertEquals(List.of(
+                "/root/properties/styleBackground",
+                "/root/properties/styleForeground"),
+                result.issues().stream()
+                        .filter(issue -> issue.code().equals(WidgetTreeValidator.PROPERTY_CONFLICT))
+                        .map(ValidationIssue::path)
+                        .sorted()
+                        .toList());
+        assertTrue(result.issues().stream()
+                .filter(issue -> issue.code().equals(WidgetTreeValidator.PROPERTY_CONFLICT))
+                .allMatch(issue -> issue.message().contains("mutually exclusive")));
     }
 
     @Test

@@ -1181,9 +1181,11 @@ final class FlutterDesignerDataObjectIT {
             assertEquals("A Windows-only Flutter project must expose one preview",
                     1, previews.getItemCount());
             assertEquals("The Windows-only Flutter project exposed a non-desktop preview",
-                    "Windows Desktop", previews.getItemAt(0).toString());
+                    "Windows Desktop — 1280×800",
+                    previews.getItemAt(0).toString());
             assertEquals("The Windows-only Flutter project did not select Desktop",
-                    "Windows Desktop", previews.getSelectedItem().toString());
+                    "Windows Desktop — 1280×800",
+                    previews.getSelectedItem().toString());
         }
 
         private <T extends Component> T findNamedComponent(
@@ -1567,7 +1569,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 1,
+                      "schemaVersion": 2,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",

@@ -525,12 +525,33 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                     selection.intentKey(), selection.widgetId()));
             return true;
         }
+        if (event instanceof CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
+            final boolean deleteNegotiated;
+            synchronized (stateLock) {
+                deleteNegotiated = acceptedCapabilities.contains(
+                        CanvasWireCapability.DELETE_SELECTED_WIDGET_V1);
+            }
+            if (!deleteNegotiated) {
+                fail("Canvas runner sent a widget deletion intent without "
+                        + "negotiating its capability.");
+                return false;
+            }
+            if (!exactSession(deletion.intentKey().intentId().sessionId())
+                    || !exactSession(
+                            deletion.intentKey().layoutKey().sessionId())) {
+                fail("Canvas runner sent a widget deletion intent for a stale "
+                        + "or foreign Canvas session.");
+                return false;
+            }
+            dispatch(() -> listener.deleteSelection(deletion));
+            return true;
+        }
         CanvasRunnerRuntimeEvent.PaletteDrop drop =
                 (CanvasRunnerRuntimeEvent.PaletteDrop) event;
         final boolean paletteDropNegotiated;
         synchronized (stateLock) {
             paletteDropNegotiated = acceptedCapabilities.contains(
-                    CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
+                    CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1);
         }
         if (!paletteDropNegotiated) {
             fail("Canvas runner sent a Palette drop without negotiating its capability.");
@@ -674,6 +695,11 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
 
         /** Optional until the owning Designer session wires the mutation slice. */
         default void paletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop drop) {
+        }
+
+        /** Optional until the owning Designer session wires the mutation slice. */
+        default void deleteSelection(
+                CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
         }
 
         void failed(String reason);

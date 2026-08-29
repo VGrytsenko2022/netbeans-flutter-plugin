@@ -13,13 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FdSchemaResourceTest {
-    private static final Path DOCUMENTATION_SCHEMA =
+    private static final Path V1_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v1.schema.json");
+    private static final Path V2_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v2.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
-        byte[] packaged = loadPackagedSchema();
-        byte[] documented = Files.readAllBytes(findRepositoryFile(DOCUMENTATION_SCHEMA));
+        byte[] packaged = loadPackagedV1Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(V1_DOCUMENTATION_SCHEMA));
 
         assertArrayEquals(documented, packaged,
                 "The runtime schema and browsable documentation copy must remain byte-identical");
@@ -34,12 +36,40 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\"const\": 1"));
     }
 
-    private static byte[] loadPackagedSchema() throws IOException {
+    @Test
+    void packagesTheCanonicalV2SchemaFromTheBrowsableDocumentationCopy() throws IOException {
+        byte[] packaged = loadPackagedV2Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(V2_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v2 copies must remain byte-identical");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("\"$id\": \"urn:netbeans-flutter-designer:schema:fd:2\""));
+        assertTrue(schema.contains("\"const\": 2"));
+        assertTrue(schema.contains("\"themeTokenValue\""));
+        assertTrue(schema.contains("\"paintValue\""));
+        assertTrue(schema.contains("\"shadowListValue\""));
+        assertTrue(schema.contains("\"fontFeatureListValue\""));
+        assertTrue(schema.contains("\"fontVariationListValue\""));
+    }
+
+    private static byte[] loadPackagedV1Schema() throws IOException {
         ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
         assertNotNull(loader.getResource(FdSchemas.V1_RESOURCE),
                 "The canonical schema must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV1()) {
             assertNotNull(input, "The canonical schema resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV2Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V2_RESOURCE),
+                "The canonical schema v2 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV2()) {
+            assertNotNull(input, "The canonical schema v2 resource must be readable");
             return input.readAllBytes();
         }
     }

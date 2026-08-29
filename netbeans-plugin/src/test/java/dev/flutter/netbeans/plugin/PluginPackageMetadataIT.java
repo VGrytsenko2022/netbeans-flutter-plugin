@@ -115,14 +115,17 @@ class PluginPackageMetadataIT {
             "dev/flutter/netbeans/plugin/designer/persistence/PairFileTransactionStatus.class");
     private static final String DESIGNER_CODEC_CLASS =
             "dev/flutter/netbeans/designer/codec/FdDocumentCodec.class";
-    private static final String DESIGNER_SCHEMA =
+    private static final String DESIGNER_SCHEMA_V1 =
             "META-INF/netbeans-flutter-designer/schema/fd-v1.schema.json";
+    private static final String DESIGNER_SCHEMA_V2 =
+            "META-INF/netbeans-flutter-designer/schema/fd-v2.schema.json";
     private static final Set<String> DESIGNER_PUBLIC_PACKAGES = Set.of(
             "dev.flutter.netbeans.designer.catalog.*",
             "dev.flutter.netbeans.designer.model.*");
     private static final Set<String> DESIGNER_RUNTIME_ENTRIES = Set.of(
             DESIGNER_CODEC_CLASS,
-            DESIGNER_SCHEMA,
+            DESIGNER_SCHEMA_V1,
+            DESIGNER_SCHEMA_V2,
             "dev/flutter/netbeans/designer/generation/DartRegionGenerator.class",
             "dev/flutter/netbeans/designer/generation/DartGenerationResult.class",
             "dev/flutter/netbeans/designer/generation/DartGenerationLimits.class",

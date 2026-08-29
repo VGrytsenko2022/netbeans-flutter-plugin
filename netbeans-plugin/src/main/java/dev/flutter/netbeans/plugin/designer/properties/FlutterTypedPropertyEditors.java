@@ -2,8 +2,10 @@ package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
+import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Rectangle;
@@ -21,17 +23,28 @@ import java.util.Set;
 import org.openide.explorer.propertysheet.ExPropertyEditor;
 import org.openide.explorer.propertysheet.PropertyEnv;
 
-/** Catalog-shape admission and editors for safe schema-v1 property values. */
+/** Catalog-shape admission and editors for safe versioned .fd property values. */
 final class FlutterTypedPropertyEditors {
     private FlutterTypedPropertyEditors() {
     }
 
     static Optional<Binding> binding(PropertyDefinition definition) {
+        return binding(definition, Optional.empty());
+    }
+
+    static Optional<Binding> binding(
+            PropertyDefinition definition,
+            Optional<TextWidgetPropertySchema.Definition> textSchema) {
         Objects.requireNonNull(definition, "definition");
+        Objects.requireNonNull(textSchema, "textSchema");
         Set<PropertyValueKind> kinds = definition.acceptedKinds();
         EditorKind editorKind;
         if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
-            editorKind = EditorKind.STRING;
+            editorKind = textSchema
+                    .filter(value -> value.encoding()
+                    == TextWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST)
+                    .map(ignored -> EditorKind.NEWLINE_STRING_LIST)
+                    .orElse(EditorKind.STRING);
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN))) {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
@@ -51,31 +64,86 @@ final class FlutterTypedPropertyEditors {
             editorKind = EditorKind.EDGE_INSETS;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR))) {
             editorKind = EditorKind.COLOR;
+        } else if (kinds.equals(EnumSet.of(
+                PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.ThemeTokenValues.class::isInstance)) {
+            editorKind = EditorKind.THEME_COLOR;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.THEME_TOKEN))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.ThemeTokenValues.class::isInstance)) {
+            editorKind = EditorKind.THEME_TOKEN;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.PAINT))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.PaintValues.class::isInstance)) {
+            editorKind = EditorKind.PAINT;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SHADOW_LIST))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.ShadowListValues.class::isInstance)) {
+            editorKind = EditorKind.SHADOW_LIST;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.FONT_FEATURE_LIST))) {
+            editorKind = EditorKind.FONT_FEATURE_LIST;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.FONT_VARIATION_LIST))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.FontVariationListValues.class::isInstance)) {
+            editorKind = EditorKind.FONT_VARIATION_LIST;
         } else {
             return Optional.empty();
         }
-        return Optional.of(new Binding(definition, editorKind));
+        return Optional.of(new Binding(definition, editorKind, textSchema));
     }
 
     enum EditorKind {
         STRING,
+        NEWLINE_STRING_LIST,
         BOOLEAN,
         INTEGER,
         DOUBLE,
         NUMBER,
         ENUM,
         EDGE_INSETS,
-        COLOR
+        COLOR,
+        THEME_COLOR,
+        THEME_TOKEN,
+        PAINT,
+        SHADOW_LIST,
+        FONT_FEATURE_LIST,
+        FONT_VARIATION_LIST
     }
 
-    record Binding(PropertyDefinition definition, EditorKind editorKind) {
+    record Binding(
+            PropertyDefinition definition,
+            EditorKind editorKind,
+            Optional<TextWidgetPropertySchema.Definition> textSchema) {
         Binding {
             Objects.requireNonNull(definition, "definition");
             Objects.requireNonNull(editorKind, "editorKind");
+            Objects.requireNonNull(textSchema, "textSchema");
         }
 
         boolean optional() {
             return !definition.parameter().required();
+        }
+
+        List<ThemeToken> allowedThemeTokens() {
+            return definition.constraints().stream()
+                    .filter(PropertyValueConstraint.ThemeTokenValues.class::isInstance)
+                    .map(PropertyValueConstraint.ThemeTokenValues.class::cast)
+                    .flatMap(value -> value.wireIds().stream())
+                    .distinct().map(ThemeToken::new).toList();
+        }
+
+        List<ThemeToken> allowedColorSourceTokens() {
+            return definition.constraints().stream().flatMap(constraint -> switch (constraint) {
+                case PropertyValueConstraint.ThemeTokenValues values ->
+                    values.wireIds().stream();
+                case PropertyValueConstraint.PaintValues values ->
+                    values.colorThemeTokenIds().stream();
+                case PropertyValueConstraint.ShadowListValues values ->
+                    values.colorThemeTokenIds().stream();
+                default -> java.util.stream.Stream.empty();
+            }).distinct().map(ThemeToken::new)
+                    .filter(ThemeToken::isColorSchemeToken).toList();
         }
 
         FlutterPropertyCellValue validate(FlutterPropertyCellValue candidate) {
@@ -105,6 +173,7 @@ final class FlutterTypedPropertyEditors {
         PropertyEditor createEditor() {
             return switch (editorKind) {
                 case STRING -> new StringEditor(this);
+                case NEWLINE_STRING_LIST -> new NewlineStringListEditor(this);
                 case BOOLEAN -> new BooleanEditor(this);
                 case INTEGER -> new IntegerEditor(this);
                 case DOUBLE -> new DoubleEditor(this);
@@ -112,6 +181,10 @@ final class FlutterTypedPropertyEditors {
                 case ENUM -> new CatalogEnumEditor(this);
                 case EDGE_INSETS -> new EdgeInsetsEditor(this);
                 case COLOR -> new ColorEditor(this);
+                case THEME_COLOR -> new ThemeColorEditor(this);
+                case THEME_TOKEN -> new ThemeTokenEditor(this);
+                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST ->
+                    new StructuredEditor(this);
             };
         }
 
@@ -194,12 +267,14 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final boolean isPaintable() {
-            return binding.editorKind() == EditorKind.COLOR;
+            return binding.editorKind() == EditorKind.COLOR
+                    || binding.editorKind() == EditorKind.THEME_COLOR;
         }
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.COLOR) {
+            if (binding.editorKind() == EditorKind.COLOR
+                    || binding.editorKind() == EditorKind.THEME_COLOR) {
                 FlutterPropertyEditorComponents.paintColorValue(
                         graphics, box, cellValue());
             } else {
@@ -228,6 +303,28 @@ final class FlutterTypedPropertyEditors {
             // is a valid explicit value. Optional String reset is deliberately
             // available only through Node.Property.restoreDefaultValue().
             setExplicit(new PropertyValue.StringValue(text));
+        }
+    }
+
+    private static final class NewlineStringListEditor extends TypedEditor {
+        NewlineStringListEditor(Binding binding) {
+            super(binding);
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue()
+                    .map(PropertyValue.StringValue.class::cast)
+                    .map(PropertyValue.StringValue::value)
+                    .map(FlutterTypedPropertyEditors::newlineListSummary)
+                    .orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            Objects.requireNonNull(text, "text");
+            setExplicit(new PropertyValue.StringValue(
+                    normalizeNewlineList(text)));
         }
     }
 
@@ -492,5 +589,132 @@ final class FlutterTypedPropertyEditors {
             }
             setExplicit(PropertyValue.ColorValue.fromWireArgb(normalized));
         }
+    }
+
+    /** Literal ARGB or a reviewed semantic Material ColorScheme role. */
+    private static final class ThemeColorEditor extends TypedEditor {
+        ThemeColorEditor(Binding binding) {
+            super(binding);
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue().map(value -> switch (value) {
+                case PropertyValue.ColorValue color -> color.wireArgb();
+                case PropertyValue.ThemeTokenValue theme ->
+                    "Theme: " + FlutterThemePropertyRoles.displayRole(theme.token());
+                default -> throw new IllegalStateException(
+                        "Unexpected theme-aware color " + value.kind());
+            }).orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            if (parseUnset(text)) {
+                return;
+            }
+            String normalized = Objects.requireNonNull(text, "text").strip();
+            if (normalized.regionMatches(true, 0, "Theme:", 0, 6)) {
+                normalized = normalized.substring(6).strip();
+            }
+            var token = FlutterThemePropertyRoles.findColorToken(
+                    normalized, binding.allowedColorSourceTokens());
+            if (token.isPresent()) {
+                setExplicit(new PropertyValue.ThemeTokenValue(token.orElseThrow()));
+                return;
+            }
+            if (normalized.length() >= 2
+                    && normalized.substring(0, 2).equalsIgnoreCase("0x")) {
+                normalized = "0x" + normalized.substring(2)
+                        .toUpperCase(java.util.Locale.ROOT);
+            }
+            setExplicit(PropertyValue.ColorValue.fromWireArgb(normalized));
+        }
+    }
+
+    /** Closed combo of reviewed Material TextTheme roles. */
+    private static final class ThemeTokenEditor extends TypedEditor {
+        private final String[] tags;
+
+        ThemeTokenEditor(Binding binding) {
+            super(binding);
+            ArrayList<String> values = new ArrayList<>();
+            if (binding.optional()) {
+                values.add(FlutterPropertyCellValue.NOT_SET_TEXT);
+            }
+            values.addAll(FlutterThemePropertyRoles.textStyleDisplayRoles(
+                    binding.allowedThemeTokens()));
+            tags = values.toArray(String[]::new);
+        }
+
+        @Override
+        public String[] getTags() {
+            return tags.clone();
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue()
+                    .map(PropertyValue.ThemeTokenValue.class::cast)
+                    .map(PropertyValue.ThemeTokenValue::token)
+                    .map(FlutterThemePropertyRoles::displayRole)
+                    .orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            if (parseUnset(text)) {
+                return;
+            }
+            var token = FlutterThemePropertyRoles.findTextStyleToken(
+                    Objects.requireNonNull(text, "text").strip(),
+                    binding.allowedThemeTokens());
+            if (token.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Expected a reviewed Material TextTheme role.");
+            }
+            setExplicit(new PropertyValue.ThemeTokenValue(token.orElseThrow()));
+        }
+    }
+
+    /** One compact cell whose complete immutable value is edited in a dialog. */
+    private static final class StructuredEditor extends TypedEditor {
+        StructuredEditor(Binding binding) {
+            super(binding);
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue().map(PropertyValueFormatter::format)
+                    .orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            if (parseUnset(text)) {
+                return;
+            }
+            throw new IllegalArgumentException(
+                    "Use the custom editor button to edit this structured value.");
+        }
+    }
+
+    static String normalizeNewlineList(String text) {
+        Objects.requireNonNull(text, "text");
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String separator = normalized.indexOf('\n') >= 0 ? "\n" : ",";
+        return Arrays.stream(normalized.split(separator, -1))
+                .map(String::strip)
+                .filter(value -> !value.isEmpty())
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+    }
+
+    private static String newlineListSummary(String value) {
+        return value.lines()
+                .map(String::strip)
+                .filter(item -> !item.isEmpty())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("");
     }
 }

@@ -36,6 +36,7 @@ public final class WidgetTreeValidator {
     public static final String PROPERTY_KIND = "designer.property.kind";
     public static final String PROPERTY_CONSTRAINT = "designer.property.constraint";
     public static final String PROPERTY_DEPENDENCY = "designer.property.dependency";
+    public static final String PROPERTY_CONFLICT = "designer.property.conflict";
     public static final String PROPERTY_UNIQUENESS = "designer.property.uniqueness";
     public static final String MISSING_SLOT = "designer.slot.missing";
     public static final String UNKNOWN_SLOT = "designer.slot.unknown";
@@ -311,20 +312,80 @@ public final class WidgetTreeValidator {
         if (!type.equals("flutter.widgets.Text")) {
             return;
         }
+        validateFontPackageDependency(
+                node, propertiesPath, issues,
+                "stylePackage", "styleFontFamily", "styleFontFamilyFallback");
+        validateFontPackageDependency(
+                node, propertiesPath, issues,
+                "strutPackage", "strutFontFamily", "strutFontFamilyFallback");
+        validateMutuallyExclusiveProperties(
+                node, propertiesPath, issues, "styleColor", "styleForeground");
+        validateMutuallyExclusiveProperties(
+                node, propertiesPath, issues, "styleBackgroundColor", "styleBackground");
+
         PropertyValue value = node.properties().get(new PropertyName("semanticsIdentifier"));
-        if (!(value instanceof PropertyValue.StringValue identifier)) {
+        if (value instanceof PropertyValue.StringValue identifier) {
+            String propertyPath = propertiesPath + "/semanticsIdentifier";
+            String firstPath = firstSemanticsIdentifierPaths.putIfAbsent(
+                    identifier.value(), propertyPath);
+            if (firstPath != null) {
+                issues.add(issue(
+                        PROPERTY_UNIQUENESS,
+                        propertyPath,
+                        node.id(),
+                        "Text semanticsIdentifier '" + identifier.value() + "' at '" + propertyPath
+                        + "' duplicates the identifier first declared at '" + firstPath + "'."));
+            }
+        }
+    }
+
+    private static void validateMutuallyExclusiveProperties(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String firstProperty,
+            String secondProperty) {
+        if (!node.properties().containsKey(new PropertyName(firstProperty))
+                || !node.properties().containsKey(new PropertyName(secondProperty))) {
             return;
         }
-        String propertyPath = propertiesPath + "/semanticsIdentifier";
-        String firstPath = firstSemanticsIdentifierPaths.putIfAbsent(identifier.value(), propertyPath);
-        if (firstPath != null) {
+        issues.add(issue(
+                PROPERTY_CONFLICT,
+                propertiesPath + '/' + secondProperty,
+                node.id(),
+                "Text properties '" + firstProperty + "' and '" + secondProperty
+                + "' are mutually exclusive in Flutter TextStyle."));
+    }
+
+    private static void validateFontPackageDependency(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String packageProperty,
+            String familyProperty,
+            String fallbackProperty) {
+        if (node.properties().containsKey(new PropertyName(packageProperty))
+                && !hasNonBlankString(node, familyProperty)
+                && !hasNonBlankLine(node, fallbackProperty)) {
             issues.add(issue(
-                    PROPERTY_UNIQUENESS,
-                    propertyPath,
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + '/' + packageProperty,
                     node.id(),
-                    "Text semanticsIdentifier '" + identifier.value() + "' at '" + propertyPath
-                    + "' duplicates the identifier first declared at '" + firstPath + "'."));
+                    "Text property '" + packageProperty + "' requires '"
+                    + familyProperty + "' or '" + fallbackProperty + "'."));
         }
+    }
+
+    private static boolean hasNonBlankString(WidgetNode node, String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value instanceof PropertyValue.StringValue string
+                && !string.value().isBlank();
+    }
+
+    private static boolean hasNonBlankLine(WidgetNode node, String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value instanceof PropertyValue.StringValue string
+                && string.value().lines().anyMatch(line -> !line.isBlank());
     }
 
     private static void validatePropertyValue(

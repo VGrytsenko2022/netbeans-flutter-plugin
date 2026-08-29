@@ -18,7 +18,8 @@ const _wireFormat = 'netbeans-flutter-canvas-wire';
 const _runtimeFormat = 'netbeans-flutter-canvas-runtime';
 const _protocolVersion = 1;
 const _runnerVersion = '0.1.3-SNAPSHOT';
-const _paletteDropCapability = 'palette.drop.textAppend.v1';
+const _paletteDropCapability = 'palette.drop.catalogInsert.v1';
+const _deleteSelectedWidgetCapability = 'widget.deleteSelection.v1';
 const _paletteDropChannel = MethodChannel(
   'dev.flutter.netbeans/canvas_palette_drop',
 );
@@ -206,6 +207,7 @@ class CanvasRuntimeController extends ChangeNotifier
   _PreparedNativeDrop? _preparedNativeDrop;
   Future<void> _writeChain = Future.value();
   bool _paletteDropNegotiated = false;
+  bool _deleteSelectedWidgetNegotiated = false;
   bool _bindingObserverInstalled = false;
   bool _nativeDropHandlerInstalled = false;
   bool _closed = false;
@@ -256,6 +258,9 @@ class CanvasRuntimeController extends ChangeNotifier
       _paletteDropNegotiated =
           hello.capabilities.contains(_paletteDropCapability) &&
           await _detectNativeDropAvailability();
+      _deleteSelectedWidgetNegotiated = hello.capabilities.contains(
+        _deleteSelectedWidgetCapability,
+      );
       await _writeControl(
         _runnerHello(hello, paletteDropAvailable: _paletteDropNegotiated),
       );
@@ -358,6 +363,33 @@ class CanvasRuntimeController extends ChangeNotifier
         'widgetId': widgetId,
       });
     unawaited(_writeRuntime('runner.selection', body));
+  }
+
+  /// Publishes one physical Delete intent without mutating the decoded model.
+  ///
+  /// The Java host remains the only persistence authority and revalidates the
+  /// complete session/layout/selection identity before applying a command.
+  bool deleteSelectedFromCanvas() {
+    final current = _model;
+    final widgetId = _selectedWidgetId;
+    if (_closed ||
+        !_deleteSelectedWidgetNegotiated ||
+        current == null ||
+        widgetId == null ||
+        widgetId == current.root.id ||
+        _lastPresentedIdentity != _identity(current) ||
+        !current.widgetIds.contains(widgetId)) {
+      return false;
+    }
+    final body = _identityBody(current)
+      ..addAll({
+        'frameSequence': 0,
+        'layoutSequence': _layoutSequence,
+        'intentSequence': _intentSequence++,
+        'widgetId': widgetId,
+      });
+    unawaited(_writeRuntime('runner.deleteSelection', body));
+    return true;
   }
 
   Future<Object?> _handleNativeDropMethod(MethodCall call) async {
@@ -573,8 +605,7 @@ class CanvasRuntimeController extends ChangeNotifier
         return false;
       }
       final parent = _findNode(current.root, target.parentWidgetId);
-      final children = parent?.slot('children')?.children;
-      if (parent == null || children == null) {
+      if (parent == null) {
         return false;
       }
       final body = _identityBody(current)
@@ -585,8 +616,8 @@ class CanvasRuntimeController extends ChangeNotifier
           'token': request.token,
           'operation': 'ADD',
           'parentWidgetId': parent.id,
-          'slotName': 'children',
-          'insertionIndex': children.length,
+          'slotName': target.slotName,
+          'insertionIndex': target.insertionIndex,
         });
       await _writeRuntime('runner.paletteDrop', body);
       return true;
@@ -627,17 +658,26 @@ class CanvasRuntimeController extends ChangeNotifier
       return null;
     }
     final target = resolver(xMicros, yMicros);
-    if (target == null || target.slotName != 'children') {
+    if (target == null) {
       return null;
     }
     final parent = _findNode(current.root, target.parentWidgetId);
-    final children = parent?.slot('children')?.children;
-    if (parent == null ||
-        (parent.type != 'flutter.widgets.Column' &&
-            parent.type != 'flutter.widgets.Row') ||
-        children == null ||
-        children.length >= 10000 ||
-        target.insertionIndex != children.length) {
+    if (parent == null) {
+      return null;
+    }
+    final dropSlot = canvasDropSlotForWidgetSlot(parent.type, target.slotName);
+    if (dropSlot == null) {
+      return null;
+    }
+    final modelSlot = parent.slot(dropSlot.slotName);
+    if (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind) {
+      return null;
+    }
+    final currentChildCount = modelSlot?.children.length ?? 0;
+    if (!dropSlot.accepts(
+      currentChildCount: currentChildCount,
+      insertionIndex: target.insertionIndex,
+    )) {
       return null;
     }
     return target;
@@ -971,7 +1011,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 4) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 5) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -979,6 +1019,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
     'readOnly.layout',
     'readOnly.selection',
     _paletteDropCapability,
+    _deleteSelectedWidgetCapability,
   };
   final capabilities = <String>{};
   for (final value in rawCapabilities) {
@@ -1011,6 +1052,7 @@ Map<String, Object?> _runnerHello(
     'readOnly.layout',
     'readOnly.selection',
     _paletteDropCapability,
+    _deleteSelectedWidgetCapability,
   ];
   final limits = hello.limits.tightenedToSafe();
   return {

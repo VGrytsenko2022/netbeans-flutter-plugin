@@ -48,7 +48,30 @@ To add a class, select its destination folder in the Flutter project and use `Fi
 
 To add a visual form, select `lib` or one of its subfolders and use `File > New File > Flutter Designer > Flutter Designer Form`. NetBeans creates the Dart source under `lib/<relative>` and its mirrored JSON model under `.fd_templates/<relative>`. Rename either member through the standard node action to rename the complete pair. The new basename must use canonical lower_snake_case; Rename updates only the model's `source.dartFile`, while the Dart bytes and `source.className` remain unchanged. Save or close unsaved edits first.
 
-The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web requires a separately compiled browser Canvas backend and currently opens an explicit unavailable status rather than a false Windows rendering. If the project has no real platform directory, Preview is disabled.
+The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
+
+Every application newly created by this plugin also receives the shared
+`.fd_templates/project.fdtheme` catalog and generated
+`lib/theme/app_theme.dart`. Use `Flutter > Edit Flutter Themes...`, the project
+context action, or open `project.fdtheme`. The docked `Themes` tab appears beside
+`Palette`; it edits the default mode, selects the application light/dark
+definitions, and creates custom themes. Use `General` for catalog/application
+settings, `Colors` for the 46 supported Material `ColorScheme` roles, and
+`Typography` for all 15 Material 3 `TextTheme` roles and their 13 typed optional
+fields. `Use default`/inherit removes an override and restores the seed-derived
+Material value. Each catalog definition can be enabled or disabled
+independently; a disabled definition stays editable but is omitted from
+generated Dart. While project themes are enabled, the selected light and dark
+definitions must also be enabled. Clear `Enable project themes` to use Flutter's
+defaults while preserving all selections and per-theme states for later
+re-enabling.
+The same catalog applies to every Designer form; `.fd` stores no copied theme
+definitions. Save rewrites the descriptor and generated Dart as one
+hash-guarded pair, while Reload explicitly discards the current draft. If
+`app_theme.dart` changed outside the editor, NetBeans reports the conflict
+instead of overwriting it. For an older application with no catalog, the command
+offers an explicit initialization only when its `main.dart` has the safely
+recognized Flutter template shape.
 
 To duplicate a clean pair, Copy either its Dart or `.fd` node, select that node's current physical parent folder, and Paste. NetBeans chooses `_copy`, `_copy_2`, and so on using both mirrored folders, copies the Dart bytes exactly, and creates an independent `.fd` with a new `documentId` and matching `source.dartFile`. A clean open source editor stays open on the original. Cross-directory Copy remains unavailable because relative-URI rebasing semantics are not defined.
 

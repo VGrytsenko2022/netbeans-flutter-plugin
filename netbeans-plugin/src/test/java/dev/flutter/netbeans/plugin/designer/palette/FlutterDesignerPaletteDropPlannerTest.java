@@ -20,7 +20,9 @@ import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,13 +39,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetCatalog BUILT_INS = BuiltInWidgetCatalog.getDefault();
+    private static final WidgetTypeId SCAFFOLD = type("flutter.material.Scaffold");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId ROW = type("flutter.widgets.Row");
+    private static final WidgetTypeId PADDING = type("flutter.widgets.Padding");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
+    private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
+    private static final SlotName BODY = new SlotName("body");
+    private static final SlotName FLOATING_ACTION_BUTTON =
+            new SlotName("floatingActionButton");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
     private static final PropertyName DATA = new PropertyName("data");
+    private static final PropertyName PADDING_VALUE = new PropertyName("padding");
     private static final StableId DOCUMENT_ID = id("14f6c16f-893b-44d0-b809-edbd51bbcdaa");
     private static final StableId ROOT_ID = id("0209809f-351a-4ce7-8c07-1ec625b1e109");
     private static final StableId FIRST_ID = id("710c4ad9-c3cf-434e-af1e-5217ac38aa92");
@@ -53,16 +62,32 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void plansTextAsATerminalAppendForBothSupportedParents() {
+    void plansTextIntoCatalogAcceptedListAndEmptySingleSlots() {
         List<AcceptedCase> cases = List.of(
-                new AcceptedCase("empty Column", document(parent(COLUMN, List.of())), 0),
+                new AcceptedCase(
+                        "empty Column",
+                        document(parent(COLUMN, List.of())),
+                        CHILDREN,
+                        0),
                 new AcceptedCase(
                         "non-empty Row",
                         document(parent(ROW, List.of(text(FIRST_ID, "existing")))),
+                        CHILDREN,
                         1),
                 new AcceptedCase(
-                        "absent optional model slot",
+                        "absent optional list slot",
                         document(WidgetNode.empty(ROOT_ID, COLUMN)),
+                        CHILDREN,
+                        0),
+                new AcceptedCase(
+                        "absent optional Center child",
+                        document(WidgetNode.empty(ROOT_ID, CENTER)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
+                        "explicitly empty Center child",
+                        document(singleParent(CENTER, null)),
+                        CHILD,
                         0));
 
         assertAll(cases.stream().map(testCase -> (Executable) () -> {
@@ -72,7 +97,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                     BUILT_INS,
                     TEXT,
                     ROOT_ID,
-                    CHILDREN,
+                    testCase.slot(),
                     testCase.index(),
                     () -> {
                         allocations.incrementAndGet();
@@ -85,7 +110,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                     testCase.name());
             AddWidget command = accepted.command();
             assertEquals(ROOT_ID, command.destination().parentId(), testCase.name());
-            assertEquals(CHILDREN, command.destination().slotName(), testCase.name());
+            assertEquals(testCase.slot(), command.destination().slotName(),
+                    testCase.name());
             assertEquals(testCase.index(), command.destination().index(), testCase.name());
             assertEquals(NEW_ID, command.widget().id(), testCase.name());
             assertEquals(TEXT, command.widget().type(), testCase.name());
@@ -94,6 +120,167 @@ class FlutterDesignerPaletteDropPlannerTest {
             assertTrue(command.widget().slots().isEmpty(), testCase.name());
             assertEquals(1, allocations.get(), testCase.name());
         }));
+    }
+
+    @Test
+    void plansTheCompleteCoreV1SourceByAcceptedSlotMatrixWithExactPrototypes() {
+        List<CoreSourceCase> sources = coreSources();
+        List<MatrixTargetCase> targets = List.of(
+                target("Scaffold.body", SCAFFOLD, BODY),
+                target("Scaffold.floatingActionButton", SCAFFOLD,
+                        FLOATING_ACTION_BUTTON),
+                target("Column.children", COLUMN, CHILDREN),
+                target("Row.children", ROW, CHILDREN),
+                target("Padding.child", PADDING, CHILD),
+                target("Center.child", CENTER, CHILD));
+
+        assertEquals(6, sources.size());
+        assertEquals(6, targets.size());
+        assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
+                (Executable) () -> {
+                    AtomicInteger allocations = new AtomicInteger();
+                    FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                            target.document(),
+                            BUILT_INS,
+                            source.type(),
+                            ROOT_ID,
+                            target.slot(),
+                            0,
+                            () -> {
+                                allocations.incrementAndGet();
+                                return NEW_ID;
+                            });
+
+                    FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                            FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            result,
+                            source.name() + " -> " + target.name());
+                    AddWidget command = accepted.command();
+                    assertEquals(ROOT_ID, command.destination().parentId());
+                    assertEquals(target.slot(), command.destination().slotName());
+                    assertEquals(0, command.destination().index());
+                    assertExactPrototype(source, command.widget());
+                    assertEquals(1, allocations.get());
+                })));
+    }
+
+    @Test
+    void rejectsEveryCoreV1SourceFromScaffoldAppBar() {
+        DesignerDocument scaffold = document(prototype(SCAFFOLD));
+        AtomicInteger allocations = new AtomicInteger();
+
+        assertAll(coreSources().stream().map(source -> (Executable) () -> {
+            FlutterDesignerPaletteDropPlanner.Rejected rejected = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(
+                            scaffold,
+                            BUILT_INS,
+                            source.type(),
+                            ROOT_ID,
+                            APP_BAR_SLOT,
+                            0,
+                            () -> {
+                                allocations.incrementAndGet();
+                                return NEW_ID;
+                            }),
+                    source.name() + " -> Scaffold.appBar");
+            assertEquals(
+                    FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_REJECTS_WIDGET,
+                    rejected.code(),
+                    source.name());
+        }));
+        assertEquals(0, allocations.get(),
+                "rejected compatibility cells must not allocate a stable id");
+    }
+
+    @Test
+    void rejectsInvalidStatesAcrossEveryAcceptedSingleSlot() {
+        List<SingleTargetCase> targets = List.of(
+                new SingleTargetCase("Scaffold.body", SCAFFOLD, BODY),
+                new SingleTargetCase("Scaffold.floatingActionButton", SCAFFOLD,
+                        FLOATING_ACTION_BUTTON),
+                new SingleTargetCase("Padding.child", PADDING, CHILD),
+                new SingleTargetCase("Center.child", CENTER, CHILD));
+        AtomicInteger allocations = new AtomicInteger();
+        Supplier<StableId> supplier = () -> {
+            allocations.incrementAndGet();
+            return NEW_ID;
+        };
+
+        assertAll(targets.stream().flatMap(target -> Stream.of(
+                (Executable) () -> assertRejection(
+                        target.name() + " occupied",
+                        document(singleParent(
+                                target.parentType(), target.slot(),
+                                text(FIRST_ID, "existing"))),
+                        TEXT,
+                        target.slot(),
+                        0,
+                        supplier,
+                        FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_FULL),
+                (Executable) () -> assertRejection(
+                        target.name() + " non-zero index",
+                        document(prototype(target.parentType())),
+                        TEXT,
+                        target.slot(),
+                        1,
+                        supplier,
+                        FlutterDesignerPaletteDropPlanner.RejectionCode.NON_TERMINAL_INSERTION),
+                (Executable) () -> assertRejection(
+                        target.name() + " wrong model cardinality",
+                        document(parentWithSlot(
+                                target.parentType(), target.slot(),
+                                new WidgetSlot.ListSlot(List.of()))),
+                        TEXT,
+                        target.slot(),
+                        0,
+                        supplier,
+                        FlutterDesignerPaletteDropPlanner.RejectionCode.MODEL_SLOT_CARDINALITY_MISMATCH))));
+        assertEquals(0, allocations.get(),
+                "invalid single-slot states must fail before stable-id allocation");
+    }
+
+    @Test
+    void enforcesTerminalAppendAcrossBothListSlotsForEveryCoreSource() {
+        AtomicInteger rejectedAllocations = new AtomicInteger();
+        List<WidgetTypeId> listParents = List.of(COLUMN, ROW);
+
+        assertAll(listParents.stream().flatMap(parentType -> coreSources().stream()
+                .flatMap(source -> Stream.of(
+                        (Executable) () -> assertRejection(
+                                source.name() + " -> " + parentType.value()
+                                        + ".children at non-terminal index",
+                                document(parent(
+                                        parentType,
+                                        List.of(text(FIRST_ID, "existing")))),
+                                source.type(),
+                                CHILDREN,
+                                0,
+                                () -> {
+                                    rejectedAllocations.incrementAndGet();
+                                    return NEW_ID;
+                                },
+                                FlutterDesignerPaletteDropPlanner.RejectionCode.NON_TERMINAL_INSERTION),
+                        (Executable) () -> {
+                            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                                    planner.plan(
+                                            document(parent(
+                                                    parentType,
+                                                    List.of(text(FIRST_ID, "existing")))),
+                                            BUILT_INS,
+                                            source.type(),
+                                            ROOT_ID,
+                                            CHILDREN,
+                                            1,
+                                            () -> NEW_ID),
+                                    source.name() + " -> " + parentType.value()
+                                            + ".children terminal append");
+                            assertEquals(1, accepted.command().destination().index());
+                            assertExactPrototype(source, accepted.command().widget());
+                        }))));
+        assertEquals(0, rejectedAllocations.get(),
+                "non-terminal list insertions must fail before stable-id allocation");
     }
 
     @Test
@@ -107,15 +294,6 @@ class FlutterDesignerPaletteDropPlannerTest {
                         CHILDREN,
                         builtInChildren.parameter(),
                         SlotCardinality.LIST,
-                        0,
-                        1,
-                        new SlotAcceptance.AnyWidget())));
-        WidgetCatalog singleChildren = catalog(text, replaceSlots(
-                column,
-                new SlotDefinition(
-                        CHILDREN,
-                        builtInChildren.parameter(),
-                        SlotCardinality.SINGLE,
                         0,
                         1,
                         new SlotAcceptance.AnyWidget())));
@@ -133,15 +311,6 @@ class FlutterDesignerPaletteDropPlannerTest {
         DesignerDocument oneChildColumn = document(parent(
                 COLUMN, List.of(text(FIRST_ID, "existing"))));
         List<RejectedCase> cases = List.of(
-                rejection(
-                        "wrong source",
-                        emptyColumn,
-                        BUILT_INS,
-                        CENTER,
-                        ROOT_ID,
-                        CHILDREN,
-                        0,
-                        FlutterDesignerPaletteDropPlanner.RejectionCode.UNSUPPORTED_WIDGET_TYPE),
                 rejection(
                         "source definition missing",
                         emptyColumn,
@@ -161,14 +330,14 @@ class FlutterDesignerPaletteDropPlannerTest {
                         0,
                         FlutterDesignerPaletteDropPlanner.RejectionCode.PARENT_NOT_FOUND),
                 rejection(
-                        "wrong target",
+                        "slot absent on Center",
                         document(WidgetNodePrototypeFactory.create(definition(CENTER), ROOT_ID)),
                         BUILT_INS,
                         TEXT,
                         ROOT_ID,
                         CHILDREN,
                         0,
-                        FlutterDesignerPaletteDropPlanner.RejectionCode.UNSUPPORTED_PARENT),
+                        FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_DEFINITION_MISSING),
                 rejection(
                         "parent definition missing",
                         emptyColumn,
@@ -179,32 +348,14 @@ class FlutterDesignerPaletteDropPlannerTest {
                         0,
                         FlutterDesignerPaletteDropPlanner.RejectionCode.PARENT_DEFINITION_MISSING),
                 rejection(
-                        "wrong slot",
+                        "slot absent on Column",
                         emptyColumn,
                         BUILT_INS,
                         TEXT,
                         ROOT_ID,
                         CHILD,
                         0,
-                        FlutterDesignerPaletteDropPlanner.RejectionCode.UNSUPPORTED_SLOT),
-                rejection(
-                        "slot definition missing",
-                        emptyColumn,
-                        catalog(text, replaceSlots(column)),
-                        TEXT,
-                        ROOT_ID,
-                        CHILDREN,
-                        0,
                         FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_DEFINITION_MISSING),
-                rejection(
-                        "catalog slot is not a list",
-                        emptyColumn,
-                        singleChildren,
-                        TEXT,
-                        ROOT_ID,
-                        CHILDREN,
-                        0,
-                        FlutterDesignerPaletteDropPlanner.RejectionCode.CATALOG_SLOT_CARDINALITY_MISMATCH),
                 rejection(
                         "model slot disagrees with catalog",
                         document(new WidgetNode(
@@ -246,6 +397,26 @@ class FlutterDesignerPaletteDropPlannerTest {
                         1,
                         FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_FULL));
 
+        cases = new ArrayList<>(cases);
+        cases.add(rejection(
+                "occupied Center child",
+                document(singleParent(CENTER, text(FIRST_ID, "existing"))),
+                BUILT_INS,
+                TEXT,
+                ROOT_ID,
+                CHILD,
+                0,
+                FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_FULL));
+        cases.add(rejection(
+                "non-zero Center child index",
+                document(WidgetNode.empty(ROOT_ID, CENTER)),
+                BUILT_INS,
+                TEXT,
+                ROOT_ID,
+                CHILD,
+                1,
+                FlutterDesignerPaletteDropPlanner.RejectionCode.NON_TERMINAL_INSERTION));
+
         AtomicInteger allocations = new AtomicInteger();
         Supplier<StableId> supplier = () -> {
             allocations.incrementAndGet();
@@ -279,21 +450,25 @@ class FlutterDesignerPaletteDropPlannerTest {
             children.add(text(indexedId(index), "item"));
         }
 
-        FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
-                document(parent(COLUMN, children)),
-                BUILT_INS,
-                TEXT,
-                ROOT_ID,
-                CHILDREN,
-                WidgetSlot.MAX_LIST_CHILDREN,
-                () -> NEW_ID);
+        assertAll(List.of(COLUMN, ROW).stream().map(parentType -> (Executable) () -> {
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    document(parent(parentType, children)),
+                    BUILT_INS,
+                    TEXT,
+                    ROOT_ID,
+                    CHILDREN,
+                    WidgetSlot.MAX_LIST_CHILDREN,
+                    () -> NEW_ID);
 
-        FlutterDesignerPaletteDropPlanner.Rejected rejected = assertInstanceOf(
-                FlutterDesignerPaletteDropPlanner.Rejected.class, result);
-        assertEquals(FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_FULL,
-                rejected.code());
-        assertTrue(rejected.reason().contains(
-                Integer.toString(WidgetSlot.MAX_LIST_CHILDREN)));
+            FlutterDesignerPaletteDropPlanner.Rejected rejected = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Rejected.class, result,
+                    parentType.value());
+            assertEquals(FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_FULL,
+                    rejected.code(), parentType.value());
+            assertTrue(rejected.reason().contains(
+                    Integer.toString(WidgetSlot.MAX_LIST_CHILDREN)),
+                    parentType.value());
+        }));
     }
 
     @Test
@@ -399,6 +574,98 @@ class FlutterDesignerPaletteDropPlannerTest {
                 name, document, catalog, source, parentId, slot, index, expected);
     }
 
+    private void assertRejection(
+            String name,
+            DesignerDocument document,
+            WidgetTypeId source,
+            SlotName slot,
+            int index,
+            Supplier<StableId> supplier,
+            FlutterDesignerPaletteDropPlanner.RejectionCode expected) {
+        FlutterDesignerPaletteDropPlanner.Rejected rejected = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        source,
+                        ROOT_ID,
+                        slot,
+                        index,
+                        supplier),
+                name);
+        assertEquals(expected, rejected.code(), name);
+        assertTrue(!rejected.reason().isBlank(), name);
+    }
+
+    private static void assertExactPrototype(
+            CoreSourceCase expected,
+            WidgetNode actual) {
+        assertEquals(NEW_ID, actual.id(), expected.name());
+        assertEquals(expected.type(), actual.type(), expected.name());
+        assertEquals(expected.properties(), actual.properties(), expected.name());
+        assertEquals(expected.slots().keySet(), actual.slots().keySet(), expected.name());
+        assertAll(expected.slots().entrySet().stream().map(entry -> (Executable) () -> {
+            WidgetSlot actualSlot = actual.slots().get(entry.getKey());
+            assertEquals(entry.getValue(), actualSlot.cardinality(),
+                    expected.name() + "." + entry.getKey().value());
+            switch (actualSlot) {
+                case WidgetSlot.SingleSlot single -> assertTrue(single.child().isEmpty(),
+                        expected.name() + "." + entry.getKey().value());
+                case WidgetSlot.ListSlot list -> assertTrue(list.children().isEmpty(),
+                        expected.name() + "." + entry.getKey().value());
+            }
+        }));
+    }
+
+    private static List<CoreSourceCase> coreSources() {
+        PropertyValue.EdgeInsetsValue sixteen = new PropertyValue.EdgeInsetsValue(
+                BigDecimal.valueOf(16),
+                BigDecimal.valueOf(16),
+                BigDecimal.valueOf(16),
+                BigDecimal.valueOf(16));
+        return List.of(
+                new CoreSourceCase(
+                        "Scaffold",
+                        SCAFFOLD,
+                        Map.of(),
+                        Map.of(
+                                APP_BAR_SLOT, SlotCardinality.SINGLE,
+                                BODY, SlotCardinality.SINGLE,
+                                FLOATING_ACTION_BUTTON, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Column",
+                        COLUMN,
+                        Map.of(),
+                        Map.of(CHILDREN, SlotCardinality.LIST)),
+                new CoreSourceCase(
+                        "Row",
+                        ROW,
+                        Map.of(),
+                        Map.of(CHILDREN, SlotCardinality.LIST)),
+                new CoreSourceCase(
+                        "Padding",
+                        PADDING,
+                        Map.of(PADDING_VALUE, sixteen),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Center",
+                        CENTER,
+                        Map.of(),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Text",
+                        TEXT,
+                        Map.of(DATA, new PropertyValue.StringValue("Text")),
+                        Map.of()));
+    }
+
+    private static MatrixTargetCase target(
+            String name,
+            WidgetTypeId parentType,
+            SlotName slot) {
+        return new MatrixTargetCase(name, document(prototype(parentType)), slot);
+    }
+
     private static DesignerDocument document(WidgetNode root) {
         ManagedRegion emptyHash = new ManagedRegion("0".repeat(64));
         DartSourceDescriptor source = new DartSourceDescriptor(
@@ -416,6 +683,41 @@ class FlutterDesignerPaletteDropPlannerTest {
                 type,
                 Map.of(),
                 Map.of(CHILDREN, new WidgetSlot.ListSlot(children)));
+    }
+
+    private static WidgetNode singleParent(WidgetTypeId type, WidgetNode child) {
+        return singleParent(type, CHILD, child);
+    }
+
+    private static WidgetNode singleParent(
+            WidgetTypeId type,
+            SlotName slot,
+            WidgetNode child) {
+        return parentWithSlot(
+                type,
+                slot,
+                child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child));
+    }
+
+    private static WidgetNode parentWithSlot(
+            WidgetTypeId type,
+            SlotName slot,
+            WidgetSlot value) {
+        WidgetNode prototype = prototype(type);
+        LinkedHashMap<SlotName, WidgetSlot> slots =
+                new LinkedHashMap<>(prototype.slots());
+        slots.put(slot, value);
+        return new WidgetNode(
+                ROOT_ID,
+                type,
+                prototype.properties(),
+                slots);
+    }
+
+    private static WidgetNode prototype(WidgetTypeId type) {
+        return WidgetNodePrototypeFactory.create(definition(type), ROOT_ID);
     }
 
     private static WidgetNode text(StableId id, String data) {
@@ -462,7 +764,30 @@ class FlutterDesignerPaletteDropPlannerTest {
         return id("00000000-0000-4000-8000-" + String.format("%012x", index + 1L));
     }
 
-    private record AcceptedCase(String name, DesignerDocument document, int index) {
+    private record AcceptedCase(
+            String name,
+            DesignerDocument document,
+            SlotName slot,
+            int index) {
+    }
+
+    private record CoreSourceCase(
+            String name,
+            WidgetTypeId type,
+            Map<PropertyName, PropertyValue> properties,
+            Map<SlotName, SlotCardinality> slots) {
+    }
+
+    private record MatrixTargetCase(
+            String name,
+            DesignerDocument document,
+            SlotName slot) {
+    }
+
+    private record SingleTargetCase(
+            String name,
+            WidgetTypeId parentType,
+            SlotName slot) {
     }
 
     private record RejectedCase(

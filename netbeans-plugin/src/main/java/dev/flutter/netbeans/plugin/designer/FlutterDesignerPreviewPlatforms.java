@@ -1,8 +1,11 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
+import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
+import dev.flutter.netbeans.designer.canvas.CanvasViewport;
 import dev.flutter.netbeans.project.FlutterProjectPlatform;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -108,13 +111,17 @@ final class FlutterDesignerPreviewPlatforms {
             }
         }
 
-        boolean requiresBrowserBackend() {
-            return targetPlatform == CanvasTargetPlatform.WEB;
-        }
-
         @Override
         public String toString() {
-            return displayName;
+            CanvasViewport viewport =
+                    CanvasPreviewProfileResolver.defaultViewport(mode);
+            return displayName + " — "
+                    + logicalPixels(viewport.logicalWidth()) + "×"
+                    + logicalPixels(viewport.logicalHeight());
+        }
+
+        private static String logicalPixels(double value) {
+            return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
         }
     }
 }

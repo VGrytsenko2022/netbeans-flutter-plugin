@@ -66,6 +66,86 @@ plus the remaining chronological Undo contract are additionally required:
 If the Dart file is missing, the designer may offer an explicit regeneration
 from `.fd`. It does not regenerate automatically during project scanning.
 
+## Project-wide theme ownership
+
+Flutter theme definitions are project resources, not form state. A project
+created by the plugin owns this pair:
+
+```text
+.fd_templates/project.fdtheme    canonical versioned theme catalog, JSON
+lib/theme/app_theme.dart         deterministic generated runtime API
+```
+
+The schema-v1 descriptor starts with one `light` and one `dark` definition,
+uses `system` as its default application mode, names the active light and dark
+definitions, and records the SHA-256 of the generated Dart artifact. Custom
+definitions have a stable lower-snake-case id, display name, light/dark
+brightness and an opaque exact `0xFFRRGGBB` Material seed color. At most 64 definitions
+are accepted. IDs are unique; the active references must exist and match their
+required brightness. The complete JSON contract is
+[`project-theme-v1.schema.json`](flutter-designer/project-theme-v1.schema.json).
+Schema v2 adds a required global boolean `enabled`. Schema v3 adds a required
+`enabled` state to every catalog definition. Current schema v4 adds typed
+per-role overrides for all 46 supported nondeprecated Material `ColorScheme`
+roles and all 15 Material 3 `TextTheme` roles. Each text role admits 13 optional
+typed `TextStyle` fields: foreground/background color, font size, weight, style,
+letter/word spacing, height, family, composable decoration, decoration color,
+style and thickness. Schema v1-v3 remains readable, materializes empty override
+tables in memory and is written as canonical v4 only by an explicit save. The
+frozen v2/v3 and current v4 contracts are
+[`project-theme-v2.schema.json`](flutter-designer/project-theme-v2.schema.json),
+[`project-theme-v3.schema.json`](flutter-designer/project-theme-v3.schema.json)
+and
+[`project-theme-v4.schema.json`](flutter-designer/project-theme-v4.schema.json).
+
+`AppTheme` exposes an immutable map of enabled definitions, lookup by id, the
+selected light and dark `ThemeData`, and the configured `ThemeMode`. Each enabled
+definition starts with `ColorScheme.fromSeed`; any schema-v4 overrides are then
+applied in deterministic order through `ColorScheme.copyWith`,
+`ThemeData.from` and `TextTheme.copyWith`. A newly created application wires
+`MaterialApp.theme`, `darkTheme` and `themeMode` to this API.
+Disabled definitions stay in `project.fdtheme` but are omitted from this map.
+When project themes are disabled, the enabled-definition map and `resolve` API
+remain available but these three generated accessors are nullable and return `null`, making
+MaterialApp use Flutter defaults without rewriting developer-owned `main.dart`.
+The generated file carries a do-not-edit header. Its exact hash is a write
+guard: the editor never silently replaces user or tool changes made directly
+to `app_theme.dart`.
+
+No theme definition is copied into an individual `.fd` document. Its existing
+optional `canvas.themeMode` is only a local preview override (`system`, `light`
+or `dark`); when absent, Canvas follows the project default. The Canvas reads
+the validated project descriptor and the verified generated-artifact hash,
+then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme
+override tables and revision digest through model protocol v4 to the isolated
+Flutter runner. It never executes project Dart. The runner applies the same
+construction order as generated Dart before form-local Text overrides. Projects
+without a descriptor keep the legacy Material preview; a present but invalid
+descriptor, missing generated file or hash mismatch fails closed with the
+concrete cause.
+
+The NetBeans theme editor is a singleton `Themes` TopComponent in the
+`commonpalette` mode beside Palette. It owns catalog CRUD, the portable enabled
+switch, active light/dark references, default mode and a seed-color chooser.
+Its compact `General`, `Colors` and `Typography` tabs expose the complete v4
+role catalog, with typed validation and an explicit inherit/reset path for every
+optional override. The built-in light and dark definitions cannot be removed,
+while custom definitions can be added, duplicated, edited and removed subject
+to reference and brightness validation. One save stages and verifies the
+canonical descriptor and generated Dart bytes together; a conflicting
+generated file is preserved rather than overwritten. Designer widget properties
+bind to stable semantic Material `ColorScheme` and `TextTheme` roles. Those
+references resolve through whichever light, dark or custom definition is active
+and never name a concrete theme id.
+
+Component themes, shape/extension contracts and complex theme-level Paint,
+shadow, OpenType, font-variation, shader and filter graphs remain later typed
+work. Before theme-level foreground or background `Paint` is admitted, the
+contract must define its precedence against a form-local shorthand color,
+because Flutter `TextStyle.copyWith` otherwise prefers an inherited Paint. No
+standard ThemeData role is invented for Flex, Padding, Center, Locale,
+TextScaler, TextHeightBehavior or StrutStyle.
+
 ### NetBeans 30 file and editor integration
 
 The RELEASE300 integration keeps the Matisse property that one real Dart
@@ -286,15 +366,19 @@ may still format the complete Dart document.
 
 ## `.fd` document contract
 
-`.fd` is UTF-8 JSON and conforms to
-[`flutter-designer/fd-v1.schema.json`](flutter-designer/fd-v1.schema.json).
-The stable format name is `netbeans-flutter-designer`, and version 1 uses an
-integer `schemaVersion` so migrations are explicit.
+`.fd` is UTF-8 JSON and current documents conform to
+[`flutter-designer/fd-v2.schema.json`](flutter-designer/fd-v2.schema.json).
+The stable format name is `netbeans-flutter-designer`, and the integer
+`schemaVersion` makes migrations explicit. Version 1 remains readable through
+an in-memory identity migration; opening alone does not rewrite the file, while
+the next admitted Designer edit emits canonical version 2.
 
-The checked-in [`home_page.fd`](flutter-designer/examples/home_page.fd) and
-[`home_page.dart`](flutter-designer/examples/home_page.dart) pair is the first
-executable contract example. Future codecs, hash checks and generators use it
-as a golden fixture rather than maintaining a separate undocumented example.
+The checked-in version-1 [`home_page.fd`](flutter-designer/examples/home_page.fd)
+and [`home_page.dart`](flutter-designer/examples/home_page.dart) pair remains the
+executable migration contract example. A canonical all-features version-2
+fixture covers theme tokens and every structured property kind. Codecs, hash
+checks and generators use these as golden fixtures rather than maintaining an
+undocumented example.
 
 The document contains:
 
@@ -902,8 +986,9 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   open Design view on the EDT, retaining the exact target, then its responsive
   mode, or choosing the first available fallback; an empty snapshot disables
   Preview. Android/iOS/macOS/Linux targets are carried to Flutter
-  `ThemeData.platform` on the bound Windows engine. Web reports the absent
-  separately compiled browser backend instead of using a Windows substitute.
+  `ThemeData.platform` on the bound Windows engine. Web uses an exact
+  browser-sized responsive viewport on that engine as a bounded layout preview;
+  it does not claim browser-runtime identity or `kIsWeb` behavior.
   Stable widget IDs synchronize read-only selection
   between the Flutter surface and Explorer/Nodes tree. Every open `.fd` Design MultiView
   owns its own host, lifecycle session and runner process; only the immutable
@@ -914,8 +999,9 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   drag-and-drop, `Scaffold` Properties and the broader Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 27 reviewed fields of
-  `Column`, `Row`, `Padding`, `Center` and `Text`.
+  read/write Properties are enabled only for the 76 reviewed fields of
+  `Column`, `Row`, `Padding`, `Center` and `Text`; 59 of those fields are the
+  typed `Text` leaves described below.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -927,11 +1013,12 @@ property sheet. `Column`, `Row`, `Padding`, `Center` and `Text` publish typed
 read/write catalog properties; `Scaffold` intentionally publishes identity and
 read-only context only. The active MultiView element also supplies a
 context-sensitive standard NetBeans Palette containing exactly the six
-reviewed `CORE_V1` definitions. It has no insertion action or mutation
-authority. Palette, Explorer/Nodes, Properties and the MultiView chrome remain
-native NetBeans Swing surfaces.
+reviewed `CORE_V1` definitions. Palette publication alone has no mutation
+authority; ADR-025 separately admits only the host-authoritative six-source
+empty-single/terminal-list insertion matrix. Palette, Explorer/Nodes,
+Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (27 fields)
+### Writable Properties API contract (76 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 `Scaffold`. The seven flex rows below apply independently to both
@@ -966,7 +1053,7 @@ nullable fields:
 
 | Widget | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
 | --- | --- | --- | --- | --- |
-| `Padding` | `padding` | `EdgeInsetsGeometry`, required named and non-null | There is no Flutter constructor default. Every resolved dimension must be non-negative. Schema v1 intentionally accepts physical `EdgeInsets` only, not directional insets. | Required structured editor with labelled left/top/right/bottom decimal fields and an atomic All sides action; no Restore Default. |
+| `Padding` | `padding` | `EdgeInsetsGeometry`, required named and non-null | There is no Flutter constructor default. Every resolved dimension must be non-negative. Schema v2 intentionally accepts physical `EdgeInsets` only, not directional insets. | Required structured editor with labelled left/top/right/bottom decimal fields and an atomic All sides action; no Restore Default. |
 | `Center` | `widthFactor` | `double?`, optional nullable | When present, width is child width multiplied by the factor; value must be non-negative, including zero. When omitted, constrained width expands and unconstrained width follows the child. | Nullable exact numeric field (`INTEGER` or `DOUBLE`, minimum `0`) plus Restore Default. |
 | `Center` | `heightFactor` | `double?`, optional nullable | Equivalent height rule; value must be non-negative, including zero. | Nullable exact numeric field (`INTEGER` or `DOUBLE`, minimum `0`) plus Restore Default. |
 
@@ -980,8 +1067,24 @@ and [`Align.heightFactor`](https://api.flutter.dev/flutter/widgets/Align/heightF
 contract; omission retains the layout behavior documented by
 [`Align`](https://api.flutter.dev/flutter/widgets/Align-class.html).
 
-The [`Text`](https://api.flutter.dev/flutter/widgets/Text/Text.html) constructor
-contributes ten fields:
+The [`Text`](https://api.flutter.dev/flutter/widgets/Text/Text.html) projection
+contributes 59 typed, independently editable leaves in seven standard
+Properties sets. Every optional leaf supports Restore Default. Scalar leaves
+stay independent; schema-v2 Paint/Shadow/OpenType values are closed typed
+graphs edited atomically. Generation and Canvas projection assemble the same
+Flutter composites.
+
+| Properties set | Count | Typed leaves | Flutter target |
+| --- | ---: | --- | --- |
+| Text | 8 | `data`, `textAlign`, `textDirection`, `softWrap`, `overflow`, `maxLines`, `textWidthBasis`, `selectionColor` | Direct `Text` arguments. |
+| Accessibility | 2 | `semanticsLabel`, `semanticsIdentifier` | Direct `Text` semantics arguments. |
+| Locale and scaling | 7 | `localeLanguageCode`, `localeScriptCode`, `localeCountryCode`, `textScalerFactor`, `textHeightApplyFirstAscent`, `textHeightApplyLastDescent`, `textHeightLeadingDistribution` | `Locale.fromSubtags`, `TextScaler.linear` and `TextHeightBehavior`. |
+| Text style | 25 | `styleThemeTextStyle`, `styleInherit`, `styleColor`, `styleBackgroundColor`, `styleFontSize`, `styleFontWeight`, `styleFontStyle`, `styleLetterSpacing`, `styleWordSpacing`, `styleTextBaseline`, `styleHeight`, `styleLeadingDistribution`, `styleLocaleLanguageCode`, `styleLocaleScriptCode`, `styleLocaleCountryCode`, `styleDecorationUnderline`, `styleDecorationOverline`, `styleDecorationLineThrough`, `styleDecorationStyle`, `styleDecorationThickness`, `styleDebugLabel`, `styleFontFamily`, `styleFontFamilyFallback`, `stylePackage`, `styleOverflow` | Optional semantic `TextTheme` base plus local `TextStyle.copyWith` overrides, nested locale and combined decoration. |
+| Paint and effects | 4 | `styleForeground`, `styleBackground`, `styleShadows`, `styleDecorationColor` | Typed foreground/background `Paint`, ordered `Shadow` list and decoration color. |
+| Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` | Ordered OpenType `FontFeature` tags and variable-font `FontVariation` axes. |
+| Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` | One optional `StrutStyle`. |
+
+The first ten leaves are direct constructor arguments:
 
 | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
 | --- | --- | --- | --- |
@@ -994,7 +1097,7 @@ contributes ten fields:
 | `semanticsLabel` | `String?`, optional nullable | When present, replaces the actual text in this widget's semantics. Empty string remains an explicit value. | Optional `STRING` editor; reset only through Restore Default so empty text and `<not set>` can remain literal values. |
 | `semanticsIdentifier` | `String?`, optional nullable | Identifies the semantics node and is documented as unique; the designer enforces uniqueness within one form. | Optional `STRING` editor plus Restore Default and duplicate-value validation. |
 | `textWidthBasis` | `TextWidthBasis?`, optional nullable | Omission inherits `DefaultTextStyle.textWidthBasis` (normally `parent`); values are `parent`, `longestLine`. | Nullable catalog enum list plus Restore Default. |
-| `selectionColor` | `Color?`, optional nullable | Used only inside a `SelectionContainer`. Omission uses ambient `DefaultSelectionStyle`, then its semi-transparent grey fallback. Flutter interprets `Color(0xAARRGGBB)` with alpha `00` fully transparent and `FF` fully opaque. | Color swatch and custom `JColorChooser`, explicit alpha control `0..255`, exact `0xAARRGGBB` field and Restore Default. |
+| `selectionColor` | `Color?`, optional nullable | Used only inside a `SelectionContainer`. Omission uses ambient `DefaultSelectionStyle`, then its semi-transparent grey fallback. Flutter interprets `Color(0xAARRGGBB)` with alpha `00` fully transparent and `FF` fully opaque. | Literal ARGB chooser or reviewed semantic `ColorScheme` role, plus Restore Default. |
 
 The exact inherited fallback chain is visible in
 [`Text.build`](https://api.flutter.dev/flutter/widgets/Text/build.html).
@@ -1011,22 +1114,48 @@ defines its ambient fallback, while
 32-bit ARGB layout and alpha semantics. Six-digit RGB input must not be treated
 as opaque because its omitted leading alpha byte is zero.
 
-These 27 fields use catalog constraints for editor selection, value admission,
-Dart generation and Canvas projection. An accepted cell edit creates exactly
-one `SetProperty` bound to the selected stable widget ID and captured document
-revision. NetBeans' native **Restore Default** creates `ResetProperty` only for
-optional arguments. A single-use submission fence prevents duplicate editor
-callbacks from reusing the captured revision; the accepted candidate then
-follows the existing analyzed pair-save and shared Undo/Redo lifecycle.
-Required `Text.data` and `Padding.padding` cannot be reset to omission.
+These 76 fields use catalog constraints for editor selection, value admission,
+Dart generation and Canvas projection. Text strings use a bounded text editor;
+font fallbacks use a dedicated multiline one-family-per-line editor; optional
+booleans use an accessible `<not set>`/checked/unchecked checkbox; integer and
+double values use exact constrained numeric controls; enum values use closed
+catalog lists; theme-aware colors choose literal ARGB or a reviewed
+`ColorScheme` role; and structured values use transactional Paint and ordered
+Shadow/OpenType editors with Add/Remove/Up/Down controls.
+In particular, `maxLines > 0`, `textScalerFactor >= 0`, `styleFontSize >= 0`,
+`strutFontSize > 0` and `strutLeading >= 0`; the remaining admitted Text
+style/strut doubles are finite without inventing undocumented constructor
+ranges. Locale subtags must be
+non-empty when present, and a style/strut package requires a font family or a
+non-empty fallback list.
 
-This slice models simple values without pretending that serialized display text
-is a Flutter object graph. `TextStyle`, `StrutStyle`, `Locale`, `TextScaler`,
-`TextHeightBehavior` and directional edge insets remain unsupported until they
-have dedicated domain values, property editors, generator rules and exact
-native-runner projection. Flex baseline alignment additionally requires an
-explicit `textBaseline`, and `Text.semanticsIdentifier` is unique within one
-designer tree. `Scaffold` remains a separate read-only property-design task.
+An accepted cell edit creates exactly one `SetProperty` bound to the selected
+stable widget ID and captured document revision. NetBeans' native **Restore
+Default** creates `ResetProperty` only for optional arguments. A single-use
+submission fence prevents duplicate editor callbacks from reusing the captured
+revision; the accepted candidate then follows the existing analyzed pair-save
+and shared Undo/Redo lifecycle. Required `Text.data` and `Padding.padding`
+cannot be reset to omission.
+
+Generation folds Text leaves into `Locale.fromSubtags`, `TextScaler.linear`,
+`TextHeightBehavior`, `TextStyle`, its optional nested locale and combined
+decoration, and `StrutStyle`. A selected semantic `TextTheme` role is the base;
+explicit leaves are emitted through `copyWith`. Color roles resolve through
+`Theme.of(context).colorScheme`. A composite is omitted when none of its leaves
+is present. The bounded Canvas payload carries the same typed values, and the
+isolated runner constructs real `Paint`, `Shadow`, `FontFeature` and
+`FontVariation` objects as well. An absent list means omit/inherit; an explicit
+empty list means clear. This gives Properties, generated Dart and native Canvas
+one mapping rather than a lossy presentation string.
+
+The deprecated `Text.textScaleFactor` argument and `key` are deliberately not
+shown; `textScalerFactor` generates the current `textScaler` argument. Paint
+shaders, color filters and image filters remain outside the reviewed safe
+subset and are not represented by raw Dart or opaque string escape hatches.
+Directional edge insets also remain outside schema v2. Flex baseline alignment
+additionally requires an explicit `textBaseline`, and
+`Text.semanticsIdentifier` is unique within one designer tree. `Scaffold`
+remains a separate read-only property-design task.
 
 The Canvas itself is a real native `FlutterView` embedded inside that chrome.
 Flutter paints the widget tree, selection overlay, drop zones and layout guides
@@ -1093,8 +1222,8 @@ kind/length/SHA-256 descriptor before allocation.
 After the handshake, a strict runtime control codec carries `host.render`,
 `runner.presented`, `host.selection`, `runner.selection` and the capability-
 gated `runner.paletteDrop` event for exact session, presentation, revision,
-frame and layout identities. The `palette.drop.textAppend.v1` capability is
-limited to the first DnD contract below; negotiating or decoding it does not by
+frame and layout identities. The `palette.drop.catalogInsert.v1` capability is
+limited to the reviewed CORE_V1 DnD contract below; negotiating or decoding it does not by
 itself enable Palette mutation. `host.render` describes one canonical bounded
 `CORE_V1` model frame. The runner decodes only the six reviewed built-in widget
 contracts and never loads project code.
@@ -1112,14 +1241,19 @@ reload, Undo/Redo, runner restart, close and reopen, including an ABA return to
 the same logical revision.
 
 Drag and drop crosses the boundary in one direction and returns an intent. The
-first safe vertical slice is deliberately closed: it creates only the built-in
-`Text` Palette prototype, and only as a terminal append to an existing
-`Row.children` or `Column.children` list. It does not support an arbitrary
-insertion index, reordering, moving an existing widget, another Palette type or
-another constructor slot.
+reviewed insertion slice is deliberately closed to the six exact CORE_V1
+Palette definitions: `Scaffold`, `Column`, `Row`, `Padding`, `Center` and
+`Text`. The catalog compatibility matrix admits any of those six into an empty
+`Scaffold.body`, `Scaffold.floatingActionButton`, `Padding.child` or
+`Center.child` slot, or at the terminal position of a `Row.children` or
+`Column.children` list. `Scaffold.appBar` rejects all six because none has the
+required `PreferredSizeWidget` trait. The slice does not support an arbitrary
+list index, reordering, moving an existing widget, a non-CORE_V1 Palette type or
+an unreviewed constructor slot.
 
-1. On Windows, NetBeans starts one native OLE drag for the `Text` Palette item.
-   Java retains the allowlisted prototype behind a bounded, short-lived opaque
+1. On Windows, NetBeans starts one native OLE drag for a reviewed CORE_V1
+   Palette item. Java retains its exact authoritative widget type behind a
+   bounded, short-lived opaque
    token. Its wire representation is printable ASCII, at most 160 characters
    and starts with `nbfdnd:v1:`. The token is process-local and one-shot; it is
    not widget JSON, a project path, Dart source or mutation authority. The same
@@ -1131,8 +1265,8 @@ another constructor slot.
    removed. The semantic Designer operation remains `ADD`, never an
    existing-widget Move or reorder.
 3. Flutter performs the authoritative hit test against its live tree and
-   accepts only a `Row` or `Column` terminal `children` drop zone from the exact
-   currently presented layout. Native hover starts fail-closed, coalesces
+   accepts only the reviewed empty-single or terminal-list drop zones from the
+   exact currently presented layout. Native hover starts fail-closed, coalesces
    bounded probes, rejects stale generation/probe replies and advertises OLE
    `MOVE` only after the exact latest Flutter approval.
 4. Fast release is admitted only when the exact latest probe was already sent
@@ -1150,14 +1284,15 @@ another constructor slot.
 6. Only a timely positive prepare sends an ordered single-use commit and
    returns OLE `MOVE`. Commit consumes and revalidates the prepared identity,
    then may publish `runner.paletteDrop` with the token, parent stable ID,
-   `operation = ADD`, `slotName = children`, terminal insertion index and the
+   `operation = ADD`, the reviewed `slotName` and exact insertion index, plus the
    exact session/presentation/document/logical-revision/frame/layout/intent
    identities. Flutter does not mutate the model or touch a file.
 7. Java atomically consumes the token and rejects unknown, expired, duplicate,
    malformed, stale or foreign responses. It rechecks the exact current
-   revision and layout, the current parent type and stable ID, the list slot and
-   `insertionIndex == children.size()`, then materializes the reviewed `Text`
-   creation defaults with a fresh stable ID. OLE `MOVE` is not proof of this
+   revision and layout, resolves the current parent and slot through the widget
+   catalog, and verifies cardinality, acceptance, capacity and insertion index
+    before materializing the consumed CORE_V1 type's catalog creation defaults
+    with a fresh stable ID. OLE `MOVE` is not proof of this
    Java admission and may still be followed by a fail-closed rejection.
 8. One admitted `AddWidget` command follows the existing deterministic
    generation, analyzer, paired `.fd`/Dart replacement and `PairSaveCoordinator`
@@ -1170,12 +1305,13 @@ reuse the token. Canceled, failed and non-`MOVE` drag completion revokes it
 immediately. Successful OLE `MOVE` retains it only for a bounded three-second
 asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
-outstanding drag authority. The single
-`Text -> Row|Column.children terminal append` contract is publicly enabled
-after live assembled NetBeans 30 drop → Save → Undo → Redo → Save acceptance.
-This statement does not claim a separate saved-history Undo → Save cycle. All
-DnD outside this contract remains disabled, including Linux, macOS and Web
-backends.
+outstanding drag authority. The historical first public contract admitted only
+`Text` at a terminal `Row|Column.children` position or empty
+`Center.child[0]`. It is superseded by the current six-`CORE_V1` compatibility
+matrix described above, whose live assembled drop → Save → Undo → Redo → Save
+acceptance passed. This statement does not claim a separate saved-history Undo
+→ Save cycle. DnD outside the reviewed matrix remains disabled, including
+Linux, macOS and Web backends.
 
 Selection and future property intents follow the same host-authoritative rule.
 Render-profile limits reject a requested native surface above 4096 physical
@@ -1190,9 +1326,12 @@ viewport intent; `CanvasTargetPlatform` supplies Flutter adaptive appearance;
 Windows-first embedded Canvas is authentic for its bound Windows Flutter engine,
 exact resolved theme, locale, viewport, text scale and device-pixel ratio.
 Android/iOS/macOS/Linux `ThemeData.platform` behavior does not claim their OS,
-fonts, plugins or platform channels. Web cannot be reproduced by theme override
-because it is a separately compiled browser runtime; until that backend exists,
-the Web choice is explicitly unavailable. A complex built-in or contributed widget is rendered only after
+fonts, plugins or platform channels. Web renders its exact browser-sized
+responsive viewport on the native engine as a bounded layout preview, using
+Windows adaptive controls because Flutter has no `TargetPlatform.web`. It does
+not claim `kIsWeb`, DOM, browser fonts, plugins or platform channels; an optional
+future browser-compiled backend is required for that runtime fidelity. A complex
+built-in or contributed widget is rendered only after
 its type and constructor metadata are present in the validated catalog; the
 runner may not execute arbitrary unreviewed project code merely because Flutter
 can load it.
@@ -1201,8 +1340,9 @@ The current `CORE_V1` projection intentionally contains exactly `Scaffold`,
 `Column`, `Row`, `Text`, `Padding` and `Center`. It proves native hosting,
 bounded model publication, exact native adaptive preview profiles and stable-ID
 selection synchronization. Host-side property mutation is admitted only for
-the five non-`Scaffold` widget types and 27 properties listed above; the runner
-still receives no persistence authority.
+the five non-`Scaffold` widget types and 76 properties listed above, including
+the 59-leaf Text projection; the runner still receives no persistence
+authority.
 
 The broader public writable vertical slice remains the ten-widget set:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Text`, `Icon`,
@@ -1223,19 +1363,23 @@ Implementation proceeds through explicit gates:
     resize/DPR, focus, visibility, crash and stale-callback contract.
 4. [First Windows read-only slice complete] Embed the isolated Flutter runner,
    render one exact validated six-widget revision and support the compatible
-   Android/iOS/desktop adaptive profiles with no image-transfer path. The
-   separate browser-compiled Web backend remains pending.
+   Android/iOS/desktop adaptive profiles plus a native-engine Web layout
+   viewport with no image-transfer path. A browser-compiled backend remains
+   pending for browser-runtime fidelity, not for responsive layout preview.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
    with the Explorer/Nodes widget tree, publish the exact six-item Palette and
-   expose selected-node Properties. Enable catalog-driven Set/Reset for the 27
-   reviewed non-`Scaffold` fields through one-shot revision-bound pair-save.
-6. [Complete and narrowly enabled] Implement only the Windows native OLE `Text`
-   Palette drag → Flutter hit-test and two-phase prepare/commit → exact
-   revision/layout-bound `Row|Column.children` terminal-append intent →
-   one-shot Java admission → pair-save/Undo command path described above. Its
-   live assembled drop → Save → Undo → Redo → Save acceptance passed. Keep
-   every other DnD operation disabled; this completion does not claim the
-   separate saved-history Undo → Save cycle.
+   expose selected-node Properties. Enable catalog-driven Set/Reset for the 76
+   reviewed non-`Scaffold` fields, including all 59 reviewed Text leaves,
+   through one-shot revision-bound pair-save.
+6. [Complete; historical Text-only slice superseded] Implement the Windows
+   native OLE Palette drag → Flutter hit-test and two-phase prepare/commit →
+   exact revision/layout-bound intent → one-shot Java admission →
+   pair-save/Undo command path described above. The first accepted vertical
+   slice admitted only `Text` at terminal `Row|Column.children` or empty
+   `Center.child[0]`; the current contract is the six-source empty-single/
+   terminal-list matrix. Its live assembled drop → Save → Undo → Redo → Save
+   acceptance passed. Keep every non-insertion DnD operation disabled; this
+   completion does not claim the separate saved-history Undo → Save cycle.
 7. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 8. Enable the broader public writable ten-widget slice only after all gates
@@ -1253,10 +1397,12 @@ infrastructure.
    source. Same-folder pair Copy/Paste is implemented under ADR-022; same-project
    mirrored-folder pair Cut/Move and its fresh target lifecycle are implemented
    under ADR-023.
-2. Structured property-editor/model contracts for `Scaffold`, complex Flutter
-   values, callbacks and contributed widgets, plus localized presentation. The
-   catalog-driven simple-value provider for the current five-widget slice is
-   implemented; built-in domain metadata is fixed by ADR-010.
+2. Structured property-editor/model contracts for `Scaffold`, callbacks,
+   contributed widgets and the remaining unreviewed Flutter graphs, plus
+   localized presentation. The catalog-driven provider for the current
+   five-widget slice now includes Text composites, a closed Paint subset,
+   shadows, font features, font variations and semantic theme roles; built-in
+   domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future

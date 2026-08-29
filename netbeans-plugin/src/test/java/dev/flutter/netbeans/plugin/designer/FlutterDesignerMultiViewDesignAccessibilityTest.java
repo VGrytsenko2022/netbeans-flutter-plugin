@@ -28,6 +28,8 @@ import dev.flutter.netbeans.plugin.project.FlutterProject;
 import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.beans.PropertyChangeEvent;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -36,8 +38,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.accessibility.AccessibleContext;
+import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -45,6 +49,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,6 +67,36 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void registersStandardDeleteActionAndTreeKeyWithoutSelectionAuthority()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JComponent visual = design.getVisualRepresentation();
+            Action delete = visual.getActionMap().get(
+                    FlutterDesignerMultiViewDesign.DELETE_WIDGET_ACTION_KEY);
+            assertNotNull(delete);
+            assertEquals("Delete Flutter Widget", delete.getValue(Action.NAME));
+            assertFalse(delete.isEnabled(),
+                    "Delete must be disabled without one exact non-root selection");
+
+            BeanTreeView tree = findByType(visual, BeanTreeView.class);
+            KeyStroke deleteKey = KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0);
+            assertEquals(
+                    FlutterDesignerMultiViewDesign.DELETE_WIDGET_ACTION_KEY,
+                    tree.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                            .get(deleteKey));
+            assertSame(delete, tree.getActionMap().get(
+                    FlutterDesignerMultiViewDesign.DELETE_WIDGET_ACTION_KEY));
+
+            delete.actionPerformed(new ActionEvent(
+                    tree, ActionEvent.ACTION_PERFORMED, "delete"));
+            assertFalse(delete.isEnabled(),
+                    "Direct invocation must remain a no-op without selection");
+        });
+    }
 
     @Test
     void publishesExactCoreV1PaletteAndSelectedWidgetPropertiesInDesignLookup()
@@ -466,12 +501,14 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertTrue(widgetTree.getAccessibleContext().getAccessibleDescription()
                     .contains("Column, Row, Padding, Center and Text widgets are writable"));
             assertEquals(8, previewMode.getItemCount());
+            assertTrue(previewMode.getMaximumSize().width
+                    >= previewMode.getPreferredSize().width);
             assertNotNull(previewMode.getAccessibleContext().getAccessibleDescription());
         });
     }
 
     @Test
-    void reportsTheMissingWebBackendInsteadOfRelabelingTheWindowsCanvas()
+    void routesWebPreviewThroughTheNativeCanvasPresentationPipeline()
             throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -486,7 +523,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                         "Flutter Canvas preview target");
                 int web = java.util.stream.IntStream
                         .range(0, previews.getItemCount())
-                        .filter(index -> "Web".equals(
+                        .filter(index -> "Web — 1440×900".equals(
                                 previews.getItemAt(index).toString()))
                         .findFirst()
                         .orElseThrow();
@@ -496,12 +533,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                         visual,
                         JLabel.class,
                         "Native Flutter Canvas status");
-                assertEquals("Flutter Web Canvas is unavailable.",
+                assertEquals("Native Flutter Canvas is unavailable.",
                         canvasStatus.getText());
                 assertTrue(canvasStatus.getToolTipText()
-                        .contains("browser-compiled Flutter runtime"));
-                assertTrue(canvasStatus.getToolTipText()
-                        .contains("not used as a false Web substitute"));
+                        .contains("owning Flutter project is unavailable"));
+                assertFalse(canvasStatus.getToolTipText()
+                        .contains("Web Canvas is unavailable"));
             } finally {
                 design.componentClosed();
             }
@@ -552,8 +589,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 previewsRef.set(previews);
                 assertPreviewChoices(
                         previews,
-                        List.of("Windows Desktop"),
-                        "Windows Desktop");
+                        List.of("Windows Desktop — 1280×800"),
+                        "Windows Desktop — 1280×800");
                 assertTrue(previews.getAccessibleContext().getAccessibleDescription()
                         .contains("Desktop"));
                 assertFalse(previews.getAccessibleContext().getAccessibleDescription()
@@ -564,38 +601,45 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             project.getProjectDirectory().createFolder("android");
             onEdt(() -> assertPreviewChoices(
                     previewsRef.get(),
-                    List.of("Android Phone", "Android Tablet", "Windows Desktop"),
-                    "Windows Desktop"));
+                    List.of(
+                            "Android Phone — 390×844",
+                            "Android Tablet — 800×1280",
+                            "Windows Desktop — 1280×800"),
+                    "Windows Desktop — 1280×800"));
 
             project.getProjectDirectory().createFolder("ios");
             onEdt(() -> assertPreviewChoices(
                     previewsRef.get(),
                     List.of(
-                            "Android Phone",
-                            "iPhone",
-                            "Android Tablet",
-                            "iPad",
-                            "Windows Desktop"),
-                    "Windows Desktop"));
+                            "Android Phone — 390×844",
+                            "iPhone — 390×844",
+                            "Android Tablet — 800×1280",
+                            "iPad — 800×1280",
+                            "Windows Desktop — 1280×800"),
+                    "Windows Desktop — 1280×800"));
 
             project.getProjectDirectory().getFileObject("windows").delete();
             onEdt(() -> assertPreviewChoices(
                     previewsRef.get(),
-                    List.of("Android Phone", "iPhone", "Android Tablet", "iPad"),
-                    "Android Phone"));
+                    List.of(
+                            "Android Phone — 390×844",
+                            "iPhone — 390×844",
+                            "Android Tablet — 800×1280",
+                            "iPad — 800×1280"),
+                    "Android Phone — 390×844"));
 
             project.getProjectDirectory().getFileObject("android").delete();
             onEdt(() -> assertPreviewChoices(
                     previewsRef.get(),
-                    List.of("iPhone", "iPad"),
-                    "iPhone"));
+                    List.of("iPhone — 390×844", "iPad — 800×1280"),
+                    "iPhone — 390×844"));
 
             onEdt(() -> designRef.get().componentClosed());
             project.getProjectDirectory().createFolder("web");
             onEdt(() -> assertPreviewChoices(
                     previewsRef.get(),
-                    List.of("iPhone", "iPad"),
-                    "iPhone"));
+                    List.of("iPhone — 390×844", "iPad — 800×1280"),
+                    "iPhone — 390×844"));
         } finally {
             FlutterDesignerMultiViewDesign design = designRef.get();
             if (design != null) {
@@ -713,10 +757,10 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     + "selection, the six-item Palette and Properties are enabled. "
                     + "Supported properties on Column, Row, Padding, Center and Text are "
                     + "writable when exact mutation admission is ready; Scaffold properties "
-                    + "remain read-only. Palette Text drag-and-drop is unavailable because "
+                    + "remain read-only. Palette widget drag-and-drop is unavailable because "
                     + "exact mutation admission, the current rendered presentation, the "
                     + "owning-view AWT drag lifecycle, or the native Canvas drop capability "
-                    + "is not ready; all other drag-and-drop commands remain disabled.",
+                    + "is not ready; non-insertion drag-and-drop commands remain disabled.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 
@@ -890,12 +934,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             FdDecodeResult.UnsupportedNewer future = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(("{\"format\":\"netbeans-flutter-designer\","
-                            + "\"schemaVersion\":2}")
+                            + "\"schemaVersion\":3}")
                             .getBytes(StandardCharsets.UTF_8)));
             publish(design, new FlutterDesignerDocumentState.UnsupportedNewer(future));
             assertEquals("Flutter Designer model opened read-only.",
                     status.getAccessibleContext().getAccessibleDescription());
-            assertEquals("Schema version 2 is newer than supported version 1.",
+            assertEquals("Schema version 3 is newer than supported version 2.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

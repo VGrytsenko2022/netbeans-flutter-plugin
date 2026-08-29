@@ -86,11 +86,15 @@ class BuiltInWidgetCatalogTest {
 
         assertEquals(List.of(
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
+                new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
+                new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TextDecorationStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextDirection"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TextLeadingDistribution"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextOverflow"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextWidthBasis"),
                 new DartSymbolReference(WIDGETS_IMPORT, "VerticalDirection")), enumTypes);
@@ -166,6 +170,16 @@ class BuiltInWidgetCatalogTest {
         assertTrue(spacingRange.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
         assertFalse(spacingRange.accepts(new PropertyValue.DoubleValue(BigDecimal.ONE.negate())));
 
+        PropertyDefinition textFontSize = property(
+                BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "styleFontSize");
+        PropertyValueConstraint.DoubleRange textFontSizeRange = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                textFontSize.constraints().getFirst());
+        assertTrue(textFontSizeRange.accepts(
+                new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertFalse(textFontSizeRange.accepts(
+                new PropertyValue.DoubleValue(BigDecimal.ONE.negate())));
+
         PropertyDefinition maxLines = property(
                 BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "maxLines");
         assertEquals(List.of(PropertyValueKind.INTEGER), maxLines.acceptedKinds().stream().toList());
@@ -205,7 +219,56 @@ class BuiltInWidgetCatalogTest {
                 "semanticsLabel",
                 "semanticsIdentifier",
                 "textWidthBasis",
-                "selectionColor"), text.properties().stream()
+                "selectionColor",
+                "localeLanguageCode",
+                "localeScriptCode",
+                "localeCountryCode",
+                "textScalerFactor",
+                "textHeightApplyFirstAscent",
+                "textHeightApplyLastDescent",
+                "textHeightLeadingDistribution",
+                "styleInherit",
+                "styleColor",
+                "styleBackgroundColor",
+                "styleFontSize",
+                "styleFontWeight",
+                "styleFontStyle",
+                "styleLetterSpacing",
+                "styleWordSpacing",
+                "styleTextBaseline",
+                "styleHeight",
+                "styleLeadingDistribution",
+                "styleLocaleLanguageCode",
+                "styleLocaleScriptCode",
+                "styleLocaleCountryCode",
+                "styleDecorationUnderline",
+                "styleDecorationOverline",
+                "styleDecorationLineThrough",
+                "styleDecorationColor",
+                "styleDecorationStyle",
+                "styleDecorationThickness",
+                "styleDebugLabel",
+                "styleFontFamily",
+                "styleFontFamilyFallback",
+                "stylePackage",
+                "styleOverflow",
+                "strutFontFamily",
+                "strutFontFamilyFallback",
+                "strutFontSize",
+                "strutHeight",
+                "strutLeadingDistribution",
+                "strutLeading",
+                "strutFontWeight",
+                "strutFontStyle",
+                "strutForceHeight",
+                "strutDebugLabel",
+                "strutPackage",
+                "styleThemeTextStyle",
+                "styleForeground",
+                "styleBackground",
+                "styleShadows",
+                "styleFontFeatures",
+                "styleFontVariations"), text.properties().stream()
                         .map(value -> value.name().value())
                         .toList());
         assertEquals(List.of(PropertyValueKind.STRING),
@@ -214,9 +277,22 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(PropertyValueKind.STRING),
                 property(BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "semanticsIdentifier")
                         .acceptedKinds().stream().toList());
-        assertEquals(List.of(PropertyValueKind.COLOR),
+        assertEquals(List.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
                 property(BuiltInWidgetCatalog.getDefault(), "flutter.widgets.Text", "selectionColor")
                         .acceptedKinds().stream().toList());
+        assertEquals(
+                TextWidgetPropertySchema.definitions().keySet(),
+                text.properties().stream()
+                        .map(value -> value.name().value())
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                "Every catalogued Text property must have presentation and composite-generation metadata");
+
+        assertStringPattern(text, "localeLanguageCode", "uk", "EN", "e");
+        assertStringPattern(text, "styleLocaleLanguageCode", "fil", "EN", "abcd");
+        assertStringPattern(text, "localeScriptCode", "Cyrl", "cyrl", "CYRL");
+        assertStringPattern(text, "styleLocaleScriptCode", "Latn", "latin", "latn");
+        assertStringPattern(text, "localeCountryCode", "UA", "ua", "UAE");
+        assertStringPattern(text, "styleLocaleCountryCode", "419", "42", "Us");
     }
 
     @Test
@@ -254,6 +330,24 @@ class BuiltInWidgetCatalogTest {
                 .anyMatch(value -> value.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO))));
         assertTrue(property.constraints().stream()
                 .anyMatch(value -> value.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO))));
+    }
+
+    private static void assertStringPattern(
+            WidgetDefinition definition,
+            String propertyName,
+            String accepted,
+            String... rejected) {
+        PropertyValueConstraint constraint = definition
+                .property(new PropertyName(propertyName))
+                .orElseThrow()
+                .constraints()
+                .getFirst();
+        assertInstanceOf(PropertyValueConstraint.StringPattern.class, constraint);
+        assertTrue(constraint.accepts(new PropertyValue.StringValue(accepted)), propertyName);
+        for (String value : rejected) {
+            assertFalse(constraint.accepts(new PropertyValue.StringValue(value)),
+                    propertyName + " unexpectedly accepted " + value);
+        }
     }
 
     private static PropertyDefinition property(WidgetCatalog catalog, String typeId, String property) {

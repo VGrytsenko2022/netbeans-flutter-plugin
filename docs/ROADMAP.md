@@ -267,8 +267,9 @@ accepted architecture is documented in
     validated-revision and resolved render-profile binding, plus pure stale and
     replay admission rules. Exact Android/iOS/desktop adaptive targets now remain
     distinct from the concrete Windows engine identity and reach
-    `ThemeData.platform`. Web fails explicitly until a separately compiled
-    browser Canvas backend is implemented; no Windows frame is relabeled as Web.
+    `ThemeData.platform`. Web renders its browser-sized responsive viewport on
+    the native engine as a bounded layout preview without claiming `kIsWeb` or
+    browser-runtime fidelity.
   - [x] Add the per-MultiView lifecycle controller with fresh-session restart,
     one in-flight render plus latest-only coalescing, stale callback fencing,
     atomic frame/layout admission and bounded failure states, verified with a
@@ -300,11 +301,13 @@ accepted architecture is documented in
   cleanup for Windows, Linux and macOS. The first injectable Windows HWND edge
   and per-MultiView lifecycle now exist; Linux/macOS and the common contract do
   not.
-- [ ] Implement the separate Flutter Web Canvas backend: compile the bounded
-  runner for Web, host it in an embedded browser surface, bridge the existing
-  session/revision/selection protocol without image transfer, and prove browser
-  lifecycle, origin, resource and teardown boundaries. Until then Web remains
-  explicitly unavailable.
+- [x] Render the Web responsive viewport through the existing native Flutter
+  Canvas as an explicitly bounded layout preview. It does not emulate `kIsWeb`
+  or browser-only behavior.
+- [ ] Implement the optional runtime-faithful Flutter Web Canvas backend: compile
+  the bounded runner for Web, host it in an embedded browser surface, bridge the
+  existing session/revision/selection protocol without image transfer, and prove
+  browser lifecycle, origin, resource and teardown boundaries.
 - [ ] Complete Windows child-window acceptance in the assembled NetBeans
   MultiView. The automated standalone Win32 spike already proves the actual
   `AWT Canvas HWND → runner HWND → FLUTTERVIEW HWND` hierarchy, resize and
@@ -325,19 +328,26 @@ accepted architecture is documented in
   standard lookup without enabling document mutation.
 - [x] Publish a context-sensitive standard NetBeans Palette for the exact six
   `CORE_V1` definitions and selected-node standard Properties baseline.
-- [x] Enable catalog-driven typed read/write Properties for the 27 currently
+- [x] Enable catalog-driven typed read/write Properties for the 76 currently
   reviewed constructor properties of `Column`, `Row`, `Padding`, `Center` and
-  `Text`. Emit revision-bound one-shot `SetProperty`/`ResetProperty` commands,
-  use native Restore Default for optional values, and route every admitted edit
-  through the existing pair-save/Undo lifecycle. Keep `Scaffold` read-only for
-  its separate property-design task.
-- [x] Implement and narrowly enable the first safe DnD vertical slice. Its
-  public surface is exactly
+  `Text`. The 59 Text leaves are grouped into Text, Accessibility, Locale and
+  scaling, Text style, Paint and effects, Advanced typography and Strut style,
+  with type-appropriate editors and exact
+  Dart/native-Canvas assembly into `TextStyle`, `StrutStyle`, `Locale`,
+  `TextScaler` and `TextHeightBehavior`. Emit revision-bound one-shot
+  `SetProperty`/`ResetProperty` commands, use native Restore Default for
+  optional values, and route every admitted edit through the existing
+  pair-save/Undo lifecycle. Keep `Scaffold` read-only for its separate
+  property-design task. Schema v2 supplies closed theme-token, `Paint`, Shadow,
+  font-feature and font-variation value graphs with transactional custom
+  editors and Canvas/generator parity. The deprecated `Text.textScaleFactor`
+  argument, `key` and arbitrary Dart/shader/filter graphs remain excluded.
+- [x] Implement and narrowly enable the first safe DnD vertical slice. This is
+  a historical milestone, whose public surface was exactly
   `Text` from the Palette → terminal append to `Row.children` or
-  `Column.children`; every other Palette type, slot, insertion position,
-  semantic reorder/move operation and Linux/macOS/Web DnD path remains
-  disabled. Native OLE `MOVE` is only the immutable-Palette transport contract;
-  the Designer intent is `ADD`.
+  `Column.children`. Its Text-only source/slot restriction is superseded by the
+  completed six-`CORE_V1` matrix milestone below. Native OLE `MOVE` is only the
+  immutable-Palette transport contract; the Designer intent is `ADD`.
   - [x] Freeze ADR-025: Windows native OLE bridge, Flutter-authoritative hit
     test, one bounded process-local one-shot opaque token, and exact
     session/presentation/document/logical-revision/frame/layout/intent fencing.
@@ -363,6 +373,13 @@ accepted architecture is documented in
     acceptance, including the live drop → Save → Undo → Redo → Save sequence,
     before enabling this drag publicly. This does not claim the separately
     discovered saved-history Undo → Save cycle.
+- [x] Supersede the historical Text-only vertical slice with catalog-driven
+  insertion for all six exact `CORE_V1` Palette sources. Accept the complete
+  36-cell matrix: empty `Scaffold.body`, `Scaffold.floatingActionButton`,
+  `Padding.child` and `Center.child`, plus terminal `Row.children` and
+  `Column.children`. Keep occupied singles, non-terminal list indices,
+  `Scaffold.appBar`, non-`CORE_V1` sources, existing-widget move/reorder and
+  Linux/macOS/Web DnD disabled.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
@@ -370,11 +387,29 @@ accepted architecture is documented in
   gates pass. The current five-widget typed Properties slice does not imply
   insertion support or writable `Scaffold`/`AppBar`/`Icon`/`SizedBox`/
   `ElevatedButton` Properties.
+- [x] Establish the project-wide theme foundation outside `.fd`: canonical
+  schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
+  `lib/theme/app_theme.dart`, default light/dark Material seed themes,
+  transactional new-project wiring, a docked `Themes` editor with custom-theme
+  CRUD plus project-wide and per-theme enable/disable switches, and Canvas
+  payload-v4 synchronization with live refresh and fail-closed conflicts.
+- [x] Extend project theme schema/editor beyond seed-derived ColorSchemes with
+  typed per-role `ColorScheme` overrides and per-role `TextTheme`/`TextStyle`
+  overrides. Schema v4 and the `General`/`Colors`/`Typography` editor cover 46
+  ColorScheme roles and 15 TextTheme roles with 13 typed fields per text role.
+  Generated Dart and Canvas use the same ordered `ColorScheme.copyWith` and
+  `TextTheme.copyWith` construction; form-local Text leaves remain later
+  overrides.
+- [ ] Add typed component, shape and extension contracts without arbitrary
+  Dart-expression escape hatches. Define explicit precedence for a theme Paint
+  versus a local shorthand color before theme-level foreground or background
+  Paint becomes writable.
 
 ## M5 — bidirectional RAD (later milestone)
 
 - [ ] Dart AST ↔ designer model mapping
 - [ ] Safe source rewriting
 - [ ] Custom widget discovery
-- [ ] Theme-aware preview
+- [x] Typed seed/ColorScheme/TextTheme project-theme-aware preview
+- [ ] Typed component/shape/extension ThemeData preview
 - [ ] Multi-device preview

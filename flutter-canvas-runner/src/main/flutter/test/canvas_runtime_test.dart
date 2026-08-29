@@ -70,7 +70,8 @@ void main() {
         'readOnly.render',
         'readOnly.layout',
         'readOnly.selection',
-        'palette.drop.textAppend.v1',
+        'palette.drop.catalogInsert.v1',
+        'widget.deleteSelection.v1',
       ],
     );
     expect(closedJson['type'], 'runner.closed');
@@ -113,7 +114,12 @@ void main() {
           jsonDecode(utf8.decode(hello!.payload)) as Map<String, Object?>;
       expect(
         (helloJson['body'] as Map<String, Object?>)['acceptedCapabilities'],
-        ['readOnly.render', 'readOnly.layout', 'readOnly.selection'],
+        [
+          'readOnly.render',
+          'readOnly.layout',
+          'readOnly.selection',
+          'widget.deleteSelection.v1',
+        ],
       );
     },
   );
@@ -162,7 +168,12 @@ void main() {
           jsonDecode(utf8.decode(closed!.payload)) as Map<String, Object?>;
       expect(
         (helloJson['body'] as Map<String, Object?>)['acceptedCapabilities'],
-        ['readOnly.render', 'readOnly.layout', 'readOnly.selection'],
+        [
+          'readOnly.render',
+          'readOnly.layout',
+          'readOnly.selection',
+          'widget.deleteSelection.v1',
+        ],
       );
       expect(closedJson['type'], 'runner.closed');
     },
@@ -202,6 +213,103 @@ void main() {
   });
 
   testWidgets(
+    'publishes exact delete intent without mutating the selected model',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await tester.pump();
+
+      final model = runtime.model!;
+      final selected = model.widgetIds.firstWhere((id) => id != model.root.id);
+      runtime.selectFromCanvas(selected);
+      expect(runtime.deleteSelectedFromCanvas(), isTrue);
+      expect(runtime.model, same(model));
+      expect(runtime.model!.widgetIds, contains(selected));
+
+      runtime.selectFromCanvas(model.root.id);
+      expect(
+        runtime.deleteSelectedFromCanvas(),
+        isFalse,
+        reason: 'the immutable document root cannot be deleted',
+      );
+
+      await input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final messages = await _decodeControlMessages(output);
+      final deletions = messages
+          .where((message) => message['type'] == 'runner.deleteSelection')
+          .toList();
+      expect(deletions, hasLength(1));
+      expect(deletions.single['sessionId'], _hello()['sessionId']);
+      expect(deletions.single['body'], {
+        'presentationSequence': model.presentationSequence,
+        'documentId': model.documentId,
+        'logicalRevisionId': model.logicalRevisionId,
+        'frameSequence': 0,
+        'layoutSequence': 0,
+        'intentSequence': 1,
+        'widgetId': selected,
+      });
+    },
+  );
+
+  testWidgets('does not publish delete without negotiated capability', (
+    tester,
+  ) async {
+    final input = StreamController<List<int>>();
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (_) {},
+      flush: () async {},
+      diagnostic: fail,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(jsonEncode(_hello(deleteSelected: false))),
+      ),
+    );
+    _addRender(input, fixture.modelBytesForViewTest());
+    await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+    for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pump();
+    final model = runtime.model!;
+    runtime.selectFromCanvas(
+      model.widgetIds.firstWhere((id) => id != model.root.id),
+    );
+    expect(runtime.deleteSelectedFromCanvas(), isFalse);
+    await input.close();
+    for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await running;
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
     'binds palette drops to the exact post-layout Canvas geometry',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -224,6 +332,25 @@ void main() {
       }
       expect(runtime.model, isNotNull);
       await tester.pump();
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await runtime.receiveNativePaletteHover({
+          'token':
+              'nbfdnd:v1:83331c6c-91e1-4ba3-bb2d-597fd3cfbc4d:8ee8e7b6-0556-4bf7-825c-1c340fb8616a',
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 0,
+          'probeId': 0,
+        }),
+        isFalse,
+        reason: 'a list insertion must match the exact terminal child count',
+      );
       runtime.setDropResolver(
         (_, _) => const CanvasDropTarget(
           parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
@@ -373,6 +500,372 @@ void main() {
   );
 
   testWidgets(
+    'publishes exact ADD into an empty Center child and rejects other slots',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyCenterModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.presentedLayoutSequence, 0);
+
+      const centerId = '733ef462-41d7-4849-b780-5d9520666ae4';
+      const invalidToken =
+          'nbfdnd:v1:1e8e54fa-c40a-487c-9fde-4553e2d46f89:ce68f433-b70f-49ed-8afe-d81d92ac207a';
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: centerId,
+          slotName: 'children',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await runtime.receiveNativePaletteHover({
+          'token': invalidToken,
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 1,
+          'probeId': 1,
+        }),
+        isFalse,
+        reason: 'Center exposes child, never children',
+      );
+
+      const invalidIndexToken =
+          'nbfdnd:v1:d8b9847e-7858-4057-aa79-b521ea8acb58:d33d6ec2-88d7-41fd-968d-3f9058fa581b';
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: centerId,
+          slotName: 'child',
+          insertionIndex: 1,
+        ),
+      );
+      expect(
+        await runtime.receiveNativePaletteHover({
+          'token': invalidIndexToken,
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 2,
+          'probeId': 2,
+        }),
+        isFalse,
+        reason: 'an empty single slot accepts exactly index zero',
+      );
+
+      const token =
+          'nbfdnd:v1:3a6160af-b935-4ef6-b5af-4be3bd61bef4:ab74b9a9-cf79-43ab-a692-8bb39968ac39';
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: centerId,
+          slotName: 'child',
+          insertionIndex: 0,
+        ),
+      );
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 3,
+        'probeId': 3,
+      };
+      expect(await runtime.receiveNativePaletteHover(request), isTrue);
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (await _decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], {
+        'presentationSequence': 4,
+        'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
+        'logicalRevisionId': 2,
+        'frameSequence': 0,
+        'layoutSequence': 0,
+        'intentSequence': 0,
+        'token': token,
+        'operation': 'ADD',
+        'parentWidgetId': centerId,
+        'slotName': 'child',
+        'insertionIndex': 0,
+      });
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
+    'rejects a resolver claim for an occupied single-child slot',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (_) {},
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: '733ef462-41d7-4849-b780-5d9520666ae4',
+          slotName: 'child',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await runtime.receiveNativePaletteHover({
+          'token':
+              'nbfdnd:v1:adae8952-a918-4a9a-89db-914014487296:e7a0872b-6166-4af8-a188-864389ae7fce',
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 1,
+          'probeId': 1,
+        }),
+        isFalse,
+      );
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
+    'publishes exact Scaffold body and FAB ADD intents but never appBar',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyScaffoldModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.presentedLayoutSequence, 0);
+      final rootId = runtime.model!.root.id;
+
+      const invalidToken =
+          'nbfdnd:v1:7f4f1680-645b-4c21-9e75-b7adbe195518:2ecf583a-bd0c-4b20-b271-3a7f92573383';
+      runtime.setDropResolver(
+        (_, _) => CanvasDropTarget(
+          parentWidgetId: rootId,
+          slotName: 'appBar',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await runtime.receiveNativePaletteHover({
+          'token': invalidToken,
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 1,
+          'probeId': 1,
+        }),
+        isFalse,
+      );
+
+      const bodyToken =
+          'nbfdnd:v1:8db14fa5-7dc0-4ebc-931b-910df02f3515:6436b8e0-4077-4a67-8b38-f5a6ef0fc848';
+      runtime.setDropResolver(
+        (_, _) => CanvasDropTarget(
+          parentWidgetId: rootId,
+          slotName: 'body',
+          insertionIndex: 0,
+        ),
+      );
+      final bodyRequest = {
+        'token': bodyToken,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 2,
+        'probeId': 2,
+      };
+      expect(await runtime.receiveNativePaletteHover(bodyRequest), isTrue);
+      expect(
+        await runtime.receiveNativePaletteDropPrepare(bodyRequest),
+        isTrue,
+      );
+      final bodyCommit = runtime.receiveNativePaletteDropCommit(bodyRequest);
+      await tester.pump();
+      expect(await bodyCommit, isTrue);
+
+      const fabToken =
+          'nbfdnd:v1:0a0ca345-fc70-49f0-86fb-e220044564d7:34049612-cc2b-44e7-ac70-24cb5c72b22d';
+      runtime.setDropResolver(
+        (_, _) => CanvasDropTarget(
+          parentWidgetId: rootId,
+          slotName: 'floatingActionButton',
+          insertionIndex: 0,
+        ),
+      );
+      final fabRequest = {
+        'token': fabToken,
+        'xMicros': 900000,
+        'yMicros': 900000,
+        'generation': 3,
+        'probeId': 3,
+      };
+      expect(await runtime.receiveNativePaletteHover(fabRequest), isTrue);
+      expect(await runtime.receiveNativePaletteDropPrepare(fabRequest), isTrue);
+      final fabCommit = runtime.receiveNativePaletteDropCommit(fabRequest);
+      await tester.pump();
+      expect(await fabCommit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (await _decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(2));
+      expect(
+        (drops[0]['body'] as Map<String, Object?>),
+        containsPair('slotName', 'body'),
+      );
+      expect(
+        (drops[1]['body'] as Map<String, Object?>),
+        containsPair('slotName', 'floatingActionButton'),
+      );
+      expect(
+        drops.map(
+          (drop) => (drop['body'] as Map<String, Object?>)['insertionIndex'],
+        ),
+        everyElement(0),
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
+    'publishes exact ADD into an empty Padding child',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyPaddingModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.presentedLayoutSequence, 0);
+
+      const paddingId = '0f78bed5-2fba-42cd-914e-a3abbd2c48c3';
+      const token =
+          'nbfdnd:v1:36bb9227-fc10-4aaa-b9e8-829060121ff4:e7a020a4-a19f-4883-b0df-b5ce3cc28d7e';
+      runtime.setDropResolver(
+        (_, _) => const CanvasDropTarget(
+          parentWidgetId: paddingId,
+          slotName: 'child',
+          insertionIndex: 0,
+        ),
+      );
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(await runtime.receiveNativePaletteHover(request), isTrue);
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (await _decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('parentWidgetId', paddingId));
+      expect(drops.single['body'], containsPair('slotName', 'child'));
+      expect(drops.single['body'], containsPair('insertionIndex', 0));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'hover probes fail closed across update, stale, invalid and leave events',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -428,8 +921,20 @@ void main() {
       );
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('canvas-text-append-drop-zone')),
+        find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
         findsOneWidget,
+      );
+      final overlaySemantics = tester.widget<Semantics>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
+              matching: find.byType(Semantics),
+            )
+            .first,
+      );
+      expect(
+        overlaySemantics.properties.label,
+        'Flutter widget insertion target for children',
       );
 
       resolveColumn = true;
@@ -478,7 +983,7 @@ void main() {
       expect(runtime.dropHoverTarget, isNull);
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('canvas-text-append-drop-zone')),
+        find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
         findsNothing,
       );
 
@@ -504,7 +1009,7 @@ void main() {
       expect(runtime.dropHoverTarget, isNull);
       await tester.pump();
       expect(
-        find.byKey(const ValueKey('canvas-text-append-drop-zone')),
+        find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
         findsNothing,
       );
       expect(
@@ -851,6 +1356,80 @@ void main() {
   });
 }
 
+Uint8List _emptyCenterModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  final center = _findNodeByType(root, 'flutter.widgets.Center')!;
+  (center['properties']! as Map<String, Object?>)
+    ..remove('widthFactor')
+    ..remove('heightFactor');
+  ((center['slots']! as Map<String, Object?>)['child']!
+          as Map<String, Object?>)['child'] =
+      null;
+  ((root['slots']! as Map<String, Object?>)['body']!
+          as Map<String, Object?>)['child'] =
+      center;
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyScaffoldModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  final slots = root['slots']! as Map<String, Object?>;
+  (slots['body']! as Map<String, Object?>)['child'] = null;
+  slots['floatingActionButton'] = <String, Object?>{
+    'kind': 'single',
+    'child': null,
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyPaddingModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  final padding = _findNodeByType(root, 'flutter.widgets.Padding')!;
+  ((padding['slots']! as Map<String, Object?>)['child']!
+          as Map<String, Object?>)['child'] =
+      null;
+  ((root['slots']! as Map<String, Object?>)['body']!
+          as Map<String, Object?>)['child'] =
+      padding;
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Map<String, Object?>? _findNodeByType(Map<String, Object?> node, String type) {
+  if (node['type'] == type) {
+    return node;
+  }
+  final slots = node['slots']! as Map<String, Object?>;
+  for (final rawSlot in slots.values) {
+    final slot = rawSlot! as Map<String, Object?>;
+    final child = slot['child'];
+    if (child is Map<String, Object?>) {
+      final match = _findNodeByType(child, type);
+      if (match != null) {
+        return match;
+      }
+    }
+    final children = slot['children'];
+    if (children is List<Object?>) {
+      for (final child in children.cast<Map<String, Object?>>()) {
+        final match = _findNodeByType(child, type);
+        if (match != null) {
+          return match;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 void _addRender(StreamController<List<int>> input, Uint8List model) {
   final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
   final body = <String, Object?>{
@@ -896,7 +1475,7 @@ Future<List<Map<String, Object?>>> _decodeControlMessages(
   }
 }
 
-Map<String, Object?> _hello() => {
+Map<String, Object?> _hello({bool deleteSelected = true}) => {
   'format': 'netbeans-flutter-canvas-wire',
   'protocolVersion': 1,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
@@ -908,7 +1487,8 @@ Map<String, Object?> _hello() => {
       'readOnly.render',
       'readOnly.layout',
       'readOnly.selection',
-      'palette.drop.textAppend.v1',
+      'palette.drop.catalogInsert.v1',
+      if (deleteSelected) 'widget.deleteSelection.v1',
     ],
     'offeredLimits': {
       'maxControlMessageBytes': 262144,

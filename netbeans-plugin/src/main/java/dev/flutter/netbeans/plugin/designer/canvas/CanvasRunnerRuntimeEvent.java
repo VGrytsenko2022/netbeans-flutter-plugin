@@ -10,7 +10,8 @@ import java.util.Objects;
 public sealed interface CanvasRunnerRuntimeEvent permits
         CanvasRunnerRuntimeEvent.Presented,
         CanvasRunnerRuntimeEvent.Selection,
-        CanvasRunnerRuntimeEvent.PaletteDrop {
+        CanvasRunnerRuntimeEvent.PaletteDrop,
+        CanvasRunnerRuntimeEvent.DeleteSelection {
 
     record Presented(CanvasLayoutKey layoutKey) implements CanvasRunnerRuntimeEvent {
         public Presented {
@@ -27,7 +28,7 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         }
     }
 
-    /** One exact, one-shot request to append a Palette widget to a list slot. */
+    /** One exact, one-shot request to insert a Palette widget into a slot. */
     record PaletteDrop(
             CanvasIntentKey intentKey,
             String token,
@@ -46,6 +47,16 @@ public sealed interface CanvasRunnerRuntimeEvent permits
                 throw new IllegalArgumentException(
                         "insertionIndex must not be negative");
             }
+        }
+    }
+
+    /** One exact, one-shot request to delete the currently selected widget. */
+    record DeleteSelection(
+            CanvasIntentKey intentKey,
+            StableId widgetId) implements CanvasRunnerRuntimeEvent {
+        public DeleteSelection {
+            Objects.requireNonNull(intentKey, "intentKey");
+            Objects.requireNonNull(widgetId, "widgetId");
         }
     }
 }

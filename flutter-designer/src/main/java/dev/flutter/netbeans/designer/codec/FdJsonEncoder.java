@@ -6,7 +6,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import dev.flutter.netbeans.designer.catalog.DartNumericLiterals;
 import dev.flutter.netbeans.designer.model.CanvasPreferences;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ExtensionKey;
@@ -400,6 +402,45 @@ final class FdJsonEncoder {
             context.stringField("handler", callbackValue.handler(), pointer + "/handler");
         } else if (value instanceof PropertyValue.DartExpressionValue expressionValue) {
             context.stringField("code", expressionValue.code(), pointer + "/code");
+        } else if (value instanceof PropertyValue.ThemeTokenValue themeTokenValue) {
+            context.stringField(
+                    "token", themeTokenValue.token().wireId(), pointer + "/token");
+        } else if (value instanceof PropertyValue.PaintValue paintValue) {
+            context.fieldName("color", pointer + "/color");
+            writeColorSource(paintValue.color(), pointer + "/color", context);
+            context.stringField(
+                    "blendMode", paintValue.blendMode().wireName(), pointer + "/blendMode");
+            context.stringField("style", paintValue.style().wireName(), pointer + "/style");
+            writeDartDoubleField("strokeWidth", paintValue.strokeWidth(), pointer, context);
+            context.stringField(
+                    "strokeCap", paintValue.strokeCap().wireName(), pointer + "/strokeCap");
+            context.stringField(
+                    "strokeJoin", paintValue.strokeJoin().wireName(), pointer + "/strokeJoin");
+            writeDartDoubleField(
+                    "strokeMiterLimit", paintValue.strokeMiterLimit(), pointer, context);
+            context.booleanField("antiAlias", paintValue.antiAlias(), pointer + "/antiAlias");
+            context.stringField(
+                    "filterQuality",
+                    paintValue.filterQuality().wireName(),
+                    pointer + "/filterQuality");
+            context.booleanField(
+                    "invertColors", paintValue.invertColors(), pointer + "/invertColors");
+            if (paintValue.maskFilter().isPresent()) {
+                PropertyValue.PaintValue.BlurMask mask = paintValue.maskFilter().orElseThrow();
+                context.fieldName("maskFilter", pointer + "/maskFilter");
+                context.startObject(pointer + "/maskFilter");
+                context.stringField(
+                        "style", mask.style().wireName(), pointer + "/maskFilter/style");
+                writeDartDoubleField(
+                        "sigma", mask.sigma(), pointer + "/maskFilter", context);
+                context.endObject(pointer + "/maskFilter");
+            }
+        } else if (value instanceof PropertyValue.ShadowListValue shadowList) {
+            writeShadowList(shadowList, pointer, context);
+        } else if (value instanceof PropertyValue.FontFeatureListValue featureList) {
+            writeFontFeatureList(featureList, pointer, context);
+        } else if (value instanceof PropertyValue.FontVariationListValue variationList) {
+            writeFontVariationList(variationList, pointer, context);
         } else {
             throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
                     FdCodecDiagnosticCode.INVALID_VALUE,
@@ -410,6 +451,99 @@ final class FdJsonEncoder {
         context.endObject(pointer);
     }
 
+    private static void writeColorSource(
+            ColorSource source,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        if (source instanceof ColorSource.Literal literal) {
+            context.stringField("kind", "literal", pointer + "/kind");
+            context.stringField("argb", literal.wireArgb(), pointer + "/argb");
+        } else {
+            ColorSource.Theme theme = (ColorSource.Theme) source;
+            context.stringField("kind", "theme", pointer + "/kind");
+            context.stringField("token", theme.token().wireId(), pointer + "/token");
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeShadowList(
+            PropertyValue.ShadowListValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        requireStructuredListSize(value.items().size(), pointer, context);
+        context.fieldName("items", pointer + "/items");
+        context.startArray(pointer + "/items");
+        for (int index = 0; index < value.items().size(); index++) {
+            PropertyValue.ShadowListValue.Shadow shadow = value.items().get(index);
+            String itemPointer = pointer + "/items/" + index;
+            context.startObject(itemPointer);
+            context.stringField("id", shadow.id().toString(), itemPointer + "/id");
+            context.fieldName("color", itemPointer + "/color");
+            writeColorSource(shadow.color(), itemPointer + "/color", context);
+            writeDartDoubleField("offsetX", shadow.offsetX(), itemPointer, context);
+            writeDartDoubleField("offsetY", shadow.offsetY(), itemPointer, context);
+            writeDartDoubleField("blurRadius", shadow.blurRadius(), itemPointer, context);
+            context.endObject(itemPointer);
+        }
+        context.endArray(pointer + "/items");
+    }
+
+    private static void writeFontFeatureList(
+            PropertyValue.FontFeatureListValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        requireStructuredListSize(value.items().size(), pointer, context);
+        context.fieldName("items", pointer + "/items");
+        context.startArray(pointer + "/items");
+        for (int index = 0; index < value.items().size(); index++) {
+            PropertyValue.FontFeatureListValue.FontFeature feature = value.items().get(index);
+            String itemPointer = pointer + "/items/" + index;
+            context.startObject(itemPointer);
+            context.stringField("id", feature.id().toString(), itemPointer + "/id");
+            context.stringField("tag", feature.tag(), itemPointer + "/tag");
+            context.numberField(
+                    "value", Integer.toString(feature.value()), itemPointer + "/value");
+            context.endObject(itemPointer);
+        }
+        context.endArray(pointer + "/items");
+    }
+
+    private static void writeFontVariationList(
+            PropertyValue.FontVariationListValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        requireStructuredListSize(value.items().size(), pointer, context);
+        context.fieldName("items", pointer + "/items");
+        context.startArray(pointer + "/items");
+        for (int index = 0; index < value.items().size(); index++) {
+            PropertyValue.FontVariationListValue.FontVariation variation = value.items().get(index);
+            String itemPointer = pointer + "/items/" + index;
+            context.startObject(itemPointer);
+            context.stringField("id", variation.id().toString(), itemPointer + "/id");
+            context.stringField("axis", variation.axis(), itemPointer + "/axis");
+            writeDartDoubleField("value", variation.value(), itemPointer, context);
+            context.endObject(itemPointer);
+        }
+        context.endArray(pointer + "/items");
+    }
+
+    private static void requireStructuredListSize(
+            int size,
+            String pointer,
+            EncodingContext context) throws FdEncodeException {
+        context.requireAtMost(
+                size,
+                PropertyValue.ShadowListValue.MAX_ITEMS,
+                pointer + "/items",
+                "structured property items");
+        context.requireAtMost(
+                size,
+                context.limits().maxJsonArrayElements(),
+                pointer + "/items",
+                "JSON array elements");
+    }
+
     private static void writeDecimalField(
             String name,
             BigDecimal value,
@@ -418,6 +552,21 @@ final class FdJsonEncoder {
         String pointer = parentPointer + "/" + name;
         String token = CanonicalJsonNumbers.decimal(value, context.limits(), pointer);
         context.numberField(name, token, pointer);
+    }
+
+    private static void writeDartDoubleField(
+            String name,
+            BigDecimal value,
+            String parentPointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String pointer = parentPointer + "/" + name;
+        if (!DartNumericLiterals.isRepresentableDouble(value)) {
+            throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer,
+                    "The field must be exactly representable as a finite Dart double."));
+        }
+        writeDecimalField(name, value, parentPointer, context);
     }
 
     private record ExtensionsFieldTask(Extensions extensions, String pointer) implements WriteTask {

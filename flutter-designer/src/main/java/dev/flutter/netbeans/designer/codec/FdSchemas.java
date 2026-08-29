@@ -6,14 +6,24 @@ import java.io.InputStream;
 final class FdSchemas {
     static final String V1_RESOURCE =
             "META-INF/netbeans-flutter-designer/schema/fd-v1.schema.json";
+    static final String V2_RESOURCE =
+            "META-INF/netbeans-flutter-designer/schema/fd-v2.schema.json";
 
     private FdSchemas() {
     }
 
     static InputStream openV1() {
-        InputStream input = FdSchemas.class.getClassLoader().getResourceAsStream(V1_RESOURCE);
+        return open(V1_RESOURCE);
+    }
+
+    static InputStream openV2() {
+        return open(V2_RESOURCE);
+    }
+
+    private static InputStream open(String resource) {
+        InputStream input = FdSchemas.class.getClassLoader().getResourceAsStream(resource);
         if (input == null) {
-            throw new IllegalStateException("Missing bundled Flutter Designer schema: " + V1_RESOURCE);
+            throw new IllegalStateException("Missing bundled Flutter Designer schema: " + resource);
         }
         return input;
     }

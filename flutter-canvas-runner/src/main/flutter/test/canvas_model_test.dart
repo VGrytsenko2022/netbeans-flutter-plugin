@@ -10,6 +10,10 @@ void main() {
 
     expect(model.profile.previewMode, 'mobile');
     expect(model.profile.targetPlatform, 'windows');
+    expect(model.profile.theme.definitionId, 'light');
+    expect(model.profile.theme.seedArgb, 0xff6750a4);
+    expect(model.profile.theme.brightness, 'light');
+    expect(model.profile.theme.digestIdentity, 'A' * 64);
     expect(model.root.type, 'flutter.material.Scaffold');
     expect(model.widgetIds, hasLength(8));
     expect(
@@ -56,6 +60,91 @@ void main() {
       'value': 1,
     };
     expect(() => _decode(integer), throwsFormatException);
+  });
+
+  test('requires non-negative Padding values on every physical side', () {
+    final missing = _modelJson();
+    _paddingProperties(missing).remove('padding');
+    expect(
+      () => _decode(missing),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('flutter.widgets.Padding.padding'),
+        ),
+      ),
+    );
+
+    for (final side in const {'left', 'top', 'right', 'bottom'}) {
+      final negative = _modelJson();
+      final padding =
+          _paddingProperties(negative)['padding']! as Map<String, Object?>;
+      padding[side] = -0.25;
+
+      expect(
+        () => _decode(negative),
+        throwsA(
+          isA<FormatException>().having(
+            (failure) => failure.message,
+            'message',
+            contains('/padding/$side'),
+          ),
+        ),
+        reason: side,
+      );
+    }
+
+    final zero = _modelJson();
+    final zeroPadding =
+        _paddingProperties(zero)['padding']! as Map<String, Object?>;
+    for (final side in const {'left', 'top', 'right', 'bottom'}) {
+      zeroPadding[side] = 0;
+    }
+    final decoded = _decode(zero);
+    final insets =
+        _decodedPadding(decoded).properties['padding']!.value
+            as CanvasEdgeInsets;
+    expect([
+      insets.left,
+      insets.top,
+      insets.right,
+      insets.bottom,
+    ], everyElement(0));
+  });
+
+  test('validates nullable non-negative Center width and height factors', () {
+    final omitted = _modelJson();
+    final omittedProperties = _centerProperties(omitted)..remove('widthFactor');
+    final omittedCenter = _decodedCenter(_decode(omitted));
+    expect(omittedProperties, isEmpty);
+    expect(omittedCenter.properties['widthFactor'], isNull);
+    expect(omittedCenter.properties['heightFactor'], isNull);
+
+    final zero = _modelJson();
+    _centerProperties(zero)
+      ..['widthFactor'] = {'kind': 'integer', 'value': 0}
+      ..['heightFactor'] = {'kind': 'double', 'value': 0.0};
+    final zeroCenter = _decodedCenter(_decode(zero));
+    expect(zeroCenter.properties['widthFactor']!.kind, 'integer');
+    expect(zeroCenter.properties['widthFactor']!.value, 0);
+    expect(zeroCenter.properties['heightFactor']!.kind, 'double');
+    expect(zeroCenter.properties['heightFactor']!.value, 0.0);
+
+    for (final property in const {'widthFactor', 'heightFactor'}) {
+      for (final candidate in const [
+        {'kind': 'integer', 'value': -1},
+        {'kind': 'double', 'value': -0.1},
+      ]) {
+        final negative = _modelJson();
+        _centerProperties(negative)[property] = candidate;
+        expect(
+          () => _decode(negative),
+          throwsFormatException,
+          reason: '$property ${candidate['kind']}',
+        );
+      }
+    }
   });
 
   test('rejects duplicate Text semantics identifiers across the tree', () {
@@ -140,14 +229,575 @@ void main() {
       );
     },
   );
+
+  test('rejects malformed or ambiguous project theme values', () {
+    final oldProtocol = _modelJson()..['protocolVersion'] = 3;
+    expect(() => _decode(oldProtocol), throwsFormatException);
+
+    final invalidSeed = _modelJson();
+    _theme(invalidSeed)['seedArgb'] = '0xff6750a4';
+    expect(() => _decode(invalidSeed), throwsFormatException);
+
+    final transparentSeed = _modelJson();
+    _theme(transparentSeed)['seedArgb'] = '0x7F6750A4';
+    expect(() => _decode(transparentSeed), throwsFormatException);
+
+    final invalidDigest = _modelJson();
+    _theme(invalidDigest)['digestIdentity'] = 'a' * 64;
+    expect(() => _decode(invalidDigest), throwsFormatException);
+
+    final paddedId = _modelJson();
+    _theme(paddedId)['definitionId'] = ' light';
+    expect(() => _decode(paddedId), throwsFormatException);
+
+    final unknown = _modelJson();
+    _theme(unknown)['extra'] = true;
+    expect(() => _decode(unknown), throwsFormatException);
+  });
+
+  test('decodes typed project ColorScheme and TextTheme overrides', () {
+    final json = _modelJson();
+    _theme(json)
+      ..['colorScheme'] = {'primary': '0xFF123456', 'onSurface': '0xFF112233'}
+      ..['textTheme'] = {
+        'bodyMedium': {
+          'color': {'kind': 'colorScheme', 'role': 'onSurface'},
+          'backgroundColor': {'kind': 'argb', 'argb': '0x11000000'},
+          'fontSize': 16.0,
+          'fontWeight': 'w600',
+          'fontStyle': 'italic',
+          'height': 1.4,
+          'fontFamily': 'Noto Sans',
+          'decoration': ['underline', 'lineThrough'],
+          'decorationColor': {'kind': 'colorScheme', 'role': 'primary'},
+          'decorationStyle': 'dashed',
+          'decorationThickness': 2.0,
+        },
+      };
+
+    final theme = _decode(json).profile.theme;
+    final body = theme.textTheme['bodyMedium']!;
+
+    expect(theme.colorScheme['primary'], 0xff123456);
+    expect((body.color! as CanvasThemeRoleColor).role, 'onSurface');
+    expect((body.backgroundColor! as CanvasThemeLiteralColor).argb, 0x11000000);
+    expect(body.fontSize, 16.0);
+    expect(body.decoration, {'underline', 'lineThrough'});
+
+    final unknownRole = _modelJson();
+    _theme(unknownRole)['colorScheme'] = {'futureRole': '0xFF000000'};
+    expect(() => _decode(unknownRole), throwsFormatException);
+
+    final emptyStyle = _modelJson();
+    _theme(emptyStyle)['textTheme'] = {'bodyMedium': <String, Object?>{}};
+    expect(() => _decode(emptyStyle), throwsFormatException);
+  });
+
+  test('decodes exact light and dark project theme variants', () {
+    final light = CanvasModel.decode(modelBytesForViewTest());
+    expect(light.profile.theme.brightness, 'light');
+
+    final darkJson = _modelJson();
+    _theme(darkJson)
+      ..['definitionId'] = 'dark'
+      ..['seedArgb'] = '0xFF102030'
+      ..['brightness'] = 'DARK'
+      ..['digestIdentity'] = 'B' * 64;
+    final dark = _decode(darkJson);
+    expect(dark.profile.theme.definitionId, 'dark');
+    expect(dark.profile.theme.seedArgb, 0xff102030);
+    expect(dark.profile.theme.brightness, 'dark');
+    expect(dark.profile.theme.digestIdentity, 'B' * 64);
+  });
+
+  test('decodes the complete flattened Text style and strut vocabulary', () {
+    final model = CanvasModel.decode(expandedTextModelBytesForViewTest());
+    final text = model.root
+        .slot('body')!
+        .child!
+        .slot('children')!
+        .children
+        .first
+        .slot('child')!
+        .child!
+        .slot('child')!
+        .child!;
+
+    expect(text.properties.keys, containsAll(_expandedTextProperties().keys));
+    expect(text.properties['localeLanguageCode']!.value, 'zh');
+    expect(text.properties['textScalerFactor']!.value, 1.25);
+    expect(
+      (text.properties['styleFontWeight']!.value as CanvasEnumValue).value,
+      'w600',
+    );
+    expect(
+      (text.properties['styleDecorationStyle']!.value as CanvasEnumValue).value,
+      'wavy',
+    );
+    expect(
+      (text.properties['strutLeadingDistribution']!.value as CanvasEnumValue)
+          .value,
+      'even',
+    );
+    expect(
+      text.properties['styleFontFamilyFallback']!.value,
+      'Noto Sans\nNoto Color Emoji\r\n',
+    );
+  });
+
+  test('requires the positional Text data property', () {
+    final json = _modelJson();
+    _helloProperties(json).remove('data');
+
+    expect(
+      () => _decode(json),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('flutter.widgets.Text.data'),
+        ),
+      ),
+    );
+  });
+
+  test('mirrors catalog bounds for Text font reference strings', () {
+    void expectString(String name, String value, Matcher matcher) {
+      final json = _modelJson();
+      final properties = _helloProperties(json);
+      properties[name] = {'kind': 'string', 'value': value};
+      if (name.endsWith('Package') && value.isNotEmpty) {
+        properties[name.replaceFirst('Package', 'FontFamily')] = {
+          'kind': 'string',
+          'value': 'Inter',
+        };
+      }
+      expect(() => _decode(json), matcher, reason: '$name (${value.length})');
+    }
+
+    for (final name in const {
+      'styleFontFamily',
+      'stylePackage',
+      'strutFontFamily',
+      'strutPackage',
+    }) {
+      expectString(name, '', throwsFormatException);
+      expectString(name, 'F' * 256, returnsNormally);
+      expectString(name, 'F' * 257, throwsFormatException);
+    }
+
+    for (final name in const {
+      'styleFontFamilyFallback',
+      'strutFontFamilyFallback',
+    }) {
+      expectString(name, '', returnsNormally);
+      expectString(name, 'F\n' * 2048, returnsNormally);
+      expectString(name, 'F\n' * 2048 + 'x', throwsFormatException);
+    }
+  });
+
+  test('accepts independent Locale subtags and rejects malformed subtags', () {
+    for (final entry in const {
+      'localeScriptCode': 'Hans',
+      'localeCountryCode': 'CN',
+      'styleLocaleScriptCode': 'Latn',
+      'styleLocaleCountryCode': 'GB',
+    }.entries) {
+      final json = _modelJson();
+      _helloProperties(json)[entry.key] = {
+        'kind': 'string',
+        'value': entry.value,
+      };
+      expect(() => _decode(json), returnsNormally, reason: entry.key);
+    }
+
+    for (final name in const {
+      'localeLanguageCode',
+      'localeScriptCode',
+      'localeCountryCode',
+      'styleLocaleLanguageCode',
+      'styleLocaleScriptCode',
+      'styleLocaleCountryCode',
+    }) {
+      final json = _modelJson();
+      _helloProperties(json)[name] = {'kind': 'string', 'value': '  '};
+      expect(() => _decode(json), throwsFormatException, reason: name);
+    }
+
+    for (final entry in const {
+      'localeLanguageCode': 'EN',
+      'localeScriptCode': 'hans',
+      'localeCountryCode': 'us',
+      'styleLocaleLanguageCode': 'e',
+      'styleLocaleScriptCode': 'Latin',
+      'styleLocaleCountryCode': 'USA',
+    }.entries) {
+      final json = _modelJson();
+      _helloProperties(json)[entry.key] = {
+        'kind': 'string',
+        'value': entry.value,
+      };
+      expect(() => _decode(json), throwsFormatException, reason: entry.key);
+    }
+  });
+
+  test('requires a usable font reference whenever a package is present', () {
+    for (final prefix in const {'style', 'strut'}) {
+      final missingReference = _modelJson();
+      _helloProperties(missingReference)['${prefix}Package'] = {
+        'kind': 'string',
+        'value': 'fonts',
+      };
+      expect(
+        () => _decode(missingReference),
+        throwsFormatException,
+        reason: prefix,
+      );
+
+      final familyReference = _modelJson();
+      _helloProperties(familyReference).addAll({
+        '${prefix}Package': {'kind': 'string', 'value': 'fonts'},
+        '${prefix}FontFamily': {'kind': 'string', 'value': 'Inter'},
+      });
+      expect(() => _decode(familyReference), returnsNormally, reason: prefix);
+
+      final fallbackReference = _modelJson();
+      _helloProperties(fallbackReference).addAll({
+        '${prefix}Package': {'kind': 'string', 'value': 'fonts'},
+        '${prefix}FontFamilyFallback': {
+          'kind': 'string',
+          'value': '\n Noto Sans \r\n',
+        },
+      });
+      expect(() => _decode(fallbackReference), returnsNormally, reason: prefix);
+    }
+  });
+
+  test('enforces only the explicit Text constructor numeric constraints', () {
+    void expectDouble(String name, double value, Matcher matcher) {
+      final json = _modelJson();
+      _helloProperties(json)[name] = {'kind': 'double', 'value': value};
+      expect(() => _decode(json), matcher, reason: '$name=$value');
+    }
+
+    expectDouble('textScalerFactor', -0.1, throwsFormatException);
+    expectDouble('textScalerFactor', 0, returnsNormally);
+    expectDouble('strutFontSize', 0, throwsFormatException);
+    expectDouble('strutFontSize', -1, throwsFormatException);
+    expectDouble('strutFontSize', 0.1, returnsNormally);
+    expectDouble('strutLeading', -0.1, throwsFormatException);
+    expectDouble('strutLeading', 0, returnsNormally);
+    expectDouble('styleFontSize', -0.1, throwsFormatException);
+    expectDouble('styleFontSize', 0, returnsNormally);
+
+    for (final name in const {
+      'styleHeight',
+      'styleDecorationThickness',
+      'strutHeight',
+    }) {
+      expectDouble(name, -1, returnsNormally);
+    }
+  });
+
+  test('rejects an unknown expanded Text enum value', () {
+    final json = _modelJson();
+    _helloProperties(json)['styleFontWeight'] = {
+      'kind': 'enum',
+      'type': 'FontWeight',
+      'value': 'bold',
+    };
+
+    expect(() => _decode(json), throwsFormatException);
+  });
+
+  test('decodes typed Text theme, Paint, Shadow and OpenType values', () {
+    final model = CanvasModel.decode(complexTextModelBytesForViewTest());
+    final text = model.root
+        .slot('body')!
+        .child!
+        .slot('children')!
+        .children
+        .first
+        .slot('child')!
+        .child!
+        .slot('child')!
+        .child!;
+
+    expect(
+      (text.properties['styleThemeTextStyle']!.value as CanvasThemeToken)
+          .wireId,
+      'material.textTheme.bodyLarge',
+    );
+    expect(
+      (text.properties['selectionColor']!.value as CanvasThemeToken).wireId,
+      'material.colorScheme.primary',
+    );
+    final foreground = text.properties['styleForeground']!.value as CanvasPaint;
+    expect(foreground.blendMode, 'srcOver');
+    expect(foreground.style, 'stroke');
+    expect(foreground.strokeWidth, 2.5);
+    expect(foreground.maskFilter!.style, 'outer');
+    expect(foreground.maskFilter!.sigma, 1.5);
+    expect(
+      (foreground.color as CanvasThemeColor).token.wireId,
+      'material.colorScheme.secondary',
+    );
+    final shadows =
+        text.properties['styleShadows']!.value as List<CanvasShadowValue>;
+    expect(shadows, hasLength(2));
+    expect(shadows.first.offsetX, -1.25);
+    expect(
+      (shadows.first.color as CanvasThemeColor).token.wireId,
+      'material.colorScheme.shadow',
+    );
+    final features =
+        text.properties['styleFontFeatures']!.value
+            as List<CanvasFontFeatureValue>;
+    expect(features.map((item) => '${item.tag}:${item.value}'), [
+      'liga:1',
+      'kern:0',
+    ]);
+    final variations =
+        text.properties['styleFontVariations']!.value
+            as List<CanvasFontVariationValue>;
+    expect(variations.map((item) => '${item.axis}:${item.value}'), [
+      'wght:700.0',
+      'wdth:100.0',
+    ]);
+  });
+
+  test('rejects unreviewed theme roles and TextStyle paint conflicts', () {
+    final unknownColor = _modelJson();
+    _helloProperties(unknownColor)['selectionColor'] = {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.futureRole',
+    };
+    expect(() => _decode(unknownColor), throwsFormatException);
+
+    final wrongDomain = _modelJson();
+    _helloProperties(wrongDomain)['styleThemeTextStyle'] = {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.primary',
+    };
+    expect(() => _decode(wrongDomain), throwsFormatException);
+
+    final conflict = _modelJson();
+    _helloProperties(conflict).addAll({
+      'styleColor': {'kind': 'color', 'argb': '0xFF000000'},
+      'styleForeground': _paint(const {
+        'kind': 'literal',
+        'argb': '0xFFFFFFFF',
+      }),
+    });
+    expect(() => _decode(conflict), throwsFormatException);
+  });
+
+  test('rejects duplicate structured identities and OpenType tags', () {
+    final duplicateId = _modelJson();
+    final properties = _helloProperties(duplicateId);
+    final items = [
+      _shadow('192489fb-3bbb-46c5-9bac-c988f412218c', '0xFF000000'),
+      _shadow('192489fb-3bbb-46c5-9bac-c988f412218c', '0xFFFFFFFF'),
+    ];
+    properties['styleShadows'] = {'kind': 'shadowList', 'items': items};
+    expect(() => _decode(duplicateId), throwsFormatException);
+
+    final duplicateTag = _modelJson();
+    _helloProperties(duplicateTag)['styleFontFeatures'] = {
+      'kind': 'fontFeatureList',
+      'items': [
+        {
+          'id': 'd8ca6ff9-1aa5-4bb1-944b-fdd475b5359d',
+          'tag': 'liga',
+          'value': 1,
+        },
+        {
+          'id': '71c21a43-4662-48bb-a6ae-f59a96662692',
+          'tag': 'liga',
+          'value': 0,
+        },
+      ],
+    };
+    expect(() => _decode(duplicateTag), throwsFormatException);
+  });
 }
 
 Uint8List modelBytesForViewTest() =>
     Uint8List.fromList(utf8.encode(jsonEncode(_modelJson())));
 
+Uint8List expandedTextModelBytesForViewTest() {
+  final json = _modelJson();
+  _helloProperties(json).addAll(_expandedTextProperties());
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List complexTextModelBytesForViewTest() {
+  final json = _modelJson();
+  _helloProperties(json).addAll(_complexTextProperties());
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Map<String, Object?> _complexTextProperties() => {
+  'selectionColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.primary',
+  },
+  'styleThemeTextStyle': {
+    'kind': 'themeToken',
+    'token': 'material.textTheme.bodyLarge',
+  },
+  'styleFontSize': {'kind': 'double', 'value': 21.0},
+  'styleForeground': _paint(
+    const {'kind': 'theme', 'token': 'material.colorScheme.secondary'},
+    style: 'stroke',
+    strokeWidth: 2.5,
+    maskFilter: const {'style': 'outer', 'sigma': 1.5},
+  ),
+  'styleBackground': _paint(const {'kind': 'literal', 'argb': '0x22112233'}),
+  'styleShadows': {
+    'kind': 'shadowList',
+    'items': [
+      {
+        'id': '192489fb-3bbb-46c5-9bac-c988f412218c',
+        'color': {'kind': 'theme', 'token': 'material.colorScheme.shadow'},
+        'offsetX': -1.25,
+        'offsetY': 2.5,
+        'blurRadius': 4.0,
+      },
+      _shadow('fc64a487-5133-46d8-9ae1-d0b5336d875b', '0x80445566'),
+    ],
+  },
+  'styleFontFeatures': {
+    'kind': 'fontFeatureList',
+    'items': [
+      {'id': 'd8ca6ff9-1aa5-4bb1-944b-fdd475b5359d', 'tag': 'liga', 'value': 1},
+      {'id': '71c21a43-4662-48bb-a6ae-f59a96662692', 'tag': 'kern', 'value': 0},
+    ],
+  },
+  'styleFontVariations': {
+    'kind': 'fontVariationList',
+    'items': [
+      {
+        'id': '2115406c-c05d-4323-81a2-7cfe7ea35dc4',
+        'axis': 'wght',
+        'value': 700.0,
+      },
+      {
+        'id': '677dad17-6648-43fd-a803-d3fa6649b34f',
+        'axis': 'wdth',
+        'value': 100.0,
+      },
+    ],
+  },
+  'styleDecorationColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.error',
+  },
+};
+
+Map<String, Object?> _paint(
+  Map<String, Object?> color, {
+  String style = 'fill',
+  double strokeWidth = 0,
+  Map<String, Object?>? maskFilter,
+}) => {
+  'kind': 'paint',
+  'color': color,
+  'blendMode': 'srcOver',
+  'style': style,
+  'strokeWidth': strokeWidth,
+  'strokeCap': 'round',
+  'strokeJoin': 'bevel',
+  'strokeMiterLimit': 4.0,
+  'antiAlias': true,
+  'filterQuality': 'medium',
+  'invertColors': false,
+  'maskFilter': ?maskFilter,
+};
+
+Map<String, Object?> _shadow(String id, String argb) => {
+  'id': id,
+  'color': {'kind': 'literal', 'argb': argb},
+  'offsetX': 0,
+  'offsetY': 1,
+  'blurRadius': 2,
+};
+
+Map<String, Object?> _expandedTextProperties() => {
+  'localeLanguageCode': {'kind': 'string', 'value': 'zh'},
+  'localeScriptCode': {'kind': 'string', 'value': 'Hans'},
+  'localeCountryCode': {'kind': 'string', 'value': 'CN'},
+  'textScalerFactor': {'kind': 'double', 'value': 1.25},
+  'textHeightApplyFirstAscent': {'kind': 'boolean', 'value': false},
+  'textHeightApplyLastDescent': {'kind': 'boolean', 'value': false},
+  'textHeightLeadingDistribution': {
+    'kind': 'enum',
+    'type': 'TextLeadingDistribution',
+    'value': 'even',
+  },
+  'styleInherit': {'kind': 'boolean', 'value': false},
+  'styleColor': {'kind': 'color', 'argb': '0xFF102030'},
+  'styleBackgroundColor': {'kind': 'color', 'argb': '0xFFE0D0C0'},
+  'styleFontSize': {'kind': 'double', 'value': 18.5},
+  'styleFontWeight': {'kind': 'enum', 'type': 'FontWeight', 'value': 'w600'},
+  'styleFontStyle': {'kind': 'enum', 'type': 'FontStyle', 'value': 'italic'},
+  'styleLetterSpacing': {'kind': 'double', 'value': 1.25},
+  'styleWordSpacing': {'kind': 'double', 'value': 2.5},
+  'styleTextBaseline': {
+    'kind': 'enum',
+    'type': 'TextBaseline',
+    'value': 'ideographic',
+  },
+  'styleHeight': {'kind': 'double', 'value': 1.4},
+  'styleLeadingDistribution': {
+    'kind': 'enum',
+    'type': 'TextLeadingDistribution',
+    'value': 'proportional',
+  },
+  'styleLocaleLanguageCode': {'kind': 'string', 'value': 'en'},
+  'styleLocaleScriptCode': {'kind': 'string', 'value': 'Latn'},
+  'styleLocaleCountryCode': {'kind': 'string', 'value': 'GB'},
+  'styleDecorationUnderline': {'kind': 'boolean', 'value': true},
+  'styleDecorationOverline': {'kind': 'boolean', 'value': true},
+  'styleDecorationLineThrough': {'kind': 'boolean', 'value': true},
+  'styleDecorationColor': {'kind': 'color', 'argb': '0xFF112233'},
+  'styleDecorationStyle': {
+    'kind': 'enum',
+    'type': 'TextDecorationStyle',
+    'value': 'wavy',
+  },
+  'styleDecorationThickness': {'kind': 'double', 'value': 2.25},
+  'styleDebugLabel': {'kind': 'string', 'value': 'designer text'},
+  'styleFontFamily': {'kind': 'string', 'value': 'Inter'},
+  'styleFontFamilyFallback': {
+    'kind': 'string',
+    'value': 'Noto Sans\nNoto Color Emoji\r\n',
+  },
+  'stylePackage': {'kind': 'string', 'value': 'design_fonts'},
+  'styleOverflow': {'kind': 'enum', 'type': 'TextOverflow', 'value': 'fade'},
+  'strutFontFamily': {'kind': 'string', 'value': 'Roboto'},
+  'strutFontFamilyFallback': {
+    'kind': 'string',
+    'value': 'Noto Sans\n Noto Serif ',
+  },
+  'strutFontSize': {'kind': 'double', 'value': 16.0},
+  'strutHeight': {'kind': 'double', 'value': 1.2},
+  'strutLeadingDistribution': {
+    'kind': 'enum',
+    'type': 'TextLeadingDistribution',
+    'value': 'even',
+  },
+  'strutLeading': {'kind': 'double', 'value': 0.3},
+  'strutFontWeight': {'kind': 'enum', 'type': 'FontWeight', 'value': 'w500'},
+  'strutFontStyle': {'kind': 'enum', 'type': 'FontStyle', 'value': 'normal'},
+  'strutForceHeight': {'kind': 'boolean', 'value': true},
+  'strutDebugLabel': {'kind': 'string', 'value': 'designer strut'},
+  'strutPackage': {'kind': 'string', 'value': 'metric_fonts'},
+};
+
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 1,
+  'protocolVersion': 4,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
@@ -158,8 +808,14 @@ Map<String, Object?> _modelJson() => {
     'logicalWidth': 390,
     'logicalHeight': 844,
     'devicePixelRatio': 1,
-    'brightness': 'LIGHT',
-    'themeIdentity': 'material-default',
+    'theme': {
+      'definitionId': 'light',
+      'seedArgb': '0xFF6750A4',
+      'brightness': 'LIGHT',
+      'digestIdentity': 'A' * 64,
+      'colorScheme': <String, Object?>{},
+      'textTheme': <String, Object?>{},
+    },
     'locale': 'en-US',
     'textScaleFactor': 1,
   },
@@ -352,6 +1008,15 @@ Map<String, Object?> _modelJson() => {
   ),
 };
 
+Map<String, Object?> _theme(Map<String, Object?> model) {
+  final profile = model['profile']! as Map<String, Object?>;
+  final theme = Map<String, Object?>.from(
+    profile['theme']! as Map<String, Object?>,
+  );
+  profile['theme'] = theme;
+  return theme;
+}
+
 Map<String, Object?> _node(
   String id,
   String type, {
@@ -378,6 +1043,38 @@ Map<String, Object?> _column(Map<String, Object?> json) {
       (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
   return body['child']! as Map<String, Object?>;
 }
+
+Map<String, Object?> _paddingNode(Map<String, Object?> json) {
+  final column = _column(json);
+  final childrenSlot =
+      (column['slots']! as Map<String, Object?>)['children']!
+          as Map<String, Object?>;
+  return (childrenSlot['children']! as List<Object?>).first
+      as Map<String, Object?>;
+}
+
+Map<String, Object?> _centerNode(Map<String, Object?> json) {
+  final padding = _paddingNode(json);
+  final childSlot =
+      (padding['slots']! as Map<String, Object?>)['child']!
+          as Map<String, Object?>;
+  return childSlot['child']! as Map<String, Object?>;
+}
+
+Map<String, Object?> _paddingProperties(Map<String, Object?> json) =>
+    _paddingNode(json)['properties']! as Map<String, Object?>;
+
+Map<String, Object?> _centerProperties(Map<String, Object?> json) =>
+    _centerNode(json)['properties']! as Map<String, Object?>;
+
+CanvasNode _decodedPadding(CanvasModel model) =>
+    model.root.slot('body')!.child!.slot('children')!.children.first;
+
+CanvasNode _decodedCenter(CanvasModel model) =>
+    _decodedPadding(model).slot('child')!.child!;
+
+Map<String, Object?> _helloProperties(Map<String, Object?> json) =>
+    _textNodes(_column(json)).first['properties']! as Map<String, Object?>;
 
 List<Map<String, Object?>> _textNodes(Map<String, Object?> node) {
   final result = <Map<String, Object?>>[];

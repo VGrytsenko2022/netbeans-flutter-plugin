@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
+import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.ResetProperty;
@@ -12,10 +13,13 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.beans.PropertyEditor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.EnumMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
+import org.openide.nodes.Node;
 import org.openide.nodes.PropertySupport;
 import org.openide.nodes.Sheet;
 import org.openide.util.lookup.Lookups;
@@ -121,55 +125,112 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 widget.type().value()));
         sheet.put(identity);
 
-        Sheet.Set properties = new Sheet.Set();
-        properties.setName(PROPERTIES_SET_NAME);
-        properties.setDisplayName("Widget properties");
-        properties.setShortDescription(
-                "Explicit property values stored on the selected widget; catalog creation defaults are not applied.");
-        for (PropertyDefinition property : definition.properties()) {
-            PropertyValue explicitValue = widget.properties().get(property.name());
-            var binding = writableBinding(property);
-            if (binding.isPresent()) {
-                properties.put(writableProperty(
-                        binding.orElseThrow(), explicitValue));
-                continue;
-            }
-            String value = explicitValue == null
-                    ? NOT_SET
-                    : PropertyValueFormatter.format(explicitValue);
-            properties.put(readOnly(
-                    property.name().value(),
-                    property.name().value(),
-                    "Explicit model value for " + property.name().value() + ".",
-                    value));
+        if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
+            addTextPropertySets(sheet);
+        } else {
+            sheet.put(createGenericPropertySet());
         }
-        sheet.put(properties);
         return sheet;
     }
 
+    private Sheet.Set createGenericPropertySet() {
+        Sheet.Set properties = propertySet(
+                PROPERTIES_SET_NAME,
+                "Widget properties",
+                "Explicit property values stored on the selected widget; catalog creation defaults are not applied.");
+        for (PropertyDefinition property : definition.properties()) {
+            properties.put(projectProperty(property, Optional.empty()));
+        }
+        return properties;
+    }
+
+    private void addTextPropertySets(Sheet sheet) {
+        EnumMap<TextWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(TextWidgetPropertySchema.Group.class);
+        for (TextWidgetPropertySchema.Group group
+                : TextWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            groups.put(group, set);
+            sheet.put(set);
+        }
+
+        Sheet.Set unmatched = null;
+        for (PropertyDefinition property : definition.properties()) {
+            Optional<TextWidgetPropertySchema.Definition> schema =
+                    TextWidgetPropertySchema.find(property.name());
+            if (schema.isPresent()) {
+                groups.get(schema.orElseThrow().group())
+                        .put(projectProperty(property, schema));
+                continue;
+            }
+            // Preserve contributed Text properties even when they are outside
+            // the reviewed built-in scalar projection. Built-in Text never
+            // reaches this fallback because its catalog/schema parity is tested.
+            if (unmatched == null) {
+                unmatched = propertySet(
+                        PROPERTIES_SET_NAME,
+                        "Other properties",
+                        "Catalog properties outside the built-in Text scalar projection.");
+                sheet.put(unmatched);
+            }
+            unmatched.put(projectProperty(property, Optional.empty()));
+        }
+    }
+
+    private Node.Property<?> projectProperty(
+            PropertyDefinition property,
+            Optional<TextWidgetPropertySchema.Definition> textSchema) {
+        PropertyValue explicitValue = widget.properties().get(property.name());
+        var binding = writableBinding(property, textSchema);
+        String projectedDisplayName = textSchema
+                .map(TextWidgetPropertySchema.Definition::displayName)
+                .orElseGet(() -> displayName(property.name()));
+        String projectedDescription = textSchema
+                .map(TextWidgetPropertySchema.Definition::description)
+                .orElseGet(() -> "Explicit model value for "
+                + property.name().value() + ".");
+        if (binding.isPresent()) {
+            return writableProperty(
+                    binding.orElseThrow(), explicitValue,
+                    projectedDisplayName, projectedDescription);
+        }
+        String value = explicitValue == null
+                ? NOT_SET
+                : PropertyValueFormatter.format(explicitValue);
+        return readOnly(
+                property.name().value(),
+                projectedDisplayName,
+                projectedDescription,
+                value);
+    }
+
     private java.util.Optional<FlutterTypedPropertyEditors.Binding> writableBinding(
-            PropertyDefinition property) {
+            PropertyDefinition property,
+            Optional<TextWidgetPropertySchema.Definition> textSchema) {
         if (mutationHandler == null || !WRITABLE_WIDGET_TYPES.contains(widget.type())) {
             return java.util.Optional.empty();
         }
-        return FlutterTypedPropertyEditors.binding(property);
+        return FlutterTypedPropertyEditors.binding(property, textSchema);
     }
 
     private PropertySupport.ReadWrite<FlutterPropertyCellValue> writableProperty(
             FlutterTypedPropertyEditors.Binding binding,
-            PropertyValue explicitValue) {
+            PropertyValue explicitValue,
+            String displayName,
+            String schemaDescription) {
         PropertyDefinition property = binding.definition();
         PropertyName propertyName = property.name();
         FlutterPropertyCellValue captured = explicitValue == null
                 ? FlutterPropertyCellValue.unset()
                 : FlutterPropertyCellValue.explicit(explicitValue);
         binding.validate(captured);
-        String description = propertyDescription(property);
+        String description = propertyDescription(property, schemaDescription);
         PropertySupport.ReadWrite<FlutterPropertyCellValue> result =
                 new PropertySupport.ReadWrite<>(
                 propertyName.value(),
                 FlutterPropertyCellValue.class,
-                displayName(propertyName),
+                displayName,
                 description) {
             @Override
             public FlutterPropertyCellValue getValue() {
@@ -236,7 +297,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result.toString();
     }
 
-    private static String propertyDescription(PropertyDefinition property) {
+    private static String propertyDescription(
+            PropertyDefinition property,
+            String schemaDescription) {
         String accepted = property.constraints().stream()
                 .map(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint::description)
                 .reduce((left, right) -> left + "; " + right)
@@ -244,8 +307,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String reset = property.parameter().required()
                 ? " This required constructor argument cannot be unset."
                 : " Restore Default removes the explicit constructor argument.";
-        return "Explicit Flutter constructor argument. Accepted: "
-                + accepted + "." + reset;
+        return schemaDescription + " Accepted: " + accepted + "." + reset;
+    }
+
+    private static Sheet.Set propertySet(
+            String name,
+            String displayName,
+            String description) {
+        Sheet.Set set = new Sheet.Set();
+        set.setName(name);
+        set.setDisplayName(displayName);
+        set.setShortDescription(description);
+        return set;
     }
 
     private static PropertySupport.ReadOnly<String> readOnly(

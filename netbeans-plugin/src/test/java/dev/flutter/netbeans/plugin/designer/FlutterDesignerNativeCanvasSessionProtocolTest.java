@@ -67,7 +67,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 
 class FlutterDesignerNativeCanvasSessionProtocolTest {
@@ -77,7 +77,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
-            CanvasWireCapability.PALETTE_DROP_TEXT_APPEND_V1);
+            CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1);
     private static final StableId DOCUMENT_A = StableId.parse(
             "83ed3c05-88e7-4220-8377-29fa1f21a99e");
     private static final StableId DOCUMENT_B = StableId.parse(
@@ -86,6 +87,10 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             "5b814fc1-ecc1-4255-898d-3111f10673a4");
     private static final StableId CHILD = StableId.parse(
             "9dd9e5e0-5364-4dcc-bd82-1a86345cd522");
+    private static final WidgetTypeId TEXT = new WidgetTypeId(
+            "flutter.widgets.Text");
+    private static final WidgetTypeId PADDING = new WidgetTypeId(
+            "flutter.widgets.Padding");
     private static final String DROP_TOKEN_A =
             "nbfdnd:v1:4f9719e3-fda7-46f4-8d75-57cc1d3bbc1b:"
             + "22d5a643-f6a2-4f56-bcef-b244c7c4c5a7";
@@ -168,6 +173,30 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     @Test
+    void publishesWebAsTheExactNativeResponsiveLayoutProfile()
+            throws Exception {
+        DesignerDocument document = document(DOCUMENT_A, ROOT, null);
+        Harness harness = Harness.start(document);
+        try {
+            harness.nextRender();
+            onEdt(() -> harness.session.present(
+                    document,
+                    BuiltInWidgetCatalog.getDefault(),
+                    CanvasPreviewMode.WEB,
+                    CanvasTargetPlatform.WEB));
+            RenderPublication web = harness.nextRender();
+
+            JsonNode profile = new ObjectMapper().readTree(web.model()).path("profile");
+            assertEquals("web", profile.path("previewMode").asText());
+            assertEquals("web", profile.path("targetPlatform").asText());
+            assertEquals(1_440.0d, profile.path("logicalWidth").asDouble());
+            assertEquals(900.0d, profile.path("logicalHeight").asDouble());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
     void staleIntentIsConsumedAndRetainedSelectionIsRestoredAfterPresented()
             throws Exception {
         DesignerDocument document = document(DOCUMENT_A, ROOT, CHILD);
@@ -214,7 +243,9 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     @Test
     void exactCurrentVisiblePaletteDropIsDeliveredOnceAndReplayIsRejected()
             throws Exception {
-        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        Harness harness = Harness.start(
+                document(DOCUMENT_A, ROOT, CHILD),
+                ignored -> Optional.of(PADDING));
         try {
             CanvasLayoutKey currentLayout = renderAndPresent(harness);
 
@@ -235,6 +266,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(ROOT, delivered.parentWidgetId());
             assertEquals(new SlotName("children"), delivered.slotName());
             assertEquals(0, delivered.insertionIndex());
+            assertEquals(List.of(PADDING), harness.runnerPaletteDropTypes);
         } finally {
             harness.close();
         }
@@ -285,7 +317,9 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             throws Exception {
         Set<String> liveTokens = new HashSet<>(Set.of(DROP_TOKEN_A, DROP_TOKEN_B));
         Harness harness = Harness.start(
-                document(DOCUMENT_A, ROOT, CHILD), liveTokens::remove);
+                document(DOCUMENT_A, ROOT, CHILD),
+                token -> liveTokens.remove(token)
+                        ? Optional.of(TEXT) : Optional.empty());
         try {
             CanvasLayoutKey currentLayout = renderAndPresent(harness);
             CanvasLayoutKey staleLayout = new CanvasLayoutKey(
@@ -421,6 +455,43 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         }
     }
 
+    @Test
+    void deleteIntentRequiresExactCurrentSelectionLayoutVisibilityAndOneShot()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            CanvasLayoutKey staleLayout = new CanvasLayoutKey(
+                    currentLayout.frameKey(), currentLayout.layoutSequence() + 1);
+
+            harness.ui.hold();
+            harness.process.sendDeleteSelection(currentLayout, 0, CHILD);
+            harness.process.sendSelection(currentLayout, 1, CHILD);
+            harness.process.sendDeleteSelection(staleLayout, 2, CHILD);
+            harness.process.sendDeleteSelection(currentLayout, 3, ROOT);
+            harness.process.sendDeleteSelection(currentLayout, 4, CHILD);
+            harness.process.sendDeleteSelection(currentLayout, 4, CHILD);
+            harness.awaitUiTasks(6);
+            onEdt(harness.ui::releaseAll);
+
+            assertEquals(List.of(CHILD), harness.runnerSelections);
+            assertEquals(
+                    List.of(CHILD),
+                    harness.runnerDeletions.stream()
+                            .map(CanvasRunnerRuntimeEvent.DeleteSelection::widgetId)
+                            .toList());
+
+            onEdt(harness.session::hide);
+            harness.ui.hold();
+            harness.process.sendDeleteSelection(currentLayout, 5, CHILD);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(1, harness.runnerDeletions.size());
+        } finally {
+            harness.close();
+        }
+    }
+
     private static CanvasLayoutKey renderAndPresent(Harness harness)
             throws Exception {
         RenderPublication publication = harness.nextRender();
@@ -541,14 +612,18 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         private final List<StableId> runnerSelections = new ArrayList<>();
         private final List<CanvasRunnerRuntimeEvent.PaletteDrop> runnerPaletteDrops =
                 new ArrayList<>();
+        private final List<WidgetTypeId> runnerPaletteDropTypes = new ArrayList<>();
+        private final List<CanvasRunnerRuntimeEvent.DeleteSelection>
+                runnerDeletions = new ArrayList<>();
         private final CanvasRunnerBuildResult runner;
         private final FlutterDesignerNativeCanvasSession session;
 
         private Harness() {
-            this(ignored -> true);
+            this(ignored -> Optional.of(TEXT));
         }
 
-        private Harness(Predicate<String> paletteDropTokenConsumer) {
+        private Harness(
+                Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver) {
             Path root = Path.of("target", "native-canvas-session-protocol-test")
                     .toAbsolutePath().normalize();
             Path sdkHome = root.resolve("flutter-sdk");
@@ -576,8 +651,12 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     runtime,
                     ignored -> { },
                     runnerSelections::add,
-                    paletteDropTokenConsumer,
-                    runnerPaletteDrops::add);
+                    paletteDropTokenResolver,
+                    admitted -> {
+                        runnerPaletteDropTypes.add(admitted.widgetType());
+                        runnerPaletteDrops.add(admitted.drop());
+                    },
+                    runnerDeletions::add);
         }
 
         static Harness start(DesignerDocument document) throws Exception {
@@ -587,9 +666,10 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
 
         static Harness start(
                 DesignerDocument document,
-                Predicate<String> paletteDropTokenConsumer) throws Exception {
+                Function<String, Optional<WidgetTypeId>> paletteDropTokenResolver)
+                throws Exception {
             Harness harness = onEdt((Callable<Harness>)
-                    () -> new Harness(paletteDropTokenConsumer));
+                    () -> new Harness(paletteDropTokenResolver));
             return start(harness, document);
         }
 
@@ -887,6 +967,19 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             + ",\"parentWidgetId\":\"" + parentWidgetId + "\""
                             + ",\"slotName\":\"children\""
                             + ",\"insertionIndex\":" + insertionIndex));
+        }
+
+        void sendDeleteSelection(
+                CanvasLayoutKey layout,
+                long intentSequence,
+                StableId widgetId) throws Exception {
+            sendRuntime(runtimeEnvelope(
+                    layout.frameKey().revisionKey(),
+                    "runner.deleteSelection",
+                    "\"frameSequence\":" + layout.frameKey().frameSequence()
+                            + ",\"layoutSequence\":" + layout.layoutSequence()
+                            + ",\"intentSequence\":" + intentSequence
+                            + ",\"widgetId\":\"" + widgetId + "\""));
         }
 
         private void sendRuntime(String value) throws Exception {

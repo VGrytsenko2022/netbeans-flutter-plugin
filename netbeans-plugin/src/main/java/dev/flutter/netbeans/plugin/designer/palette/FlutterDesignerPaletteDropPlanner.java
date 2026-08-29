@@ -21,20 +21,15 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Pure semantic planner for the first Palette-to-Canvas drop slice.
+ * Pure semantic planner for catalog-backed Palette-to-Canvas insertion.
  *
- * <p>The slice is intentionally narrow: an authoritative {@code Text} item
- * may only be appended to the terminal position of a {@code Row.children} or
- * {@code Column.children} list. The planner performs no UI, session or
- * protocol work and never mutates the supplied document.</p>
+ * <p>Both source and destination authority come exclusively from the bound
+ * catalog. A resolved Palette widget may be appended to a list slot or inserted
+ * into an empty single slot when that exact {@link SlotDefinition} accepts its
+ * definition. The planner performs no UI, session or protocol work and never
+ * mutates the supplied document.</p>
  */
 public final class FlutterDesignerPaletteDropPlanner {
-    private static final WidgetTypeId TEXT = new WidgetTypeId("flutter.widgets.Text");
-    private static final WidgetTypeId COLUMN = new WidgetTypeId("flutter.widgets.Column");
-    private static final WidgetTypeId ROW = new WidgetTypeId("flutter.widgets.Row");
-    private static final Set<WidgetTypeId> SUPPORTED_PARENTS = Set.of(COLUMN, ROW);
-    private static final SlotName CHILDREN = new SlotName("children");
-
     /** Plans one Palette drop without changing the document. */
     public Result plan(
             DesignerDocument document,
@@ -54,13 +49,6 @@ public final class FlutterDesignerPaletteDropPlanner {
                 stableIdSupplier);
         if (invalid.isPresent()) {
             return invalid.orElseThrow();
-        }
-
-        if (!TEXT.equals(authoritativeWidgetType)) {
-            return rejected(
-                    RejectionCode.UNSUPPORTED_WIDGET_TYPE,
-                    "Palette drop accepts only widget type '" + TEXT.value()
-                    + "'; received '" + authoritativeWidgetType.value() + "'.");
         }
 
         Optional<WidgetDefinition> sourceLookup = catalog.find(authoritativeWidgetType);
@@ -92,13 +80,6 @@ public final class FlutterDesignerPaletteDropPlanner {
                     RejectionCode.PARENT_NOT_FOUND,
                     "Drop parent '" + parentId + "' does not exist in the designer document.");
         }
-        if (!SUPPORTED_PARENTS.contains(parent.type())) {
-            return rejected(
-                    RejectionCode.UNSUPPORTED_PARENT,
-                    "Palette Text may be dropped only into Row or Column; parent '"
-                    + parentId + "' has type '" + parent.type().value() + "'.");
-        }
-
         Optional<WidgetDefinition> parentLookup = catalog.find(parent.type());
         if (parentLookup.isEmpty()) {
             return rejected(
@@ -114,12 +95,6 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + "' as '" + parentDefinition.typeId().value() + "'.");
         }
 
-        if (!CHILDREN.equals(slotName)) {
-            return rejected(
-                    RejectionCode.UNSUPPORTED_SLOT,
-                    "Palette Text may be dropped only into the 'children' slot; received '"
-                    + slotName.value() + "'.");
-        }
         Optional<SlotDefinition> slotLookup = parentDefinition.slot(slotName);
         if (slotLookup.isEmpty()) {
             return rejected(
@@ -128,13 +103,6 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + "' has no slot '" + slotName.value() + "'.");
         }
         SlotDefinition slotDefinition = slotLookup.orElseThrow();
-        if (slotDefinition.cardinality() != SlotCardinality.LIST) {
-            return rejected(
-                    RejectionCode.CATALOG_SLOT_CARDINALITY_MISMATCH,
-                    "Catalog slot '" + parentDefinition.typeId().value() + '.'
-                    + slotName.value() + "' is "
-                    + slotDefinition.cardinality().wireName() + "; a list slot is required.");
-        }
         if (!slotDefinition.acceptance().accepts(sourceDefinition)) {
             return rejected(
                     RejectionCode.SLOT_REJECTS_WIDGET,
@@ -144,31 +112,54 @@ public final class FlutterDesignerPaletteDropPlanner {
         }
 
         WidgetSlot modelSlot = parent.slots().get(slotName);
-        if (modelSlot != null && !(modelSlot instanceof WidgetSlot.ListSlot)) {
+        if (modelSlot != null
+                && modelSlot.cardinality() != slotDefinition.cardinality()) {
             return rejected(
                     RejectionCode.MODEL_SLOT_CARDINALITY_MISMATCH,
                     "Document slot '" + parent.id() + '.' + slotName.value()
                     + "' is " + modelSlot.cardinality().wireName()
-                    + "; catalog requires a list slot.");
+                    + "; catalog requires a "
+                    + slotDefinition.cardinality().wireName() + " slot.");
         }
-        int currentChildren = modelSlot instanceof WidgetSlot.ListSlot list
-                ? list.children().size() : 0;
-        if (insertionIndex != currentChildren) {
-            return rejected(
-                    RejectionCode.NON_TERMINAL_INSERTION,
-                    "The first Palette drop slice appends only at terminal index "
-                    + currentChildren + " of '" + parent.id() + '.'
-                    + slotName.value() + "'; received index " + insertionIndex + ".");
-        }
+        if (slotDefinition.cardinality() == SlotCardinality.SINGLE) {
+            if (insertionIndex != 0) {
+                return rejected(
+                        RejectionCode.NON_TERMINAL_INSERTION,
+                        "Single drop slot '" + parent.id() + '.'
+                        + slotName.value() + "' accepts only index 0; received index "
+                        + insertionIndex + ".");
+            }
+            boolean occupied = modelSlot instanceof WidgetSlot.SingleSlot single
+                    && single.child().isPresent();
+            if (occupied || slotDefinition.maxChildren() < 1) {
+                return rejected(
+                        RejectionCode.SLOT_FULL,
+                        "Single drop slot '" + parent.id() + '.'
+                        + slotName.value() + "' already contains a widget or does not "
+                        + "permit a child.");
+            }
+        } else {
+            int currentChildren = modelSlot instanceof WidgetSlot.ListSlot list
+                    ? list.children().size() : 0;
+            if (insertionIndex != currentChildren) {
+                return rejected(
+                        RejectionCode.NON_TERMINAL_INSERTION,
+                        "Palette drop appends only at terminal index "
+                        + currentChildren + " of '" + parent.id() + '.'
+                        + slotName.value() + "'; received index "
+                        + insertionIndex + ".");
+            }
 
-        int maximumChildren = Math.min(
-                slotDefinition.maxChildren(), WidgetSlot.MAX_LIST_CHILDREN);
-        if (currentChildren >= maximumChildren) {
-            return rejected(
-                    RejectionCode.SLOT_FULL,
-                    "Drop slot '" + parent.id() + '.' + slotName.value()
-                    + "' already contains " + currentChildren
-                    + " children; its effective maximum is " + maximumChildren + ".");
+            int maximumChildren = Math.min(
+                    slotDefinition.maxChildren(), WidgetSlot.MAX_LIST_CHILDREN);
+            if (currentChildren >= maximumChildren) {
+                return rejected(
+                        RejectionCode.SLOT_FULL,
+                        "Drop slot '" + parent.id() + '.' + slotName.value()
+                        + "' already contains " + currentChildren
+                        + " children; its effective maximum is "
+                        + maximumChildren + ".");
+            }
         }
 
         StableId newId;
@@ -307,17 +298,13 @@ public final class FlutterDesignerPaletteDropPlanner {
         }
     }
 
-    /** Stable machine-readable reason for a rejected first-slice drop. */
+    /** Stable machine-readable reason for a rejected catalog insertion. */
     public enum RejectionCode {
         INVALID_REQUEST,
-        UNSUPPORTED_WIDGET_TYPE,
         SOURCE_DEFINITION_MISSING,
         PARENT_NOT_FOUND,
-        UNSUPPORTED_PARENT,
         PARENT_DEFINITION_MISSING,
-        UNSUPPORTED_SLOT,
         SLOT_DEFINITION_MISSING,
-        CATALOG_SLOT_CARDINALITY_MISMATCH,
         MODEL_SLOT_CARDINALITY_MISMATCH,
         SLOT_REJECTS_WIDGET,
         NON_TERMINAL_INSERTION,

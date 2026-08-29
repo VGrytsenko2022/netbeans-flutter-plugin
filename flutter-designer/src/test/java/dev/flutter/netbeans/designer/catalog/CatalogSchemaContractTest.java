@@ -9,10 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class CatalogSchemaContractTest {
     @Test
-    void valueKindsRetainTheExactSchemaVersionOneDiscriminators() {
+    void valueKindsRetainTheExactCurrentSchemaDiscriminators() {
         assertEquals(List.of(
                 "string", "boolean", "integer", "double", "enum", "color",
-                "edgeInsets", "asset", "callback", "dartExpression"),
+                "edgeInsets", "asset", "callback", "dartExpression", "themeToken",
+                "paint", "shadowList", "fontFeatureList", "fontVariationList"),
                 List.of(PropertyValueKind.values()).stream().map(PropertyValueKind::wireName).toList());
     }
 

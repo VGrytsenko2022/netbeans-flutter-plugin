@@ -2,6 +2,7 @@ package dev.flutter.netbeans.designer.generation;
 
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
+import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -48,6 +49,7 @@ public final class DartRegionGenerator {
     public static final String PROFILE_ID = "fd-dart-regions-v1";
 
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
+    private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final int INLINE_CONSTRUCTOR_LIMIT = 100;
     private static final Comparator<ConstructorArgument> ARGUMENT_ORDER = Comparator
@@ -210,6 +212,7 @@ public final class DartRegionGenerator {
     private GenerationContext createContext(WidgetNode root, WidgetCatalog catalog) {
         TreeMap<String, WidgetDefinition> usedDefinitions = new TreeMap<>();
         boolean requiresMaterialTheme = false;
+        boolean requiresServices = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
         while (!pending.isEmpty()) {
@@ -225,6 +228,11 @@ public final class DartRegionGenerator {
             usedDefinitions.putIfAbsent(definition.typeId().value(), definition);
             requiresMaterialTheme |= current.node().properties().values().stream()
                     .anyMatch(DartRegionGenerator::requiresMaterialTheme);
+            requiresServices |= current.node().type().equals(
+                    AppBarWidgetPropertySchema.APP_BAR_TYPE)
+                    && current.node().properties().keySet().stream()
+                            .map(PropertyName::value)
+                            .anyMatch(name -> name.startsWith("systemOverlayStyle"));
 
             ArrayList<WidgetAtPath> children = new ArrayList<>();
             for (Map.Entry<SlotName, WidgetSlot> entry : current.node().slots().entrySet()) {
@@ -246,7 +254,8 @@ public final class DartRegionGenerator {
         }
 
         ImportPlanner planner = ImportPlanner.create(
-                usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme);
+                usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
+                requiresServices);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
     }
 
@@ -268,6 +277,10 @@ public final class DartRegionGenerator {
         for (PropertyDefinition property : definition.properties()) {
             if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)
                     && TextWidgetPropertySchema.isCompound(property.name())) {
+                continue;
+            }
+            if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)
+                    && AppBarWidgetPropertySchema.isCompound(property.name())) {
                 continue;
             }
             PropertyValue value = node.properties().get(property.name());
@@ -293,6 +306,10 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)) {
             appendTextCompoundArguments(
+                    node, definition, path, baseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)) {
+            appendAppBarCompoundArguments(
                     node, definition, path, baseIndent + 2, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
@@ -375,6 +392,376 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(baseIndent) + ')');
         return lines.build(constant);
+    }
+
+    private void appendAppBarCompoundArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        Map<AppBarWidgetPropertySchema.Target, List<AppBarMember>> grouped = new HashMap<>();
+        for (PropertyDefinition property : definition.properties()) {
+            AppBarWidgetPropertySchema.Definition binding = AppBarWidgetPropertySchema
+                    .find(property.name()).orElse(null);
+            if (binding == null || binding.target() == AppBarWidgetPropertySchema.Target.DIRECT) {
+                continue;
+            }
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) {
+                continue;
+            }
+            String propertyPath = path + "/properties/" + pointer(property.name().value());
+            RenderedValue rendered = switch (binding.encoding()) {
+                case SCALAR -> renderProperty(
+                        value, property, propertyPath, node.id(), context);
+                case NEWLINE_STRING_LIST -> renderStringList(
+                        value, propertyPath, node.id(), context);
+                case DECORATION_FLAG -> renderProperty(
+                        value, property, propertyPath, node.id(), context);
+            };
+            grouped.computeIfAbsent(binding.target(), ignored -> new ArrayList<>())
+                    .add(new AppBarMember(property, binding, value, rendered));
+        }
+
+        appendAppBarNotificationPredicate(
+                grouped.get(AppBarWidgetPropertySchema.Target.NOTIFICATION_PREDICATE),
+                path, node.id(), context, arguments);
+        appendAppBarShape(grouped, valueIndent, path, node.id(), context, arguments);
+        appendAppBarIconTheme(
+                grouped.get(AppBarWidgetPropertySchema.Target.ICON_THEME),
+                "iconTheme", valueIndent, path, node.id(), context, arguments);
+        appendAppBarIconTheme(
+                grouped.get(AppBarWidgetPropertySchema.Target.ACTIONS_ICON_THEME),
+                "actionsIconTheme", valueIndent, path, node.id(), context, arguments);
+        appendAppBarTextStyle(
+                grouped,
+                AppBarWidgetPropertySchema.Target.TOOLBAR_TEXT_STYLE_THEME,
+                AppBarWidgetPropertySchema.Target.TOOLBAR_TEXT_STYLE,
+                AppBarWidgetPropertySchema.Target.TOOLBAR_TEXT_STYLE_LOCALE,
+                AppBarWidgetPropertySchema.Target.TOOLBAR_TEXT_STYLE_DECORATION,
+                "toolbarTextStyle", valueIndent, path, node.id(), context, arguments);
+        appendAppBarTextStyle(
+                grouped,
+                AppBarWidgetPropertySchema.Target.TITLE_TEXT_STYLE_THEME,
+                AppBarWidgetPropertySchema.Target.TITLE_TEXT_STYLE,
+                AppBarWidgetPropertySchema.Target.TITLE_TEXT_STYLE_LOCALE,
+                AppBarWidgetPropertySchema.Target.TITLE_TEXT_STYLE_DECORATION,
+                "titleTextStyle", valueIndent, path, node.id(), context, arguments);
+        appendAppBarSystemUiOverlayStyle(
+                grouped.get(AppBarWidgetPropertySchema.Target.SYSTEM_UI_OVERLAY_STYLE),
+                valueIndent, path, node.id(), context, arguments);
+    }
+
+    private void appendAppBarNotificationPredicate(
+            List<AppBarMember> members,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+        AppBarMember member = members.getFirst();
+        if (!(member.value() instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(
+                    member.propertyPath(path), widgetId,
+                    "AppBar notificationPredicate preset must be a string.");
+        }
+        String propertyPath = member.propertyPath(path);
+        RenderedValue rendered = switch (preset.value()) {
+            case "default" -> {
+                RenderedSymbol symbol = context.planner().renderedSymbol(
+                        MATERIAL_IMPORT, "defaultScrollNotificationPredicate");
+                yield scalar(
+                        symbol.text(), false, propertyPath, widgetId, context,
+                        List.of(occurrence(
+                                "widget:" + widgetId + ":app-bar:notification-predicate",
+                                symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                                propertyPath, Optional.of(widgetId))));
+            }
+            case "depthZero" -> scalar(
+                    "(notification) => notification.depth == 0",
+                    false, propertyPath, widgetId, context);
+            case "all" -> scalar(
+                    "(_) => true", false, propertyPath, widgetId, context);
+            default -> throw catalogInconsistency(
+                    propertyPath, widgetId,
+                    "Unsupported validated AppBar notificationPredicate preset '"
+                    + preset.value() + "'.");
+        };
+        arguments.add(new ConstructorArgument(
+                member.property().parameter(), "notificationPredicate", false, rendered));
+    }
+
+    private void appendAppBarShape(
+            Map<AppBarWidgetPropertySchema.Target, List<AppBarMember>> grouped,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        List<AppBarMember> kinds = grouped.get(AppBarWidgetPropertySchema.Target.SHAPE_KIND);
+        if (kinds == null || kinds.isEmpty()) {
+            return;
+        }
+        AppBarMember kindMember = kinds.getFirst();
+        if (!(kindMember.value() instanceof PropertyValue.StringValue kind)) {
+            throw catalogInconsistency(
+                    kindMember.propertyPath(path), widgetId,
+                    "AppBar shapeKind must be a string.");
+        }
+        List<AppBarMember> shape = grouped.get(AppBarWidgetPropertySchema.Target.SHAPE);
+        ArrayList<CompositeMember> outer = new ArrayList<>();
+
+        ArrayList<CompositeMember> side = appBarMembers(shape, "shapeSide");
+        if (!side.isEmpty()) {
+            side.sort(COMPOSITE_MEMBER_ORDER);
+            outer.add(new CompositeMember(
+                    "side", 0,
+                    renderNamedCompositeMembers(
+                            "BorderSide", Optional.empty(), side, valueIndent + 2,
+                            path + "/properties/shape/side", widgetId, context)));
+        }
+
+        ArrayList<CompositeMember> radii = new ArrayList<>();
+        if (shape != null) {
+            for (AppBarMember member : shape) {
+                if (!member.property().name().value().startsWith("shapeRadius")) {
+                    continue;
+                }
+                radii.add(new CompositeMember(
+                        member.binding().dartName(), member.binding().dartOrder(),
+                        renderPositionalComposite(
+                                "Radius", Optional.of("circular"), member.rendered(),
+                                member.propertyPath(path), widgetId, context)));
+            }
+        }
+        if (!radii.isEmpty()) {
+            radii.sort(COMPOSITE_MEMBER_ORDER);
+            outer.add(new CompositeMember(
+                    "borderRadius", 1,
+                    renderNamedCompositeMembers(
+                            "BorderRadius", Optional.of("only"), radii, valueIndent + 2,
+                            path + "/properties/shape/borderRadius", widgetId, context)));
+        }
+
+        if (shape != null) {
+            shape.stream()
+                    .filter(member -> member.property().name().value()
+                            .equals("shapeCircleEccentricity"))
+                    .findFirst()
+                    .ifPresent(member -> outer.add(new CompositeMember(
+                            "eccentricity", 1, member.rendered())));
+        }
+
+        String dartClass = switch (kind.value()) {
+            case "roundedRectangle" -> "RoundedRectangleBorder";
+            case "stadium" -> "StadiumBorder";
+            case "circle" -> "CircleBorder";
+            case "beveledRectangle" -> "BeveledRectangleBorder";
+            case "continuousRectangle" -> "ContinuousRectangleBorder";
+            default -> throw catalogInconsistency(
+                    kindMember.propertyPath(path), widgetId,
+                    "Unsupported validated AppBar shapeKind '" + kind.value() + "'.");
+        };
+        outer.sort(COMPOSITE_MEMBER_ORDER);
+        RenderedValue rendered = renderNamedCompositeMembers(
+                dartClass, Optional.empty(), outer, valueIndent,
+                path + "/properties/shape", widgetId, context);
+        arguments.add(new ConstructorArgument(
+                kindMember.property().parameter(), "shape", false, rendered));
+    }
+
+    private ArrayList<CompositeMember> appBarMembers(
+            List<AppBarMember> members,
+            String propertyPrefix) {
+        ArrayList<CompositeMember> result = new ArrayList<>();
+        if (members == null) {
+            return result;
+        }
+        for (AppBarMember member : members) {
+            if (member.property().name().value().startsWith(propertyPrefix)) {
+                result.add(new CompositeMember(
+                        member.binding().dartName(), member.binding().dartOrder(),
+                        member.rendered()));
+            }
+        }
+        return result;
+    }
+
+    private void appendAppBarIconTheme(
+            List<AppBarMember> members,
+            String argumentName,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+        ArrayList<CompositeMember> values = appBarMembers(members, "");
+        values.sort(COMPOSITE_MEMBER_ORDER);
+        arguments.add(new ConstructorArgument(
+                minimumParameter(members), argumentName, false,
+                renderNamedCompositeMembers(
+                        "IconThemeData", Optional.empty(), values, valueIndent,
+                        path + "/properties/" + argumentName, widgetId, context)));
+    }
+
+    private void appendAppBarTextStyle(
+            Map<AppBarWidgetPropertySchema.Target, List<AppBarMember>> grouped,
+            AppBarWidgetPropertySchema.Target themeTarget,
+            AppBarWidgetPropertySchema.Target styleTarget,
+            AppBarWidgetPropertySchema.Target localeTarget,
+            AppBarWidgetPropertySchema.Target decorationTarget,
+            String argumentName,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        List<AppBarMember> themeMembers = grouped.get(themeTarget);
+        List<AppBarMember> styleMembers = grouped.get(styleTarget);
+        List<AppBarMember> localeMembers = grouped.get(localeTarget);
+        List<AppBarMember> decorationMembers = grouped.get(decorationTarget);
+        ArrayList<AppBarMember> all = new ArrayList<>();
+        if (themeMembers != null) {
+            all.addAll(themeMembers);
+        }
+        if (styleMembers != null) {
+            all.addAll(styleMembers);
+        }
+        if (localeMembers != null) {
+            all.addAll(localeMembers);
+        }
+        if (decorationMembers != null) {
+            all.addAll(decorationMembers);
+        }
+        if (all.isEmpty()) {
+            return;
+        }
+
+        ArrayList<CompositeMember> values = appBarMembers(styleMembers, "");
+        RenderedValue locale = renderAppBarLocale(
+                localeMembers, valueIndent + 2,
+                path + "/properties/" + argumentName + "/locale",
+                widgetId, context);
+        if (locale != null) {
+            values.add(new CompositeMember("locale", 11, locale));
+        }
+        RenderedValue decoration = renderAppBarTextDecoration(
+                decorationMembers,
+                path + "/properties/" + argumentName + "/decoration",
+                widgetId, context);
+        if (decoration != null) {
+            values.add(new CompositeMember("decoration", 17, decoration));
+        }
+        RenderedValue theme = themeMembers == null || themeMembers.isEmpty()
+                ? null : themeMembers.getFirst().rendered();
+        RenderedValue rendered;
+        if (theme != null && values.isEmpty()) {
+            rendered = theme;
+        } else if (theme != null) {
+            values.sort(COMPOSITE_MEMBER_ORDER);
+            rendered = renderTextStyleCopyWith(
+                    theme, values, path + "/properties/" + argumentName,
+                    widgetId, context);
+        } else {
+            values.sort(COMPOSITE_MEMBER_ORDER);
+            rendered = renderNamedCompositeMembers(
+                    "TextStyle", Optional.empty(), values, valueIndent,
+                    path + "/properties/" + argumentName, widgetId, context);
+        }
+        arguments.add(new ConstructorArgument(
+                minimumParameter(all), argumentName, false, rendered));
+    }
+
+    private RenderedValue renderAppBarLocale(
+            List<AppBarMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
+        ArrayList<CompositeMember> values = appBarMembers(members, "");
+        values.sort(COMPOSITE_MEMBER_ORDER);
+        return renderNamedCompositeMembers(
+                "Locale", Optional.of("fromSubtags"), values,
+                valueIndent, path, widgetId, context);
+    }
+
+    private RenderedValue renderAppBarTextDecoration(
+            List<AppBarMember> members,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
+        ArrayList<String> enabled = new ArrayList<>();
+        for (AppBarMember member : members) {
+            if (member.value() instanceof PropertyValue.BooleanValue flag && flag.value()) {
+                enabled.add(member.binding().dartName());
+            }
+        }
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextDecoration");
+        if (enabled.isEmpty()) {
+            return scalar(symbol.text() + ".none", true, path, widgetId, context);
+        }
+        if (enabled.size() == 1) {
+            return scalar(symbol.text() + "." + enabled.getFirst(),
+                    true, path, widgetId, context);
+        }
+        String values = enabled.stream()
+                .map(value -> symbol.text() + "." + value)
+                .reduce((left, right) -> left + ", " + right)
+                .orElseThrow();
+        return scalar(
+                symbol.text() + ".combine(const <" + symbol.text() + ">["
+                + values + "])", false, path, widgetId, context);
+    }
+
+    private void appendAppBarSystemUiOverlayStyle(
+            List<AppBarMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+        ArrayList<CompositeMember> values = appBarMembers(members, "");
+        values.sort(COMPOSITE_MEMBER_ORDER);
+        arguments.add(new ConstructorArgument(
+                minimumParameter(members), "systemOverlayStyle", false,
+                renderNamedCompositeMembers(
+                        SERVICES_IMPORT, "SystemUiOverlayStyle", Optional.empty(),
+                        values, valueIndent,
+                        path + "/properties/systemOverlayStyle", widgetId, context)));
+    }
+
+    private static DartParameter minimumParameter(List<AppBarMember> members) {
+        return members.stream()
+                .map(member -> member.property().parameter())
+                .min(Comparator.comparingInt(DartParameter::order))
+                .orElseThrow();
+    }
+
+    private static GenerationAbort catalogInconsistency(
+            String path,
+            StableId widgetId,
+            String message) {
+        return abort(diagnostic(
+                DartGenerationDiagnosticCode.INTERNAL_CATALOG_INCONSISTENCY,
+                path, Optional.of(widgetId), Optional.of(DartManagedRegionId.BUILD),
+                message));
     }
 
     private void appendTextCompoundArguments(
@@ -597,10 +984,24 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
+        return renderNamedCompositeMembers(
+                WIDGETS_IMPORT, dartClass, namedConstructor, members,
+                valueIndent, path, widgetId, context);
+    }
+
+    private RenderedValue renderNamedCompositeMembers(
+            String libraryUri,
+            String dartClass,
+            Optional<String> namedConstructor,
+            List<CompositeMember> members,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
         boolean constant = members.stream().allMatch(
                 member -> member.rendered().constant());
         RenderedSymbol symbol = context.planner().renderedSymbol(
-                WIDGETS_IMPORT, dartClass);
+                libraryUri, dartClass);
         String constructor = (constant ? "const " : "") + symbol.text()
                 + namedConstructor.map(value -> "." + value).orElse("");
         GeneratedDartSymbolOccurrence classOccurrence = occurrence(
@@ -1584,6 +1985,17 @@ public final class DartRegionGenerator {
         }
     }
 
+    private record AppBarMember(
+            PropertyDefinition property,
+            AppBarWidgetPropertySchema.Definition binding,
+            PropertyValue value,
+            RenderedValue rendered) {
+
+        String propertyPath(String widgetPath) {
+            return widgetPath + "/properties/" + pointer(property.name().value());
+        }
+    }
+
     private record CompositeMember(
             String name,
             int order,
@@ -1722,9 +2134,13 @@ public final class DartRegionGenerator {
         static ImportPlanner create(
                 Iterable<WidgetDefinition> definitions,
                 int maximumImports,
-                boolean requiresMaterialTheme) {
+                boolean requiresMaterialTheme,
+                boolean requiresServices) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
+            if (requiresServices) {
+                uris.add(SERVICES_IMPORT);
+            }
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
                     if (uri.equals(MATERIAL_IMPORT)) {

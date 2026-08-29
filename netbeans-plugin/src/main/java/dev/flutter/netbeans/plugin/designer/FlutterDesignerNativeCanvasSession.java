@@ -22,7 +22,9 @@ import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
@@ -977,7 +979,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         canvasEngineIdentity = Objects.requireNonNull(engineIdentity, "engineIdentity");
         CanvasRunnerProcessChannel channel = processChannel;
         paletteCatalogInsertDropAvailable = channel != null
-                && channel.supports(CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1);
+                && channel.supports(CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1)
+                && channel.supports(CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1);
         publishPendingPresentation();
     }
 
@@ -1395,6 +1398,44 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     boolean paletteCatalogInsertDropAvailable() {
         requireEventDispatchThread();
         return paletteCatalogInsertDropAvailable;
+    }
+
+    /**
+     * Binds one opaque Palette token to the exact reviewed catalog definition
+     * for Flutter-side trait-aware hover. Mutation authority remains entirely
+     * in the Java token consumer and canonical drop planner.
+     */
+    boolean authorizePaletteDragSource(
+            String token,
+            WidgetTypeId widgetType) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(token, "token");
+        Objects.requireNonNull(widgetType, "widgetType");
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasLayoutKey layout = currentLayout;
+        CanvasRenderRequest request = currentRenderRequest;
+        if (closed
+                || !requestedVisible
+                || !paletteCatalogInsertDropAvailable
+                || channel == null
+                || layout == null
+                || request == null
+                || !channel.supports(
+                        CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1)) {
+            return false;
+        }
+        var definition = request.snapshot().catalog().find(widgetType)
+                .filter(candidate -> BuiltInWidgetCapabilityCatalog.supports(
+                        candidate, WidgetCapability.DND))
+                .orElse(null);
+        if (definition == null) {
+            return false;
+        }
+        return channel.authorizePaletteDragSource(
+                layout,
+                token,
+                definition.typeId(),
+                definition.traits());
     }
 
     /** True only when the exact isolated runner negotiated move preview. */

@@ -400,13 +400,26 @@ accepted architecture is documented in
   slots. The active surface is eight Create/Canvas/DnD sources, 91 writable
   property rows across seven non-`Scaffold` widgets, and exactly 56 insertion
   cells across the unchanged seven valid destination slots.
+- [x] Supersede the Icon milestone with the complete `AppBar` vertical slice.
+  Canvas payload protocol v7, deterministic Dart generation and the native
+  runner assemble the same 120 typed AppBar leaves without arbitrary Dart
+  expressions. Properties exposes nine enterprise groups and five exact slots:
+  `leading`, `title`, `actions`, `flexibleSpace` and `bottom`. `AppBar` carries
+  the canonical `PreferredSizeWidget` trait, so only AppBar is accepted by
+  `Scaffold.appBar` and `AppBar.bottom`; all nine sources remain valid in the
+  eleven any-widget destinations. The active surface is nine
+  Create/Canvas/DnD sources, 211 writable rows across eight non-`Scaffold`
+  widgets and 117 compatibility candidates: exactly 101 accepted and 16
+  rejected. Source-aware Palette
+  authorization binds an opaque token to the exact current type and traits for
+  Canvas hover, while Java repeats the canonical planner before mutation.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
 - [ ] Admit the remaining built-ins only as complete vertical slices after
-  those gates pass. The current seven-widget non-`Scaffold` typed Properties
-  slice does not imply writable `Scaffold`/`AppBar`/`ElevatedButton` Properties
-  or any Create/Canvas/DnD capability for `AppBar` or `ElevatedButton`.
+  those gates pass. The current eight-widget non-`Scaffold` typed Properties
+  slice does not imply writable `Scaffold`/`ElevatedButton` Properties or any
+  Create/Canvas/DnD capability for `ElevatedButton`.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

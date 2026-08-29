@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
+import 'package:netbeans_flutter_canvas_runner/src/sha256.dart';
 
 void main() {
   test('reviewed widget schema matches runtime metadata exactly', () {
@@ -10,6 +11,20 @@ void main() {
     expect(
       canvasReviewedWidgetSchemaContract.substring(1),
       canvasRuntimeWidgetSchemaContractForTesting(),
+    );
+  });
+
+  test('AppBar reviewed below-type contract matches Java fingerprint', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.material.AppBar\n');
+    final end = contract.indexOf('W|flutter.material.Scaffold\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final bytes = utf8.encode(contract.substring(start, end));
+    expect(bytes, hasLength(50907));
+    expect(
+      sha256Hex(bytes),
+      '075766cea1325f1009147bcb913d6d1dee7a9b27a177ef7331d42f976fa9f8d8',
     );
   });
 
@@ -350,6 +365,170 @@ void main() {
         );
       }
     }
+  });
+
+  test('decodes complete AppBar properties, five slots, and trait slots', () {
+    final decoded = CanvasModel.decode(appBarModelBytesForViewTest());
+    final appBar = decoded.root.slot('appBar')!.child!;
+    expect(appBar.type, 'flutter.material.AppBar');
+    expect(
+      appBar.properties.keys,
+      containsAll(appBarPropertiesForViewTest().keys),
+    );
+    expect(appBar.slot('leading')!.child!.type, 'flutter.widgets.Icon');
+    expect(appBar.slot('title')!.child!.type, 'flutter.widgets.Text');
+    expect(appBar.slot('actions')!.children, hasLength(2));
+    expect(appBar.slot('flexibleSpace')!.child!.type, 'flutter.widgets.Center');
+    expect(appBar.slot('bottom')!.child!.type, 'flutter.material.AppBar');
+    expect(
+      (appBar.properties['clipBehavior']!.value as CanvasEnumValue).value,
+      'antiAlias',
+    );
+    expect(
+      appBar.properties['actionsPadding']!.value,
+      isA<CanvasEdgeInsetsDirectional>(),
+    );
+
+    final wrongScaffoldChild = _appBarModelJson();
+    final scaffold = wrongScaffoldChild['root']! as Map<String, Object?>;
+    (scaffold['slots']! as Map<String, Object?>)['appBar'] = _single(
+      _node(
+        '5660844b-9c39-4d2a-a076-5dc1e95cc8f0',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Not preferred'},
+        },
+      ),
+    );
+    expect(() => _decode(wrongScaffoldChild), throwsFormatException);
+
+    final wrongBottomChild = _appBarModelJson();
+    final wrongAppBar = _findNodeByType(
+      wrongBottomChild['root']! as Map<String, Object?>,
+      'flutter.material.AppBar',
+    );
+    (wrongAppBar['slots']! as Map<String, Object?>)['bottom'] = _single(
+      _node(
+        '952589d3-34f6-470e-b57d-291e6a97afc7',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Not preferred'},
+        },
+      ),
+    );
+    expect(() => _decode(wrongBottomChild), throwsFormatException);
+  });
+
+  test('enforces exact AppBar bounds, enums, shape and style relations', () {
+    void expectProperty(
+      String name,
+      Map<String, Object?> value,
+      Matcher matcher,
+    ) {
+      final json = _appBarModelJson(properties: {name: value});
+      expect(() => _decode(json), matcher, reason: '$name=$value');
+    }
+
+    for (final name in const [
+      'elevation',
+      'scrolledUnderElevation',
+      'toolbarHeight',
+      'leadingWidth',
+    ]) {
+      expectProperty(name, const {
+        'kind': 'integer',
+        'value': 0,
+      }, returnsNormally);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': -0.01,
+      }, throwsFormatException);
+    }
+    for (final name in const [
+      'toolbarOpacity',
+      'bottomOpacity',
+      'iconThemeFill',
+      'actionsIconThemeOpacity',
+    ]) {
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 0.0,
+      }, returnsNormally);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 1.0,
+      }, returnsNormally);
+      expectProperty(name, const {
+        'kind': 'double',
+        'value': 1.01,
+      }, throwsFormatException);
+    }
+    expect(
+      () => _decode(
+        _appBarModelJson(
+          properties: const {
+            'shapeKind': {'kind': 'string', 'value': 'stadium'},
+            'shapeSideStrokeAlign': {'kind': 'double', 'value': -1.0},
+          },
+        ),
+      ),
+      returnsNormally,
+    );
+    expect(
+      () => _decode(
+        _appBarModelJson(
+          properties: const {
+            'shapeKind': {'kind': 'string', 'value': 'stadium'},
+            'shapeSideStrokeAlign': {'kind': 'double', 'value': 1.01},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expectProperty('clipBehavior', const {
+      'kind': 'enum',
+      'type': 'Clip',
+      'value': 'future',
+    }, throwsFormatException);
+    expectProperty('notificationPredicate', const {
+      'kind': 'string',
+      'value': 'depthZero',
+    }, returnsNormally);
+    expectProperty('notificationPredicate', const {
+      'kind': 'string',
+      'value': 'depthZero|all',
+    }, throwsFormatException);
+
+    final missingKind = _appBarModelJson(
+      properties: {
+        'shapeSideWidth': {'kind': 'double', 'value': 1.0},
+      },
+    );
+    expect(() => _decode(missingKind), throwsFormatException);
+    final wrongRadius = _appBarModelJson(
+      properties: {
+        'shapeKind': {'kind': 'string', 'value': 'circle'},
+        'shapeRadiusTopLeft': {'kind': 'double', 'value': 1.0},
+      },
+    );
+    expect(() => _decode(wrongRadius), throwsFormatException);
+    final wrongEccentricity = _appBarModelJson(
+      properties: {
+        'shapeKind': {'kind': 'string', 'value': 'stadium'},
+        'shapeCircleEccentricity': {'kind': 'double', 'value': 0.5},
+      },
+    );
+    expect(() => _decode(wrongEccentricity), throwsFormatException);
+    final styleConflict = _appBarModelJson(
+      properties: {
+        'titleTextStyleColor': {'kind': 'color', 'argb': '0xFF000000'},
+        'titleTextStyleForeground': _paint(const {
+          'kind': 'literal',
+          'argb': '0xFF000000',
+        }),
+      },
+    );
+    expect(() => _decode(styleConflict), throwsFormatException);
   });
 
   test('decodes the complete strict Icon contract and nullable IconData', () {
@@ -1086,6 +1265,213 @@ void main() {
 Uint8List modelBytesForViewTest() =>
     Uint8List.fromList(utf8.encode(jsonEncode(_modelJson())));
 
+const appBarWidgetIdForViewTest = '1cb20d76-4829-446f-b558-a2b12304f0f0';
+
+Map<String, Object?> appBarPropertiesForViewTest() => {
+  'backgroundColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.surfaceContainer',
+  },
+  'centerTitle': {'kind': 'boolean', 'value': true},
+  'elevation': {'kind': 'integer', 'value': 4},
+  'automaticallyImplyLeading': {'kind': 'boolean', 'value': false},
+  'automaticallyImplyActions': {'kind': 'boolean', 'value': false},
+  'scrolledUnderElevation': {'kind': 'double', 'value': 7.5},
+  'notificationPredicate': {'kind': 'string', 'value': 'depthZero'},
+  'shadowColor': {'kind': 'color', 'argb': '0xFF010203'},
+  'surfaceTintColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.surfaceTint',
+  },
+  'foregroundColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.onSurface',
+  },
+  'primary': {'kind': 'boolean', 'value': false},
+  'excludeHeaderSemantics': {'kind': 'boolean', 'value': true},
+  'titleSpacing': {'kind': 'double', 'value': 13.5},
+  'toolbarOpacity': {'kind': 'double', 'value': 0.8},
+  'bottomOpacity': {'kind': 'double', 'value': 0.7},
+  'toolbarHeight': {'kind': 'integer', 'value': 64},
+  'leadingWidth': {'kind': 'double', 'value': 52.0},
+  'forceMaterialTransparency': {'kind': 'boolean', 'value': true},
+  'useDefaultSemanticsOrder': {'kind': 'boolean', 'value': false},
+  'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+  'actionsPadding': {
+    'kind': 'edgeInsetsDirectional',
+    'start': 3,
+    'top': 4,
+    'end': 5,
+    'bottom': 6,
+  },
+  'animateColor': {'kind': 'boolean', 'value': true},
+  'shapeKind': {'kind': 'string', 'value': 'roundedRectangle'},
+  'shapeSideColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.outline',
+  },
+  'shapeSideWidth': {'kind': 'double', 'value': 2.0},
+  'shapeSideStyle': {'kind': 'enum', 'type': 'BorderStyle', 'value': 'solid'},
+  'shapeSideStrokeAlign': {'kind': 'double', 'value': 0.25},
+  'shapeRadiusTopLeft': {'kind': 'double', 'value': 1.0},
+  'shapeRadiusTopRight': {'kind': 'double', 'value': 2.0},
+  'shapeRadiusBottomRight': {'kind': 'double', 'value': 3.0},
+  'shapeRadiusBottomLeft': {'kind': 'double', 'value': 4.0},
+  ..._iconThemePropertiesForViewTest(
+    'iconTheme',
+    shadowId: '7c37c659-01b5-46e5-852f-11abdb77504c',
+  ),
+  ..._iconThemePropertiesForViewTest(
+    'actionsIconTheme',
+    shadowId: '374275df-4de3-4b1b-b542-56567108ff16',
+  ),
+  ..._prefixedTextStylePropertiesForViewTest('toolbarTextStyle'),
+  ..._prefixedTextStylePropertiesForViewTest('titleTextStyle'),
+  'systemOverlayStyleSystemNavigationBarColor': {
+    'kind': 'color',
+    'argb': '0xFF111213',
+  },
+  'systemOverlayStyleSystemNavigationBarDividerColor': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.outlineVariant',
+  },
+  'systemOverlayStyleSystemNavigationBarIconBrightness': {
+    'kind': 'enum',
+    'type': 'Brightness',
+    'value': 'dark',
+  },
+  'systemOverlayStyleSystemNavigationBarContrastEnforced': {
+    'kind': 'boolean',
+    'value': false,
+  },
+  'systemOverlayStyleStatusBarColor': {'kind': 'color', 'argb': '0xFF212223'},
+  'systemOverlayStyleStatusBarBrightness': {
+    'kind': 'enum',
+    'type': 'Brightness',
+    'value': 'light',
+  },
+  'systemOverlayStyleStatusBarIconBrightness': {
+    'kind': 'enum',
+    'type': 'Brightness',
+    'value': 'dark',
+  },
+  'systemOverlayStyleSystemStatusBarContrastEnforced': {
+    'kind': 'boolean',
+    'value': true,
+  },
+};
+
+Map<String, Object?> _iconThemePropertiesForViewTest(
+  String prefix, {
+  required String shadowId,
+}) => {
+  '${prefix}Size': {'kind': 'integer', 'value': 27},
+  '${prefix}Fill': {'kind': 'double', 'value': 0.25},
+  '${prefix}Weight': {'kind': 'double', 'value': 500.0},
+  '${prefix}Grade': {'kind': 'double', 'value': -10.0},
+  '${prefix}OpticalSize': {'kind': 'double', 'value': 28.0},
+  '${prefix}Color': {
+    'kind': 'themeToken',
+    'token': 'material.colorScheme.primary',
+  },
+  '${prefix}Opacity': {'kind': 'double', 'value': 0.65},
+  '${prefix}Shadows': {
+    'kind': 'shadowList',
+    'items': [_shadow(shadowId, '0x80112233')],
+  },
+  '${prefix}ApplyTextScaling': {'kind': 'boolean', 'value': true},
+};
+
+Map<String, Object?> _prefixedTextStylePropertiesForViewTest(String prefix) => {
+  '${prefix}ThemeTextStyle': {
+    'kind': 'themeToken',
+    'token': 'material.textTheme.titleMedium',
+  },
+  for (final entry in _expandedTextProperties().entries)
+    if (entry.key.startsWith('style'))
+      '$prefix${entry.key.substring('style'.length)}': entry.value,
+};
+
+Uint8List appBarModelBytesForViewTest() => Uint8List.fromList(
+  utf8.encode(
+    jsonEncode(_appBarModelJson(properties: appBarPropertiesForViewTest())),
+  ),
+);
+
+Map<String, Object?> _appBarModelJson({Map<String, Object?>? properties}) {
+  final json = _modelJson();
+  json['root'] = _node(
+    'e223fd18-36c3-469b-ae9c-d7e69dd2fd83',
+    'flutter.material.Scaffold',
+    slots: {
+      'appBar': _single(
+        _node(
+          appBarWidgetIdForViewTest,
+          'flutter.material.AppBar',
+          properties: properties ?? const {},
+          slots: {
+            'leading': _single(
+              _node(
+                'cc68aefc-165d-4038-bf6b-dcb776f4f81c',
+                'flutter.widgets.Icon',
+                properties: {'icon': iconDataValueForViewTest()},
+              ),
+            ),
+            'title': _single(
+              _node(
+                '146cc972-81e9-4797-a474-ee97d10f3b34',
+                'flutter.widgets.Text',
+                properties: {
+                  'data': {'kind': 'string', 'value': 'App title'},
+                },
+              ),
+            ),
+            'actions': _list([
+              _node(
+                'fa56a964-786e-42fb-b470-1e40cb693082',
+                'flutter.widgets.Text',
+                properties: {
+                  'data': {'kind': 'string', 'value': 'A1'},
+                },
+              ),
+              _node(
+                '6f1a2c85-1a13-4d71-a16c-52a64d119789',
+                'flutter.widgets.Text',
+                properties: {
+                  'data': {'kind': 'string', 'value': 'A2'},
+                },
+              ),
+            ]),
+            'flexibleSpace': _single(
+              _node(
+                'd47f84e2-4900-410d-95ce-f9a2d8190cd4',
+                'flutter.widgets.Center',
+                slots: {'child': _single(null)},
+              ),
+            ),
+            'bottom': _single(
+              _node(
+                '2f94c285-436e-4627-a903-50e201f4446a',
+                'flutter.material.AppBar',
+                slots: {
+                  'leading': _single(null),
+                  'title': _single(null),
+                  'actions': _list(const []),
+                  'flexibleSpace': _single(null),
+                  'bottom': _single(null),
+                },
+              ),
+            ),
+          },
+        ),
+      ),
+      'body': _single(null),
+      'floatingActionButton': _single(null),
+    },
+  );
+  return json;
+}
+
 const iconWidgetIdForViewTest = 'b3403b57-2a86-4aed-bec6-3a245af290bd';
 
 Map<String, Object?> iconDataValueForViewTest({
@@ -1311,7 +1697,7 @@ Map<String, Object?> _expandedTextProperties() => {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 6,
+  'protocolVersion': 7,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

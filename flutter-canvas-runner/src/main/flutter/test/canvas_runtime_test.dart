@@ -74,6 +74,7 @@ void main() {
         'readOnly.layout',
         'readOnly.selection',
         'palette.drop.catalogInsert.v1',
+        'palette.drop.sourceAware.v1',
         'widget.deleteSelection.v1',
         'viewport.presentation.v1',
       ],
@@ -680,7 +681,7 @@ void main() {
         ),
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token':
               'nbfdnd:v1:83331c6c-91e1-4ba3-bb2d-597fd3cfbc4d:8ee8e7b6-0556-4bf7-825c-1c340fb8616a',
           'xMicros': 500000,
@@ -702,7 +703,7 @@ void main() {
       const firstToken =
           'nbfdnd:v1:ae91be74-fdf2-47a4-b949-51ea6dd4183b:dc090b63-23fe-4fd6-8324-bdd1ff4197ca';
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': firstToken,
           'xMicros': 500000,
           'yMicros': 500000,
@@ -753,7 +754,7 @@ void main() {
       const resizedToken =
           'nbfdnd:v1:993c476d-e430-4f53-b542-d1894b9fdfb0:2a38902a-c1d9-4d80-b87d-fec1b437be1a';
       expect(
-        await runtime.receiveNativePaletteHover(<Object?, Object?>{
+        await _sourceAwareHover(runtime, input, <Object?, Object?>{
           'token': resizedToken,
           'xMicros': 500000,
           'yMicros': 500000,
@@ -840,6 +841,97 @@ void main() {
   );
 
   testWidgets(
+    'requires one exact source authority and clears it on leave and render',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (_) {},
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyScaffoldModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      final rootId = runtime.model!.root.id;
+      CanvasPaletteDragSource? receivedSource;
+      runtime.setDropResolver((_, _, [source]) {
+        receivedSource = source;
+        return CanvasDropTarget(
+          parentWidgetId: rootId,
+          slotName: 'body',
+          insertionIndex: 0,
+        );
+      });
+      const token =
+          'nbfdnd:v1:da2c5989-ec72-4aef-8f28-b6c5f702c75b:35b44b3d-60dc-4bbc-95f3-1da55c3cd547';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+
+      expect(
+        await runtime.receiveNativePaletteHover(request),
+        isFalse,
+        reason: 'native hover cannot invent source type or traits',
+      );
+      expect(receivedSource, isNull);
+
+      await _bindPaletteSource(runtime, input, token);
+      final approvedRequest = {...request, 'probeId': 2};
+      expect(await runtime.receiveNativePaletteHover(approvedRequest), isTrue);
+      expect(receivedSource?.token, token);
+      expect(receivedSource?.widgetType, 'flutter.widgets.Text');
+      expect(receivedSource?.traits, isEmpty);
+      expect(
+        await runtime.receiveNativePaletteHoverLeave({'generation': 1}),
+        isTrue,
+      );
+      expect(runtime.paletteDragSourceToken, isNull);
+      expect(await runtime.receiveNativePaletteHover(request), isFalse);
+
+      await _bindPaletteSource(runtime, input, token);
+      expect(runtime.paletteDragSourceToken, token);
+      final nextJson =
+          jsonDecode(utf8.decode(_emptyScaffoldModelBytes()))
+              as Map<String, Object?>;
+      nextJson['presentationSequence'] = 5;
+      nextJson['logicalRevisionId'] = 3;
+      _addRender(input, Uint8List.fromList(utf8.encode(jsonEncode(nextJson))));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.model?.presentationSequence != 5;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.model?.presentationSequence, 5);
+      expect(runtime.paletteDragSourceToken, isNull);
+
+      await input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'publishes exact ADD into an empty Center child and rejects other slots',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -876,7 +968,7 @@ void main() {
         ),
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': invalidToken,
           'xMicros': 500000,
           'yMicros': 500000,
@@ -897,7 +989,7 @@ void main() {
         ),
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': invalidIndexToken,
           'xMicros': 500000,
           'yMicros': 500000,
@@ -924,7 +1016,7 @@ void main() {
         'generation': 3,
         'probeId': 3,
       };
-      expect(await runtime.receiveNativePaletteHover(request), isTrue);
+      expect(await _sourceAwareHover(runtime, input, request), isTrue);
       expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
       final commit = runtime.receiveNativePaletteDropCommit(request);
       await tester.pump();
@@ -991,7 +1083,7 @@ void main() {
         ),
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token':
               'nbfdnd:v1:adae8952-a918-4a9a-89db-914014487296:e7a0872b-6166-4af8-a188-864389ae7fce',
           'xMicros': 500000,
@@ -1014,7 +1106,7 @@ void main() {
   );
 
   testWidgets(
-    'publishes exact Scaffold body and FAB ADD intents but never appBar',
+    'publishes exact source-aware Scaffold appBar, body and FAB ADD intents',
     (tester) async {
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
@@ -1050,7 +1142,7 @@ void main() {
         ),
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': invalidToken,
           'xMicros': 500000,
           'yMicros': 500000,
@@ -1058,7 +1150,37 @@ void main() {
           'probeId': 1,
         }),
         isFalse,
+        reason: 'Text is not a PreferredSizeWidget',
       );
+
+      const appBarToken =
+          'nbfdnd:v1:da2c5989-ec72-4aef-8f28-b6c5f702c75b:35b44b3d-60dc-4bbc-95f3-1da55c3cd547';
+      final appBarRequest = {
+        'token': appBarToken,
+        'xMicros': 500000,
+        'yMicros': 10000,
+        'generation': 2,
+        'probeId': 2,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          appBarRequest,
+          widgetType: 'flutter.material.AppBar',
+          traits: const {canvasPreferredSizeWidgetTrait},
+        ),
+        isTrue,
+      );
+      expect(
+        await runtime.receiveNativePaletteDropPrepare(appBarRequest),
+        isTrue,
+      );
+      final appBarCommit = runtime.receiveNativePaletteDropCommit(
+        appBarRequest,
+      );
+      await tester.pump();
+      expect(await appBarCommit, isTrue);
 
       const bodyToken =
           'nbfdnd:v1:8db14fa5-7dc0-4ebc-931b-910df02f3515:6436b8e0-4077-4a67-8b38-f5a6ef0fc848';
@@ -1073,10 +1195,10 @@ void main() {
         'token': bodyToken,
         'xMicros': 500000,
         'yMicros': 500000,
-        'generation': 2,
-        'probeId': 2,
+        'generation': 3,
+        'probeId': 3,
       };
-      expect(await runtime.receiveNativePaletteHover(bodyRequest), isTrue);
+      expect(await _sourceAwareHover(runtime, input, bodyRequest), isTrue);
       expect(
         await runtime.receiveNativePaletteDropPrepare(bodyRequest),
         isTrue,
@@ -1098,10 +1220,10 @@ void main() {
         'token': fabToken,
         'xMicros': 900000,
         'yMicros': 900000,
-        'generation': 3,
-        'probeId': 3,
+        'generation': 4,
+        'probeId': 4,
       };
-      expect(await runtime.receiveNativePaletteHover(fabRequest), isTrue);
+      expect(await _sourceAwareHover(runtime, input, fabRequest), isTrue);
       expect(await runtime.receiveNativePaletteDropPrepare(fabRequest), isTrue);
       final fabCommit = runtime.receiveNativePaletteDropCommit(fabRequest);
       await tester.pump();
@@ -1118,13 +1240,17 @@ void main() {
       final drops = (await _decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
-      expect(drops, hasLength(2));
+      expect(drops, hasLength(3));
       expect(
         (drops[0]['body'] as Map<String, Object?>),
-        containsPair('slotName', 'body'),
+        containsPair('slotName', 'appBar'),
       );
       expect(
         (drops[1]['body'] as Map<String, Object?>),
+        containsPair('slotName', 'body'),
+      );
+      expect(
+        (drops[2]['body'] as Map<String, Object?>),
         containsPair('slotName', 'floatingActionButton'),
       );
       expect(
@@ -1180,7 +1306,7 @@ void main() {
         'generation': 1,
         'probeId': 1,
       };
-      expect(await runtime.receiveNativePaletteHover(request), isTrue);
+      expect(await _sourceAwareHover(runtime, input, request), isTrue);
       expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
       final commit = runtime.receiveNativePaletteDropCommit(request);
       await tester.pump();
@@ -1246,7 +1372,7 @@ void main() {
           'nbfdnd:v1:ae91be74-fdf2-47a4-b949-51ea6dd4183b:dc090b63-23fe-4fd6-8324-bdd1ff4197ca';
 
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1279,7 +1405,7 @@ void main() {
 
       resolveColumn = true;
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 200000,
           'yMicros': 200000,
@@ -1295,7 +1421,7 @@ void main() {
 
       resolveColumn = false;
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1311,7 +1437,7 @@ void main() {
       );
 
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 1000001,
           'yMicros': 200000,
@@ -1328,7 +1454,7 @@ void main() {
       );
 
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1353,7 +1479,7 @@ void main() {
         findsNothing,
       );
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1365,7 +1491,7 @@ void main() {
       );
 
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': 'not-a-designer-token',
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1378,7 +1504,7 @@ void main() {
 
       resolveColumn = false;
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1403,7 +1529,7 @@ void main() {
 
       resolveColumn = false;
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1424,7 +1550,7 @@ void main() {
       );
       expect(runtime.dropHoverTarget, isNull);
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1436,7 +1562,7 @@ void main() {
       );
 
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1462,7 +1588,7 @@ void main() {
       );
       expect(runtime.dropHoverTarget, isNull);
       expect(
-        await runtime.receiveNativePaletteHover({
+        await _sourceAwareHover(runtime, input, {
           'token': token,
           'xMicros': 100000,
           'yMicros': 200000,
@@ -1523,7 +1649,8 @@ void main() {
 
       // Native sends the ordered hover without waiting for its reply, then a
       // fast physical release immediately invokes prepare for the same probe.
-      final hoverFuture = runtime.receiveNativePaletteHover(request);
+      await _bindPaletteSource(runtime, input, token);
+      final hoverFuture = _sourceAwareHover(runtime, input, request);
       final prepareFuture = runtime.receiveNativePaletteDropPrepare(request);
       expect(
         await prepareFuture,
@@ -1595,7 +1722,7 @@ void main() {
         'generation': 1,
         'probeId': 1,
       };
-      expect(await runtime.receiveNativePaletteHover(firstRequest), isTrue);
+      expect(await _sourceAwareHover(runtime, input, firstRequest), isTrue);
       expect(
         await runtime.receiveNativePaletteDropPrepare(firstRequest),
         isTrue,
@@ -1631,7 +1758,7 @@ void main() {
         'generation': 2,
         'probeId': 2,
       };
-      expect(await runtime.receiveNativePaletteHover(committedRequest), isTrue);
+      expect(await _sourceAwareHover(runtime, input, committedRequest), isTrue);
       expect(
         await runtime.receiveNativePaletteDropPrepare(committedRequest),
         isTrue,
@@ -1826,6 +1953,7 @@ Map<String, Object?> _hello({
   bool deleteSelected = true,
   bool viewport = false,
   bool widgetMovePreview = false,
+  bool sourceAwarePaletteDrop = true,
 }) => {
   'format': 'netbeans-flutter-canvas-wire',
   'protocolVersion': 1,
@@ -1839,6 +1967,7 @@ Map<String, Object?> _hello({
       'readOnly.layout',
       'readOnly.selection',
       'palette.drop.catalogInsert.v1',
+      if (sourceAwarePaletteDrop) 'palette.drop.sourceAware.v1',
       if (deleteSelected) 'widget.deleteSelection.v1',
       if (widgetMovePreview) 'widget.movePreview.v1',
       if (viewport) 'viewport.presentation.v1',
@@ -1854,6 +1983,70 @@ Map<String, Object?> _hello({
     },
   },
 };
+
+Future<bool> _sourceAwareHover(
+  CanvasRuntimeController runtime,
+  StreamController<List<int>> input,
+  Object? arguments, {
+  String widgetType = 'flutter.widgets.Text',
+  Set<String> traits = const {},
+}) async {
+  if (arguments is Map && arguments['token'] is String) {
+    final token = arguments['token']! as String;
+    if (RegExp(
+          r'^nbfdnd:v1:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(token) &&
+        runtime.paletteDragSourceToken != token) {
+      await _bindPaletteSource(
+        runtime,
+        input,
+        token,
+        widgetType: widgetType,
+        traits: traits,
+      );
+    }
+  }
+  return runtime.receiveNativePaletteHover(arguments);
+}
+
+Future<void> _bindPaletteSource(
+  CanvasRuntimeController runtime,
+  StreamController<List<int>> input,
+  String token, {
+  String widgetType = 'flutter.widgets.Text',
+  Set<String> traits = const {},
+}) async {
+  final model = runtime.model;
+  final layoutSequence = runtime.presentedLayoutSequence;
+  if (model == null || layoutSequence == null) {
+    return;
+  }
+  final control = {
+    'format': 'netbeans-flutter-canvas-runtime',
+    'protocolVersion': 1,
+    'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+    'type': 'host.paletteDragSource',
+    'body': {
+      'presentationSequence': model.presentationSequence,
+      'documentId': model.documentId,
+      'logicalRevisionId': model.logicalRevisionId,
+      'frameSequence': 0,
+      'layoutSequence': layoutSequence,
+      'token': token,
+      'widgetType': widgetType,
+      'traits': traits.toList()..sort(),
+    },
+  };
+  input.add(encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(control))));
+  for (
+    var attempt = 0;
+    attempt < 20 && runtime.paletteDragSourceToken != token;
+    attempt++
+  ) {
+    await Future<void>.microtask(() {});
+  }
+  expect(runtime.paletteDragSourceToken, token);
+}
 
 Map<String, Object?> _widgetMovePreview(
   Uint8List model, {

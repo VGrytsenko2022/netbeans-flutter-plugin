@@ -82,6 +82,7 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
             CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1,
             CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
@@ -116,6 +117,68 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(harness.channel.isReady());
         assertTrue(harness.channel.supports(
                 CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1));
+        assertTrue(harness.channel.supports(
+                CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1));
+    }
+
+    @Test
+    void projectsPaletteSourceOnlyWhenBothDropCapabilitiesAndRevisionMatch()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        harness.channel.expectPresentation(request.revisionKey());
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 3), 5);
+        String token = "nbfdnd:v1:6a7bab32-9507-4f6d-b986-39f183742017:"
+                + "f83e4ad8-e66f-43ae-a5b3-cb057809f17e";
+
+        assertTrue(harness.channel.authorizePaletteDragSource(
+                layout,
+                token,
+                new WidgetTypeId("flutter.material.AppBar"),
+                java.util.Set.of("flutter.widgets.PreferredSizeWidget")));
+        List<CanvasProcessFrame> frames = harness.awaitHostFrames(2);
+        String control = new String(
+                frames.get(1).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(control.contains("\"type\":\"host.paletteDragSource\""));
+        assertTrue(control.contains("\"token\":\"" + token + "\""));
+        assertTrue(control.contains("\"widgetType\":\"flutter.material.AppBar\""));
+        assertTrue(control.contains(
+                "\"traits\":[\"flutter.widgets.PreferredSizeWidget\"]"));
+
+        CanvasLayoutKey stale = new CanvasLayoutKey(
+                new CanvasFrameKey(renderRequest(
+                        harness.sessionId, 8).revisionKey(), 3), 5);
+        assertFalse(harness.channel.authorizePaletteDragSource(
+                stale,
+                token,
+                new WidgetTypeId("flutter.material.AppBar"),
+                java.util.Set.of("flutter.widgets.PreferredSizeWidget")));
+    }
+
+    @Test
+    void paletteSourceProjectionRequiresTheSourceAwareCapability() throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.awaitHostFrames(1);
+        harness.sendHello(List.of(
+                CanvasWireCapability.READ_ONLY_RENDER,
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1));
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        harness.channel.expectPresentation(request.revisionKey());
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 3), 5);
+
+        assertFalse(harness.channel.authorizePaletteDragSource(
+                layout,
+                "nbfdnd:v1:6a7bab32-9507-4f6d-b986-39f183742017:"
+                        + "f83e4ad8-e66f-43ae-a5b3-cb057809f17e",
+                new WidgetTypeId("flutter.material.AppBar"),
+                java.util.Set.of("flutter.widgets.PreferredSizeWidget")));
+        assertEquals(1, harness.awaitHostFrames(1).size());
     }
 
     @Test
@@ -522,7 +585,7 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
-    void paletteDropCodecAcceptsReviewedCatalogSlotsAndRejectsAppBar() {
+    void paletteDropCodecAcceptsEveryReviewedAppBarAndCoreSlot() {
         CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
         StableId parent = request.snapshot().document().root().id();
         String valid = paletteDrop(
@@ -536,46 +599,29 @@ class CanvasRunnerProcessChannelTest {
                         "\"operation\":\"ADD\"",
                         "\"operation\":\"MOVE\"")
                         .getBytes(StandardCharsets.UTF_8)));
-        CanvasRunnerRuntimeEvent.PaletteDrop single = assertInstanceOf(
-                CanvasRunnerRuntimeEvent.PaletteDrop.class,
-                assertDoesNotThrow(() -> codec.decode(valid.replace(
-                        "\"slotName\":\"children\"",
-                        "\"slotName\":\"child\"")
-                        .replace("\"insertionIndex\":2",
-                                 "\"insertionIndex\":0")
-                        .getBytes(StandardCharsets.UTF_8))));
-        CanvasRunnerRuntimeEvent.PaletteDrop body = assertInstanceOf(
-                CanvasRunnerRuntimeEvent.PaletteDrop.class,
-                assertDoesNotThrow(() -> codec.decode(valid.replace(
-                        "\"slotName\":\"children\"",
-                        "\"slotName\":\"body\"")
-                        .replace("\"insertionIndex\":2",
-                                "\"insertionIndex\":0")
-                        .getBytes(StandardCharsets.UTF_8))));
-        CanvasRunnerRuntimeEvent.PaletteDrop floatingActionButton = assertInstanceOf(
-                CanvasRunnerRuntimeEvent.PaletteDrop.class,
-                assertDoesNotThrow(() -> codec.decode(valid.replace(
-                        "\"slotName\":\"children\"",
-                        "\"slotName\":\"floatingActionButton\"")
-                        .replace("\"insertionIndex\":2",
-                                "\"insertionIndex\":0")
-                        .getBytes(StandardCharsets.UTF_8))));
-        CanvasRunnerControlException slot = assertThrows(
+        for (String slotName : List.of(
+                "child", "body", "floatingActionButton", "appBar",
+                "leading", "title", "actions", "flexibleSpace", "bottom")) {
+            CanvasRunnerRuntimeEvent.PaletteDrop decoded = assertInstanceOf(
+                    CanvasRunnerRuntimeEvent.PaletteDrop.class,
+                    assertDoesNotThrow(() -> codec.decode(valid.replace(
+                            "\"slotName\":\"children\"",
+                            "\"slotName\":\"" + slotName + "\"")
+                            .replace("\"insertionIndex\":2",
+                                    "\"insertionIndex\":0")
+                            .getBytes(StandardCharsets.UTF_8))), slotName);
+            assertEquals(new SlotName(slotName), decoded.slotName());
+            assertEquals(0, decoded.insertionIndex());
+        }
+        CanvasRunnerControlException unknown = assertThrows(
                 CanvasRunnerControlException.class,
                 () -> codec.decode(valid.replace(
                         "\"slotName\":\"children\"",
-                        "\"slotName\":\"appBar\"")
+                        "\"slotName\":\"unknownSlot\"")
                         .getBytes(StandardCharsets.UTF_8)));
 
         assertTrue(operation.getMessage().contains("operation"));
-        assertEquals(new SlotName("child"), single.slotName());
-        assertEquals(0, single.insertionIndex());
-        assertEquals(new SlotName("body"), body.slotName());
-        assertEquals(0, body.insertionIndex());
-        assertEquals(new SlotName("floatingActionButton"),
-                floatingActionButton.slotName());
-        assertEquals(0, floatingActionButton.insertionIndex());
-        assertTrue(slot.getMessage().contains("slotName"));
+        assertTrue(unknown.getMessage().contains("slotName"));
     }
 
     @Test

@@ -17,6 +17,7 @@ import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +36,7 @@ class FlutterDesignerPaletteTest {
     private static final WidgetCatalog CATALOG = BuiltInWidgetCatalog.getDefault();
     private static final Set<String> CANVAS_WIDGETS = Set.of(
             "flutter.material.Scaffold",
+            "flutter.material.AppBar",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Text",
@@ -43,7 +45,6 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of(
-            "flutter.material.AppBar",
             "flutter.material.ElevatedButton");
 
     @Test
@@ -76,7 +77,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold"), itemLabels(categories[0]));
+        assertEquals(List.of("Scaffold", "AppBar"), itemLabels(categories[0]));
         assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
@@ -262,6 +263,82 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void reportsTheOpaqueTokenAndExactDefinitionBeforeNativeDragBegins()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        List<String> tokens = new ArrayList<>();
+        List<WidgetDefinition> definitions = new ArrayList<>();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> true,
+                definition -> definition.typeId().value().equals(
+                        "flutter.material.AppBar"),
+                (token, definition) -> {
+                    tokens.add(token);
+                    definitions.add(definition);
+                    return true;
+                });
+
+        Transferable transfer = itemNode(
+                controller, "flutter.material.AppBar").drag();
+        String token = assertInstanceOf(
+                String.class,
+                transfer.getTransferData(DataFlavor.stringFlavor));
+
+        assertEquals(List.of(token), tokens);
+        assertEquals(List.of(CATALOG.find(
+                new dev.flutter.netbeans.designer.model.WidgetTypeId(
+                        "flutter.material.AppBar")).orElseThrow()), definitions);
+        assertEquals("flutter.material.AppBar",
+                registry.consume(token).orElseThrow().value());
+    }
+
+    @Test
+    void revokesTheTokenWhenSourceProjectionFailsBeforeTransferPublication()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> true,
+                ignored -> true,
+                (token, definition) -> {
+                    throw new IllegalStateException("projection unavailable");
+                });
+
+        Transferable transfer = itemNode(
+                controller, "flutter.material.AppBar").drag();
+
+        assertFalse(transfer.isDataFlavorSupported(DataFlavor.stringFlavor));
+        assertEquals(0, registry.outstandingCount());
+    }
+
+    @Test
+    void revokesTheTokenWhenSourceProjectionDeclinesAuthorization()
+            throws Exception {
+        FlutterDesignerPaletteDragRegistry registry =
+                new FlutterDesignerPaletteDragRegistry();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                ignored -> true,
+                registry,
+                () -> true,
+                ignored -> true,
+                (token, definition) -> false);
+
+        Transferable transfer = itemNode(
+                controller, "flutter.material.AppBar").drag();
+
+        assertFalse(transfer.isDataFlavorSupported(DataFlavor.stringFlavor));
+        assertEquals(0, registry.outstandingCount());
+    }
+
+    @Test
     void disabledTokenSourceAddsNoFlavorAndDoesNotEvaluateTheAllowlist()
             throws Exception {
         FlutterDesignerPaletteDragRegistry registry =
@@ -305,7 +382,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void eightCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void nineCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -324,7 +401,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(8, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(9, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

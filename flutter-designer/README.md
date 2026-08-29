@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical eight-widget Canvas
+responsive render profiles and the bounded canonical nine-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,13 +40,14 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for `Column`, `Row`, `Padding`, `Center`,
-`SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
+bounded typed read/write slice for `AppBar`, `Column`, `Row`, `Padding`,
+`Center`, `SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
 separate task. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-56-cell matrix: each of the eight exact capability-reviewed sources may target
-any of seven reviewed destinations, subject to empty-single or terminal-list
-admission. Existing-widget
+117-cell candidate matrix: nine exact capability-reviewed sources target eleven
+any-widget and two `PreferredSizeWidget` destinations, with exactly 101
+accepted and 16 rejected cells, subject to
+empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
 disabled.
@@ -60,12 +61,13 @@ identities and stale/replay admission rules, the explicit Mobile, Tablet,
 Desktop and Web preview-mode identity, native-surface request validation, pure
 backend contracts and per-MultiView lifecycle controller, plus the bounded
 version 1 lifecycle control codec/session gate, process framing and canonical
-reviewed Canvas model payload. Model payload version 6 carries the exact resolved
+reviewed Canvas model payload. Model payload version 7 carries the exact resolved
 project-theme identity, seed, brightness and typed ColorScheme/TextTheme
 override tables; generated Dart and Flutter Canvas apply those tables in the
-same order before form-local Text overrides. Version 6 adds the closed typed
-`IconData` projection. The payload admits exactly `Scaffold`, `Column`, `Row`,
-`Text`, `Icon`, `Padding`, `Center` and `SizedBox` from the reviewed built-in catalog and
+same order before form-local Text overrides. Version 7 retains the closed typed
+`IconData` projection and adds AppBar plus exact slot-acceptance fingerprints.
+The payload admits exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
+`Icon`, `Padding`, `Center` and `SizedBox` from the reviewed built-in catalog and
 excludes project paths, Dart source, callbacks, extensions and persistence
 authority. The frame-kind whitelist remains control JSON, model JSON and catalog
 JSON; catalog JSON is reserved for a future versioned contract. There is no
@@ -80,7 +82,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical eight-widget model, renders it
+tests. The isolated runner decodes the canonical nine-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -112,6 +114,19 @@ reset to omission.
 | `SizedBox` | `width`, `height` | [SizedBox](https://api.flutter.dev/flutter/widgets/SizedBox/SizedBox.html) |
 | `Text` | 59 typed leaves in the seven sets below | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html), [TextStyle](https://api.flutter.dev/flutter/painting/TextStyle/TextStyle.html), [StrutStyle](https://api.flutter.dev/flutter/painting/StrutStyle/StrutStyle.html) |
 | `Icon` | `icon`, `size`, `fill`, `weight`, `grade`, `opticalSize`, `color`, `shadows`, `semanticLabel`, `textDirection`, `applyTextScaling`, `blendMode`, `fontWeight` | [Icon](https://api.flutter.dev/flutter/widgets/Icon/Icon.html), [IconData](https://api.flutter.dev/flutter/widgets/IconData-class.html) |
+| `AppBar` | 120 typed leaves in the nine sets below; `leading`, `title`, `actions`, `flexibleSpace`, `bottom` slots | [AppBar](https://api.flutter.dev/flutter/material/AppBar/AppBar.html), [AppBarTheme](https://api.flutter.dev/flutter/material/AppBarTheme-class.html) |
+
+| `AppBar` Properties set | Count | Projection |
+| --- | ---: | --- |
+| Behavior | 9 | Automatic controls, notification preset, semantics, clipping and color animation |
+| Layout | 7 | Centering, spacing, opacities, toolbar/leading dimensions and actions padding |
+| Colors and elevation | 6 | Theme-aware colors plus resting and scrolled-under elevation |
+| Shape | 10 | Closed serializable `ShapeBorder`, `BorderSide` and corner/eccentricity subset |
+| Leading icon theme | 9 | Optional `IconThemeData` fields |
+| Actions icon theme | 9 | Optional `IconThemeData` fields |
+| Toolbar text style | 31 | Optional theme base plus complete reviewed local `TextStyle` leaves |
+| Title text style | 31 | Optional theme base plus complete reviewed local `TextStyle` leaves |
+| System UI overlay | 8 | Typed status/navigation bar `SystemUiOverlayStyle` fields |
 
 | `Text` Properties set | Count | Typed leaf names |
 | --- | ---: | --- |
@@ -123,7 +138,7 @@ reset to omission.
 | Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` |
 | Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` |
 
-This is 91 catalog-backed property rows across the seven non-`Scaffold` widgets.
+This is 211 catalog-backed property rows across the eight non-`Scaffold` widgets.
 Editors cover single-line strings, newline-delimited font fallback lists,
 accessible optional boolean checkboxes, exact constrained integer/double
 controls, reviewed enums, physical non-negative edge insets, ARGB/theme-aware
@@ -372,20 +387,20 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the eight-source insertion matrix
+disconnected. That stage is superseded by the nine-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, eight-widget projection, responsive
-profiles, stable-ID tree selection, exact eight-item context Palette and
+Windows native read-only `FlutterView`, nine-widget projection, responsive
+profiles, stable-ID tree selection, exact nine-item context Palette and
 selected-node typed Properties are implemented. Properties are writable only
-for the 91 catalog-backed fields of `Column`, `Row`, `Padding`, `Center`,
-`SizedBox`, `Text` and `Icon`, including the 59-leaf Text and 13-property Icon
+for the 211 catalog-backed fields of `AppBar`, `Column`, `Row`, `Padding`,
+`Center`, `SizedBox`, `Text` and `Icon`, including the AppBar, Text and Icon
 projections above; `Scaffold` stays read-only.
-Palette DnD is enabled for the eight exact capability-reviewed source definitions and the
-seven catalog-authorized empty-single or terminal-list targets, for 56 exact
-compatibility cells. The
+Palette DnD is enabled for the nine exact capability-reviewed source definitions and
+thirteen catalog-authorized slots, for 117 candidate cells: 101 admitted and 16
+rejected. The
 optional runtime-faithful browser Canvas backend, cross-platform providers and
 the broader property/callback contracts remain outstanding. The native-engine
 Web responsive layout preview is already available.

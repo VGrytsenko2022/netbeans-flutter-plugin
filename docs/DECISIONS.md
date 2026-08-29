@@ -4,8 +4,10 @@ Status note: ADR-024 and ADR-027 supersede the earlier provisional statements th
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted. ADR-025 records the historical Text-only and later
 six-source insertion milestones; ADR-030 records the subsequent seven-widget
-`SizedBox` milestone, and ADR-031 governs the current eight-widget, 56-cell
-capability-gated surface including the complete `Icon` vertical slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
+`SizedBox` milestone, ADR-031 records the eight-widget `Icon` milestone, and
+ADR-032 governs the current nine-widget capability-gated surface with 117
+candidate cells, 101 accepted and 16 rejected, including the complete `AppBar`
+vertical slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
 ADR-029 authorizes exact named-slot management. None authorizes cross-form
 movement, arbitrary native Canvas mutation or unreviewed slots.
 
@@ -225,17 +227,20 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024, ADR-027, ADR-030 and ADR-031 make 91 catalog-backed
+framing. ADR-024, ADR-027, ADR-030, ADR-031 and ADR-032 make 211 catalog-backed
 non-`Scaffold` Properties fields writable, including the 59-leaf Text
-projection, two `SizedBox` dimensions and 13 typed Icon constructor properties.
+projection, two `SizedBox` dimensions, 13 typed Icon constructor properties and
+120 grouped AppBar leaves.
 ADR-025 historically made only built-in `Text` publicly draggable and later
-admitted six sources; ADR-030 records the seven-source stage, while ADR-031
-supersedes those surface counts with the eight-source, 56-cell capability-gated matrix. Same-tree
+admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
+the eight-source stage. ADR-032 supersedes those surface counts with the
+nine-source, 117-candidate capability matrix (101 accepted and 16 rejected). Same-tree
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v6 model payload accepts only exact reviewed Canvas-capable built-ins:
-`Scaffold`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and `SizedBox`; the
+protocol-v7 model payload accepts only exact reviewed Canvas-capable built-ins:
+`Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
+`SizedBox`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract.
@@ -246,11 +251,13 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated eight-widget model for Mobile, Tablet, Desktop
+Canvas now renders the validated nine-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those eight Create-capable definitions, and the DnD-capable set uses the reviewed
-56-cell insertion matrix across seven valid destination slots. No image or pixel-transfer frame kind exists.
+those nine Create-capable definitions, and the DnD-capable set uses the reviewed
+117-cell candidate matrix across eleven any-widget and two trait-bound
+destination slots; 101 cells are accepted and 16 rejected. No image or
+pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -766,7 +773,7 @@ Java capability fingerprint and independent
 Dart protocol-v6 decoder enforce exact property types, numeric bounds, defaults
 and leaf cardinality.
 
-The current active surface is therefore exactly eight built-ins: `Scaffold`,
+At the ADR-031 milestone the active surface contained exactly eight built-ins: `Scaffold`,
 `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. All eight
 are Create/Canvas/Palette-DnD sources; the seven non-`Scaffold` definitions are
 read/write. Since Icon adds no destination slot, eight sources across the same
@@ -774,3 +781,37 @@ seven reviewed destinations form exactly 56 compatibility cells. `AppBar`,
 `ElevatedButton`, writable `Scaffold` properties, unreviewed slots and every
 definition without exact capability parity remain fail-closed. ADR-025's 36-cell
 and ADR-030's 49-cell counts remain their historical accepted milestones.
+
+## ADR-032 — AppBar is a complete typed PreferredSize vertical slice
+
+Accepted for the next 0.1.3 Designer stage. `AppBar` is admitted only as one
+exact canonical definition across Properties, Create, Canvas, Palette/tree
+DnD, deterministic Dart generation, Save/reopen and Undo/Redo. Its 28 Flutter
+constructor arguments are represented by 120 independently resettable typed
+model leaves: direct behavior/layout/color fields plus closed serializable
+projections for notification presets, `ShapeBorder`, both `IconThemeData`
+values, both `TextStyle` values and `SystemUiOverlayStyle`. Arbitrary callbacks,
+Dart expressions and open object graphs remain excluded. Omitting a compound
+group omits the complete Dart argument and preserves `AppBarTheme` inheritance;
+explicit leaves remain local overrides. The `.fd` schema stays at v4 because no
+new value kind or persistence shape is introduced.
+
+AppBar declares exactly five slots: optional `leading`, `title`,
+`flexibleSpace` and `bottom` singles plus the optional ordered `actions` list.
+`AppBar` owns the canonical `flutter.widgets.PreferredSizeWidget` trait.
+`Scaffold.appBar` and `AppBar.bottom` accept only that trait; the other eleven
+destinations accept any reviewed source. Nine sources across thirteen
+destinations form 117 candidate cells: exactly 101 are admitted and 16 are
+rejected by the shared compatibility planner.
+
+Canvas payload protocol v7 adds the slot-acceptance fingerprint and the
+negotiated `palette.drop.sourceAware.v1` control. Before native dragging starts,
+Java binds the opaque one-shot token to the exact current canonical type and
+traits. Flutter uses that bounded authority only to filter visual hover zones;
+Java still consumes the token, re-resolves the latest immutable revision and
+repeats the canonical planner before admitting any command. Failure to project
+the source revokes the token before a native transferable is published. The
+active surface is therefore nine Create/Canvas/DnD definitions and 211 writable
+properties across the eight non-`Scaffold` definitions. `ElevatedButton`,
+writable `Scaffold`, contributed same-id definitions and unreviewed slots remain
+fail-closed.

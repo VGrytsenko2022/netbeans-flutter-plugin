@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.designer.validation;
 
+import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -323,19 +324,52 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())) {
+            validateFontPackageDependency(
+                    node, propertiesPath, issues,
+                    "toolbarTextStylePackage", "toolbarTextStyleFontFamily",
+                    "toolbarTextStyleFontFamilyFallback", "AppBar toolbarTextStyle");
+            validateFontPackageDependency(
+                    node, propertiesPath, issues,
+                    "titleTextStylePackage", "titleTextStyleFontFamily",
+                    "titleTextStyleFontFamilyFallback", "AppBar titleTextStyle");
+            validateMutuallyExclusiveProperties(
+                    node, propertiesPath, issues,
+                    "toolbarTextStyleColor", "toolbarTextStyleForeground",
+                    "AppBar toolbarTextStyle");
+            validateMutuallyExclusiveProperties(
+                    node, propertiesPath, issues,
+                    "toolbarTextStyleBackgroundColor", "toolbarTextStyleBackground",
+                    "AppBar toolbarTextStyle");
+            validateMutuallyExclusiveProperties(
+                    node, propertiesPath, issues,
+                    "titleTextStyleColor", "titleTextStyleForeground",
+                    "AppBar titleTextStyle");
+            validateMutuallyExclusiveProperties(
+                    node, propertiesPath, issues,
+                    "titleTextStyleBackgroundColor", "titleTextStyleBackground",
+                    "AppBar titleTextStyle");
+            validateAppBarShape(node, propertiesPath, issues);
+            return;
+        }
+
         if (!type.equals("flutter.widgets.Text")) {
             return;
         }
         validateFontPackageDependency(
                 node, propertiesPath, issues,
-                "stylePackage", "styleFontFamily", "styleFontFamilyFallback");
+                "stylePackage", "styleFontFamily", "styleFontFamilyFallback",
+                "Text style");
         validateFontPackageDependency(
                 node, propertiesPath, issues,
-                "strutPackage", "strutFontFamily", "strutFontFamilyFallback");
+                "strutPackage", "strutFontFamily", "strutFontFamilyFallback",
+                "Text strutStyle");
         validateMutuallyExclusiveProperties(
-                node, propertiesPath, issues, "styleColor", "styleForeground");
+                node, propertiesPath, issues,
+                "styleColor", "styleForeground", "Text style");
         validateMutuallyExclusiveProperties(
-                node, propertiesPath, issues, "styleBackgroundColor", "styleBackground");
+                node, propertiesPath, issues,
+                "styleBackgroundColor", "styleBackground", "Text style");
 
         PropertyValue value = node.properties().get(new PropertyName("semanticsIdentifier"));
         if (value instanceof PropertyValue.StringValue identifier) {
@@ -358,7 +392,8 @@ public final class WidgetTreeValidator {
             String propertiesPath,
             IssueCollector issues,
             String firstProperty,
-            String secondProperty) {
+            String secondProperty,
+            String owner) {
         if (!node.properties().containsKey(new PropertyName(firstProperty))
                 || !node.properties().containsKey(new PropertyName(secondProperty))) {
             return;
@@ -367,7 +402,7 @@ public final class WidgetTreeValidator {
                 PROPERTY_CONFLICT,
                 propertiesPath + '/' + secondProperty,
                 node.id(),
-                "Text properties '" + firstProperty + "' and '" + secondProperty
+                owner + " properties '" + firstProperty + "' and '" + secondProperty
                 + "' are mutually exclusive in Flutter TextStyle."));
     }
 
@@ -377,7 +412,8 @@ public final class WidgetTreeValidator {
             IssueCollector issues,
             String packageProperty,
             String familyProperty,
-            String fallbackProperty) {
+            String fallbackProperty,
+            String owner) {
         if (node.properties().containsKey(new PropertyName(packageProperty))
                 && !hasNonBlankString(node, familyProperty)
                 && !hasNonBlankLine(node, fallbackProperty)) {
@@ -385,8 +421,54 @@ public final class WidgetTreeValidator {
                     PROPERTY_DEPENDENCY,
                     propertiesPath + '/' + packageProperty,
                     node.id(),
-                    "Text property '" + packageProperty + "' requires '"
+                    owner + " property '" + packageProperty + "' requires '"
                     + familyProperty + "' or '" + fallbackProperty + "'."));
+        }
+    }
+
+    private static void validateAppBarShape(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
+        String kind = kindValue instanceof PropertyValue.StringValue string
+                ? string.value() : null;
+        for (PropertyName name : node.properties().keySet()) {
+            AppBarWidgetPropertySchema.Definition binding =
+                    AppBarWidgetPropertySchema.find(name).orElse(null);
+            if (binding == null
+                    || binding.target() != AppBarWidgetPropertySchema.Target.SHAPE) {
+                continue;
+            }
+            if (kind == null) {
+                issues.add(issue(
+                        PROPERTY_DEPENDENCY,
+                        propertiesPath + '/' + name.value(),
+                        node.id(),
+                        "AppBar shape property '" + name.value()
+                        + "' requires 'shapeKind'."));
+                continue;
+            }
+            if (name.value().startsWith("shapeRadius")
+                    && !kind.equals("roundedRectangle")
+                    && !kind.equals("beveledRectangle")
+                    && !kind.equals("continuousRectangle")) {
+                issues.add(issue(
+                        PROPERTY_CONFLICT,
+                        propertiesPath + '/' + name.value(),
+                        node.id(),
+                        "AppBar shape property '" + name.value()
+                        + "' is only valid for roundedRectangle, beveledRectangle, "
+                        + "or continuousRectangle shapeKind."));
+            }
+            if (name.value().equals("shapeCircleEccentricity")
+                    && !kind.equals("circle")) {
+                issues.add(issue(
+                        PROPERTY_CONFLICT,
+                        propertiesPath + '/' + name.value(),
+                        node.id(),
+                        "AppBar shapeCircleEccentricity is only valid for circle shapeKind."));
+            }
         }
     }
 

@@ -20,6 +20,7 @@ public final class FlutterWidgetIconRegistry {
 
     private static final Map<String, String> REVIEWED_ICON_PATHS = Map.of(
             "flutter.material.Scaffold", ICON_ROOT + "scaffold.svg",
+            "flutter.material.AppBar", ICON_ROOT + "appbar.svg",
             "flutter.widgets.Column", ICON_ROOT + "column.svg",
             "flutter.widgets.Row", ICON_ROOT + "row.svg",
             "flutter.widgets.Padding", ICON_ROOT + "padding.svg",

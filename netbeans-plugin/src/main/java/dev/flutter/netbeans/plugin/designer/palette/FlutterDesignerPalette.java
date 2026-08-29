@@ -70,14 +70,38 @@ public final class FlutterDesignerPalette {
             FlutterDesignerPaletteDragRegistry registry,
             BooleanSupplier enabled,
             Predicate<? super WidgetDefinition> draggableDefinition) {
+        return create(
+                catalog,
+                includeDefinition,
+                registry,
+                enabled,
+                draggableDefinition,
+                (token, definition) -> true);
+    }
+
+    /**
+     * Creates a tokenized Palette and reports each admitted source token to
+     * the owning view before native dragging begins.
+     */
+    public static PaletteController create(
+            WidgetCatalog catalog,
+            Predicate<? super WidgetDefinition> includeDefinition,
+            FlutterDesignerPaletteDragRegistry registry,
+            BooleanSupplier enabled,
+            Predicate<? super WidgetDefinition> draggableDefinition,
+            PaletteDragSourceListener sourceListener) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(enabled, "enabled");
         Objects.requireNonNull(draggableDefinition, "draggableDefinition");
+        Objects.requireNonNull(sourceListener, "sourceListener");
         return create(
                 catalog,
                 includeDefinition,
                 new TokenDragAndDropHandler(
-                        registry, enabled, draggableDefinition));
+                        registry,
+                        enabled,
+                        draggableDefinition,
+                        sourceListener));
     }
 
     private static PaletteController create(
@@ -299,14 +323,17 @@ public final class FlutterDesignerPalette {
         private final FlutterDesignerPaletteDragRegistry registry;
         private final BooleanSupplier enabled;
         private final Predicate<? super WidgetDefinition> draggableDefinition;
+        private final PaletteDragSourceListener sourceListener;
 
         private TokenDragAndDropHandler(
                 FlutterDesignerPaletteDragRegistry registry,
                 BooleanSupplier enabled,
-                Predicate<? super WidgetDefinition> draggableDefinition) {
+                Predicate<? super WidgetDefinition> draggableDefinition,
+                PaletteDragSourceListener sourceListener) {
             this.registry = registry;
             this.enabled = enabled;
             this.draggableDefinition = draggableDefinition;
+            this.sourceListener = sourceListener;
         }
 
         @Override
@@ -325,14 +352,29 @@ public final class FlutterDesignerPalette {
                     || !draggableDefinition.test(definition)) {
                 return;
             }
-            registry.issueReplacingOutstanding(definition.typeId()).ifPresent(token ->
-                transferable.put(new ExTransferable.Single(
-                        DataFlavor.stringFlavor) {
-                    @Override
-                    protected Object getData() {
-                        return token;
+            registry.issueReplacingOutstanding(definition.typeId()).ifPresent(token -> {
+                try {
+                    if (!sourceListener.authorize(token, definition)) {
+                        registry.revoke(token);
+                        return;
                     }
-                }));
+                    transferable.put(new ExTransferable.Single(
+                            DataFlavor.stringFlavor) {
+                        @Override
+                        protected Object getData() {
+                            return token;
+                        }
+                    });
+                } catch (RuntimeException | LinkageError failure) {
+                    registry.revoke(token);
+                }
+            });
         }
+    }
+
+    /** Fail-closed authorization edge for one outgoing Palette source. */
+    @FunctionalInterface
+    public interface PaletteDragSourceListener {
+        boolean authorize(String token, WidgetDefinition definition);
     }
 }

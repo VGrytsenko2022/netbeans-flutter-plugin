@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,6 +79,9 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(WIDGETS_IMPORT),
                 definition("flutter.widgets.Icon").importUris(),
                 "Typed IconData does not require an otherwise-unused material.dart import");
+        assertEquals(List.of(MATERIAL_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.material.AppBar").importUris(),
+                "AppBar owns Material symbols and typed enum/style symbols from widgets.dart");
     }
 
     @Test
@@ -94,6 +98,9 @@ class BuiltInWidgetCatalogTest {
 
         assertEquals(List.of(
                 new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"),
+                new DartSymbolReference(WIDGETS_IMPORT, "BorderStyle"),
+                new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
+                new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
@@ -163,6 +170,68 @@ class BuiltInWidgetCatalogTest {
                 .slot(new SlotName("appBar")).orElseThrow();
         assertTrue(appBarSlot.acceptance().accepts(definition("flutter.material.AppBar")));
         assertFalse(appBarSlot.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void appBarExposesExactReviewedFlutter344FlattenedSurfaceAndSlots() {
+        WidgetDefinition appBar = definition("flutter.material.AppBar");
+        assertFalse(appBar.constConstructor());
+        assertEquals(120, appBar.properties().size());
+        assertTrue(appBar.properties().size() <= WidgetDefinition.MAX_PROPERTIES);
+        assertEquals(AppBarWidgetPropertySchema.definitions().keySet(),
+                appBar.properties().stream()
+                        .map(value -> value.name().value())
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+        assertTrue(appBar.properties().stream()
+                .allMatch(property -> property.creationDefault().isEmpty()));
+        assertEquals(Set.of(BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT),
+                appBar.traits());
+
+        assertEquals(List.of("leading", "title", "actions", "flexibleSpace", "bottom"),
+                appBar.slots().stream().map(slot -> slot.name().value()).toList());
+        SlotDefinition bottom = appBar.slot(new SlotName("bottom")).orElseThrow();
+        assertInstanceOf(SlotAcceptance.HasTrait.class, bottom.acceptance());
+        assertTrue(bottom.acceptance().accepts(appBar));
+        assertFalse(bottom.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertEquals(SlotCardinality.LIST,
+                appBar.slot(new SlotName("actions")).orElseThrow().cardinality());
+    }
+
+    @Test
+    void appBarPreservesLegacyParameterOrdersAndReviewedBounds() {
+        WidgetDefinition appBar = definition("flutter.material.AppBar");
+        assertEquals(DartParameter.named(0, false),
+                appBar.slot(new SlotName("leading")).orElseThrow().parameter());
+        assertEquals(DartParameter.named(1, false),
+                appBar.slot(new SlotName("title")).orElseThrow().parameter());
+        assertEquals(DartParameter.named(2, false),
+                appBar.slot(new SlotName("actions")).orElseThrow().parameter());
+        assertEquals(DartParameter.named(3, false),
+                appBar.property(new PropertyName("backgroundColor")).orElseThrow().parameter());
+        assertEquals(DartParameter.named(4, false),
+                appBar.property(new PropertyName("centerTitle")).orElseThrow().parameter());
+        assertEquals(DartParameter.named(5, false),
+                appBar.property(new PropertyName("elevation")).orElseThrow().parameter());
+        assertTrue(appBar.properties().stream()
+                .filter(property -> !Set.of(
+                        "backgroundColor", "centerTitle", "elevation")
+                        .contains(property.name().value()))
+                .allMatch(property -> property.parameter().order() > 5));
+        assertTrue(appBar.slots().stream()
+                .filter(slot -> !Set.of("leading", "title", "actions")
+                        .contains(slot.name().value()))
+                .allMatch(slot -> slot.parameter().order() > 5));
+
+        assertDoubleRange(appBar, "toolbarOpacity",
+                BigDecimal.ZERO, true, BigDecimal.ONE, true);
+        assertDoubleRange(appBar, "shapeSideStrokeAlign",
+                BigDecimal.ONE.negate(), true, BigDecimal.ONE, true);
+        assertDoubleRange(appBar, "iconThemeWeight",
+                BigDecimal.ZERO, false, BigDecimal.valueOf(32768), false);
+        assertDoubleRange(appBar, "actionsIconThemeGrade",
+                BigDecimal.valueOf(-32768), true, BigDecimal.valueOf(32768), false);
+        assertStringPattern(appBar, "notificationPredicate", "depthZero", "depth1");
+        assertStringPattern(appBar, "shapeKind", "circle", "custom");
     }
 
     @Test

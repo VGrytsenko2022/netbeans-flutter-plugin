@@ -8,11 +8,11 @@ PNG, screenshots or raw pixel frames.
 
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
-reviewed decoder accepts exactly `Scaffold`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center` and `SizedBox`, with reviewed typed properties and slots. It
+reviewed decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
+`Icon`, `Padding`, `Center` and `SizedBox`, with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v6 carries the resolved project-theme id, seed, brightness,
+Model protocol v7 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table and 15-role TextTheme override table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
 `TextTheme.copyWith` order as generated Dart before applying form-local Text
@@ -29,6 +29,12 @@ retain a designer-only selectable target without changing Flutter layout. The
 host's searchable Material registry has
 8,825 entries locked to Flutter 3.44.8; Material-font glyphs require the
 generated application to keep `flutter.uses-material-design: true`.
+
+`AppBar` adds the same 120 typed flattened leaves and five named slots used by
+the Java catalog and generated Dart. The runner assembles the closed
+notification-predicate, shape, icon-theme, text-style and system-UI-overlay
+projections into real Flutter objects. AppBar also carries the reviewed
+`PreferredSizeWidget` trait used by `Scaffold.appBar` and `AppBar.bottom`.
 
 The runner renders exact compatible responsive/adaptive profiles on its bound
 Windows Flutter engine. Android, iOS, macOS and Linux targets are applied through
@@ -74,8 +80,11 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-eight reviewed Canvas widgets. Palette insertion is the closed 56-cell product
-of those eight draggable sources and seven reviewed destination slots. The
+nine reviewed Canvas widgets. Palette insertion evaluates 117 exact
+source/destination cells across nine draggable sources and 13 reviewed slots;
+101 are accepted and 16 trait-incompatible cells are rejected. The negotiated
+source-aware command binds the opaque token to the current reviewed type and
+traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
 bounded hit testing, returns revision-bound Palette intents and paints optional
 move feedback. Catalog JSON is reserved for a future versioned

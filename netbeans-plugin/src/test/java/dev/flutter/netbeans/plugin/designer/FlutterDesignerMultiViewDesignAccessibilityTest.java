@@ -111,6 +111,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertNotNull(paletteRoot);
             assertEquals(List.of(
                     "flutter.material.Scaffold",
+                    "flutter.material.AppBar",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Padding",

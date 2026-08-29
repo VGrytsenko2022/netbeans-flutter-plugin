@@ -59,6 +59,30 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsAppBarWithoutMaterializingThemeDefaultsAndWithFiveEmptySlots() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.material.AppBar"), ID);
+
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(
+                new SlotName("leading"),
+                new SlotName("title"),
+                new SlotName("actions"),
+                new SlotName("flexibleSpace"),
+                new SlotName("bottom")),
+                prototype.slots().keySet().stream().toList());
+        assertInstanceOf(WidgetSlot.ListSlot.class,
+                prototype.slots().get(new SlotName("actions")));
+        assertTrue(((WidgetSlot.ListSlot) prototype.slots()
+                .get(new SlotName("actions"))).children().isEmpty());
+        for (String slot : List.of("leading", "title", "flexibleSpace", "bottom")) {
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    prototype.slots().get(new SlotName(slot))).child().isEmpty());
+        }
+    }
+
+    @Test
     void sameDefinitionAndIdProduceEqualDetachedImmutablePrototypes() {
         WidgetDefinition definition = definition("flutter.widgets.Column");
 

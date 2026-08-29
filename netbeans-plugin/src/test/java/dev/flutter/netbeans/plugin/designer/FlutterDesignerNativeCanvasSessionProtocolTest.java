@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -83,6 +84,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
             CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1);
     private static final List<CanvasWireCapability> VIEWPORT_CAPABILITIES = List.of(
@@ -90,6 +92,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
             CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
     private static final StableId DOCUMENT_A = StableId.parse(
@@ -389,6 +392,35 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(new SlotName("children"), delivered.slotName());
             assertEquals(0, delivered.insertionIndex());
             assertEquals(List.of(PADDING), harness.runnerPaletteDropTypes);
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void exactCurrentPaletteSourceProjectsCanonicalTypeAndTraits()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            WidgetTypeId appBar = new WidgetTypeId("flutter.material.AppBar");
+
+            assertTrue(onEdt(() -> harness.session.authorizePaletteDragSource(
+                    DROP_TOKEN_A, appBar)));
+            JsonNode body = harness.process.readHostControl(
+                    "host.paletteDragSource");
+
+            assertEquals(currentLayout, harness.process.layout(body));
+            assertEquals(DROP_TOKEN_A, body.path("token").asText());
+            assertEquals(appBar.value(), body.path("widgetType").asText());
+            assertEquals(
+                    List.of(BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT),
+                    List.of(body.path("traits").get(0).asText()));
+            assertEquals(1, body.path("traits").size());
+
+            assertFalse(onEdt(() -> harness.session.authorizePaletteDragSource(
+                    DROP_TOKEN_B,
+                    new WidgetTypeId("flutter.material.ElevatedButton"))));
         } finally {
             harness.close();
         }

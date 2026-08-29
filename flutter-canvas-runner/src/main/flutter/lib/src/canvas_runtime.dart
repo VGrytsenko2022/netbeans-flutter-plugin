@@ -19,6 +19,7 @@ const _runtimeFormat = 'netbeans-flutter-canvas-runtime';
 const _protocolVersion = 1;
 const _runnerVersion = '0.1.3-SNAPSHOT';
 const _paletteDropCapability = 'palette.drop.catalogInsert.v1';
+const _paletteDropSourceAwareCapability = 'palette.drop.sourceAware.v1';
 const _deleteSelectedWidgetCapability = 'widget.deleteSelection.v1';
 const _widgetMovePreviewCapability = 'widget.movePreview.v1';
 const _viewportPresentationCapability = 'viewport.presentation.v1';
@@ -370,6 +371,7 @@ class CanvasRuntimeController extends ChangeNotifier
   _PreparedNativeDrop? _preparedNativeDrop;
   Future<void> _writeChain = Future.value();
   bool _paletteDropNegotiated = false;
+  bool _paletteDropSourceAwareNegotiated = false;
   bool _deleteSelectedWidgetNegotiated = false;
   bool _widgetMovePreviewNegotiated = false;
   bool _viewportPresentationNegotiated = false;
@@ -379,6 +381,7 @@ class CanvasRuntimeController extends ChangeNotifier
   bool _bindingObserverInstalled = false;
   bool _nativeDropHandlerInstalled = false;
   bool _closed = false;
+  _PaletteDragSourceAuthority? _paletteDragSourceAuthority;
 
   CanvasModel? get model => _model;
   String? get selectedWidgetId => _selectedWidgetId;
@@ -390,6 +393,10 @@ class CanvasRuntimeController extends ChangeNotifier
   @visibleForTesting
   CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
   CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
+
+  @visibleForTesting
+  String? get paletteDragSourceToken =>
+      _paletteDragSourceAuthority?.source.token;
 
   @visibleForTesting
   int? get presentedLayoutSequence {
@@ -416,8 +423,20 @@ class CanvasRuntimeController extends ChangeNotifier
 
   /// Registers the current Flutter render-tree hit tester without granting it
   /// model or persistence authority.
-  void setDropResolver(CanvasDropResolver? resolver) {
-    _dropResolver = resolver;
+  void setDropResolver(Object? resolver) {
+    if (resolver != null &&
+        resolver is! CanvasDropResolver &&
+        resolver is! LegacyCanvasDropResolver) {
+      throw ArgumentError.value(resolver, 'resolver');
+    }
+    _dropResolver = switch (resolver) {
+      CanvasDropResolver value => value,
+      LegacyCanvasDropResolver value => (xMicros, yMicros, [source]) => value(
+        xMicros,
+        yMicros,
+      ),
+      _ => null,
+    };
     if (resolver == null) {
       _preparedNativeDrop = null;
       _setDropHoverTarget(null);
@@ -455,6 +474,9 @@ class CanvasRuntimeController extends ChangeNotifier
       _paletteDropNegotiated =
           hello.capabilities.contains(_paletteDropCapability) &&
           await _detectNativeDropAvailability();
+      _paletteDropSourceAwareNegotiated =
+          _paletteDropNegotiated &&
+          hello.capabilities.contains(_paletteDropSourceAwareCapability);
       _deleteSelectedWidgetNegotiated = hello.capabilities.contains(
         _deleteSelectedWidgetCapability,
       );
@@ -478,6 +500,7 @@ class CanvasRuntimeController extends ChangeNotifier
           _pendingLayoutSequence = null;
           _layoutPublicationTicket++;
           _preparedNativeDrop = null;
+          _paletteDragSourceAuthority = null;
           _setDropHoverTarget(null);
           _setWidgetMovePreviewTarget(null);
           notifyListeners();
@@ -524,6 +547,7 @@ class CanvasRuntimeController extends ChangeNotifier
     // published only after Flutter has completed the resized frame.
     _lastPresentedIdentity = null;
     _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _setWidgetMovePreviewTarget(null);
     _invalidateNativeHoverApproval();
@@ -652,6 +676,7 @@ class CanvasRuntimeController extends ChangeNotifier
     }
     _lastPresentedIdentity = null;
     _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _setWidgetMovePreviewTarget(null);
     _invalidateNativeHoverApproval();
@@ -774,6 +799,7 @@ class CanvasRuntimeController extends ChangeNotifier
       final target = _resolveValidDropTarget(
         _surfaceMicros(object['xMicros'], r'$/nativePaletteHover/xMicros'),
         _surfaceMicros(object['yMicros'], r'$/nativePaletteHover/yMicros'),
+        token,
       );
       _setDropHoverTarget(target);
       return target != null;
@@ -814,6 +840,7 @@ class CanvasRuntimeController extends ChangeNotifier
         _preparedNativeDrop = null;
       }
       _setDropHoverTarget(null);
+      _paletteDragSourceAuthority = null;
       return true;
     } on FormatException {
       return false;
@@ -847,7 +874,11 @@ class CanvasRuntimeController extends ChangeNotifier
         return false;
       }
       final current = _model;
-      final target = _resolveValidDropTarget(request.xMicros, request.yMicros);
+      final target = _resolveValidDropTarget(
+        request.xMicros,
+        request.yMicros,
+        request.token,
+      );
       if (current == null ||
           target == null ||
           !_sameSemanticDropTarget(target, approvedTarget)) {
@@ -907,7 +938,11 @@ class CanvasRuntimeController extends ChangeNotifier
           _lastPresentedIdentity != _identity(current)) {
         return false;
       }
-      final target = _resolveValidDropTarget(request.xMicros, request.yMicros);
+      final target = _resolveValidDropTarget(
+        request.xMicros,
+        request.yMicros,
+        request.token,
+      );
       if (target == null || !_sameSemanticDropTarget(target, prepared.target)) {
         return false;
       }
@@ -927,6 +962,7 @@ class CanvasRuntimeController extends ChangeNotifier
           'insertionIndex': target.insertionIndex,
         });
       await _writeRuntime('runner.paletteDrop', body);
+      _paletteDragSourceAuthority = null;
       return true;
     } on FormatException {
       return false;
@@ -950,21 +986,31 @@ class CanvasRuntimeController extends ChangeNotifier
         return false;
       }
       _preparedNativeDrop = null;
+      _paletteDragSourceAuthority = null;
       return true;
     } on FormatException {
       return false;
     }
   }
 
-  CanvasDropTarget? _resolveValidDropTarget(int xMicros, int yMicros) {
+  CanvasDropTarget? _resolveValidDropTarget(
+    int xMicros,
+    int yMicros, [
+    String? token,
+  ]) {
     final current = _model;
     final resolver = _dropResolver;
+    final authority = _paletteDragSourceAuthority;
     if (current == null ||
         resolver == null ||
-        _lastPresentedIdentity != _identity(current)) {
+        authority == null ||
+        !_paletteDropSourceAwareNegotiated ||
+        _lastPresentedIdentity != _identity(current) ||
+        !authority.matches(current, _layoutSequence) ||
+        (token != null && authority.source.token != token)) {
       return null;
     }
-    final target = resolver(xMicros, yMicros);
+    final target = resolver(xMicros, yMicros, authority.source);
     if (target == null) {
       return null;
     }
@@ -985,6 +1031,9 @@ class CanvasRuntimeController extends ChangeNotifier
       currentChildCount: currentChildCount,
       insertionIndex: target.insertionIndex,
     )) {
+      return null;
+    }
+    if (!dropSlot.acceptsSource(authority.source)) {
       return null;
     }
     return target;
@@ -1046,6 +1095,8 @@ class CanvasRuntimeController extends ChangeNotifier
       await _handleRender(_object(object['body'], r'$/body'));
     } else if (type == 'host.selection') {
       _handleHostSelection(_object(object['body'], r'$/body'));
+    } else if (type == 'host.paletteDragSource') {
+      _handleHostPaletteDragSource(_object(object['body'], r'$/body'));
     } else if (type == 'host.widgetMovePreview') {
       _handleHostWidgetMovePreview(_object(object['body'], r'$/body'));
     } else if (type == 'host.widgetMovePreviewClear') {
@@ -1125,6 +1176,7 @@ class CanvasRuntimeController extends ChangeNotifier
     _pendingLayoutSequence = null;
     _lastPresentedIdentity = null;
     _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _widgetMovePreviewSequence = -1;
     _setWidgetMovePreviewTarget(null);
@@ -1201,6 +1253,75 @@ class CanvasRuntimeController extends ChangeNotifier
       _selectedWidgetId = widgetId;
       notifyListeners();
     }
+  }
+
+  void _handleHostPaletteDragSource(Map<String, Object?> body) {
+    if (!_paletteDropSourceAwareNegotiated) {
+      throw const FormatException(
+        'Canvas source-aware Palette drop capability was not negotiated.',
+      );
+    }
+    _exactKeys(body, r'$/body', const {
+      'presentationSequence',
+      'documentId',
+      'logicalRevisionId',
+      'frameSequence',
+      'layoutSequence',
+      'token',
+      'widgetType',
+      'traits',
+    });
+    final current = _model;
+    if (current == null || !_matchesCurrentLayout(body, current)) {
+      return;
+    }
+    final token = _boundedText(body['token'], r'$/body/token', 1, 160);
+    if (!_paletteDropTokenPattern.hasMatch(token)) {
+      throw const FormatException('Canvas Palette source token is invalid.');
+    }
+    final widgetType = _boundedText(
+      body['widgetType'],
+      r'$/body/widgetType',
+      1,
+      255,
+    );
+    if (!isCanvasReviewedWidgetType(widgetType)) {
+      throw FormatException(
+        'Canvas Palette source widget type is not reviewed: $widgetType',
+      );
+    }
+    final rawTraits = body['traits'];
+    if (rawTraits is! List<Object?> || rawTraits.length > 32) {
+      throw const FormatException('Canvas Palette source traits are invalid.');
+    }
+    final traits = <String>{};
+    final traitPattern = RegExp(r'^[A-Za-z][A-Za-z0-9_.-]{0,254}$');
+    for (var index = 0; index < rawTraits.length; index++) {
+      final trait = _boundedText(rawTraits[index], r'$/body/traits', 1, 255);
+      if (!traitPattern.hasMatch(trait) || !traits.add(trait)) {
+        throw FormatException(
+          'Canvas Palette source trait is invalid at index $index.',
+        );
+      }
+    }
+    if (!setEquals(traits, canvasWidgetTraitsForType(widgetType))) {
+      throw const FormatException(
+        'Canvas Palette source traits drift from the reviewed widget schema.',
+      );
+    }
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
+    _paletteDragSourceAuthority = _PaletteDragSourceAuthority(
+      source: CanvasPaletteDragSource(
+        token: token,
+        widgetType: widgetType,
+        traits: traits,
+      ),
+      presentationSequence: current.presentationSequence,
+      documentId: current.documentId,
+      logicalRevisionId: current.logicalRevisionId,
+      layoutSequence: _layoutSequence,
+    );
   }
 
   void _handleHostWidgetMovePreview(Map<String, Object?> body) {
@@ -1423,6 +1544,7 @@ class CanvasRuntimeController extends ChangeNotifier
     _lastViewportPublication = null;
     _layoutPublicationTicket++;
     _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _setWidgetMovePreviewTarget(null);
     notifyListeners();
@@ -1470,6 +1592,7 @@ class CanvasRuntimeController extends ChangeNotifier
     _lastViewportPublication = null;
     _layoutPublicationTicket++;
     _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _setWidgetMovePreviewTarget(null);
     await _reader.cancel();
@@ -1539,7 +1662,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 7) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 8) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -1547,6 +1670,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
     'readOnly.layout',
     'readOnly.selection',
     _paletteDropCapability,
+    _paletteDropSourceAwareCapability,
     _deleteSelectedWidgetCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
@@ -1566,6 +1690,12 @@ _HostHello _decodeHostHello(Uint8List payload) {
       'Canvas read-only rendering capability is required.',
     );
   }
+  if (capabilities.contains(_paletteDropSourceAwareCapability) &&
+      !capabilities.contains(_paletteDropCapability)) {
+    throw const FormatException(
+      'Canvas source-aware Palette drop requires catalog insertion DnD.',
+    );
+  }
   return _HostHello(
     sessionId,
     Set.unmodifiable(capabilities),
@@ -1582,6 +1712,7 @@ Map<String, Object?> _runnerHello(
     'readOnly.layout',
     'readOnly.selection',
     _paletteDropCapability,
+    _paletteDropSourceAwareCapability,
     _deleteSelectedWidgetCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
@@ -1605,7 +1736,9 @@ Map<String, Object?> _runnerHello(
       'acceptedCapabilities': [
         for (final capability in capabilityOrder)
           if (hello.capabilities.contains(capability) &&
-              (capability != _paletteDropCapability || paletteDropAvailable))
+              ((capability != _paletteDropCapability &&
+                      capability != _paletteDropSourceAwareCapability) ||
+                  paletteDropAvailable))
             capability,
       ],
       'effectiveLimits': limits.toJson(),
@@ -1918,6 +2051,28 @@ class _NativeDropRequest {
       probeId: _sequence(object['probeId'], '$path/probeId'),
     );
   }
+}
+
+class _PaletteDragSourceAuthority {
+  const _PaletteDragSourceAuthority({
+    required this.source,
+    required this.presentationSequence,
+    required this.documentId,
+    required this.logicalRevisionId,
+    required this.layoutSequence,
+  });
+
+  final CanvasPaletteDragSource source;
+  final int presentationSequence;
+  final String documentId;
+  final int logicalRevisionId;
+  final int layoutSequence;
+
+  bool matches(CanvasModel model, int currentLayoutSequence) =>
+      presentationSequence == model.presentationSequence &&
+      documentId == model.documentId &&
+      logicalRevisionId == model.logicalRevisionId &&
+      layoutSequence == currentLayoutSequence;
 }
 
 class _PreparedNativeDrop {

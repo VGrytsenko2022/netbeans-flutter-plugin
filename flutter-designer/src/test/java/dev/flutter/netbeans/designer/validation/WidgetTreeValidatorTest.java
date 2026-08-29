@@ -141,6 +141,90 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void appBarShapeMembersRequireCompatibleClosedShapeKind() {
+        WidgetNode missingKind = node(
+                "appBar", "flutter.material.AppBar",
+                Map.of(name("shapeSideWidth"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationIssue dependency = onlyIssue(
+                validator().validate(
+                        document(missingKind), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/shapeSideWidth", dependency.path());
+
+        WidgetNode incompatibleRadius = node(
+                "circle", "flutter.material.AppBar",
+                Map.of(
+                        name("shapeKind"), new PropertyValue.StringValue("circle"),
+                        name("shapeRadiusTopLeft"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationIssue conflict = onlyIssue(
+                validator().validate(
+                        document(incompatibleRadius), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/shapeRadiusTopLeft", conflict.path());
+
+        WidgetNode valid = node(
+                "rounded", "flutter.material.AppBar",
+                Map.of(
+                        name("shapeKind"),
+                        new PropertyValue.StringValue("roundedRectangle"),
+                        name("shapeRadiusTopLeft"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationResult validResult = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(validResult.valid(), () -> "Issues were: " + validResult.issues());
+    }
+
+    @Test
+    void appBarTextStyleRelationshipsRemainIndependentAndTyped() {
+        WidgetNode conflict = node(
+                "appBar", "flutter.material.AppBar",
+                Map.of(
+                        name("toolbarTextStyleColor"),
+                        new PropertyValue.ColorValue(0xFF000000L),
+                        name("toolbarTextStyleForeground"),
+                        PropertyValue.PaintValue.defaults(
+                                new ColorSource.Literal(0xFFFFFFFFL))),
+                Map.of());
+        ValidationIssue conflictIssue = onlyIssue(
+                validator().validate(
+                        document(conflict), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/toolbarTextStyleForeground", conflictIssue.path());
+
+        WidgetNode missingFamily = node(
+                "package", "flutter.material.AppBar",
+                Map.of(name("titleTextStylePackage"),
+                        new PropertyValue.StringValue("brand_fonts")),
+                Map.of());
+        ValidationIssue dependency = onlyIssue(
+                validator().validate(
+                        document(missingFamily), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/titleTextStylePackage", dependency.path());
+    }
+
+    @Test
+    void appBarBottomRequiresPreferredSizeWidgetTrait() {
+        WidgetNode text = node(
+                "text", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Not preferred")),
+                Map.of());
+        WidgetNode appBar = node(
+                "appBar", "flutter.material.AppBar", Map.of(),
+                Map.of(slotName("bottom"), WidgetSlot.SingleSlot.of(text)));
+
+        ValidationIssue issue = onlyIssue(
+                validator().validate(document(appBar), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_ACCEPTANCE);
+        assertEquals("/root/slots/bottom/child", issue.path());
+    }
+
+    @Test
     void textSemanticsIdentifiersAreUniqueAcrossTheWholeTree() {
         WidgetNode first = node("first", "flutter.widgets.Text", Map.of(
                 name("data"), new PropertyValue.StringValue("First"),

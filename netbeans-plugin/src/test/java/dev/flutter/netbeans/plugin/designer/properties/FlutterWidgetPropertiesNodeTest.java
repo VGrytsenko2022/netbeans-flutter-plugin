@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
@@ -271,6 +272,7 @@ class FlutterWidgetPropertiesNodeTest {
                                 java.util.Optional.of("MaterialIcons"),
                                 java.util.Optional.empty(), false, List.of())));
         List<String> types = List.of(
+                "flutter.material.AppBar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -307,8 +309,8 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(91, writableCount,
-                "the reviewed non-Scaffold surface includes all Text and Icon leaves");
+        assertEquals(211, writableCount,
+                "the reviewed non-Scaffold surface includes complete AppBar, Text, and Icon leaves");
     }
 
     @Test
@@ -601,6 +603,92 @@ class FlutterWidgetPropertiesNodeTest {
                 commands,
                 "selecting an RTL glyph changes only Icon.icon and must never "
                 + "invent a semanticLabel");
+    }
+
+    @Test
+    void appBarProjectsEveryTypedLeafIntoEnterpriseGroupsAndExactSlots()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.material.AppBar");
+        StableId id = StableId.parse("2f9193ca-c8cb-4473-a987-296cb63aaf35");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        List<String> expectedSets = new ArrayList<>();
+        expectedSets.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
+        Arrays.stream(AppBarWidgetPropertySchema.Group.values())
+                .map(AppBarWidgetPropertySchema.Group::setName)
+                .forEach(expectedSets::add);
+        expectedSets.add(FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(expectedSets,
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        assertEquals(java.util.Collections.nCopies(
+                        1 + AppBarWidgetPropertySchema.Group.values().length,
+                        FlutterWidgetPropertiesNode.GENERAL_TAB_NAME),
+                Arrays.stream(sets)
+                        .limit(1 + AppBarWidgetPropertySchema.Group.values().length)
+                        .map(set -> set.getValue(
+                                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
+                        .toList());
+        assertEquals(FlutterWidgetPropertiesNode.SLOTS_TAB_NAME,
+                sets[sets.length - 1].getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+
+        int writableLeaves = 0;
+        for (Node.PropertySet set : Arrays.copyOfRange(sets, 1, sets.length - 1)) {
+            for (Node.Property<?> property : set.getProperties()) {
+                assertTrue(property.canWrite(), property.getName());
+                assertEquals(FlutterPropertyCellValue.class,
+                        property.getValueType(), property.getName());
+                assertTrue(property.getPropertyEditor() != null, property.getName());
+                writableLeaves++;
+            }
+        }
+        assertEquals(definition.properties().size(), writableLeaves);
+        assertEquals(120, writableLeaves);
+        assertEquals(List.of(
+                "leading", "title", "actions", "flexibleSpace", "bottom"),
+                names(sets[sets.length - 1].getProperties()));
+
+        PropertyEditor predicate = property(node, "notificationPredicate")
+                .getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "default", "depthZero", "all"),
+                List.of(predicate.getTags()));
+        predicate.setAsText("all");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.StringValue("all")),
+                predicate.getValue());
+        assertThrows(IllegalArgumentException.class,
+                () -> predicate.setAsText("arbitraryCallback"));
+
+        PropertyEditor shape = property(node, "shapeKind").getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "roundedRectangle", "stadium", "circle",
+                "beveledRectangle", "continuousRectangle"),
+                List.of(shape.getTags()));
+        PropertyEditor families = property(
+                node, "toolbarTextStyleFontFamilyFallback").getPropertyEditor();
+        assertTrue(families.supportsCustomEditor());
+        families.setAsText("Roboto\nNoto Sans");
+        assertEquals(new PropertyValue.StringValue("Roboto\nNoto Sans"),
+                cell(families).explicitValue().orElseThrow());
+        assertTrue(property(node, "actionsPadding")
+                .getPropertyEditor().supportsCustomEditor());
+        assertTrue(property(node, "systemOverlayStyleStatusBarColor")
+                .getPropertyEditor().supportsCustomEditor());
+
+        cellProperty(property(node, "notificationPredicate")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.StringValue("all")));
+        assertEquals(List.of(new SetProperty(
+                id,
+                new PropertyName("notificationPredicate"),
+                new PropertyValue.StringValue("all"))), commands);
     }
 
     @Test
@@ -922,10 +1010,11 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void eightCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void nineCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
+                "flutter.material.AppBar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -950,7 +1039,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(8, iconPaths.size(),
+        assertEquals(9, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

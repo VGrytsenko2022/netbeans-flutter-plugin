@@ -27,9 +27,10 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the eight capability-authorized Palette widgets (`Scaffold`,
-    `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`) through
-    the fail-closed 56-cell catalog compatibility matrix, with paired generation,
+    accepts the nine capability-authorized Palette widgets (`Scaffold`,
+    `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and
+    `Icon`) through a fail-closed 117-cell catalog matrix with 101 accepted and
+    16 rejected combinations, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
     parent has one unambiguous compatible slot; ambiguous multi-slot parents
@@ -235,9 +236,9 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated protocol-v6 model restricted by the exact built-in capability
-gate to `Scaffold`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
-`SizedBox`.
+bounded validated protocol-v7 model restricted by the exact built-in capability
+gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`,
+`Center` and `SizedBox`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
 targets and carries each target into Flutter's adaptive theme semantics on the
@@ -245,8 +246,11 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The seven non-`Scaffold` widgets expose 91 typed
-read/write property rows. `Text` contributes 59 independently editable leaves in
+tree and standard Properties. The eight non-`Scaffold` widgets expose 211 typed
+read/write property rows. `AppBar` contributes 120 independently resettable
+leaves across behavior, layout, colors/elevation, shape, icon themes, text
+styles and system-UI overlay groups, plus exact `leading`, `title`, `actions`,
+`flexibleSpace` and `bottom` slots. `Text` contributes 59 independently editable leaves in
 seven sections; every optional leaf supports Restore Default, and generated
 Dart and native Canvas assemble them identically into `TextStyle`,
 `StrutStyle`, `Locale`, `TextScaler` and `TextHeightBehavior`. Text colors,
@@ -265,18 +269,21 @@ so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
 remain direct local arguments. Generated Dart and the native Canvas have exact
 argument parity. The active Design lookup supplies the standard NetBeans Palette
-with those exact eight items. The catalog compatibility matrix admits every one
-of those eight sources into empty `Scaffold.body`,
-`Scaffold.floatingActionButton`, `Center.child`, `Padding.child` and
-`SizedBox.child` slots, or
-at the terminal index of `Row.children` and `Column.children`. An empty
-`Row`/`Column` exposes its complete bounded design-time area as insertion index
-`0`; once populated, only its terminal append zone is admitted. The standard
+with those exact nine items. Eleven any-widget slots admit all nine sources:
+`Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
+`Row.children`, `Center.child`, `Padding.child`, `SizedBox.child`, and AppBar's
+`leading`, `title`, `actions` and `flexibleSpace`. `Scaffold.appBar` and
+`AppBar.bottom` accept only `PreferredSizeWidget`, currently the reviewed
+AppBar. The 13 destinations therefore form 117 candidate cells: 101 accepted
+and 16 rejected. An empty `Row`/`Column` or AppBar actions list exposes its
+complete bounded design-time area as insertion index `0`; once populated, only
+its terminal append zone is admitted. The standard
 widget tree accepts the same Palette prototypes on an exact row: `Row` and
 `Column` append to `children`, while an empty `Center`, `Padding` or `SizedBox`
 receives its
-`child`. Parents with several compatible catalog slots remain rejected as
-ambiguous by flattened-tree drop; select the parent and use its `Slots`
+`child`. Parents with several compatible catalog slots, including AppBar and
+Scaffold, remain rejected as ambiguous by flattened-tree drop; select the
+parent and use its `Slots`
 Properties tab to choose the exact named destination.
 An existing non-root widget can be moved within the same widget tree by dropping
 on a uniquely compatible container (`ON`) or at a visible before/after boundary

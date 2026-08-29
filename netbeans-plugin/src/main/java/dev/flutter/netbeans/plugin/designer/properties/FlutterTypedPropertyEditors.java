@@ -30,22 +30,45 @@ final class FlutterTypedPropertyEditors {
     }
 
     static Optional<Binding> binding(PropertyDefinition definition) {
-        return binding(definition, Optional.empty());
+        return binding(definition, Optional.empty(), false, List.of());
     }
 
     static Optional<Binding> binding(
             PropertyDefinition definition,
             Optional<TextWidgetPropertySchema.Definition> textSchema) {
+        return binding(definition, textSchema, false, List.of());
+    }
+
+    static Optional<Binding> binding(
+            PropertyDefinition definition,
+            Optional<TextWidgetPropertySchema.Definition> textSchema,
+            boolean newlineStringList,
+            List<String> stringPresets) {
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(textSchema, "textSchema");
+        Objects.requireNonNull(stringPresets, "stringPresets");
+        List<String> presets = stringPresets.stream()
+                .map(value -> Objects.requireNonNull(value, "stringPresets contains null"))
+                .map(String::strip)
+                .toList();
+        if (presets.stream().anyMatch(String::isEmpty)
+                || presets.size() != presets.stream().distinct().count()) {
+            throw new IllegalArgumentException(
+                    "String editor presets must be non-blank and unique.");
+        }
         Set<PropertyValueKind> kinds = definition.acceptedKinds();
         EditorKind editorKind;
         if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
-            editorKind = textSchema
+            if (!presets.isEmpty()) {
+                editorKind = EditorKind.STRING_PRESET;
+            } else {
+                editorKind = textSchema
                     .filter(value -> value.encoding()
                     == TextWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST)
                     .map(ignored -> EditorKind.NEWLINE_STRING_LIST)
-                    .orElse(EditorKind.STRING);
+                    .orElse(newlineStringList
+                            ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
+            }
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN))) {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
@@ -95,11 +118,13 @@ final class FlutterTypedPropertyEditors {
         } else {
             return Optional.empty();
         }
-        return Optional.of(new Binding(definition, editorKind, textSchema));
+        return Optional.of(new Binding(
+                definition, editorKind, textSchema, List.copyOf(presets)));
     }
 
     enum EditorKind {
         STRING,
+        STRING_PRESET,
         NEWLINE_STRING_LIST,
         BOOLEAN,
         INTEGER,
@@ -120,11 +145,18 @@ final class FlutterTypedPropertyEditors {
     record Binding(
             PropertyDefinition definition,
             EditorKind editorKind,
-            Optional<TextWidgetPropertySchema.Definition> textSchema) {
+            Optional<TextWidgetPropertySchema.Definition> textSchema,
+            List<String> stringPresets) {
         Binding {
             Objects.requireNonNull(definition, "definition");
             Objects.requireNonNull(editorKind, "editorKind");
             Objects.requireNonNull(textSchema, "textSchema");
+            stringPresets = List.copyOf(
+                    Objects.requireNonNull(stringPresets, "stringPresets"));
+            if ((editorKind == EditorKind.STRING_PRESET) != !stringPresets.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Only the String preset editor may carry preset values.");
+            }
         }
 
         boolean optional() {
@@ -179,6 +211,7 @@ final class FlutterTypedPropertyEditors {
         PropertyEditor createEditor() {
             return switch (editorKind) {
                 case STRING -> new StringEditor(this);
+                case STRING_PRESET -> new StringPresetEditor(this);
                 case NEWLINE_STRING_LIST -> new NewlineStringListEditor(this);
                 case BOOLEAN -> new BooleanEditor(this);
                 case INTEGER -> new IntegerEditor(this);
@@ -310,6 +343,47 @@ final class FlutterTypedPropertyEditors {
             // is a valid explicit value. Optional String reset is deliberately
             // available only through Node.Property.restoreDefaultValue().
             setExplicit(new PropertyValue.StringValue(text));
+        }
+    }
+
+    private static final class StringPresetEditor extends TypedEditor {
+        private final String[] tags;
+
+        StringPresetEditor(Binding binding) {
+            super(binding);
+            List<String> values = new ArrayList<>();
+            if (binding.optional()) {
+                values.add(FlutterPropertyCellValue.NOT_SET_TEXT);
+            }
+            values.addAll(binding.stringPresets());
+            tags = values.toArray(String[]::new);
+        }
+
+        @Override
+        public String[] getTags() {
+            return tags.clone();
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue()
+                    .map(PropertyValue.StringValue.class::cast)
+                    .map(PropertyValue.StringValue::value)
+                    .orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            Objects.requireNonNull(text, "text");
+            if (parseUnset(text)) {
+                return;
+            }
+            String value = text.strip();
+            if (!binding.stringPresets().contains(value)) {
+                throw new IllegalArgumentException(
+                        "Expected one of " + binding.stringPresets() + '.');
+            }
+            setExplicit(new PropertyValue.StringValue(value));
         }
     }
 

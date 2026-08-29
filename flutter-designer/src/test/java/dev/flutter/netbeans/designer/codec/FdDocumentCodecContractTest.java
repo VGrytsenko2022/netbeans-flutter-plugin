@@ -533,6 +533,37 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
+    void roundTripsFlattenedAppBarValuesWithoutANewWireKind() throws Exception {
+        String source = minimalDocument("4", "{}").replace(
+                "\"type\": \"flutter.widgets.Text\"",
+                "\"type\": \"flutter.material.AppBar\"").replace(
+                "\"properties\": {}",
+                "\"properties\": {"
+                + "\"notificationPredicate\":{\"kind\":\"string\",\"value\":\"depthZero\"},"
+                + "\"shapeKind\":{\"kind\":\"string\",\"value\":\"roundedRectangle\"},"
+                + "\"shapeRadiusTopLeft\":{\"kind\":\"double\",\"value\":12.5},"
+                + "\"actionsPadding\":{\"kind\":\"edgeInsets\","
+                + "\"left\":1,\"top\":2,\"right\":3,\"bottom\":4},"
+                + "\"iconThemeShadows\":{\"kind\":\"shadowList\",\"items\":[]}"
+                + "}");
+
+        FdDecodeResult.Current decoded = current(codec.decode(utf8(source)));
+        assertEquals(new PropertyValue.StringValue("depthZero"),
+                property(decoded.document(), "notificationPredicate"));
+        assertEquals(new BigDecimal("12.5"), assertInstanceOf(
+                PropertyValue.DoubleValue.class,
+                property(decoded.document(), "shapeRadiusTopLeft")).value());
+        assertTrue(assertInstanceOf(
+                PropertyValue.ShadowListValue.class,
+                property(decoded.document(), "iconThemeShadows")).items().isEmpty());
+
+        byte[] canonical = codec.encode(decoded.document()).copyBytes();
+        FdDecodeResult.Current roundTrip = current(codec.decode(canonical));
+        assertEquals(decoded.document(), roundTrip.document());
+        assertArrayEquals(canonical, codec.encode(roundTrip.document()).copyBytes());
+    }
+
+    @Test
     void migratesEveryExactRegisteredLegacyIconAndLeavesOtherExpressionsOpaque()
             throws Exception {
         String legacy = minimalDocument("3", "{}")

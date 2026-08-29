@@ -68,6 +68,7 @@ class CanvasModelPayloadCodecTest {
     void exposesTheExactReviewedCanvasCapabilitySetInPaletteOrder() {
         assertEquals(List.of(
                 "flutter.material.Scaffold",
+                "flutter.material.AppBar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -82,7 +83,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactEightWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactNineWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -93,7 +94,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":6"));
+        assertTrue(json.contains("\"protocolVersion\":7"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -151,24 +152,25 @@ class CanvasModelPayloadCodecTest {
 
     @Test
     void rejectsAValidCatalogWidgetOutsideReviewedCanvasBeforeEncoding() throws Exception {
-        WidgetNode appBar = new WidgetNode(
+        WidgetNode button = new WidgetNode(
                 id("d5659c06-8da0-45d1-91c8-75eef08d9442"),
-                type("flutter.material.AppBar"),
-                Map.of(),
-                Map.of());
+                type("flutter.material.ElevatedButton"),
+                Map.of(new PropertyName("onPressed"),
+                        new PropertyValue.DartExpressionValue("null")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
         DesignerDocument document = new DesignerDocument(
-                DOCUMENT_ID, source(), appBar);
+                DOCUMENT_ID, source(), button);
         CanvasRenderRequest request = request(document);
 
         CanvasModelPayloadException failure = assertThrows(
                 CanvasModelPayloadException.class,
                 () -> new CanvasModelPayloadCodec().encode(request));
 
-        assertTrue(failure.getMessage().contains("flutter.material.AppBar"));
+        assertTrue(failure.getMessage().contains("flutter.material.ElevatedButton"));
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV5() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV7() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -208,7 +210,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":6"), json);
+        assertTrue(json.contains("\"protocolVersion\":7"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","

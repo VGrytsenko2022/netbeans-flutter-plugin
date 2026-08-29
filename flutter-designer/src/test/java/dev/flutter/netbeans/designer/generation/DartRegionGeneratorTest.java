@@ -877,6 +877,155 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void bareAppBarPreservesThemeInheritanceAndLegacyGoldenImports() {
+        WidgetNode appBar = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.AppBar"),
+                Map.of(),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(appBar, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        assertTrue(generated.build().payload().contains("return AppBar();"));
+        assertFalse(generated.build().payload().contains("services.dart"));
+    }
+
+    @Test
+    void assemblesClosedAppBarCompoundsAndConditionalServicesImport() {
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(property("backgroundColor"),
+                new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.surface")));
+        properties.put(property("actionsPadding"),
+                new PropertyValue.EdgeInsetsDirectionalValue(
+                        BigDecimal.ONE, BigDecimal.valueOf(2),
+                        BigDecimal.valueOf(3), BigDecimal.valueOf(4)));
+        properties.put(property("animateColor"), new PropertyValue.BooleanValue(true));
+        properties.put(property("notificationPredicate"),
+                new PropertyValue.StringValue("depthZero"));
+        properties.put(property("shapeKind"),
+                new PropertyValue.StringValue("roundedRectangle"));
+        properties.put(property("shapeSideColor"),
+                new PropertyValue.ColorValue(0xFF112233L));
+        properties.put(property("shapeSideWidth"),
+                new PropertyValue.DoubleValue(new BigDecimal("2.5")));
+        properties.put(property("shapeSideStyle"),
+                new PropertyValue.EnumValue("BorderStyle", "solid"));
+        properties.put(property("shapeRadiusTopLeft"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(12)));
+        properties.put(property("shapeRadiusBottomRight"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(4)));
+        properties.put(property("iconThemeSize"),
+                new PropertyValue.IntegerValue(BigInteger.valueOf(24)));
+        properties.put(property("iconThemeColor"),
+                new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.onSurface")));
+        properties.put(property("actionsIconThemeGrade"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(-25)));
+        properties.put(property("toolbarTextStyleThemeTextStyle"),
+                new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.textTheme.bodyMedium")));
+        properties.put(property("toolbarTextStyleFontSize"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(15)));
+        properties.put(property("toolbarTextStyleLocaleLanguageCode"),
+                new PropertyValue.StringValue("uk"));
+        properties.put(property("toolbarTextStyleDecorationUnderline"),
+                new PropertyValue.BooleanValue(true));
+        properties.put(property("titleTextStyleColor"),
+                new PropertyValue.ColorValue(0xFFEEDDCCL));
+        properties.put(property("systemOverlayStyleStatusBarColor"),
+                new PropertyValue.ColorValue(0xFF010203L));
+        properties.put(property("systemOverlayStyleStatusBarIconBrightness"),
+                new PropertyValue.EnumValue("Brightness", "dark"));
+        WidgetNode appBar = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.AppBar"),
+                properties,
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(appBar, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        DartImportDirective services = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals("package:flutter/services.dart"))
+                .findFirst().orElseThrow();
+        String servicesPrefix = services.prefix().orElseThrow();
+        String build = generated.build().payload();
+        assertTrue(build.contains(
+                "backgroundColor: Theme.of(context).colorScheme.surface"), build);
+        assertTrue(build.contains("actionsPadding: const EdgeInsetsDirectional.fromSTEB("
+                + "1.0, 2.0, 3.0, 4.0)"), build);
+        assertTrue(build.contains("animateColor: true"), build);
+        assertTrue(build.contains(
+                "notificationPredicate: (notification) => notification.depth == 0"));
+        assertTrue(build.contains("shape: const RoundedRectangleBorder("), build);
+        assertTrue(build.contains("side: const BorderSide("), build);
+        assertTrue(build.contains("borderRadius: const BorderRadius.only("), build);
+        assertTrue(build.contains("topLeft: const Radius.circular(12.0)"), build);
+        assertTrue(build.contains("iconTheme: IconThemeData("), build);
+        assertTrue(build.contains("actionsIconTheme: const IconThemeData(grade: -25.0)"), build);
+        assertTrue(build.contains("toolbarTextStyle: (Theme.of(context).textTheme.bodyMedium"
+                + " ?? const TextStyle()).copyWith("));
+        assertTrue(build.contains("locale: const Locale.fromSubtags(languageCode: 'uk')"));
+        assertTrue(build.contains("decoration: TextDecoration.underline"));
+        assertTrue(build.contains("titleTextStyle: const TextStyle("));
+        assertTrue(build.contains("systemOverlayStyle: const " + servicesPrefix
+                + ".SystemUiOverlayStyle("));
+        assertTrue(build.contains("statusBarIconBrightness: Brightness.dark"));
+        assertFalse(build.contains("shapeKind:"));
+        assertFalse(build.contains("iconThemeSize:"));
+        assertFalse(build.contains("toolbarTextStyleFontSize:"));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("SystemUiOverlayStyle")
+                        && occurrence.libraryUri().equals("package:flutter/services.dart")));
+    }
+
+    @Test
+    void emitsAllFiveAppBarSlotsInStableLegacyThenAppendedOrder() {
+        WidgetNode nestedBottom = new WidgetNode(
+                StableId.random(), new WidgetTypeId("flutter.material.AppBar"),
+                Map.of(), Map.of(), Extensions.empty());
+        WidgetNode appBar = new WidgetNode(
+                StableId.random(), new WidgetTypeId("flutter.material.AppBar"),
+                Map.of(),
+                Map.of(
+                        slot("leading"), WidgetSlot.SingleSlot.of(text("Leading")),
+                        slot("title"), WidgetSlot.SingleSlot.of(text("Title")),
+                        slot("actions"), new WidgetSlot.ListSlot(List.of(
+                                text("First"), text("Second"))),
+                        slot("flexibleSpace"), WidgetSlot.SingleSlot.of(text("Flexible")),
+                        slot("bottom"), WidgetSlot.SingleSlot.of(nestedBottom)),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(appBar, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        String build = result.generated().orElseThrow().build().payload();
+        int leading = build.indexOf("leading:");
+        int title = build.indexOf("title:");
+        int actions = build.indexOf("actions:");
+        int flexible = build.indexOf("flexibleSpace:");
+        int bottom = build.indexOf("bottom:");
+        assertTrue(0 <= leading && leading < title && title < actions
+                && actions < flexible && flexible < bottom, build);
+        assertTrue(build.contains("actions: ["), build);
+        assertTrue(build.contains("bottom: AppBar()"), build);
+    }
+
+    @Test
     void rejectsUnpairedSurrogateInsteadOfSilentlyReplacingIt() {
         WidgetNode root = leaf("bad\uD800value");
 

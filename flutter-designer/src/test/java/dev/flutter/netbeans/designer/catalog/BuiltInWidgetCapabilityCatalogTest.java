@@ -10,6 +10,9 @@ import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.Test;
 class BuiltInWidgetCapabilityCatalogTest {
     private static final List<String> CANVAS_ORDER = List.of(
             "flutter.material.Scaffold",
+            "flutter.material.AppBar",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -29,6 +33,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Icon");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
+            "flutter.material.AppBar",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -68,7 +73,6 @@ class BuiltInWidgetCapabilityCatalogTest {
     @Test
     void nonInteractiveBuiltInsRemainFailClosed() {
         Set<String> unsupported = Set.of(
-                "flutter.material.AppBar",
                 "flutter.material.ElevatedButton");
         for (WidgetDefinition definition
                 : BuiltInWidgetCatalog.getDefault().definitions()) {
@@ -188,6 +192,28 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .get(new PropertyName("opticalSize")).numericBounds()
                 .get(PropertyValueKind.DOUBLE).fingerprint());
         assertTrue(icon.slotContracts().isEmpty());
+
+        var appBar = projection("flutter.material.AppBar");
+        assertEquals(120, appBar.propertyContracts().size());
+        assertEquals(5, appBar.slotContracts().size());
+        assertEquals("pattern:KD86ZGVmYXVsdHxkZXB0aFplcm98YWxsKQ",
+                appBar.propertyContracts().get(new PropertyName("notificationPredicate"))
+                        .constraintFingerprints().get(PropertyValueKind.STRING));
+        assertEquals("-1:1:1:1", appBar.propertyContracts()
+                .get(new PropertyName("shapeSideStrokeAlign"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("0:0:32768:0", appBar.propertyContracts()
+                .get(new PropertyName("iconThemeWeight"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
+        String preferredSize = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals("trait:" + preferredSize,
+                appBar.slotContracts().get(new SlotName("bottom"))
+                        .acceptanceFingerprint());
+        assertEquals("trait:" + preferredSize,
+                projection("flutter.material.Scaffold").slotContracts()
+                        .get(new SlotName("appBar")).acceptanceFingerprint());
     }
 
     @Test
@@ -204,7 +230,54 @@ class BuiltInWidgetCapabilityCatalogTest {
                 "P|styleFontFeatures|fontFeatureList|0|-|-|"
                 + "fontFeatureList:any\n"));
         assertTrue(contract.contains(
-                "S|children|list|0|0|10000\n"));
+                "S|children|list|0|0|10000|any\n"));
+    }
+
+    @Test
+    void appBarFullReviewedProjectionHasStableFingerprint() throws Exception {
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.AppBar\n");
+        int end = contract.indexOf("W|", start + 2);
+        String appBar = contract.substring(start, end);
+
+        assertEquals(50_907, appBar.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(
+                "075766cea1325f1009147bcb913d6d1dee7a9b27a177ef7331d42f976fa9f8d8",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(appBar.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void slotAcceptanceFingerprintsAreCanonicalAndFailClosed() {
+        String text = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("flutter.widgets.Text".getBytes(StandardCharsets.UTF_8));
+        String icon = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("flutter.widgets.Icon".getBytes(StandardCharsets.UTF_8));
+        String types = java.util.stream.Stream.of(text, icon).sorted()
+                .collect(java.util.stream.Collectors.joining(","));
+
+        assertEquals("types:" + types,
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10,
+                        "types:" + types).acceptanceFingerprint());
+        assertThrows(IllegalArgumentException.class,
+                () -> new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1, "trait:Zg=="));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1, "trait:_w"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10,
+                        "types:" + String.join(",", types.split(",")[1],
+                                types.split(",")[0])));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10,
+                        "types:" + text + ',' + text));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10, "types:"));
     }
 
     @Test
@@ -250,6 +323,21 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertThrows(ExceptionInInitializerError.class,
                 () -> BuiltInWidgetCapabilityCatalog.requireCanvasSchemaParity(
                         column, slotDrifted));
+
+        WidgetDefinition scaffold = definition("flutter.material.Scaffold");
+        var scaffoldProjection = projection("flutter.material.Scaffold");
+        slots = new LinkedHashMap<>(scaffoldProjection.slotContracts());
+        var appBarSlot = slots.get(new SlotName("appBar"));
+        slots.put(new SlotName("appBar"),
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        appBarSlot.cardinality(), appBarSlot.required(),
+                        appBarSlot.minimumChildren(), appBarSlot.maximumChildren(),
+                        "any"));
+        var acceptanceDrifted = BuiltInWidgetCapabilityCatalog.CanvasProjection.of(
+                scaffoldProjection.propertyContracts(), slots);
+        assertThrows(ExceptionInInitializerError.class,
+                () -> BuiltInWidgetCapabilityCatalog.requireCanvasSchemaParity(
+                        scaffold, acceptanceDrifted));
 
         WidgetDefinition text = definition("flutter.widgets.Text");
         var textProjection = projection("flutter.widgets.Text");

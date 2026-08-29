@@ -117,7 +117,7 @@ optional `canvas.themeMode` is only a local preview override (`system`, `light`
 or `dark`); when absent, Canvas follows the project default. The Canvas reads
 the validated project descriptor and the verified generated-artifact hash,
 then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme
-override tables and revision digest through model protocol v6 to the isolated
+override tables and revision digest through model protocol v7 to the isolated
 Flutter runner. It never executes project Dart. The runner applies the same
 construction order as generated Dart before form-local Text overrides. Projects
 without a descriptor keep the legacy Material preview; a present but invalid
@@ -466,7 +466,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v6 projection for the eight exact built-ins carrying the
+  canonical protocol-v7 projection for the nine exact built-ins carrying the
   Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control, model and catalog JSON channels.
@@ -993,9 +993,9 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   target, and the first Windows native host slice is implemented. It builds
   a versioned isolated runner, creates the real Flutter child window inside a
   heavyweight AWT host in the Design MultiView, validates the exact HWND/PID
-  hierarchy and publishes one bounded validated protocol-v6 revision restricted
-  by the exact capability gate to `Scaffold`, `Column`, `Row`, `Text`, `Icon`,
-  `Padding`, `Center` and `SizedBox`. The owning
+  hierarchy and publishes one bounded validated protocol-v7 revision restricted
+  by the exact capability gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
+  `Icon`, `Padding`, `Center` and `SizedBox`. The owning
   project's observable platform snapshot limits the toolbar to exact
   mode/target pairs: Android Phone/Tablet, iPhone/iPad, named Windows/macOS/Linux
   Desktop targets, and Web. Canonical platform-folder changes reconcile every
@@ -1015,10 +1015,10 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop, `Scaffold` Properties and the broader Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 91 reviewed fields of
-  `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`; 59 are the
-  typed `Text` leaves and 13 are the typed `Icon` constructor properties
-  described below.
+  read/write Properties are enabled only for the 211 reviewed fields of
+  `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`;
+  120 are grouped AppBar leaves, 59 are typed Text leaves and 13 are typed Icon
+  constructor properties described below.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1026,20 +1026,25 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon` publish typed
+property sheet. `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon` publish typed
 read/write catalog properties; `Scaffold` intentionally publishes identity and
 read-only context only. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the eight
+context-sensitive standard NetBeans Palette containing exactly the nine
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative eight-source, 56-cell empty-single/terminal-list insertion
-matrix. Palette, Explorer/Nodes,
+host-authoritative nine-source, 117-candidate insertion matrix with 101
+accepted and 16 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (91 fields)
+### Writable Properties API contract (211 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
-`Scaffold`. The seven flex rows below apply independently to both
+`Scaffold`. AppBar adds 120 independently resettable leaves grouped as 9
+Behavior, 7 Layout, 6 Colors/elevation, 10 Shape, 9 leading-icon-theme, 9
+actions-icon-theme, 31 toolbar-text-style, 31 title-text-style and 8 system-UI
+overlay fields. Its optional `leading`, `title`, `actions`, `flexibleSpace` and
+`bottom` children remain named slots, not executable property values. The seven
+flex rows below apply independently to both
 [`Column`](https://api.flutter.dev/flutter/widgets/Column/Column.html) and
 [`Row`](https://api.flutter.dev/flutter/widgets/Row/Row.html), so they account
 for 14 fields. All seven are optional named arguments. Restore Default omits
@@ -1366,7 +1371,8 @@ kind/length/SHA-256 descriptor before allocation.
 After the handshake, a strict runtime control codec carries `host.render`,
 `runner.presented`, `host.selection`, `runner.selection`, the capability-gated
 `host.viewport`/`runner.viewport` pair and the capability-gated
-`runner.paletteDrop` event, plus the optional capability-gated
+`runner.paletteDrop` event and source-aware `host.paletteDragSource` command,
+plus the optional capability-gated
 `host.widgetMovePreview`/`host.widgetMovePreviewClear` pair, for exact session,
 presentation, revision, frame and layout identities. Viewport commands use a monotonically increasing
 `commandSequence`; exact acknowledgements, delayed-metric rejection and bounded
@@ -1374,9 +1380,11 @@ queue retry prevent an older scale/scroll report from replacing newer toolbar
 intent. The `viewport.presentation.v1` capability changes only presentation:
 the runner continues to build with the fixed logical `MediaQuery`. The
 `palette.drop.catalogInsert.v1` capability is limited to the exact reviewed
-DnD-capable definitions below; negotiating or decoding it does not by itself
-enable Palette mutation. `host.render` describes one canonical bounded
-protocol-v6 model frame. The runner decodes only the eight reviewed
+DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
+token to the exact current canonical type and traits for hover filtering;
+negotiating or decoding either capability does not by itself enable Palette
+mutation. `host.render` describes one canonical bounded protocol-v7 model
+frame. The runner decodes only the nine reviewed
 Canvas-capable built-in widget contracts and never loads project code.
 `CATALOG_JSON` remains reserved for a future versioned catalog contract. There
 is no image or pixel-transfer frame kind; the current Windows path renders the
@@ -1407,17 +1415,19 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the eight exact DnD-capable Palette definitions: `Scaffold`, `Column`, `Row`,
-`Padding`, `Center`, `SizedBox`, `Text` and `Icon`. The 56-cell catalog compatibility
-matrix admits any of those eight into an empty `Scaffold.body`,
-`Scaffold.floatingActionButton`, `Padding.child`, `Center.child` or
-`SizedBox.child` slot, or at the terminal position of a `Row.children` or
-`Column.children` list. An empty Row or Column has no ordering ambiguity, so
+the nine exact DnD-capable Palette definitions: `Scaffold`, `AppBar`, `Column`,
+`Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. Eleven any-widget
+slots admit all nine sources: `Scaffold.body`, `Scaffold.floatingActionButton`,
+`Column.children`, `Row.children`, `Padding.child`, `Center.child`,
+`SizedBox.child`, `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
+`AppBar.flexibleSpace`. The two trait-bound slots, `Scaffold.appBar` and
+`AppBar.bottom`, admit only AppBar through its canonical
+`PreferredSizeWidget` trait. This yields 117 candidate cells: exactly 101
+admitted and 16 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
 its complete bounded visible design-time rectangle resolves insertion index
 zero; after the first child, only the terminal append zone is exposed.
-`Scaffold.appBar` rejects all eight because none has the
-required `PreferredSizeWidget` trait. The slice does not support an arbitrary
-list index, a definition without the exact reviewed DnD capability or an
+The slice does not support an arbitrary list index, a definition without the
+exact reviewed DnD capability or an
 unreviewed constructor slot. This
 restriction describes Palette `ADD`; existing-widget tree `MOVE` is the separate
 bounded route below.
@@ -1429,7 +1439,9 @@ bounded route below.
    and starts with `nbfdnd:v1:`. The token is process-local and one-shot; it is
    not widget JSON, a project path, Dart source or mutation authority. The same
    exact active-view token must cross hover, prepare and the terminal commit or
-   cancel unchanged; only Java resolves it to the retained prototype.
+   cancel unchanged; only Java resolves it to the retained prototype. Before
+   native transfer publication, Java also projects the exact type and traits to
+   the current layout. A failed projection revokes the token and starts no drag.
 2. The OLE bridge delivers only that token and native-view coordinates across
    the child-HWND boundary. OLE reports `MOVE` because the NetBeans Palette
    offers `ACTION_MOVE`; Palette items are immutable prototypes and are not
@@ -1502,8 +1514,9 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current eight-definition, 56-cell
-compatibility matrix described above, whose live assembled drop → Save → Undo → Redo → Save
+`Center.child[0]`. It is superseded by the current nine-definition,
+117-candidate matrix with 101 accepted and 16 rejected cells described above,
+whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
 movement outside the same-tree `ON_OR_INSERT` contract remain disabled,
@@ -1532,19 +1545,19 @@ its type and constructor metadata are present in the validated catalog; the
 runner may not execute arbitrary unreviewed project code merely because Flutter
 can load it.
 
-The current protocol-v6 projection intentionally contains exactly the eight
-Canvas-capable definitions: `Scaffold`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center` and `SizedBox`. It proves native hosting, bounded model publication,
+The current protocol-v7 projection intentionally contains exactly the nine
+Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
+`Icon`, `Padding`, `Center` and `SizedBox`. It proves native hosting, bounded model publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the seven non-`Scaffold` widget
-types and 91 properties listed above, including the 59-leaf Text and 13-property
-Icon projections;
+Host-side property mutation is admitted only for the eight non-`Scaffold` widget
+types and 211 properties listed above, including the 120-leaf AppBar, 59-leaf
+Text and 13-property Icon projections;
 the runner still receives no persistence authority.
 
-This eight-widget slice is complete across create, open, edit, save, reopen,
+This nine-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
-same-tree move and exact-slot management. `AppBar` and `ElevatedButton`, plus
-writable `Scaffold` properties, remain fail-closed until
+same-tree move and exact-slot management. `ElevatedButton` and writable
+`Scaffold` properties remain fail-closed until
 each receives an equally complete independently reviewed vertical slice.
 
 Implementation proceeds through explicit gates:
@@ -1558,15 +1571,16 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current Windows eight-widget slice complete] Embed the isolated Flutter runner,
+4. [Current Windows nine-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. A browser-compiled backend remains
    pending for browser-runtime fidelity, not for responsive layout preview.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact eight-item Palette and
-   expose selected-node Properties. Enable catalog-driven Set/Reset for the 91
-   reviewed non-`Scaffold` fields, including all 59 reviewed Text leaves, both
+   with the Explorer/Nodes widget tree, publish the exact nine-item Palette and
+   expose selected-node Properties. Enable catalog-driven Set/Reset for the 211
+   reviewed non-`Scaffold` fields, including all 120 reviewed AppBar leaves,
+   all 59 reviewed Text leaves, both
    nullable non-negative `SizedBox` dimensions and all 13 typed Icon constructor
    properties,
    through one-shot revision-bound pair-save.
@@ -1575,8 +1589,9 @@ Implementation proceeds through explicit gates:
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the eight-source, 56-cell
-   empty-single/terminal-list matrix. Its live assembled drop → Save → Undo → Redo → Save
+   `Center.child[0]`; the current contract is the nine-source, 117-candidate
+   compatibility matrix with 101 accepted and 16 rejected cells. Its live
+   assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
    Undo → Save cycle.
 7. [Complete for same-tree existing widgets] Implement JVM-local widget-tree
@@ -1591,7 +1606,7 @@ Implementation proceeds through explicit gates:
    domain command.
 9. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
-10. Admit `AppBar`, `ElevatedButton` and writable `Scaffold` properties
+10. Admit `ElevatedButton` and writable `Scaffold` properties
     only as complete capability-gated vertical slices after all applicable gates
     pass.
 
@@ -1610,14 +1625,15 @@ infrastructure.
 2. Structured property-editor/model contracts for `Scaffold`, callbacks,
    contributed widgets and the remaining unreviewed Flutter graphs, plus
    localized presentation. The catalog-driven provider for the current
-   seven-widget writable-Properties slice now includes Text composites, a closed Paint subset,
+   eight-widget writable-Properties slice now includes AppBar composites, Text
+   composites, a closed Paint subset,
    shadows, font features, font variations, IconData and semantic theme roles; built-in
    domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
-   intent validation required by ADR-021. The bounded protocol-v6 capability-gated model payload,
+   intent validation required by ADR-021. The bounded protocol-v7 capability-gated model payload,
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Web backend and Linux/macOS
    native-surface providers remain pending.

@@ -41,6 +41,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
@@ -253,7 +254,8 @@ public final class FlutterDesignerMultiViewDesign
                 paletteDragRegistry,
                 this::isPaletteCatalogInsertDragAuthorityEnabled,
                 definition -> BuiltInWidgetCapabilityCatalog.supports(
-                        definition, WidgetCapability.DND));
+                        definition, WidgetCapability.DND),
+                this::authorizeNativeCanvasPaletteDragSource);
         effectiveLookup = new ProxyLookup(
                 ExplorerUtils.createLookup(explorerManager, visual.getActionMap()),
                 Lookups.exclude(context, Node.class),
@@ -1801,6 +1803,22 @@ public final class FlutterDesignerMultiViewDesign
         WidgetCatalog catalog = candidate.catalog().orElseThrow();
         return document == presentedCanvasDocument
                 && catalog == presentedCanvasCatalog;
+    }
+
+    private boolean authorizeNativeCanvasPaletteDragSource(
+            String token,
+            WidgetDefinition definition) {
+        Objects.requireNonNull(token, "token");
+        Objects.requireNonNull(definition, "definition");
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            throw new IllegalStateException(
+                    "Palette drag source must be authorized on the event-dispatch thread.");
+        }
+        FlutterDesignerNativeCanvasSession session = nativeCanvasSession;
+        return session != null
+                && isPaletteCatalogInsertDragEnabled()
+                && session.authorizePaletteDragSource(
+                        token, definition.typeId());
     }
 
     private boolean isPaletteCatalogInsertDragAuthorityEnabled() {

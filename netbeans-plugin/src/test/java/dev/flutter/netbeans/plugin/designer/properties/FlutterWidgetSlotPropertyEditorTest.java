@@ -45,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlutterWidgetSlotPropertyEditorTest {
     private static final WidgetCatalog CATALOG = BuiltInWidgetCatalog.getDefault();
     private static final SlotName BODY = new SlotName("body");
+    private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
+    private static final SlotName BOTTOM = new SlotName("bottom");
     private static final SlotName CHILD = new SlotName("child");
     private static final SlotName CHILDREN = new SlotName("children");
 
@@ -178,6 +180,93 @@ class FlutterWidgetSlotPropertyEditorTest {
             child.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted SizedBox child dialog may consume its revision lease once");
+            return null;
+        });
+    }
+
+    @Test
+    void preferredSizeSlotsOfferOnlyAppBarAndProduceExactAddIntent()
+            throws Exception {
+        WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");
+        WidgetNode scaffold = new WidgetNode(
+                id("fa19924b-c3b1-4112-b236-f33e4c343750"),
+                scaffoldDefinition.typeId(),
+                Map.of(),
+                Map.of(APP_BAR_SLOT, WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(scaffold),
+                CATALOG,
+                List.of(
+                        type("flutter.widgets.Text"),
+                        type("flutter.material.AppBar")));
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                scaffold,
+                scaffoldDefinition,
+                scaffoldDefinition.slot(APP_BAR_SLOT).orElseThrow(),
+                context);
+        PropertyEnv environment = PropertyEnv.create(descriptor("App bar"));
+        editor.attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            selectLabel(action, "Add new widget");
+            assertEquals(List.of("AppBar"), labels(addType),
+                    "Text must not enter a PreferredSizeWidget slot");
+            selectLabel(addType, "AppBar");
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(scaffold.id(), add.ownerId());
+            assertEquals(APP_BAR_SLOT, add.slotName());
+            assertEquals(type("flutter.material.AppBar"), add.widgetType());
+            assertEquals(0, add.index());
+            return null;
+        });
+
+        WidgetDefinition appBarDefinition = definition("flutter.material.AppBar");
+        WidgetNode appBar = new WidgetNode(
+                id("96d57566-d518-429d-8226-198189d40aec"),
+                appBarDefinition.typeId(),
+                Map.of(),
+                Map.of(BOTTOM, WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        FlutterWidgetSlotPropertyEditor bottomEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        appBar,
+                        appBarDefinition,
+                        appBarDefinition.slot(BOTTOM).orElseThrow(),
+                        new FlutterWidgetSlotEditorContext(
+                                document(appBar),
+                                CATALOG,
+                                List.of(
+                                        type("flutter.widgets.Text"),
+                                        type("flutter.material.AppBar"))));
+        PropertyEnv bottomEnvironment = PropertyEnv.create(descriptor("Bottom"));
+        bottomEditor.attachEnv(bottomEnvironment);
+        onEdt(() -> {
+            Component custom = bottomEditor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            selectLabel(action, "Add new widget");
+            assertEquals(List.of("AppBar"), labels(addType));
             return null;
         });
     }

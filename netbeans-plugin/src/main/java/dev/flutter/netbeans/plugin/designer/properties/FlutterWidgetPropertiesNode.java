@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
+import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -163,6 +164,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addTextPropertySets(sheet, hasSlotTab);
         } else if (IconWidgetPropertySchema.ICON_TYPE.equals(widget.type())) {
             addIconPropertySets(sheet, hasSlotTab);
+        } else if (AppBarWidgetPropertySchema.APP_BAR_TYPE.equals(widget.type())) {
+            addAppBarPropertySets(sheet, hasSlotTab);
         } else {
             Sheet.Set properties = createGenericPropertySet();
             assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -373,6 +376,49 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addAppBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<AppBarWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(AppBarWidgetPropertySchema.Group.class);
+        for (AppBarWidgetPropertySchema.Group group
+                : AppBarWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            AppBarWidgetPropertySchema.Definition schema =
+                    AppBarWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in AppBar property is missing its presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    schema.encoding()
+                            == AppBarWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    appBarStringPresets(property.name())));
+        }
+    }
+
+    private static java.util.List<String> appBarStringPresets(
+            PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "notificationPredicate" ->
+                java.util.List.of("default", "depthZero", "all");
+            case "shapeKind" -> java.util.List.of(
+                    "roundedRectangle",
+                    "stadium",
+                    "circle",
+                    "beveledRectangle",
+                    "continuousRectangle");
+            default -> java.util.List.of();
+        };
+    }
+
     private Node.Property<?> projectProperty(
             PropertyDefinition property,
             Optional<TextWidgetPropertySchema.Definition> textSchema) {
@@ -395,8 +441,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             Optional<TextWidgetPropertySchema.Definition> textSchema,
             String projectedDisplayName,
             String projectedDescription) {
+        return projectProperty(
+                property,
+                textSchema,
+                projectedDisplayName,
+                projectedDescription,
+                false,
+                java.util.List.of());
+    }
+
+    private Node.Property<?> projectProperty(
+            PropertyDefinition property,
+            Optional<TextWidgetPropertySchema.Definition> textSchema,
+            String projectedDisplayName,
+            String projectedDescription,
+            boolean newlineStringList,
+            java.util.List<String> stringPresets) {
         PropertyValue explicitValue = widget.properties().get(property.name());
-        var binding = writableBinding(property, textSchema);
+        var binding = writableBinding(
+                property, textSchema, newlineStringList, stringPresets);
         if (binding.isPresent()) {
             return writableProperty(
                     binding.orElseThrow(), explicitValue,
@@ -415,12 +478,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private java.util.Optional<FlutterTypedPropertyEditors.Binding> writableBinding(
             PropertyDefinition property,
             Optional<TextWidgetPropertySchema.Definition> textSchema) {
+        return writableBinding(
+                property, textSchema, false, java.util.List.of());
+    }
+
+    private java.util.Optional<FlutterTypedPropertyEditors.Binding> writableBinding(
+            PropertyDefinition property,
+            Optional<TextWidgetPropertySchema.Definition> textSchema,
+            boolean newlineStringList,
+            java.util.List<String> stringPresets) {
         if (mutationHandler == null
                 || !BuiltInWidgetCapabilityCatalog.supports(
                         definition, WidgetCapability.PROPERTIES)) {
             return java.util.Optional.empty();
         }
-        return FlutterTypedPropertyEditors.binding(property, textSchema);
+        return FlutterTypedPropertyEditors.binding(
+                property, textSchema, newlineStringList, stringPresets);
     }
 
     private PropertySupport.ReadWrite<FlutterPropertyCellValue> writableProperty(

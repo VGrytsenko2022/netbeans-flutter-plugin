@@ -6,6 +6,9 @@ import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
@@ -125,7 +128,7 @@ public final class BuiltInWidgetCapabilityCatalog {
 
     private static final Map<String, Set<WidgetCapability>> CAPABILITIES = Map.ofEntries(
             Map.entry("flutter.material.Scaffold", STATIC_STRUCTURAL),
-            Map.entry("flutter.material.AppBar", Set.of()),
+            Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
             Map.entry("flutter.material.ElevatedButton", Set.of()),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -168,6 +171,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.DOUBLE,
                     bounds(BigDecimal.ZERO, true, BigDecimal.ONE, true));
     private static final Map<PropertyValueKind, CanvasNumericBounds>
+            MINUS_ONE_TO_ONE_DOUBLE_BOUNDS = Map.of(
+                    PropertyValueKind.DOUBLE,
+                    bounds(BigDecimal.ONE.negate(), true, BigDecimal.ONE, true));
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
             POSITIVE_FONT_AXIS_DOUBLE_BOUNDS = Map.of(
                     PropertyValueKind.DOUBLE,
                     bounds(BigDecimal.ZERO, false,
@@ -199,9 +206,12 @@ public final class BuiltInWidgetCapabilityCatalog {
                     "backgroundColor", propertySchema(PropertyValueKind.COLOR),
                     "resizeToAvoidBottomInset", propertySchema(PropertyValueKind.BOOLEAN)),
                     Map.of(
-                            "appBar", singleSlotSchema(false, 0),
+                            "appBar", traitSingleSlotSchema(
+                                    false, 0,
+                                    BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT),
                             "body", singleSlotSchema(false, 0),
                             "floatingActionButton", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
             Map.entry("flutter.widgets.Padding", projection(Map.of(
@@ -376,7 +386,8 @@ public final class BuiltInWidgetCapabilityCatalog {
                     slot.cardinality(),
                     slot.parameter().required(),
                     slot.minChildren(),
-                    slot.maxChildren()));
+                    slot.maxChildren(),
+                    slotAcceptanceFingerprint(slot.acceptance())));
         }
         return CanvasProjection.of(catalogProperties, catalogSlots);
     }
@@ -400,6 +411,192 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "spacing", NON_NEGATIVE_DOUBLE_BOUNDS,
                         PropertyValueKind.DOUBLE)),
                 Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection appBarProjection() {
+        LinkedHashMap<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        put(properties, colorOrThemeProperty("backgroundColor"));
+        put(properties, property("centerTitle", PropertyValueKind.BOOLEAN));
+        put(properties, numericProperty(
+                "elevation", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, property("automaticallyImplyLeading", PropertyValueKind.BOOLEAN));
+        put(properties, property("automaticallyImplyActions", PropertyValueKind.BOOLEAN));
+        put(properties, numericProperty(
+                "scrolledUnderElevation", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, stringPatternProperty(
+                "notificationPredicate", "(?:default|depthZero|all)"));
+        put(properties, colorOrThemeProperty("shadowColor"));
+        put(properties, colorOrThemeProperty("surfaceTintColor"));
+        put(properties, colorOrThemeProperty("foregroundColor"));
+        put(properties, property("primary", PropertyValueKind.BOOLEAN));
+        put(properties, property("excludeHeaderSemantics", PropertyValueKind.BOOLEAN));
+        put(properties, numericProperty(
+                "titleSpacing", UNBOUNDED_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "toolbarOpacity", ZERO_TO_ONE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "bottomOpacity", ZERO_TO_ONE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "toolbarHeight", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "leadingWidth", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, property("forceMaterialTransparency", PropertyValueKind.BOOLEAN));
+        put(properties, property("useDefaultSemanticsOrder", PropertyValueKind.BOOLEAN));
+        put(properties, enumProperty(
+                "clipBehavior", "Clip", "none", "hardEdge", "antiAlias",
+                "antiAliasWithSaveLayer"));
+        put(properties, edgeInsetsProperty("actionsPadding", true));
+        put(properties, property("animateColor", PropertyValueKind.BOOLEAN));
+
+        put(properties, stringPatternProperty(
+                "shapeKind",
+                "(?:roundedRectangle|stadium|circle|beveledRectangle|continuousRectangle)"));
+        put(properties, colorOrThemeProperty("shapeSideColor"));
+        put(properties, numericProperty(
+                "shapeSideWidth", NON_NEGATIVE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                "shapeSideStyle", "BorderStyle", "none", "solid"));
+        put(properties, numericProperty(
+                "shapeSideStrokeAlign", MINUS_ONE_TO_ONE_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        for (String radius : List.of(
+                "shapeRadiusTopLeft", "shapeRadiusTopRight",
+                "shapeRadiusBottomRight", "shapeRadiusBottomLeft")) {
+            put(properties, numericProperty(
+                    radius, NON_NEGATIVE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        }
+        put(properties, numericProperty(
+                "shapeCircleEccentricity", ZERO_TO_ONE_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+
+        appendIconThemeProjection(properties, "iconTheme");
+        appendIconThemeProjection(properties, "actionsIconTheme");
+        appendTextStyleProjection(properties, "toolbarTextStyle");
+        appendTextStyleProjection(properties, "titleTextStyle");
+
+        put(properties, colorOrThemeProperty(
+                "systemOverlayStyleSystemNavigationBarColor"));
+        put(properties, colorOrThemeProperty(
+                "systemOverlayStyleSystemNavigationBarDividerColor"));
+        put(properties, enumProperty(
+                "systemOverlayStyleSystemNavigationBarIconBrightness",
+                "Brightness", "light", "dark"));
+        put(properties, property(
+                "systemOverlayStyleSystemNavigationBarContrastEnforced",
+                PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty("systemOverlayStyleStatusBarColor"));
+        put(properties, enumProperty(
+                "systemOverlayStyleStatusBarBrightness",
+                "Brightness", "light", "dark"));
+        put(properties, enumProperty(
+                "systemOverlayStyleStatusBarIconBrightness",
+                "Brightness", "light", "dark"));
+        put(properties, property(
+                "systemOverlayStyleSystemStatusBarContrastEnforced",
+                PropertyValueKind.BOOLEAN));
+
+        return projection(properties, Map.of(
+                "leading", singleSlotSchema(false, 0),
+                "title", singleSlotSchema(false, 0),
+                "actions", listSlotSchema(false, 0, 10_000),
+                "flexibleSpace", singleSlotSchema(false, 0),
+                "bottom", traitSingleSlotSchema(
+                        false, 0,
+                        BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
+    }
+
+    private static void appendIconThemeProjection(
+            Map<String, CanvasPropertyContract> properties,
+            String prefix) {
+        put(properties, numericProperty(
+                prefix + "Size", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                prefix + "Fill", ZERO_TO_ONE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                prefix + "Weight", POSITIVE_FONT_AXIS_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                prefix + "Grade", GRADE_AXIS_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                prefix + "OpticalSize", POSITIVE_FONT_AXIS_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, colorOrThemeProperty(prefix + "Color"));
+        put(properties, numericProperty(
+                prefix + "Opacity", ZERO_TO_ONE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, shadowProperty(prefix + "Shadows"));
+        put(properties, property(prefix + "ApplyTextScaling", PropertyValueKind.BOOLEAN));
+    }
+
+    private static void appendTextStyleProjection(
+            Map<String, CanvasPropertyContract> properties,
+            String prefix) {
+        put(properties, themeTokenProperty(prefix + "ThemeTextStyle", REVIEWED_TEXT_THEME_TOKENS));
+        put(properties, property(prefix + "Inherit", PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty(prefix + "Color"));
+        put(properties, colorOrThemeProperty(prefix + "BackgroundColor"));
+        put(properties, numericProperty(
+                prefix + "FontSize", NON_NEGATIVE_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                prefix + "FontWeight", "FontWeight",
+                "w100", "w200", "w300", "w400", "w500",
+                "w600", "w700", "w800", "w900"));
+        put(properties, enumProperty(
+                prefix + "FontStyle", "FontStyle", "normal", "italic"));
+        put(properties, numericProperty(
+                prefix + "LetterSpacing", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                prefix + "WordSpacing", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                prefix + "TextBaseline", "TextBaseline", "alphabetic", "ideographic"));
+        put(properties, numericProperty(
+                prefix + "Height", UNBOUNDED_DOUBLE_BOUNDS, PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                prefix + "LeadingDistribution", "TextLeadingDistribution",
+                "proportional", "even"));
+        put(properties, stringPatternProperty(
+                prefix + "LocaleLanguageCode", "(?:[a-z]{2,3}|[a-z]{5,8})"));
+        put(properties, stringPatternProperty(
+                prefix + "LocaleScriptCode", "[A-Z][a-z]{3}"));
+        put(properties, stringPatternProperty(
+                prefix + "LocaleCountryCode", "(?:[A-Z]{2}|[0-9]{3})"));
+        put(properties, paintProperty(prefix + "Foreground"));
+        put(properties, paintProperty(prefix + "Background"));
+        put(properties, shadowProperty(prefix + "Shadows"));
+        put(properties, property(prefix + "FontFeatures", PropertyValueKind.FONT_FEATURE_LIST));
+        put(properties, fontVariationProperty(prefix + "FontVariations"));
+        put(properties, property(prefix + "DecorationUnderline", PropertyValueKind.BOOLEAN));
+        put(properties, property(prefix + "DecorationOverline", PropertyValueKind.BOOLEAN));
+        put(properties, property(prefix + "DecorationLineThrough", PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty(prefix + "DecorationColor"));
+        put(properties, enumProperty(
+                prefix + "DecorationStyle", "TextDecorationStyle",
+                "solid", "double", "dotted", "dashed", "wavy"));
+        put(properties, numericProperty(
+                prefix + "DecorationThickness", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, property(prefix + "DebugLabel", PropertyValueKind.STRING));
+        put(properties, stringLengthProperty(prefix + "FontFamily", 1, 256));
+        put(properties, stringLengthProperty(prefix + "FontFamilyFallback", 0, 4096));
+        put(properties, stringLengthProperty(prefix + "Package", 1, 256));
+        put(properties, enumProperty(
+                prefix + "Overflow", "TextOverflow", "clip", "fade",
+                "ellipsis", "visible"));
+    }
+
+    private static void put(
+            Map<String, CanvasPropertyContract> properties,
+            Map.Entry<String, CanvasPropertyContract> entry) {
+        if (properties.putIfAbsent(entry.getKey(), entry.getValue()) != null) {
+            throw new ExceptionInInitializerError(
+                    "Duplicate reviewed Canvas property " + entry.getKey());
+        }
     }
 
     private static CanvasProjection textProjection() {
@@ -647,6 +844,22 @@ public final class BuiltInWidgetCapabilityCatalog {
                 PropertyValueKind.STRING, "pattern:" + base64(pattern)));
     }
 
+    private static Map.Entry<String, CanvasPropertyContract> edgeInsetsProperty(
+            String name,
+            boolean nonNegative) {
+        CanvasNumericBounds numeric = nonNegative
+                ? NON_NEGATIVE_NUMERIC : UNBOUNDED_NUMERIC;
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(PropertyValueKind.EDGE_INSETS),
+                false,
+                Optional.empty(),
+                Map.of(PropertyValueKind.EDGE_INSETS, numeric),
+                Map.of(
+                        PropertyValueKind.EDGE_INSETS,
+                        "edgeInsets:" + (nonNegative ? '1' : '0')
+                        + ':' + numeric.fingerprint())));
+    }
+
     private static Map.Entry<String, CanvasPropertyContract> themeTokenProperty(
             String name,
             List<String> tokens) {
@@ -756,7 +969,16 @@ public final class BuiltInWidgetCapabilityCatalog {
             boolean required,
             int minimumChildren) {
         return new CanvasSlotContract(
-                SlotCardinality.SINGLE, required, minimumChildren, 1);
+                SlotCardinality.SINGLE, required, minimumChildren, 1, "any");
+    }
+
+    private static CanvasSlotContract traitSingleSlotSchema(
+            boolean required,
+            int minimumChildren,
+            String trait) {
+        return new CanvasSlotContract(
+                SlotCardinality.SINGLE, required, minimumChildren, 1,
+                "trait:" + base64(trait));
     }
 
     private static CanvasSlotContract listSlotSchema(
@@ -767,7 +989,20 @@ public final class BuiltInWidgetCapabilityCatalog {
                 SlotCardinality.LIST,
                 required,
                 minimumChildren,
-                maximumChildren);
+                maximumChildren,
+                "any");
+    }
+
+    private static String slotAcceptanceFingerprint(SlotAcceptance acceptance) {
+        return switch (acceptance) {
+            case SlotAcceptance.AnyWidget ignored -> "any";
+            case SlotAcceptance.HasTrait trait -> "trait:" + base64(trait.trait());
+            case SlotAcceptance.ExactTypes types -> "types:"
+                    + types.typeIds().stream()
+                            .map(type -> base64(type.value()))
+                            .sorted()
+                            .collect(Collectors.joining(","));
+        };
     }
 
     private static CanvasPropertyContract propertyContract(
@@ -927,6 +1162,64 @@ public final class BuiltInWidgetCapabilityCatalog {
                 value.getBytes(StandardCharsets.UTF_8));
     }
 
+    private static boolean validSlotAcceptanceFingerprint(String value) {
+        if (value.equals("any")) {
+            return true;
+        }
+        if (value.startsWith("trait:")) {
+            String decoded = decodeCanonicalBase64(value.substring("trait:".length()));
+            if (decoded == null) {
+                return false;
+            }
+            try {
+                new SlotAcceptance.HasTrait(decoded);
+                return true;
+            } catch (IllegalArgumentException invalidTrait) {
+                return false;
+            }
+        }
+        if (!value.startsWith("types:")) {
+            return false;
+        }
+        String encoded = value.substring("types:".length());
+        if (encoded.isEmpty()) {
+            return false;
+        }
+        List<String> tokens = List.of(encoded.split(",", -1));
+        if (!tokens.equals(tokens.stream().sorted().distinct().toList())) {
+            return false;
+        }
+        for (String token : tokens) {
+            String decoded = decodeCanonicalBase64(token);
+            if (decoded == null) {
+                return false;
+            }
+            try {
+                new dev.flutter.netbeans.designer.model.WidgetTypeId(decoded);
+            } catch (IllegalArgumentException invalidType) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String decodeCanonicalBase64(String encoded) {
+        if (encoded.isEmpty() || encoded.indexOf('=') >= 0) {
+            return null;
+        }
+        try {
+            byte[] bytes = Base64.getUrlDecoder().decode(encoded);
+            String decoded = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+            return base64(decoded).equals(encoded) ? decoded : null;
+        } catch (IllegalArgumentException | CharacterCodingException invalid) {
+            return null;
+        }
+    }
+
     private static CanvasNumericBounds bounds(
             BigDecimal minimum,
             boolean minimumInclusive,
@@ -973,6 +1266,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     .append('|').append(contract.required() ? '1' : '0')
                     .append('|').append(contract.minimumChildren())
                     .append('|').append(contract.maximumChildren())
+                    .append('|').append(contract.acceptanceFingerprint())
                     .append('\n'));
         });
         return result.toString();
@@ -1215,10 +1509,20 @@ public final class BuiltInWidgetCapabilityCatalog {
             SlotCardinality cardinality,
             boolean required,
             int minimumChildren,
-            int maximumChildren) {
+            int maximumChildren,
+            String acceptanceFingerprint) {
+
+        public CanvasSlotContract(
+                SlotCardinality cardinality,
+                boolean required,
+                int minimumChildren,
+                int maximumChildren) {
+            this(cardinality, required, minimumChildren, maximumChildren, "any");
+        }
 
         public CanvasSlotContract {
             Objects.requireNonNull(cardinality, "cardinality");
+            Objects.requireNonNull(acceptanceFingerprint, "acceptanceFingerprint");
             if (minimumChildren < 0
                     || maximumChildren < minimumChildren
                     || maximumChildren > 10_000
@@ -1226,6 +1530,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     && maximumChildren > 1)) {
                 throw new IllegalArgumentException(
                         "Invalid Canvas slot child bounds");
+            }
+            if (!validSlotAcceptanceFingerprint(acceptanceFingerprint)) {
+                throw new IllegalArgumentException(
+                        "Invalid Canvas slot acceptance fingerprint");
             }
         }
     }

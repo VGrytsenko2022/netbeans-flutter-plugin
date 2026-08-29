@@ -548,7 +548,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   GlobalKey _nodeKey(String id) =>
       _nodeKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'canvas-$id'));
 
-  CanvasDropTarget? _resolveDrop(int xMicros, int yMicros) {
+  CanvasDropTarget? _resolveDrop(
+    int xMicros,
+    int yMicros, [
+    CanvasPaletteDragSource? source,
+  ]) {
     if (xMicros < 0 ||
         xMicros > _microsPerSurface ||
         yMicros < 0 ||
@@ -565,12 +569,20 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       surfaceRect.top + surfaceRect.height * yMicros / _microsPerSurface,
     );
     final candidates = <_DropCandidate>[];
+    final effectiveSource =
+        source ??
+        CanvasPaletteDragSource(
+          token: '',
+          widgetType: 'flutter.widgets.Text',
+          traits: const {},
+        );
     _collectDropCandidates(
       widget.model.root,
       point,
       surfaceRect,
       0,
       candidates,
+      effectiveSource,
     );
     if (candidates.isEmpty) {
       return null;
@@ -657,6 +669,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parentRect,
         children,
         insertionIndex,
+        slotName,
       );
     } else {
       return null;
@@ -677,6 +690,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     Rect parentRect,
     List<CanvasNode> children,
     int insertionIndex,
+    String slotName,
   ) {
     if (children.isEmpty) {
       return parentRect;
@@ -685,7 +699,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parentNode.type == 'flutter.widgets.Row' ||
         parentNode.type == 'flutter.material.AppBar';
     final reverse = horizontal
-        ? _enumValue(parentNode, 'textDirection') == 'rtl'
+        ? _resolvedTextDirection(parentNode) == TextDirection.rtl
         : _enumValue(parentNode, 'verticalDirection') == 'up';
     final referenceIndex = insertionIndex < children.length
         ? insertionIndex
@@ -770,8 +784,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     Rect surfaceRect,
     int depth,
     List<_DropCandidate> result,
+    CanvasPaletteDragSource source,
   ) {
     for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
+      if (!dropSlot.acceptsSource(source)) {
+        continue;
+      }
       final modelSlot = node.slot(dropSlot.slotName);
       if (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind) {
         continue;
@@ -783,10 +801,26 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         final rect = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
         final zone = switch (dropSlot.zonePlacement) {
           CanvasDropZonePlacement.fullNode => rect,
-          CanvasDropZonePlacement.terminalList => _terminalZone(node, rect),
+          CanvasDropZonePlacement.terminalList => _terminalZone(
+            node,
+            rect,
+            dropSlot.slotName,
+          ),
           CanvasDropZonePlacement.bottomRightCompact => _bottomRightCompactZone(
             rect,
           ),
+          CanvasDropZonePlacement.appBarLeading => _appBarLeadingZone(
+            node,
+            rect,
+          ),
+          CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(node, rect),
+          CanvasDropZonePlacement.appBarActions => _terminalZone(
+            node,
+            _appBarToolbarZone(node, rect),
+            dropSlot.slotName,
+          ),
+          CanvasDropZonePlacement.appBarFlexibleSpace => rect,
+          CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(node, rect),
         };
         if (!zone.isEmpty && zone.contains(point)) {
           result.add(
@@ -804,7 +838,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     }
     for (final slot in node.slots.values) {
       for (final child in slot.children) {
-        _collectDropCandidates(child, point, surfaceRect, depth + 1, result);
+        _collectDropCandidates(
+          child,
+          point,
+          surfaceRect,
+          depth + 1,
+          result,
+          source,
+        );
       }
     }
   }
@@ -856,15 +897,31 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     );
   }
 
-  Rect _terminalZone(CanvasNode node, Rect parent) {
+  Rect _terminalZone(CanvasNode node, Rect parent, String slotName) {
     if (parent.width <= 0 || parent.height <= 0) {
       return Rect.zero;
     }
-    final children = node.slot('children')?.children ?? const <CanvasNode>[];
+    final children = node.slot(slotName)?.children ?? const <CanvasNode>[];
     if (children.isEmpty) {
       // With no siblings there is only one legal ordering result: index 0.
       // Expose the complete visible container instead of making users find a
       // synthetic terminal edge on an otherwise blank Row or Column.
+      if (node.type == 'flutter.material.AppBar' && slotName == 'actions') {
+        final width = math.min(parent.width, math.max(72.0, parent.width / 3));
+        return _resolvedTextDirection(node) == TextDirection.rtl
+            ? Rect.fromLTRB(
+                parent.left,
+                parent.top,
+                parent.left + width,
+                parent.bottom,
+              )
+            : Rect.fromLTRB(
+                parent.right - width,
+                parent.top,
+                parent.right,
+                parent.bottom,
+              );
+      }
       return parent;
     }
     final last = _renderBox(_nodeKeys[children.last.id]);
@@ -889,7 +946,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               parent.bottom,
             );
     }
-    final rightToLeft = _enumValue(node, 'textDirection') == 'rtl';
+    final rightToLeft = _resolvedTextDirection(node) == TextDirection.rtl;
     final band = _minimumTerminalBand.clamp(1.0, parent.width);
     return rightToLeft
         ? Rect.fromLTRB(
@@ -903,6 +960,94 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             parent.top,
             parent.right,
             parent.bottom,
+          );
+  }
+
+  TextDirection _resolvedTextDirection(CanvasNode node) {
+    final explicit = _enumValue(node, 'textDirection');
+    if (explicit == 'rtl') {
+      return TextDirection.rtl;
+    }
+    if (explicit == 'ltr') {
+      return TextDirection.ltr;
+    }
+    final context = _nodeKeys[node.id]?.currentContext;
+    return context == null
+        ? TextDirection.ltr
+        : Directionality.maybeOf(context) ?? TextDirection.ltr;
+  }
+
+  Rect _appBarToolbarZone(CanvasNode node, Rect parent) {
+    final bottom = node.slot('bottom')?.child;
+    final bottomBox = bottom == null ? null : _renderBox(_nodeKeys[bottom.id]);
+    final renderedBottomHeight = bottomBox == null
+        ? 0.0
+        : _globalRect(bottomBox).intersect(parent).height;
+    final fallbackBottom = node.slot('bottom')?.children.isEmpty ?? true
+        ? math.min(_minimumTerminalBand, parent.height / 3)
+        : 0.0;
+    final bottomHeight = math.max(renderedBottomHeight, fallbackBottom);
+    return Rect.fromLTRB(
+      parent.left,
+      parent.top,
+      parent.right,
+      math.max(parent.top, parent.bottom - bottomHeight),
+    );
+  }
+
+  Rect _appBarBottomZone(CanvasNode node, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parent);
+    return Rect.fromLTRB(
+      parent.left,
+      toolbar.bottom,
+      parent.right,
+      parent.bottom,
+    );
+  }
+
+  Rect _appBarLeadingZone(CanvasNode node, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parent);
+    final width = math.min(
+      toolbar.width,
+      math.max(
+        _minimumTerminalBand,
+        _numberValue(node, 'leadingWidth') ?? kToolbarHeight,
+      ),
+    );
+    return _resolvedTextDirection(node) == TextDirection.rtl
+        ? Rect.fromLTRB(
+            toolbar.right - width,
+            toolbar.top,
+            toolbar.right,
+            toolbar.bottom,
+          )
+        : Rect.fromLTRB(
+            toolbar.left,
+            toolbar.top,
+            toolbar.left + width,
+            toolbar.bottom,
+          );
+  }
+
+  Rect _appBarTitleZone(CanvasNode node, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parent);
+    final leading = _appBarLeadingZone(node, parent);
+    final trailingWidth = math.min(
+      toolbar.width / 3,
+      math.max(_minimumTerminalBand, toolbar.width / 4),
+    );
+    return _resolvedTextDirection(node) == TextDirection.rtl
+        ? Rect.fromLTRB(
+            toolbar.left + trailingWidth,
+            toolbar.top,
+            leading.left,
+            toolbar.bottom,
+          )
+        : Rect.fromLTRB(
+            leading.right,
+            toolbar.top,
+            toolbar.right - trailingWidth,
+            toolbar.bottom,
           );
   }
 
@@ -921,6 +1066,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static String? _enumValue(CanvasNode node, String propertyName) {
     final value = node.properties[propertyName]?.value;
     return value is CanvasEnumValue ? value.value : null;
+  }
+
+  static double? _numberValue(CanvasNode node, String propertyName) {
+    final value = node.properties[propertyName]?.value;
+    return value is num ? value.toDouble() : null;
   }
 }
 
@@ -1266,7 +1416,7 @@ class _DropZoneOverlay extends StatelessWidget {
   }
 }
 
-class _CanvasNodeView extends StatelessWidget {
+class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
     required this.selectedWidgetId,
@@ -1282,12 +1432,21 @@ class _CanvasNodeView extends StatelessWidget {
   final double overlayScale;
 
   @override
+  Size get preferredSize => node.type == 'flutter.material.AppBar'
+      ? AppBar(
+          toolbarHeight: _number('toolbarHeight'),
+          bottom: _preferredSizeSingle('bottom'),
+        ).preferredSize
+      : Size.zero;
+
+  @override
   Widget build(BuildContext context) {
     final paddingGeometry = node.type == 'flutter.widgets.Padding'
         ? _paddingGeometry()
         : null;
     final child = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(),
+      'flutter.material.AppBar' => _appBar(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
@@ -1354,6 +1513,7 @@ class _CanvasNodeView extends StatelessWidget {
     return Scaffold(
       backgroundColor: background,
       resizeToAvoidBottomInset: resize,
+      appBar: _preferredSizeSingle('appBar'),
       body: _single('body') ?? const SizedBox.expand(),
       floatingActionButton: _single('floatingActionButton'),
     );
@@ -1368,6 +1528,42 @@ class _CanvasNodeView extends StatelessWidget {
     textBaseline: _textBaseline(),
     spacing: _number('spacing') ?? 0.0,
     children: _children('children'),
+  );
+
+  Widget _appBar(BuildContext context) => AppBar(
+    leading: _single('leading'),
+    automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
+    title: _single('title'),
+    actions: node.slots.containsKey('actions') ? _children('actions') : null,
+    automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
+    flexibleSpace: _single('flexibleSpace'),
+    bottom: _preferredSizeSingle('bottom'),
+    elevation: _number('elevation'),
+    scrolledUnderElevation: _number('scrolledUnderElevation'),
+    notificationPredicate: _notificationPredicate(),
+    shadowColor: _resolvedColor(context, 'shadowColor'),
+    surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+    shape: _appBarShape(context),
+    backgroundColor: _resolvedColor(context, 'backgroundColor'),
+    foregroundColor: _resolvedColor(context, 'foregroundColor'),
+    iconTheme: _iconTheme(context, 'iconTheme'),
+    actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
+    primary: _boolean('primary') ?? true,
+    centerTitle: _boolean('centerTitle'),
+    excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
+    titleSpacing: _number('titleSpacing'),
+    toolbarOpacity: _number('toolbarOpacity') ?? 1.0,
+    bottomOpacity: _number('bottomOpacity') ?? 1.0,
+    toolbarHeight: _number('toolbarHeight'),
+    leadingWidth: _number('leadingWidth'),
+    toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'),
+    titleTextStyle: _textStyle(context, 'titleTextStyle'),
+    systemOverlayStyle: _systemOverlayStyle(context),
+    forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
+    useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true,
+    clipBehavior: _clipBehavior(),
+    actionsPadding: _edgeInsetsGeometry('actionsPadding'),
+    animateColor: _boolean('animateColor') ?? false,
   );
 
   static bool _isEmptyLinearContainer(CanvasNode node) =>
@@ -1387,7 +1583,14 @@ class _CanvasNodeView extends StatelessWidget {
   );
 
   EdgeInsetsGeometry _paddingGeometry() {
-    final value = node.properties['padding']!.value;
+    return _edgeInsetsGeometry('padding')!;
+  }
+
+  EdgeInsetsGeometry? _edgeInsetsGeometry(String name) {
+    final value = node.properties[name]?.value;
+    if (value == null) {
+      return null;
+    }
     return switch (value) {
       CanvasEdgeInsets physical => EdgeInsets.fromLTRB(
         physical.left,
@@ -1401,7 +1604,7 @@ class _CanvasNodeView extends StatelessWidget {
         directional.end,
         directional.bottom,
       ),
-      _ => throw StateError('Unsupported Canvas Padding value.'),
+      _ => throw StateError('Unsupported Canvas EdgeInsets value.'),
     };
   }
 
@@ -1455,6 +1658,109 @@ class _CanvasNodeView extends StatelessWidget {
     );
   }
 
+  ScrollNotificationPredicate _notificationPredicate() =>
+      switch (_string('notificationPredicate')) {
+        'depthZero' => (notification) => notification.depth == 0,
+        'all' => (notification) => true,
+        _ => defaultScrollNotificationPredicate,
+      };
+
+  IconThemeData? _iconTheme(BuildContext context, String prefix) {
+    if (!_hasPropertyPrefix(prefix)) {
+      return null;
+    }
+    return IconThemeData(
+      size: _number('${prefix}Size'),
+      fill: _number('${prefix}Fill'),
+      weight: _number('${prefix}Weight'),
+      grade: _number('${prefix}Grade'),
+      opticalSize: _number('${prefix}OpticalSize'),
+      color: _resolvedColor(context, '${prefix}Color'),
+      opacity: _number('${prefix}Opacity'),
+      shadows: _shadows(context, '${prefix}Shadows'),
+      applyTextScaling: _boolean('${prefix}ApplyTextScaling'),
+    );
+  }
+
+  ShapeBorder? _appBarShape(BuildContext context) {
+    final kind = _string('shapeKind');
+    if (kind == null) {
+      return null;
+    }
+    final side = _appBarBorderSide(context);
+    final borderRadius = BorderRadius.only(
+      topLeft: Radius.circular(_number('shapeRadiusTopLeft') ?? 0),
+      topRight: Radius.circular(_number('shapeRadiusTopRight') ?? 0),
+      bottomRight: Radius.circular(_number('shapeRadiusBottomRight') ?? 0),
+      bottomLeft: Radius.circular(_number('shapeRadiusBottomLeft') ?? 0),
+    );
+    return switch (kind) {
+      'roundedRectangle' => RoundedRectangleBorder(
+        side: side,
+        borderRadius: borderRadius,
+      ),
+      'stadium' => StadiumBorder(side: side),
+      'circle' => CircleBorder(
+        side: side,
+        eccentricity: _number('shapeCircleEccentricity') ?? 0,
+      ),
+      'beveledRectangle' => BeveledRectangleBorder(
+        side: side,
+        borderRadius: borderRadius,
+      ),
+      'continuousRectangle' => ContinuousRectangleBorder(
+        side: side,
+        borderRadius: borderRadius,
+      ),
+      _ => throw StateError('Unreviewed Canvas AppBar shape kind: $kind'),
+    };
+  }
+
+  BorderSide _appBarBorderSide(BuildContext context) {
+    if (!node.properties.keys.any((name) => name.startsWith('shapeSide'))) {
+      return BorderSide.none;
+    }
+    return BorderSide(
+      color:
+          _resolvedColor(context, 'shapeSideColor') ?? const Color(0xff000000),
+      width: _number('shapeSideWidth') ?? 1.0,
+      style: _enum('shapeSideStyle') == 'none'
+          ? BorderStyle.none
+          : BorderStyle.solid,
+      strokeAlign:
+          _number('shapeSideStrokeAlign') ?? BorderSide.strokeAlignInside,
+    );
+  }
+
+  SystemUiOverlayStyle? _systemOverlayStyle(BuildContext context) {
+    const prefix = 'systemOverlayStyle';
+    if (!_hasPropertyPrefix(prefix)) {
+      return null;
+    }
+    return SystemUiOverlayStyle(
+      systemNavigationBarColor: _resolvedColor(
+        context,
+        '${prefix}SystemNavigationBarColor',
+      ),
+      systemNavigationBarDividerColor: _resolvedColor(
+        context,
+        '${prefix}SystemNavigationBarDividerColor',
+      ),
+      systemNavigationBarIconBrightness: _brightness(
+        '${prefix}SystemNavigationBarIconBrightness',
+      ),
+      systemNavigationBarContrastEnforced: _boolean(
+        '${prefix}SystemNavigationBarContrastEnforced',
+      ),
+      statusBarColor: _resolvedColor(context, '${prefix}StatusBarColor'),
+      statusBarBrightness: _brightness('${prefix}StatusBarBrightness'),
+      statusBarIconBrightness: _brightness('${prefix}StatusBarIconBrightness'),
+      systemStatusBarContrastEnforced: _boolean(
+        '${prefix}SystemStatusBarContrastEnforced',
+      ),
+    );
+  }
+
   Widget _text(BuildContext context) => Text(
     _string('data')!,
     style: _textStyle(context),
@@ -1477,48 +1783,50 @@ class _CanvasNodeView extends StatelessWidget {
     selectionColor: _resolvedColor(context, 'selectionColor'),
   );
 
-  TextStyle? _textStyle(BuildContext context) {
-    if (!_hasPropertyPrefix('style')) {
+  TextStyle? _textStyle(BuildContext context, [String prefix = 'style']) {
+    if (!_hasPropertyPrefix(prefix)) {
       return null;
     }
-    final themeBase = _themeTextStyle(context, 'styleThemeTextStyle');
+    final themeBase = _themeTextStyle(context, '${prefix}ThemeTextStyle');
     final hasOverrides = node.properties.keys.any(
-      (name) => name.startsWith('style') && name != 'styleThemeTextStyle',
+      (name) => name.startsWith(prefix) && name != '${prefix}ThemeTextStyle',
     );
     if (!hasOverrides) {
       return themeBase;
     }
     return (themeBase ?? const TextStyle()).copyWith(
-      inherit: _boolean('styleInherit'),
-      color: _resolvedColor(context, 'styleColor'),
-      backgroundColor: _resolvedColor(context, 'styleBackgroundColor'),
-      fontSize: _number('styleFontSize'),
-      fontWeight: _fontWeight('styleFontWeight'),
-      fontStyle: _fontStyle('styleFontStyle'),
-      letterSpacing: _number('styleLetterSpacing'),
-      wordSpacing: _number('styleWordSpacing'),
-      textBaseline: _textBaseline('styleTextBaseline'),
-      height: _number('styleHeight'),
-      leadingDistribution: _textLeadingDistribution('styleLeadingDistribution'),
-      locale: _locale(
-        languageCode: 'styleLocaleLanguageCode',
-        scriptCode: 'styleLocaleScriptCode',
-        countryCode: 'styleLocaleCountryCode',
+      inherit: _boolean('${prefix}Inherit'),
+      color: _resolvedColor(context, '${prefix}Color'),
+      backgroundColor: _resolvedColor(context, '${prefix}BackgroundColor'),
+      fontSize: _number('${prefix}FontSize'),
+      fontWeight: _fontWeight('${prefix}FontWeight'),
+      fontStyle: _fontStyle('${prefix}FontStyle'),
+      letterSpacing: _number('${prefix}LetterSpacing'),
+      wordSpacing: _number('${prefix}WordSpacing'),
+      textBaseline: _textBaseline('${prefix}TextBaseline'),
+      height: _number('${prefix}Height'),
+      leadingDistribution: _textLeadingDistribution(
+        '${prefix}LeadingDistribution',
       ),
-      foreground: _paint(context, 'styleForeground'),
-      background: _paint(context, 'styleBackground'),
-      shadows: _shadows(context, 'styleShadows'),
-      fontFeatures: _fontFeatures('styleFontFeatures'),
-      fontVariations: _fontVariations('styleFontVariations'),
-      decoration: _textDecoration(),
-      decorationColor: _resolvedColor(context, 'styleDecorationColor'),
-      decorationStyle: _textDecorationStyle(),
-      decorationThickness: _number('styleDecorationThickness'),
-      debugLabel: _string('styleDebugLabel'),
-      fontFamily: _string('styleFontFamily'),
-      fontFamilyFallback: _newlineList('styleFontFamilyFallback'),
-      package: _string('stylePackage'),
-      overflow: _textOverflow('styleOverflow'),
+      locale: _locale(
+        languageCode: '${prefix}LocaleLanguageCode',
+        scriptCode: '${prefix}LocaleScriptCode',
+        countryCode: '${prefix}LocaleCountryCode',
+      ),
+      foreground: _paint(context, '${prefix}Foreground'),
+      background: _paint(context, '${prefix}Background'),
+      shadows: _shadows(context, '${prefix}Shadows'),
+      fontFeatures: _fontFeatures('${prefix}FontFeatures'),
+      fontVariations: _fontVariations('${prefix}FontVariations'),
+      decoration: _textDecoration(prefix),
+      decorationColor: _resolvedColor(context, '${prefix}DecorationColor'),
+      decorationStyle: _textDecorationStyle('${prefix}DecorationStyle'),
+      decorationThickness: _number('${prefix}DecorationThickness'),
+      debugLabel: _string('${prefix}DebugLabel'),
+      fontFamily: _string('${prefix}FontFamily'),
+      fontFamilyFallback: _newlineList('${prefix}FontFamilyFallback'),
+      package: _string('${prefix}Package'),
+      overflow: _textOverflow('${prefix}Overflow'),
     );
   }
 
@@ -1576,20 +1884,21 @@ class _CanvasNodeView extends StatelessWidget {
     );
   }
 
-  TextDecoration? _textDecoration() {
-    const names = {
-      'styleDecorationUnderline',
-      'styleDecorationOverline',
-      'styleDecorationLineThrough',
+  TextDecoration? _textDecoration(String prefix) {
+    final names = {
+      '${prefix}DecorationUnderline',
+      '${prefix}DecorationOverline',
+      '${prefix}DecorationLineThrough',
     };
     if (!names.any(node.properties.containsKey)) {
       return null;
     }
     final decorations = <TextDecoration>[
-      if (_boolean('styleDecorationUnderline') ?? false)
+      if (_boolean('${prefix}DecorationUnderline') ?? false)
         TextDecoration.underline,
-      if (_boolean('styleDecorationOverline') ?? false) TextDecoration.overline,
-      if (_boolean('styleDecorationLineThrough') ?? false)
+      if (_boolean('${prefix}DecorationOverline') ?? false)
+        TextDecoration.overline,
+      if (_boolean('${prefix}DecorationLineThrough') ?? false)
         TextDecoration.lineThrough,
     ];
     return switch (decorations.length) {
@@ -1620,12 +1929,17 @@ class _CanvasNodeView extends StatelessWidget {
     return child == null ? null : _view(child);
   }
 
+  PreferredSizeWidget? _preferredSizeSingle(String name) {
+    final child = node.slot(name)?.child;
+    return child == null ? null : _view(child);
+  }
+
   List<Widget> _children(String name) => [
     for (final child in node.slot(name)?.children ?? const <CanvasNode>[])
       _view(child),
   ];
 
-  Widget _view(CanvasNode child) => _CanvasNodeView(
+  _CanvasNodeView _view(CanvasNode child) => _CanvasNodeView(
     node: child,
     selectedWidgetId: selectedWidgetId,
     onSelected: onSelected,
@@ -1952,8 +2266,8 @@ class _CanvasNodeView extends StatelessWidget {
         _ => null,
       };
 
-  TextDecorationStyle? _textDecorationStyle() =>
-      switch (_enum('styleDecorationStyle')) {
+  TextDecorationStyle? _textDecorationStyle(String name) =>
+      switch (_enum(name)) {
         'solid' => TextDecorationStyle.solid,
         'double' => TextDecorationStyle.double,
         'dotted' => TextDecorationStyle.dotted,
@@ -1961,6 +2275,20 @@ class _CanvasNodeView extends StatelessWidget {
         'wavy' => TextDecorationStyle.wavy,
         _ => null,
       };
+
+  Brightness? _brightness(String name) => switch (_enum(name)) {
+    'light' => Brightness.light,
+    'dark' => Brightness.dark,
+    _ => null,
+  };
+
+  Clip? _clipBehavior() => switch (_enum('clipBehavior')) {
+    'none' => Clip.none,
+    'hardEdge' => Clip.hardEdge,
+    'antiAlias' => Clip.antiAlias,
+    'antiAliasWithSaveLayer' => Clip.antiAliasWithSaveLayer,
+    _ => null,
+  };
 
   TextAlign? _textAlign() => switch (_enum('textAlign')) {
     'start' => TextAlign.start,

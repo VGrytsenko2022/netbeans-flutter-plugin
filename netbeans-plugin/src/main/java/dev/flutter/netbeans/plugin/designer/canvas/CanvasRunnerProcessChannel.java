@@ -35,6 +35,7 @@ import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingExcept
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingPolicy;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.io.IOException;
 import java.io.InputStream;
@@ -243,6 +244,38 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     }
 
     /**
+     * Projects one host-authoritative Palette source for trait-aware native
+     * hover. The opaque token remains the only value carried by native OLE;
+     * the Java host still consumes it and replans the final mutation.
+     */
+    public boolean authorizePaletteDragSource(
+            CanvasLayoutKey layoutKey,
+            String token,
+            WidgetTypeId widgetType,
+            Set<String> traits) {
+        Objects.requireNonNull(layoutKey, "layoutKey");
+        Objects.requireNonNull(token, "token");
+        Objects.requireNonNull(widgetType, "widgetType");
+        Objects.requireNonNull(traits, "traits");
+        requireExactSession(layoutKey.sessionId(), "Palette drag source");
+        Set<String> immutableTraits = Set.copyOf(traits);
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1)
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return false;
+            }
+        }
+        return enqueueOutbound(() -> writePaletteDragSource(
+                layoutKey, token, widgetType, immutableTraits));
+    }
+
+    /**
      * Projects one already-planned widget move target into the exact current
      * Canvas layout. This optional command never grants mutation authority.
      */
@@ -446,6 +479,39 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             fail("Canvas selection request could not be encoded.");
         } catch (IOException failure) {
             fail("Canvas selection request could not be written to runner stdin.");
+        }
+    }
+
+    private void writePaletteDragSource(
+            CanvasLayoutKey layoutKey,
+            String token,
+            WidgetTypeId widgetType,
+            Set<String> traits) {
+        final CanvasProcessFramingPolicy activePolicy;
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1)
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return;
+            }
+            activePolicy = writePolicy;
+        }
+        try {
+            byte[] control = runtimeCodec.encodePaletteDragSource(
+                    layoutKey, token, widgetType, traits);
+            writer.write(
+                    activePolicy,
+                    new CanvasProcessFrame(
+                            CanvasProcessFrameKind.CONTROL_JSON, control));
+        } catch (CanvasRunnerControlException | RuntimeException failure) {
+            fail("Canvas Palette drag source could not be encoded.");
+        } catch (IOException failure) {
+            fail("Canvas Palette drag source could not be written to runner stdin.");
         }
     }
 

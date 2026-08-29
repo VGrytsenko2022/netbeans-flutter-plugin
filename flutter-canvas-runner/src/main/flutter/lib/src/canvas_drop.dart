@@ -1,6 +1,69 @@
 /// Resolves one normalized native surface point to a semantic drop target.
 typedef CanvasDropResolver =
+    CanvasDropTarget? Function(
+      int surfaceXMicros,
+      int surfaceYMicros, [
+      CanvasPaletteDragSource? source,
+    ]);
+
+typedef LegacyCanvasDropResolver =
     CanvasDropTarget? Function(int surfaceXMicros, int surfaceYMicros);
+
+/// Host-authoritative identity of the single Palette source currently being
+/// dragged over the native Canvas.
+///
+/// The opaque token is still consumed and revalidated by Java before a model
+/// mutation. Flutter receives only the reviewed type and traits required to
+/// hide incompatible semantic drop zones.
+class CanvasPaletteDragSource {
+  CanvasPaletteDragSource({
+    required this.token,
+    required this.widgetType,
+    required Set<String> traits,
+  }) : traits = Set.unmodifiable(traits);
+
+  final String token;
+  final String widgetType;
+  final Set<String> traits;
+}
+
+enum CanvasDropAcceptanceKind { any, requiredTrait, exactTypes }
+
+/// Closed source-type acceptance rule for one reviewed slot.
+class CanvasDropAcceptance {
+  const CanvasDropAcceptance.any()
+    : kind = CanvasDropAcceptanceKind.any,
+      requiredTrait = null,
+      exactTypes = const {};
+
+  const CanvasDropAcceptance.requiredTrait(this.requiredTrait)
+    : kind = CanvasDropAcceptanceKind.requiredTrait,
+      exactTypes = const {};
+
+  const CanvasDropAcceptance.exactTypes(this.exactTypes)
+    : kind = CanvasDropAcceptanceKind.exactTypes,
+      requiredTrait = null;
+
+  final CanvasDropAcceptanceKind kind;
+  final String? requiredTrait;
+  final Set<String> exactTypes;
+
+  bool accepts(CanvasPaletteDragSource source) => switch (kind) {
+    CanvasDropAcceptanceKind.any => true,
+    CanvasDropAcceptanceKind.requiredTrait => source.traits.contains(
+      requiredTrait,
+    ),
+    CanvasDropAcceptanceKind.exactTypes => exactTypes.contains(
+      source.widgetType,
+    ),
+  };
+}
+
+const canvasPreferredSizeWidgetTrait = 'flutter.widgets.PreferredSizeWidget';
+const canvasAnyDropAcceptance = CanvasDropAcceptance.any();
+const canvasPreferredSizeDropAcceptance = CanvasDropAcceptance.requiredTrait(
+  canvasPreferredSizeWidgetTrait,
+);
 
 /// Resolves one Java-host-authorized move placement to current Flutter
 /// geometry. Compatibility is intentionally not decided here: the exact
@@ -28,13 +91,16 @@ class CanvasDropSlotSemantics {
     required this.slotName,
     required this.maximumChildren,
     this.overlapPriority = 0,
+    this.acceptance = canvasAnyDropAcceptance,
+    this.zonePlacement = CanvasDropZonePlacement.terminalList,
   }) : cardinality = CanvasDropSlotCardinality.list,
-       zonePlacement = CanvasDropZonePlacement.terminalList;
+       assert(maximumChildren > 0);
 
   const CanvasDropSlotSemantics.emptySingle({
     required this.slotName,
     this.zonePlacement = CanvasDropZonePlacement.fullNode,
     this.overlapPriority = 0,
+    this.acceptance = canvasAnyDropAcceptance,
   }) : maximumChildren = 1,
        cardinality = CanvasDropSlotCardinality.single;
 
@@ -43,6 +109,7 @@ class CanvasDropSlotSemantics {
   final CanvasDropSlotCardinality cardinality;
   final CanvasDropZonePlacement zonePlacement;
   final int overlapPriority;
+  final CanvasDropAcceptance acceptance;
 
   bool get fillsEmptySingleChild =>
       cardinality == CanvasDropSlotCardinality.single;
@@ -64,6 +131,9 @@ class CanvasDropSlotSemantics {
 
   bool accepts({required int currentChildCount, required int insertionIndex}) =>
       insertionIndexFor(currentChildCount) == insertionIndex;
+
+  bool acceptsSource(CanvasPaletteDragSource source) =>
+      acceptance.accepts(source);
 }
 
 enum CanvasDropSlotCardinality { single, list }
@@ -78,6 +148,21 @@ enum CanvasDropZonePlacement {
 
   /// A concise lower-right target reserved for Scaffold's FAB slot.
   bottomRightCompact,
+
+  /// Logical leading portion of an AppBar toolbar.
+  appBarLeading,
+
+  /// AppBar title portion between leading and actions.
+  appBarTitle,
+
+  /// Logical terminal edge of AppBar.actions.
+  appBarActions,
+
+  /// Full AppBar body behind the toolbar-specific zones.
+  appBarFlexibleSpace,
+
+  /// Bottom band occupied by AppBar.bottom.
+  appBarBottom,
 }
 
 const canvasChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
@@ -93,6 +178,12 @@ const canvasScaffoldBodyDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'body',
 );
 
+const canvasScaffoldAppBarDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'appBar',
+  acceptance: canvasPreferredSizeDropAcceptance,
+  overlapPriority: 3,
+);
+
 const canvasScaffoldFloatingActionButtonDropSlot =
     CanvasDropSlotSemantics.emptySingle(
       slotName: 'floatingActionButton',
@@ -100,16 +191,54 @@ const canvasScaffoldFloatingActionButtonDropSlot =
       overlapPriority: 1,
     );
 
+const canvasAppBarLeadingDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'leading',
+  zonePlacement: CanvasDropZonePlacement.appBarLeading,
+  overlapPriority: 4,
+);
+
+const canvasAppBarTitleDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'title',
+  zonePlacement: CanvasDropZonePlacement.appBarTitle,
+  overlapPriority: 4,
+);
+
+const canvasAppBarActionsDropSlot = CanvasDropSlotSemantics.append(
+  slotName: 'actions',
+  maximumChildren: 10000,
+  zonePlacement: CanvasDropZonePlacement.appBarActions,
+  overlapPriority: 5,
+);
+
+const canvasAppBarFlexibleSpaceDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'flexibleSpace',
+  zonePlacement: CanvasDropZonePlacement.appBarFlexibleSpace,
+);
+
+const canvasAppBarBottomDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'bottom',
+  zonePlacement: CanvasDropZonePlacement.appBarBottom,
+  acceptance: canvasPreferredSizeDropAcceptance,
+  overlapPriority: 5,
+);
+
 /// Returns the reviewed native Canvas drop contract for one widget type.
 ///
-/// Keep this explicit. In particular, Scaffold.appBar is not exposed even
-/// though it is present in the model: its trait acceptance cannot be resolved
-/// from the opaque native drag token.
+/// Keep this explicit. Trait-constrained zones are exposed only after the host
+/// binds the opaque token to its reviewed source type and traits.
 List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
     switch (widgetType) {
       'flutter.material.Scaffold' => const [
+        canvasScaffoldAppBarDropSlot,
         canvasScaffoldBodyDropSlot,
         canvasScaffoldFloatingActionButtonDropSlot,
+      ],
+      'flutter.material.AppBar' => const [
+        canvasAppBarLeadingDropSlot,
+        canvasAppBarTitleDropSlot,
+        canvasAppBarActionsDropSlot,
+        canvasAppBarFlexibleSpaceDropSlot,
+        canvasAppBarBottomDropSlot,
       ],
       'flutter.widgets.Column' ||
       'flutter.widgets.Row' => const [canvasChildrenAppendDropSlot],

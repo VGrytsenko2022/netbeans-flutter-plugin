@@ -22,6 +22,7 @@ import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameKind;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessPayloadDescriptor;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,6 +30,8 @@ import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 /** Strict small-message codec layered beside the frozen lifecycle wire v1. */
 public final class CanvasRunnerControlCodec {
@@ -55,8 +58,24 @@ public final class CanvasRunnerControlCodec {
             "horizontalScrollable", "verticalScrollable");
     private static final String PALETTE_DROP_TOKEN_PREFIX = "nbfdnd:v1:";
     private static final int MAX_PALETTE_DROP_TOKEN_CHARACTERS = 160;
+    private static final int MAX_PALETTE_SOURCE_TRAITS = 32;
+    private static final Pattern PALETTE_DROP_TOKEN = Pattern.compile(
+            "^nbfdnd:v1:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
+            + "[89ab][0-9a-f]{3}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-"
+            + "[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
+    private static final Pattern WIDGET_TRAIT = Pattern.compile(
+            "^[A-Za-z][A-Za-z0-9_.-]{0,254}$");
     private static final Set<String> PALETTE_DROP_SLOTS = Set.of(
-            "children", "child", "body", "floatingActionButton");
+            "children",
+            "child",
+            "body",
+            "floatingActionButton",
+            "appBar",
+            "leading",
+            "title",
+            "actions",
+            "flexibleSpace",
+            "bottom");
 
     private final JsonFactory jsonFactory;
     private final ObjectMapper mapper;
@@ -110,6 +129,60 @@ public final class CanvasRunnerControlCodec {
             json.writeNumberField("frameSequence", layout.frameKey().frameSequence());
             json.writeNumberField("layoutSequence", layout.layoutSequence());
             json.writeStringField("widgetId", widgetId.toString());
+            writeEnvelopeEnd(json);
+        });
+    }
+
+    /**
+     * Binds one opaque native Palette token to its host-authoritative source
+     * type and traits for the exact currently presented layout.
+     *
+     * <p>The transferable remains opaque. This projection grants only enough
+     * information for Flutter to filter visual drop zones; Java consumes the
+     * token and repeats the canonical catalog compatibility check before any
+     * mutation is submitted.</p>
+     */
+    public byte[] encodePaletteDragSource(
+            CanvasLayoutKey layout,
+            String token,
+            WidgetTypeId widgetType,
+            Set<String> traits) throws CanvasRunnerControlException {
+        Objects.requireNonNull(layout, "layout");
+        Objects.requireNonNull(widgetType, "widgetType");
+        Objects.requireNonNull(traits, "traits");
+        if (token == null
+                || token.length() > MAX_PALETTE_DROP_TOKEN_CHARACTERS
+                || !PALETTE_DROP_TOKEN.matcher(token).matches()) {
+            throw new IllegalArgumentException(
+                    "Palette drag source token has an invalid bounded shape.");
+        }
+        TreeSet<String> orderedTraits = new TreeSet<>();
+        for (String trait : traits) {
+            if (trait == null || !WIDGET_TRAIT.matcher(trait).matches()) {
+                throw new IllegalArgumentException(
+                        "Palette drag source contains an invalid widget trait.");
+            }
+            orderedTraits.add(trait);
+        }
+        if (orderedTraits.size() > MAX_PALETTE_SOURCE_TRAITS) {
+            throw new IllegalArgumentException(
+                    "Palette drag source contains too many widget traits.");
+        }
+        return encode(json -> {
+            CanvasRevisionKey revision = layout.frameKey().revisionKey();
+            writeEnvelopeStart(
+                    json, revision.sessionId(), "host.paletteDragSource");
+            writeRevision(json, revision);
+            json.writeNumberField(
+                    "frameSequence", layout.frameKey().frameSequence());
+            json.writeNumberField("layoutSequence", layout.layoutSequence());
+            json.writeStringField("token", token);
+            json.writeStringField("widgetType", widgetType.value());
+            json.writeArrayFieldStart("traits");
+            for (String trait : orderedTraits) {
+                json.writeString(trait);
+            }
+            json.writeEndArray();
             writeEnvelopeEnd(json);
         });
     }

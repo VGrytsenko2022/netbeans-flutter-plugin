@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -58,22 +59,185 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition appBar() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        properties.add(namedProperty("backgroundColor", 3, false, colorOrTheme()));
+        properties.add(namedProperty("centerTitle", 4, false, any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("elevation", 5, false, nonNegativeNumbers()));
+
+        int order = 6;
+        properties.add(namedProperty("automaticallyImplyLeading", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("automaticallyImplyActions", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("scrolledUnderElevation", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty("notificationPredicate", order++, false,
+                stringPattern("(?:default|depthZero|all)",
+                        "AppBar scroll-notification preset: default, depthZero, or all")));
+        properties.add(namedProperty("shadowColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("surfaceTintColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("foregroundColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("primary", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("excludeHeaderSemantics", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("titleSpacing", order++, false, finiteDoubles()));
+        properties.add(namedProperty("toolbarOpacity", order++, false, zeroToOneDoubles()));
+        properties.add(namedProperty("bottomOpacity", order++, false, zeroToOneDoubles()));
+        properties.add(namedProperty("toolbarHeight", order++, false, nonNegativeNumbers()));
+        properties.add(namedProperty("leadingWidth", order++, false, nonNegativeNumbers()));
+        properties.add(namedProperty("forceMaterialTransparency", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("useDefaultSemanticsOrder", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("clipBehavior", order++, false,
+                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer")));
+        properties.add(namedProperty("actionsPadding", order++, false,
+                List.of(new PropertyValueConstraint.EdgeInsetsValues(true))));
+        properties.add(namedProperty("animateColor", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+
+        properties.add(namedProperty("shapeKind", order++, false,
+                stringPattern("(?:roundedRectangle|stadium|circle|beveledRectangle|continuousRectangle)",
+                        "closed AppBar ShapeBorder kind")));
+        properties.add(namedProperty("shapeSideColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("shapeSideWidth", order++, false, nonNegativeDoubles()));
+        properties.add(namedProperty("shapeSideStyle", order++, false,
+                enumValues("BorderStyle", "none", "solid")));
+        properties.add(namedProperty("shapeSideStrokeAlign", order++, false,
+                minusOneToOneDoubles()));
+        properties.add(namedProperty("shapeRadiusTopLeft", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("shapeRadiusTopRight", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("shapeRadiusBottomRight", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("shapeRadiusBottomLeft", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("shapeCircleEccentricity", order++, false,
+                zeroToOneDoubles()));
+
+        order = appendIconThemeProperties(properties, "iconTheme", order);
+        order = appendIconThemeProperties(properties, "actionsIconTheme", order);
+        order = appendTextStyleProperties(properties, "toolbarTextStyle", order);
+        order = appendTextStyleProperties(properties, "titleTextStyle", order);
+
+        properties.add(namedProperty("systemOverlayStyleSystemNavigationBarColor",
+                order++, false, colorOrTheme()));
+        properties.add(namedProperty("systemOverlayStyleSystemNavigationBarDividerColor",
+                order++, false, colorOrTheme()));
+        properties.add(namedProperty("systemOverlayStyleSystemNavigationBarIconBrightness",
+                order++, false, enumValues("Brightness", "light", "dark")));
+        properties.add(namedProperty("systemOverlayStyleSystemNavigationBarContrastEnforced",
+                order++, false, any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("systemOverlayStyleStatusBarColor",
+                order++, false, colorOrTheme()));
+        properties.add(namedProperty("systemOverlayStyleStatusBarBrightness",
+                order++, false, enumValues("Brightness", "light", "dark")));
+        properties.add(namedProperty("systemOverlayStyleStatusBarIconBrightness",
+                order++, false, enumValues("Brightness", "light", "dark")));
+        properties.add(namedProperty("systemOverlayStyleSystemStatusBarContrastEnforced",
+                order++, false, any(PropertyValueKind.BOOLEAN)));
+
         return widget(
                 "flutter.material.AppBar",
                 "AppBar",
                 false,
                 MATERIAL_IMPORT,
-                List.of(MATERIAL_IMPORT),
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT),
                 Set.of(PREFERRED_SIZE_WIDGET_TRAIT),
                 palette("flutter.material", 100, 20, "AppBar"),
-                List.of(
-                        namedProperty("backgroundColor", 3, false, any(PropertyValueKind.COLOR)),
-                        namedProperty("centerTitle", 4, false, any(PropertyValueKind.BOOLEAN)),
-                        namedProperty("elevation", 5, false, nonNegativeNumbers())),
+                List.copyOf(properties),
                 List.of(
                         singleSlot("leading", 0, false, 0, ANY_WIDGET),
                         singleSlot("title", 1, false, 0, ANY_WIDGET),
-                        listSlot("actions", 2, false, ANY_WIDGET)));
+                        listSlot("actions", 2, false, ANY_WIDGET),
+                        singleSlot("flexibleSpace", order, false, 0, ANY_WIDGET),
+                        singleSlot("bottom", order + 1, false, 0,
+                                new SlotAcceptance.HasTrait(PREFERRED_SIZE_WIDGET_TRAIT))));
+    }
+
+    private static int appendIconThemeProperties(
+            List<PropertyDefinition> properties,
+            String prefix,
+            int order) {
+        properties.add(namedProperty(prefix + "Size", order++, false, nonNegativeNumbers()));
+        properties.add(namedProperty(prefix + "Fill", order++, false, zeroToOneDoubles()));
+        properties.add(namedProperty(prefix + "Weight", order++, false,
+                positiveFontAxisDoubles()));
+        properties.add(namedProperty(prefix + "Grade", order++, false, gradeAxisDoubles()));
+        properties.add(namedProperty(prefix + "OpticalSize", order++, false,
+                positiveFontAxisDoubles()));
+        properties.add(namedProperty(prefix + "Color", order++, false, colorOrTheme()));
+        properties.add(namedProperty(prefix + "Opacity", order++, false, zeroToOneDoubles()));
+        properties.add(namedProperty(prefix + "Shadows", order++, false, shadowValues()));
+        properties.add(namedProperty(prefix + "ApplyTextScaling", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        return order;
+    }
+
+    private static int appendTextStyleProperties(
+            List<PropertyDefinition> properties,
+            String prefix,
+            int order) {
+        properties.add(namedProperty(prefix + "ThemeTextStyle", order++, false,
+                textStyleTheme()));
+        properties.add(namedProperty(prefix + "Inherit", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "Color", order++, false, colorOrTheme()));
+        properties.add(namedProperty(prefix + "BackgroundColor", order++, false,
+                colorOrTheme()));
+        properties.add(namedProperty(prefix + "FontSize", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty(prefix + "FontWeight", order++, false,
+                enumValues("FontWeight", "w100", "w200", "w300", "w400", "w500",
+                        "w600", "w700", "w800", "w900")));
+        properties.add(namedProperty(prefix + "FontStyle", order++, false,
+                enumValues("FontStyle", "normal", "italic")));
+        properties.add(namedProperty(prefix + "LetterSpacing", order++, false, finiteDoubles()));
+        properties.add(namedProperty(prefix + "WordSpacing", order++, false, finiteDoubles()));
+        properties.add(namedProperty(prefix + "TextBaseline", order++, false,
+                enumValues("TextBaseline", "alphabetic", "ideographic")));
+        properties.add(namedProperty(prefix + "Height", order++, false, finiteDoubles()));
+        properties.add(namedProperty(prefix + "LeadingDistribution", order++, false,
+                enumValues("TextLeadingDistribution", "proportional", "even")));
+        properties.add(namedProperty(prefix + "LocaleLanguageCode", order++, false,
+                localeLanguageCode()));
+        properties.add(namedProperty(prefix + "LocaleScriptCode", order++, false,
+                localeScriptCode()));
+        properties.add(namedProperty(prefix + "LocaleCountryCode", order++, false,
+                localeCountryCode()));
+        properties.add(namedProperty(prefix + "DecorationUnderline", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "DecorationOverline", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "DecorationLineThrough", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "Foreground", order++, false, paintValues()));
+        properties.add(namedProperty(prefix + "Background", order++, false, paintValues()));
+        properties.add(namedProperty(prefix + "Shadows", order++, false, shadowValues()));
+        properties.add(namedProperty(prefix + "FontFeatures", order++, false,
+                any(PropertyValueKind.FONT_FEATURE_LIST)));
+        properties.add(namedProperty(prefix + "FontVariations", order++, false,
+                fontVariationValues()));
+        properties.add(namedProperty(prefix + "DecorationColor", order++, false,
+                colorOrTheme()));
+        properties.add(namedProperty(prefix + "DecorationStyle", order++, false,
+                enumValues("TextDecorationStyle", "solid", "double", "dotted", "dashed", "wavy")));
+        properties.add(namedProperty(prefix + "DecorationThickness", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "DebugLabel", order++, false,
+                any(PropertyValueKind.STRING)));
+        properties.add(namedProperty(prefix + "FontFamily", order++, false,
+                stringLength(1, 256)));
+        properties.add(namedProperty(prefix + "FontFamilyFallback", order++, false,
+                stringLength(0, 4096)));
+        properties.add(namedProperty(prefix + "Package", order++, false,
+                stringLength(1, 256)));
+        properties.add(namedProperty(prefix + "Overflow", order++, false,
+                enumValues("TextOverflow", "clip", "fade", "ellipsis", "visible")));
+        return order;
     }
 
     private static WidgetDefinition column() {
@@ -459,6 +623,11 @@ public final class BuiltInWidgetCatalog {
     private static List<PropertyValueConstraint> zeroToOneDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
                 BigDecimal.ZERO, true, BigDecimal.ONE, true));
+    }
+
+    private static List<PropertyValueConstraint> minusOneToOneDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(
+                BigDecimal.ONE.negate(), true, BigDecimal.ONE, true));
     }
 
     private static List<PropertyValueConstraint> positiveFontAxisDoubles() {

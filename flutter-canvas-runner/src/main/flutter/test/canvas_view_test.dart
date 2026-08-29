@@ -27,6 +27,7 @@ void main() {
     expect(canvasEmptyChildDropSlot.insertionIndexFor(0), 0);
     expect(canvasEmptyChildDropSlot.insertionIndexFor(1), isNull);
     expect(canvasDropSlotsForWidgetType('flutter.material.Scaffold'), const [
+      canvasScaffoldAppBarDropSlot,
       canvasScaffoldBodyDropSlot,
       canvasScaffoldFloatingActionButtonDropSlot,
     ]);
@@ -43,8 +44,33 @@ void main() {
     );
     expect(
       canvasDropSlotForWidgetSlot('flutter.material.Scaffold', 'appBar'),
-      isNull,
+      same(canvasScaffoldAppBarDropSlot),
     );
+    expect(canvasDropSlotsForWidgetType('flutter.material.AppBar'), const [
+      canvasAppBarLeadingDropSlot,
+      canvasAppBarTitleDropSlot,
+      canvasAppBarActionsDropSlot,
+      canvasAppBarFlexibleSpaceDropSlot,
+      canvasAppBarBottomDropSlot,
+    ]);
+    final textSource = CanvasPaletteDragSource(
+      token: 'text-source',
+      widgetType: 'flutter.widgets.Text',
+      traits: const {},
+    );
+    final appBarSource = CanvasPaletteDragSource(
+      token: 'appbar-source',
+      widgetType: 'flutter.material.AppBar',
+      traits: const {canvasPreferredSizeWidgetTrait},
+    );
+    expect(canvasScaffoldAppBarDropSlot.acceptsSource(textSource), isFalse);
+    expect(canvasAppBarBottomDropSlot.acceptsSource(textSource), isFalse);
+    expect(canvasScaffoldAppBarDropSlot.acceptsSource(appBarSource), isTrue);
+    expect(canvasAppBarBottomDropSlot.acceptsSource(appBarSource), isTrue);
+    expect(canvasAppBarLeadingDropSlot.acceptsSource(textSource), isTrue);
+    expect(canvasAppBarTitleDropSlot.acceptsSource(textSource), isTrue);
+    expect(canvasAppBarActionsDropSlot.acceptsSource(textSource), isTrue);
+    expect(canvasAppBarFlexibleSpaceDropSlot.acceptsSource(textSource), isTrue);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Padding'), const [
       canvasEmptyChildDropSlot,
     ]);

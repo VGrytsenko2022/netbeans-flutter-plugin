@@ -116,6 +116,10 @@ class PropertyValueConstraintTest {
         assertFalse(nonNegative.accepts(insets("0", "1E+1000000", "2", "3")));
         assertFalse(nonNegative.accepts(insets("0", "1E-1000000", "2", "3")));
         assertFalse(nonNegative.accepts(insets("0", "1.234567890123456789", "2", "3")));
+        assertTrue(nonNegative.accepts(new PropertyValue.EdgeInsetsDirectionalValue(
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.TWO, BigDecimal.TEN)));
+        assertFalse(nonNegative.accepts(new PropertyValue.EdgeInsetsDirectionalValue(
+                BigDecimal.ZERO, BigDecimal.ONE.negate(), BigDecimal.TWO, BigDecimal.TEN)));
     }
 
     @Test

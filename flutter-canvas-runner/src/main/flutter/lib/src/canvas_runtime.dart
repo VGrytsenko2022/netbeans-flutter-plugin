@@ -20,6 +20,16 @@ const _protocolVersion = 1;
 const _runnerVersion = '0.1.3-SNAPSHOT';
 const _paletteDropCapability = 'palette.drop.catalogInsert.v1';
 const _deleteSelectedWidgetCapability = 'widget.deleteSelection.v1';
+const _widgetMovePreviewCapability = 'widget.movePreview.v1';
+const _viewportPresentationCapability = 'viewport.presentation.v1';
+const minimumCanvasZoomMicros = 250000;
+const maximumCanvasZoomMicros = 2000000;
+const canvasViewportMicros = 1000000;
+
+@visibleForTesting
+int reserveNextCanvasLayoutSequence(int current, int? pending) =>
+    pending ?? current + 1;
+
 const _paletteDropChannel = MethodChannel(
   'dev.flutter.netbeans/canvas_palette_drop',
 );
@@ -39,6 +49,155 @@ class NbfcFrame {
   final int kind;
   final Uint8List payload;
   final String digestHex;
+}
+
+/// View-only placement of one fixed logical Flutter viewport in the native
+/// Canvas host. None of these values changes the model or its MediaQuery size.
+@immutable
+class CanvasViewportPresentation {
+  const CanvasViewportPresentation({
+    required this.commandSequence,
+    required this.presentationSequence,
+    required this.documentId,
+    required this.logicalRevisionId,
+    required this.mode,
+    required this.zoomMicros,
+    required this.horizontalScrollMicros,
+    required this.verticalScrollMicros,
+  });
+
+  factory CanvasViewportPresentation.fit(CanvasModel model) =>
+      CanvasViewportPresentation(
+        commandSequence: 0,
+        presentationSequence: model.presentationSequence,
+        documentId: model.documentId,
+        logicalRevisionId: model.logicalRevisionId,
+        mode: 'fit',
+        zoomMicros: canvasViewportMicros,
+        horizontalScrollMicros: 0,
+        verticalScrollMicros: 0,
+      );
+
+  final int commandSequence;
+  final int presentationSequence;
+  final String documentId;
+  final int logicalRevisionId;
+  final String mode;
+  final int zoomMicros;
+  final int horizontalScrollMicros;
+  final int verticalScrollMicros;
+
+  CanvasViewportPresentation copyWith({
+    String? mode,
+    int? zoomMicros,
+    int? horizontalScrollMicros,
+    int? verticalScrollMicros,
+  }) => CanvasViewportPresentation(
+    commandSequence: commandSequence,
+    presentationSequence: presentationSequence,
+    documentId: documentId,
+    logicalRevisionId: logicalRevisionId,
+    mode: mode ?? this.mode,
+    zoomMicros: (zoomMicros ?? this.zoomMicros).clamp(
+      minimumCanvasZoomMicros,
+      maximumCanvasZoomMicros,
+    ),
+    horizontalScrollMicros:
+        (horizontalScrollMicros ?? this.horizontalScrollMicros).clamp(
+          0,
+          canvasViewportMicros,
+        ),
+    verticalScrollMicros: (verticalScrollMicros ?? this.verticalScrollMicros)
+        .clamp(0, canvasViewportMicros),
+  );
+
+  bool matchesModel(CanvasModel model) =>
+      presentationSequence == model.presentationSequence &&
+      documentId == model.documentId &&
+      logicalRevisionId == model.logicalRevisionId;
+
+  bool hasSameGeometry(CanvasViewportPresentation other) =>
+      presentationSequence == other.presentationSequence &&
+      documentId == other.documentId &&
+      logicalRevisionId == other.logicalRevisionId &&
+      mode == other.mode &&
+      zoomMicros == other.zoomMicros &&
+      horizontalScrollMicros == other.horizontalScrollMicros &&
+      verticalScrollMicros == other.verticalScrollMicros;
+
+  Map<String, Object?> toBody() => {
+    'commandSequence': commandSequence,
+    'presentationSequence': presentationSequence,
+    'documentId': documentId,
+    'logicalRevisionId': logicalRevisionId,
+    'mode': mode,
+    'zoomMicros': zoomMicros,
+    'horizontalScrollMicros': horizontalScrollMicros,
+    'verticalScrollMicros': verticalScrollMicros,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is CanvasViewportPresentation &&
+      commandSequence == other.commandSequence &&
+      presentationSequence == other.presentationSequence &&
+      documentId == other.documentId &&
+      logicalRevisionId == other.logicalRevisionId &&
+      mode == other.mode &&
+      zoomMicros == other.zoomMicros &&
+      horizontalScrollMicros == other.horizontalScrollMicros &&
+      verticalScrollMicros == other.verticalScrollMicros;
+
+  @override
+  int get hashCode => Object.hash(
+    commandSequence,
+    presentationSequence,
+    documentId,
+    logicalRevisionId,
+    mode,
+    zoomMicros,
+    horizontalScrollMicros,
+    verticalScrollMicros,
+  );
+}
+
+/// Post-layout facts for one exact viewport presentation.
+@immutable
+class CanvasViewportMetrics {
+  const CanvasViewportMetrics({
+    required this.presentation,
+    required this.effectiveScaleMicros,
+    required this.horizontalScrollable,
+    required this.verticalScrollable,
+  });
+
+  final CanvasViewportPresentation presentation;
+  final int effectiveScaleMicros;
+  final bool horizontalScrollable;
+  final bool verticalScrollable;
+
+  Map<String, Object?> toBody() => presentation.toBody()
+    ..addAll({
+      'effectiveScaleMicros': effectiveScaleMicros,
+      'horizontalScrollable': horizontalScrollable,
+      'verticalScrollable': verticalScrollable,
+    });
+
+  @override
+  bool operator ==(Object other) =>
+      other is CanvasViewportMetrics &&
+      presentation == other.presentation &&
+      effectiveScaleMicros == other.effectiveScaleMicros &&
+      horizontalScrollable == other.horizontalScrollable &&
+      verticalScrollable == other.verticalScrollable;
+
+  @override
+  int get hashCode => Object.hash(
+    presentation,
+    effectiveScaleMicros,
+    horizontalScrollable,
+    verticalScrollable,
+  );
 }
 
 /// Encodes one complete NBFC version 1 frame.
@@ -196,10 +355,14 @@ class CanvasRuntimeController extends ChangeNotifier
   int _runnerWireSequence = 1;
   int _intentSequence = 0;
   int _layoutSequence = 0;
+  int? _pendingLayoutSequence;
   int _layoutPublicationTicket = 0;
   String? _lastPresentedIdentity;
   CanvasDropResolver? _dropResolver;
+  CanvasMovePreviewResolver? _movePreviewResolver;
   CanvasDropTarget? _dropHoverTarget;
+  CanvasDropTarget? _widgetMovePreviewTarget;
+  int _widgetMovePreviewSequence = -1;
   int _nativeHoverGeneration = -1;
   int _nativeHoverProbeId = -1;
   String? _nativeHoverToken;
@@ -208,6 +371,11 @@ class CanvasRuntimeController extends ChangeNotifier
   Future<void> _writeChain = Future.value();
   bool _paletteDropNegotiated = false;
   bool _deleteSelectedWidgetNegotiated = false;
+  bool _widgetMovePreviewNegotiated = false;
+  bool _viewportPresentationNegotiated = false;
+  CanvasViewportPresentation? _viewportPresentation;
+  CanvasViewportMetrics? _viewportMetrics;
+  String? _lastViewportPublication;
   bool _bindingObserverInstalled = false;
   bool _nativeDropHandlerInstalled = false;
   bool _closed = false;
@@ -216,7 +384,12 @@ class CanvasRuntimeController extends ChangeNotifier
   String? get selectedWidgetId => _selectedWidgetId;
   String? get errorMessage => _errorMessage;
   bool get closed => _closed;
-  CanvasDropTarget? get dropHoverTarget => _dropHoverTarget;
+  CanvasDropTarget? get dropHoverTarget =>
+      _widgetMovePreviewTarget ?? _dropHoverTarget;
+  bool get hasWidgetMovePreview => _widgetMovePreviewTarget != null;
+  @visibleForTesting
+  CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
+  CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
 
   @visibleForTesting
   int? get presentedLayoutSequence {
@@ -224,6 +397,21 @@ class CanvasRuntimeController extends ChangeNotifier
     return current != null && _lastPresentedIdentity == _identity(current)
         ? _layoutSequence
         : null;
+  }
+
+  @visibleForTesting
+  int? get pendingLayoutSequence => _pendingLayoutSequence;
+
+  /// Completes the currently reserved post-layout publication in protocol
+  /// tests that do not own a live Flutter render surface.
+  @visibleForTesting
+  void completePendingLayoutForTesting() {
+    final current = _model;
+    final pending = _pendingLayoutSequence;
+    if (current == null || pending == null) {
+      throw StateError('Canvas has no pending layout publication.');
+    }
+    _completeLayoutPublication(current, pending, _layoutPublicationTicket);
   }
 
   /// Registers the current Flutter render-tree hit tester without granting it
@@ -234,6 +422,15 @@ class CanvasRuntimeController extends ChangeNotifier
       _preparedNativeDrop = null;
       _setDropHoverTarget(null);
       _invalidateNativeHoverApproval();
+    }
+  }
+
+  /// Registers the current render-tree geometry edge used only for a
+  /// Java-authorized widget move preview.
+  void setMovePreviewResolver(CanvasMovePreviewResolver? resolver) {
+    _movePreviewResolver = resolver;
+    if (resolver == null) {
+      _setWidgetMovePreviewTarget(null);
     }
   }
 
@@ -261,6 +458,12 @@ class CanvasRuntimeController extends ChangeNotifier
       _deleteSelectedWidgetNegotiated = hello.capabilities.contains(
         _deleteSelectedWidgetCapability,
       );
+      _widgetMovePreviewNegotiated = hello.capabilities.contains(
+        _widgetMovePreviewCapability,
+      );
+      _viewportPresentationNegotiated = hello.capabilities.contains(
+        _viewportPresentationCapability,
+      );
       await _writeControl(
         _runnerHello(hello, paletteDropAvailable: _paletteDropNegotiated),
       );
@@ -272,9 +475,11 @@ class CanvasRuntimeController extends ChangeNotifier
         if (frame == null) {
           _closed = true;
           _lastPresentedIdentity = null;
+          _pendingLayoutSequence = null;
           _layoutPublicationTicket++;
           _preparedNativeDrop = null;
           _setDropHoverTarget(null);
+          _setWidgetMovePreviewTarget(null);
           notifyListeners();
           return;
         }
@@ -304,7 +509,11 @@ class CanvasRuntimeController extends ChangeNotifier
     if (_lastPresentedIdentity != identity) {
       return;
     }
-    if (_layoutSequence == 0x7fffffffffffffff) {
+    final nextLayoutSequence = reserveNextCanvasLayoutSequence(
+      _layoutSequence,
+      _pendingLayoutSequence,
+    );
+    if (nextLayoutSequence > maxCanvasSequence) {
       _lastPresentedIdentity = null;
       unawaited(
         _failClosed(StateError('Canvas layout sequence is exhausted.')),
@@ -316,8 +525,9 @@ class CanvasRuntimeController extends ChangeNotifier
     _lastPresentedIdentity = null;
     _preparedNativeDrop = null;
     _setDropHoverTarget(null);
+    _setWidgetMovePreviewTarget(null);
     _invalidateNativeHoverApproval();
-    _scheduleLayoutPublication(current, _layoutSequence + 1);
+    _scheduleLayoutPublication(current, nextLayoutSequence);
   }
 
   Future<bool> _detectNativeDropAvailability() async {
@@ -363,6 +573,103 @@ class CanvasRuntimeController extends ChangeNotifier
         'widgetId': widgetId,
       });
     unawaited(_writeRuntime('runner.selection', body));
+  }
+
+  /// Applies wheel or scrollbar interaction produced by the Flutter Canvas.
+  /// The immutable model identity must remain exact; only view presentation is
+  /// allowed to change locally.
+  void updateViewportFromCanvas(CanvasViewportPresentation next) {
+    final current = _model;
+    if (_closed ||
+        !_viewportPresentationNegotiated ||
+        current == null ||
+        !next.matchesModel(current)) {
+      return;
+    }
+    _applyViewportPresentation(next);
+  }
+
+  /// Accepts post-frame viewport facts. Stale callbacks are ignored, and an
+  /// unchanged report is never echoed repeatedly.
+  void reportViewportMetrics(CanvasViewportMetrics metrics) {
+    final current = _model;
+    if (_closed ||
+        !_viewportPresentationNegotiated ||
+        current == null ||
+        metrics.presentation != _viewportPresentation ||
+        !metrics.presentation.matchesModel(current)) {
+      return;
+    }
+    _viewportMetrics = metrics;
+    _publishViewportIfReady();
+  }
+
+  void _applyViewportPresentation(CanvasViewportPresentation next) {
+    final previous = _viewportPresentation;
+    if (previous == next) {
+      _lastViewportPublication = null;
+      _publishViewportIfReady();
+      return;
+    }
+    if (previous != null && previous.hasSameGeometry(next)) {
+      final previousMetrics = _viewportMetrics;
+      _viewportPresentation = next;
+      _viewportMetrics = previousMetrics == null
+          ? null
+          : CanvasViewportMetrics(
+              presentation: next,
+              effectiveScaleMicros: previousMetrics.effectiveScaleMicros,
+              horizontalScrollable: previousMetrics.horizontalScrollable,
+              verticalScrollable: previousMetrics.verticalScrollable,
+            );
+      _lastViewportPublication = null;
+      notifyListeners();
+      _publishViewportIfReady();
+      return;
+    }
+    _viewportPresentation = next;
+    _viewportMetrics = null;
+    _lastViewportPublication = null;
+    _invalidateLayoutForViewportChange();
+    notifyListeners();
+  }
+
+  void _invalidateLayoutForViewportChange() {
+    final current = _model;
+    if (current == null) {
+      return;
+    }
+    final nextLayoutSequence = reserveNextCanvasLayoutSequence(
+      _layoutSequence,
+      _pendingLayoutSequence,
+    );
+    if (nextLayoutSequence > maxCanvasSequence) {
+      _lastPresentedIdentity = null;
+      unawaited(
+        _failClosed(StateError('Canvas layout sequence is exhausted.')),
+      );
+      return;
+    }
+    _lastPresentedIdentity = null;
+    _preparedNativeDrop = null;
+    _setDropHoverTarget(null);
+    _setWidgetMovePreviewTarget(null);
+    _invalidateNativeHoverApproval();
+    _scheduleLayoutPublication(current, nextLayoutSequence);
+  }
+
+  void _publishViewportIfReady() {
+    final metrics = _viewportMetrics;
+    if (!_viewportPresentationNegotiated || metrics == null || _closed) {
+      return;
+    }
+    final body = metrics.toBody();
+    final publication = jsonEncode(body);
+    if (_lastViewportPublication == publication) {
+      return;
+    }
+    _lastViewportPublication = publication;
+    unawaited(_writeRuntime('runner.viewport', body));
   }
 
   /// Publishes one physical Delete intent without mutating the decoded model.
@@ -691,6 +998,14 @@ class CanvasRuntimeController extends ChangeNotifier
     notifyListeners();
   }
 
+  void _setWidgetMovePreviewTarget(CanvasDropTarget? target) {
+    if (_sameDropTarget(_widgetMovePreviewTarget, target)) {
+      return;
+    }
+    _widgetMovePreviewTarget = target;
+    notifyListeners();
+  }
+
   void _invalidateNativeHoverApproval() {
     if (!_ownsProcessIo || !_paletteDropNegotiated || _closed) {
       return;
@@ -731,6 +1046,12 @@ class CanvasRuntimeController extends ChangeNotifier
       await _handleRender(_object(object['body'], r'$/body'));
     } else if (type == 'host.selection') {
       _handleHostSelection(_object(object['body'], r'$/body'));
+    } else if (type == 'host.widgetMovePreview') {
+      _handleHostWidgetMovePreview(_object(object['body'], r'$/body'));
+    } else if (type == 'host.widgetMovePreviewClear') {
+      _handleHostWidgetMovePreviewClear(_object(object['body'], r'$/body'));
+    } else if (type == 'host.viewport') {
+      _handleHostViewport(_object(object['body'], r'$/body'));
     } else {
       throw FormatException(
         'Canvas runtime control type is not supported: $type',
@@ -796,11 +1117,17 @@ class CanvasRuntimeController extends ChangeNotifier
       }
     }
     _model = next;
+    _viewportPresentation = CanvasViewportPresentation.fit(next);
+    _viewportMetrics = null;
+    _lastViewportPublication = null;
     _selectedWidgetId = null;
     _layoutSequence = 0;
+    _pendingLayoutSequence = null;
     _lastPresentedIdentity = null;
     _preparedNativeDrop = null;
     _setDropHoverTarget(null);
+    _widgetMovePreviewSequence = -1;
+    _setWidgetMovePreviewTarget(null);
     _invalidateNativeHoverApproval();
     notifyListeners();
     _scheduleLayoutPublication(next, 0);
@@ -808,25 +1135,36 @@ class CanvasRuntimeController extends ChangeNotifier
 
   void _scheduleLayoutPublication(CanvasModel model, int layoutSequence) {
     final ticket = ++_layoutPublicationTicket;
+    _pendingLayoutSequence = layoutSequence;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_closed ||
-          ticket != _layoutPublicationTicket ||
-          !identical(_model, model)) {
-        return;
-      }
-      final identity = _identity(model);
-      _layoutSequence = layoutSequence;
-      _lastPresentedIdentity = identity;
-      _invalidateNativeHoverApproval();
-      unawaited(
-        _writeRuntime(
-          'runner.presented',
-          _identityBody(model)
-            ..addAll({'frameSequence': 0, 'layoutSequence': layoutSequence}),
-        ),
-      );
+      _completeLayoutPublication(model, layoutSequence, ticket);
     });
     WidgetsBinding.instance.scheduleFrame();
+  }
+
+  void _completeLayoutPublication(
+    CanvasModel model,
+    int layoutSequence,
+    int ticket,
+  ) {
+    if (_closed ||
+        ticket != _layoutPublicationTicket ||
+        !identical(_model, model) ||
+        _pendingLayoutSequence != layoutSequence) {
+      return;
+    }
+    final identity = _identity(model);
+    _layoutSequence = layoutSequence;
+    _pendingLayoutSequence = null;
+    _lastPresentedIdentity = identity;
+    _invalidateNativeHoverApproval();
+    unawaited(
+      _writeRuntime(
+        'runner.presented',
+        _identityBody(model)
+          ..addAll({'frameSequence': 0, 'layoutSequence': layoutSequence}),
+      ),
+    );
   }
 
   void _handleHostSelection(Map<String, Object?> body) {
@@ -865,6 +1203,188 @@ class CanvasRuntimeController extends ChangeNotifier
     }
   }
 
+  void _handleHostWidgetMovePreview(Map<String, Object?> body) {
+    if (!_widgetMovePreviewNegotiated) {
+      throw const FormatException(
+        'Canvas widget move preview capability was not negotiated.',
+      );
+    }
+    _exactKeys(body, r'$/body', const {
+      'presentationSequence',
+      'documentId',
+      'logicalRevisionId',
+      'frameSequence',
+      'layoutSequence',
+      'previewSequence',
+      'sourceWidgetId',
+      'parentWidgetId',
+      'slotName',
+      'insertionIndex',
+    });
+    final previewSequence = _positiveSequence(
+      body['previewSequence'],
+      r'$/body/previewSequence',
+    );
+    final sourceWidgetId = _stableId(
+      body['sourceWidgetId'],
+      r'$/body/sourceWidgetId',
+    );
+    final parentWidgetId = _stableId(
+      body['parentWidgetId'],
+      r'$/body/parentWidgetId',
+    );
+    final slotName = _slotName(body['slotName'], r'$/body/slotName');
+    final insertionIndex = _insertionIndex(
+      body['insertionIndex'],
+      r'$/body/insertionIndex',
+    );
+    final current = _model;
+    if (current == null || !_matchesCurrentLayout(body, current)) {
+      return;
+    }
+    if (previewSequence <= _widgetMovePreviewSequence) {
+      return;
+    }
+    _widgetMovePreviewSequence = previewSequence;
+    final source = _findNode(current.root, sourceWidgetId);
+    final parent = _findNode(current.root, parentWidgetId);
+    final resolver = _movePreviewResolver;
+    if (source == null ||
+        parent == null ||
+        source.id == current.root.id ||
+        source.id == parent.id ||
+        _findNode(source, parent.id) != null ||
+        resolver == null) {
+      _setWidgetMovePreviewTarget(null);
+      return;
+    }
+    final target = resolver(
+      sourceWidgetId,
+      parentWidgetId,
+      slotName,
+      insertionIndex,
+    );
+    if (target == null ||
+        target.parentWidgetId != parentWidgetId ||
+        target.slotName != slotName ||
+        target.insertionIndex != insertionIndex ||
+        target.zone == null ||
+        target.zone!.isEmpty) {
+      _setWidgetMovePreviewTarget(null);
+      return;
+    }
+    _setWidgetMovePreviewTarget(target);
+  }
+
+  void _handleHostWidgetMovePreviewClear(Map<String, Object?> body) {
+    if (!_widgetMovePreviewNegotiated) {
+      throw const FormatException(
+        'Canvas widget move preview capability was not negotiated.',
+      );
+    }
+    _exactKeys(body, r'$/body', const {
+      'presentationSequence',
+      'documentId',
+      'logicalRevisionId',
+      'frameSequence',
+      'layoutSequence',
+      'previewSequence',
+    });
+    final previewSequence = _positiveSequence(
+      body['previewSequence'],
+      r'$/body/previewSequence',
+    );
+    final current = _model;
+    if (current == null ||
+        !_matchesCurrentLayout(body, current) ||
+        previewSequence <= _widgetMovePreviewSequence) {
+      return;
+    }
+    _widgetMovePreviewSequence = previewSequence;
+    _setWidgetMovePreviewTarget(null);
+  }
+
+  bool _matchesCurrentLayout(Map<String, Object?> body, CanvasModel current) =>
+      _lastPresentedIdentity == _identity(current) &&
+      _sequence(body['presentationSequence'], r'$/body/presentationSequence') ==
+          current.presentationSequence &&
+      _stableId(body['documentId'], r'$/body/documentId') ==
+          current.documentId &&
+      _sequence(body['logicalRevisionId'], r'$/body/logicalRevisionId') ==
+          current.logicalRevisionId &&
+      _sequence(body['frameSequence'], r'$/body/frameSequence') == 0 &&
+      _sequence(body['layoutSequence'], r'$/body/layoutSequence') ==
+          _layoutSequence;
+
+  void _handleHostViewport(Map<String, Object?> body) {
+    if (!_viewportPresentationNegotiated) {
+      throw const FormatException(
+        'Canvas viewport presentation capability was not negotiated.',
+      );
+    }
+    _exactKeys(body, r'$/body', const {
+      'commandSequence',
+      'presentationSequence',
+      'documentId',
+      'logicalRevisionId',
+      'mode',
+      'zoomMicros',
+      'horizontalScrollMicros',
+      'verticalScrollMicros',
+    });
+    final next = CanvasViewportPresentation(
+      commandSequence: _positiveSequence(
+        body['commandSequence'],
+        r'$/body/commandSequence',
+      ),
+      presentationSequence: _sequence(
+        body['presentationSequence'],
+        r'$/body/presentationSequence',
+      ),
+      documentId: _stableId(body['documentId'], r'$/body/documentId'),
+      logicalRevisionId: _sequence(
+        body['logicalRevisionId'],
+        r'$/body/logicalRevisionId',
+      ),
+      mode: _viewportMode(body['mode'], r'$/body/mode'),
+      zoomMicros: _boundedMicros(
+        body['zoomMicros'],
+        r'$/body/zoomMicros',
+        minimumCanvasZoomMicros,
+        maximumCanvasZoomMicros,
+      ),
+      horizontalScrollMicros: _boundedMicros(
+        body['horizontalScrollMicros'],
+        r'$/body/horizontalScrollMicros',
+        0,
+        canvasViewportMicros,
+      ),
+      verticalScrollMicros: _boundedMicros(
+        body['verticalScrollMicros'],
+        r'$/body/verticalScrollMicros',
+        0,
+        canvasViewportMicros,
+      ),
+    );
+    final current = _model;
+    if (current == null || !next.matchesModel(current)) {
+      return;
+    }
+    final previous = _viewportPresentation;
+    if (previous != null) {
+      if (next.commandSequence < previous.commandSequence) {
+        return;
+      }
+      if (next.commandSequence == previous.commandSequence &&
+          next != previous) {
+        throw const FormatException(
+          'Canvas viewport command sequence was reused with another state.',
+        );
+      }
+    }
+    _applyViewportPresentation(next);
+  }
+
   Future<void> _handleWireControl(Map<String, Object?> object) async {
     _exactKeys(object, r'$', const {
       'format',
@@ -898,9 +1418,13 @@ class CanvasRuntimeController extends ChangeNotifier
     });
     _closed = true;
     _lastPresentedIdentity = null;
+    _pendingLayoutSequence = null;
+    _viewportMetrics = null;
+    _lastViewportPublication = null;
     _layoutPublicationTicket++;
     _preparedNativeDrop = null;
     _setDropHoverTarget(null);
+    _setWidgetMovePreviewTarget(null);
     notifyListeners();
     await _reader.cancel();
     if (_ownsProcessIo) {
@@ -941,9 +1465,13 @@ class CanvasRuntimeController extends ChangeNotifier
     }
     _closed = true;
     _lastPresentedIdentity = null;
+    _pendingLayoutSequence = null;
+    _viewportMetrics = null;
+    _lastViewportPublication = null;
     _layoutPublicationTicket++;
     _preparedNativeDrop = null;
     _setDropHoverTarget(null);
+    _setWidgetMovePreviewTarget(null);
     await _reader.cancel();
     final message = _boundedFailureMessage(error);
     _errorMessage = message;
@@ -1011,7 +1539,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 5) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 7) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -1020,6 +1548,8 @@ _HostHello _decodeHostHello(Uint8List payload) {
     'readOnly.selection',
     _paletteDropCapability,
     _deleteSelectedWidgetCapability,
+    _widgetMovePreviewCapability,
+    _viewportPresentationCapability,
   };
   final capabilities = <String>{};
   for (final value in rawCapabilities) {
@@ -1053,6 +1583,8 @@ Map<String, Object?> _runnerHello(
     'readOnly.selection',
     _paletteDropCapability,
     _deleteSelectedWidgetCapability,
+    _widgetMovePreviewCapability,
+    _viewportPresentationCapability,
   ];
   final limits = hello.limits.tightenedToSafe();
   return {
@@ -1281,6 +1813,14 @@ int _sequence(Object? value, String path) {
   return value;
 }
 
+int _positiveSequence(Object? value, String path) {
+  final sequence = _sequence(value, path);
+  if (sequence == 0) {
+    throw FormatException('Canvas sequence must be positive: $path');
+  }
+  return sequence;
+}
+
 int _surfaceMicros(Object? value, String path) {
   if (value is! int || value < 0 || value > 1000000) {
     throw FormatException(
@@ -1288,6 +1828,35 @@ int _surfaceMicros(Object? value, String path) {
     );
   }
   return value;
+}
+
+int _boundedMicros(Object? value, String path, int minimum, int maximum) {
+  if (value is! int || value < minimum || value > maximum) {
+    throw FormatException('Canvas viewport value is outside its range: $path');
+  }
+  return value;
+}
+
+String _slotName(Object? value, String path) {
+  final text = _boundedText(value, path, 1, 64);
+  if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(text)) {
+    throw FormatException('Canvas slot name is invalid: $path');
+  }
+  return text;
+}
+
+int _insertionIndex(Object? value, String path) {
+  if (value is! int || value < 0 || value > 10000) {
+    throw FormatException('Canvas insertion index is outside its range: $path');
+  }
+  return value;
+}
+
+String _viewportMode(Object? value, String path) {
+  if (value != 'fit' && value != 'manual') {
+    throw FormatException('Canvas viewport mode is invalid: $path');
+  }
+  return value! as String;
 }
 
 Map<String, Object?>? _tryNativeObject(

@@ -286,6 +286,46 @@ final class DesignerCommandSessionOrchestrator
         }
     }
 
+    /**
+     * Proves that one loaded BASELINE Current retains the exact command-session
+     * anchors needed by the pair coordinator. Value-equal bytes are not enough:
+     * a reload may recreate source, three-way or FD identities which cannot be
+     * used to prepare the next exact B/C1 transition.
+     */
+    boolean ownsExactBaselineCurrent(
+            DesignerCommandRevision expectedRevision,
+            FlutterDesignerDocumentState.Current current) {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        Objects.requireNonNull(current, "current");
+        synchronized (monitor) {
+            if (closed
+                    || session.dirty()
+                    || session.current() != expectedRevision
+                    || expectedRevision.persistenceKind()
+                            != DesignerRevisionPersistenceKind.BASELINE
+                    || current.sourceIntegrity().isEmpty()
+                    || current.threeWayIntegrity().isEmpty()) {
+                return false;
+            }
+            DartSourceIntegrityResult source = current.sourceIntegrity()
+                    .orElseThrow();
+            DartThreeWayIntegrityResult threeWay = current.threeWayIntegrity()
+                    .orElseThrow();
+            return session.catalog() == current.catalog()
+                    && session.durableFdAnchor()
+                            == current.decoded().original()
+                    && session.durableSourceIntegrity() == source
+                    && session.durableThreeWayIntegrity() == threeWay
+                    && expectedRevision.fdSnapshot()
+                            == session.durableFdAnchor()
+                    && expectedRevision.sourceIntegrity() == source
+                    && expectedRevision.generation().equals(
+                            threeWay.generation())
+                    && expectedRevision.document().equals(
+                            current.decoded().document());
+        }
+    }
+
     boolean dirty() {
         synchronized (monitor) {
             return !closed && session.dirty();

@@ -396,6 +396,11 @@ final class FdJsonEncoder {
             writeDecimalField("top", edgeInsets.top(), pointer, context);
             writeDecimalField("right", edgeInsets.right(), pointer, context);
             writeDecimalField("bottom", edgeInsets.bottom(), pointer, context);
+        } else if (value instanceof PropertyValue.EdgeInsetsDirectionalValue edgeInsets) {
+            writeDecimalField("start", edgeInsets.start(), pointer, context);
+            writeDecimalField("top", edgeInsets.top(), pointer, context);
+            writeDecimalField("end", edgeInsets.end(), pointer, context);
+            writeDecimalField("bottom", edgeInsets.bottom(), pointer, context);
         } else if (value instanceof PropertyValue.AssetValue assetValue) {
             context.stringField("path", assetValue.path(), pointer + "/path");
         } else if (value instanceof PropertyValue.CallbackValue callbackValue) {

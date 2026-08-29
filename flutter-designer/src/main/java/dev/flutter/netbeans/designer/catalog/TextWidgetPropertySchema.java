@@ -133,7 +133,8 @@ public final class TextWidgetPropertySchema {
         compound(values, "localeCountryCode", Group.LOCALE_AND_SCALING, "Country code",
                 "Unicode locale region subtag, for example US.",
                 Target.TEXT_LOCALE, "countryCode", 2);
-        compound(values, "textScalerFactor", Group.LOCALE_AND_SCALING, "Scale factor",
+        compound(values, "textScalerFactor", Group.LOCALE_AND_SCALING,
+                "Linear scale factor",
                 "Linear TextScaler factor; zero or greater.",
                 Target.TEXT_SCALER, "textScaleFactor", 0);
         compound(values, "textHeightApplyFirstAscent", Group.LOCALE_AND_SCALING,

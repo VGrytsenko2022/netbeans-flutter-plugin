@@ -14,6 +14,9 @@ import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
+import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameKind;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessPayloadDescriptor;
@@ -45,6 +48,11 @@ public final class CanvasRunnerControlCodec {
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "token",
             "operation", "parentWidgetId", "slotName", "insertionIndex");
+    private static final Set<String> RUNNER_VIEWPORT_FIELDS = Set.of(
+            "presentationSequence", "documentId", "logicalRevisionId",
+            "commandSequence", "mode", "zoomMicros", "horizontalScrollMicros",
+            "verticalScrollMicros", "effectiveScaleMicros",
+            "horizontalScrollable", "verticalScrollable");
     private static final String PALETTE_DROP_TOKEN_PREFIX = "nbfdnd:v1:";
     private static final int MAX_PALETTE_DROP_TOKEN_CHARACTERS = 160;
     private static final Set<String> PALETTE_DROP_SLOTS = Set.of(
@@ -106,6 +114,79 @@ public final class CanvasRunnerControlCodec {
         });
     }
 
+    /**
+     * Encodes one host-authorized widget move target for the exact presented
+     * Flutter layout. The runner receives placement only; catalog
+     * compatibility and mutation authority remain in the Java host.
+     */
+    public byte[] encodeWidgetMovePreview(
+            CanvasLayoutKey layout,
+            long previewSequence,
+            StableId sourceWidgetId,
+            StableId parentWidgetId,
+            SlotName slotName,
+            int insertionIndex) throws CanvasRunnerControlException {
+        Objects.requireNonNull(layout, "layout");
+        Objects.requireNonNull(sourceWidgetId, "sourceWidgetId");
+        Objects.requireNonNull(parentWidgetId, "parentWidgetId");
+        Objects.requireNonNull(slotName, "slotName");
+        requirePreviewSequence(previewSequence);
+        requireInsertionIndex(insertionIndex, "host widget move preview");
+        return encode(json -> {
+            CanvasRevisionKey revision = layout.frameKey().revisionKey();
+            writeEnvelopeStart(
+                    json, revision.sessionId(), "host.widgetMovePreview");
+            writeRevision(json, revision);
+            json.writeNumberField(
+                    "frameSequence", layout.frameKey().frameSequence());
+            json.writeNumberField("layoutSequence", layout.layoutSequence());
+            json.writeNumberField("previewSequence", previewSequence);
+            json.writeStringField("sourceWidgetId", sourceWidgetId.toString());
+            json.writeStringField("parentWidgetId", parentWidgetId.toString());
+            json.writeStringField("slotName", slotName.value());
+            json.writeNumberField("insertionIndex", insertionIndex);
+            writeEnvelopeEnd(json);
+        });
+    }
+
+    /** Clears the latest widget move target for one exact presented layout. */
+    public byte[] encodeWidgetMovePreviewClear(
+            CanvasLayoutKey layout,
+            long previewSequence) throws CanvasRunnerControlException {
+        Objects.requireNonNull(layout, "layout");
+        requirePreviewSequence(previewSequence);
+        return encode(json -> {
+            CanvasRevisionKey revision = layout.frameKey().revisionKey();
+            writeEnvelopeStart(
+                    json, revision.sessionId(), "host.widgetMovePreviewClear");
+            writeRevision(json, revision);
+            json.writeNumberField(
+                    "frameSequence", layout.frameKey().frameSequence());
+            json.writeNumberField("layoutSequence", layout.layoutSequence());
+            json.writeNumberField("previewSequence", previewSequence);
+            writeEnvelopeEnd(json);
+        });
+    }
+
+    /** Encodes one presentation request for an exact published revision. */
+    public byte[] encodeViewport(
+            CanvasRevisionKey revision,
+            long commandSequence,
+            CanvasViewportPresentation presentation)
+            throws CanvasRunnerControlException {
+        Objects.requireNonNull(revision, "revision");
+        Objects.requireNonNull(presentation, "presentation");
+        return encode(json -> {
+            writeEnvelopeStart(json, revision.sessionId(), "host.viewport");
+            writeRevision(json, revision);
+            json.writeNumberField(
+                    "commandSequence",
+                    requireCommandSequence(commandSequence));
+            writePresentation(json, presentation);
+            writeEnvelopeEnd(json);
+        });
+    }
+
     /** Decodes only the explicitly supported runner runtime events. */
     public CanvasRunnerRuntimeEvent decode(byte[] bytes)
             throws CanvasRunnerControlException {
@@ -135,6 +216,7 @@ public final class CanvasRunnerControlCodec {
                 case "runner.paletteDrop" -> decodePaletteDrop(sessionId, body);
                 case "runner.deleteSelection" -> decodeDeleteSelection(
                         sessionId, body);
+                case "runner.viewport" -> decodeViewport(sessionId, body);
                 default -> throw invalid("Canvas runtime message type is not supported.");
             };
         } catch (CanvasRunnerControlException failure) {
@@ -213,6 +295,28 @@ public final class CanvasRunnerControlCodec {
                 parseStableId(body, "widgetId"));
     }
 
+    private static CanvasRunnerRuntimeEvent.ViewportMetrics decodeViewport(
+            CanvasSessionId sessionId,
+            JsonNode body) throws CanvasRunnerControlException {
+        requireFields(body, RUNNER_VIEWPORT_FIELDS, "runner.viewport body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        long commandSequence = requireSequence(body, "commandSequence");
+        CanvasViewportPresentation presentation = readPresentation(body);
+        int effectiveScaleMicros = requireBoundedInt(
+                body,
+                "effectiveScaleMicros",
+                CanvasViewportMetrics.MIN_EFFECTIVE_SCALE_MICROS,
+                CanvasViewportPresentation.MAX_ZOOM_MICROS);
+        return new CanvasRunnerRuntimeEvent.ViewportMetrics(
+                new CanvasViewportMetrics(
+                        revision,
+                        commandSequence,
+                        presentation,
+                        effectiveScaleMicros,
+                        requireBoolean(body, "horizontalScrollable"),
+                        requireBoolean(body, "verticalScrollable")));
+    }
+
     private static CanvasRevisionKey readRevision(
             CanvasSessionId sessionId,
             JsonNode body) throws CanvasRunnerControlException {
@@ -257,6 +361,21 @@ public final class CanvasRunnerControlCodec {
                 "presentationSequence", revision.presentationSequence());
         json.writeStringField("documentId", revision.documentId().toString());
         json.writeNumberField("logicalRevisionId", revision.logicalRevisionId());
+    }
+
+    private static void writePresentation(
+            JsonGenerator json,
+            CanvasViewportPresentation presentation) throws IOException {
+        json.writeStringField(
+                "mode",
+                presentation.mode() == CanvasZoomMode.FIT ? "fit" : "manual");
+        json.writeNumberField("zoomMicros", presentation.zoomMicros());
+        json.writeNumberField(
+                "horizontalScrollMicros",
+                presentation.horizontalScrollMicros());
+        json.writeNumberField(
+                "verticalScrollMicros",
+                presentation.verticalScrollMicros());
     }
 
     private static void writeEnvelopeEnd(JsonGenerator json) throws IOException {
@@ -309,6 +428,94 @@ public final class CanvasRunnerControlCodec {
             throw invalid("Canvas runtime field " + name + " is outside its range.");
         }
         return result;
+    }
+
+    private static long requireCommandSequence(long commandSequence) {
+        if (commandSequence < 1
+                || commandSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "host viewport commandSequence must be between 1 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE);
+        }
+        return commandSequence;
+    }
+
+    private static long requirePreviewSequence(long previewSequence) {
+        if (previewSequence < 1
+                || previewSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "host widget move previewSequence must be between 1 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE);
+        }
+        return previewSequence;
+    }
+
+    private static int requireInsertionIndex(int insertionIndex, String label) {
+        if (insertionIndex < 0
+                || insertionIndex > WidgetSlot.MAX_LIST_CHILDREN) {
+            throw new IllegalArgumentException(
+                    label + " insertionIndex must be between 0 and "
+                    + WidgetSlot.MAX_LIST_CHILDREN);
+        }
+        return insertionIndex;
+    }
+
+    private static CanvasViewportPresentation readPresentation(JsonNode body)
+            throws CanvasRunnerControlException {
+        String modeValue = requireText(body, "mode");
+        final CanvasZoomMode mode;
+        if ("fit".equals(modeValue)) {
+            mode = CanvasZoomMode.FIT;
+        } else if ("manual".equals(modeValue)) {
+            mode = CanvasZoomMode.MANUAL;
+        } else {
+            throw invalid("Canvas runtime field mode is not supported.");
+        }
+        int zoomMicros = requireBoundedInt(
+                body,
+                "zoomMicros",
+                CanvasViewportPresentation.MIN_ZOOM_MICROS,
+                CanvasViewportPresentation.MAX_ZOOM_MICROS);
+        int horizontalScrollMicros = requireBoundedInt(
+                body,
+                "horizontalScrollMicros",
+                CanvasViewportPresentation.MIN_SCROLL_MICROS,
+                CanvasViewportPresentation.MAX_SCROLL_MICROS);
+        int verticalScrollMicros = requireBoundedInt(
+                body,
+                "verticalScrollMicros",
+                CanvasViewportPresentation.MIN_SCROLL_MICROS,
+                CanvasViewportPresentation.MAX_SCROLL_MICROS);
+        return new CanvasViewportPresentation(
+                mode,
+                zoomMicros,
+                horizontalScrollMicros,
+                verticalScrollMicros);
+    }
+
+    private static int requireBoundedInt(
+            JsonNode object,
+            String name,
+            int minimum,
+            int maximum) throws CanvasRunnerControlException {
+        JsonNode value = required(object, name);
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw invalid("Canvas runtime field " + name + " must be an integer.");
+        }
+        int result = value.intValue();
+        if (result < minimum || result > maximum) {
+            throw invalid("Canvas runtime field " + name + " is outside its range.");
+        }
+        return result;
+    }
+
+    private static boolean requireBoolean(JsonNode object, String name)
+            throws CanvasRunnerControlException {
+        JsonNode value = required(object, name);
+        if (!value.isBoolean()) {
+            throw invalid("Canvas runtime field " + name + " must be boolean.");
+        }
+        return value.booleanValue();
     }
 
     private static String requirePaletteDropToken(JsonNode object)

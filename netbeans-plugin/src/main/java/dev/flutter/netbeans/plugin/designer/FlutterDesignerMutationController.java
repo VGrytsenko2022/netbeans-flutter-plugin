@@ -79,6 +79,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
     private volatile Snapshot snapshot = Snapshot.waiting(
             "Waiting for a validated Flutter Designer model.");
     private AnalyzerFactory analyzerFactory = AnalyzerFactory.production();
+    private volatile FdOnlyCommitter fdOnlyCommitter;
     private volatile SessionAdmissionHook sessionAdmissionHook = () -> { };
     private volatile CommitBoundaryHook commitBoundaryHook = () -> { };
     private DesignerCommandSessionOrchestrator sessionOwner;
@@ -140,6 +141,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         this.editor = Objects.requireNonNull(editor, "editor");
         this.pairCoordinator = Objects.requireNonNull(
                 pairCoordinator, "pairCoordinator");
+        fdOnlyCommitter = pairCoordinator::commitFdOnly;
         this.combinedUndoRedo = Objects.requireNonNull(
                 combinedUndoRedo, "combinedUndoRedo");
         this.toolchains = Objects.requireNonNull(toolchains, "toolchains");
@@ -389,7 +391,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                             "The selected baseline token cannot address an existing Designer session.");
                 }
                 if (sessionCurrent != current
-                        && !exactRevisionMatchesCurrent(boundRevision, current)) {
+                        && (!exactRevisionMatchesCurrent(boundRevision, current)
+                        || !sessionOwner.ownsExactBaselineCurrent(
+                                boundRevision, current))) {
                     throw new IOException(
                             "The semantic Designer session belongs to another exact pair revision.");
                 }
@@ -458,10 +462,15 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
         try (DesignerCommandSessionOrchestrator.PendingCommandLease commandLease =
                         attempt.lease().orElseThrow()) {
-            MutationResult unsupported = rejectUnsupportedPersistence(
-                    operation, target, commandLease);
-            if (unsupported != null) {
-                return unsupported;
+            if (commandLease.candidateRevision().persistenceKind()
+                    == DesignerRevisionPersistenceKind.FD_ONLY) {
+                return executeInitialFdOnly(
+                        operationId,
+                        owner,
+                        current,
+                        commandLease,
+                        operation,
+                        target);
             }
             try (PairSaveCoordinator.PairPreparation preparation =
                     pairCoordinator.beginPairPreparation(
@@ -478,6 +487,29 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         : rejectedEvidence(operation, target, evidence);
             }
         }
+    }
+
+    /**
+     * Commits an exact Designer-only command without touching the Dart editor
+     * or invoking analysis. The pending command is adopted only after the
+     * controller crosses its close/cancellation boundary; the durable lease
+     * then gives {@link PairSaveCoordinator} the sole exact persistence
+     * authority for the resulting {@code FD_ONLY} revision.
+     */
+    private MutationResult executeInitialFdOnly(
+            long operationId,
+            DesignerCommandSessionOrchestrator owner,
+            FlutterDesignerDocumentState.Current current,
+            DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
+            String operation,
+            String target) throws IOException, InterruptedException {
+        crossCommitBoundary(operationId);
+        commandLease.adoptStaged();
+        try (DesignerCommandSessionOrchestrator.DurableSaveLease durableLease =
+                owner.beginDurableSave()) {
+            fdOnlyCommitter.commit(current, durableLease);
+        }
+        return MutationResult.applied(operation, target);
     }
 
     private MutationResult executeReplacement(
@@ -498,7 +530,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
         try (DesignerCommandSessionOrchestrator.PendingCommandLease commandLease =
                         attempt.lease().orElseThrow()) {
-            MutationResult unsupported = rejectUnsupportedPersistence(
+            MutationResult unsupported = rejectFdOnlyReplacement(
                     operation, target, commandLease);
             if (unsupported != null) {
                 return unsupported;
@@ -526,7 +558,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
     }
 
-    private static MutationResult rejectUnsupportedPersistence(
+    private static MutationResult rejectFdOnlyReplacement(
             String operation,
             String target,
             DesignerCommandSessionOrchestrator.PendingCommandLease lease) {
@@ -537,8 +569,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         return MutationResult.rejected(
                 operation,
                 target,
-                "This Properties slice cannot apply an .fd-only change; "
-                + "it currently accepts only an exact paired Dart and .fd candidate.");
+                "Cannot apply an .fd-only replacement while another paired "
+                + "Designer revision is unsaved; save or undo the staged "
+                + "Dart/.fd candidate first.");
     }
 
     private DartCandidateAnalysisResult analyze(
@@ -664,6 +697,17 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         readyCurrent = null;
                         analysisEnvironment = null;
                         readyPairEpoch = -1L;
+                        stateToRefresh = documentController.state();
+                    } else if (documentController.state() != sessionCurrent) {
+                        boundRevision = finalRevision;
+                        readyCurrent = null;
+                        analysisEnvironment = null;
+                        readyPairEpoch = -1L;
+                        publishLocked(presentationSnapshotLocked().waitingFor(
+                                "Rebind saved Flutter Designer pair",
+                                dataObject.getModelFile().getNameExt(),
+                                "Waiting for the exact committed Designer revision "
+                                + "and catalog identity to bind."));
                         stateToRefresh = documentController.state();
                     } else {
                         boundRevision = finalRevision;
@@ -869,8 +913,38 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         ? null : observedOwner.currentRevision();
                 boolean observedDirty = observedOwner != null
                         && observedOwner.dirty();
+                boolean observedSameCurrent = observedOwner != null
+                        && sessionCurrent == current;
+                boolean observedExactRevision = observedOwner != null
+                        && exactRevisionMatchesCurrent(observedRevision, current);
+                boolean observedExactBaselineCurrent = observedExactRevision
+                        && observedOwner.ownsExactBaselineCurrent(
+                                observedRevision, current);
+                if (observedSameCurrent) {
+                    boundRevision = observedRevision;
+                    readyCurrent = current;
+                    analysisEnvironment = environment;
+                    readyPairEpoch = pairState.epoch();
+                    publishLocked(Snapshot.ready(
+                            this, current, observedRevision, readyPairEpoch));
+                    return;
+                }
+                if (observedExactRevision
+                        && !observedExactBaselineCurrent) {
+                    readyCurrent = null;
+                    analysisEnvironment = null;
+                    readyPairEpoch = -1L;
+                    boundRevision = observedRevision;
+                    publishLocked(presentationSnapshotLocked().blocked(
+                            "Rebind Flutter Designer Properties",
+                            dataObject.getModelFile().getNameExt(),
+                            "The loaded pair has matching bytes, but its exact "
+                            + "FD, source, three-way or widget-catalog identity "
+                            + "differs from retained Designer Undo/Redo history."));
+                    return;
+                }
                 if (observedOwner != null
-                        && exactRevisionMatchesCurrent(observedRevision, current)) {
+                        && observedExactBaselineCurrent) {
                     boundRevision = observedRevision;
                     sessionCurrent = current;
                     readyCurrent = current;
@@ -1419,6 +1493,17 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
     }
 
+    void setFdOnlyCommitterForTests(FdOnlyCommitter replacement) {
+        synchronized (monitor) {
+            if (mutationRunning) {
+                throw new IllegalStateException(
+                        "Cannot replace the Designer-only committer while a mutation is active");
+            }
+            fdOnlyCommitter = replacement == null
+                    ? pairCoordinator::commitFdOnly : replacement;
+        }
+    }
+
     void setSessionAdmissionHookForTests(SessionAdmissionHook replacement) {
         synchronized (monitor) {
             if (mutationRunning) {
@@ -1855,6 +1940,14 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                             "Flutter Designer analyzer: {0}", line))
                     .analyze(request);
         }
+    }
+
+    @FunctionalInterface
+    interface FdOnlyCommitter {
+        void commit(
+                FlutterDesignerDocumentState.Current current,
+                DesignerCommandSessionOrchestrator.DurableSaveLease lease)
+                throws IOException;
     }
 
     private record AnalysisEnvironment(

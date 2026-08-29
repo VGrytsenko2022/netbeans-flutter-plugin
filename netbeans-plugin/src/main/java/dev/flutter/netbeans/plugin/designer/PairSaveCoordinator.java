@@ -4530,8 +4530,22 @@ final class PairSaveCoordinator implements Node.Cookie,
                     "Cannot save the Designer model only: Current changed while "
                     + "the clean live Dart evidence was captured");
         }
+        DesignerCommandRevision savedRevision = lease.reanchoredRevision(
+                lease.savedRevisionId());
+        FlutterDesignerDocumentState.Current savedCurrentIdentity = savedCurrent(
+                expectedCurrent,
+                savedRevision,
+                lease.savedSourceIntegrityIdentity(),
+                lease.savedThreeWayIntegrityIdentity());
+        FlutterDesignerDocumentController.CurrentAdoptionTicket adoptionTicket =
+                controller.currentAdoptionTicket(expectedCurrent);
         return new FdOnlyEvidence(
-                durableDart, durableFd, candidateFd, live);
+                durableDart,
+                durableFd,
+                candidateFd,
+                live,
+                savedCurrentIdentity,
+                adoptionTicket);
     }
 
     private void finishCommittedFdOnly(ActiveFdOnlySave attempt)
@@ -4548,7 +4562,9 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
 
         DesignerCommandSessionOrchestrator.DeferredLeaseEffects leaseEffects = null;
-        StateChange change;
+        var controllerEffects = new java.util.concurrent.atomic.AtomicReference<
+                FlutterDesignerDocumentController.DeferredCurrentEffects>();
+        var change = new java.util.concurrent.atomic.AtomicReference<StateChange>();
         IOException conflict = null;
         synchronized (this) {
             String uncertainty = fdOnlyUncertaintyLocked(attempt, finalLive);
@@ -4557,40 +4573,46 @@ final class PairSaveCoordinator implements Node.Cookie,
                     // Monitor-only: no listener, binding, CookieSet or controller
                     // callback may run while the coordinator decision is locked.
                     leaseEffects = attempt.lease
-                            .adoptCommittedDeferredEffects();
+                            .adoptCommittedDeferredEffects(() -> {
+                                controllerEffects.set(
+                                        controller.adoptCurrentDeferred(
+                                                attempt.evidence.adoptionTicket(),
+                                                attempt.evidence
+                                                        .savedCurrentIdentity()));
+                                activeFdOnlySave = null;
+                                failedSavePending = false;
+                                suppressConflictSaveCookie = false;
+                                diskBaseline = new DiskBaseline(
+                                        attempt.evidence.durableDart,
+                                        attempt.evidence.candidateFd);
+                                change.set(transitionLocked(
+                                        PairSaveCoordinatorStatus.CLEAN, null));
+                            });
                 } catch (RuntimeException adoptionFailure) {
-                    uncertainty = "the exact command-session lease could not be "
-                            + "re-anchored: " + reason(adoptionFailure);
+                    uncertainty = "the saved Current and exact command-session "
+                            + "lease could not be adopted atomically: "
+                            + reason(adoptionFailure);
                 }
             }
-            if (uncertainty == null) {
-                activeFdOnlySave = null;
-                failedSavePending = false;
-                suppressConflictSaveCookie = false;
-                diskBaseline = new DiskBaseline(
-                        attempt.evidence.durableDart,
-                        attempt.evidence.candidateFd);
-                change = transitionLocked(PairSaveCoordinatorStatus.CLEAN, null);
-            } else {
+            if (uncertainty != null) {
                 activeFdOnlySave = null;
                 diskBaseline = null;
                 suppressConflictSaveCookie = true;
                 conflict = new IOException(
                         "The .fd candidate committed durably, but " + uncertainty);
-                change = stickyFdOnlyConflictLocked(
+                change.set(stickyFdOnlyConflictLocked(
                         PairSaveCoordinatorStatus.RECOVERY_CONFLICT,
-                        conflict.getMessage());
+                        conflict.getMessage()));
             }
         }
 
         if (conflict != null) {
             invalidateLeaseSafely(attempt.lease, conflict);
-            publishEffects(change);
+            publishEffects(change.get());
             throw conflict;
         }
-        publishEffects(change);
-        leaseEffects.publish();
-        reloadPresentation();
+        publishCommittedPairEffects(
+                controllerEffects.get(), leaseEffects, change.get());
     }
 
     private String fdOnlyUncertaintyLocked(
@@ -9341,7 +9363,10 @@ final class PairSaveCoordinator implements Node.Cookie,
             byte[] durableDart,
             byte[] durableFd,
             byte[] candidateFd,
-            LiveDartDocumentSnapshot liveIdentity) {
+            LiveDartDocumentSnapshot liveIdentity,
+            FlutterDesignerDocumentState.Current savedCurrentIdentity,
+            FlutterDesignerDocumentController.CurrentAdoptionTicket
+                    adoptionTicket) {
         FdOnlyEvidence {
             durableDart = Objects.requireNonNull(
                     durableDart, "durableDart").clone();
@@ -9349,6 +9374,9 @@ final class PairSaveCoordinator implements Node.Cookie,
             candidateFd = Objects.requireNonNull(
                     candidateFd, "candidateFd").clone();
             Objects.requireNonNull(liveIdentity, "liveIdentity");
+            Objects.requireNonNull(savedCurrentIdentity,
+                    "savedCurrentIdentity");
+            Objects.requireNonNull(adoptionTicket, "adoptionTicket");
         }
 
         @Override

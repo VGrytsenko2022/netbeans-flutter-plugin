@@ -30,6 +30,11 @@ public final class PropertyValueFormatter {
                     + ", top=" + number(edgeInsets.top())
                     + ", right=" + number(edgeInsets.right())
                     + ", bottom=" + number(edgeInsets.bottom());
+            case PropertyValue.EdgeInsetsDirectionalValue edgeInsets ->
+                "start=" + number(edgeInsets.start())
+                    + ", top=" + number(edgeInsets.top())
+                    + ", end=" + number(edgeInsets.end())
+                    + ", bottom=" + number(edgeInsets.bottom());
             case PropertyValue.AssetValue assetValue -> "asset " + quote(assetValue.path());
             case PropertyValue.CallbackValue callbackValue -> callbackValue.handler();
             case PropertyValue.DartExpressionValue expressionValue -> expressionValue.code();

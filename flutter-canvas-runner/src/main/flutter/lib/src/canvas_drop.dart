@@ -2,6 +2,23 @@
 typedef CanvasDropResolver =
     CanvasDropTarget? Function(int surfaceXMicros, int surfaceYMicros);
 
+/// Resolves one Java-host-authorized move placement to current Flutter
+/// geometry. Compatibility is intentionally not decided here: the exact
+/// source, parent, slot and index have already passed the host catalog matrix.
+typedef CanvasMovePreviewResolver =
+    CanvasDropTarget? Function(
+      String sourceWidgetId,
+      String parentWidgetId,
+      String slotName,
+      int insertionIndex,
+    );
+
+/// Visual meaning of one semantic insertion zone on the Canvas.
+///
+/// Existing-widget moves are deliberately distinct from palette insertion and
+/// the blue selection outline, while preserving the same exact zone geometry.
+enum CanvasDropIndicatorKind { paletteInsertion, widgetMove }
+
 /// Structural rules shared by Flutter geometry and protocol validation.
 ///
 /// A widget type must still opt into one of these rules explicitly. Merely

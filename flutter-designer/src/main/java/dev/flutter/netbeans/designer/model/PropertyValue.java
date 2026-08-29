@@ -19,6 +19,7 @@ public sealed interface PropertyValue permits
         PropertyValue.EnumValue,
         PropertyValue.ColorValue,
         PropertyValue.EdgeInsetsValue,
+        PropertyValue.EdgeInsetsDirectionalValue,
         PropertyValue.AssetValue,
         PropertyValue.CallbackValue,
         PropertyValue.DartExpressionValue,
@@ -122,6 +123,31 @@ public sealed interface PropertyValue permits
             left = ModelConstraints.normalizedNumber(left, "left");
             top = ModelConstraints.normalizedNumber(top, "top");
             right = ModelConstraints.normalizedNumber(right, "right");
+            bottom = ModelConstraints.normalizedNumber(bottom, "bottom");
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.EDGE_INSETS;
+        }
+    }
+
+    /**
+     * Text-direction-aware Flutter edge insets. Unlike {@link EdgeInsetsValue},
+     * {@code start} and {@code end} are resolved by the ambient
+     * {@code TextDirection}; they must never be projected as physical left and
+     * right values.
+     */
+    record EdgeInsetsDirectionalValue(
+            BigDecimal start,
+            BigDecimal top,
+            BigDecimal end,
+            BigDecimal bottom) implements PropertyValue {
+
+        public EdgeInsetsDirectionalValue {
+            start = ModelConstraints.normalizedNumber(start, "start");
+            top = ModelConstraints.normalizedNumber(top, "top");
+            end = ModelConstraints.normalizedNumber(end, "end");
             bottom = ModelConstraints.normalizedNumber(bottom, "bottom");
         }
 

@@ -84,6 +84,26 @@ public final class FlutterDesignerPaletteDragLifecycle implements AutoCloseable 
         return installed && !closed;
     }
 
+    /**
+     * Resolves the exact local Palette token carried by a Transferable without
+     * consuming it.
+     *
+     * <p>Tree hover/preflight can call this repeatedly. Only a later explicit
+     * {@link #consume(String)} grants the one-shot authoritative widget type.
+     * Arbitrary string transfers, foreign-view tokens and hostile
+     * Transferables fail closed.</p>
+     */
+    public synchronized Optional<ResolvedDrag> resolve(
+            Transferable transferable) {
+        Optional<String> token = extractOwnBoundedToken(transferable);
+        if (token.isEmpty()) {
+            return Optional.empty();
+        }
+        String exactToken = token.orElseThrow();
+        return registry.resolve(exactToken)
+                .map(widgetType -> new ResolvedDrag(exactToken, widgetType));
+    }
+
     /** Consumes a token exactly once and cancels its no-longer-needed grace task. */
     public synchronized Optional<WidgetTypeId> consume(String token) {
         PendingExpiry pending = pendingExpiries.remove(token);
@@ -229,6 +249,20 @@ public final class FlutterDesignerPaletteDragLifecycle implements AutoCloseable 
     private record PendingExpiry(long generation, Cancellable cancellable) {
         private PendingExpiry {
             Objects.requireNonNull(cancellable, "cancellable");
+        }
+    }
+
+    /** Non-consuming authority snapshot used only to prepare one local drop. */
+    public record ResolvedDrag(String token, WidgetTypeId widgetType) {
+        public ResolvedDrag {
+            Objects.requireNonNull(token, "token");
+            Objects.requireNonNull(widgetType, "widgetType");
+            if (token.isBlank()
+                    || token.length()
+                    != FlutterDesignerPaletteDragRegistry.TOKEN_LENGTH) {
+                throw new IllegalArgumentException(
+                        "resolved Palette token has an invalid bounded shape");
+            }
         }
     }
 

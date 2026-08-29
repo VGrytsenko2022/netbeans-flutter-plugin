@@ -113,6 +113,125 @@ void main() {
     ], everyElement(0));
   });
 
+  test('decodes only strict physical and directional Padding shapes', () {
+    final physical = _decode(_modelJson());
+    final physicalInsets =
+        _decodedPadding(physical).properties['padding']!.value
+            as CanvasEdgeInsets;
+    expect(
+      [
+        physicalInsets.left,
+        physicalInsets.top,
+        physicalInsets.right,
+        physicalInsets.bottom,
+      ],
+      [16, 16, 16, 16],
+    );
+
+    final directional = _modelJson();
+    _paddingProperties(directional)['padding'] = {
+      'kind': 'edgeInsetsDirectional',
+      'start': 1,
+      'top': 2.5,
+      'end': 3,
+      'bottom': 4.25,
+    };
+    final directionalInsets =
+        _decodedPadding(_decode(directional)).properties['padding']!.value
+            as CanvasEdgeInsetsDirectional;
+    expect(
+      [
+        directionalInsets.start,
+        directionalInsets.top,
+        directionalInsets.end,
+        directionalInsets.bottom,
+      ],
+      [1, 2.5, 3, 4.25],
+    );
+
+    final malformed = <Map<String, Object?>>[
+      {
+        'kind': 'edgeInsets',
+        'left': 1,
+        'top': 2,
+        'right': 3,
+        'bottom': 4,
+        'start': 1,
+      },
+      {
+        'kind': 'edgeInsetsDirectional',
+        'start': 1,
+        'top': 2,
+        'end': 3,
+        'bottom': 4,
+        'left': 1,
+      },
+      {'kind': 'edgeInsets', 'left': 1, 'top': 2, 'bottom': 4},
+      {'kind': 'edgeInsetsDirectional', 'start': 1, 'top': 2, 'bottom': 4},
+      {
+        'kind': 'edgeInsetsDirectional',
+        'start': 1,
+        'top': 2,
+        'end': 3,
+        'bottom': 4,
+        'extra': 0,
+      },
+    ];
+    for (final value in malformed) {
+      final json = _modelJson();
+      _paddingProperties(json)['padding'] = value;
+      expect(
+        () => _decode(json),
+        throwsFormatException,
+        reason: value.toString(),
+      );
+    }
+  });
+
+  test('requires non-negative Padding values on every directional side', () {
+    for (final side in const {'start', 'top', 'end', 'bottom'}) {
+      final negative = _modelJson();
+      _paddingProperties(negative)['padding'] = {
+        'kind': 'edgeInsetsDirectional',
+        'start': 0,
+        'top': 0,
+        'end': 0,
+        'bottom': 0,
+        side: -0.25,
+      };
+
+      expect(
+        () => _decode(negative),
+        throwsA(
+          isA<FormatException>().having(
+            (failure) => failure.message,
+            'message',
+            contains('/padding/$side'),
+          ),
+        ),
+        reason: side,
+      );
+    }
+
+    final zero = _modelJson();
+    _paddingProperties(zero)['padding'] = {
+      'kind': 'edgeInsetsDirectional',
+      'start': 0,
+      'top': 0,
+      'end': 0,
+      'bottom': 0,
+    };
+    final insets =
+        _decodedPadding(_decode(zero)).properties['padding']!.value
+            as CanvasEdgeInsetsDirectional;
+    expect([
+      insets.start,
+      insets.top,
+      insets.end,
+      insets.bottom,
+    ], everyElement(0));
+  });
+
   test('validates nullable non-negative Center width and height factors', () {
     final omitted = _modelJson();
     final omittedProperties = _centerProperties(omitted)..remove('widthFactor');
@@ -231,7 +350,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 3;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 4;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -797,7 +916,7 @@ Map<String, Object?> _expandedTextProperties() => {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 4,
+  'protocolVersion': 5,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

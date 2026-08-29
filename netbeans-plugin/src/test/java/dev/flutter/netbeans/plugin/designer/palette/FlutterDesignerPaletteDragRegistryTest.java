@@ -42,6 +42,22 @@ class FlutterDesignerPaletteDragRegistryTest {
     }
 
     @Test
+    void resolvesLiveAuthorityRepeatedlyWithoutConsumingIt() {
+        MutableClock clock = clock();
+        FlutterDesignerPaletteDragRegistry registry = registry(
+                CONTEXT_A, clock, Duration.ofSeconds(5), 1, ids(DRAG_A));
+        String token = registry.issue(TEXT).orElseThrow();
+
+        assertEquals(TEXT, registry.resolve(token).orElseThrow());
+        assertEquals(TEXT, registry.resolve(token).orElseThrow());
+        assertEquals(1, registry.outstandingCount());
+
+        clock.advance(Duration.ofSeconds(5));
+        assertTrue(registry.resolve(token).isEmpty());
+        assertEquals(0, registry.outstandingCount());
+    }
+
+    @Test
     void malformedAndWrongTokensDoNotConsumeTheValidEntry() {
         FlutterDesignerPaletteDragRegistry registry = registry(
                 CONTEXT_A, clock(), Duration.ofSeconds(10), 4, ids(DRAG_A));

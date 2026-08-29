@@ -12,13 +12,18 @@ import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
+import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.StableId;
@@ -61,6 +66,10 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private static final Duration ATTACH_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration TERMINATE_TIMEOUT = Duration.ofSeconds(2);
     private static final int MAX_RUNTIME_DIAGNOSTIC_CHARS = 64 * 1024;
+    private static final int VIEWPORT_RETRY_DELAY_MILLIS = 50;
+    private static final int MAX_VIEWPORT_RETRY_ATTEMPTS = 20;
+    private static final int WIDGET_MOVE_PREVIEW_RETRY_DELAY_MILLIS = 50;
+    private static final int MAX_WIDGET_MOVE_PREVIEW_RETRY_ATTEMPTS = 20;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final NativeCanvasHost host;
@@ -71,6 +80,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private final Consumer<AdmittedPaletteDrop> paletteDropListener;
     private final Consumer<CanvasRunnerRuntimeEvent.DeleteSelection>
             deleteSelectionListener;
+    private Consumer<CanvasViewportMetrics> viewportMetricsListener = ignored -> { };
     private final CanvasModelPayloadCodec payloadCodec = new CanvasModelPayloadCodec();
     private CanvasRunnerBuildResult prepared;
     private CompletableFuture<CanvasRunnerBuildResult> buildFuture;
@@ -93,6 +103,22 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private CanvasLayoutKey currentLayout;
     private Set<StableId> currentWidgetIds = Set.of();
     private StableId desiredSelection;
+    private CanvasViewportPresentation desiredViewportPresentation =
+            CanvasViewportPresentation.fit();
+    private CanvasRevisionKey lastViewportCommandRevision;
+    private CanvasViewportPresentation lastViewportCommand;
+    private long nextViewportCommandSequence = 1;
+    private long lastViewportCommandSequence;
+    private boolean viewportCommandPending;
+    private boolean viewportCommandRetryPending;
+    private int viewportCommandRetryAttempts;
+    private final Timer viewportCommandRetryTimer;
+    private long nextWidgetMovePreviewSequence = 1;
+    private WidgetMovePreviewPlacement widgetMovePreviewPlacement;
+    private WidgetMovePreviewCommand desiredWidgetMovePreviewCommand;
+    private boolean widgetMovePreviewRetryPending;
+    private int widgetMovePreviewRetryAttempts;
+    private final Timer widgetMovePreviewRetryTimer;
     private PendingPresentation pendingPresentation;
     private boolean requestedVisible;
     private boolean paletteCatalogInsertDropAvailable;
@@ -242,6 +268,14 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 paletteDropListener, "paletteDropListener");
         this.deleteSelectionListener = Objects.requireNonNull(
                 deleteSelectionListener, "deleteSelectionListener");
+        viewportCommandRetryTimer = new Timer(
+                VIEWPORT_RETRY_DELAY_MILLIS,
+                event -> retryViewportPresentation());
+        viewportCommandRetryTimer.setRepeats(false);
+        widgetMovePreviewRetryTimer = new Timer(
+                WIDGET_MOVE_PREVIEW_RETRY_DELAY_MILLIS,
+                event -> retryWidgetMovePreview());
+        widgetMovePreviewRetryTimer.setRepeats(false);
         host.onPeerReady(this::startIfPossible);
         host.onPeerLost(this::peerLost);
         host.onAttachmentFailed(this::attachmentFailed);
@@ -252,6 +286,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         if (closed) {
             return;
         }
+        clearWidgetMovePreview();
         requestedVisible = true;
         try {
             if (process != null && host.isAttached()) {
@@ -267,6 +302,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
 
     void hide() {
         requireEventDispatchThread();
+        clearWidgetMovePreview();
         requestedVisible = false;
         try {
             host.setRunnerVisible(false);
@@ -311,6 +347,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         if (closed) {
             return;
         }
+        clearWidgetMovePreview();
         final ValidatedCanvasRevisionSnapshot snapshot;
         try {
             snapshot = ValidatedCanvasRevisionSnapshot.captureReadOnly(
@@ -351,6 +388,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     /** Invalidates old Canvas interaction authority and removes stale pixels. */
     void withdraw() {
         requireEventDispatchThread();
+        clearWidgetMovePreview();
         presentationGeneration++;
         pendingPresentation = null;
         desiredSelection = null;
@@ -409,6 +447,29 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         }
     }
 
+    /** Installs the per-view presentation feedback sink without changing the model. */
+    void setViewportMetricsListener(Consumer<CanvasViewportMetrics> listener) {
+        requireEventDispatchThread();
+        viewportMetricsListener = Objects.requireNonNull(listener, "listener");
+    }
+
+    /**
+     * Changes only the in-IDE view transform. The logical Flutter viewport and
+     * persisted {@code .fd} document remain unchanged.
+     */
+    void setViewportPresentation(CanvasViewportPresentation presentation) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(presentation, "presentation");
+        if (closed) {
+            return;
+        }
+        if (!presentation.equals(desiredViewportPresentation)) {
+            viewportCommandRetryAttempts = 0;
+        }
+        desiredViewportPresentation = presentation;
+        sendViewportPresentationIfPossible();
+    }
+
     @Override
     public void close() {
         requireEventDispatchThread();
@@ -420,6 +481,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         launchPending = false;
         generation++;
         stopAttachTimer();
+        viewportCommandRetryTimer.stop();
         String hostCloseFailure = null;
         try {
             host.close();
@@ -882,6 +944,11 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                     }
 
                     @Override
+                    public void viewportMetrics(CanvasViewportMetrics metrics) {
+                        processChannelViewportMetrics(sessionId, metrics);
+                    }
+
+                    @Override
                     public void failed(String reason) {
                         processChannelFailed(sessionId, reason);
                     }
@@ -951,6 +1018,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         currentRenderRequest = request;
         currentLayout = null;
         currentWidgetIds = pending.widgetIds();
+        resetViewportCommandFence();
         try {
             channel.expectPresentation(request.revisionKey());
         } catch (RuntimeException failure) {
@@ -1018,6 +1086,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                         channel,
                         "Send validated model to native Flutter Canvas",
                         "the runner protocol is not ready or the publication is stale");
+            } else {
+                sendViewportPresentationIfPossible();
             }
         } catch (RuntimeException | LinkageError failure) {
             presentationFailed(
@@ -1049,17 +1119,25 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         if (!isCurrentChannel(sessionId) || presentationGate == null) {
             return;
         }
-        CanvasAdmission admission = currentLayout == null
+        boolean initialPresentation = currentLayout == null;
+        CanvasAdmission admission = initialPresentation
                 ? presentationGate.admitPresentation(layoutKey.frameKey(), layoutKey)
                 : presentationGate.admitLayout(layoutKey);
         if (admission != CanvasAdmission.ACCEPTED) {
             return;
         }
+        if (!initialPresentation && !layoutKey.equals(currentLayout)) {
+            // Flutter invalidates layout-bound overlays before publishing the
+            // replacement layout. Do not retain a host-side placement tied to
+            // the superseded geometry.
+            resetWidgetMovePreviewState(false);
+        }
         currentLayout = layoutKey;
         CanvasRenderRequest request = currentRenderRequest;
         StableId selection = desiredSelection;
         CanvasRunnerProcessChannel channel = processChannel;
-        if (selection != null
+        if (initialPresentation
+                && selection != null
                 && currentWidgetIds.contains(selection)
                 && channel != null) {
             try {
@@ -1071,7 +1149,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 return;
             }
         }
-        if (request != null) {
+        if (initialPresentation && request != null) {
             publish(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
                     "Native Flutter Canvas rendered.",
@@ -1084,6 +1162,142 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                     + "×" + (int) request.renderProfile().viewport().logicalHeight()
                     + " with read-only widget selection enabled."));
         }
+        sendViewportPresentationIfPossible();
+    }
+
+    private void processChannelViewportMetrics(
+            CanvasSessionId sessionId,
+            CanvasViewportMetrics metrics) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(metrics, "metrics");
+        CanvasRenderRequest request = currentRenderRequest;
+        if (!isCurrentChannel(sessionId)
+                || request == null
+                || !request.revisionKey().equals(metrics.revisionKey())) {
+            return;
+        }
+        long commandSequence = metrics.commandSequence();
+        if (commandSequence < lastViewportCommandSequence) {
+            // A delayed metric for an older transform must never overwrite a
+            // newer toolbar command.
+            return;
+        }
+        if (commandSequence > lastViewportCommandSequence) {
+            failCurrentProcess(
+                    "Confirm native Flutter Canvas zoom and scroll",
+                    "the runner acknowledged unseen viewport command sequence "
+                    + commandSequence + " while the latest host command is "
+                    + lastViewportCommandSequence);
+            return;
+        }
+        if (viewportCommandPending) {
+            if (!metrics.presentation().equals(lastViewportCommand)) {
+                failCurrentProcess(
+                        "Confirm native Flutter Canvas zoom and scroll",
+                        "the runner acknowledged viewport command sequence "
+                        + commandSequence + " with a different presentation");
+                return;
+            }
+            viewportCommandPending = false;
+        }
+        if (viewportCommandRetryPending) {
+            // The exact older command may now be acknowledged, but the queue
+            // has not accepted the latest desired transform yet. Do not revert
+            // the toolbar while its bounded retry is pending.
+            return;
+        }
+        desiredViewportPresentation = metrics.presentation();
+        lastViewportCommandRevision = metrics.revisionKey();
+        lastViewportCommand = metrics.presentation();
+        viewportMetricsListener.accept(metrics);
+    }
+
+    private void sendViewportPresentationIfPossible() {
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasRenderRequest request = currentRenderRequest;
+        if (closed
+                || channel == null
+                || request == null
+                || !channel.supports(CanvasWireCapability.VIEWPORT_PRESENTATION_V1)) {
+            return;
+        }
+        CanvasRevisionKey revision = request.revisionKey();
+        if (revision.equals(lastViewportCommandRevision)
+                && desiredViewportPresentation.equals(lastViewportCommand)) {
+            viewportCommandRetryPending = false;
+            viewportCommandRetryTimer.stop();
+            return;
+        }
+        if (nextViewportCommandSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            failCurrentProcess(
+                    "Change native Flutter Canvas zoom and scroll",
+                    "the per-presentation viewport command sequence was exhausted");
+            return;
+        }
+        long commandSequence = nextViewportCommandSequence;
+        try {
+            if (channel.viewport(
+                    revision,
+                    commandSequence,
+                    desiredViewportPresentation)) {
+                lastViewportCommandRevision = revision;
+                lastViewportCommand = desiredViewportPresentation;
+                lastViewportCommandSequence = commandSequence;
+                nextViewportCommandSequence = commandSequence + 1;
+                viewportCommandPending = true;
+                viewportCommandRetryPending = false;
+                viewportCommandRetryAttempts = 0;
+                viewportCommandRetryTimer.stop();
+            } else {
+                scheduleViewportPresentationRetry(channel, request);
+            }
+        } catch (RuntimeException failure) {
+            failCurrentProcess(
+                    "Change native Flutter Canvas zoom and scroll",
+                    failureReason(failure));
+        }
+    }
+
+    private void scheduleViewportPresentationRetry(
+            CanvasRunnerProcessChannel channel,
+            CanvasRenderRequest request) {
+        if (closed
+                || processChannel != channel
+                || currentRenderRequest != request) {
+            return;
+        }
+        viewportCommandRetryAttempts++;
+        if (viewportCommandRetryAttempts >= MAX_VIEWPORT_RETRY_ATTEMPTS) {
+            viewportCommandRetryPending = false;
+            failCurrentProcess(
+                    "Queue native Flutter Canvas zoom and scroll",
+                    "the bounded protocol queue rejected the latest viewport "
+                    + "presentation " + viewportCommandRetryAttempts
+                    + " consecutive times");
+            return;
+        }
+        viewportCommandRetryPending = true;
+        viewportCommandRetryTimer.restart();
+    }
+
+    private void retryViewportPresentation() {
+        requireEventDispatchThread();
+        if (!viewportCommandRetryPending) {
+            return;
+        }
+        viewportCommandRetryPending = false;
+        sendViewportPresentationIfPossible();
+    }
+
+    private void resetViewportCommandFence() {
+        viewportCommandRetryTimer.stop();
+        lastViewportCommandRevision = null;
+        lastViewportCommand = null;
+        nextViewportCommandSequence = 1;
+        lastViewportCommandSequence = 0;
+        viewportCommandPending = false;
+        viewportCommandRetryPending = false;
+        viewportCommandRetryAttempts = 0;
     }
 
     private void processChannelSelection(
@@ -1183,6 +1397,231 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         return paletteCatalogInsertDropAvailable;
     }
 
+    /** True only when the exact isolated runner negotiated move preview. */
+    boolean widgetMovePreviewAvailable() {
+        requireEventDispatchThread();
+        CanvasRunnerProcessChannel channel = processChannel;
+        return !closed
+                && requestedVisible
+                && currentLayout != null
+                && channel != null
+                && channel.supports(
+                        CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1);
+    }
+
+    /**
+     * Shows one host-planned move placement in the native Canvas. The method
+     * never plans or applies a mutation; callers must first admit the target
+     * through the canonical catalog compatibility matrix.
+     */
+    void showWidgetMovePreview(
+            StableId sourceWidgetId,
+            WidgetPlacement destination) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(sourceWidgetId, "sourceWidgetId");
+        Objects.requireNonNull(destination, "destination");
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasLayoutKey layout = currentLayout;
+        CanvasRenderRequest request = currentRenderRequest;
+        if (closed
+                || !requestedVisible
+                || channel == null
+                || layout == null
+                || request == null
+                || !channel.supports(
+                        CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)
+                || !currentWidgetIds.contains(sourceWidgetId)
+                || !currentWidgetIds.contains(destination.parentId())
+                || sourceWidgetId.equals(destination.parentId())
+                || sourceWidgetId.equals(
+                        request.snapshot().document().root().id())
+                || destination.index() < 0
+                || destination.index() > WidgetSlot.MAX_LIST_CHILDREN) {
+            return;
+        }
+        WidgetMovePreviewPlacement next = new WidgetMovePreviewPlacement(
+                layout,
+                sourceWidgetId,
+                destination);
+        WidgetMovePreviewShow command = new WidgetMovePreviewShow(next);
+        if (command.equals(desiredWidgetMovePreviewCommand)) {
+            return;
+        }
+        if (next.equals(widgetMovePreviewPlacement)) {
+            // A previously rejected, newer hover can be cancelled without a
+            // wire round-trip when the runner still shows this exact target.
+            resetWidgetMovePreviewRetry();
+            return;
+        }
+        desiredWidgetMovePreviewCommand = command;
+        widgetMovePreviewRetryAttempts = 0;
+        widgetMovePreviewRetryPending = false;
+        widgetMovePreviewRetryTimer.stop();
+        sendDesiredWidgetMovePreviewIfPossible();
+    }
+
+    /**
+     * Clears the last successfully queued move placement. Repeated cleanup is
+     * idempotent, which lets drag exit, cancel, drop and view teardown all call
+     * this same edge.
+     */
+    void clearWidgetMovePreview() {
+        requireEventDispatchThread();
+        WidgetMovePreviewPlacement active = widgetMovePreviewPlacement;
+        WidgetMovePreviewCommand desired = desiredWidgetMovePreviewCommand;
+        if (active == null && !(desired instanceof WidgetMovePreviewShow)) {
+            return;
+        }
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasLayoutKey layout = currentLayout;
+        CanvasLayoutKey previewLayout = active != null
+                ? active.layout()
+                : desired.layout();
+        if (closed
+                || channel == null
+                || layout == null
+                || !layout.equals(previewLayout)
+                || !channel.supports(
+                        CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)) {
+            resetWidgetMovePreviewState(false);
+            return;
+        }
+        if (active == null) {
+            // The latest show was rejected before queue admission, so there is
+            // no runner overlay to clear. Cancelling the coalesced show is
+            // sufficient and must not allow it to reappear later.
+            resetWidgetMovePreviewRetry();
+            return;
+        }
+        WidgetMovePreviewClear command = new WidgetMovePreviewClear(layout);
+        if (command.equals(desiredWidgetMovePreviewCommand)) {
+            return;
+        }
+        desiredWidgetMovePreviewCommand = command;
+        widgetMovePreviewRetryAttempts = 0;
+        widgetMovePreviewRetryPending = false;
+        widgetMovePreviewRetryTimer.stop();
+        sendDesiredWidgetMovePreviewIfPossible();
+    }
+
+    /**
+     * Sends the latest coalesced show/clear command. Queue rejection retains
+     * only this last command and retries it on the EDT; an exhausted retry
+     * closes the runner so a stale overlay cannot survive drag cleanup.
+     */
+    private void sendDesiredWidgetMovePreviewIfPossible() {
+        requireEventDispatchThread();
+        WidgetMovePreviewCommand desired = desiredWidgetMovePreviewCommand;
+        if (desired == null) {
+            resetWidgetMovePreviewRetry();
+            return;
+        }
+        CanvasRunnerProcessChannel channel = processChannel;
+        CanvasLayoutKey layout = currentLayout;
+        if (closed
+                || (!requestedVisible
+                        && desired instanceof WidgetMovePreviewShow)
+                || channel == null
+                || layout == null
+                || !layout.equals(desired.layout())
+                || !channel.supports(
+                        CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)) {
+            resetWidgetMovePreviewState(false);
+            return;
+        }
+        if (nextWidgetMovePreviewSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            resetWidgetMovePreviewState(false);
+            failCurrentProcess(
+                    "Update native Flutter Canvas widget move preview",
+                    "the per-presentation widget move preview sequence was exhausted");
+            return;
+        }
+        long sequence = nextWidgetMovePreviewSequence;
+        final boolean admitted;
+        try {
+            if (desired instanceof WidgetMovePreviewShow show) {
+                WidgetMovePreviewPlacement placement = show.placement();
+                admitted = channel.previewWidgetMove(
+                        placement.layout(),
+                        sequence,
+                        placement.sourceWidgetId(),
+                        placement.destination().parentId(),
+                        placement.destination().slotName(),
+                        placement.destination().index());
+            } else {
+                admitted = channel.clearWidgetMovePreview(
+                        desired.layout(), sequence);
+            }
+        } catch (RuntimeException failure) {
+            resetWidgetMovePreviewState(false);
+            failCurrentProcess(
+                    "Update native Flutter Canvas widget move preview",
+                    failureReason(failure));
+            return;
+        }
+        if (!admitted) {
+            scheduleWidgetMovePreviewRetry(channel, layout);
+            return;
+        }
+        nextWidgetMovePreviewSequence = sequence + 1;
+        widgetMovePreviewPlacement = desired instanceof WidgetMovePreviewShow show
+                ? show.placement()
+                : null;
+        desiredWidgetMovePreviewCommand = null;
+        widgetMovePreviewRetryAttempts = 0;
+        widgetMovePreviewRetryPending = false;
+        widgetMovePreviewRetryTimer.stop();
+    }
+
+    private void scheduleWidgetMovePreviewRetry(
+            CanvasRunnerProcessChannel channel,
+            CanvasLayoutKey layout) {
+        if (closed
+                || processChannel != channel
+                || currentLayout == null
+                || !currentLayout.equals(layout)
+                || desiredWidgetMovePreviewCommand == null) {
+            return;
+        }
+        widgetMovePreviewRetryAttempts++;
+        if (widgetMovePreviewRetryAttempts
+                >= MAX_WIDGET_MOVE_PREVIEW_RETRY_ATTEMPTS) {
+            resetWidgetMovePreviewState(false);
+            failCurrentProcess(
+                    "Queue native Flutter Canvas widget move preview",
+                    "the bounded protocol queue rejected the latest widget move "
+                    + "preview " + widgetMovePreviewRetryAttempts
+                    + " consecutive times");
+            return;
+        }
+        widgetMovePreviewRetryPending = true;
+        widgetMovePreviewRetryTimer.restart();
+    }
+
+    private void retryWidgetMovePreview() {
+        requireEventDispatchThread();
+        if (!widgetMovePreviewRetryPending) {
+            return;
+        }
+        widgetMovePreviewRetryPending = false;
+        sendDesiredWidgetMovePreviewIfPossible();
+    }
+
+    private void resetWidgetMovePreviewRetry() {
+        desiredWidgetMovePreviewCommand = null;
+        widgetMovePreviewRetryPending = false;
+        widgetMovePreviewRetryAttempts = 0;
+        widgetMovePreviewRetryTimer.stop();
+    }
+
+    private void resetWidgetMovePreviewState(boolean resetSequence) {
+        resetWidgetMovePreviewRetry();
+        widgetMovePreviewPlacement = null;
+        if (resetSequence) {
+            nextWidgetMovePreviewSequence = 1;
+        }
+    }
+
     private void processChannelFailed(CanvasSessionId sessionId, String reason) {
         requireEventDispatchThread();
         if (isCurrentChannel(sessionId)) {
@@ -1214,6 +1653,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         currentLayout = null;
         currentWidgetIds = Set.of();
         paletteCatalogInsertDropAvailable = false;
+        resetWidgetMovePreviewState(true);
+        resetViewportCommandFence();
         presentationDocumentId = null;
         if (presentationGate != null) {
             presentationGate.close();
@@ -1231,6 +1672,7 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         canvasSessionId = null;
         canvasEngineIdentity = null;
         paletteCatalogInsertDropAvailable = false;
+        resetWidgetMovePreviewState(true);
         nextPresentationSequence = 0;
         if (current != null) {
             current.close();
@@ -1559,6 +2001,41 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         AdmittedPaletteDrop {
             Objects.requireNonNull(widgetType, "widgetType");
             Objects.requireNonNull(drop, "drop");
+        }
+    }
+
+    private record WidgetMovePreviewPlacement(
+            CanvasLayoutKey layout,
+            StableId sourceWidgetId,
+            WidgetPlacement destination) {
+        private WidgetMovePreviewPlacement {
+            Objects.requireNonNull(layout, "layout");
+            Objects.requireNonNull(sourceWidgetId, "sourceWidgetId");
+            Objects.requireNonNull(destination, "destination");
+        }
+    }
+
+    private sealed interface WidgetMovePreviewCommand
+            permits WidgetMovePreviewShow, WidgetMovePreviewClear {
+        CanvasLayoutKey layout();
+    }
+
+    private record WidgetMovePreviewShow(WidgetMovePreviewPlacement placement)
+            implements WidgetMovePreviewCommand {
+        private WidgetMovePreviewShow {
+            Objects.requireNonNull(placement, "placement");
+        }
+
+        @Override
+        public CanvasLayoutKey layout() {
+            return placement.layout();
+        }
+    }
+
+    private record WidgetMovePreviewClear(CanvasLayoutKey layout)
+            implements WidgetMovePreviewCommand {
+        private WidgetMovePreviewClear {
+            Objects.requireNonNull(layout, "layout");
         }
     }
 

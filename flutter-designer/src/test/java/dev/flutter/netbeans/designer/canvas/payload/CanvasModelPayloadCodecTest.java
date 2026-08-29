@@ -91,7 +91,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":4"));
+        assertTrue(json.contains("\"protocolVersion\":5"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -157,7 +157,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV4() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV5() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -197,7 +197,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":4"), json);
+        assertTrue(json.contains("\"protocolVersion\":5"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -283,6 +283,28 @@ class CanvasModelPayloadCodecTest {
                         id("188bc869-8f94-444a-a4f9-e83a8248042b"),
                         "GRAD",
                         excessPrecision))), "styleFontVariations");
+    }
+
+    @Test
+    void projectsDirectionalPaddingWithoutResolvingStartAndEnd() throws Exception {
+        WidgetNode padding = new WidgetNode(
+                id("66ad67f4-e69e-457c-8a08-958149072507"),
+                type("flutter.widgets.Padding"),
+                Map.of(new PropertyName("padding"),
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE, BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        DesignerDocument document = new DesignerDocument(DOCUMENT_ID, source(), padding);
+
+        String json = new String(new CanvasModelPayloadCodec().encode(
+                request(document)), StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"kind\":\"edgeInsetsDirectional\""), json);
+        assertTrue(json.contains("\"start\":1"), json);
+        assertTrue(json.contains("\"end\":3"), json);
+        assertFalse(json.contains("\"left\":"), json);
+        assertFalse(json.contains("\"right\":"), json);
     }
 
     private static void assertCanvasAdmissionRejects(

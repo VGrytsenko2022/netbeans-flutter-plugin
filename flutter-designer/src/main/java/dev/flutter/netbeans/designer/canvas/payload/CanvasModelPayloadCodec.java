@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private static final Map<String, Map<String, Set<PropertyValueKind>>> PROPERTIES = Map.of(
@@ -428,6 +428,13 @@ public final class CanvasModelPayloadCodec {
                 json.writeNumberField("left", insets.left());
                 json.writeNumberField("top", insets.top());
                 json.writeNumberField("right", insets.right());
+                json.writeNumberField("bottom", insets.bottom());
+            }
+            case PropertyValue.EdgeInsetsDirectionalValue insets -> {
+                json.writeStringField("kind", "edgeInsetsDirectional");
+                json.writeNumberField("start", insets.start());
+                json.writeNumberField("top", insets.top());
+                json.writeNumberField("end", insets.end());
                 json.writeNumberField("bottom", insets.bottom());
             }
             case PropertyValue.ThemeTokenValue token -> {

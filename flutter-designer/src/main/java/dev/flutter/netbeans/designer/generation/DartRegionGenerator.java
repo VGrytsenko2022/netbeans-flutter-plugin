@@ -1133,6 +1133,29 @@ public final class DartRegionGenerator {
                             path,
                             Optional.of(widgetId))));
         }
+        if (value instanceof PropertyValue.EdgeInsetsDirectionalValue insets) {
+            RenderedSymbol symbol = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "EdgeInsetsDirectional");
+            return scalar(
+                    "const " + symbol.text() + ".fromSTEB("
+                    + dartDouble(insets.start()) + ", "
+                    + dartDouble(insets.top()) + ", "
+                    + dartDouble(insets.end()) + ", "
+                    + dartDouble(insets.bottom()) + ")",
+                    true,
+                    path,
+                    widgetId,
+                    context,
+                    List.of(occurrence(
+                            "widget:" + widgetId + ":property:"
+                                    + definition.name().value()
+                                    + ":edge-insets-directional-type",
+                            "const ".length() + symbol.nameOffset(),
+                            symbol.name(),
+                            symbol.libraryUri(),
+                            path,
+                            Optional.of(widgetId))));
+        }
         if (value instanceof PropertyValue.ThemeTokenValue token) {
             return renderThemeToken(token.token(), path, widgetId, context);
         }

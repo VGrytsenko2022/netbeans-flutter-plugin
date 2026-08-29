@@ -1,10 +1,13 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_drop.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
+import 'package:netbeans_flutter_canvas_runner/src/canvas_runtime.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_view.dart';
 
 import 'canvas_model_test.dart' as fixture;
@@ -103,6 +106,226 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'keeps the logical MediaQuery fixed while manual zoom enables panning',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      final metrics = <CanvasViewportMetrics>[];
+      final changes = <CanvasViewportPresentation>[];
+      final presentation = CanvasViewportPresentation.fit(
+        model,
+      ).copyWith(mode: 'manual', zoomMicros: 2000000);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 600,
+              height: 400,
+              child: CanvasDocumentView(
+                model: model,
+                selectedWidgetId: null,
+                onSelected: (_) {},
+                viewportPresentation: presentation,
+                onViewportPresentationChanged: changes.add,
+                onViewportMetricsChanged: metrics.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rootContext = tester.element(
+        find.byKey(ValueKey('canvas-widget-${model.root.id}')),
+      );
+      expect(MediaQuery.sizeOf(rootContext), const Size(390, 844));
+      expect(
+        MediaQuery.devicePixelRatioOf(rootContext),
+        model.profile.devicePixelRatio,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-horizontal-viewport-scrollbar')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-vertical-viewport-scrollbar')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('canvas-horizontal-viewport-scrollbar'),
+              ),
+            )
+            .height,
+        12,
+        reason: 'the transparent pointer target remains comfortably usable',
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('canvas-vertical-viewport-scrollbar')),
+            )
+            .width,
+        12,
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('canvas-horizontal-viewport-scrollbar-track'),
+              ),
+            )
+            .height,
+        6,
+        reason: 'the visible horizontal track is exactly twice as thin',
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('canvas-vertical-viewport-scrollbar-track'),
+              ),
+            )
+            .width,
+        6,
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('canvas-horizontal-viewport-scrollbar-thumb'),
+              ),
+            )
+            .height,
+        6,
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('canvas-vertical-viewport-scrollbar-thumb'),
+              ),
+            )
+            .width,
+        6,
+      );
+      expect(metrics.last.effectiveScaleMicros, 2000000);
+      expect(metrics.last.horizontalScrollable, isTrue);
+      expect(metrics.last.verticalScrollable, isTrue);
+
+      final horizontalHit = tester.getRect(
+        find.byKey(const ValueKey('canvas-horizontal-viewport-scrollbar')),
+      );
+      final horizontalTrack = tester.getRect(
+        find.byKey(
+          const ValueKey('canvas-horizontal-viewport-scrollbar-track'),
+        ),
+      );
+      final horizontalGutter = Offset(
+        horizontalHit.center.dx,
+        horizontalHit.top + 1,
+      );
+      expect(horizontalTrack.contains(horizontalGutter), isFalse);
+      final horizontalGesture = await tester.startGesture(
+        horizontalGutter,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      expect(changes.last.horizontalScrollMicros, 500000);
+      await horizontalGesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(changes.last.horizontalScrollMicros, greaterThan(500000));
+      await horizontalGesture.up();
+
+      final verticalHit = tester.getRect(
+        find.byKey(const ValueKey('canvas-vertical-viewport-scrollbar')),
+      );
+      final verticalTrack = tester.getRect(
+        find.byKey(const ValueKey('canvas-vertical-viewport-scrollbar-track')),
+      );
+      final verticalGutter = Offset(
+        verticalHit.left + 1,
+        verticalHit.center.dy,
+      );
+      expect(verticalTrack.contains(verticalGutter), isFalse);
+      final verticalGesture = await tester.startGesture(
+        verticalGutter,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      expect(changes.last.verticalScrollMicros, 500000);
+      await verticalGesture.up();
+    },
+  );
+
+  testWidgets('native wheel pans and Ctrl-wheel changes manual zoom', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    final changes = <CanvasViewportPresentation>[];
+    final presentation = CanvasViewportPresentation.fit(
+      model,
+    ).copyWith(mode: 'manual', zoomMicros: 1500000);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 600,
+            height: 400,
+            child: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+              viewportPresentation: presentation,
+              onViewportPresentationChanged: changes.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final center = tester.getCenter(find.byType(CanvasDocumentView));
+
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: center,
+        kind: PointerDeviceKind.mouse,
+        scrollDelta: const Offset(0, 100),
+      ),
+    );
+    await tester.pump();
+    expect(changes.last.verticalScrollMicros, greaterThan(0));
+    expect(changes.last.horizontalScrollMicros, 0);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: center,
+        kind: PointerDeviceKind.mouse,
+        scrollDelta: const Offset(0, 100),
+      ),
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(changes.last.horizontalScrollMicros, greaterThan(0));
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: center,
+        kind: PointerDeviceKind.mouse,
+        scrollDelta: const Offset(0, -100),
+      ),
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(changes.last.mode, 'manual');
+    expect(changes.last.commandSequence, presentation.commandSequence);
+    expect(changes.last.zoomMicros, 1600000);
+  });
 
   testWidgets(
     'emits Delete only while Canvas owns focus and ignores modified Delete',
@@ -327,6 +550,141 @@ void main() {
     expect(selected, textId);
   });
 
+  testWidgets(
+    'paints every widget outline dashed and transitions selection to solid',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      String? selectedWidgetId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+            ),
+          ),
+        ),
+      );
+
+      for (final widgetId in model.widgetIds) {
+        expect(
+          find.byKey(ValueKey('canvas-widget-outline-$widgetId')),
+          findsOneWidget,
+          reason: 'every decoded Canvas node has a designer outline',
+        );
+      }
+
+      const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      const secondTextId = '64260967-f830-4e3c-bbd1-f81cb79db092';
+      final unselectedTextPainter = _foregroundPainter(
+        tester,
+        'canvas-widget-outline-$textId',
+      );
+      final dashedCanvas = _recordPainter(
+        unselectedTextPainter,
+        const Size(96, 48),
+      );
+      expect(_drawRectCount(dashedCanvas), 0);
+      final topDashes = _horizontalLinesAt(_drawLines(dashedCanvas), y: 0);
+      expect(topDashes, hasLength(greaterThanOrEqualTo(2)));
+      expect(topDashes.first.start, Offset.zero);
+      expect(topDashes.first.length, greaterThan(0));
+      expect(
+        topDashes[1].start.dx,
+        greaterThan(topDashes.first.end.dx),
+        reason: 'separate drawLine commands retain a visible dash gap',
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$textId')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('canvas-widget-$textId')));
+      await tester.pump();
+
+      expect(selectedWidgetId, textId);
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$textId')),
+        findsOneWidget,
+      );
+      final selectedCanvas = _recordPainter(
+        _foregroundPainter(tester, 'canvas-widget-outline-$textId'),
+        const Size(96, 48),
+      );
+      expect(_drawRectCount(selectedCanvas), 1);
+      expect(_drawLines(selectedCanvas), isEmpty);
+
+      await tester.tap(
+        find.byKey(const ValueKey('canvas-widget-$secondTextId')),
+      );
+      await tester.pump();
+
+      expect(selectedWidgetId, secondTextId);
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$textId')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$secondTextId')),
+        findsOneWidget,
+      );
+      expect(
+        _drawLines(
+          _recordPainter(
+            _foregroundPainter(tester, 'canvas-widget-outline-$textId'),
+            const Size(96, 48),
+          ),
+        ),
+        isNotEmpty,
+        reason: 'the previously selected widget returns to a dashed outline',
+      );
+    },
+  );
+
+  testWidgets('keeps outline stroke and dash screen-stable across zoom', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    final base = CanvasViewportPresentation.fit(model);
+
+    Future<({double stroke, double dash})> metricsAt(int zoomMicros) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            viewportPresentation: base.copyWith(
+              mode: 'manual',
+              zoomMicros: zoomMicros,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final painter = _foregroundPainter(
+        tester,
+        'canvas-widget-outline-${model.root.id}',
+      );
+      final lines = _horizontalLinesAt(
+        _drawLines(_recordPainter(painter, const Size(390, 844))),
+        y: 0,
+      );
+      expect(lines, isNotEmpty);
+      return (stroke: lines.first.paint.strokeWidth, dash: lines.first.length);
+    }
+
+    final half = await metricsAt(500000);
+    final doubleZoom = await metricsAt(2000000);
+
+    expect(half.stroke * 0.5, closeTo(1, 0.000001));
+    expect(doubleZoom.stroke * 2, closeTo(1, 0.000001));
+    expect(half.dash * 0.5, closeTo(4, 0.000001));
+    expect(doubleZoom.dash * 2, closeTo(4, 0.000001));
+  });
+
   testWidgets('renders empty required Text data without a synthetic fallback', (
     tester,
   ) async {
@@ -435,6 +793,253 @@ void main() {
 
     expect(renderedCenter().widthFactor, isNull);
     expect(renderedCenter().heightFactor, isNull);
+  });
+
+  testWidgets('resolves physical and directional Padding in LTR and RTL', (
+    tester,
+  ) async {
+    const paddingId = '0f78bed5-2fba-42cd-914e-a3abbd2c48c3';
+
+    Finder renderedPadding() => find
+        .descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$paddingId')),
+          matching: find.byType(Padding),
+        )
+        .first;
+
+    Future<void> expectResolvedOffset({
+      required Map<String, Object?> padding,
+      required TextDirection direction,
+      required double expectedLeft,
+    }) async {
+      final json = _modelJsonForView();
+      _nodeProperties(json, 'flutter.widgets.Padding')['padding'] = padding;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      final renderPadding = tester.renderObject<RenderPadding>(
+        renderedPadding(),
+      );
+      expect(renderPadding.textDirection, direction);
+      final childOffset =
+          (renderPadding.child!.parentData! as BoxParentData).offset;
+      expect(childOffset, Offset(expectedLeft, 2));
+    }
+
+    const physical = <String, Object?>{
+      'kind': 'edgeInsets',
+      'left': 1,
+      'top': 2,
+      'right': 3,
+      'bottom': 4,
+    };
+    await expectResolvedOffset(
+      padding: physical,
+      direction: TextDirection.ltr,
+      expectedLeft: 1,
+    );
+    await expectResolvedOffset(
+      padding: physical,
+      direction: TextDirection.rtl,
+      expectedLeft: 1,
+    );
+
+    const directional = <String, Object?>{
+      'kind': 'edgeInsetsDirectional',
+      'start': 1,
+      'top': 2,
+      'end': 3,
+      'bottom': 4,
+    };
+    await expectResolvedOffset(
+      padding: directional,
+      direction: TextDirection.ltr,
+      expectedLeft: 1,
+    );
+    await expectResolvedOffset(
+      padding: directional,
+      direction: TextDirection.rtl,
+      expectedLeft: 3,
+    );
+  });
+
+  testWidgets('keeps an empty Padding child nullable in the real widget', (
+    tester,
+  ) async {
+    const paddingId = '0f78bed5-2fba-42cd-914e-a3abbd2c48c3';
+    final json = _modelJsonForView();
+    final root = json['root']! as Map<String, Object?>;
+    final padding = _findNode(root, 'flutter.widgets.Padding');
+    ((padding['slots']! as Map<String, Object?>)['child']!
+            as Map<String, Object?>)['child'] =
+        null;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: CanvasModel.decode(
+            Uint8List.fromList(utf8.encode(jsonEncode(json))),
+          ),
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      ),
+    );
+
+    final paddingFinder = find
+        .descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$paddingId')),
+          matching: find.byType(Padding),
+        )
+        .first;
+    expect(tester.widget<Padding>(paddingFinder).child, isNull);
+    expect(tester.renderObject<RenderPadding>(paddingFinder).child, isNull);
+  });
+
+  testWidgets(
+    'resolves physical and directional Padding guides in LTR and RTL',
+    (tester) async {
+      const paddingId = '0f78bed5-2fba-42cd-914e-a3abbd2c48c3';
+
+      Future<List<_RecordedLine>> guideMeasurements({
+        required Map<String, Object?> padding,
+        required TextDirection direction,
+      }) async {
+        final json = _modelJsonForView();
+        _nodeProperties(json, 'flutter.widgets.Padding')['padding'] = padding;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: direction,
+              child: CanvasDocumentView(
+                model: CanvasModel.decode(
+                  Uint8List.fromList(utf8.encode(jsonEncode(json))),
+                ),
+                selectedWidgetId: null,
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        );
+        final painter = _foregroundPainter(
+          tester,
+          'canvas-padding-guides-$paddingId',
+        );
+        final lines = _drawLines(_recordPainter(painter, const Size(100, 120)));
+        expect(lines, hasLength(12));
+        expect(lines.first.paint.color.toARGB32(), 0xffd97706);
+        return [
+          for (var index = 0; index < lines.length; index += 3) lines[index],
+        ];
+      }
+
+      const physical = <String, Object?>{
+        'kind': 'edgeInsets',
+        'left': 10,
+        'top': 20,
+        'right': 30,
+        'bottom': 40,
+      };
+      final physicalLtr = await guideMeasurements(
+        padding: physical,
+        direction: TextDirection.ltr,
+      );
+      final physicalRtl = await guideMeasurements(
+        padding: physical,
+        direction: TextDirection.rtl,
+      );
+      expect(_lineEndpoints(physicalLtr), _expectedPaddingGuideEndpoints());
+      expect(_lineEndpoints(physicalRtl), _expectedPaddingGuideEndpoints());
+
+      const directional = <String, Object?>{
+        'kind': 'edgeInsetsDirectional',
+        'start': 10,
+        'top': 20,
+        'end': 30,
+        'bottom': 40,
+      };
+      final directionalLtr = await guideMeasurements(
+        padding: directional,
+        direction: TextDirection.ltr,
+      );
+      final directionalRtl = await guideMeasurements(
+        padding: directional,
+        direction: TextDirection.rtl,
+      );
+      expect(_lineEndpoints(directionalLtr), _expectedPaddingGuideEndpoints());
+      expect(
+        _lineEndpoints(directionalRtl),
+        _expectedPaddingGuideEndpoints(left: 30, right: 10),
+      );
+    },
+  );
+
+  testWidgets('paints an empty Padding all-40 guide cross', (tester) async {
+    const paddingId = '0f78bed5-2fba-42cd-914e-a3abbd2c48c3';
+    final json = _modelJsonForView();
+    final padding = _findNode(
+      json['root']! as Map<String, Object?>,
+      'flutter.widgets.Padding',
+    );
+    (padding['properties']! as Map<String, Object?>)['padding'] = {
+      'kind': 'edgeInsets',
+      'left': 40,
+      'top': 40,
+      'right': 40,
+      'bottom': 40,
+    };
+    ((padding['slots']! as Map<String, Object?>)['child']!
+            as Map<String, Object?>)['child'] =
+        null;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: CanvasModel.decode(
+            Uint8List.fromList(utf8.encode(jsonEncode(json))),
+          ),
+          selectedWidgetId: paddingId,
+          onSelected: (_) {},
+        ),
+      ),
+    );
+
+    final guideFinder = find.byKey(
+      const ValueKey('canvas-padding-guides-$paddingId'),
+    );
+    expect(guideFinder, findsOneWidget);
+    expect(tester.getSize(guideFinder), const Size(80, 80));
+    final lines = _drawLines(
+      _recordPainter(
+        _foregroundPainter(tester, 'canvas-padding-guides-$paddingId'),
+        const Size(80, 80),
+      ),
+    );
+    expect(lines, hasLength(12));
+    expect(
+      _lineEndpoints([
+        for (var index = 0; index < lines.length; index += 3) lines[index],
+      ]),
+      const [
+        (Offset(0, 40), Offset(40, 40)),
+        (Offset(40, 40), Offset(80, 40)),
+        (Offset(40, 0), Offset(40, 40)),
+        (Offset(40, 40), Offset(40, 80)),
+      ],
+    );
   });
 
   testWidgets('renders expanded Text properties through real Flutter objects', (
@@ -803,6 +1408,144 @@ void main() {
   );
 
   testWidgets(
+    'resolves native DnD coordinates after manual zoom and scroll transforms',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      final presentation = CanvasViewportPresentation.fit(model).copyWith(
+        mode: 'manual',
+        zoomMicros: 1500000,
+        horizontalScrollMicros: 250000,
+        verticalScrollMicros: 100000,
+      );
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 500,
+              height: 400,
+              child: CanvasDocumentView(
+                model: model,
+                selectedWidgetId: null,
+                onSelected: (_) {},
+                viewportPresentation: presentation,
+                onDropResolverChanged: (value) => resolver = value,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final root = tester.getRect(
+        find.byKey(ValueKey('canvas-widget-${model.root.id}')),
+      );
+      final row = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$rowId')),
+      );
+      expect(
+        root.height,
+        allOf(
+          greaterThan(model.profile.logicalHeight * 1.4),
+          lessThan(model.profile.logicalHeight * 1.6),
+        ),
+        reason: 'the transformed Flutter viewport must use the manual zoom',
+      );
+      expect(
+        root.top,
+        lessThan(surface.top),
+        reason: 'the normalized vertical scroll must translate the Canvas',
+      );
+
+      final visibleRow = row.intersect(surface);
+      expect(visibleRow.isEmpty, isFalse);
+      final point = Offset(visibleRow.left + 1, visibleRow.center.dy);
+      final target = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(target, isNotNull);
+      expect(target!.parentWidgetId, rowId);
+      expect(target.slotName, 'children');
+      expect(target.insertionIndex, 1);
+      expect(target.zone?.isEmpty, isFalse);
+    },
+  );
+
+  testWidgets(
+    'exposes an empty Column as an insertion target at manual 75 percent',
+    (tester) async {
+      final json = _modelJsonForView();
+      final root = json['root']! as Map<String, Object?>;
+      final column = _findNode(root, 'flutter.widgets.Column');
+      final columnId = column['id']! as String;
+      final children =
+          (column['slots']! as Map<String, Object?>)['children']!
+              as Map<String, Object?>;
+      children['children'] = <Object?>[];
+      ((root['slots']! as Map<String, Object?>)['body']!
+              as Map<String, Object?>)['child'] =
+          column;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      );
+      final presentation = CanvasViewportPresentation.fit(
+        model,
+      ).copyWith(mode: 'manual', zoomMicros: 750000);
+      final metrics = <CanvasViewportMetrics>[];
+      CanvasDropResolver? resolver;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 500,
+              height: 500,
+              child: CanvasDocumentView(
+                model: model,
+                selectedWidgetId: columnId,
+                onSelected: (_) {},
+                viewportPresentation: presentation,
+                onViewportMetricsChanged: metrics.add,
+                onDropResolverChanged: (value) => resolver = value,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final columnRect = tester.getRect(
+        find.byKey(ValueKey('canvas-widget-$columnId')),
+      );
+      final selectionRect = tester.getRect(
+        find.byKey(ValueKey('canvas-selection-outline-$columnId')),
+      );
+      expect(
+        selectionRect,
+        columnRect,
+        reason: 'the selection affordance must not change real widget layout',
+      );
+      expect(surface.contains(columnRect.center), isTrue);
+      final point = columnRect.center;
+      final target = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+
+      expect(metrics.last.effectiveScaleMicros, 750000);
+      expect(target, isNotNull);
+      expect(target!.parentWidgetId, columnId);
+      expect(target.slotName, 'children');
+      expect(target.insertionIndex, 0);
+      expect(target.zone?.isEmpty, isFalse);
+    },
+  );
+
+  testWidgets(
     'resolves Scaffold body and gives its compact empty FAB zone precedence',
     (tester) async {
       CanvasDropResolver? resolver;
@@ -986,6 +1729,83 @@ void main() {
       );
     }
   });
+
+  testWidgets(
+    'resolves exact existing-widget placement and paints a thin amber marker',
+    (tester) async {
+      CanvasMovePreviewResolver? moveResolver;
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      const sourceId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+
+      Future<void> pump({CanvasDropTarget? target}) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+              dropHoverTarget: target,
+              dropIndicatorKind: CanvasDropIndicatorKind.widgetMove,
+              onMovePreviewResolverChanged: (value) => moveResolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      await pump();
+      final target = moveResolver!(sourceId, rowId, 'children', 1);
+      expect(target, isNotNull);
+      expect(target!.parentWidgetId, rowId);
+      expect(target.slotName, 'children');
+      expect(target.insertionIndex, 1);
+      expect(target.zone, isNotNull);
+      expect(target.zone!.isEmpty, isFalse);
+      expect(
+        target.zone!.rightMicros - target.zone!.leftMicros,
+        lessThan(100000),
+        reason: 'a list move uses a concise insertion marker, not full fill',
+      );
+
+      await pump(target: target);
+      final marker = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey('canvas-widget-move-preview-zone')),
+      );
+      final decoration = marker.decoration as BoxDecoration;
+      expect(decoration.color, const Color(0x24D29A17));
+      expect(decoration.border!.top.color, const Color(0xffc58b08));
+      expect(
+        tester
+            .widgetList<Semantics>(
+              find.ancestor(
+                of: find.byKey(
+                  const ValueKey('canvas-widget-move-preview-zone'),
+                ),
+                matching: find.byType(Semantics),
+              ),
+            )
+            .any(
+              (widget) =>
+                  widget.properties.label ==
+                  'Flutter widget move target for children',
+            ),
+        isTrue,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
+        findsNothing,
+        reason: 'move preview must not be confused with palette insertion',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(
+        moveResolver,
+        isNull,
+        reason: 'disposing the view clears geometry',
+      );
+    },
+  );
 }
 
 Map<String, Object?> _modelJsonForView() =>
@@ -1029,4 +1849,68 @@ Map<String, Object?>? _findNodeOrNull(Map<String, Object?> node, String type) {
   } on StateError {
     return null;
   }
+}
+
+CustomPainter _foregroundPainter(WidgetTester tester, String customPaintKey) =>
+    tester
+        .widget<CustomPaint>(find.byKey(ValueKey(customPaintKey)))
+        .foregroundPainter!;
+
+TestRecordingCanvas _recordPainter(CustomPainter painter, Size size) {
+  final canvas = TestRecordingCanvas();
+  painter.paint(canvas, size);
+  return canvas;
+}
+
+int _drawRectCount(TestRecordingCanvas canvas) => canvas.invocations
+    .where((recorded) => recorded.invocation.memberName == #drawRect)
+    .length;
+
+typedef _RecordedLine = ({Offset start, Offset end, Paint paint});
+
+List<_RecordedLine> _drawLines(TestRecordingCanvas canvas) => [
+  for (final recorded in canvas.invocations)
+    if (recorded.invocation.memberName == #drawLine)
+      (
+        start: recorded.invocation.positionalArguments[0] as Offset,
+        end: recorded.invocation.positionalArguments[1] as Offset,
+        paint: recorded.invocation.positionalArguments[2] as Paint,
+      ),
+];
+
+List<_RecordedLine> _horizontalLinesAt(
+  List<_RecordedLine> lines, {
+  required double y,
+}) => [
+  for (final line in lines)
+    if ((line.start.dy - y).abs() < 0.000001 &&
+        (line.end.dy - y).abs() < 0.000001 &&
+        line.end.dx > line.start.dx)
+      line,
+];
+
+extension on _RecordedLine {
+  double get length => (end - start).distance;
+}
+
+List<(Offset, Offset)> _lineEndpoints(List<_RecordedLine> lines) => [
+  for (final line in lines) (line.start, line.end),
+];
+
+List<(Offset, Offset)> _expectedPaddingGuideEndpoints({
+  double left = 10,
+  double right = 30,
+}) {
+  final innerLeft = left;
+  final innerRight = 100 - right;
+  final guideX = (innerLeft + innerRight) / 2;
+  const innerTop = 20.0;
+  const innerBottom = 80.0;
+  const guideY = (innerTop + innerBottom) / 2;
+  return [
+    (Offset.zero.translate(0, guideY), Offset(innerLeft, guideY)),
+    (Offset(innerRight, guideY), const Offset(100, guideY)),
+    (Offset(guideX, 0), Offset(guideX, innerTop)),
+    (Offset(guideX, innerBottom), Offset(guideX, 120)),
+  ];
 }

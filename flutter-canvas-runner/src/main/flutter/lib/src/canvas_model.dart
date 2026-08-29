@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 4;
+const canvasModelProtocolVersion = 5;
 const maxCanvasSequence = 9007199254740991;
 
 const canvasColorSchemeThemeTokens = <String>{
@@ -890,6 +890,38 @@ class CanvasValue {
           kind as String,
           CanvasEdgeInsets(left, top, right, bottom),
         );
+      case 'edgeInsetsDirectional':
+        _exactKeys(object, path, const {
+          'kind',
+          'start',
+          'top',
+          'end',
+          'bottom',
+        });
+        final start = _finiteNumber(object['start'], '$path/start');
+        final top = _finiteNumber(object['top'], '$path/top');
+        final end = _finiteNumber(object['end'], '$path/end');
+        final bottom = _finiteNumber(object['bottom'], '$path/bottom');
+        if (spec.minimum != null) {
+          for (final side in {
+            'start': start,
+            'top': top,
+            'end': end,
+            'bottom': bottom,
+          }.entries) {
+            _expect(
+              spec.minimumExclusive
+                  ? side.value > spec.minimum!
+                  : side.value >= spec.minimum!,
+              'Canvas directional edge inset is below its minimum: '
+              '$path/${side.key}',
+            );
+          }
+        }
+        return CanvasValue(
+          kind as String,
+          CanvasEdgeInsetsDirectional(start, top, end, bottom),
+        );
       case 'themeToken':
         _exactKeys(object, path, const {'kind', 'token'});
         final token = _themeToken(object['token'], '$path/token');
@@ -923,6 +955,14 @@ class CanvasEdgeInsets {
   final double left;
   final double top;
   final double right;
+  final double bottom;
+}
+
+class CanvasEdgeInsetsDirectional {
+  const CanvasEdgeInsetsDirectional(this.start, this.top, this.end, this.bottom);
+  final double start;
+  final double top;
+  final double end;
   final double bottom;
 }
 
@@ -1479,7 +1519,10 @@ const _widgetSpecifications = <String, _WidgetSpec>{
   ),
   'flutter.widgets.Padding': _WidgetSpec(
     {
-      'padding': _PropertySpec({'edgeInsets'}, minimum: 0),
+      'padding': _PropertySpec({
+        'edgeInsets',
+        'edgeInsetsDirectional',
+      }, minimum: 0),
     },
     {'child': 'single'},
     requiredProperties: {'padding'},

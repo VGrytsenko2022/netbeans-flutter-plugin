@@ -392,18 +392,33 @@ public sealed interface PropertyValueConstraint permits
 
         @Override
         public boolean accepts(PropertyValue value) {
-            if (!(value instanceof PropertyValue.EdgeInsetsValue edgeInsets)) {
-                return false;
+            if (value instanceof PropertyValue.EdgeInsetsValue edgeInsets) {
+                return acceptsSides(
+                        edgeInsets.left(), edgeInsets.top(),
+                        edgeInsets.right(), edgeInsets.bottom());
             }
-            return DartNumericLiterals.isRepresentableDouble(edgeInsets.left())
-                    && DartNumericLiterals.isRepresentableDouble(edgeInsets.top())
-                    && DartNumericLiterals.isRepresentableDouble(edgeInsets.right())
-                    && DartNumericLiterals.isRepresentableDouble(edgeInsets.bottom())
+            if (value instanceof PropertyValue.EdgeInsetsDirectionalValue edgeInsets) {
+                return acceptsSides(
+                        edgeInsets.start(), edgeInsets.top(),
+                        edgeInsets.end(), edgeInsets.bottom());
+            }
+            return false;
+        }
+
+        private boolean acceptsSides(
+                BigDecimal first,
+                BigDecimal top,
+                BigDecimal third,
+                BigDecimal bottom) {
+            return DartNumericLiterals.isRepresentableDouble(first)
+                    && DartNumericLiterals.isRepresentableDouble(top)
+                    && DartNumericLiterals.isRepresentableDouble(third)
+                    && DartNumericLiterals.isRepresentableDouble(bottom)
                     && (!nonNegative
-                    || (edgeInsets.left().signum() >= 0
-                    && edgeInsets.top().signum() >= 0
-                    && edgeInsets.right().signum() >= 0
-                    && edgeInsets.bottom().signum() >= 0));
+                    || (first.signum() >= 0
+                    && top.signum() >= 0
+                    && third.signum() >= 0
+                    && bottom.signum() >= 0));
         }
 
         @Override

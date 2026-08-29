@@ -325,7 +325,7 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
-    void nullableNumberAcceptsZeroAndRestoresUnsetWithoutChangingItsKind()
+    void nullableDoubleAcceptsZeroAndRestoresUnsetWithoutChangingItsKind()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(
                 property("flutter.widgets.Center", "widthFactor"));
@@ -345,7 +345,7 @@ class FlutterPropertyEditorComponentsTest {
             field.setText("0");
             field.postActionEvent();
             assertEquals(FlutterPropertyCellValue.explicit(
-                            new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                            new PropertyValue.DoubleValue(BigDecimal.ZERO)),
                     editor.getValue());
             field.setText("0.5");
             field.postActionEvent();
@@ -520,81 +520,59 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
-    void edgeInsetsDialogCommitsFourSidesAtomicallyAndRejectsNegative()
+    void edgeInsetsDialogExposesStableComponentsAndRestoresEveryPaddingMode()
             throws Exception {
-        FlutterTypedPropertyEditors.Binding binding = binding(
-                property("flutter.widgets.Padding", "padding"));
-        PropertyEditor editor = binding.createEditor();
-        PropertyValue.EdgeInsetsValue initialInsets = edge(16, 16, 16, 16);
-        FlutterPropertyCellValue initial = FlutterPropertyCellValue.explicit(
-                initialInsets);
-        editor.setValue(initial);
-        PropertyEnv environment = PropertyEnv.create(descriptor(
-                "Padding", "Physical non-negative edge insets."));
-        ((ExPropertyEditor) editor).attachEnv(environment);
+        assertEdgeInsetsDialogRoundTrip(edge("8", "8", "8", "8"), "All sides");
+        assertEdgeInsetsDialogRoundTrip(edge("4", "8", "4", "8"), "Symmetric");
+        assertEdgeInsetsDialogRoundTrip(edge("1", "2", "3", "4"),
+                "Physical (left/right)");
+        assertEdgeInsetsDialogRoundTrip(directionalEdge("1", "2", "3", "4"),
+                "Directional (start/end)");
+    }
 
-        onEdt(() -> {
-            Component panel = editor.getCustomEditor();
-            JTextField left = findNamed(panel, JTextField.class,
-                    "flutter.edgeInsets.left");
-            JTextField top = findNamed(panel, JTextField.class,
-                    "flutter.edgeInsets.top");
-            JTextField right = findNamed(panel, JTextField.class,
-                    "flutter.edgeInsets.right");
-            JTextField bottom = findNamed(panel, JTextField.class,
-                    "flutter.edgeInsets.bottom");
-            assertNotNull(left);
-            assertNotNull(top);
-            assertNotNull(right);
-            assertNotNull(bottom);
-            JTextField all = findNamed(panel, JTextField.class,
-                    FlutterPropertyEditorComponents.EDGE_ALL_NAME);
-            JButton applyAll = findFirst(panel, JButton.class);
-            assertNotNull(all);
-            assertNotNull(applyAll);
+    @Test
+    void edgeInsetsDialogCommitsAllSymmetricPhysicalAndDirectionalAtomically()
+            throws Exception {
+        assertEdgeInsetsDialogCommit(
+                "All sides",
+                Map.of(FlutterPropertyEditorComponents.EDGE_ALL_NAME, "8.5"),
+                edge("8.5", "8.5", "8.5", "8.5"));
+        assertEdgeInsetsDialogCommit(
+                "Symmetric",
+                Map.of(
+                        "flutter.edgeInsets.horizontal", "3.25",
+                        "flutter.edgeInsets.vertical", "7.5"),
+                edge("3.25", "7.5", "3.25", "7.5"));
+        assertEdgeInsetsDialogCommit(
+                "Physical (left/right)",
+                Map.of(
+                        "flutter.edgeInsets.left", "1",
+                        "flutter.edgeInsets.top", "2.5",
+                        "flutter.edgeInsets.right", "3",
+                        "flutter.edgeInsets.bottom", "4.25"),
+                edge("1", "2.5", "3", "4.25"));
+        assertEdgeInsetsDialogCommit(
+                "Directional (start/end)",
+                Map.of(
+                        "flutter.edgeInsets.directional.start", "5",
+                        "flutter.edgeInsets.directional.top", "6.5",
+                        "flutter.edgeInsets.directional.end", "7",
+                        "flutter.edgeInsets.directional.bottom", "8.25"),
+                directionalEdge("5", "6.5", "7", "8.25"));
+    }
 
-            top.setText("-1");
-            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
-            assertEquals("error", top.getClientProperty("JComponent.outline"));
-            all.setText("8");
-            applyAll.doClick();
-            for (JTextField field : List.of(left, top, right, bottom)) {
-                assertEquals("8", field.getText());
-                assertNull(field.getClientProperty("JComponent.outline"));
-                assertFalse(field.getAccessibleContext()
-                        .getAccessibleDescription().startsWith("Invalid"));
-            }
-            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
-                    environment.getState());
-
-            left.setText("1");
-            top.setText("2.5");
-            right.setText("3");
-            bottom.setText("4.25");
-            assertEquals(initial, editor.getValue(),
-                    "field document events must not partially publish an inset");
-            environment.setState(PropertyEnv.STATE_VALID);
-            assertEquals(FlutterPropertyCellValue.explicit(
-                            new PropertyValue.EdgeInsetsValue(
-                                    BigDecimal.ONE,
-                                    new BigDecimal("2.5"),
-                                    BigDecimal.valueOf(3),
-                                    new BigDecimal("4.25"))),
-                    editor.getValue());
-
-            top.setText("-1");
-            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
-            environment.setState(PropertyEnv.STATE_VALID);
-            assertEquals(FlutterPropertyCellValue.explicit(
-                            new PropertyValue.EdgeInsetsValue(
-                                    BigDecimal.ONE,
-                                    new BigDecimal("2.5"),
-                                    BigDecimal.valueOf(3),
-                                    new BigDecimal("4.25"))),
-                    editor.getValue(),
-                    "an invalid four-field draft must never commit");
-            return null;
-        });
+    @Test
+    void edgeInsetsDialogRejectsMalformedAndNegativeDraftsInEveryMode()
+            throws Exception {
+        assertEdgeInsetsDialogInvalid(
+                "All sides", FlutterPropertyEditorComponents.EDGE_ALL_NAME, "not-a-number");
+        assertEdgeInsetsDialogInvalid(
+                "Symmetric", "flutter.edgeInsets.horizontal", "-1");
+        assertEdgeInsetsDialogInvalid(
+                "Physical (left/right)", "flutter.edgeInsets.top", "");
+        assertEdgeInsetsDialogInvalid(
+                "Directional (start/end)",
+                "flutter.edgeInsets.directional.end", "-0.25");
     }
 
     @Test
@@ -964,6 +942,143 @@ class FlutterPropertyEditorComponentsTest {
         });
     }
 
+    private static void assertEdgeInsetsDialogRoundTrip(
+            PropertyValue initialInsets,
+            String expectedMode) throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Padding", "padding"));
+        PropertyEditor editor = binding.createEditor();
+        FlutterPropertyCellValue initial = FlutterPropertyCellValue.explicit(initialInsets);
+        editor.setValue(initial);
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Padding", "Non-negative physical or directional edge insets."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertEquals("flutter.edgeInsets.custom", panel.getName());
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class, "flutter.edgeInsets.mode");
+            assertNotNull(mode);
+            assertEquals(List.of(
+                    "All sides",
+                    "Symmetric",
+                    "Physical (left/right)",
+                    "Directional (start/end)"), comboLabels(mode));
+            assertEquals(expectedMode, String.valueOf(mode.getSelectedItem()));
+
+            for (String name : List.of(
+                    FlutterPropertyEditorComponents.EDGE_ALL_NAME,
+                    "flutter.edgeInsets.horizontal",
+                    "flutter.edgeInsets.vertical",
+                    "flutter.edgeInsets.left",
+                    "flutter.edgeInsets.top",
+                    "flutter.edgeInsets.right",
+                    "flutter.edgeInsets.bottom",
+                    "flutter.edgeInsets.directional.start",
+                    "flutter.edgeInsets.directional.top",
+                    "flutter.edgeInsets.directional.end",
+                    "flutter.edgeInsets.directional.bottom")) {
+                assertNotNull(findNamed(panel, JTextField.class, name), name);
+            }
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(initial, editor.getValue(),
+                    "opening and accepting the " + expectedMode
+                    + " editor must preserve its exact typed value");
+            return null;
+        });
+    }
+
+    private static void assertEdgeInsetsDialogCommit(
+            String modeLabel,
+            Map<String, String> fieldValues,
+            PropertyValue expected) throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Padding", "padding"));
+        PropertyEditor editor = binding.createEditor();
+        FlutterPropertyCellValue initial = FlutterPropertyCellValue.explicit(
+                edge("16", "16", "16", "16"));
+        editor.setValue(initial);
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Padding", "Non-negative physical or directional edge insets."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class, "flutter.edgeInsets.mode");
+            assertNotNull(mode);
+            selectLabel(mode, modeLabel);
+            for (Map.Entry<String, String> entry : fieldValues.entrySet()) {
+                JTextField field = findNamed(
+                        panel, JTextField.class, entry.getKey());
+                assertNotNull(field, entry.getKey());
+                field.setText(entry.getValue());
+            }
+
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(initial, editor.getValue(),
+                    "document events must keep the " + modeLabel + " value as a local draft");
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(expected), editor.getValue());
+            return null;
+        });
+    }
+
+    private static void assertEdgeInsetsDialogInvalid(
+            String modeLabel,
+            String fieldName,
+            String invalidText) throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Padding", "padding"));
+        PropertyEditor editor = binding.createEditor();
+        FlutterPropertyCellValue initial = FlutterPropertyCellValue.explicit(
+                edge("16", "16", "16", "16"));
+        editor.setValue(initial);
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Padding", "Non-negative physical or directional edge insets."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class, "flutter.edgeInsets.mode");
+            assertNotNull(mode);
+            selectLabel(mode, modeLabel);
+            JTextField field = findNamed(panel, JTextField.class, fieldName);
+            assertNotNull(field, fieldName);
+            field.setText(invalidText);
+
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", field.getClientProperty("JComponent.outline"));
+            assertTrue(field.getAccessibleContext().getAccessibleDescription()
+                    .startsWith("Invalid value."));
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(initial, editor.getValue(),
+                    "an invalid " + modeLabel + " draft must never commit");
+            return null;
+        });
+    }
+
+    private static List<String> comboLabels(JComboBox<?> combo) {
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+        for (int index = 0; index < combo.getItemCount(); index++) {
+            labels.add(String.valueOf(combo.getItemAt(index)));
+        }
+        return List.copyOf(labels);
+    }
+
+    private static void selectLabel(JComboBox<?> combo, String label) {
+        for (int index = 0; index < combo.getItemCount(); index++) {
+            if (label.equals(String.valueOf(combo.getItemAt(index)))) {
+                combo.setSelectedIndex(index);
+                return;
+            }
+        }
+        throw new AssertionError("Missing combo item " + label);
+    }
+
     private static PropertyDefinition property(String widgetType, String name) {
         WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(widgetType)).orElseThrow();
@@ -1028,10 +1143,17 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     private static PropertyValue.EdgeInsetsValue edge(
-            int left, int top, int right, int bottom) {
+            String left, String top, String right, String bottom) {
         return new PropertyValue.EdgeInsetsValue(
-                BigDecimal.valueOf(left), BigDecimal.valueOf(top),
-                BigDecimal.valueOf(right), BigDecimal.valueOf(bottom));
+                new BigDecimal(left), new BigDecimal(top),
+                new BigDecimal(right), new BigDecimal(bottom));
+    }
+
+    private static PropertyValue.EdgeInsetsDirectionalValue directionalEdge(
+            String start, String top, String end, String bottom) {
+        return new PropertyValue.EdgeInsetsDirectionalValue(
+                new BigDecimal(start), new BigDecimal(top),
+                new BigDecimal(end), new BigDecimal(bottom));
     }
 
     private static <T extends Component> T findNamed(

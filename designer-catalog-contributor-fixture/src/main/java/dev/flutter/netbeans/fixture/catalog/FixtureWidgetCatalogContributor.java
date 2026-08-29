@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.openide.util.lookup.ServiceProvider;
 
-/** External-module fixture for the version 1 Flutter Designer catalog SPI. */
+/** External-module fixture for the version 2 Flutter Designer catalog SPI. */
 @ServiceProvider(service = WidgetCatalogContributor.class)
 public final class FixtureWidgetCatalogContributor implements WidgetCatalogContributor {
     public static final String CONTRIBUTOR_ID = "dev.flutter.netbeans.fixture";

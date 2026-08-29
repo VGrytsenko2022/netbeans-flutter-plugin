@@ -86,6 +86,28 @@ public final class FlutterDesignerPaletteDragRegistry {
         return issue(widgetType, true);
     }
 
+    /**
+     * Resolves one live token without consuming its one-shot authority.
+     *
+     * <p>This is the read-only half of two-phase Swing drop admission. Hover
+     * and {@code PasteType} discovery may run repeatedly, so they must never
+     * consume the token that the eventual drop commit needs. Malformed,
+     * foreign, expired and revoked tokens remain indistinguishable.</p>
+     */
+    synchronized Optional<WidgetTypeId> resolve(String token) {
+        Instant now = Objects.requireNonNull(clock.instant(), "clock.instant()");
+        purgeExpired(now);
+        Optional<UUID> dragId = localDragId(token);
+        if (dragId.isEmpty()) {
+            return Optional.empty();
+        }
+        Entry entry = entries.get(dragId.orElseThrow());
+        if (entry == null || !now.isBefore(entry.expiresAt())) {
+            return Optional.empty();
+        }
+        return Optional.of(entry.widgetType());
+    }
+
     private Optional<String> issue(
             WidgetTypeId widgetType,
             boolean replaceOutstanding) {

@@ -31,6 +31,7 @@
         <directory>${project.basedir}/../docs/flutter-designer</directory>
         <includes>
           <include>fd-v2.schema.json</include>
+          <include>fd-v3.schema.json</include>
         </includes>
         <targetPath>META-INF/netbeans-flutter-designer/schema</targetPath>
         <filtering>false</filtering>

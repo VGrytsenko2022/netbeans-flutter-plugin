@@ -17,6 +17,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v1.schema.json");
     private static final Path V2_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v2.schema.json");
+    private static final Path V3_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v3.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -54,6 +56,22 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\"fontVariationListValue\""));
     }
 
+    @Test
+    void packagesTheCanonicalV3SchemaWithDirectionalEdgeInsets() throws IOException {
+        byte[] packaged = loadPackagedV3Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(V3_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v3 copies must remain byte-identical");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("\"$id\": \"urn:netbeans-flutter-designer:schema:fd:3\""));
+        assertTrue(schema.contains("\"const\": 3"));
+        assertTrue(schema.contains("\"edgeInsetsDirectionalValue\""));
+        assertTrue(schema.contains("\"start\""));
+        assertTrue(schema.contains("\"end\""));
+    }
+
     private static byte[] loadPackagedV1Schema() throws IOException {
         ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
         assertNotNull(loader.getResource(FdSchemas.V1_RESOURCE),
@@ -70,6 +88,16 @@ class FdSchemaResourceTest {
                 "The canonical schema v2 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV2()) {
             assertNotNull(input, "The canonical schema v2 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV3Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V3_RESOURCE),
+                "The canonical schema v3 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV3()) {
+            assertNotNull(input, "The canonical schema v3 resource must be readable");
             return input.readAllBytes();
         }
     }

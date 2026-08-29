@@ -33,6 +33,12 @@ class PropertyValueFormatterTest {
                         new BigDecimal("2.5"),
                         new BigDecimal("3"),
                         new BigDecimal("4"))));
+        assertEquals("start=1, top=2.5, end=3, bottom=4", PropertyValueFormatter.format(
+                new PropertyValue.EdgeInsetsDirectionalValue(
+                        new BigDecimal("1"),
+                        new BigDecimal("2.5"),
+                        new BigDecimal("3"),
+                        new BigDecimal("4"))));
         assertEquals("asset \"images/logo.png\"", PropertyValueFormatter.format(
                 new PropertyValue.AssetValue("images/logo.png")));
         assertEquals("handleTap", PropertyValueFormatter.format(

@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,6 +90,28 @@ class FlutterDesignerPaletteDragLifecycleTest {
         assertTrue(fixture.lifecycle.consume(token).isEmpty());
         fixture.scheduler.runPending();
         assertTrue(fixture.registry.consume(token).isEmpty());
+        fixture.lifecycle.close();
+    }
+
+    @Test
+    void resolvesOnlyExactLocalTransferWithoutConsumingIt() {
+        Fixture fixture = fixture(true);
+        String token = fixture.registry.issue(TEXT).orElseThrow();
+        StringSelection transferable = new StringSelection(token);
+
+        var first = fixture.lifecycle.resolve(transferable).orElseThrow();
+        var second = fixture.lifecycle.resolve(transferable).orElseThrow();
+
+        assertAll(
+                () -> assertEquals(token, first.token()),
+                () -> assertEquals(TEXT, first.widgetType()),
+                () -> assertEquals(first, second),
+                () -> assertTrue(fixture.lifecycle.resolve(
+                        new StringSelection("flutter.widgets.Text")).isEmpty()),
+                () -> assertEquals(TEXT,
+                        fixture.lifecycle.consume(token).orElseThrow()),
+                () -> assertTrue(fixture.lifecycle.resolve(
+                        transferable).isEmpty()));
         fixture.lifecycle.close();
     }
 

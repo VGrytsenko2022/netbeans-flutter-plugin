@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -746,12 +748,41 @@ final class FlutterPropertyEditorComponents {
 
     private static final class EdgeInsetsCustomEditor
             extends CommitOnValidPanel {
-        private static final String[] NAMES = {"left", "top", "right", "bottom"};
-        private final JTextField[] fields = new JTextField[4];
+        private enum Mode {
+            ALL("All sides"),
+            SYMMETRIC("Symmetric"),
+            PHYSICAL("Physical (left/right)"),
+            DIRECTIONAL("Directional (start/end)");
+
+            private final String displayName;
+
+            Mode(String displayName) {
+                this.displayName = displayName;
+            }
+
+            @Override
+            public String toString() {
+                return displayName;
+            }
+        }
+
+        private static final String[] PHYSICAL_NAMES = {
+            "left", "top", "right", "bottom"
+        };
+        private static final String[] DIRECTIONAL_NAMES = {
+            "start", "top", "end", "bottom"
+        };
+        private final JComboBox<Mode> mode = new JComboBox<>(Mode.values());
+        private final CardLayout cardLayout = new CardLayout();
+        private final JPanel cards = new JPanel(cardLayout);
         private final JTextField all = new JTextField(12);
-        private final JButton applyAll = new JButton();
+        private final JTextField horizontal = new JTextField(12);
+        private final JTextField vertical = new JTextField(12);
+        private final JTextField[] physical = fields("", PHYSICAL_NAMES);
+        private final JTextField[] directional = fields("directional", DIRECTIONAL_NAMES);
         private final JCheckBox useDefault = new JCheckBox(
                 "Use inherited/default value (omit argument)");
+        private Mode activeMode;
         private boolean updating;
 
         EdgeInsetsCustomEditor(
@@ -761,197 +792,319 @@ final class FlutterPropertyEditorComponents {
             super(editor, binding, environment);
             setLayout(new BorderLayout(0, 8));
             setName("flutter.edgeInsets.custom");
-            setPreferredSize(new Dimension(430, 250));
+            setPreferredSize(new Dimension(470, 290));
             getAccessibleContext().setAccessibleName(
                     binding.definition().name().value() + " edge insets editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits physical left, top, right, and bottom Flutter EdgeInsets.");
+                    "Edits all, symmetric, physical, or text-direction-aware "
+                    + "Flutter edge insets.");
 
-            JPanel form = new JPanel(new GridBagLayout());
-            GridBagConstraints constraints = new GridBagConstraints();
-            constraints.insets = new Insets(4, 4, 4, 4);
-            constraints.anchor = GridBagConstraints.WEST;
-            constraints.fill = GridBagConstraints.HORIZONTAL;
+            JPanel header = new JPanel(new GridBagLayout());
+            GridBagConstraints constraints = constraints();
+            JLabel modeLabel = new JLabel("Mode:");
+            mode.setName("flutter.edgeInsets.mode");
+            modeLabel.setLabelFor(mode);
+            mode.getAccessibleContext().setAccessibleName("Edge insets mode");
+            mode.getAccessibleContext().setAccessibleDescription(
+                    "Select all, symmetric, physical left/right, or "
+                    + "directional start/end padding.");
+            constraints.gridx = 0;
+            constraints.gridy = 0;
             constraints.weightx = 0;
+            header.add(modeLabel, constraints);
+            constraints.gridx = 1;
+            constraints.weightx = 1;
+            header.add(mode, constraints);
+            if (binding.optional()) {
+                constraints.gridx = 0;
+                constraints.gridy = 1;
+                constraints.gridwidth = 2;
+                header.add(useDefault, constraints);
+                useDefault.getAccessibleContext().setAccessibleDescription(
+                        "When selected, removes this constructor argument.");
+            }
+            add(header, BorderLayout.NORTH);
 
+            all.setName(EDGE_ALL_NAME);
+            all.getAccessibleContext().setAccessibleName("All edge insets");
+            all.getAccessibleContext().setAccessibleDescription(
+                    "One non-negative padding value for every side.");
+            horizontal.setName("flutter.edgeInsets.horizontal");
+            vertical.setName("flutter.edgeInsets.vertical");
+            cards.add(singleFieldPanel("All sides:", all), Mode.ALL.name());
+            cards.add(twoFieldPanel(), Mode.SYMMETRIC.name());
+            cards.add(sidePanel(PHYSICAL_NAMES, physical, false), Mode.PHYSICAL.name());
+            cards.add(sidePanel(DIRECTIONAL_NAMES, directional, true),
+                    Mode.DIRECTIONAL.name());
+            add(cards, BorderLayout.CENTER);
+
+            PropertyValue initial = initialValue().explicitValue().orElseGet(
+                    () -> new PropertyValue.EdgeInsetsValue(
+                            BigDecimal.ZERO, BigDecimal.ZERO,
+                            BigDecimal.ZERO, BigDecimal.ZERO));
+            activeMode = initialMode(initial);
+            updating = true;
+            try {
+                useDefault.setSelected(initialValue().explicitValue().isEmpty());
+                populate(initial);
+                mode.setSelectedItem(activeMode);
+                cardLayout.show(cards, activeMode.name());
+                setEditorEnabled(!useDefault.isSelected());
+            } finally {
+                updating = false;
+            }
+
+            for (JTextField field : allFields()) {
+                field.getDocument().addDocumentListener(
+                        documentListener(this::validateActive));
+            }
+            mode.addActionListener(ignored -> modeChanged());
+            useDefault.addActionListener(ignored -> validateActive());
+            activate();
+        }
+
+        private void modeChanged() {
+            if (updating) {
+                return;
+            }
+            Mode selected = (Mode) mode.getSelectedItem();
+            if (selected == null || selected == activeMode) {
+                return;
+            }
+            candidate(activeMode).ifPresent(value -> {
+                updating = true;
+                try {
+                    populate(value);
+                } finally {
+                    updating = false;
+                }
+            });
+            activeMode = selected;
+            cardLayout.show(cards, activeMode.name());
+            validateActive();
+        }
+
+        private void validateActive() {
+            if (updating) {
+                return;
+            }
+            boolean unset = binding.optional() && useDefault.isSelected();
+            setEditorEnabled(!unset);
+            if (unset) {
+                clearAllInvalid();
+                markValid(FlutterPropertyCellValue.unset());
+                return;
+            }
+            Optional<PropertyValue> parsed = candidate(activeMode);
+            if (parsed.isEmpty()) {
+                return;
+            }
+            try {
+                FlutterPropertyCellValue candidate = FlutterPropertyCellValue.explicit(
+                        parsed.orElseThrow());
+                binding.validate(candidate);
+                clearAllInvalid();
+                markValid(candidate);
+            } catch (IllegalArgumentException failure) {
+                for (JTextField field : activeFields(activeMode)) {
+                    markInvalid(failure.getMessage(), field);
+                }
+            }
+        }
+
+        private Optional<PropertyValue> candidate(Mode selected) {
+            JTextField[] selectedFields = activeFields(selected);
+            BigDecimal[] values = new BigDecimal[selectedFields.length];
+            boolean valid = true;
+            for (int index = 0; index < selectedFields.length; index++) {
+                JTextField field = selectedFields[index];
+                String label = activeLabels(selected)[index];
+                try {
+                    values[index] = new BigDecimal(field.getText().strip());
+                    if (values[index].signum() < 0) {
+                        throw new IllegalArgumentException(
+                                label + " inset must be non-negative.");
+                    }
+                    clearInvalid(field, label
+                            + " padding in non-negative logical pixels.");
+                } catch (NumberFormatException failure) {
+                    valid = false;
+                    markInvalid(label + " inset must be a decimal number.", field);
+                } catch (IllegalArgumentException failure) {
+                    valid = false;
+                    markInvalid(failure.getMessage(), field);
+                }
+            }
+            if (!valid) {
+                return Optional.empty();
+            }
+            return Optional.of(switch (selected) {
+                case ALL -> new PropertyValue.EdgeInsetsValue(
+                        values[0], values[0], values[0], values[0]);
+                case SYMMETRIC -> new PropertyValue.EdgeInsetsValue(
+                        values[0], values[1], values[0], values[1]);
+                case PHYSICAL -> new PropertyValue.EdgeInsetsValue(
+                        values[0], values[1], values[2], values[3]);
+                case DIRECTIONAL -> new PropertyValue.EdgeInsetsDirectionalValue(
+                        values[0], values[1], values[2], values[3]);
+            });
+        }
+
+        private void populate(PropertyValue value) {
+            BigDecimal first;
+            BigDecimal top;
+            BigDecimal third;
+            BigDecimal bottom;
+            if (value instanceof PropertyValue.EdgeInsetsValue insets) {
+                first = insets.left();
+                top = insets.top();
+                third = insets.right();
+                bottom = insets.bottom();
+            } else if (value instanceof PropertyValue.EdgeInsetsDirectionalValue insets) {
+                first = insets.start();
+                top = insets.top();
+                third = insets.end();
+                bottom = insets.bottom();
+            } else {
+                throw new IllegalArgumentException("Expected Flutter edge insets.");
+            }
+            String[] values = {
+                first.toPlainString(), top.toPlainString(),
+                third.toPlainString(), bottom.toPlainString()
+            };
+            for (int index = 0; index < values.length; index++) {
+                physical[index].setText(values[index]);
+                directional[index].setText(values[index]);
+            }
+            all.setText(first.toPlainString());
+            horizontal.setText(first.toPlainString());
+            vertical.setText(top.toPlainString());
+        }
+
+        private void setEditorEnabled(boolean enabled) {
+            mode.setEnabled(enabled);
+            for (JTextField field : allFields()) {
+                field.setEnabled(enabled);
+            }
+        }
+
+        private void clearAllInvalid() {
+            for (JTextField field : allFields()) {
+                clearInvalid(field, "Non-negative padding in logical pixels.");
+            }
+        }
+
+        private JTextField[] activeFields(Mode selected) {
+            return switch (selected) {
+                case ALL -> new JTextField[]{all};
+                case SYMMETRIC -> new JTextField[]{horizontal, vertical};
+                case PHYSICAL -> physical;
+                case DIRECTIONAL -> directional;
+            };
+        }
+
+        private String[] activeLabels(Mode selected) {
+            return switch (selected) {
+                case ALL -> new String[]{"All sides"};
+                case SYMMETRIC -> new String[]{"Horizontal", "Vertical"};
+                case PHYSICAL -> new String[]{"Left", "Top", "Right", "Bottom"};
+                case DIRECTIONAL -> new String[]{"Start", "Top", "End", "Bottom"};
+            };
+        }
+
+        private JTextField[] allFields() {
+            JTextField[] result = new JTextField[11];
+            result[0] = all;
+            result[1] = horizontal;
+            result[2] = vertical;
+            System.arraycopy(physical, 0, result, 3, 4);
+            System.arraycopy(directional, 0, result, 7, 4);
+            return result;
+        }
+
+        private static Mode initialMode(PropertyValue value) {
+            if (value instanceof PropertyValue.EdgeInsetsDirectionalValue) {
+                return Mode.DIRECTIONAL;
+            }
+            PropertyValue.EdgeInsetsValue physical =
+                    (PropertyValue.EdgeInsetsValue) value;
+            if (physical.left().compareTo(physical.top()) == 0
+                    && physical.left().compareTo(physical.right()) == 0
+                    && physical.left().compareTo(physical.bottom()) == 0) {
+                return Mode.ALL;
+            }
+            if (physical.left().compareTo(physical.right()) == 0
+                    && physical.top().compareTo(physical.bottom()) == 0) {
+                return Mode.SYMMETRIC;
+            }
+            return Mode.PHYSICAL;
+        }
+
+        private JPanel singleFieldPanel(String labelText, JTextField field) {
+            return fieldPanel(new String[]{labelText}, new JTextField[]{field});
+        }
+
+        private JPanel twoFieldPanel() {
+            horizontal.getAccessibleContext().setAccessibleDescription(
+                    "Non-negative horizontal padding in logical pixels.");
+            vertical.getAccessibleContext().setAccessibleDescription(
+                    "Non-negative vertical padding in logical pixels.");
+            return fieldPanel(
+                    new String[]{"Horizontal:", "Vertical:"},
+                    new JTextField[]{horizontal, vertical});
+        }
+
+        private JPanel sidePanel(
+                String[] names,
+                JTextField[] fields,
+                boolean textDirectionAware) {
+            String[] labels = new String[names.length];
+            for (int index = 0; index < names.length; index++) {
+                labels[index] = capitalize(names[index]) + ':';
+                fields[index].getAccessibleContext().setAccessibleDescription(
+                        "Non-negative "
+                        + (textDirectionAware ? "directional " : "physical ")
+                        + names[index] + " padding in logical pixels.");
+            }
+            return fieldPanel(labels, fields);
+        }
+
+        private JPanel fieldPanel(String[] labels, JTextField[] fields) {
+            JPanel form = new JPanel(new GridBagLayout());
+            GridBagConstraints constraints = constraints();
             for (int index = 0; index < fields.length; index++) {
-                JLabel label = new JLabel(capitalize(NAMES[index]) + ':');
-                JTextField field = new JTextField(14);
-                field.setName("flutter.edgeInsets." + NAMES[index]);
-                label.setLabelFor(field);
-                field.getAccessibleContext().setAccessibleName(
-                        capitalize(NAMES[index]) + " inset");
-                field.getAccessibleContext().setAccessibleDescription(
-                        "Non-negative physical " + NAMES[index]
-                        + " padding in logical pixels.");
+                JLabel label = new JLabel(labels[index]);
+                label.setLabelFor(fields[index]);
                 constraints.gridx = 0;
                 constraints.gridy = index;
                 constraints.weightx = 0;
                 form.add(label, constraints);
                 constraints.gridx = 1;
                 constraints.weightx = 1;
-                form.add(field, constraints);
-                fields[index] = field;
+                form.add(fields[index], constraints);
             }
-
-            JLabel allLabel = new JLabel("All sides:");
-            all.setName(EDGE_ALL_NAME);
-            allLabel.setLabelFor(all);
-            all.getAccessibleContext().setAccessibleName("All edge insets");
-            all.getAccessibleContext().setAccessibleDescription(
-                    "A non-negative value to copy to all four physical sides.");
-            applyAll.setText("Apply to all");
-            applyAll.getAccessibleContext().setAccessibleDescription(
-                    "Copies the All sides value to left, top, right, and bottom.");
-            constraints.gridx = 0;
-            constraints.gridy = 4;
-            constraints.weightx = 0;
-            form.add(allLabel, constraints);
-            constraints.gridx = 1;
-            constraints.weightx = 1;
-            form.add(all, constraints);
-            constraints.gridx = 2;
-            constraints.weightx = 0;
-            form.add(applyAll, constraints);
-            add(form, BorderLayout.CENTER);
-
-            if (binding.optional()) {
-                useDefault.getAccessibleContext().setAccessibleDescription(
-                        "When selected, removes this constructor argument.");
-                add(useDefault, BorderLayout.NORTH);
-                useDefault.addActionListener(ignored -> validateSides());
-            }
-
-            PropertyValue.EdgeInsetsValue initial = initialValue().explicitValue()
-                    .filter(PropertyValue.EdgeInsetsValue.class::isInstance)
-                    .map(PropertyValue.EdgeInsetsValue.class::cast)
-                    .orElseGet(() -> new PropertyValue.EdgeInsetsValue(
-                            BigDecimal.ZERO, BigDecimal.ZERO,
-                            BigDecimal.ZERO, BigDecimal.ZERO));
-            updating = true;
-            try {
-                useDefault.setSelected(initialValue().explicitValue().isEmpty());
-                fields[0].setText(initial.left().toPlainString());
-                fields[1].setText(initial.top().toPlainString());
-                fields[2].setText(initial.right().toPlainString());
-                fields[3].setText(initial.bottom().toPlainString());
-                all.setText(allEqual(initial)
-                        ? initial.left().toPlainString() : "");
-                setFieldsEnabled(!useDefault.isSelected());
-            } finally {
-                updating = false;
-            }
-
-            for (JTextField field : fields) {
-                field.getDocument().addDocumentListener(
-                        documentListener(this::validateSides));
-            }
-            applyAll.addActionListener(ignored -> applyAll());
-            all.addActionListener(ignored -> applyAll());
-            activate();
+            return form;
         }
 
-        private void applyAll() {
-            if (binding.optional() && useDefault.isSelected()) {
-                return;
-            }
-            try {
-                BigDecimal value = new BigDecimal(all.getText().strip());
-                FlutterPropertyCellValue candidate = FlutterPropertyCellValue.explicit(
-                        new PropertyValue.EdgeInsetsValue(
-                                value, value, value, value));
-                binding.validate(candidate);
-                updating = true;
-                try {
-                    for (JTextField field : fields) {
-                        field.setText(value.toPlainString());
-                    }
-                } finally {
-                    updating = false;
-                }
-                for (int index = 0; index < fields.length; index++) {
-                    clearInvalid(fields[index],
-                            "Non-negative physical " + NAMES[index]
-                            + " padding in logical pixels.");
-                }
-                clearInvalid(all, "Copies one non-negative value to all sides.");
-                markValid(candidate);
-            } catch (IllegalArgumentException failure) {
-                markInvalid(failure.getMessage(), all);
-            }
+        private static GridBagConstraints constraints() {
+            GridBagConstraints constraints = new GridBagConstraints();
+            constraints.insets = new Insets(4, 4, 4, 4);
+            constraints.anchor = GridBagConstraints.WEST;
+            constraints.fill = GridBagConstraints.HORIZONTAL;
+            return constraints;
         }
 
-        private void validateSides() {
-            if (updating) {
-                return;
+        private static JTextField[] fields(String prefix, String[] names) {
+            JTextField[] result = new JTextField[names.length];
+            for (int index = 0; index < names.length; index++) {
+                JTextField field = new JTextField(14);
+                field.setName("flutter.edgeInsets."
+                        + (prefix.isEmpty() ? "" : prefix + '.') + names[index]);
+                field.getAccessibleContext().setAccessibleName(
+                        capitalize(names[index]) + " inset");
+                result[index] = field;
             }
-            if (binding.optional() && useDefault.isSelected()) {
-                setFieldsEnabled(false);
-                for (int index = 0; index < fields.length; index++) {
-                    clearInvalid(fields[index],
-                            "Non-negative physical " + NAMES[index]
-                            + " padding in logical pixels.");
-                }
-                clearInvalid(all, "Copies one non-negative value to all sides.");
-                markValid(FlutterPropertyCellValue.unset());
-                return;
-            }
-            setFieldsEnabled(true);
-            BigDecimal[] values = new BigDecimal[fields.length];
-            boolean valid = true;
-            for (int index = 0; index < fields.length; index++) {
-                try {
-                    values[index] = new BigDecimal(fields[index].getText().strip());
-                    if (values[index].signum() < 0) {
-                        throw new IllegalArgumentException(
-                                capitalize(NAMES[index])
-                                + " inset must be non-negative.");
-                    }
-                    clearInvalid(fields[index],
-                            "Non-negative physical " + NAMES[index]
-                            + " padding in logical pixels.");
-                } catch (NumberFormatException failure) {
-                    valid = false;
-                    markInvalid(capitalize(NAMES[index])
-                            + " inset must be a decimal number.", fields[index]);
-                } catch (IllegalArgumentException failure) {
-                    valid = false;
-                    markInvalid(failure.getMessage(), fields[index]);
-                }
-            }
-            if (!valid) {
-                return;
-            }
-            try {
-                FlutterPropertyCellValue candidate = FlutterPropertyCellValue.explicit(
-                        new PropertyValue.EdgeInsetsValue(
-                                values[0], values[1], values[2], values[3]));
-                binding.validate(candidate);
-                for (JTextField field : fields) {
-                    clearInvalid(field,
-                            "Non-negative physical padding in logical pixels.");
-                }
-                clearInvalid(all, "Copies one non-negative value to all sides.");
-                markValid(candidate);
-            } catch (IllegalArgumentException failure) {
-                for (JTextField field : fields) {
-                    markInvalid(failure.getMessage(), field);
-                }
-            }
-        }
-
-        private void setFieldsEnabled(boolean enabled) {
-            for (JTextField field : fields) {
-                field.setEnabled(enabled);
-            }
-            all.setEnabled(enabled);
-            applyAll.setEnabled(enabled);
-        }
-
-        private static boolean allEqual(PropertyValue.EdgeInsetsValue value) {
-            return value.left().compareTo(value.top()) == 0
-                    && value.left().compareTo(value.right()) == 0
-                    && value.left().compareTo(value.bottom()) == 0;
+            return result;
         }
     }
 

@@ -594,13 +594,15 @@ final class FdJsonDecoder {
     private static Optional<String> migrateSchemaReference(
             Optional<String> reference,
             int sourceVersion) {
-        if (sourceVersion != 1 || reference.isEmpty()) {
+        if (sourceVersion >= DesignerDocument.SCHEMA_VERSION || reference.isEmpty()) {
             return reference;
         }
         return Optional.of(switch (reference.orElseThrow()) {
-            case "urn:netbeans-flutter-designer:schema:fd:1" ->
-                    "urn:netbeans-flutter-designer:schema:fd:2";
-            case "../fd-v1.schema.json" -> "../fd-v2.schema.json";
+            case "urn:netbeans-flutter-designer:schema:fd:1",
+                    "urn:netbeans-flutter-designer:schema:fd:2" ->
+                    "urn:netbeans-flutter-designer:schema:fd:3";
+            case "../fd-v1.schema.json", "../fd-v2.schema.json" ->
+                    "../fd-v3.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1096,6 +1098,28 @@ final class FdJsonDecoder {
                         () -> PropertyValue.ColorValue.fromWireArgb(argb));
             }
             case "edgeInsets" -> {
+                boolean directional = fields.containsKey("start")
+                        || fields.containsKey("end");
+                if (directional) {
+                    if (sourceVersion < 3) {
+                        throw invalidValue(
+                                parser,
+                                pointer(base, "kind"),
+                                "Directional edge insets require schema version 3.");
+                    }
+                    enforceAllowedFields(
+                            parser,
+                            fields,
+                            base,
+                            Set.of("kind", "start", "top", "end", "bottom"));
+                    BigDecimal start = jsonNumber(fields, "start", base);
+                    BigDecimal top = jsonNumber(fields, "top", base);
+                    BigDecimal end = jsonNumber(fields, "end", base);
+                    BigDecimal bottom = jsonNumber(fields, "bottom", base);
+                    yield modelValue(base,
+                            () -> new PropertyValue.EdgeInsetsDirectionalValue(
+                                    start, top, end, bottom));
+                }
                 enforceAllowedFields(
                         parser,
                         fields,

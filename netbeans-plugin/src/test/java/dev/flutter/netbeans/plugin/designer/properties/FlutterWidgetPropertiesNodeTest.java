@@ -16,12 +16,19 @@ import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.Extensions;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.beans.PropertyEditor;
@@ -57,6 +64,115 @@ class FlutterWidgetPropertiesNodeTest {
         assertSame(id, node.getLookup().lookup(StableId.class));
         assertSame(widget, node.getLookup().lookup(WidgetNode.class));
         assertSame(definition, node.getLookup().lookup(WidgetDefinition.class));
+    }
+
+    @Test
+    void projectsEveryScaffoldNamedSlotInCatalogOrderIncludingEmptySlots()
+            throws Exception {
+        WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");
+        WidgetDefinition centerDefinition = definition("flutter.widgets.Center");
+        WidgetNode center = new WidgetNode(
+                StableId.parse("f2fbd4df-0f53-4892-9737-a3e4c62c0614"),
+                centerDefinition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        WidgetNode scaffold = new WidgetNode(
+                StableId.parse("e08b35a8-887b-47b4-8817-9aa958c63f9b"),
+                scaffoldDefinition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("body"), WidgetSlot.SingleSlot.of(center)),
+                Extensions.empty());
+        DesignerDocument document = document(scaffold);
+        FlutterWidgetSlotEditorContext slotContext =
+                new FlutterWidgetSlotEditorContext(
+                        document,
+                        BuiltInWidgetCatalog.getDefault(),
+                        List.of(
+                                centerDefinition.typeId(),
+                                definition("flutter.widgets.Text").typeId()));
+        List<FlutterWidgetSlotMutation> mutations = new ArrayList<>();
+
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                scaffold,
+                scaffoldDefinition,
+                ignored -> { },
+                slotContext,
+                mutations::add);
+        Node.PropertySet slots = propertySet(
+                node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(List.of("General", "General", "Slots"),
+                Arrays.stream(sets)
+                        .map(set -> set.getValue(
+                                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
+                        .toList(),
+                "the native PropertySheet must render exactly General and Slots tabs");
+        assertEquals(List.of("appBar", "body", "floatingActionButton"),
+                names(slots.getProperties()));
+        assertEquals("Empty", slots.getProperties()[0].getValue().toString());
+        assertEquals("Center", slots.getProperties()[1].getValue().toString());
+        assertEquals("Empty", slots.getProperties()[2].getValue().toString());
+        for (Node.Property<?> property : slots.getProperties()) {
+            assertTrue(property.canWrite(), property.getName());
+            assertEquals(FlutterWidgetSlotCellValue.class, property.getValueType());
+            assertEquals(Boolean.FALSE, property.getValue("changeImmediate"));
+            assertEquals(Boolean.FALSE, property.getValue("canEditAsText"));
+        }
+        assertEquals(List.of(), mutations,
+                "opening/projecting slot rows must not mutate the model");
+    }
+
+    @Test
+    void slotRowsRemainVisibleButReadOnlyWithoutMutationAuthority() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Column");
+        WidgetNode first = textWidget(
+                StableId.parse("5328fdfd-283a-4a62-8ed8-241bb00c5c7c"), "one");
+        WidgetNode second = textWidget(
+                StableId.parse("d723f7f7-0ea1-4822-82e3-a081aed2a032"), "two");
+        WidgetNode column = new WidgetNode(
+                StableId.parse("04d75683-e72c-438b-a7c1-6744748add48"),
+                definition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("children"),
+                        new WidgetSlot.ListSlot(List.of(first, second))),
+                Extensions.empty());
+
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, column, definition);
+        Node.PropertySet slots = propertySet(
+                node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+
+        assertEquals(List.of("General", "General", "Slots"),
+                Arrays.stream(node.getPropertySets())
+                        .map(set -> set.getValue(
+                                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
+                        .toList(),
+                "read-only slot widgets must retain the same native tabs");
+        assertEquals(1, slots.getProperties().length);
+        assertEquals("2 widgets", slots.getProperties()[0].getValue());
+        assertFalse(slots.getProperties()[0].canWrite());
+        assertEquals(String.class, slots.getProperties()[0].getValueType());
+    }
+
+    @Test
+    void leafWidgetDoesNotExposeAnEmptySlotsCategory() {
+        WidgetDefinition definition = definition("flutter.widgets.Text");
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                textWidget(StableId.parse(
+                        "72bf176f-e208-447f-bd9b-e73e43b58c0e"), "leaf"),
+                definition);
+
+        assertTrue(Arrays.stream(node.getPropertySets())
+                .noneMatch(set -> FlutterWidgetPropertiesNode.SLOTS_SET_NAME
+                        .equals(set.getName())));
+        assertTrue(Arrays.stream(node.getPropertySets())
+                .allMatch(set -> set.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE) == null),
+                "leaf widgets must retain the ordinary untabbed PropertySheet");
     }
 
     @Test
@@ -165,7 +281,10 @@ class FlutterWidgetPropertiesNodeTest {
                     Children.LEAF, widget, definition, ignored -> { });
 
             Node.Property<?>[] properties = Arrays.stream(node.getPropertySets())
-                    .skip(1)
+                    .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME
+                            .equals(set.getName()))
+                    .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME
+                            .equals(set.getName()))
                     .flatMap(set -> Arrays.stream(set.getProperties()))
                     .toArray(Node.Property<?>[]::new);
             assertEquals(definition.properties().size(), properties.length, type);
@@ -529,7 +648,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void edgeInsetsEditorAcceptsAllOrFromLTRBAndRejectsNegativeInsets()
+    void edgeInsetsInlineEditorParsesEveryPaddingModeAndRoundTripsExactValues()
             throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Padding");
         PropertyValue.EdgeInsetsValue initial = new PropertyValue.EdgeInsetsValue(
@@ -550,17 +669,63 @@ class FlutterWidgetPropertiesNodeTest {
         PropertyEditor editor = padding.getPropertyEditor();
 
         assertFalse(padding.supportsDefaultValue());
-        editor.setAsText("8");
-        assertEquals(new PropertyValue.EdgeInsetsValue(
-                        BigDecimal.valueOf(8), BigDecimal.valueOf(8),
-                        BigDecimal.valueOf(8), BigDecimal.valueOf(8)),
-                cell(editor).explicitValue().orElseThrow());
-        editor.setAsText("1, 2, 3, 4");
-        assertEquals("1, 2, 3, 4", editor.getAsText());
-        assertThrows(IllegalArgumentException.class,
-                () -> editor.setAsText("1, -2, 3, 4"));
+        assertInlineInsets(editor, "8", edge("8", "8", "8", "8"));
+        assertInlineInsets(editor, "all: 9.5",
+                edge("9.5", "9.5", "9.5", "9.5"));
+        assertInlineInsets(editor, "symmetric: 3, 7.5",
+                edge("3", "7.5", "3", "7.5"));
+        assertInlineInsets(editor, "physical: 1, 2, 3, 4",
+                edge("1", "2", "3", "4"));
+        assertInlineInsets(editor, "1, 2, 3, 4",
+                edge("1", "2", "3", "4"));
+
+        PropertyValue.EdgeInsetsDirectionalValue directional = directionalEdge(
+                "5", "6.5", "7", "8.25");
+        assertInlineInsets(editor, "Directional: 5, 6.5, 7, 8.25", directional);
+        assertEquals("directional: 5, 6.5, 7, 8.25", editor.getAsText());
+        editor.setAsText(editor.getAsText());
+        assertEquals(directional, cell(editor).explicitValue().orElseThrow(),
+                "the canonical inline representation must preserve directional semantics");
+
         assertThrows(IllegalArgumentException.class,
                 () -> editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT));
+    }
+
+    @Test
+    void edgeInsetsInlineEditorRejectsMalformedAndNegativeValuesWithoutLosingDraft()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Padding");
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                new WidgetNode(
+                        StableId.parse("3aaf0334-64a8-45d9-895e-5939b6679d92"),
+                        definition.typeId(),
+                        Map.of(new PropertyName("padding"), edge("1", "2", "3", "4")),
+                        Map.of(),
+                        Extensions.empty()),
+                definition,
+                ignored -> { });
+        PropertyEditor editor = property(node, "padding").getPropertyEditor();
+        FlutterPropertyCellValue before = cell(editor);
+
+        for (String invalid : List.of(
+                "",
+                "all: 1, 2",
+                "symmetric: 1",
+                "physical: 1, 2, 3",
+                "directional: 1, 2, 3",
+                "all: nope",
+                "banana: 1, 2, 3, 4",
+                "all: -1",
+                "symmetric: -1, 2",
+                "physical: 1, -2, 3, 4",
+                "directional: 1, 2, -3, 4")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> editor.setAsText(invalid), invalid);
+            assertEquals(before, cell(editor),
+                    "a rejected inline Padding value must not replace the last valid value: "
+                    + invalid);
+        }
     }
 
     @Test
@@ -672,6 +837,28 @@ class FlutterWidgetPropertiesNodeTest {
         return java.util.Arrays.stream(properties).map(Node.Property::getName).toList();
     }
 
+    private static Node.PropertySet propertySet(
+            FlutterWidgetPropertiesNode node,
+            String name) {
+        return Arrays.stream(node.getPropertySets())
+                .filter(candidate -> name.equals(candidate.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Missing property set " + name));
+    }
+
+    private static DesignerDocument document(WidgetNode root) {
+        ManagedRegion checksum = new ManagedRegion("0".repeat(64));
+        return new DesignerDocument(
+                StableId.parse("879efc18-f7d1-457c-90cc-779c5982d85f"),
+                new DartSourceDescriptor(
+                        "screen.dart",
+                        "Screen",
+                        WidgetClassKind.STATELESS,
+                        java.util.Optional.empty(),
+                        new ManagedRegions(checksum, checksum)),
+                root);
+    }
+
     private static WidgetNode textWidget(StableId id, String data) {
         return new WidgetNode(
                 id,
@@ -680,6 +867,32 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.StringValue(data)),
                 Map.of(),
                 Extensions.empty());
+    }
+
+    private static void assertInlineInsets(
+            PropertyEditor editor,
+            String source,
+            PropertyValue expected) {
+        editor.setAsText(source);
+        assertEquals(expected, cell(editor).explicitValue().orElseThrow(), source);
+        String canonical = editor.getAsText();
+        editor.setAsText(canonical);
+        assertEquals(expected, cell(editor).explicitValue().orElseThrow(),
+                "inline Padding must round-trip through: " + canonical);
+    }
+
+    private static PropertyValue.EdgeInsetsValue edge(
+            String left, String top, String right, String bottom) {
+        return new PropertyValue.EdgeInsetsValue(
+                new BigDecimal(left), new BigDecimal(top),
+                new BigDecimal(right), new BigDecimal(bottom));
+    }
+
+    private static PropertyValue.EdgeInsetsDirectionalValue directionalEdge(
+            String start, String top, String end, String bottom) {
+        return new PropertyValue.EdgeInsetsDirectionalValue(
+                new BigDecimal(start), new BigDecimal(top),
+                new BigDecimal(end), new BigDecimal(bottom));
     }
 
     private static Node.Property<?> property(

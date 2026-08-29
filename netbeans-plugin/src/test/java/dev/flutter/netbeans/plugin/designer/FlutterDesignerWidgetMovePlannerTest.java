@@ -1,0 +1,842 @@
+package dev.flutter.netbeans.plugin.designer;
+
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DartParameter;
+import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
+import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.MoveWidget;
+import dev.flutter.netbeans.designer.command.WidgetPlacement;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.SlotCardinality;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.designer.validation.ValidationLimits;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+
+class FlutterDesignerWidgetMovePlannerTest {
+    private static final WidgetCatalog BUILT_INS = BuiltInWidgetCatalog.getDefault();
+    private static final WidgetTypeId SCAFFOLD = type("flutter.material.Scaffold");
+    private static final WidgetTypeId APP_BAR = type("flutter.material.AppBar");
+    private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
+    private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
+    private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
+    private static final SlotName CHILDREN = slot("children");
+    private static final SlotName CHILD = slot("child");
+    private static final SlotName BODY = slot("body");
+    private static final SlotName LEADING = slot("leading");
+    private static final SlotName ACTIONS = slot("actions");
+    private static final SlotName FIRST = slot("first");
+    private static final SlotName SECOND = slot("second");
+    private static final SlotName SOURCE = slot("source");
+    private static final SlotName DESTINATION = slot("destination");
+    private static final PropertyName DATA = new PropertyName("data");
+    private static final StableId DOCUMENT_ID = id(
+            "14f6c16f-893b-44d0-b809-edbd51bbcdaa");
+    private static final StableId ROOT_ID = id(
+            "0209809f-351a-4ce7-8c07-1ec625b1e109");
+    private static final StableId A_ID = id(
+            "710c4ad9-c3cf-434e-af1e-5217ac38aa92");
+    private static final StableId B_ID = id(
+            "805b5a85-397c-4d5f-ae6f-2171456d7a5a");
+    private static final StableId C_ID = id(
+            "10731acc-85f1-4d4a-b1c5-211c29e6066b");
+    private static final StableId D_ID = id(
+            "50ac7543-24e5-414c-aa6b-41e962a6bd0d");
+
+    private final FlutterDesignerWidgetMovePlanner planner =
+            new FlutterDesignerWidgetMovePlanner();
+
+    @Test
+    void onListPlansTerminalPostRemovalIndexWithoutMutatingSubtree() {
+        WidgetNode nestedText = validText(D_ID, "nested");
+        WidgetNode source = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(nestedText)));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, node(B_ID, TEXT), node(C_ID, TEXT))));
+        DesignerDocument original = document;
+
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)));
+
+        assertAll(
+                () -> assertEquals(A_ID, accepted.command().widgetId()),
+                () -> assertEquals(ROOT_ID, accepted.command().destination().parentId()),
+                () -> assertEquals(CHILDREN, accepted.command().destination().slotName()),
+                () -> assertEquals(2, accepted.command().destination().index()),
+                () -> assertEquals(original, document),
+                () -> assertEquals(nestedText,
+                        ((WidgetSlot.SingleSlot) source.slots().get(CHILD))
+                                .child().orElseThrow()));
+    }
+
+    @Test
+    void insertBeforeNormalizesSameListIndexAfterRemoval() {
+        DesignerDocument document = threeTextColumn();
+
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 2)));
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(ROOT_ID, CHILDREN, 1)),
+                accepted.command());
+    }
+
+    @Test
+    void terminalInsertMeansAfterLastAndUsesPostRemovalIndex() {
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(planner.plan(
+                threeTextColumn(),
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 3)));
+
+        assertEquals(2, accepted.command().destination().index());
+    }
+
+    @Test
+    void flattenedBoundaryBeforeNextSlotMapsToThatSemanticList() {
+        WidgetDefinition parentDefinition = replaceSlots(
+                definition(COLUMN),
+                listDefinition(FIRST, 7, 0, 10),
+                listDefinition(SECOND, 8, 0, 10));
+        WidgetCatalog catalog = catalog(parentDefinition, definition(TEXT));
+        DesignerDocument document = document(parent(
+                ROOT_ID,
+                COLUMN,
+                slots(
+                        FIRST, new WidgetSlot.ListSlot(List.of(node(A_ID, TEXT))),
+                        SECOND, new WidgetSlot.ListSlot(List.of(
+                                node(B_ID, TEXT), node(C_ID, TEXT))))));
+
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(planner.plan(
+                document,
+                catalog,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)));
+
+        assertAll(
+                () -> assertEquals(SECOND, accepted.command().destination().slotName()),
+                () -> assertEquals(0, accepted.command().destination().index()));
+    }
+
+    @Test
+    void insertBesideFlattenedSingleSlotIsRejected() {
+        DesignerDocument document = document(parent(
+                ROOT_ID,
+                APP_BAR,
+                slots(
+                        LEADING, WidgetSlot.SingleSlot.of(node(A_ID, TEXT)),
+                        ACTIONS, new WidgetSlot.ListSlot(List.of(node(B_ID, TEXT))))));
+
+        assertRejected(
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        B_ID,
+                        new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 0)),
+                FlutterDesignerWidgetMovePlanner.RejectionCode.INSERT_REQUIRES_LIST_SLOT);
+    }
+
+    @Test
+    void onSingleAcceptsEmptySlotAndRejectsOccupiedSlot() {
+        WidgetNode emptyTarget = node(B_ID, CENTER);
+        DesignerDocument empty = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(node(A_ID, TEXT), emptyTarget)));
+        WidgetNode occupiedTarget = new WidgetNode(
+                B_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(node(C_ID, TEXT))));
+        DesignerDocument occupied = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(node(A_ID, TEXT), occupiedTarget)));
+
+        assertAll(
+                () -> {
+                    MoveWidget command = accepted(planner.plan(
+                            empty,
+                            BUILT_INS,
+                            A_ID,
+                            new FlutterDesignerWidgetMovePlanner.On(B_ID)))
+                            .command();
+                    assertEquals(new WidgetPlacement(B_ID, CHILD, 0),
+                            command.destination());
+                },
+                () -> assertRejected(
+                        planner.plan(
+                                occupied,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(B_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.SLOT_FULL));
+    }
+
+    @Test
+    void rejectsRootAndMoveIntoOwnDescendant() {
+        WidgetNode inner = listParent(
+                C_ID, COLUMN, CHILDREN, List.of(node(D_ID, TEXT)));
+        WidgetNode source = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(inner)));
+        DesignerDocument nested = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source)));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                nested,
+                                BUILT_INS,
+                                ROOT_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(A_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.ROOT_MOVE_FORBIDDEN),
+                () -> assertRejected(
+                        planner.plan(
+                                nested,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(C_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .DESTINATION_INSIDE_SUBTREE));
+    }
+
+    @Test
+    void rejectsSameListAndSameSingleNoOps() {
+        DesignerDocument list = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(node(A_ID, TEXT), node(B_ID, TEXT))));
+        DesignerDocument single = document(new WidgetNode(
+                ROOT_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(node(A_ID, TEXT)))));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                list,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.NO_CHANGE),
+                () -> assertRejected(
+                        planner.plan(
+                                single,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.NO_CHANGE));
+    }
+
+    @Test
+    void onContainerRejectsAmbiguousAndIncompatibleCatalogTargets() {
+        WidgetNode sourceParent = listParent(
+                B_ID, COLUMN, CHILDREN, List.of(node(A_ID, TEXT)));
+        DesignerDocument scaffold = document(new WidgetNode(
+                ROOT_ID,
+                SCAFFOLD,
+                Map.of(),
+                Map.of(BODY, WidgetSlot.SingleSlot.of(sourceParent))));
+
+        WidgetDefinition restrictiveCenter = replaceSlots(
+                definition(CENTER),
+                new SlotDefinition(
+                        CHILD,
+                        DartParameter.named(2, false),
+                        SlotCardinality.SINGLE,
+                        0,
+                        1,
+                        new SlotAcceptance.ExactTypes(List.of(COLUMN))));
+        DesignerDocument center = document(new WidgetNode(
+                ROOT_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(sourceParent))));
+        WidgetCatalog restrictive = catalog(
+                restrictiveCenter, definition(COLUMN), definition(TEXT));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                scaffold,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .AMBIGUOUS_DESTINATION),
+                () -> assertRejected(
+                        planner.plan(
+                                center,
+                                restrictive,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .NO_COMPATIBLE_DESTINATION));
+    }
+
+    @Test
+    void exactNamedSlotResolvesScaffoldAmbiguityWithoutGuessing() {
+        WidgetNode sourceParent = listParent(
+                B_ID, COLUMN, CHILDREN, List.of(node(A_ID, TEXT)));
+        DesignerDocument document = document(new WidgetNode(
+                ROOT_ID,
+                SCAFFOLD,
+                Map.of(),
+                Map.of(
+                        BODY, WidgetSlot.SingleSlot.of(sourceParent),
+                        slot("floatingActionButton"), WidgetSlot.SingleSlot.empty())));
+
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                        ROOT_ID, slot("floatingActionButton"), 0)));
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(
+                                ROOT_ID, slot("floatingActionButton"), 0)),
+                accepted.command());
+    }
+
+    @Test
+    void exactNamedListSlotUsesPostRemovalIndexAndRejectsNoOp() {
+        DesignerDocument document = threeTextColumn();
+
+        assertAll(
+                () -> assertEquals(
+                        new MoveWidget(
+                                A_ID,
+                                new WidgetPlacement(ROOT_ID, CHILDREN, 2)),
+                        accepted(planner.plan(
+                                document,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        ROOT_ID, CHILDREN, 2)))
+                                .command()),
+                () -> assertRejected(
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                B_ID,
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        ROOT_ID, CHILDREN, 1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.NO_CHANGE));
+    }
+
+    @Test
+    void exactNamedSlotReusesCatalogAcceptanceAndCardinalityChecks() {
+        WidgetNode sourceParent = listParent(
+                B_ID, COLUMN, CHILDREN, List.of(node(A_ID, TEXT)));
+        DesignerDocument document = document(new WidgetNode(
+                ROOT_ID,
+                SCAFFOLD,
+                Map.of(),
+                Map.of(
+                        slot("appBar"), WidgetSlot.SingleSlot.empty(),
+                        BODY, WidgetSlot.SingleSlot.of(sourceParent))));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        ROOT_ID, slot("appBar"), 0)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET),
+                () -> assertRejected(
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        ROOT_ID, slot("missing"), 0)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_DEFINITION_MISSING));
+    }
+
+    @Test
+    void enforcesDestinationCapacityButAllowsReorderAtCapacity() {
+        WidgetDefinition twoLists = replaceSlots(
+                definition(COLUMN),
+                listDefinition(SOURCE, 7, 0, 10),
+                listDefinition(DESTINATION, 8, 0, 2));
+        WidgetCatalog crossSlotCatalog = catalog(twoLists, definition(TEXT));
+        DesignerDocument crossSlot = document(parent(
+                ROOT_ID,
+                COLUMN,
+                slots(
+                        SOURCE, new WidgetSlot.ListSlot(List.of(node(A_ID, TEXT))),
+                        DESTINATION, new WidgetSlot.ListSlot(List.of(
+                                node(B_ID, TEXT), node(C_ID, TEXT))))));
+
+        WidgetDefinition maxThree = replaceSlots(
+                definition(COLUMN),
+                listDefinition(CHILDREN, 7, 0, 3));
+        WidgetCatalog reorderCatalog = catalog(maxThree, definition(TEXT));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                crossSlot,
+                                crossSlotCatalog,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode.SLOT_FULL),
+                () -> assertEquals(
+                        2,
+                        accepted(planner.plan(
+                                threeTextColumn(),
+                                reorderCatalog,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 3)))
+                                .command().destination().index()));
+    }
+
+    @Test
+    void rejectsMoveThatViolatesSourceSlotMinimum() {
+        WidgetDefinition definition = replaceSlots(
+                definition(COLUMN),
+                listDefinition(SOURCE, 7, 1, 10),
+                listDefinition(DESTINATION, 8, 0, 10));
+        WidgetCatalog catalog = catalog(definition, definition(TEXT));
+        DesignerDocument document = document(parent(
+                ROOT_ID,
+                COLUMN,
+                slots(
+                        SOURCE, new WidgetSlot.ListSlot(List.of(node(A_ID, TEXT))),
+                        DESTINATION, new WidgetSlot.ListSlot(List.of(node(B_ID, TEXT))))));
+
+        assertRejected(
+                planner.plan(
+                        document,
+                        catalog,
+                        A_ID,
+                        new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)),
+                FlutterDesignerWidgetMovePlanner.RejectionCode.SOURCE_SLOT_REQUIRED);
+    }
+
+    @Test
+    void insertRevalidatesSlotAcceptanceAndModelCardinality() {
+        WidgetDefinition rejectsText = replaceSlots(
+                definition(COLUMN),
+                listDefinition(SOURCE, 7, 0, 10),
+                new SlotDefinition(
+                        DESTINATION,
+                        DartParameter.named(8, false),
+                        SlotCardinality.LIST,
+                        0,
+                        10,
+                        new SlotAcceptance.ExactTypes(List.of(CENTER))));
+        WidgetCatalog rejectingCatalog = catalog(
+                rejectsText, definition(TEXT), definition(CENTER));
+        DesignerDocument rejectedType = document(parent(
+                ROOT_ID,
+                COLUMN,
+                slots(
+                        SOURCE, new WidgetSlot.ListSlot(List.of(node(A_ID, TEXT))),
+                        DESTINATION, new WidgetSlot.ListSlot(List.of(node(B_ID, TEXT))))));
+
+        WidgetDefinition expectsLists = replaceSlots(
+                definition(COLUMN),
+                listDefinition(SOURCE, 7, 0, 10),
+                listDefinition(DESTINATION, 8, 0, 10));
+        WidgetCatalog listCatalog = catalog(expectsLists, definition(TEXT));
+        DesignerDocument wrongCardinality = document(parent(
+                ROOT_ID,
+                COLUMN,
+                slots(
+                        SOURCE, new WidgetSlot.ListSlot(List.of(node(A_ID, TEXT))),
+                        DESTINATION, WidgetSlot.SingleSlot.of(node(B_ID, TEXT)))));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                rejectedType,
+                                rejectingCatalog,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET),
+                () -> assertRejected(
+                        planner.plan(
+                                wrongCardinality,
+                                listCatalog,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_CARDINALITY_MISMATCH));
+    }
+
+    @Test
+    void rejectsInvalidOrUnanchoredFlattenedInsertIndex() {
+        DesignerDocument populated = threeTextColumn();
+        DesignerDocument emptyTarget = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(
+                        node(A_ID, TEXT),
+                        listParent(D_ID, COLUMN, CHILDREN, List.of()))));
+
+        assertAll(
+                () -> assertRejected(
+                        planner.plan(
+                                populated,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, -1)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .INSERT_INDEX_OUT_OF_BOUNDS),
+                () -> assertRejected(
+                        planner.plan(
+                                populated,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 4)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .INSERT_INDEX_OUT_OF_BOUNDS),
+                () -> assertRejected(
+                        planner.plan(
+                                emptyTarget,
+                                BUILT_INS,
+                                A_ID,
+                                new FlutterDesignerWidgetMovePlanner.Insert(
+                                        D_ID, 0)),
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .AMBIGUOUS_DESTINATION));
+    }
+
+    @Test
+    void everyRepresentativeAcceptedPlacementAppliesAndPreservesExactSubtree() {
+        WidgetNode nestedText = validText(D_ID, "nested");
+        WidgetNode nestedSource = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(nestedText)));
+        DesignerDocument sameList = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(
+                        nestedSource,
+                        validText(B_ID, "second"),
+                        validText(C_ID, "third"))));
+        assertAcceptedCommandApplies(
+                sameList,
+                BUILT_INS,
+                nestedSource,
+                planner.plan(
+                        sameList,
+                        BUILT_INS,
+                        A_ID,
+                        new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 3)));
+
+        WidgetNode singleSource = validText(D_ID, "single");
+        WidgetNode populatedCenter = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(singleSource)));
+        WidgetNode emptyCenter = new WidgetNode(
+                B_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
+        DesignerDocument crossParent = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(populatedCenter, emptyCenter)));
+        assertAcceptedCommandApplies(
+                crossParent,
+                BUILT_INS,
+                singleSource,
+                planner.plan(
+                        crossParent,
+                        BUILT_INS,
+                        D_ID,
+                        new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+
+        WidgetDefinition maxThree = replaceSlots(
+                definition(COLUMN),
+                listDefinition(CHILDREN, 7, 0, 3));
+        WidgetCatalog capacityCatalog = catalog(maxThree, definition(TEXT));
+        DesignerDocument atCapacity = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(
+                        validText(A_ID, "same"),
+                        validText(B_ID, "same"),
+                        validText(C_ID, "same"))));
+        assertAcceptedCommandApplies(
+                atCapacity,
+                capacityCatalog,
+                validText(A_ID, "same"),
+                planner.plan(
+                        atCapacity,
+                        capacityCatalog,
+                        A_ID,
+                        new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 3)));
+    }
+
+    private static void assertAcceptedCommandApplies(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            WidgetNode expectedSubtree,
+            FlutterDesignerWidgetMovePlanner.Result result) {
+        MoveWidget command = accepted(result).command();
+        Object applied = applyWithCanonicalTransformer(document, catalog, command);
+        assertEquals(
+                "APPLIED",
+                invoke(applied, "status").toString(),
+                () -> "Every planner-accepted placement must pass the canonical "
+                + "transformer: " + invoke(applied, "diagnostic"));
+        @SuppressWarnings("unchecked")
+        Optional<DesignerDocument> transformed =
+                (Optional<DesignerDocument>) invoke(applied, "document");
+        assertEquals(
+                expectedSubtree,
+                find(transformed.orElseThrow().root(), command.widgetId()),
+                "MoveWidget must preserve the complete source subtree and stable IDs");
+    }
+
+    private static Object applyWithCanonicalTransformer(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            DesignerCommand command) {
+        try {
+            Class<?> type = Class.forName(
+                    "dev.flutter.netbeans.designer.command.DesignerCommandTransformer");
+            var constructor = type.getDeclaredConstructor(
+                    WidgetCatalog.class, ValidationLimits.class);
+            constructor.setAccessible(true);
+            Object transformer = constructor.newInstance(
+                    catalog, ValidationLimits.defaults());
+            var apply = type.getDeclaredMethod(
+                    "apply", DesignerDocument.class, DesignerCommand.class);
+            apply.setAccessible(true);
+            return apply.invoke(transformer, document, command);
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(
+                    "Could not invoke the canonical command transformer", failure);
+        }
+    }
+
+    private static Object invoke(Object target, String methodName) {
+        try {
+            var method = target.getClass().getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(
+                    "Could not read canonical transformer result " + methodName,
+                    failure);
+        }
+    }
+
+    private static WidgetNode find(WidgetNode node, StableId id) {
+        WidgetNode found = findOrNull(node, id);
+        if (found != null) {
+            return found;
+        }
+        throw new AssertionError("Widget not found after accepted move: " + id);
+    }
+
+    private static WidgetNode findOrNull(WidgetNode node, StableId id) {
+        if (node.id().equals(id)) {
+            return node;
+        }
+        for (WidgetSlot slot : node.slots().values()) {
+            if (slot instanceof WidgetSlot.SingleSlot single) {
+                if (single.child().isPresent()) {
+                    WidgetNode found = findOrNull(single.child().orElseThrow(), id);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            } else {
+                for (WidgetNode child : ((WidgetSlot.ListSlot) slot).children()) {
+                    WidgetNode found = findOrNull(child, id);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static FlutterDesignerWidgetMovePlanner.Accepted accepted(
+            FlutterDesignerWidgetMovePlanner.Result result) {
+        return assertInstanceOf(
+                FlutterDesignerWidgetMovePlanner.Accepted.class, result);
+    }
+
+    private static void assertRejected(
+            FlutterDesignerWidgetMovePlanner.Result result,
+            FlutterDesignerWidgetMovePlanner.RejectionCode expected) {
+        FlutterDesignerWidgetMovePlanner.Rejected rejected = assertInstanceOf(
+                FlutterDesignerWidgetMovePlanner.Rejected.class, result);
+        assertEquals(expected, rejected.code(), rejected.reason());
+    }
+
+    private static DesignerDocument threeTextColumn() {
+        return document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(node(A_ID, TEXT), node(B_ID, TEXT), node(C_ID, TEXT))));
+    }
+
+    private static DesignerDocument document(WidgetNode root) {
+        ManagedRegion emptyHash = new ManagedRegion("0".repeat(64));
+        DartSourceDescriptor source = new DartSourceDescriptor(
+                "home_page.dart",
+                "HomePage",
+                WidgetClassKind.STATELESS,
+                Optional.empty(),
+                new ManagedRegions(emptyHash, emptyHash));
+        return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static WidgetNode node(StableId id, WidgetTypeId type) {
+        return WidgetNode.empty(id, type);
+    }
+
+    private static WidgetNode validText(StableId id, String data) {
+        return new WidgetNode(
+                id,
+                TEXT,
+                Map.of(DATA, new PropertyValue.StringValue(data)),
+                Map.of());
+    }
+
+    private static WidgetNode listParent(
+            StableId id,
+            WidgetTypeId type,
+            SlotName slot,
+            List<WidgetNode> children) {
+        return parent(
+                id,
+                type,
+                Map.of(slot, new WidgetSlot.ListSlot(children)));
+    }
+
+    private static WidgetNode parent(
+            StableId id,
+            WidgetTypeId type,
+            Map<SlotName, WidgetSlot> slots) {
+        return new WidgetNode(id, type, Map.of(), slots);
+    }
+
+    private static Map<SlotName, WidgetSlot> slots(
+            SlotName firstName,
+            WidgetSlot firstSlot,
+            SlotName secondName,
+            WidgetSlot secondSlot) {
+        LinkedHashMap<SlotName, WidgetSlot> result = new LinkedHashMap<>();
+        result.put(firstName, firstSlot);
+        result.put(secondName, secondSlot);
+        return result;
+    }
+
+    private static SlotDefinition listDefinition(
+            SlotName name,
+            int order,
+            int minimum,
+            int maximum) {
+        return new SlotDefinition(
+                name,
+                DartParameter.named(order, false),
+                SlotCardinality.LIST,
+                minimum,
+                maximum,
+                new SlotAcceptance.AnyWidget());
+    }
+
+    private static WidgetDefinition replaceSlots(
+            WidgetDefinition definition,
+            SlotDefinition... slots) {
+        return new WidgetDefinition(
+                definition.typeId(),
+                definition.dartClassName(),
+                definition.namedConstructor(),
+                definition.constConstructor(),
+                definition.dartLibraryUri(),
+                definition.importUris(),
+                definition.traits(),
+                definition.palette(),
+                definition.properties(),
+                List.of(slots));
+    }
+
+    private static WidgetDefinition definition(WidgetTypeId type) {
+        return BUILT_INS.find(type).orElseThrow();
+    }
+
+    private static WidgetCatalog catalog(WidgetDefinition... definitions) {
+        return WidgetCatalog.strict(new ArrayList<>(List.of(definitions)));
+    }
+
+    private static WidgetTypeId type(String value) {
+        return new WidgetTypeId(value);
+    }
+
+    private static SlotName slot(String value) {
+        return new SlotName(value);
+    }
+
+    private static StableId id(String value) {
+        return StableId.parse(value);
+    }
+}

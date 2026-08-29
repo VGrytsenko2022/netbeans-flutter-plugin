@@ -21,11 +21,27 @@ The current usable workflow is:
 11. On Windows, open a valid paired `.dart`/`.fd` Designer document in a
     read-only native Flutter Canvas, switch among exact Android/iOS/desktop
     adaptive preview targets allowed by the project, and synchronize stable
-    widget selection between the Canvas and the read-only widget tree. A project
+    widget selection between the Canvas and the widget tree. The tree
+    remains fully expanded, hides its redundant expansion controls and uses
+    scoped one-pixel golden parent-child connectors, without changing the look
+    of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
     accepts the six reviewed CORE_V1 Palette widgets through the catalog
     compatibility matrix, with paired generation, analysis, Save and Undo/Redo.
+    The same Palette token may be dropped on an exact widget-tree row when that
+    parent has one unambiguous compatible slot; ambiguous multi-slot parents
+    such as `Scaffold` fail closed instead of guessing a destination.
+    Existing non-root widgets may also be dragged within the same tree: drop on
+    a uniquely compatible container or on a before/after insertion line. The
+    exact immutable subtree and every stable ID are preserved, and the drop is
+    replanned against the latest revision before one `MoveWidget` is admitted.
+    While the tree drag is active, an available Canvas paints the exact future
+    destination with a thin amber marker; the tree operation does not depend on
+    Canvas readiness.
+    Each Design tab defaults to `Fit`, also offers 25–200% manual zoom, and
+    exposes native Canvas scrollbars whenever the fixed logical profile no
+    longer fits. Zoom and scroll are view-only and are never written to `.fd`.
 
 With the core IDE workflow stable, version 0.1.3 is now building the
 Matisse-like Flutter Designer in staged, non-authorizing slices.
@@ -39,7 +55,8 @@ Matisse-like Flutter Designer in staged, non-authorizing slices.
 - `flutter-run` — target discovery, Android SDK/AVD lifecycle services, configured emulator launch, managed machine-mode run sessions, DevTools process integration, immutable Build/Clean and tooling commands, and Analyze/Test protocol parsers.
 - `flutter-canvas-runner` — versioned Flutter/Windows sources for the isolated
   native Canvas child process, its bounded read-only model protocol and stable-ID
-  selection bridge, packaged with the plugin.
+  selection bridge, optional exact widget-move destination projection, packaged
+  with the plugin.
 - `netbeans-plugin` — NetBeans UI integration and actions.
 - `netbeans-runtime-it` — assembled NetBeans 30 gates for the packaged module, persisted SDK settings, Flutter project lifecycle, Dart MIME/editor registrations, Flutter actions, and optional real-SDK editor behavior.
 - `flutter-designer` — NetBeans-independent `.fd` schema, model, validation,
@@ -78,7 +95,7 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 - Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
   a complete Designer pair. The target is restricted to `lib` or one of its
   subfolders. A Dart target such as `lib/account/profile.dart` is paired with
-  the JSON model `.fd_templates/account/profile.fd`; the current schema-v2
+  the JSON model `.fd_templates/account/profile.fd`; the current schema-v3
   `source.dartFile` value remains the Dart basename `profile.dart`.
 - Dart sources and Flutter Designer `.fd` models use distinct theme-aware file
   icons in Projects, Files, and the corresponding New File wizard entries.
@@ -221,7 +238,7 @@ targets and carries each target into Flutter's adaptive theme semantics on the
 bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
-IDs synchronize selection between the Canvas, the read-only Explorer widget
+IDs synchronize selection between the Canvas, the revision-bound Explorer widget
 tree and standard Properties. The five non-`Scaffold` widgets expose 76 typed
 read/write properties. `Text` contributes 59 independently editable leaves in
 seven sections; every optional leaf supports Restore Default, and generated
@@ -237,8 +254,47 @@ remain outside this slice. The active Design lookup supplies the standard NetBea
 with those exact six items. The catalog compatibility matrix admits every one
 of those six sources into empty `Scaffold.body`,
 `Scaffold.floatingActionButton`, `Center.child` and `Padding.child` slots, or
-at the terminal index of `Row.children` and `Column.children`. The standard
+at the terminal index of `Row.children` and `Column.children`. An empty
+`Row`/`Column` exposes its complete bounded design-time area as insertion index
+`0`; once populated, only its terminal append zone is admitted. The standard
+widget tree accepts the same Palette prototypes on an exact row: `Row` and
+`Column` append to `children`, while an empty `Center` or `Padding` receives its
+`child`. Parents with several compatible catalog slots remain rejected as
+ambiguous by flattened-tree drop; select the parent and use its `Slots`
+Properties tab to choose the exact named destination.
+An existing non-root widget can be moved within the same widget tree by dropping
+on a uniquely compatible container (`ON`) or at a visible before/after boundary
+(`INSERT`) of a list slot. The planner applies the catalog acceptance and
+cardinality matrix after source removal, rejects root moves, cycles, required-
+source violations, full or incompatible slots, invalid indices and exact
+no-ops, and preserves the complete subtree and all stable IDs. Commit re-reads
+the latest immutable document and rejects a target whose exact command changed
+after hover. Selection returns to the moved stable ID. When generation proves
+that Dart bytes are unchanged, the same command uses the exact `FD_ONLY` path:
+only canonical `.fd` is committed while live/disk Dart and Source Undo remain
+byte-for-byte unchanged. A negotiated `widget.movePreview.v1` runner paints the
+future destination in amber, but missing Canvas capability never disables the
+Swing-tree move. Every slot-capable widget exposes compact native `General` and
+`Slots` tabs in the standard Properties window; leaf widgets remain untabbed.
+Every catalog-declared slot, including an empty optional slot, is projected in
+`Slots`. Its transactional custom editor can add a reviewed Palette widget, move/reorder an existing
+widget into the exact named slot, or remove one direct child (`Clear` for an
+occupied single slot). It re-plans against the bound immutable revision and
+commits one command through the existing Save/Undo pipeline only after OK;
+Cancel is a no-op. An occupied single slot is never replaced implicitly. List
+insertion is append-only in this first safe slice, while existing list children
+can be moved to any catalog-valid post-removal position; list clear-all is
+deliberately not exposed as a sequence of partial deletes.
+The standard
 pair-aware Copy/Paste, Cut/Move, Rename and Delete
 described above are also enabled; Linux/macOS native hosts and the broader
 writable UI remain future work. Embedded DevTools and its Flutter Inspector are
 a separate future milestone.
+
+Canvas presentation is independent from responsive layout: Android Phone
+remains 390×844 logical pixels, Web remains 1440×900, and so on, regardless of
+the current IDE pane size. `Fit` changes only the paint transform; `100%` shows
+the profile at its logical size. Manual zoom can overflow the embedded surface,
+in which case Flutter-owned horizontal/vertical scrolling, mouse-wheel
+scrolling, Shift+wheel horizontal scrolling and Ctrl+wheel zoom remain aligned
+with Flutter hit testing and Palette drop coordinates.

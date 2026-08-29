@@ -117,7 +117,7 @@ optional `canvas.themeMode` is only a local preview override (`system`, `light`
 or `dark`); when absent, Canvas follows the project default. The Canvas reads
 the validated project descriptor and the verified generated-artifact hash,
 then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme
-override tables and revision digest through model protocol v4 to the isolated
+override tables and revision digest through model protocol v5 to the isolated
 Flutter runner. It never executes project Dart. The runner applies the same
 construction order as generated Dart before form-local Text overrides. Projects
 without a descriptor keep the legacy Material preview; a present but invalid
@@ -367,16 +367,17 @@ may still format the complete Dart document.
 ## `.fd` document contract
 
 `.fd` is UTF-8 JSON and current documents conform to
-[`flutter-designer/fd-v2.schema.json`](flutter-designer/fd-v2.schema.json).
+[`flutter-designer/fd-v3.schema.json`](flutter-designer/fd-v3.schema.json).
 The stable format name is `netbeans-flutter-designer`, and the integer
-`schemaVersion` makes migrations explicit. Version 1 remains readable through
-an in-memory identity migration; opening alone does not rewrite the file, while
-the next admitted Designer edit emits canonical version 2.
+`schemaVersion` makes migrations explicit. Versions 1 and 2 remain readable
+through in-memory migrations; opening alone does not rewrite the file, while
+the next admitted Designer edit emits canonical version 3.
 
 The checked-in version-1 [`home_page.fd`](flutter-designer/examples/home_page.fd)
 and [`home_page.dart`](flutter-designer/examples/home_page.dart) pair remains the
-executable migration contract example. A canonical all-features version-2
-fixture covers theme tokens and every structured property kind. Codecs, hash
+executable migration contract example. The canonical all-features version-2
+fixture remains a migration input covering theme tokens and the structured
+property kinds introduced in v2. Codecs, hash
 checks and generators use these as golden fixtures rather than maintaining an
 undocumented example.
 
@@ -528,8 +529,8 @@ types are omitted with diagnostics. The NetBeans edge discovers contributors
 and passes them explicitly to the domain composer, avoiding a global
 class-loader policy in this module.
 
-The version 1 contributor SPI requires a reverse-DNS contributor id, catalog
-`API_VERSION == 1`, and every contributed widget type id to start with
+The current version 2 contributor SPI requires a reverse-DNS contributor id,
+catalog `API_VERSION == 2`, and every contributed widget type id to start with
 `<contributorId>.`. A malformed definition, duplicate local type, foreign or
 reserved namespace, or unsupported API version rejects that contributor as one
 atomic unit.
@@ -609,11 +610,12 @@ The NetBeans module exports only `dev.flutter.netbeans.designer.catalog` and
 depends on this plugin's NetBeans module and reuses its packaged
 `flutter-designer.jar`; bundling another copy would split SPI class identity.
 Codec, validation and NetBeans edge packages remain private. If the contributor
-API must evolve independently after version 1, it moves to a dedicated SPI NBM
-or new package boundary instead of widening or silently breaking this module's
-public surface. The export and `API_VERSION == 1` are provisionally frozen for
-0.1.3-compatible patch builds; they are not yet a permanent 1.0 compatibility
-promise. A runtime fixture NBM verifies the specification dependency, default
+API must evolve independently after version 2, it moves to a dedicated SPI NBM
+or new package boundary instead of silently breaking this module's public
+surface. `API_VERSION == 2` is an explicit incompatible boundary introduced for
+direction-aware edge-insets values; API-1 contributors are rejected rather than
+loaded with a changed sealed model contract. This is not yet a permanent 1.0
+compatibility promise. A runtime fixture NBM verifies the specification dependency, default
 Lookup discovery, composed widget, shared API class identity and absence of a
 second packaged `flutter-designer.jar`.
 
@@ -636,10 +638,12 @@ and model path without blocking Source in a modal dialog. The status surface,
 details and loading progress expose named, synchronized Swing accessibility
 descriptions for the same concrete state and cause.
 
-## Command and Undo/Redo foundation — UI not yet enabled
+## Command and Undo/Redo foundation and bounded UI routes
 
-The pure bounded command layer implements the following immutable commands;
-they are not current UI capabilities.
+The pure bounded command layer implements the following immutable commands.
+Public UI exposes only the separately authorized typed Properties, Palette
+insertion, selected-widget Delete and same-tree existing-widget Move routes;
+the remaining commands are still non-authorizing foundation.
 
 UI components never mutate widget collections directly. Each edit is a
 validated command with an inverse:
@@ -694,7 +698,9 @@ adopt a new durable Source anchor only when its exact managed payload bytes are
 unchanged; normalized hash equality alone is not sufficient. It then rebuilds
 every retained immutable revision and edit identity against the new durable
 source while preserving stable logical revision ids and exact historical live
-templates. These paths remain disconnected from writable UI.
+templates. The authorized bounded UI routes connect to these same paths; no
+route receives parallel persistence or Undo authority, and this does not create
+a generally writable Design surface.
 
 Widget-subtree Copy/Paste will serialize a versioned widget fragment, allocate new stable ids and
 validate the destination slot before creating an undoable command. Delete
@@ -963,8 +969,9 @@ only after the document/native/coordinator barriers are released. Every queued
 callback is attempted independently, and listener failure cannot retain
 publication ownership or change an already committed semantic result.
 
-This is deliberately only a bounded writable Properties slice, not a generally
-writable Design surface. Scanner/generator
+This is deliberately a bounded writable Designer surface—typed Properties,
+reviewed Palette insertion, selected-widget Delete and same-tree widget Move—
+not a generally writable Design surface. Scanner/generator
 probes, the B→C analyze-before-apply transition, claimed staged C1→C2
 replacement with exact rollback/fresh rebind across chained commands,
 endpoint-specific command admission from retained physical history, durable
@@ -989,7 +996,7 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   `ThemeData.platform` on the bound Windows engine. Web uses an exact
   browser-sized responsive viewport on that engine as a bounded layout preview;
   it does not claim browser-runtime identity or `kIsWeb` behavior.
-  Stable widget IDs synchronize read-only selection
+  Stable widget IDs synchronize revision-bound selection
   between the Flutter surface and Explorer/Nodes tree. Every open `.fd` Design MultiView
   owns its own host, lifecycle session and runner process; only the immutable
   SDK-keyed build cache is shared. Resize/peer-loss races, late
@@ -997,7 +1004,7 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   sessions have deterministic coverage. Cache reuse additionally requires a
   bounded SHA-256 manifest for the complete launchable Windows runtime. The
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
-  drag-and-drop, `Scaffold` Properties and the broader Designer
+  cross-form and Linux/macOS native drag-and-drop, `Scaffold` Properties and the broader Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
   read/write Properties are enabled only for the 76 reviewed fields of
   `Column`, `Row`, `Padding`, `Center` and `Text`; 59 of those fields are the
@@ -1149,22 +1156,118 @@ empty list means clear. This gives Properties, generated Dart and native Canvas
 one mapping rather than a lossy presentation string.
 
 The deprecated `Text.textScaleFactor` argument and `key` are deliberately not
-shown; `textScalerFactor` generates the current `textScaler` argument. Paint
+shown; `textScalerFactor` is explicitly labeled as linear and generates the
+current `textScaler` argument. Paint
 shaders, color filters and image filters remain outside the reviewed safe
 subset and are not represented by raw Dart or opaque string escape hatches.
-Directional edge insets also remain outside schema v2. Flex baseline alignment
+Schema v3 represents Padding as either physical `EdgeInsets` or
+text-direction-aware `EdgeInsetsDirectional`; All, Symmetric and Individual are
+editor modes that canonicalize to four semantic sides. Flex baseline alignment
 additionally requires an explicit `textBaseline`, and
 `Text.semanticsIdentifier` is unique within one designer tree. `Scaffold`
 remains a separate read-only property-design task.
 
+The Explorer widget hierarchy is an outline of the complete current model, so
+its branches remain expanded after initial load, mutation, root replacement and
+look-and-feel refresh. Collapse attempts are vetoed, and the now-redundant
+expand/collapse icons are removed from this tree's own `BasicTreeUI` instance.
+Thin light/dark-aware golden parent-child connectors are painted only by this
+Designer tree; no global `UIManager` tree style is changed. The tree is also a scoped Palette
+drop target. It resolves the exact hovered row to a stable widget ID and uses
+the same catalog compatibility matrix and `AddWidget` planner as the native
+Canvas. Hover preview is non-consuming; commit re-reads the latest immutable
+document and consumes the opaque Palette token exactly once. A tree row is
+admitted only when its widget type has one catalog-compatible destination:
+`Row`/`Column.children` append at the terminal index and empty
+`Center`/`Padding.child` use index zero. Leaves, occupied single slots and
+multi-slot parents such as `Scaffold` fail closed. The selected parent's
+explicit `Slots` Properties tab, rather than heuristic tree drop, owns the
+exact multi-slot choice.
+
+The same tree is a JVM-local drag source for an existing non-root widget.
+`BeanTreeView`'s Explorer drag source is disabled for this view and its inactive
+AWT drop target is detached so Swing can install the local `TransferHandler`
+target. A scoped left-button mouse adapter waits for the platform drag threshold
+and explicitly exports through that handler. The adapter is removed and the
+exact prior handler, drop target and active state are restored with the view
+lifecycle. Its private transfer retains only the originating tree identity and source stable ID; it is
+not accepted by another form or process. Single tree selection keeps the source
+and the standard Properties Node deterministic. `DropMode.ON_OR_INSERT`
+provides two semantic targets. `ON` first finds every catalog-compatible slot,
+before considering occupancy: exactly one slot is required, a list appends after
+source removal, and an empty single slot uses index zero. `INSERT` means the
+flattened child boundary before child `i` or after the last child. The boundary
+derives the anchored child's semantic slot, accepts only a list slot and
+normalizes the destination to a post-removal index for same-list reorder.
+
+Planning rejects the root, a target inside the source subtree, missing catalog
+definitions, incompatible/full/cardinality-mismatched slots, a source slot that
+would fall below its minimum, an invalid boundary and an exact no-op. One
+accepted `MoveWidget` removes and reinserts the same immutable subtree, so every
+descendant and stable ID is preserved. Hover is non-mutating. Drop obtains the
+latest immutable document, catalog and revision token, repeats the full plan and
+requires the exact command prepared during hover before submitting it to the
+shared mutation, Undo/Redo and Save pipeline. When generation proves that Dart
+bytes are identical, the command takes the exact `FD_ONLY` boundary: canonical
+`.fd` alone is committed while disk/live Dart and Source Undo remain unchanged.
+
+The flattened tree deliberately cannot name an empty slot on a multi-slot
+parent. `ON` therefore remains ambiguous even if only one compatible slot is
+currently empty; `INSERT` needs an existing list-child anchor and rejects a
+single-slot anchor. `Scaffold` and future multi-slot widgets use the explicit
+`Slots` Properties editor rather than an occupancy heuristic.
+
+`Slots` is a conditional native Properties set built from the selected
+widget's catalog definition, not from only its populated model children. It
+therefore exposes every exact named slot in declaration order, including an
+omitted optional slot. Each row reports single/list cardinality and occupancy
+and opens a transactional custom editor. The editor may add a compatible
+reviewed Palette prototype, move/reorder one existing non-root widget into the
+named slot, or remove one exact direct child; an occupied single slot labels
+the latter action `Clear`. The draft has no authority until the dialog commits,
+so Cancel changes neither model nor files.
+
+The dialog filters choices with the shared catalog acceptance matrix and the
+same pure placement planners used by Palette/tree DnD. Its semantic intent is
+bound to the presented document, catalog and revision. On OK, MultiView checks
+that exact authority again, repeats the full plan against the current immutable
+snapshot, and submits precisely one `AddWidget`, `MoveWidget` or `RemoveWidget`
+through the existing generation, analyzer, pair Save and chronological
+Undo/Redo pipeline. Stale dialogs, cycles, root moves, incompatible or full
+slots, minimum-child violations and no-op moves fail closed with operation,
+target and reason. No `.fd` schema, Canvas wire protocol, second persistence
+path or second Undo history is introduced.
+
+For this first safe slice a new list child is appended, while an existing child
+may be moved to every planner-admitted post-removal position. An occupied
+single slot never performs an implicit replace, and list clear-all is not
+simulated as multiple partial commands. Those compound operations require a
+dedicated atomic domain command before they can be exposed.
+
 The Canvas itself is a real native `FlutterView` embedded inside that chrome.
-Flutter paints the widget tree, selection overlay, drop zones and layout guides
-directly into its native surface and performs the authoritative widget hit
-test. Swing and the NetBeans Visual Library must not imitate Flutter widgets or
+Flutter paints the widget tree, a scale-stable thin dashed outline for every
+widget, the solid blue selected-widget outline, direction-resolved orange
+`Padding` distance guides, drop zones and layout guides directly into its native
+surface and performs the authoritative widget hit test. These paint-only
+affordances do not alter Flutter layout, hit boxes or DnD geometry. Swing and the
+NetBeans Visual Library must not imitate Flutter widgets or
 maintain a competing layout model. A Swing-painted projection, transferred
 PNG/JPEG/raw-RGBA frames, screenshots or periodic image copies are not an
 acceptable Canvas implementation. A heavyweight Java host peer may reserve the
 native region, but Flutter remains its renderer.
+
+The host-window size is not the Flutter responsive viewport. Every preview
+profile retains its exact logical width, height, device-pixel ratio and
+`MediaQuery`; resizing NetBeans changes only how that fixed viewport is
+presented. Each Design MultiView owns an in-memory presentation state: `Fit`
+scales down as needed without enlarging the profile, while manual zoom accepts
+the reviewed 25–200% range. Overflow is clipped and scrolled inside the native
+Flutter surface. Flutter owns the scrollbars, wheel/Shift+wheel scrolling,
+Ctrl+wheel zoom, transformed hit testing and semantic drop coordinates; placing
+a Swing `JScrollPane` around the heavyweight child HWND would create a competing
+geometry authority. Presentation values use normalized integer micros, are
+fenced to one exact model revision, and never enter `.fd`, generated Dart,
+Undo/Redo or project preferences.
 
 Native hosting is abstracted by a planned platform SPI. Its contract covers
 creation/attachment, detachment, bounds and device-pixel-ratio changes,
@@ -1220,9 +1323,16 @@ or partial traffic, and model frames require the exact expected
 kind/length/SHA-256 descriptor before allocation.
 
 After the handshake, a strict runtime control codec carries `host.render`,
-`runner.presented`, `host.selection`, `runner.selection` and the capability-
-gated `runner.paletteDrop` event for exact session, presentation, revision,
-frame and layout identities. The `palette.drop.catalogInsert.v1` capability is
+`runner.presented`, `host.selection`, `runner.selection`, the capability-gated
+`host.viewport`/`runner.viewport` pair and the capability-gated
+`runner.paletteDrop` event, plus the optional capability-gated
+`host.widgetMovePreview`/`host.widgetMovePreviewClear` pair, for exact session,
+presentation, revision, frame and layout identities. Viewport commands use a monotonically increasing
+`commandSequence`; exact acknowledgements, delayed-metric rejection and bounded
+queue retry prevent an older scale/scroll report from replacing newer toolbar
+intent. The `viewport.presentation.v1` capability changes only presentation:
+the runner continues to build with the fixed logical `MediaQuery`. The
+`palette.drop.catalogInsert.v1` capability is
 limited to the reviewed CORE_V1 DnD contract below; negotiating or decoding it does not by
 itself enable Palette mutation. `host.render` describes one canonical bounded
 `CORE_V1` model frame. The runner decodes only the six reviewed built-in widget
@@ -1230,6 +1340,18 @@ contracts and never loads project code.
 `CATALOG_JSON` remains reserved for a future versioned catalog contract. There
 is no image or pixel-transfer frame kind; the current Windows path renders the
 validated model directly in its native Flutter surface.
+
+`widget.movePreview.v1` is disposable view feedback, never move authority. Java
+sends source/parent/slot/post-removal index with the exact presented identities
+and a monotonic preview sequence. Last-write-wins bounded retry ensures a newer
+target or clear supersedes queued older feedback. Flutter excludes the source
+subtree while resolving post-removal list geometry and paints a thin amber
+before/between/after marker or compatible container zone, visually distinct
+from blue selection and Palette feedback. An explicit clear, invalid target,
+drag cancel/exit/export completion/drop, model/layout/presentation/session
+replacement, runner failure or close removes it. Missing capability or an
+unavailable Canvas disables only this projection; the Swing-tree planner and
+move remain available.
 
 Every presentation receives a fresh host-issued open-session identity and a
 monotonically increasing presentation sequence, independent of the logical
@@ -1240,16 +1362,23 @@ evidence is admitted atomically. These identities reject delayed work across
 reload, Undo/Redo, runner restart, close and reopen, including an ABA return to
 the same logical revision.
 
-Drag and drop crosses the boundary in one direction and returns an intent. The
-reviewed insertion slice is deliberately closed to the six exact CORE_V1
+Palette insertion has two UI routes that share one Java authority, catalog
+matrix, planner and mutation pipeline: the native Canvas route crosses the
+child-HWND boundary and returns an intent, while the widget-tree route targets
+one exact Explorer row. The reviewed insertion slice is deliberately closed to
+the six exact CORE_V1
 Palette definitions: `Scaffold`, `Column`, `Row`, `Padding`, `Center` and
 `Text`. The catalog compatibility matrix admits any of those six into an empty
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Padding.child` or
 `Center.child` slot, or at the terminal position of a `Row.children` or
-`Column.children` list. `Scaffold.appBar` rejects all six because none has the
+`Column.children` list. An empty Row or Column has no ordering ambiguity, so
+its complete bounded visible design-time rectangle resolves insertion index
+zero; after the first child, only the terminal append zone is exposed.
+`Scaffold.appBar` rejects all six because none has the
 required `PreferredSizeWidget` trait. The slice does not support an arbitrary
-list index, reordering, moving an existing widget, a non-CORE_V1 Palette type or
-an unreviewed constructor slot.
+list index, a non-CORE_V1 Palette type or an unreviewed constructor slot. This
+restriction describes Palette `ADD`; existing-widget tree `MOVE` is the separate
+bounded route below.
 
 1. On Windows, NetBeans starts one native OLE drag for a reviewed CORE_V1
    Palette item. Java retains its exact authoritative widget type behind a
@@ -1265,8 +1394,10 @@ an unreviewed constructor slot.
    removed. The semantic Designer operation remains `ADD`, never an
    existing-widget Move or reorder.
 3. Flutter performs the authoritative hit test against its live tree and
-   accepts only the reviewed empty-single or terminal-list drop zones from the
-   exact currently presented layout. Native hover starts fail-closed, coalesces
+   accepts only the reviewed empty-single or list-append drop zones from the
+   exact currently presented layout. An empty Row/Column uses its bounded
+   36-pixel-minimum visible Designer area; a populated list uses only its
+   terminal edge. Native hover starts fail-closed, coalesces
    bounded probes, rejects stale generation/probe replies and advertises OLE
    `MOVE` only after the exact latest Flutter approval.
 4. Fast release is admitted only when the exact latest probe was already sent
@@ -1300,6 +1431,28 @@ an unreviewed constructor slot.
    native Undo/Redo edit; failure before verified adoption changes neither
    file nor history.
 
+The widget-tree route never depends on native Canvas readiness or presented
+layout evidence. Its Swing target accepts only the bounded opaque Palette token
+on one exact visible row, performs repeatable non-consuming preview, and on
+drop re-resolves that target against the latest document. It appends to the
+sole compatible list slot or fills the sole compatible empty single slot, then
+submits the same `AddWidget` command described in step 8. If the catalog exposes
+more than one compatible slot, the parent row remains ambiguous regardless of
+current occupancy; the route never silently changes a `Scaffold.body` drop into
+`Scaffold.floatingActionButton`.
+
+Existing-widget tree DnD does not reuse the Palette token or native OLE route.
+A scoped platform-threshold mouse bridge starts a private same-tree transfer
+that identifies the current source stable ID, and the pure planner produces one
+catalog-authorized `MoveWidget` for `ON` or `INSERT`
+as specified above. Canvas receives only an optional host-driven amber
+projection of that already-planned destination; it neither admits nor reports
+the move. Commit re-plans against the latest snapshot and exact revision token,
+then uses the same chronological Undo/Redo and pair-save authority as every
+other admitted Designer command. PAIRED moves regenerate/analyze/replace the
+managed Dart regions; byte-identical generated Dart instead uses the exact
+one-file `FD_ONLY` commit.
+
 Token consumption is fail-closed: a rejected or failed drop attempt cannot
 reuse the token. Canceled, failed and non-`MOVE` drag completion revokes it
 immediately. Successful OLE `MOVE` retains it only for a bounded three-second
@@ -1310,8 +1463,9 @@ outstanding drag authority. The historical first public contract admitted only
 `Center.child[0]`. It is superseded by the current six-`CORE_V1` compatibility
 matrix described above, whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
-→ Save cycle. DnD outside the reviewed matrix remains disabled, including
-Linux, macOS and Web backends.
+→ Save cycle. Palette insertion outside the reviewed matrix and existing-widget
+movement outside the same-tree `ON_OR_INSERT` contract remain disabled,
+including native Linux, macOS and Web DnD backends.
 
 Selection and future property intents follow the same host-authoritative rule.
 Render-profile limits reject a requested native surface above 4096 physical
@@ -1378,11 +1532,21 @@ Implementation proceeds through explicit gates:
    slice admitted only `Text` at terminal `Row|Column.children` or empty
    `Center.child[0]`; the current contract is the six-source empty-single/
    terminal-list matrix. Its live assembled drop → Save → Undo → Redo → Save
-   acceptance passed. Keep every non-insertion DnD operation disabled; this
-   completion does not claim the separate saved-history Undo → Save cycle.
-7. Prove runner crash/restart/close, native-handle cleanup, pair Save and
+   acceptance passed. This completion does not claim the separate saved-history
+   Undo → Save cycle.
+7. [Complete for same-tree existing widgets] Implement JVM-local widget-tree
+   `MOVE`, catalog-authorized `ON_OR_INSERT` planning, exact latest-revision
+   re-plan, stable-subtree preservation, one shared Save/Undo command and the
+   optional amber `widget.movePreview.v1` Canvas projection. Ambiguous
+   flattened-tree drops continue to fail closed.
+8. [First explicit named-slot slice complete] Project every catalog slot into
+   Properties and support transactional exact-slot Add, Move/reorder and
+   Remove/Clear through one revision-bound command and the shared Save/Undo
+   pipeline. Compound replacement and list clear-all remain pending an atomic
+   domain command.
+9. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
-8. Enable the broader public writable ten-widget slice only after all gates
+10. Enable the broader public writable ten-widget slice only after all gates
    pass.
 
 ## Remaining decisions for broader writable UI

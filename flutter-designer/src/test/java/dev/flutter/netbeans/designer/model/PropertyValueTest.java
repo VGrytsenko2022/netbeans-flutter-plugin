@@ -56,6 +56,15 @@ class PropertyValueTest {
         PropertyValue.EdgeInsetsValue second = new PropertyValue.EdgeInsetsValue(
                 BigDecimal.ONE, BigDecimal.TWO, BigDecimal.ZERO, BigDecimal.ONE.negate());
         assertEquals(first, second);
+
+        PropertyValue.EdgeInsetsDirectionalValue directional =
+                new PropertyValue.EdgeInsetsDirectionalValue(
+                        new BigDecimal("1.0"), new BigDecimal("2.00"),
+                        new BigDecimal("3.000"), new BigDecimal("4.0"));
+        assertEquals(new PropertyValue.EdgeInsetsDirectionalValue(
+                BigDecimal.ONE, BigDecimal.TWO, BigDecimal.valueOf(3),
+                BigDecimal.valueOf(4)), directional);
+        assertEquals(PropertyValueKind.EDGE_INSETS, directional.kind());
     }
 
     @Test
@@ -107,6 +116,9 @@ class PropertyValueTest {
         assertThrows(NullPointerException.class, () -> new PropertyValue.DoubleValue(null));
         assertThrows(NullPointerException.class,
                 () -> new PropertyValue.EdgeInsetsValue(null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+        assertThrows(NullPointerException.class,
+                () -> new PropertyValue.EdgeInsetsDirectionalValue(
+                        null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
     }
 
     @Test

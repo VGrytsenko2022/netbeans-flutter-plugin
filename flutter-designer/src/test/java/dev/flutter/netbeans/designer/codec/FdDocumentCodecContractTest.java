@@ -52,7 +52,7 @@ class FdDocumentCodecContractTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV2() throws Exception {
+    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV3() throws Exception {
         byte[] documented = Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT));
 
         FdDecodeResult.Current first = current(codec.decode(documented));
@@ -60,7 +60,7 @@ class FdDocumentCodecContractTest {
                 () -> assertEquals(1, first.sourceSchemaVersion()),
                 () -> assertTrue(first.migrated()),
                 () -> assertTrue(first.original().contentEquals(documented)),
-                () -> assertEquals("../fd-v2.schema.json",
+                () -> assertEquals("../fd-v3.schema.json",
                         first.document().schemaReference().orElseThrow()),
                 () -> assertEquals("home_page.dart", first.document().source().dartFile()),
                 () -> assertEquals("HomePage", first.document().source().className()),
@@ -68,13 +68,13 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(first.document());
         String encodedJson = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(encodedJson.contains("\"schemaVersion\": 2"));
-        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v2.schema.json\""));
+        assertTrue(encodedJson.contains("\"schemaVersion\": 3"));
+        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v3.schema.json\""));
         assertFalse(Arrays.equals(documented, encoded.copyBytes()));
 
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertFalse(roundTrip.migrated());
-        assertEquals(2, roundTrip.sourceSchemaVersion());
+        assertEquals(3, roundTrip.sourceSchemaVersion());
         assertEquals(first.document(), roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes(),
                 "decode/encode must reach a stable fixed point");
@@ -84,11 +84,11 @@ class FdDocumentCodecContractTest {
 
     @Test
     void dispatchesACompleteFutureDocumentWithoutInterpretingItsBody() throws Exception {
-        byte[] versionThree = replaceAscii(
+        byte[] versionFour = replaceAscii(
                 Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT)),
                 "\"schemaVersion\": 1",
-                "\"schemaVersion\": 3");
-        String futureJson = new String(versionThree, StandardCharsets.UTF_8);
+                "\"schemaVersion\": 4");
+        String futureJson = new String(versionFour, StandardCharsets.UTF_8);
         int closingBrace = futureJson.lastIndexOf('}');
         byte[] future = utf8(futureJson.substring(0, closingBrace)
                 + ",\n  \"futureOnly\": {\"newShape\": true}\n"
@@ -98,7 +98,7 @@ class FdDocumentCodecContractTest {
                 FdDecodeResult.UnsupportedNewer.class,
                 codec.decode(future));
         assertAll(
-                () -> assertEquals(BigInteger.valueOf(3), result.declaredSchemaVersion()),
+                () -> assertEquals(BigInteger.valueOf(4), result.declaredSchemaVersion()),
                 () -> assertArrayEquals(future, result.original().copyBytes()));
 
         future[0] ^= 1;
@@ -166,19 +166,26 @@ class FdDocumentCodecContractTest {
             assertTrue(result.migrated(), migratedVersion);
         }
 
-        for (String currentVersion : new String[]{"2", "2.0", "2e0", "20e-1"}) {
+        for (String migratedVersion : new String[]{"2", "2.0", "2e0", "20e-1"}) {
+            FdDecodeResult.Current result = current(
+                    codec.decode(utf8(minimalDocument(migratedVersion, "{}"))));
+            assertEquals(2, result.sourceSchemaVersion(), migratedVersion);
+            assertTrue(result.migrated(), migratedVersion);
+        }
+
+        for (String currentVersion : new String[]{"3", "3.0", "3e0", "30e-1"}) {
             FdDecodeResult.Current result = current(
                     codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
-            assertEquals(2, result.sourceSchemaVersion(), currentVersion);
+            assertEquals(3, result.sourceSchemaVersion(), currentVersion);
             assertFalse(result.migrated(), currentVersion);
         }
 
-        for (String futureVersion : new String[]{"3", "3.0", "3e0", "30e-1"}) {
+        for (String futureVersion : new String[]{"4", "4.0", "4e0", "40e-1"}) {
             FdDecodeResult.UnsupportedNewer result = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(utf8(minimalDocument(futureVersion, "{}"))),
                     futureVersion);
-            assertEquals(BigInteger.valueOf(3), result.declaredSchemaVersion(), futureVersion);
+            assertEquals(BigInteger.valueOf(4), result.declaredSchemaVersion(), futureVersion);
         }
 
         FdDecodeResult.Invalid fractional = invalid(
@@ -187,20 +194,20 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void migratesOnlyKnownV1SchemaReferencesToV2() throws Exception {
+    void migratesKnownOlderSchemaReferencesToV3() throws Exception {
         String canonical = minimalDocument("1", "{}").replace(
                 "{\n  \"format\"",
                 "{\n  \"$schema\": \"urn:netbeans-flutter-designer:schema:fd:1\",\n"
                 + "  \"format\"");
         FdDecodeResult.Current migrated = current(codec.decode(utf8(canonical)));
         assertEquals(
-                "urn:netbeans-flutter-designer:schema:fd:2",
+                "urn:netbeans-flutter-designer:schema:fd:3",
                 migrated.document().schemaReference().orElseThrow());
         String encoded = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
         assertTrue(encoded.contains(
-                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:2\""));
-        assertTrue(encoded.contains("\"schemaVersion\": 2"));
+                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:3\""));
+        assertTrue(encoded.contains("\"schemaVersion\": 3"));
 
         String arbitrary = canonical.replace(
                 "urn:netbeans-flutter-designer:schema:fd:1",
@@ -398,13 +405,13 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void roundTripsEveryStructuredV2ValueByteForByteCanonically() throws Exception {
+    void migratesEveryStructuredV2ValueToCanonicalV3() throws Exception {
         byte[] source = resourceBytes(ALL_V2_FEATURES_RESOURCE);
         FdDecodeResult.Current decoded = current(codec.decode(source));
         DesignerDocument document = decoded.document();
 
         assertEquals(2, decoded.sourceSchemaVersion());
-        assertFalse(decoded.migrated());
+        assertTrue(decoded.migrated());
         assertEquals(Set.of(
                 PropertyValueKind.THEME_TOKEN,
                 PropertyValueKind.PAINT,
@@ -439,10 +446,67 @@ class FdDocumentCodecContractTest {
                 property(document, "eVariations")).items().getFirst().value());
 
         OriginalFdBytes encoded = codec.encode(document);
-        assertArrayEquals(source, encoded.copyBytes());
+        assertFalse(Arrays.equals(source, encoded.copyBytes()));
+        assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8)
+                .contains("\"schemaVersion\": 3"));
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertEquals(document, roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
+    }
+
+    @Test
+    void roundTripsDirectionalEdgeInsetsOnlyInSchemaV3() throws Exception {
+        String directional = minimalDocument("3", "{}").replace(
+                "\"properties\": {}",
+                "\"properties\": {\"padding\": {\"kind\": \"edgeInsets\", "
+                + "\"start\": 1, \"top\": 2, \"end\": 3, \"bottom\": 4}}" );
+
+        FdDecodeResult.Current decoded = current(codec.decode(utf8(directional)));
+        PropertyValue.EdgeInsetsDirectionalValue value = assertInstanceOf(
+                PropertyValue.EdgeInsetsDirectionalValue.class,
+                property(decoded.document(), "padding"));
+        assertEquals(BigDecimal.ONE, value.start());
+        assertEquals(BigDecimal.valueOf(3), value.end());
+
+        byte[] encoded = codec.encode(decoded.document()).copyBytes();
+        String canonical = new String(encoded, StandardCharsets.UTF_8);
+        assertTrue(canonical.contains("\"start\": 1"));
+        assertTrue(canonical.contains("\"end\": 3"));
+        assertFalse(canonical.contains("\"left\""));
+        assertArrayEquals(encoded, codec.encode(
+                current(codec.decode(encoded)).document()).copyBytes());
+
+        String mislabeledV2 = directional.replace(
+                "\"schemaVersion\": 3", "\"schemaVersion\": 2");
+        FdDecodeResult.Invalid invalid = invalid(codec.decode(utf8(mislabeledV2)));
+        assertTrue(hasDiagnostic(invalid, FdCodecDiagnosticCode.INVALID_VALUE));
+    }
+
+    @Test
+    void rejectsAmbiguousOrIncompleteSchemaV3EdgeInsetsShapes() throws Exception {
+        String base = minimalDocument("3", "{}");
+        String[] invalidValues = {
+            // Physical and directional coordinates may never be mixed.
+            "{\"kind\":\"edgeInsets\",\"left\":1,\"top\":2,"
+                    + "\"right\":3,\"bottom\":4,\"start\":5,\"end\":6}",
+            // Every semantic side is required.
+            "{\"kind\":\"edgeInsets\",\"start\":1,\"top\":2,\"bottom\":4}",
+            "{\"kind\":\"edgeInsets\",\"left\":1,\"top\":2,\"bottom\":4}",
+            // Unknown leaves are rejected rather than silently ignored.
+            "{\"kind\":\"edgeInsets\",\"start\":1,\"top\":2,"
+                    + "\"end\":3,\"bottom\":4,\"horizontal\":5}"
+        };
+
+        for (String invalidValue : invalidValues) {
+            String document = base.replace(
+                    "\"properties\": {}",
+                    "\"properties\": {\"padding\":" + invalidValue + "}");
+            FdDecodeResult.Invalid invalid = invalid(codec.decode(utf8(document)));
+            assertTrue(invalid.diagnostics().stream().anyMatch(diagnostic ->
+                    diagnostic.code() == FdCodecDiagnosticCode.MISSING_REQUIRED_FIELD
+                    || diagnostic.code() == FdCodecDiagnosticCode.UNKNOWN_FIELD),
+                    () -> invalid.diagnostics().toString());
+        }
     }
 
     @Test

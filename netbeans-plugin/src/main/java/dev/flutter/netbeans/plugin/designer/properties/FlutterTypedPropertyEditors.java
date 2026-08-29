@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -443,9 +444,13 @@ final class FlutterTypedPropertyEditors {
             }
             String normalized = text.strip();
             try {
-                if (normalized.indexOf('.') >= 0
+                boolean decimalSyntax = normalized.indexOf('.') >= 0
                         || normalized.indexOf('e') >= 0
-                        || normalized.indexOf('E') >= 0) {
+                        || normalized.indexOf('E') >= 0;
+                boolean preservesExistingDouble = explicitValue()
+                        .filter(PropertyValue.DoubleValue.class::isInstance)
+                        .isPresent();
+                if (decimalSyntax || preservesExistingDouble) {
                     setExplicit(new PropertyValue.DoubleValue(
                             new BigDecimal(normalized)));
                 } else {
@@ -513,13 +518,20 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
-            return explicitValue()
-                    .map(PropertyValue.EdgeInsetsValue.class::cast)
-                    .map(value -> number(value.left()) + ", "
-                            + number(value.top()) + ", "
-                            + number(value.right()) + ", "
-                            + number(value.bottom()))
-                    .orElseGet(this::unsetText);
+            return explicitValue().map(value -> switch (value) {
+                case PropertyValue.EdgeInsetsValue physical ->
+                    number(physical.left()) + ", "
+                            + number(physical.top()) + ", "
+                            + number(physical.right()) + ", "
+                            + number(physical.bottom());
+                case PropertyValue.EdgeInsetsDirectionalValue directional ->
+                    "directional: " + number(directional.start()) + ", "
+                            + number(directional.top()) + ", "
+                            + number(directional.end()) + ", "
+                            + number(directional.bottom());
+                default -> throw new IllegalStateException(
+                        "Expected an edge-insets property value.");
+            }).orElseGet(this::unsetText);
         }
 
         @Override
@@ -527,31 +539,53 @@ final class FlutterTypedPropertyEditors {
             if (parseUnset(text)) {
                 return;
             }
-            List<String> parts = Arrays.stream(text.split(",", -1))
+            String normalized = Objects.requireNonNull(text, "text").strip();
+            String lower = normalized.toLowerCase(Locale.ROOT);
+            boolean directional = lower.startsWith("directional:");
+            boolean symmetric = lower.startsWith("symmetric:");
+            boolean explicitlyPhysical = lower.startsWith("physical:");
+            boolean all = lower.startsWith("all:");
+            if (directional || symmetric || explicitlyPhysical || all) {
+                normalized = normalized.substring(normalized.indexOf(':') + 1).strip();
+            }
+            List<String> parts = Arrays.stream(normalized.split(",", -1))
                     .map(String::strip)
                     .toList();
-            if (parts.size() != 1 && parts.size() != 4) {
+            int expected = symmetric ? 2 : (all ? 1 : 4);
+            if (!directional && !symmetric && !explicitlyPhysical && !all
+                    && parts.size() == 1) {
+                all = true;
+                expected = 1;
+            }
+            if (parts.size() != expected) {
                 throw new IllegalArgumentException(
-                        "Expected one value or left, top, right, bottom.");
+                        "Expected all: value; symmetric: horizontal, vertical; "
+                        + "physical: left, top, right, bottom; or directional: "
+                        + "start, top, end, bottom.");
             }
             try {
-                BigDecimal left;
-                BigDecimal top;
-                BigDecimal right;
-                BigDecimal bottom;
-                if (parts.size() == 1) {
-                    left = new BigDecimal(parts.getFirst());
-                    top = left;
-                    right = left;
-                    bottom = left;
-                } else {
-                    left = new BigDecimal(parts.get(0));
-                    top = new BigDecimal(parts.get(1));
-                    right = new BigDecimal(parts.get(2));
-                    bottom = new BigDecimal(parts.get(3));
+                if (all) {
+                    BigDecimal value = new BigDecimal(parts.getFirst());
+                    setExplicit(new PropertyValue.EdgeInsetsValue(
+                            value, value, value, value));
+                    return;
                 }
-                setExplicit(new PropertyValue.EdgeInsetsValue(
-                        left, top, right, bottom));
+                if (symmetric) {
+                    BigDecimal horizontal = new BigDecimal(parts.get(0));
+                    BigDecimal vertical = new BigDecimal(parts.get(1));
+                    setExplicit(new PropertyValue.EdgeInsetsValue(
+                            horizontal, vertical, horizontal, vertical));
+                    return;
+                }
+                BigDecimal first = new BigDecimal(parts.get(0));
+                BigDecimal top = new BigDecimal(parts.get(1));
+                BigDecimal third = new BigDecimal(parts.get(2));
+                BigDecimal bottom = new BigDecimal(parts.get(3));
+                setExplicit(directional
+                        ? new PropertyValue.EdgeInsetsDirectionalValue(
+                                first, top, third, bottom)
+                        : new PropertyValue.EdgeInsetsValue(
+                                first, top, third, bottom));
             } catch (NumberFormatException failure) {
                 throw new IllegalArgumentException(
                         "Edge insets must contain decimal numbers.", failure);

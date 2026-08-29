@@ -2,6 +2,8 @@ package dev.flutter.netbeans.plugin.designer.catalog;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -183,6 +185,30 @@ class NetBeansWidgetCatalogProviderTest {
                         "unused")));
         assertThrows(UnsupportedOperationException.class,
                 () -> result.catalog().definitions().clear());
+    }
+
+    @Test
+    void equivalentRediscoveryRetainsIdentityButDefinitionChangesReplaceIt() {
+        AtomicReference<List<WidgetCatalogContributor>> contributors =
+                new AtomicReference<>(List.of());
+        NetBeansWidgetCatalogProvider provider = new NetBeansWidgetCatalogProvider(
+                contributors::get,
+                Runnable::run);
+
+        CatalogBuildResult first = provider.snapshotOffEdt();
+        CatalogBuildResult equivalent = provider.snapshotOffEdt();
+
+        assertSame(first, equivalent,
+                "equivalent reloads must retain exact command-session catalog identity");
+
+        contributors.set(List.of(contributor(
+                "com.example", definition(EXTENSION_TYPE))));
+        CatalogBuildResult extended = provider.snapshotOffEdt();
+
+        assertNotSame(first, extended);
+        assertTrue(typeIds(extended).contains(EXTENSION_TYPE));
+        assertSame(extended, provider.snapshotOffEdt(),
+                "the new equivalent extension snapshot must become stable");
     }
 
     private static WidgetCatalogContributor contributor(

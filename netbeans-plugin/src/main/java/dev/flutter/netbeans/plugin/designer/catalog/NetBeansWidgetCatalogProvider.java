@@ -33,6 +33,8 @@ public final class NetBeansWidgetCatalogProvider {
 
     private final Supplier<? extends Collection<? extends WidgetCatalogContributor>> discovery;
     private final Executor executor;
+    private final Object snapshotIdentityMonitor = new Object();
+    private CatalogBuildResult retainedSnapshot;
 
     /** Uses the live default NetBeans Lookup for every requested snapshot. */
     public NetBeansWidgetCatalogProvider() {
@@ -75,28 +77,53 @@ public final class NetBeansWidgetCatalogProvider {
         try {
             contributors = discovery.get();
         } catch (RuntimeException | LinkageError | ServiceConfigurationError failure) {
-            return failedSnapshot(
+            return retainEquivalentSnapshot(failedSnapshot(
                     LOOKUP_SUBJECT,
                     "NetBeans Lookup contributor discovery failed: "
-                    + failure.getClass().getSimpleName());
+                    + failure.getClass().getSimpleName()));
         }
         if (contributors == null) {
-            return failedSnapshot(
+            return retainEquivalentSnapshot(failedSnapshot(
                     LOOKUP_SUBJECT,
-                    "NetBeans Lookup contributor discovery returned null");
+                    "NetBeans Lookup contributor discovery returned null"));
         }
 
         try {
-            return WidgetCatalogComposition.compose(
-                    BuiltInWidgetCatalog.getDefault(), contributors);
+            return retainEquivalentSnapshot(WidgetCatalogComposition.compose(
+                    BuiltInWidgetCatalog.getDefault(), contributors));
         } catch (RuntimeException | LinkageError | ServiceConfigurationError failure) {
             // The core composer already isolates well-formed SPI calls. This final edge
             // guard covers malformed/lazy Lookup collections and binary-incompatible
             // providers before an immutable result can be produced.
-            return failedSnapshot(
+            return retainEquivalentSnapshot(failedSnapshot(
                     COMPOSITION_SUBJECT,
                     "Widget catalog composition failed: "
-                    + failure.getClass().getSimpleName());
+                    + failure.getClass().getSimpleName()));
+        }
+    }
+
+    /**
+     * Retains exact catalog identity across reloads when discovery produced the
+     * same immutable definitions and diagnostics.
+     *
+     * <p>Designer command sessions deliberately bind catalog snapshots by
+     * identity. File reloads must therefore not invalidate active Undo/Redo
+     * history merely because deterministic contributor discovery rebuilt an
+     * equivalent value. A real definition or diagnostic change still receives
+     * a fresh identity and invalidates stale mutation authority.</p>
+     */
+    private CatalogBuildResult retainEquivalentSnapshot(
+            CatalogBuildResult candidate) {
+        synchronized (snapshotIdentityMonitor) {
+            CatalogBuildResult retained = retainedSnapshot;
+            if (retained != null
+                    && retained.catalog().definitions().equals(
+                            candidate.catalog().definitions())
+                    && retained.diagnostics().equals(candidate.diagnostics())) {
+                return retained;
+            }
+            retainedSnapshot = candidate;
+            return candidate;
         }
     }
 

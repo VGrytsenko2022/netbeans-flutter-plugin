@@ -6,7 +6,10 @@ contracts remain accepted; only the closed typed Properties slice described by
 ADR-024/ADR-027 is now enabled. ADR-025 initially enabled one historical
 Text-only insertion vertical slice. Its current superseding contract enables
 the catalog-authorized 36-cell matrix for all six exact `CORE_V1` Palette
-sources; it does not authorize non-insertion DnD or broader Canvas mutation.
+sources. ADR-028 separately authorizes same-tree movement of an existing
+non-root widget, and ADR-029 authorizes the first exact named-slot Properties
+editor. None authorizes cross-form movement, arbitrary native Canvas mutation
+or unreviewed slots.
 
 ## ADR-001 — IDE support before Designer
 
@@ -57,7 +60,7 @@ Accepted. `flutter-designer` uses a locally constrained streaming JSON codec ins
 
 ## ADR-012 — The 0.1.3 catalog contributor API is public but provisional
 
-Accepted for 0.1.3. The main NetBeans module exports exactly `dev.flutter.netbeans.designer.catalog` and `dev.flutter.netbeans.designer.model`, because the catalog metadata constructors expose model identifier and value types in their public signatures. Contributor NBMs use a normal specification dependency on `dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor` through the default Lookup, and reuse the host module's single packaged `flutter-designer.jar`; an extension must never bundle another copy. Codec, validation and NetBeans-edge packages remain private. These two packages and catalog `API_VERSION == 1` are frozen for 0.1.3-compatible patch builds, but this is not yet a permanent 1.0 compatibility promise. Any incompatible evolution must move the SPI to a dedicated module/new package boundary rather than silently breaking extensions behind the existing module code name.
+Accepted for 0.1.3. The main NetBeans module exports exactly `dev.flutter.netbeans.designer.catalog` and `dev.flutter.netbeans.designer.model`, because the catalog metadata constructors expose model identifier and value types in their public signatures. Contributor NBMs use a normal specification dependency on `dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor` through the default Lookup, and reuse the host module's single packaged `flutter-designer.jar`; an extension must never bundle another copy. Codec, validation and NetBeans-edge packages remain private. API 1 was frozen for 0.1.3-compatible patch builds. The direction-aware edge-insets model deliberately establishes `API_VERSION == 2`, because adding a permitted subtype to the exported sealed `PropertyValue` surface is source-incompatible; API-1 contributors are rejected explicitly rather than loaded under a changed contract. This is not yet a permanent 1.0 compatibility promise. Further incompatible evolution should move the SPI to a dedicated module/new package boundary rather than silently breaking extensions behind an existing API version.
 
 ## ADR-013 — On-disk declared integrity is read-only evidence, not a write gate
 
@@ -89,7 +92,19 @@ Accepted for the 0.1.3 foundation. `PairCandidateAnalysisTicket` is an atomic on
 
 Source and Design expose one stable DataObject-owned combined Undo/Redo identity while the native NetBeans editor manager remains the underlying source history. Internal apply, restore, exact verification and post-commit Undo barriers defer and coalesce outward presentation events until the document lock is released. Publication ownership is claimed before a callback and a reentrant Designer document transaction is rejected before it can acquire the document lock; an edit queued after the completed barrier is retained and remains undoable. Presentation-listener failure, including `Error`, is logged without escaping or retroactively invalidating completed document work. Undo/Redo pins the exact active delegate until the action returns: a concurrent bind fails closed, while close is deferred until the action or internal document deferral completes.
 
-`DesignerCommandSessionOrchestrator` pins one exact dirty cursor with a precomputed post-commit anchor before I/O. While its durable lease is active, commands, Undo/Redo and another lease are blocked. An `FD_ONLY` revision must keep byte-exact Dart, change canonical `.fd`, retain the exact loaded immutable catalog identity, and start from complete writable validation/source/three-way facts; its internal synchronous transaction locks and verifies both files but writes exactly one `.fd` participant. The live Dart document identity, version, bytes, modified flag and Source Undo presentation must remain unchanged. A verified commit adopts the precomputed anchor; a pre-write or verified-rollback failure aborts the lease for retry; stale, partial or otherwise uncertain outcomes invalidate and close the unsafe command session. No `SaveCookie` or public mutation action exposes this path.
+`DesignerCommandSessionOrchestrator` pins one exact dirty cursor with a precomputed
+post-commit anchor before I/O. While its durable lease is active, commands,
+Undo/Redo and another lease are blocked. An `FD_ONLY` revision must keep
+byte-exact Dart, change canonical `.fd`, retain the exact loaded immutable
+catalog identity, and start from complete writable validation/source/three-way
+facts; its internal synchronous transaction locks and verifies both files but
+writes exactly one `.fd` participant. The live Dart document identity, version,
+bytes, modified flag and Source Undo presentation must remain unchanged. A
+verified commit adopts the precomputed anchor; a pre-write or verified-rollback
+failure aborts the lease for retry; stale, partial or otherwise uncertain
+outcomes invalidate and close the unsafe command session. No `SaveCookie`
+exposes this internal path directly; ADR-028's bounded public tree Move is its
+first mutation caller when generated Dart bytes compare exactly equal.
 
 The command-side half of a chained C1→C2 transition is now explicit. Applying a pure command produces an identity-bound pending lease while the orchestrator retains the exact C1 session, revision and redo branch. The lease binds that predecessor to the exact prospective C2 session, revision, edit and immutable catalog identity, and keeps commands, Undo/Redo and durable Save blocked for its complete lifetime. A rejected command publishes no lease. The caller may adopt C2 only after a separate boundary has replaced and verified the exact staged/live pair, abort while C1 remains authoritative, or invalidate and close an uncertain session. Adoption offers a monitor-only identity swap whose one-shot listener/binding effects are published only after the caller releases document/coordinator locks. The lease performs no analyzer, editor, coordinator or filesystem operation and is not write authority.
 
@@ -155,9 +170,11 @@ Properties window. These surfaces and the MultiView chrome remain NetBeans
 Swing UI.
 
 The central Canvas is a real native `FlutterView` embedded in that chrome. Its
-Flutter engine paints the widget tree, selection overlay, drop zones and layout
-guides directly into the native surface and performs the authoritative widget
-hit test. A Swing component, the NetBeans Visual Library, a PNG/JPEG/raw-RGBA
+Flutter engine paints the widget tree, scale-stable dashed widget outlines, a
+solid selected-widget outline, direction-resolved `Padding` distance guides,
+drop zones and layout guides directly into the native surface and performs the
+authoritative widget hit test. These overlays are paint-only and cannot change
+layout or hit geometry. A Swing component, the NetBeans Visual Library, a PNG/JPEG/raw-RGBA
 transfer, screenshots or periodic image copies must not stand in for the
 Canvas. Swing may own the surrounding chrome and a heavyweight native host peer;
 it must not paint a second approximation of Flutter layout. Runtime widget and
@@ -248,7 +265,7 @@ responsive viewport on that same engine as a design-time layout preview. The UI
 states that browser-only runtime behavior is not emulated; a future compiled
 browser backend is required only for browser-runtime fidelity.
 The platform-neutral SPI, completed broader Windows acceptance matrix,
-Linux/macOS providers, broader drag-and-drop, remaining Properties and the
+Linux/macOS providers, cross-form/native-surface drag-and-drop, remaining Properties and the
 broader Designer mutation surface remain foundation gates.
 
 `MOBILE`, `TABLET`, `DESKTOP` and `WEB` remain responsive viewport intents. Their
@@ -267,8 +284,9 @@ only the reviewed typed Properties allowlist after its revision fencing,
 pair-save, Undo/Redo, close and assembled-runtime gates pass. ADR-025 first
 enabled one separately bounded historical `Text` insertion transaction after
 its own assembled acceptance, then superseded that source/slot restriction with
-the reviewed six-`CORE_V1` 36-cell insertion matrix. Non-insertion DnD and every
-broader mutation surface remain outside both authorizations.
+the reviewed six-`CORE_V1` 36-cell insertion matrix. ADR-028 later authorizes
+only same-tree existing-widget Move. Cross-form/native-surface Move and every
+broader mutation surface remain outside these authorizations.
 
 ## ADR-022 — Pair Copy/Paste is a same-folder Node transaction
 
@@ -427,7 +445,7 @@ index zero. This is the complete 36-cell ANY_WIDGET matrix for the current six
 sources. `Scaffold.appBar` remains unavailable because none of those sources has
 the required `PreferredSizeWidget` trait. Java resolves the exact source,
 parent and slot through the current widget catalog and revalidates cardinality,
-acceptance, capacity and insertion index. Arbitrary list indices,
+acceptance, capacity and insertion index. For this Palette `ADD` route, arbitrary list indices,
 before/between-child insertion, occupied single-child slots, existing-widget
 move/reorder, cross-form drag, non-CORE_V1 Palette types, unreviewed slots and
 Linux/macOS/Web DnD remain disabled.
@@ -493,7 +511,8 @@ parallel DnD-specific persistence or Undo stack is allowed. Public enablement
 passed live assembled Windows NetBeans 30 drop → Save → Undo → Redo → Save
 acceptance. This acceptance statement does not include a separate saved-history
 Undo → Save cycle. ADR-024's Properties authorization does not implicitly
-authorize this path, and all DnD outside this exact slice stays disabled.
+authorize this path, and all Palette DnD outside this exact slice stays
+disabled. ADR-028 separately authorizes the same-tree existing-widget route.
 
 ## ADR-026 — Project themes are shared versioned resources
 
@@ -551,7 +570,7 @@ invalid draft cannot silently replace the persisted theme pair.
 
 Canvas inherits the project default unless its existing `canvas.themeMode`
 selects a preview brightness. It consumes a validated theme definition and
-revision digest, not project Dart code. Canvas model protocol v4 carries the
+revision digest, not project Dart code. Canvas model protocol v5 carries the
 complete resolved ColorScheme and TextTheme override tables. Generated Dart and
 Canvas both apply `ColorScheme.fromSeed`, `ColorScheme.copyWith`,
 `ThemeData.from`, then `TextTheme.copyWith`; form-local Text leaves are applied
@@ -564,11 +583,12 @@ appearance. A valid globally disabled descriptor instead selects the
 intentional compatible Material fallback and reports that project themes are
 disabled.
 
-## ADR-027 — TextStyle uses schema-v2 structured values and semantic theme roles
+## ADR-027 — TextStyle uses structured values and semantic theme roles
 
-Accepted for 0.1.3. The current `.fd` schema is v2. Schema-v1 documents are
-decoded through an explicit identity migration and are written as canonical v2
-only after an admitted edit; a newer schema fails closed. The Java domain model,
+Accepted for 0.1.3. TextStyle structured values were introduced in `.fd` v2;
+the current `.fd` schema is v3. Schema-v1 and schema-v2 documents are decoded
+through explicit migrations and are written as canonical v3 only after an
+admitted edit; a newer schema fails closed. The Java domain model,
 JSON codec, immutable catalog, Dart generator, native Canvas payload and Flutter
 runner share the same closed structured-value contract.
 
@@ -596,3 +616,98 @@ the existing reset command. Nested theme colors use the same catalog allowlist
 as top-level colors. Deterministic Dart and Canvas parity is mandatory for every
 admitted value. `styleFontSize` is finite and non-negative, matching Flutter's
 text-scaling contract.
+
+Schema v3 adds a semantic distinction between physical `EdgeInsets` and
+text-direction-aware `EdgeInsetsDirectional`. Existing physical v1/v2 payloads
+retain their exact side values during migration. The editor offers All,
+Symmetric, Physical and Directional modes, while persistence and Dart generation
+canonicalize them to `fromLTRB` or `fromSTEB`. Canvas model protocol v5 preserves
+the same distinction so RTL preview cannot silently exchange physical sides.
+
+## ADR-028 — Existing widgets move only through exact same-tree planning
+
+Accepted for the 0.1.3 bounded Designer surface. An existing non-root widget
+may be dragged only inside its originating widget tree. The transfer is a
+private JVM-local value containing the owning tree identity and source stable
+ID; it is not a serialized fragment, cross-form authority or native Canvas
+mutation request.
+
+The Designer disables `BeanTreeView`'s unrelated Explorer drag source, detaches
+its inactive non-Swing AWT drop target, and installs one scoped Swing
+`TransferHandler`. A mouse-threshold bridge explicitly starts the local
+transfer. This is plumbing only: target admission still occurs through the same
+`ON_OR_INSERT` planner, and listeners plus the exact prior handler, drop target
+and active state are restored when the Design view closes. Single selection
+makes the drag source and standard Properties projection deterministic.
+
+The current immutable document and widget catalog are the only placement
+authority. `ON` requires exactly one catalog-compatible slot before occupancy
+is considered; it appends to a list after source removal or uses index zero of
+an empty single slot. `INSERT` resolves the visible flattened boundary before a
+child or after the last child to that anchor's semantic list slot, then converts
+the boundary to a post-removal index. Root moves, cycles, missing definitions,
+incompatible/full/cardinality-mismatched slots, source minimum-child violations,
+invalid boundaries and exact no-ops fail closed. An accepted `MoveWidget`
+reuses the immutable source subtree, preserving every descendant and stable ID.
+
+Hover never owns mutation authority. Drop reads the latest immutable document,
+catalog and revision token, repeats the entire plan and requires the resulting
+command to equal the prepared command. One accepted command uses the shared
+chronological Undo/Redo, generation and persistence pipeline. A PAIRED result
+regenerates, analyzes and replaces the managed pair. If generated Dart bytes
+compare exactly equal, `FD_ONLY` locks and verifies both baselines but commits
+only canonical `.fd`; live/disk Dart, modified state and Source Undo presentation
+remain unchanged.
+
+Canvas feedback is optional. Under negotiated `widget.movePreview.v1`, Java
+sends the exact source and destination plus presentation/document/revision/
+frame/layout identities and a monotonic preview sequence. Flutter removes the
+source from destination geometry and paints a thin amber target distinct from
+selection and Palette feedback. Last-write-wins bounded retry makes a newer
+target or clear supersede queued older feedback. The projection is cleared on
+invalid/canceled/completed drags and every model, presentation, layout, session,
+runner or lifecycle replacement. Its absence never disables the Swing move.
+
+The flattened tree cannot select an empty named slot on a multi-slot parent:
+`ON` remains ambiguous even when only one compatible slot is currently empty,
+and `INSERT` requires an existing list-child anchor. `Scaffold` and future
+multi-slot widgets therefore use ADR-029's explicit Slots editor. This decision
+does not authorize cross-form movement, arbitrary native Canvas drag,
+unreviewed slots or a second Undo/persistence path.
+
+## ADR-029 — Exact named slots are managed transactionally through Properties
+
+Accepted for the first bounded 0.1.3 slot-management slice. A slot-capable
+selected widget uses the standard NetBeans PropertySheet's native `General` and
+`Slots` tabs; leaf widgets remain untabbed. Every slot declared by the selected
+widget's catalog definition appears in the `Slots` tab in declaration order,
+including omitted optional slots. Identity and ordinary catalog-backed fields
+remain in `General`.
+The model and schema remain unchanged: `WidgetPlacement(parentId, slotName,
+index)` is already the exact address, and the catalog remains the sole
+cardinality, capacity and type-acceptance matrix.
+
+Each row opens one transactional custom editor. It may append a compatible
+reviewed Palette prototype, move/reorder an existing non-root widget to an
+exact planner-admitted post-removal index, or remove one exact direct child.
+For an occupied single slot the remove action is presented as `Clear`.
+An occupied single slot is not replaced implicitly, list clear-all is not
+implemented as several partial deletions, and Cancel produces no intent.
+
+The editor owns only a semantic draft bound to the presented immutable
+document, catalog and revision. On OK, MultiView revalidates that exact
+authority and repeats the appropriate Palette-add, exact-slot move or direct-
+child removal plan. One accepted `AddWidget`, `MoveWidget` or `RemoveWidget`
+then enters the existing generator, analyzer, pair Save and chronological
+Undo/Redo pipeline. Stale dialogs, roots, cycles, missing definitions,
+incompatible/full/cardinality-mismatched slots, minimum-child violations,
+invalid indices and no-op moves fail closed. This decision adds no `.fd` schema
+or Canvas protocol field, no alternate persistence path and no second history.
+Flattened-tree drop remains ambiguous for multi-slot parents; the explicit
+Properties row is the exact-choice route.
+
+A byte-identical Dart result follows the existing `FD_ONLY` boundary. After
+the verified `.fd` commit, pair Save atomically adopts the exact saved
+`Current` and re-anchors the command-session cursor before publishing
+`WAITING -> READY`; it does not reload a substitute catalog or revision
+identity between consecutive slot commands.

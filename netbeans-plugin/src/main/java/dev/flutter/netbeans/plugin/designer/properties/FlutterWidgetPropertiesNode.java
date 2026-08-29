@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
+import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
@@ -8,7 +9,10 @@ import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.SlotCardinality;
+import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.beans.PropertyEditor;
@@ -17,6 +21,7 @@ import java.util.EnumMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
@@ -39,6 +44,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
     public static final String IDENTITY_SET_NAME = "identity";
     public static final String PROPERTIES_SET_NAME = Sheet.PROPERTIES;
+    public static final String SLOTS_SET_NAME = "slots";
+    public static final String GENERAL_TAB_NAME = "General";
+    public static final String SLOTS_TAB_NAME = "Slots";
+    static final String TAB_NAME_ATTRIBUTE = "tabName";
     public static final String STABLE_ID_PROPERTY_NAME = "stableId";
     public static final String TYPE_PROPERTY_NAME = "type";
     public static final String NOT_SET = FlutterPropertyCellValue.NOT_SET_TEXT;
@@ -46,11 +55,19 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private final WidgetNode widget;
     private final WidgetDefinition definition;
     private final PropertyMutationHandler mutationHandler;
+    private final FlutterWidgetSlotEditorContext slotEditorContext;
+    private final SlotMutationHandler slotMutationHandler;
 
     /** Dispatches one exact command from the immutable selected-widget snapshot. */
     @FunctionalInterface
     public interface PropertyMutationHandler {
         void submit(DesignerCommand command);
+    }
+
+    /** Dispatches one exact named-slot intent from the selected revision. */
+    @FunctionalInterface
+    public interface SlotMutationHandler {
+        void submit(FlutterWidgetSlotMutation mutation);
     }
 
     /**
@@ -65,7 +82,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             Children children,
             WidgetNode widget,
             WidgetDefinition definition) {
-        this(children, widget, definition, null);
+        this(children, widget, definition, null, null, null);
     }
 
     /**
@@ -83,6 +100,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode widget,
             WidgetDefinition definition,
             PropertyMutationHandler mutationHandler) {
+        this(children, widget, definition, mutationHandler, null, null);
+    }
+
+    /**
+     * Creates the complete read/write Properties projection for one widget.
+     * Property and structural-slot mutations deliberately use separate
+     * revision-bound handlers.
+     */
+    public FlutterWidgetPropertiesNode(
+            Children children,
+            WidgetNode widget,
+            WidgetDefinition definition,
+            PropertyMutationHandler mutationHandler,
+            FlutterWidgetSlotEditorContext slotEditorContext,
+            SlotMutationHandler slotMutationHandler) {
         super(
                 Objects.requireNonNull(children, "children"),
                 Lookups.fixed(
@@ -97,6 +129,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         this.widget = widget;
         this.definition = definition;
         this.mutationHandler = mutationHandler;
+        this.slotEditorContext = slotEditorContext;
+        this.slotMutationHandler = slotMutationHandler;
+        if (slotMutationHandler != null && slotEditorContext == null) {
+            throw new IllegalArgumentException(
+                    "A slot mutation handler requires a slot editor context.");
+        }
         String displayName = definition.palette().displayName();
         setName(widget.id().toString());
         setDisplayName(displayName);
@@ -108,6 +146,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     @Override
     protected Sheet createSheet() {
         Sheet sheet = new Sheet();
+        boolean hasSlotTab = !definition.slots().isEmpty();
 
         Sheet.Set identity = new Sheet.Set();
         identity.setName(IDENTITY_SET_NAME);
@@ -123,14 +162,147 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 "Widget type",
                 "Catalog type identifier stored in the Flutter Designer model.",
                 widget.type().value()));
+        assignTab(identity, hasSlotTab ? GENERAL_TAB_NAME : null);
         sheet.put(identity);
 
         if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
-            addTextPropertySets(sheet);
+            addTextPropertySets(sheet, hasSlotTab);
         } else {
-            sheet.put(createGenericPropertySet());
+            Sheet.Set properties = createGenericPropertySet();
+            assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
+            sheet.put(properties);
+        }
+        if (hasSlotTab) {
+            Sheet.Set slots = createSlotsPropertySet();
+            assignTab(slots, SLOTS_TAB_NAME);
+            sheet.put(slots);
         }
         return sheet;
+    }
+
+    private static void assignTab(Sheet.Set set, String tabName) {
+        if (tabName != null) {
+            // This is the standard NetBeans PropertySheet grouping contract.
+            // Sets with the same tabName share one native PropertySheet tab.
+            set.setValue(TAB_NAME_ATTRIBUTE, tabName);
+        }
+    }
+
+    private Sheet.Set createSlotsPropertySet() {
+        Sheet.Set slots = propertySet(
+                SLOTS_SET_NAME,
+                "Slots",
+                "Exact named child slots declared by the widget catalog.");
+        for (SlotDefinition slot : definition.slots()) {
+            WidgetSlot modelSlot = widget.slots().get(slot.name());
+            String summary = slotSummary(slot, modelSlot);
+            String description = slotDescription(slot, modelSlot);
+            if (slotEditorContext != null && slotMutationHandler != null) {
+                slots.put(writableSlotProperty(slot, summary, description));
+            } else {
+                slots.put(readOnly(
+                        slot.name().value(),
+                        displayName(slot.name()),
+                        description,
+                        summary));
+            }
+        }
+        return slots;
+    }
+
+    private PropertySupport.ReadWrite<FlutterWidgetSlotCellValue>
+            writableSlotProperty(
+                    SlotDefinition slot,
+                    String summary,
+                    String description) {
+        FlutterWidgetSlotCellValue captured =
+                FlutterWidgetSlotCellValue.current(summary);
+        AtomicBoolean submitted = new AtomicBoolean();
+        PropertySupport.ReadWrite<FlutterWidgetSlotCellValue> result =
+                new PropertySupport.ReadWrite<>(
+                slot.name().value(),
+                FlutterWidgetSlotCellValue.class,
+                displayName(slot.name()),
+                description) {
+            @Override
+            public FlutterWidgetSlotCellValue getValue() {
+                return captured;
+            }
+
+            @Override
+            public void setValue(FlutterWidgetSlotCellValue value) {
+                Objects.requireNonNull(value, "value");
+                value.mutation().ifPresent(mutation -> {
+                    if (!widget.id().equals(mutation.ownerId())
+                            || !slot.name().equals(mutation.slotName())) {
+                        throw new IllegalArgumentException(
+                                "Slot edit targets another widget or named slot.");
+                    }
+                    if (submitted.compareAndSet(false, true)) {
+                        slotMutationHandler.submit(mutation);
+                    }
+                });
+            }
+
+            @Override
+            public PropertyEditor getPropertyEditor() {
+                return new FlutterWidgetSlotPropertyEditor(
+                        widget, definition, slot, slotEditorContext);
+            }
+        };
+        result.setValue("changeImmediate", Boolean.FALSE);
+        result.setValue("canEditAsText", Boolean.FALSE);
+        return result;
+    }
+
+    private String slotSummary(SlotDefinition slot, WidgetSlot value) {
+        if (value == null) {
+            return "Empty";
+        }
+        if (value.cardinality() != slot.cardinality()) {
+            return "Invalid " + value.cardinality().wireName() + " slot";
+        }
+        return switch (value) {
+            case WidgetSlot.SingleSlot single -> single.child()
+                    .map(this::widgetDisplayName)
+                    .orElse("Empty");
+            case WidgetSlot.ListSlot list -> list.children().isEmpty()
+                    ? "Empty"
+                    : list.children().size() == 1
+                            ? "1 widget"
+                            : list.children().size() + " widgets";
+        };
+    }
+
+    private String widgetDisplayName(WidgetNode child) {
+        if (slotEditorContext != null) {
+            return slotEditorContext.catalog().find(child.type())
+                    .map(value -> value.palette().displayName())
+                    .orElseGet(() -> displayType(child));
+        }
+        return displayType(child);
+    }
+
+    private static String displayType(WidgetNode child) {
+        String type = child.type().value();
+        int separator = type.lastIndexOf('.');
+        return separator < 0 ? type : type.substring(separator + 1);
+    }
+
+    private static String slotDescription(
+            SlotDefinition slot,
+            WidgetSlot value) {
+        int count = value == null ? 0 : switch (value) {
+            case WidgetSlot.SingleSlot single -> single.child().isPresent() ? 1 : 0;
+            case WidgetSlot.ListSlot list -> list.children().size();
+        };
+        String maximum = Integer.toString(slot.maxChildren());
+        String cardinality = slot.cardinality() == SlotCardinality.SINGLE
+                ? "single-widget" : "ordered widget-list";
+        return "Exact '" + slot.name().value() + "' " + cardinality
+                + " slot. Occupancy: " + count + "/" + maximum
+                + "; minimum: " + slot.minChildren()
+                + ". Open the custom editor to add, move, reorder, or remove a widget.";
     }
 
     private Sheet.Set createGenericPropertySet() {
@@ -144,13 +316,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return properties;
     }
 
-    private void addTextPropertySets(Sheet sheet) {
+    private void addTextPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<TextWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(TextWidgetPropertySchema.Group.class);
         for (TextWidgetPropertySchema.Group group
                 : TextWidgetPropertySchema.Group.values()) {
             Sheet.Set set = propertySet(
                     group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
             groups.put(group, set);
             sheet.put(set);
         }
@@ -172,6 +345,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         PROPERTIES_SET_NAME,
                         "Other properties",
                         "Catalog properties outside the built-in Text scalar projection.");
+                assignTab(unmatched, hasSlotTab ? GENERAL_TAB_NAME : null);
                 sheet.put(unmatched);
             }
             unmatched.put(projectProperty(property, Optional.empty()));
@@ -283,8 +457,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result;
     }
 
-    private static String displayName(PropertyName propertyName) {
-        String value = propertyName.value();
+    static String displayName(PropertyName propertyName) {
+        return displayName(propertyName.value());
+    }
+
+    static String displayName(SlotName slotName) {
+        return displayName(slotName.value());
+    }
+
+    private static String displayName(String value) {
         StringBuilder result = new StringBuilder(value.length() + 4);
         for (int index = 0; index < value.length(); index++) {
             char current = value.charAt(index);

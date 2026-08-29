@@ -38,7 +38,10 @@ void main() {
 
     final running = runtime.start();
     input.add(
-      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(jsonEncode(_hello(viewport: true))),
+      ),
     );
     input.add(
       encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
@@ -72,12 +75,134 @@ void main() {
         'readOnly.selection',
         'palette.drop.catalogInsert.v1',
         'widget.deleteSelection.v1',
+        'viewport.presentation.v1',
       ],
     );
     expect(closedJson['type'], 'runner.closed');
     expect(closedJson['replyTo'], 1);
     expect(await reader.read(maxPayloadBytes: 262144), isNull);
   });
+
+  test(
+    'projects and clears an exact host-authorized widget move target',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final diagnostics = <String>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: diagnostics.add,
+      );
+      const sourceId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      const parentId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+      const expected = CanvasDropTarget(
+        parentWidgetId: parentId,
+        slotName: 'children',
+        insertionIndex: 1,
+        zone: CanvasDropZone(
+          leftMicros: 450000,
+          topMicros: 200000,
+          rightMicros: 470000,
+          bottomMicros: 800000,
+        ),
+      );
+      runtime.setMovePreviewResolver(
+        (source, parent, slot, index) =>
+            source == sourceId &&
+                parent == parentId &&
+                slot == 'children' &&
+                index == 1
+            ? expected
+            : null,
+      );
+
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(widgetMovePreview: true))),
+        ),
+      );
+      final model = fixture.modelBytesForViewTest();
+      _addRender(input, model);
+      await _waitUntil(() => runtime.model != null);
+      runtime.completePendingLayoutForTesting();
+      expect(runtime.presentedLayoutSequence, 0);
+
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(
+              _widgetMovePreview(
+                model,
+                previewSequence: 1,
+                sourceWidgetId: sourceId,
+                parentWidgetId: parentId,
+                slotName: 'children',
+                insertionIndex: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      await _waitUntil(() => runtime.widgetMovePreviewTarget != null);
+      final active = runtime.widgetMovePreviewTarget;
+      expect(active, same(expected));
+      expect(runtime.dropHoverTarget, same(active));
+
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(_widgetMovePreviewClear(model, previewSequence: 1)),
+          ),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(
+        runtime.widgetMovePreviewTarget,
+        same(active),
+        reason: 'a stale clear cannot erase a newer-or-equal preview',
+      );
+
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(_widgetMovePreviewClear(model, previewSequence: 2)),
+          ),
+        ),
+      );
+      await _waitUntil(() => runtime.widgetMovePreviewTarget == null);
+      expect(runtime.widgetMovePreviewTarget, isNull);
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+      runtime.setMovePreviewResolver(null);
+      expect(runtime.closed, isTrue, reason: diagnostics.join('\n'));
+      expect(diagnostics, isEmpty);
+      final messages = output
+          .map(
+            (frame) =>
+                jsonDecode(utf8.decode(frame.sublist(44)))
+                    as Map<String, Object?>,
+          )
+          .toList();
+      expect(
+        (messages.firstWhere(
+              (message) => message['type'] == 'runner.hello',
+            )['body']
+            as Map<String, Object?>)['acceptedCapabilities'],
+        contains('widget.movePreview.v1'),
+      );
+    },
+  );
 
   test(
     'omits optional palette DnD when the native target is unavailable',
@@ -123,6 +248,221 @@ void main() {
       );
     },
   );
+
+  test(
+    'applies negotiated viewport state and publishes post-layout metrics',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final diagnostics = <String>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: diagnostics.add,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(viewport: true))),
+        ),
+      );
+      final modelBytes = fixture.modelBytesForViewTest();
+      _addRender(input, modelBytes);
+      await _waitUntil(() => runtime.model != null);
+
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(
+              _viewport(
+                modelBytes,
+                commandSequence: 1,
+                mode: 'manual',
+                zoomMicros: 1250000,
+                horizontalScrollMicros: 100000,
+                verticalScrollMicros: 200000,
+              ),
+            ),
+          ),
+        ),
+      );
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(
+              _viewport(
+                modelBytes,
+                commandSequence: 2,
+                mode: 'manual',
+                zoomMicros: 1500000,
+                horizontalScrollMicros: 250000,
+                verticalScrollMicros: 750000,
+              ),
+            ),
+          ),
+        ),
+      );
+      await _waitUntil(
+        () => runtime.viewportPresentation?.zoomMicros == 1500000,
+      );
+      expect(
+        runtime.pendingLayoutSequence,
+        0,
+        reason:
+            'commands before the first frame coalesce into its reserved layout',
+      );
+      runtime.reportViewportMetrics(
+        CanvasViewportMetrics(
+          presentation: runtime.viewportPresentation!,
+          effectiveScaleMicros: 1500000,
+          horizontalScrollable: false,
+          verticalScrollable: true,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+      expect(diagnostics, isEmpty);
+      expect(runtime.viewportPresentation?.zoomMicros, 1500000);
+
+      final messages = output
+          .map(
+            (frame) =>
+                jsonDecode(utf8.decode(frame.sublist(44)))
+                    as Map<String, Object?>,
+          )
+          .toList();
+      final hello = messages.singleWhere(
+        (message) => message['type'] == 'runner.hello',
+      );
+      expect(
+        (hello['body'] as Map<String, Object?>)['acceptedCapabilities'],
+        contains('viewport.presentation.v1'),
+      );
+      final viewport = messages
+          .where((message) => message['type'] == 'runner.viewport')
+          .last;
+      expect(viewport['body'], {
+        'commandSequence': 2,
+        'presentationSequence': 4,
+        'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
+        'logicalRevisionId': 2,
+        'mode': 'manual',
+        'zoomMicros': 1500000,
+        'horizontalScrollMicros': 250000,
+        'verticalScrollMicros': 750000,
+        'effectiveScaleMicros': 1500000,
+        'horizontalScrollable': false,
+        'verticalScrollable': true,
+      });
+    },
+  );
+
+  test('rejects viewport zoom outside the negotiated range', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final diagnostics = <String>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: diagnostics.add,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(jsonEncode(_hello(viewport: true))),
+      ),
+    );
+    final modelBytes = fixture.modelBytesForViewTest();
+    _addRender(input, modelBytes);
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(
+          jsonEncode(
+            _viewport(
+              modelBytes,
+              commandSequence: 1,
+              mode: 'manual',
+              zoomMicros: 2000001,
+            ),
+          ),
+        ),
+      ),
+    );
+    await input.close();
+    await running;
+
+    expect(runtime.closed, isTrue);
+    expect(diagnostics.single, contains('zoomMicros'));
+    final messages = await _decodeControlMessages(output);
+    expect(messages.last['type'], 'runner.failure');
+  });
+
+  test('strictly rejects a viewport command without commandSequence', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final diagnostics = <String>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: diagnostics.add,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(jsonEncode(_hello(viewport: true))),
+      ),
+    );
+    final modelBytes = fixture.modelBytesForViewTest();
+    _addRender(input, modelBytes);
+    final viewport = _viewport(
+      modelBytes,
+      commandSequence: 1,
+      mode: 'fit',
+      zoomMicros: 1000000,
+    );
+    (viewport['body']! as Map<String, Object?>).remove('commandSequence');
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(viewport))),
+    );
+    await input.close();
+    await running;
+
+    expect(runtime.closed, isTrue);
+    expect(diagnostics.single, contains(r'$/body'));
+    final messages = await _decodeControlMessages(output);
+    expect(messages.last['type'], 'runner.failure');
+  });
+
+  test('coalesces a rapid viewport burst into one contiguous next layout', () {
+    int? pending;
+    for (var change = 0; change < 100; change++) {
+      pending = reserveNextCanvasLayoutSequence(7, pending);
+    }
+    expect(
+      pending,
+      8,
+      reason: 'one pending frame must reserve exactly the contiguous N+1 key',
+    );
+    expect(
+      reserveNextCanvasLayoutSequence(8, null),
+      9,
+      reason: 'the next completed frame advances by exactly one again',
+    );
+  });
 
   test(
     'native availability probe failure preserves read-only Canvas',
@@ -1475,7 +1815,18 @@ Future<List<Map<String, Object?>>> _decodeControlMessages(
   }
 }
 
-Map<String, Object?> _hello({bool deleteSelected = true}) => {
+Future<void> _waitUntil(bool Function() predicate) async {
+  for (var attempt = 0; attempt < 200 && !predicate(); attempt++) {
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  expect(predicate(), isTrue, reason: 'runtime condition was not reached');
+}
+
+Map<String, Object?> _hello({
+  bool deleteSelected = true,
+  bool viewport = false,
+  bool widgetMovePreview = false,
+}) => {
   'format': 'netbeans-flutter-canvas-wire',
   'protocolVersion': 1,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
@@ -1489,6 +1840,8 @@ Map<String, Object?> _hello({bool deleteSelected = true}) => {
       'readOnly.selection',
       'palette.drop.catalogInsert.v1',
       if (deleteSelected) 'widget.deleteSelection.v1',
+      if (widgetMovePreview) 'widget.movePreview.v1',
+      if (viewport) 'viewport.presentation.v1',
     ],
     'offeredLimits': {
       'maxControlMessageBytes': 262144,
@@ -1501,6 +1854,83 @@ Map<String, Object?> _hello({bool deleteSelected = true}) => {
     },
   },
 };
+
+Map<String, Object?> _widgetMovePreview(
+  Uint8List model, {
+  required int previewSequence,
+  required String sourceWidgetId,
+  required String parentWidgetId,
+  required String slotName,
+  required int insertionIndex,
+}) {
+  final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
+  return {
+    'format': 'netbeans-flutter-canvas-runtime',
+    'protocolVersion': 1,
+    'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+    'type': 'host.widgetMovePreview',
+    'body': {
+      'presentationSequence': json['presentationSequence'],
+      'documentId': json['documentId'],
+      'logicalRevisionId': json['logicalRevisionId'],
+      'frameSequence': 0,
+      'layoutSequence': 0,
+      'previewSequence': previewSequence,
+      'sourceWidgetId': sourceWidgetId,
+      'parentWidgetId': parentWidgetId,
+      'slotName': slotName,
+      'insertionIndex': insertionIndex,
+    },
+  };
+}
+
+Map<String, Object?> _widgetMovePreviewClear(
+  Uint8List model, {
+  required int previewSequence,
+}) {
+  final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
+  return {
+    'format': 'netbeans-flutter-canvas-runtime',
+    'protocolVersion': 1,
+    'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+    'type': 'host.widgetMovePreviewClear',
+    'body': {
+      'presentationSequence': json['presentationSequence'],
+      'documentId': json['documentId'],
+      'logicalRevisionId': json['logicalRevisionId'],
+      'frameSequence': 0,
+      'layoutSequence': 0,
+      'previewSequence': previewSequence,
+    },
+  };
+}
+
+Map<String, Object?> _viewport(
+  Uint8List model, {
+  required int commandSequence,
+  required String mode,
+  required int zoomMicros,
+  int horizontalScrollMicros = 0,
+  int verticalScrollMicros = 0,
+}) {
+  final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
+  return {
+    'format': 'netbeans-flutter-canvas-runtime',
+    'protocolVersion': 1,
+    'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+    'type': 'host.viewport',
+    'body': {
+      'commandSequence': commandSequence,
+      'presentationSequence': json['presentationSequence'],
+      'documentId': json['documentId'],
+      'logicalRevisionId': json['logicalRevisionId'],
+      'mode': mode,
+      'zoomMicros': zoomMicros,
+      'horizontalScrollMicros': horizontalScrollMicros,
+      'verticalScrollMicros': verticalScrollMicros,
+    },
+  };
+}
 
 Map<String, Object?> _close() => {
   'format': 'netbeans-flutter-canvas-wire',

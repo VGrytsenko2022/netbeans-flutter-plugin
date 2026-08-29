@@ -26,6 +26,9 @@ import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasTextScaleFactor;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
 import dev.flutter.netbeans.designer.canvas.CanvasViewport;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
+import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostClose;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostHello;
@@ -79,7 +82,9 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
-            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1);
+            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
+            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1,
+            CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
 
     private Harness harness;
 
@@ -302,6 +307,152 @@ class CanvasRunnerProcessChannelTest {
                 + harness.sessionId + "\""));
         assertTrue(control.contains("\"presentationSequence\":7"));
         assertArrayEquals(model, frames.get(2).copyPayload());
+    }
+
+    @Test
+    void writesAndDispatchesViewportForTheExactNegotiatedRevision()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasViewportPresentation presentation =
+                CanvasViewportPresentation.manual(
+                        1_250_000, 400_000, 600_000);
+        harness.channel.expectPresentation(request.revisionKey());
+
+        assertTrue(harness.channel.viewport(
+                request.revisionKey(), 1, presentation));
+
+        List<CanvasProcessFrame> frames = harness.awaitHostFrames(2);
+        String viewport = new String(
+                frames.get(1).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(viewport.contains("\"type\":\"host.viewport\""));
+        assertTrue(viewport.contains("\"commandSequence\":1"));
+        assertTrue(viewport.contains("\"mode\":\"manual\""));
+        assertTrue(viewport.contains("\"zoomMicros\":1250000"));
+        assertTrue(viewport.contains(
+                "\"horizontalScrollMicros\":400000"));
+        assertTrue(viewport.contains("\"verticalScrollMicros\":600000"));
+
+        harness.sendRuntime(viewportMetrics(
+                request.revisionKey(), 1, presentation,
+                1_250_000, true, false));
+
+        assertTrue(harness.listener.viewportMetrics.await(
+                2, TimeUnit.SECONDS));
+        CanvasViewportMetrics metrics = harness.listener.metrics;
+        assertEquals(request.revisionKey(), metrics.revisionKey());
+        assertEquals(1, metrics.commandSequence());
+        assertEquals(presentation, metrics.presentation());
+        assertEquals(1_250_000, metrics.effectiveScaleMicros());
+        assertTrue(metrics.horizontalScrollable());
+        assertFalse(metrics.verticalScrollable());
+        assertEquals(1, harness.listener.viewportMetricsCalls.get());
+    }
+
+    @Test
+    void rejectsOutOfRangeViewportCommandBeforeQueueingIt() throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        harness.channel.expectPresentation(request.revisionKey());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> harness.channel.viewport(
+                        request.revisionKey(),
+                        0,
+                        CanvasViewportPresentation.fit()));
+        assertThrows(IllegalArgumentException.class,
+                () -> harness.channel.viewport(
+                        request.revisionKey(),
+                        9_007_199_254_740_992L,
+                        CanvasViewportPresentation.fit()));
+        assertEquals(1, harness.awaitHostFrames(1).size());
+    }
+
+    @Test
+    void discardsSupersededViewportMetricsWithoutPoisoningTheChannel()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest stale = renderRequest(harness.sessionId, 7);
+        CanvasRenderRequest current = renderRequest(harness.sessionId, 8);
+        harness.channel.expectPresentation(stale.revisionKey());
+        harness.channel.expectPresentation(current.revisionKey());
+
+        harness.sendRuntime(viewportMetrics(
+                stale.revisionKey(),
+                1,
+                CanvasViewportPresentation.fit(),
+                750_000,
+                false,
+                false));
+
+        assertFalse(harness.listener.viewportMetrics.await(
+                100, TimeUnit.MILLISECONDS));
+        assertEquals(0, harness.listener.viewportMetricsCalls.get());
+        assertTrue(harness.channel.isReady());
+
+        harness.sendRuntime(viewportMetrics(
+                current.revisionKey(),
+                2,
+                CanvasViewportPresentation.fit(),
+                750_000,
+                false,
+                false));
+        assertTrue(harness.listener.viewportMetrics.await(
+                2, TimeUnit.SECONDS));
+        assertEquals(current.revisionKey(),
+                harness.listener.metrics.revisionKey());
+    }
+
+    @Test
+    void viewportRequiresNegotiatedCapabilityForBothDirections()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.sendHello(List.of(
+                CanvasWireCapability.READ_ONLY_RENDER,
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION));
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        harness.channel.expectPresentation(request.revisionKey());
+
+        assertFalse(harness.channel.viewport(
+                request.revisionKey(), 1, CanvasViewportPresentation.fit()));
+        assertEquals(1, harness.awaitHostFrames(1).size());
+
+        harness.sendRuntime(viewportMetrics(
+                request.revisionKey(),
+                1,
+                CanvasViewportPresentation.fit(),
+                750_000,
+                false,
+                false));
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains(
+                "without negotiating"));
+        assertEquals(0, harness.listener.viewportMetricsCalls.get());
+    }
+
+    @Test
+    void rejectsForeignViewportMetricsWhenCapabilityIsNegotiated()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        harness.channel.expectPresentation(request.revisionKey());
+        CanvasRevisionKey foreign = renderRequest(
+                CanvasSessionId.random()).revisionKey();
+
+        harness.sendRuntime(viewportMetrics(
+                foreign,
+                1,
+                CanvasViewportPresentation.fit(),
+                750_000,
+                false,
+                false));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("foreign"));
+        assertEquals(0, harness.listener.viewportMetricsCalls.get());
     }
 
     @Test
@@ -593,6 +744,75 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
+    void sendsAndClearsAnExactNegotiatedWidgetMovePreview() throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 4), 6);
+        StableId sourceId = StableId.random();
+        StableId parentId = StableId.random();
+
+        harness.channel.expectPresentation(request.revisionKey());
+        assertTrue(harness.channel.previewWidgetMove(
+                layout,
+                1,
+                sourceId,
+                parentId,
+                new SlotName("children"),
+                3));
+        List<CanvasProcessFrame> previewFrames = harness.awaitHostFrames(2);
+        assertEquals(2, previewFrames.size());
+        String preview = new String(
+                previewFrames.get(1).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(preview.contains("\"type\":\"host.widgetMovePreview\""));
+        assertTrue(preview.contains("\"previewSequence\":1"));
+        assertTrue(preview.contains("\"sourceWidgetId\":\"" + sourceId + "\""));
+        assertTrue(preview.contains("\"parentWidgetId\":\"" + parentId + "\""));
+        assertTrue(preview.contains("\"slotName\":\"children\""));
+        assertTrue(preview.contains("\"insertionIndex\":3"));
+        assertTrue(preview.contains("\"frameSequence\":4"));
+        assertTrue(preview.contains("\"layoutSequence\":6"));
+
+        assertTrue(harness.channel.clearWidgetMovePreview(layout, 2));
+        List<CanvasProcessFrame> clearFrames = harness.awaitHostFrames(3);
+        assertEquals(3, clearFrames.size());
+        String clear = new String(
+                clearFrames.get(2).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(clear.contains("\"type\":\"host.widgetMovePreviewClear\""));
+        assertTrue(clear.contains("\"previewSequence\":2"));
+        assertTrue(clear.contains("\"frameSequence\":4"));
+        assertTrue(clear.contains("\"layoutSequence\":6"));
+        assertFalse(clear.contains("sourceWidgetId"));
+    }
+
+    @Test
+    void widgetMovePreviewIsOptionalAndRequiresExactCurrentRevision()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.sendHello(List.of(
+                CanvasWireCapability.READ_ONLY_RENDER,
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION));
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 0), 0);
+        harness.channel.expectPresentation(request.revisionKey());
+
+        assertFalse(harness.channel.previewWidgetMove(
+                layout,
+                1,
+                StableId.random(),
+                StableId.random(),
+                new SlotName("children"),
+                0));
+        assertFalse(harness.channel.clearWidgetMovePreview(layout, 2));
+        assertEquals(1, harness.awaitHostFrames(1).size());
+        assertTrue(harness.channel.isReady());
+    }
+
+    @Test
     void rejectsHostRequestsForAnotherSessionBeforeWriting() throws Exception {
         harness = Harness.ready();
         CanvasRenderRequest foreign = renderRequest(CanvasSessionId.random());
@@ -835,7 +1055,35 @@ class CanvasRunnerProcessChannelTest {
                 "\"frameSequence\":" + frame
                         + ",\"layoutSequence\":" + layout
                         + ",\"intentSequence\":" + intent
-                        + ",\"widgetId\":\"" + widgetId + "\"");
+                + ",\"widgetId\":\"" + widgetId + "\"");
+    }
+
+    private static String viewportMetrics(
+            CanvasRevisionKey revision,
+            long commandSequence,
+            CanvasViewportPresentation presentation,
+            int effectiveScaleMicros,
+            boolean horizontalScrollable,
+            boolean verticalScrollable) {
+        String mode = presentation.mode() == CanvasZoomMode.FIT
+                ? "fit"
+                : "manual";
+        return runtimeEnvelope(
+                revision,
+                "runner.viewport",
+                "\"commandSequence\":" + commandSequence
+                        + ",\"mode\":\"" + mode + "\""
+                        + ",\"zoomMicros\":" + presentation.zoomMicros()
+                        + ",\"horizontalScrollMicros\":"
+                        + presentation.horizontalScrollMicros()
+                        + ",\"verticalScrollMicros\":"
+                        + presentation.verticalScrollMicros()
+                        + ",\"effectiveScaleMicros\":"
+                        + effectiveScaleMicros
+                        + ",\"horizontalScrollable\":"
+                        + horizontalScrollable
+                        + ",\"verticalScrollable\":"
+                        + verticalScrollable);
     }
 
     private static String runtimeEnvelope(
@@ -1072,15 +1320,18 @@ class CanvasRunnerProcessChannelTest {
         private final CountDownLatch selection = new CountDownLatch(1);
         private final CountDownLatch paletteDrop = new CountDownLatch(1);
         private final CountDownLatch deleteSelection = new CountDownLatch(1);
+        private final CountDownLatch viewportMetrics = new CountDownLatch(1);
         private final CountDownLatch failed = new CountDownLatch(1);
         private final AtomicInteger paletteDropCalls = new AtomicInteger();
         private final AtomicInteger deleteSelectionCalls = new AtomicInteger();
+        private final AtomicInteger viewportMetricsCalls = new AtomicInteger();
         private volatile CanvasEngineIdentity engine;
         private volatile CanvasLayoutKey layout;
         private volatile CanvasIntentKey intent;
         private volatile StableId widgetId;
         private volatile CanvasRunnerRuntimeEvent.PaletteDrop drop;
         private volatile CanvasRunnerRuntimeEvent.DeleteSelection deletion;
+        private volatile CanvasViewportMetrics metrics;
         private volatile String failureReason;
 
         @Override
@@ -1115,6 +1366,13 @@ class CanvasRunnerProcessChannelTest {
             deletion = value;
             deleteSelectionCalls.incrementAndGet();
             deleteSelection.countDown();
+        }
+
+        @Override
+        public void viewportMetrics(CanvasViewportMetrics value) {
+            metrics = value;
+            viewportMetricsCalls.incrementAndGet();
+            viewportMetrics.countDown();
         }
 
         @Override

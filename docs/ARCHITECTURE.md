@@ -60,7 +60,7 @@ Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith`. Canvas model protocol v4 carries the same resolved role
+`TextTheme.copyWith`. Canvas model protocol v5 carries the same resolved role
 tables and applies that order before form-local Text overrides. Theme
 definitions remain independent of every form `.fd` model.
 
@@ -122,7 +122,7 @@ NetBeans 30's bundled YAML language continues to recognize `pubspec.yaml` as `te
 
 ## Designer boundary
 
-The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A complete form maps `lib/<relative>/<name>.dart` to `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired Dart file own only generated source. Current schema v2 keeps `source.dartFile` as the exact Dart basename, without a path separator; schema-v1 documents are migrated in memory and become canonical v2 only on an admitted edit. The mirrored relative directory is enforced by the NetBeans project adapter. `AssetValue` paths resolve from the Flutter project/pubspec root, never from the `.fd` location, and schema-v1/v2 `extensions` are location-independent opaque metadata that must not encode `.fd`-relative semantics. User code outside the guarded regions is preserved.
+The 0.1.3 designer foundation follows the accepted contract in [Flutter Designer Architecture](FLUTTER_DESIGNER_ARCHITECTURE.md). A complete form maps `lib/<relative>/<name>.dart` to `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual widget model, while guarded `imports` and `build` regions in the paired Dart file own only generated source. Current schema v3 keeps `source.dartFile` as the exact Dart basename, without a path separator; schema-v1/v2 documents are migrated in memory and become canonical v3 only on an admitted edit. The mirrored relative directory is enforced by the NetBeans project adapter. `AssetValue` paths resolve from the Flutter project/pubspec root, never from the `.fd` location, and schema-v1/v2/v3 `extensions` are location-independent opaque metadata that must not encode `.fd`-relative semantics. User code outside the guarded regions is preserved.
 
 The NetBeans edge keeps `.dart` as the technical primary of the single designer editing session, with one Dart `DataEditorSupport` backing the dedicated `Design`/`Source` MultiView and guarded-section persistence. The mirrored `.fd` is not hidden as a cross-folder secondary entry: a separate visible, non-editing model DataObject appears under `.fd_templates` and delegates Open plus the shared pair-aware Copy, Cut, Rename and Delete operations to that one Dart-owned session. Generic DataObject Copy/Move remains disabled so no one-file operation can escape one pair member.
 

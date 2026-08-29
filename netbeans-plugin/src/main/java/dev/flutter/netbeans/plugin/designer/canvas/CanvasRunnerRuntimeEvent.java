@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import java.util.Objects;
@@ -11,7 +12,8 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         CanvasRunnerRuntimeEvent.Presented,
         CanvasRunnerRuntimeEvent.Selection,
         CanvasRunnerRuntimeEvent.PaletteDrop,
-        CanvasRunnerRuntimeEvent.DeleteSelection {
+        CanvasRunnerRuntimeEvent.DeleteSelection,
+        CanvasRunnerRuntimeEvent.ViewportMetrics {
 
     record Presented(CanvasLayoutKey layoutKey) implements CanvasRunnerRuntimeEvent {
         public Presented {
@@ -57,6 +59,14 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         public DeleteSelection {
             Objects.requireNonNull(intentKey, "intentKey");
             Objects.requireNonNull(widgetId, "widgetId");
+        }
+    }
+
+    /** Runner-confirmed presentation metrics for one exact Canvas revision. */
+    record ViewportMetrics(
+            CanvasViewportMetrics metrics) implements CanvasRunnerRuntimeEvent {
+        public ViewportMetrics {
+            Objects.requireNonNull(metrics, "metrics");
         }
     }
 }

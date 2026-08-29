@@ -179,6 +179,32 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void preservesDirectionalPaddingAsEdgeInsetsDirectional() {
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.Padding");
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                type,
+                Map.of(property("padding"),
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE, BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertTrue(generated.build().payload().contains(
+                "padding: const EdgeInsetsDirectional.fromSTEB("
+                + "1.0, 2.0, 3.0, 4.0),"));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("EdgeInsetsDirectional")));
+    }
+
+    @Test
     void assemblesExpandedTextLeavesIntoTypedFlutterObjects() {
         LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
         properties.put(property("data"), new PropertyValue.StringValue("Styled"));

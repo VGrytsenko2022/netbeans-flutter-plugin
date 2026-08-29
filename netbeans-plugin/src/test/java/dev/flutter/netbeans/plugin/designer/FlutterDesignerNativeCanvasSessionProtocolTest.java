@@ -13,6 +13,9 @@ import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
+import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostHello;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerHello;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
@@ -30,6 +33,7 @@ import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameWriter;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingPolicy;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessPayloadDescriptor;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
@@ -61,6 +65,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -78,7 +83,15 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
-            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1);
+            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
+            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1);
+    private static final List<CanvasWireCapability> VIEWPORT_CAPABILITIES = List.of(
+            CanvasWireCapability.READ_ONLY_RENDER,
+            CanvasWireCapability.READ_ONLY_LAYOUT,
+            CanvasWireCapability.READ_ONLY_SELECTION,
+            CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
+            CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
+            CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
     private static final StableId DOCUMENT_A = StableId.parse(
             "83ed3c05-88e7-4220-8377-29fa1f21a99e");
     private static final StableId DOCUMENT_B = StableId.parse(
@@ -192,6 +205,115 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(1_440.0d, profile.path("logicalWidth").asDouble());
             assertEquals(900.0d, profile.path("logicalHeight").asDouble());
         } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void staleViewportMetricsCannotOverwriteTheCurrentCommandAndLocalMetricsFollowItsAck()
+            throws Exception {
+        Harness harness = Harness.startViewport(document(DOCUMENT_A, ROOT, null));
+        try {
+            RenderPublication publication = harness.nextRender();
+            HostViewport initial = harness.process.readViewport();
+            assertEquals(publication.revision(), initial.revision());
+            assertEquals(1, initial.commandSequence());
+            assertEquals(CanvasViewportPresentation.fit(), initial.presentation());
+
+            harness.process.sendViewportMetrics(
+                    initial, initial.presentation(), 750_000, false, false);
+            harness.awaitViewportMetrics(1);
+
+            CanvasViewportPresentation currentPresentation =
+                    CanvasViewportPresentation.manual(
+                            1_250_000, 300_000, 400_000);
+            onEdt(() -> harness.session.setViewportPresentation(
+                    currentPresentation));
+            HostViewport current = harness.process.readViewport();
+            assertEquals(2, current.commandSequence());
+            assertEquals(currentPresentation, current.presentation());
+
+            harness.ui.hold();
+            harness.process.sendViewportMetrics(
+                    initial, initial.presentation(), 750_000, false, false);
+            harness.process.sendViewportMetrics(
+                    current, current.presentation(), 1_250_000, true, true);
+            harness.awaitUiTasks(2);
+            onEdt(harness.ui::releaseAll);
+
+            assertEquals(2, harness.runnerViewportMetrics.size());
+            CanvasViewportMetrics accepted = harness.runnerViewportMetrics.getLast();
+            assertEquals(2, accepted.commandSequence());
+            assertEquals(currentPresentation, accepted.presentation());
+
+            CanvasViewportPresentation runnerLocalPresentation =
+                    CanvasViewportPresentation.manual(
+                            1_250_000, 700_000, 800_000);
+            harness.process.sendViewportMetrics(
+                    current,
+                    runnerLocalPresentation,
+                    1_250_000,
+                    true,
+                    true);
+            harness.awaitViewportMetrics(3);
+            assertEquals(runnerLocalPresentation,
+                    harness.runnerViewportMetrics.getLast().presentation());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void rejectedNewViewportDoesNotLeaveTheAcknowledgedPreviousCommandPending()
+            throws Exception {
+        Harness harness = Harness.startViewport(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            RenderPublication publication = harness.nextRender();
+            HostViewport acceptedA = harness.process.readViewport();
+            CanvasLayoutKey layout = layout(publication.revision());
+            harness.process.sendPresented(layout);
+            harness.process.readSelection();
+
+            harness.process.blockNextHostWrite();
+            onEdt(() -> harness.session.selectWidget(CHILD));
+            harness.process.awaitHostWriteBlocked();
+            onEdt(() -> {
+                for (int index = 0; index < 64; index++) {
+                    harness.session.selectWidget((index & 1) == 0 ? ROOT : CHILD);
+                }
+                harness.session.setViewportPresentation(
+                        CanvasViewportPresentation.manual(
+                                1_500_000, 250_000, 350_000));
+                harness.stopViewportRetryTimer();
+            });
+
+            harness.ui.hold();
+            harness.process.sendViewportMetrics(
+                    acceptedA,
+                    acceptedA.presentation(),
+                    750_000,
+                    false,
+                    false);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertTrue(harness.runnerViewportMetrics.isEmpty());
+
+            onEdt(() -> harness.session.setViewportPresentation(
+                    acceptedA.presentation()));
+            CanvasViewportPresentation runnerLocalPresentation =
+                    CanvasViewportPresentation.manual(
+                            1_000_000, 600_000, 700_000);
+            harness.process.sendViewportMetrics(
+                    acceptedA,
+                    runnerLocalPresentation,
+                    1_000_000,
+                    true,
+                    true);
+            harness.awaitViewportMetrics(1);
+            assertEquals(runnerLocalPresentation,
+                    harness.runnerViewportMetrics.getFirst().presentation());
+        } finally {
+            harness.process.releaseHostWrite();
             harness.close();
         }
     }
@@ -492,6 +614,114 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         }
     }
 
+    @Test
+    void widgetMovePreviewUsesExactLayoutAndClearsExplicitlyAndOnHide()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            WidgetPlacement destination = new WidgetPlacement(
+                    ROOT, new SlotName("body"), 0);
+
+            onEdt(() -> harness.session.showWidgetMovePreview(
+                    CHILD, destination));
+            HostWidgetMovePreview preview =
+                    harness.process.readWidgetMovePreview();
+            assertEquals(currentLayout, preview.layout());
+            assertEquals(1, preview.previewSequence());
+            assertEquals(CHILD, preview.sourceWidgetId());
+            assertEquals(destination, preview.destination());
+
+            onEdt(harness.session::clearWidgetMovePreview);
+            HostWidgetMovePreviewClear explicitClear =
+                    harness.process.readWidgetMovePreviewClear();
+            assertEquals(currentLayout, explicitClear.layout());
+            assertEquals(2, explicitClear.previewSequence());
+
+            onEdt(() -> harness.session.showWidgetMovePreview(
+                    CHILD, destination));
+            assertEquals(
+                    3,
+                    harness.process.readWidgetMovePreview().previewSequence());
+            onEdt(harness.session::hide);
+            HostWidgetMovePreviewClear hideClear =
+                    harness.process.readWidgetMovePreviewClear();
+            assertEquals(currentLayout, hideClear.layout());
+            assertEquals(4, hideClear.previewSequence());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void widgetMovePreviewRetryIsLastWriteWinsAndClearSupersedesPendingShow()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            WidgetPlacement placementA = new WidgetPlacement(
+                    ROOT, new SlotName("body"), 0);
+            WidgetPlacement placementB = new WidgetPlacement(
+                    ROOT, new SlotName("floatingActionButton"), 0);
+            WidgetPlacement placementC = new WidgetPlacement(
+                    ROOT, new SlotName("appBar"), 0);
+            onEdt(() -> harness.session.showWidgetMovePreview(
+                    CHILD, placementA));
+            HostWidgetMovePreview acceptedA =
+                    harness.process.readWidgetMovePreview();
+            assertEquals(1, acceptedA.previewSequence());
+            assertEquals(placementA, acceptedA.destination());
+
+            harness.process.blockNextHostWrite();
+            onEdt(() -> harness.session.selectWidget(CHILD));
+            harness.process.awaitHostWriteBlocked();
+            onEdt(() -> {
+                for (int index = 0; index < 64; index++) {
+                    harness.session.selectWidget(
+                            (index & 1) == 0 ? ROOT : CHILD);
+                }
+                harness.session.showWidgetMovePreview(CHILD, placementB);
+                harness.session.showWidgetMovePreview(CHILD, placementC);
+                harness.stopWidgetMovePreviewRetryTimer();
+            });
+            harness.process.releaseHostWrite();
+            for (int index = 0; index < 65; index++) {
+                harness.process.readSelection();
+            }
+            onEdt(harness::retryWidgetMovePreviewNow);
+            HostWidgetMovePreview retriedLatest =
+                    harness.process.readWidgetMovePreview();
+            assertEquals(currentLayout, retriedLatest.layout());
+            assertEquals(2, retriedLatest.previewSequence());
+            assertEquals(placementC, retriedLatest.destination());
+
+            harness.process.blockNextHostWrite();
+            onEdt(() -> harness.session.selectWidget(ROOT));
+            harness.process.awaitHostWriteBlocked();
+            onEdt(() -> {
+                for (int index = 0; index < 64; index++) {
+                    harness.session.selectWidget(
+                            (index & 1) == 0 ? CHILD : ROOT);
+                }
+                harness.session.showWidgetMovePreview(CHILD, placementB);
+                harness.session.clearWidgetMovePreview();
+                harness.stopWidgetMovePreviewRetryTimer();
+            });
+            harness.process.releaseHostWrite();
+            for (int index = 0; index < 65; index++) {
+                harness.process.readSelection();
+            }
+            onEdt(harness::retryWidgetMovePreviewNow);
+            HostWidgetMovePreviewClear retriedClear =
+                    harness.process.readWidgetMovePreviewClear();
+            assertEquals(currentLayout, retriedClear.layout());
+            assertEquals(3, retriedClear.previewSequence());
+        } finally {
+            harness.process.releaseHostWrite();
+            harness.close();
+        }
+    }
+
     private static CanvasLayoutKey renderAndPresent(Harness harness)
             throws Exception {
         RenderPublication publication = harness.nextRender();
@@ -615,6 +845,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         private final List<WidgetTypeId> runnerPaletteDropTypes = new ArrayList<>();
         private final List<CanvasRunnerRuntimeEvent.DeleteSelection>
                 runnerDeletions = new ArrayList<>();
+        private final List<CanvasViewportMetrics> runnerViewportMetrics =
+                new ArrayList<>();
         private final CanvasRunnerBuildResult runner;
         private final FlutterDesignerNativeCanvasSession session;
 
@@ -657,11 +889,17 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                         runnerPaletteDrops.add(admitted.drop());
                     },
                     runnerDeletions::add);
+            session.setViewportMetricsListener(runnerViewportMetrics::add);
         }
 
         static Harness start(DesignerDocument document) throws Exception {
             Harness harness = onEdt((Callable<Harness>) Harness::new);
-            return start(harness, document);
+            return start(harness, document, CAPABILITIES);
+        }
+
+        static Harness startViewport(DesignerDocument document) throws Exception {
+            Harness harness = onEdt((Callable<Harness>) Harness::new);
+            return start(harness, document, VIEWPORT_CAPABILITIES);
         }
 
         static Harness start(
@@ -670,10 +908,13 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                 throws Exception {
             Harness harness = onEdt((Callable<Harness>)
                     () -> new Harness(paletteDropTokenResolver));
-            return start(harness, document);
+            return start(harness, document, CAPABILITIES);
         }
 
-        private static Harness start(Harness harness, DesignerDocument document)
+        private static Harness start(
+                Harness harness,
+                DesignerDocument document,
+                List<CanvasWireCapability> capabilities)
                 throws Exception {
             onEdt(() -> {
                 harness.session.show();
@@ -685,7 +926,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                 harness.launches.runNext();
                 harness.polls.runActivePoll();
             });
-            harness.process.handshake();
+            harness.process.handshake(capabilities);
             return harness;
         }
 
@@ -701,6 +942,45 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             awaitEdtCondition(
                     () -> ui.pendingCount() >= expectedMinimum,
                     "runtime event was not queued for UI delivery");
+        }
+
+        void awaitViewportMetrics(int expectedMinimum) throws Exception {
+            awaitEdtCondition(
+                    () -> runnerViewportMetrics.size() >= expectedMinimum,
+                    "viewport metrics were not delivered to the session listener");
+        }
+
+        void stopViewportRetryTimer() {
+            try {
+                var field = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("viewportCommandRetryTimer");
+                field.setAccessible(true);
+                ((javax.swing.Timer) field.get(session)).stop();
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void stopWidgetMovePreviewRetryTimer() {
+            try {
+                var field = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("widgetMovePreviewRetryTimer");
+                field.setAccessible(true);
+                ((javax.swing.Timer) field.get(session)).stop();
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void retryWidgetMovePreviewNow() {
+            try {
+                var method = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredMethod("retryWidgetMovePreview");
+                method.setAccessible(true);
+                method.invoke(session);
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
         }
 
         @Override
@@ -846,17 +1126,108 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     private record HostSelection(CanvasLayoutKey layout, StableId widgetId) {
     }
 
+    private record HostViewport(
+            CanvasRevisionKey revision,
+            long commandSequence,
+            CanvasViewportPresentation presentation) {
+    }
+
+    private record HostWidgetMovePreview(
+            CanvasLayoutKey layout,
+            long previewSequence,
+            StableId sourceWidgetId,
+            WidgetPlacement destination) {
+    }
+
+    private record HostWidgetMovePreviewClear(
+            CanvasLayoutKey layout,
+            long previewSequence) {
+    }
+
+    private static final class GateOutputStream extends OutputStream {
+        private final OutputStream delegate;
+        private CountDownLatch blocked = new CountDownLatch(0);
+        private CountDownLatch release = new CountDownLatch(0);
+        private boolean blockNextWrite;
+
+        private GateOutputStream(OutputStream delegate) {
+            this.delegate = delegate;
+        }
+
+        synchronized void blockNextWrite() {
+            if (blockNextWrite || blocked.getCount() != 0) {
+                throw new AssertionError("host write gate is already armed");
+            }
+            blocked = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+            blockNextWrite = true;
+        }
+
+        boolean awaitWriteBlocked(long timeout, TimeUnit unit)
+                throws InterruptedException {
+            return blocked.await(timeout, unit);
+        }
+
+        void releaseWrite() {
+            release.countDown();
+        }
+
+        @Override
+        public void write(int value) throws IOException {
+            awaitGate();
+            delegate.write(value);
+        }
+
+        @Override
+        public void write(byte[] bytes, int offset, int length)
+                throws IOException {
+            awaitGate();
+            delegate.write(bytes, offset, length);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            releaseWrite();
+            delegate.close();
+        }
+
+        private void awaitGate() throws IOException {
+            CountDownLatch activeRelease;
+            synchronized (this) {
+                if (!blockNextWrite) {
+                    return;
+                }
+                blockNextWrite = false;
+                activeRelease = release;
+                blocked.countDown();
+            }
+            try {
+                activeRelease.await();
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new IOException("host write gate interrupted", failure);
+            }
+        }
+    }
+
     private static final class ProtocolProcess extends Process {
         private final long pid;
         private final java.io.PipedInputStream hostStdout;
         private final java.io.PipedOutputStream runnerStdout;
         private final java.io.PipedInputStream runnerStdin;
         private final java.io.PipedOutputStream hostStdin;
+        private final GateOutputStream gatedHostStdin;
         private final CanvasProcessFrameReader hostFrames;
         private final CanvasProcessFrameWriter runnerFrames;
         private final CompletableFuture<Process> onExit = new CompletableFuture<>();
         private final ObjectMapper json = new ObjectMapper();
         private CanvasSessionId sessionId;
+        private List<CanvasWireCapability> negotiatedCapabilities = CAPABILITIES;
         private boolean alive = true;
         private int exitCode;
 
@@ -867,6 +1238,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                 runnerStdout = new java.io.PipedOutputStream(hostStdout);
                 runnerStdin = new java.io.PipedInputStream(1024 * 1024);
                 hostStdin = new java.io.PipedOutputStream(runnerStdin);
+                gatedHostStdin = new GateOutputStream(hostStdin);
             } catch (IOException failure) {
                 throw new AssertionError(failure);
             }
@@ -875,7 +1247,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             runnerFrames = codec.writer(runnerStdout);
         }
 
-        void handshake() throws Exception {
+        void handshake(List<CanvasWireCapability> capabilities) throws Exception {
             CanvasProcessFrame helloFrame = hostFrames.read(handshakePolicy(
                     CanvasProcessDirection.HOST_TO_RUNNER)).orElseThrow();
             CanvasWireDecodeResult decoded = new CanvasWireCodec().decode(
@@ -883,6 +1255,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasHostHello hello = (CanvasHostHello)
                     ((CanvasWireDecodeResult.Decoded) decoded).message();
             sessionId = hello.sessionId();
+            negotiatedCapabilities = List.copyOf(capabilities);
             runnerFrames.write(
                     handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
                     control(new CanvasWireCodec().encode(new CanvasRunnerHello(
@@ -891,13 +1264,14 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             0,
                             "flutter-canvas-runner/1",
                             ENGINE,
-                            CAPABILITIES,
+                            negotiatedCapabilities,
                             CanvasWireHandshakeLimits.defaults()))));
         }
 
         RenderPublication readRender() throws Exception {
             CanvasProcessFrame control = hostFrames.read(negotiatedPolicy(
-                    CanvasProcessDirection.HOST_TO_RUNNER)).orElseThrow();
+                    CanvasProcessDirection.HOST_TO_RUNNER,
+                    negotiatedCapabilities)).orElseThrow();
             JsonNode root = json.readTree(control.copyPayload());
             assertEquals("host.render", root.path("type").asText());
             JsonNode body = root.path("body");
@@ -909,14 +1283,17 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             model.path("payloadBytes").intValue(),
                             HexFormat.of().parseHex(model.path("sha256").asText()));
             CanvasProcessFrame payload = hostFrames.read(
-                    negotiatedPolicy(CanvasProcessDirection.HOST_TO_RUNNER),
+                    negotiatedPolicy(
+                            CanvasProcessDirection.HOST_TO_RUNNER,
+                            negotiatedCapabilities),
                     descriptor).orElseThrow();
             return new RenderPublication(revision, payload.copyPayload());
         }
 
         HostSelection readSelection() throws Exception {
             CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
-                    CanvasProcessDirection.HOST_TO_RUNNER)).orElseThrow();
+                    CanvasProcessDirection.HOST_TO_RUNNER,
+                    negotiatedCapabilities)).orElseThrow();
             JsonNode root = json.readTree(frame.copyPayload());
             assertEquals("host.selection", root.path("type").asText());
             JsonNode body = root.path("body");
@@ -927,6 +1304,64 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     body.path("layoutSequence").longValue());
             return new HostSelection(
                     layout, StableId.parse(body.path("widgetId").asText()));
+        }
+
+        HostWidgetMovePreview readWidgetMovePreview() throws Exception {
+            JsonNode body = readHostControl("host.widgetMovePreview");
+            return new HostWidgetMovePreview(
+                    layout(body),
+                    body.path("previewSequence").longValue(),
+                    StableId.parse(body.path("sourceWidgetId").asText()),
+                    new WidgetPlacement(
+                            StableId.parse(body.path("parentWidgetId").asText()),
+                            new SlotName(body.path("slotName").asText()),
+                            body.path("insertionIndex").intValue()));
+        }
+
+        HostWidgetMovePreviewClear readWidgetMovePreviewClear()
+                throws Exception {
+            JsonNode body = readHostControl("host.widgetMovePreviewClear");
+            return new HostWidgetMovePreviewClear(
+                    layout(body), body.path("previewSequence").longValue());
+        }
+
+        private JsonNode readHostControl(String expectedType) throws Exception {
+            CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
+                    CanvasProcessDirection.HOST_TO_RUNNER,
+                    negotiatedCapabilities)).orElseThrow();
+            JsonNode root = json.readTree(frame.copyPayload());
+            assertEquals(expectedType, root.path("type").asText());
+            return root.path("body");
+        }
+
+        private CanvasLayoutKey layout(JsonNode body) {
+            return new CanvasLayoutKey(
+                    new CanvasFrameKey(
+                            revision(body),
+                            body.path("frameSequence").longValue()),
+                    body.path("layoutSequence").longValue());
+        }
+
+        HostViewport readViewport() throws Exception {
+            CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
+                    CanvasProcessDirection.HOST_TO_RUNNER,
+                    negotiatedCapabilities)).orElseThrow();
+            JsonNode root = json.readTree(frame.copyPayload());
+            assertEquals("host.viewport", root.path("type").asText());
+            JsonNode body = root.path("body");
+            String mode = body.path("mode").asText();
+            CanvasViewportPresentation presentation =
+                    new CanvasViewportPresentation(
+                            "fit".equals(mode)
+                                    ? CanvasZoomMode.FIT
+                                    : CanvasZoomMode.MANUAL,
+                            body.path("zoomMicros").intValue(),
+                            body.path("horizontalScrollMicros").intValue(),
+                            body.path("verticalScrollMicros").intValue());
+            return new HostViewport(
+                    revision(body),
+                    body.path("commandSequence").longValue(),
+                    presentation);
         }
 
         void sendPresented(CanvasLayoutKey layout) throws Exception {
@@ -982,9 +1417,51 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             + ",\"widgetId\":\"" + widgetId + "\""));
         }
 
+        void sendViewportMetrics(
+                HostViewport command,
+                CanvasViewportPresentation presentation,
+                int effectiveScaleMicros,
+                boolean horizontalScrollable,
+                boolean verticalScrollable) throws Exception {
+            String mode = presentation.mode() == CanvasZoomMode.FIT
+                    ? "fit"
+                    : "manual";
+            sendRuntime(runtimeEnvelope(
+                    command.revision(),
+                    "runner.viewport",
+                    "\"commandSequence\":" + command.commandSequence()
+                            + ",\"mode\":\"" + mode + "\""
+                            + ",\"zoomMicros\":" + presentation.zoomMicros()
+                            + ",\"horizontalScrollMicros\":"
+                            + presentation.horizontalScrollMicros()
+                            + ",\"verticalScrollMicros\":"
+                            + presentation.verticalScrollMicros()
+                            + ",\"effectiveScaleMicros\":"
+                            + effectiveScaleMicros
+                            + ",\"horizontalScrollable\":"
+                            + horizontalScrollable
+                            + ",\"verticalScrollable\":"
+                            + verticalScrollable));
+        }
+
+        void blockNextHostWrite() {
+            gatedHostStdin.blockNextWrite();
+        }
+
+        void awaitHostWriteBlocked() throws Exception {
+            assertTrue(gatedHostStdin.awaitWriteBlocked(
+                    2, TimeUnit.SECONDS), "host protocol write did not block");
+        }
+
+        void releaseHostWrite() {
+            gatedHostStdin.releaseWrite();
+        }
+
         private void sendRuntime(String value) throws Exception {
             runnerFrames.write(
-                    negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                    negotiatedPolicy(
+                            CanvasProcessDirection.RUNNER_TO_HOST,
+                            negotiatedCapabilities),
                     control(value.getBytes(StandardCharsets.UTF_8)));
         }
 
@@ -998,7 +1475,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
 
         @Override
         public OutputStream getOutputStream() {
-            return hostStdin;
+            return gatedHostStdin;
         }
 
         @Override
@@ -1086,13 +1563,14 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     private static CanvasProcessFramingPolicy negotiatedPolicy(
-            CanvasProcessDirection direction) {
+            CanvasProcessDirection direction,
+            List<CanvasWireCapability> capabilities) {
         return CanvasProcessFramingPolicy.negotiated(
                 CanvasWireLimits.defaults(),
                 new CanvasWireNegotiation(
                         "flutter-canvas-runner/1",
                         ENGINE,
-                        CAPABILITIES,
+                        capabilities,
                         CanvasWireHandshakeLimits.defaults()),
                 direction);
     }

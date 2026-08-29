@@ -6,6 +6,8 @@ import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostClose;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerClosed;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerFailure;
@@ -19,6 +21,7 @@ import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireMessage;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireNegotiation;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireSessionAdmission;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireSessionGate;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessDirection;
@@ -31,6 +34,8 @@ import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingError;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingException;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFramingPolicy;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -237,6 +242,89 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         return enqueueOutbound(() -> writeSelection(layoutKey, widgetId));
     }
 
+    /**
+     * Projects one already-planned widget move target into the exact current
+     * Canvas layout. This optional command never grants mutation authority.
+     */
+    public boolean previewWidgetMove(
+            CanvasLayoutKey layoutKey,
+            long previewSequence,
+            StableId sourceWidgetId,
+            StableId parentWidgetId,
+            SlotName slotName,
+            int insertionIndex) {
+        Objects.requireNonNull(layoutKey, "layoutKey");
+        Objects.requireNonNull(sourceWidgetId, "sourceWidgetId");
+        Objects.requireNonNull(parentWidgetId, "parentWidgetId");
+        Objects.requireNonNull(slotName, "slotName");
+        requireExactSession(layoutKey.sessionId(), "widget move preview");
+        requirePreviewSequence(previewSequence);
+        requireInsertionIndex(insertionIndex);
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return false;
+            }
+        }
+        return enqueueOutbound(() -> writeWidgetMovePreview(
+                layoutKey,
+                previewSequence,
+                sourceWidgetId,
+                parentWidgetId,
+                slotName,
+                insertionIndex));
+    }
+
+    /** Clears the host-projected widget move target for the exact layout. */
+    public boolean clearWidgetMovePreview(
+            CanvasLayoutKey layoutKey,
+            long previewSequence) {
+        Objects.requireNonNull(layoutKey, "layoutKey");
+        requireExactSession(layoutKey.sessionId(), "widget move preview clear");
+        requirePreviewSequence(previewSequence);
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return false;
+            }
+        }
+        return enqueueOutbound(() -> writeWidgetMovePreviewClear(
+                layoutKey, previewSequence));
+    }
+
+    /**
+     * Sends one viewport presentation request for the exact current revision.
+     * The request is optional and is admitted only when its capability was
+     * negotiated by the isolated runner.
+     */
+    public boolean viewport(
+            CanvasRevisionKey revisionKey,
+            long commandSequence,
+            CanvasViewportPresentation presentation) {
+        Objects.requireNonNull(revisionKey, "revisionKey");
+        Objects.requireNonNull(presentation, "presentation");
+        requireExactSession(revisionKey.sessionId(), "viewport request");
+        requireCommandSequence(commandSequence);
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.VIEWPORT_PRESENTATION_V1)
+                    || !revisionKey.equals(latestExpectedRevision)) {
+                return false;
+            }
+        }
+        return enqueueOutbound(() -> writeViewport(
+                revisionKey, commandSequence, presentation));
+    }
+
     public CanvasSessionId sessionId() {
         return sessionId;
     }
@@ -358,6 +446,109 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             fail("Canvas selection request could not be encoded.");
         } catch (IOException failure) {
             fail("Canvas selection request could not be written to runner stdin.");
+        }
+    }
+
+    private void writeWidgetMovePreview(
+            CanvasLayoutKey layoutKey,
+            long previewSequence,
+            StableId sourceWidgetId,
+            StableId parentWidgetId,
+            SlotName slotName,
+            int insertionIndex) {
+        final CanvasProcessFramingPolicy activePolicy;
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return;
+            }
+            activePolicy = writePolicy;
+        }
+        try {
+            byte[] control = runtimeCodec.encodeWidgetMovePreview(
+                    layoutKey,
+                    previewSequence,
+                    sourceWidgetId,
+                    parentWidgetId,
+                    slotName,
+                    insertionIndex);
+            writer.write(
+                    activePolicy,
+                    new CanvasProcessFrame(
+                            CanvasProcessFrameKind.CONTROL_JSON, control));
+        } catch (CanvasRunnerControlException | RuntimeException failure) {
+            fail("Canvas widget move preview could not be encoded.");
+        } catch (IOException failure) {
+            fail("Canvas widget move preview could not be written to runner stdin.");
+        }
+    }
+
+    private void writeWidgetMovePreviewClear(
+            CanvasLayoutKey layoutKey,
+            long previewSequence) {
+        final CanvasProcessFramingPolicy activePolicy;
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1)
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return;
+            }
+            activePolicy = writePolicy;
+        }
+        try {
+            byte[] control = runtimeCodec.encodeWidgetMovePreviewClear(
+                    layoutKey, previewSequence);
+            writer.write(
+                    activePolicy,
+                    new CanvasProcessFrame(
+                            CanvasProcessFrameKind.CONTROL_JSON, control));
+        } catch (CanvasRunnerControlException | RuntimeException failure) {
+            fail("Canvas widget move preview clear could not be encoded.");
+        } catch (IOException failure) {
+            fail("Canvas widget move preview clear could not be written to runner stdin.");
+        }
+    }
+
+    private void writeViewport(
+            CanvasRevisionKey revisionKey,
+            long commandSequence,
+            CanvasViewportPresentation presentation) {
+        final CanvasProcessFramingPolicy activePolicy;
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || !acceptedCapabilities.contains(
+                            CanvasWireCapability.VIEWPORT_PRESENTATION_V1)
+                    || !revisionKey.equals(latestExpectedRevision)) {
+                return;
+            }
+            activePolicy = writePolicy;
+        }
+        try {
+            byte[] control = runtimeCodec.encodeViewport(
+                    revisionKey, commandSequence, presentation);
+            synchronized (stateLock) {
+                if (state != State.READY
+                        || !acceptedCapabilities.contains(
+                                CanvasWireCapability.VIEWPORT_PRESENTATION_V1)
+                        || !revisionKey.equals(latestExpectedRevision)) {
+                    return;
+                }
+            }
+            writer.write(
+                    activePolicy,
+                    new CanvasProcessFrame(
+                            CanvasProcessFrameKind.CONTROL_JSON, control));
+        } catch (CanvasRunnerControlException | RuntimeException failure) {
+            fail("Canvas viewport request could not be encoded.");
+        } catch (IOException failure) {
+            fail("Canvas viewport request could not be written to runner stdin.");
         }
     }
 
@@ -525,6 +716,32 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                     selection.intentKey(), selection.widgetId()));
             return true;
         }
+        if (event instanceof CanvasRunnerRuntimeEvent.ViewportMetrics viewport) {
+            CanvasViewportMetrics metrics = viewport.metrics();
+            final boolean viewportNegotiated;
+            final boolean exactRevision;
+            synchronized (stateLock) {
+                viewportNegotiated = acceptedCapabilities.contains(
+                        CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
+                exactRevision = metrics.revisionKey().equals(
+                        latestExpectedRevision);
+            }
+            if (!viewportNegotiated) {
+                fail("Canvas runner sent viewport metrics without negotiating "
+                        + "its capability.");
+                return false;
+            }
+            if (!exactSession(metrics.revisionKey().sessionId())) {
+                fail("Canvas runner sent viewport metrics for a foreign Canvas session.");
+                return false;
+            }
+            if (!exactRevision) {
+                // A superseded asynchronous acknowledgement has no authority.
+                return true;
+            }
+            dispatch(() -> listener.viewportMetrics(metrics));
+            return true;
+        }
         if (event instanceof CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
             final boolean deleteNegotiated;
             synchronized (stateLock) {
@@ -591,6 +808,33 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         if (!exactSession(candidate)) {
             throw new IllegalArgumentException(
                     "Canvas " + operation + " belongs to another session.");
+        }
+    }
+
+    private static void requireCommandSequence(long commandSequence) {
+        if (commandSequence < 1
+                || commandSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "Canvas viewport commandSequence must be between 1 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE + '.');
+        }
+    }
+
+    private static void requirePreviewSequence(long previewSequence) {
+        if (previewSequence < 1
+                || previewSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "Canvas widget move previewSequence must be between 1 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE + '.');
+        }
+    }
+
+    private static void requireInsertionIndex(int insertionIndex) {
+        if (insertionIndex < 0
+                || insertionIndex > WidgetSlot.MAX_LIST_CHILDREN) {
+            throw new IllegalArgumentException(
+                    "Canvas widget move insertionIndex must be between 0 and "
+                    + WidgetSlot.MAX_LIST_CHILDREN + '.');
         }
     }
 
@@ -700,6 +944,10 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         /** Optional until the owning Designer session wires the mutation slice. */
         default void deleteSelection(
                 CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
+        }
+
+        /** Optional runner-confirmed viewport presentation state. */
+        default void viewportMetrics(CanvasViewportMetrics metrics) {
         }
 
         void failed(String reason);

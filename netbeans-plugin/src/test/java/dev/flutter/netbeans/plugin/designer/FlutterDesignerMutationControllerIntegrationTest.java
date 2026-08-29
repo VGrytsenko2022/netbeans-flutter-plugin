@@ -732,6 +732,117 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteSizedBoxInsertionStagesUndoesRedoesAndPersistsExactPair()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_palette_sized_box_append", columnExactPair());
+        StableId appendedId = StableId.parse(
+                "67676767-6767-4767-8767-676767676767");
+        WidgetTypeId sizedBoxType = new WidgetTypeId(
+                "flutter.widgets.SizedBox");
+
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            sizedBoxType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal SizedBox insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append SizedBox to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode sizedBox = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(sizedBoxType, sizedBox.type());
+            assertEquals(Map.of(), sizedBox.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    sizedBox.slots().get(CHILD)).child().isEmpty());
+            assertEquals(1, fixture.analysisCalls().get());
+            assertTrue(fixture.analyzedContents().getFirst().contains("SizedBox("));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            DesignerDocument decodedCandidate = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(sizedBoxType,
+                    findModelWidget(decodedCandidate.root(), appendedId).type());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(combined::undo);
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            applied.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+
+            onEdt(combined::redo);
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(sizedBoxType, findModelWidget(
+                    redone.document().orElseThrow().root(), appendedId).type());
+            assertArrayEquals(candidateDart,
+                    fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(candidateFd,
+                    fixture.coordinator().stagedEvidence()
+                            .preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(1, fixture.analysisCalls().get(),
+                    "Redo must replay the analyzed SizedBox pair");
+
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(
+                    fixture.controller(), candidateFd, candidateDart);
+            awaitReadyWithColumnChildIdsAfterToken(
+                    fixture.mutations(),
+                    redone.token().orElseThrow(),
+                    List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertArrayEquals(candidateDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(candidateFd, Files.readAllBytes(fixture.fdPath()));
+            FdDecodeResult.Current saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(
+                            Files.readAllBytes(fixture.fdPath())));
+            assertEquals(sizedBoxType,
+                    findModelWidget(saved.document().root(), appendedId).type());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
     void deletedCenterTextCanBeDroppedBackThroughTheExactMutationPipeline()
             throws Exception {
         MutationFixture fixture = fixture(

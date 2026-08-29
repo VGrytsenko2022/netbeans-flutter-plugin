@@ -19,7 +19,7 @@ The current usable workflow is:
 9. Build, clean, resolve packages, analyze sources, and run all/file/single tests through native NetBeans tooling UI.
 10. Edit `pubspec.yaml` with Flutter-aware completion and semantic diagnostics.
 11. On Windows, open a valid paired `.dart`/`.fd` Designer document in a
-    read-only native Flutter Canvas, switch among exact Android/iOS/desktop
+    native Flutter Canvas, switch among exact Android/iOS/desktop
     adaptive preview targets allowed by the project, and synchronize stable
     widget selection between the Canvas and the widget tree. The tree
     remains fully expanded, hides its redundant expansion controls and uses
@@ -27,8 +27,10 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the six reviewed CORE_V1 Palette widgets through the catalog
-    compatibility matrix, with paired generation, analysis, Save and Undo/Redo.
+    accepts the seven capability-authorized Palette widgets (`Scaffold`,
+    `Column`, `Row`, `Padding`, `Center`, `SizedBox` and `Text`) through the
+    fail-closed 49-cell catalog compatibility matrix, with paired generation,
+    analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
     parent has one unambiguous compatible slot; ambiguous multi-slot parents
     such as `Scaffold` fail closed instead of guessing a destination.
@@ -231,16 +233,18 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated `CORE_V1` model restricted to `Scaffold`, `Column`, `Row`,
-`Text`, `Padding` and `Center`. The toolbar now preserves exact Android Phone,
+bounded validated protocol-v5 model restricted by the exact built-in capability
+gate to `Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center` and `SizedBox`.
+The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
 targets and carries each target into Flutter's adaptive theme semantics on the
 bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The five non-`Scaffold` widgets expose 76 typed
-read/write properties. `Text` contributes 59 independently editable leaves in
+tree and standard Properties. The six non-`Scaffold` widgets expose 78 typed
+read/write properties: the prior 76-field contract plus nullable non-negative
+`SizedBox.width` and `SizedBox.height`. `Text` contributes 59 independently editable leaves in
 seven sections; every optional leaf supports Restore Default, and generated
 Dart and native Canvas assemble them identically into `TextStyle`,
 `StrutStyle`, `Locale`, `TextScaler` and `TextHeightBehavior`. Text colors,
@@ -251,14 +255,16 @@ serializable `Paint` subset, ordered `Shadow` values, OpenType `FontFeature`
 tags and `FontVariation` axes. The deprecated `Text.textScaleFactor` argument,
 `key`, arbitrary Dart expressions and unsupported shader/filter object graphs
 remain outside this slice. The active Design lookup supplies the standard NetBeans Palette
-with those exact six items. The catalog compatibility matrix admits every one
-of those six sources into empty `Scaffold.body`,
-`Scaffold.floatingActionButton`, `Center.child` and `Padding.child` slots, or
+with those exact seven items. The catalog compatibility matrix admits every one
+of those seven sources into empty `Scaffold.body`,
+`Scaffold.floatingActionButton`, `Center.child`, `Padding.child` and
+`SizedBox.child` slots, or
 at the terminal index of `Row.children` and `Column.children`. An empty
 `Row`/`Column` exposes its complete bounded design-time area as insertion index
 `0`; once populated, only its terminal append zone is admitted. The standard
 widget tree accepts the same Palette prototypes on an exact row: `Row` and
-`Column` append to `children`, while an empty `Center` or `Padding` receives its
+`Column` append to `children`, while an empty `Center`, `Padding` or `SizedBox`
+receives its
 `child`. Parents with several compatible catalog slots remain rejected as
 ambiguous by flattened-tree drop; select the parent and use its `Slots`
 Properties tab to choose the exact named destination.

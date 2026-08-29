@@ -250,7 +250,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void exposesEverySafeCatalogPropertyOnTheFiveNonScaffoldWidgetsAsWritable()
+    void exposesEverySafeCatalogPropertyOnAllCapabilityReviewedWidgetsAsWritable()
             throws Exception {
         Map<String, Map<PropertyName, PropertyValue>> requiredValues = Map.of(
                 "flutter.widgets.Padding", Map.of(
@@ -266,6 +266,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
+                "flutter.widgets.SizedBox",
                 "flutter.widgets.Text");
 
         int writableCount = 0;
@@ -296,7 +297,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(76, writableCount,
+        assertEquals(78, writableCount,
                 "the reviewed non-Scaffold surface includes all 59 Text leaves");
     }
 
@@ -485,7 +486,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void safePropertiesOnAWidgetOutsideTheReviewedFiveTypeSliceRemainReadOnly() {
+    void propertiesOutsideTheReviewedCapabilitySurfaceRemainReadOnly() {
         WidgetDefinition definition = definition("flutter.widgets.Icon");
         WidgetNode widget = new WidgetNode(
                 StableId.parse("b20f626c-e6bd-45d8-aef1-26382ba3ffb6"),
@@ -628,6 +629,31 @@ class FlutterWidgetPropertiesNodeTest {
                 cell(widthFactor).explicitValue().orElseThrow());
         assertThrows(IllegalArgumentException.class,
                 () -> widthFactor.setAsText("-0.1"));
+
+        WidgetDefinition sizedBoxDefinition = definition(
+                "flutter.widgets.SizedBox");
+        FlutterWidgetPropertiesNode sizedBox = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                WidgetNode.empty(
+                        StableId.parse("4595dfde-58bc-48b6-b2e6-a30ac9f08ebf"),
+                        sizedBoxDefinition.typeId()),
+                sizedBoxDefinition,
+                ignored -> { });
+        PropertyEditor width = property(sizedBox, "width").getPropertyEditor();
+        PropertyEditor height = property(sizedBox, "height").getPropertyEditor();
+        width.setAsText("120");
+        assertInstanceOf(PropertyValue.IntegerValue.class,
+                cell(width).explicitValue().orElseThrow());
+        height.setAsText("48.5");
+        assertInstanceOf(PropertyValue.DoubleValue.class,
+                cell(height).explicitValue().orElseThrow());
+        height.setAsText("0");
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                cell(height).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> width.setAsText("-0.1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> height.setAsText("NaN"));
 
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
         FlutterWidgetPropertiesNode column = new FlutterWidgetPropertiesNode(
@@ -797,7 +823,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void sixCoreDesignTreeNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void sevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -805,6 +831,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
+                "flutter.widgets.SizedBox",
                 "flutter.widgets.Text");
         Set<String> iconPaths = new HashSet<>();
 
@@ -823,7 +850,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(6, iconPaths.size(),
+        assertEquals(7, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -1310,7 +1310,23 @@ final class FlutterDesignerDataObjectIT {
                                 .map(Node.Property::getName)
                                 .toList());
                 for (Node.Property<?> property : propertySet.getProperties()) {
-                    assertFalse("A non-admitted SizedBox property unexpectedly became writable: "
+                    assertTrue("An admitted SizedBox property was not writable: "
+                            + property.getName(), property.canWrite());
+                }
+
+                Node.PropertySet identitySet = java.util.Arrays.stream(
+                                widgetNode.getPropertySets())
+                        .filter(set -> "identity".equals(set.getName()))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError(
+                                "The selected widget has no identity property set"));
+                assertEquals("The selected SizedBox exposed unexpected identity fields",
+                        List.of("stableId", "type"),
+                        java.util.Arrays.stream(identitySet.getProperties())
+                                .map(Node.Property::getName)
+                                .toList());
+                for (Node.Property<?> property : identitySet.getProperties()) {
+                    assertFalse("A non-admitted widget identity unexpectedly became writable: "
                             + property.getName(), property.canWrite());
                 }
 
@@ -1569,7 +1585,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 2,
+                      "schemaVersion": 3,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",

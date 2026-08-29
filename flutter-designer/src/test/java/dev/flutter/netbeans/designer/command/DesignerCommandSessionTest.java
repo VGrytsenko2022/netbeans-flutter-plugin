@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.codec.FdCodecLimits;
 import dev.flutter.netbeans.designer.codec.OriginalFdBytes;
@@ -37,6 +38,7 @@ import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityGate;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlanner;
 import dev.flutter.netbeans.designer.validation.ValidationLimits;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -66,6 +68,8 @@ class DesignerCommandSessionTest {
     private static final StableId WRAPPER_ID = id("00000000-0000-4000-8000-000000000014");
     private static final PropertyName DATA = property("data");
     private static final PropertyName MAX_LINES = property("maxLines");
+    private static final PropertyName WIDTH = property("width");
+    private static final PropertyName HEIGHT = property("height");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
 
@@ -163,6 +167,82 @@ class DesignerCommandSessionTest {
         assertEquals(List.of(FIRST_ID, SECOND_ID), rootChildIds(session));
         assertEquals(7, session.cursor());
         assertEquals(8, session.revisionCount());
+    }
+
+    @Test
+    void sizedBoxPropertyChildSaveAndReopenLifecycleIsByteExact() throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode sizedBox = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.SizedBox")).orElseThrow(),
+                WRAPPER_ID);
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), sizedBox));
+        DesignerCommandSession widthSet = applied(added, new SetProperty(
+                WRAPPER_ID,
+                WIDTH,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(320))));
+        DesignerCommandSession dimensionsSet = applied(widthSet, new SetProperty(
+                WRAPPER_ID,
+                HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("180.5"))));
+
+        DesignerCommandSession widthReset = applied(dimensionsSet, new ResetProperty(
+                WRAPPER_ID, WIDTH));
+        assertFalse(find(widthReset.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(WIDTH));
+        DesignerCommandSession dimensionsRestored = widthReset.undo().session();
+        assertArrayEquals(dimensionsSet.current().fdBytes(),
+                dimensionsRestored.current().fdBytes());
+        DesignerCommandSession resetRedone = dimensionsRestored.redo().session();
+        assertArrayEquals(widthReset.current().fdBytes(),
+                resetRedone.current().fdBytes());
+        dimensionsRestored = resetRedone.undo().session();
+
+        DesignerCommandSession childAdded = applied(dimensionsRestored, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        WidgetNode finalSizedBox = find(
+                childAdded.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(320)),
+                finalSizedBox.properties().get(WIDTH));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("180.5")),
+                finalSizedBox.properties().get(HEIGHT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalSizedBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+        String dart = new String(
+                childAdded.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const SizedBox("), dart);
+        assertTrue(dart.contains("width: 320"), dart);
+        assertTrue(dart.contains("height: 180.5"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession saved = childAdded.markSaved();
+        assertFalse(saved.dirty());
+        DesignerCommandSession childUndone = saved.undo().session();
+        assertTrue(childUndone.dirty());
+        assertTrue(((WidgetSlot.SingleSlot) find(
+                childUndone.current().document().root(), WRAPPER_ID)
+                .slots().get(CHILD)).child().isEmpty());
+        DesignerCommandSession childRedone = childUndone.redo().session();
+        assertFalse(childRedone.dirty());
+        assertArrayEquals(saved.current().fdBytes(), childRedone.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                childRedone.current().dartCandidateBytes());
+
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        byte[] reopenedDart = saved.current().dartCandidateBytes();
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, reopenedDart, CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertFalse(reopened.dirty());
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
     }
 
     @Test

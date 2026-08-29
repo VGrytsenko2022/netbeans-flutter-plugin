@@ -3,7 +3,11 @@ package dev.flutter.netbeans.designer.catalog;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
+import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -312,6 +317,41 @@ class BuiltInWidgetCatalogTest {
     }
 
     @Test
+    void sizedBoxExposesExactDimensionsChildContractAndEmptyPrototype() {
+        WidgetDefinition sizedBox = definition("flutter.widgets.SizedBox");
+
+        assertEquals(List.of("width", "height"), sizedBox.properties().stream()
+                .map(value -> value.name().value())
+                .toList());
+        assertSizedBoxDimension(sizedBox, "width", 0);
+        assertSizedBoxDimension(sizedBox, "height", 1);
+
+        assertEquals(List.of(new SlotName("child")), sizedBox.slots().stream()
+                .map(SlotDefinition::name)
+                .toList());
+        SlotDefinition child = sizedBox.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+
+        StableId id = StableId.parse("a9395b70-a774-45ff-8893-f13a15cfe958");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(sizedBox, id);
+        assertEquals(id, prototype.id());
+        assertEquals(sizedBox.typeId(), prototype.type());
+        assertTrue(prototype.properties().isEmpty(),
+                "Nullable dimensions must stay absent in a new SizedBox prototype");
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        WidgetSlot.SingleSlot prototypeChild = assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child")));
+        assertTrue(prototypeChild.child().isEmpty());
+    }
+
+    @Test
     void buttonCallbackUsesReservedWordAwareReferenceConstraint() {
         PropertyDefinition onPressed = property(
                 BuiltInWidgetCatalog.getDefault(),
@@ -330,6 +370,40 @@ class BuiltInWidgetCatalogTest {
                 .anyMatch(value -> value.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO))));
         assertTrue(property.constraints().stream()
                 .anyMatch(value -> value.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO))));
+    }
+
+    private static void assertSizedBoxDimension(
+            WidgetDefinition sizedBox,
+            String propertyName,
+            int parameterOrder) {
+        PropertyDefinition dimension = sizedBox
+                .property(new PropertyName(propertyName))
+                .orElseThrow();
+        assertEquals(DartParameter.named(parameterOrder, false), dimension.parameter());
+        assertTrue(dimension.creationDefault().isEmpty());
+        assertEquals(List.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                dimension.acceptedKinds().stream().toList());
+
+        PropertyValueConstraint.IntegerRange integers = assertInstanceOf(
+                PropertyValueConstraint.IntegerRange.class,
+                dimension.constraints().get(0));
+        assertEquals(BigInteger.ZERO, integers.minimum());
+        assertEquals(DartNumericLiterals.MAX_PORTABLE_INTEGER, integers.maximum());
+        assertTrue(integers.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        assertTrue(integers.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MAX_PORTABLE_INTEGER)));
+        assertFalse(integers.accepts(new PropertyValue.IntegerValue(BigInteger.ONE.negate())));
+
+        PropertyValueConstraint.DoubleRange doubles = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                dimension.constraints().get(1));
+        assertEquals(BigDecimal.ZERO, doubles.minimum());
+        assertTrue(doubles.minimumInclusive());
+        assertNull(doubles.maximum());
+        assertTrue(doubles.maximumInclusive());
+        assertTrue(doubles.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertTrue(doubles.accepts(new PropertyValue.DoubleValue(new BigDecimal("1280.5"))));
+        assertFalse(doubles.accepts(new PropertyValue.DoubleValue(new BigDecimal("-0.5"))));
     }
 
     private static void assertStringPattern(

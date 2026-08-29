@@ -13,7 +13,7 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_view.dart';
 import 'canvas_model_test.dart' as fixture;
 
 void main() {
-  test('models the reviewed multi-slot CORE_V1 insertion matrix', () {
+  test('models the reviewed multi-slot Canvas insertion matrix', () {
     expect(canvasChildrenAppendDropSlot.insertionIndexFor(0), 0);
     expect(canvasChildrenAppendDropSlot.insertionIndexFor(7), 7);
     expect(canvasChildrenAppendDropSlot.insertionIndexFor(10000), isNull);
@@ -49,6 +49,9 @@ void main() {
       canvasEmptyChildDropSlot,
     ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Center'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Text'), isEmpty);
@@ -794,6 +797,264 @@ void main() {
     expect(renderedCenter().widthFactor, isNull);
     expect(renderedCenter().heightFactor, isNull);
   });
+
+  testWidgets('renders exact nullable SizedBox dimensions and child', (
+    tester,
+  ) async {
+    const sizedBoxId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
+
+    Map<String, Object?> withSizedBox({
+      required Map<String, Object?> properties,
+      required Map<String, Object?>? child,
+    }) {
+      final json = _modelJsonForView();
+      final root = json['root']! as Map<String, Object?>;
+      final body =
+          (root['slots']! as Map<String, Object?>)['body']!
+              as Map<String, Object?>;
+      body['child'] = <String, Object?>{
+        'id': sizedBoxId,
+        'type': 'flutter.widgets.SizedBox',
+        'properties': properties,
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': child},
+        },
+      };
+      return json;
+    }
+
+    Future<SizedBox> pump(Map<String, Object?> json) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        ),
+      );
+      return tester.widget<SizedBox>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$sizedBoxId')),
+              matching: find.byType(SizedBox),
+            )
+            .first,
+      );
+    }
+
+    final source = _modelJsonForView();
+    final sourceRoot = source['root']! as Map<String, Object?>;
+    final text = _findNode(sourceRoot, 'flutter.widgets.Text');
+    final explicit = await pump(
+      withSizedBox(
+        properties: {
+          'width': {'kind': 'integer', 'value': 120},
+          'height': {'kind': 'double', 'value': 48.5},
+        },
+        child: text,
+      ),
+    );
+    expect(explicit.width, 120.0);
+    expect(explicit.height, 48.5);
+    expect(explicit.child, isNotNull);
+    expect(find.text('Hello'), findsOneWidget);
+
+    final omitted = await pump(withSizedBox(properties: const {}, child: null));
+    expect(omitted.width, isNull);
+    expect(omitted.height, isNull);
+    expect(omitted.child, isNull);
+  });
+
+  testWidgets(
+    'keeps an empty zero-size SizedBox at zero layout while exposing a selectable target',
+    (tester) async {
+      const sizedBoxId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredSizedBox(properties: const {}, child: null),
+            ),
+          ),
+        ),
+      );
+      String? selectedWidgetId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$sizedBoxId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$sizedBoxId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      final dashed = _recordPainter(
+        _foregroundPainter(
+          tester,
+          'canvas-zero-size-widget-outline-$sizedBoxId',
+        ),
+        const Size(36, 36),
+      );
+      expect(_drawRectCount(dashed), 0);
+      expect(_drawLines(dashed), isNotEmpty);
+
+      await tester.tap(target);
+      await tester.pump();
+
+      expect(selectedWidgetId, sizedBoxId);
+      expect(tester.getSize(rendered), Size.zero);
+      final selected = _recordPainter(
+        _foregroundPainter(
+          tester,
+          'canvas-zero-size-widget-outline-$sizedBoxId',
+        ),
+        const Size(36, 36),
+      );
+      expect(_drawRectCount(selected), 1);
+      expect(_drawLines(selected), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'cycles every exactly coincident empty SizedBox through one target',
+    (tester) async {
+      const sizedBoxIds = [
+        '38f49912-8e51-4e62-bd4c-2517ecad4962',
+        'f195f817-cf8e-455c-befc-31dd30f874df',
+        '7a112f9e-8599-4bca-b37c-02e33268b48c',
+      ];
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(jsonEncode(_modelWithEmptySizedBoxSiblings(sizedBoxIds))),
+        ),
+      );
+      String? selectedWidgetId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      for (final id in sizedBoxIds) {
+        expect(
+          tester.getSize(find.byKey(ValueKey('canvas-widget-$id'))),
+          Size.zero,
+        );
+        expect(
+          find.byKey(ValueKey('canvas-zero-size-widget-target-$id')),
+          findsNothing,
+        );
+      }
+
+      final target = find.byKey(
+        const ValueKey(
+          'canvas-zero-size-widget-target-group-'
+          '38f49912-8e51-4e62-bd4c-2517ecad4962',
+        ),
+      );
+      const cyclingMessage =
+          '3 overlapping empty SizedBox widgets. '
+          'Activate repeatedly to cycle selection.';
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      expect(find.byTooltip(cyclingMessage), findsOneWidget);
+      expect(find.bySemanticsLabel(cyclingMessage), findsOneWidget);
+
+      for (final id in sizedBoxIds) {
+        await tester.tap(target);
+        await tester.pump();
+        expect(selectedWidgetId, id);
+      }
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, sizedBoxIds.first);
+
+      for (final id in sizedBoxIds) {
+        expect(
+          tester.getSize(find.byKey(ValueKey('canvas-widget-$id'))),
+          Size.zero,
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'does not add a synthetic target to sized or non-empty SizedBox layout',
+    (tester) async {
+      const sizedBoxId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$sizedBoxId'),
+      );
+
+      Future<Size> pump(Map<String, Object?> json) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: CanvasModel.decode(
+                Uint8List.fromList(utf8.encode(jsonEncode(json))),
+              ),
+              selectedWidgetId: null,
+              onSelected: (_) {},
+            ),
+          ),
+        );
+        await tester.pump();
+        return tester.getSize(
+          find.byKey(const ValueKey('canvas-widget-$sizedBoxId')),
+        );
+      }
+
+      final explicitSize = await pump(
+        _modelWithCenteredSizedBox(
+          properties: const {
+            'width': {'kind': 'integer', 'value': 120},
+            'height': {'kind': 'double', 'value': 48.5},
+          },
+          child: null,
+        ),
+      );
+      expect(explicitSize, const Size(120, 48.5));
+      expect(target, findsNothing);
+
+      final child = <String, Object?>{
+        'id': 'f195f817-cf8e-455c-befc-31dd30f874df',
+        'type': 'flutter.widgets.Text',
+        'properties': <String, Object?>{
+          'data': {'kind': 'string', 'value': 'Non-empty'},
+        },
+        'slots': <String, Object?>{},
+      };
+      final childSized = await pump(
+        _modelWithCenteredSizedBox(properties: const {}, child: child),
+      );
+      expect(childSized.width, greaterThan(0));
+      expect(childSized.height, greaterThan(0));
+      expect(target, findsNothing);
+    },
+  );
 
   testWidgets('resolves physical and directional Padding in LTR and RTL', (
     tester,
@@ -1730,6 +1991,78 @@ void main() {
     }
   });
 
+  testWidgets('resolves only an empty SizedBox child slot', (tester) async {
+    const sizedBoxId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
+    CanvasDropResolver? resolver;
+
+    Future<void> pump({required bool occupied}) async {
+      final json = _modelJsonForView();
+      final root = json['root']! as Map<String, Object?>;
+      final body =
+          (root['slots']! as Map<String, Object?>)['body']!
+              as Map<String, Object?>;
+      final child = occupied ? _findNode(root, 'flutter.widgets.Text') : null;
+      body['child'] = <String, Object?>{
+        'id': sizedBoxId,
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{
+          'width': {'kind': 'double', 'value': 120.0},
+          'height': {'kind': 'double', 'value': 80.0},
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': child},
+        },
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pump(occupied: false);
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final rect = tester.getRect(
+      find.byKey(const ValueKey('canvas-widget-$sizedBoxId')),
+    );
+    final point = rect.center;
+    final target = resolver!(
+      ((point.dx - surface.left) / surface.width * 1000000).round(),
+      ((point.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(target?.parentWidgetId, sizedBoxId);
+    expect(target?.slotName, 'child');
+    expect(target?.insertionIndex, 0);
+
+    await pump(occupied: true);
+    final occupiedSurface = tester.getRect(find.byType(CanvasDocumentView));
+    final occupiedRect = tester.getRect(
+      find.byKey(const ValueKey('canvas-widget-$sizedBoxId')),
+    );
+    final occupiedPoint = occupiedRect.center;
+    expect(
+      resolver!(
+        ((occupiedPoint.dx - occupiedSurface.left) /
+                occupiedSurface.width *
+                1000000)
+            .round(),
+        ((occupiedPoint.dy - occupiedSurface.top) /
+                occupiedSurface.height *
+                1000000)
+            .round(),
+      ),
+      isNull,
+    );
+  });
+
   testWidgets(
     'resolves exact existing-widget placement and paints a thin amber marker',
     (tester) async {
@@ -1811,6 +2144,64 @@ void main() {
 Map<String, Object?> _modelJsonForView() =>
     jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
         as Map<String, Object?>;
+
+Map<String, Object?> _modelWithCenteredSizedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '38f49912-8e51-4e62-bd4c-2517ecad4962',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithEmptySizedBoxSiblings(List<String> widgetIds) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Column',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'children': <String, Object?>{
+        'kind': 'list',
+        'children': <Object?>[
+          for (final id in widgetIds)
+            <String, Object?>{
+              'id': id,
+              'type': 'flutter.widgets.SizedBox',
+              'properties': <String, Object?>{},
+              'slots': <String, Object?>{
+                'child': <String, Object?>{'kind': 'single', 'child': null},
+              },
+            },
+        ],
+      },
+    },
+  };
+  return model;
+}
 
 Map<String, Object?> _nodeProperties(Map<String, Object?> model, String type) =>
     _findNode(model['root']! as Map<String, Object?>, type)['properties']!

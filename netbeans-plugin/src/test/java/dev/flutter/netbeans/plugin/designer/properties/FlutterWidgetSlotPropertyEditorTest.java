@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlutterWidgetSlotPropertyEditorTest {
     private static final WidgetCatalog CATALOG = BuiltInWidgetCatalog.getDefault();
     private static final SlotName BODY = new SlotName("body");
+    private static final SlotName CHILD = new SlotName("child");
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
@@ -112,6 +113,71 @@ class FlutterWidgetSlotPropertyEditorTest {
             body.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted slot dialog may consume its revision lease once");
+            return null;
+        });
+    }
+
+    @Test
+    void sizedBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition sizedBoxDefinition = definition("flutter.widgets.SizedBox");
+        WidgetNode sizedBox = new WidgetNode(
+                id("c10d24fa-0186-4866-8c86-8f004e4fcb42"),
+                sizedBoxDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(sizedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                sizedBox,
+                sizedBoxDefinition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "SizedBox.child must remain unchanged until dialog validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(sizedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted SizedBox child dialog may consume its revision lease once");
             return null;
         });
     }

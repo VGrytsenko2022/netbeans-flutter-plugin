@@ -677,12 +677,14 @@ class CanvasNode {
         '$path/properties/${entry.key}',
       );
     }
-    for (final requiredProperty in specification.requiredProperties) {
-      _expect(
-        properties.containsKey(requiredProperty),
-        'Canvas node is missing required property '
-        '$type.$requiredProperty: $path/properties/$requiredProperty',
-      );
+    for (final entry in specification.properties.entries) {
+      if (entry.value.required) {
+        _expect(
+          properties.containsKey(entry.key),
+          'Canvas node is missing required property '
+          '$type.${entry.key}: $path/properties/${entry.key}',
+        );
+      }
     }
     _validatePropertyRelationships(type, properties, path, budget);
 
@@ -693,15 +695,24 @@ class CanvasNode {
     );
     final slots = <String, CanvasSlot>{};
     for (final entry in rawSlots.entries) {
-      final expectedKind = specification.slots[entry.key];
-      _expect(expectedKind != null, 'Unsupported slot $type.${entry.key}.');
+      final slotSpec = specification.slots[entry.key];
+      _expect(slotSpec != null, 'Unsupported slot $type.${entry.key}.');
       slots[entry.key] = CanvasSlot._decode(
         entry.value,
-        expectedKind!,
+        slotSpec!,
         budget,
         depth + 1,
         '$path/slots/${entry.key}',
       );
+    }
+    for (final entry in specification.slots.entries) {
+      if (entry.value.required || entry.value.minimumChildren > 0) {
+        _expect(
+          slots.containsKey(entry.key),
+          'Canvas node is missing required slot '
+          '$type.${entry.key}: $path/slots/${entry.key}',
+        );
+      }
     }
     return CanvasNode(
       id: id,
@@ -722,26 +733,32 @@ class CanvasSlot {
 
   static CanvasSlot _decode(
     Object? value,
-    String expectedKind,
+    _SlotSpec spec,
     _NodeBudget budget,
     int depth,
     String path,
   ) {
     final object = _object(value, path);
-    if (expectedKind == 'single') {
+    if (spec.cardinality == 'single') {
       _exactKeys(object, path, const {'kind', 'child'});
       _expect(
         object['kind'] == 'single',
         'Canvas single slot kind is invalid: $path',
       );
       final child = object['child'];
-      return CanvasSlot(
+      final result = CanvasSlot(
         'single',
         child == null
             ? const []
             : [CanvasNode._decode(child, budget, depth, '$path/child')],
       );
+      _validateChildCount(result.children.length, spec, path);
+      return result;
     }
+    _expect(
+      spec.cardinality == 'list',
+      'Canvas slot schema cardinality is invalid: $path',
+    );
     _exactKeys(object, path, const {'kind', 'children'});
     _expect(
       object['kind'] == 'list',
@@ -753,11 +770,8 @@ class CanvasSlot {
       'Canvas list slot children must be an array: $path',
     );
     final children = rawChildren as List<Object?>;
-    _expect(
-      children.length <= 10000,
-      'Canvas list slot has too many children: $path',
-    );
-    return CanvasSlot(
+    _validateChildCount(children.length, spec, path);
+    final result = CanvasSlot(
       'list',
       List.unmodifiable([
         for (var index = 0; index < children.length; index++)
@@ -768,6 +782,14 @@ class CanvasSlot {
             '$path/children/$index',
           ),
       ]),
+    );
+    return result;
+  }
+
+  static void _validateChildCount(int count, _SlotSpec spec, String path) {
+    _expect(
+      count >= spec.minimumChildren && count <= spec.maximumChildren,
+      'Canvas slot child count is outside its bounds: $path',
     );
   }
 }
@@ -789,15 +811,19 @@ class CanvasValue {
     switch (kind) {
       case 'string':
         _exactKeys(object, path, const {'kind', 'value'});
-        return CanvasValue(
-          kind as String,
-          _boundedPropertyText(
-            object['value'],
-            '$path/value',
-            spec.minimumStringLength,
-            spec.maximumStringLength,
-          ),
+        final text = _boundedPropertyText(
+          object['value'],
+          '$path/value',
+          spec.minimumStringLength,
+          spec.maximumStringLength,
         );
+        if (spec.stringPattern case final pattern?) {
+          _expect(
+            RegExp('^(?:$pattern)\$').hasMatch(text),
+            'Canvas string value does not match its pattern: $path',
+          );
+        }
+        return CanvasValue(kind as String, text);
       case 'boolean':
         _exactKeys(object, path, const {'kind', 'value'});
         _expect(
@@ -813,24 +839,12 @@ class CanvasValue {
           (integer as int).abs() <= maxCanvasSequence,
           'Canvas integer value exceeds the interoperable range: $path',
         );
-        if (spec.minimum != null) {
-          _expect(
-            integer >= spec.minimum!,
-            'Canvas integer value is below its minimum: $path',
-          );
-        }
+        _validateNumericBounds(integer as num, spec.numericBounds[kind], path);
         return CanvasValue(kind as String, integer);
       case 'double':
         _exactKeys(object, path, const {'kind', 'value'});
         final number = _finiteNumber(object['value'], '$path/value');
-        if (spec.minimum != null) {
-          _expect(
-            spec.minimumExclusive
-                ? number > spec.minimum!
-                : number >= spec.minimum!,
-            'Canvas number is below its minimum: $path',
-          );
-        }
+        _validateNumericBounds(number, spec.numericBounds[kind], path);
         return CanvasValue(kind as String, number);
       case 'enum':
         _exactKeys(object, path, const {'kind', 'type', 'value'});
@@ -871,25 +885,19 @@ class CanvasValue {
         final top = _finiteNumber(object['top'], '$path/top');
         final right = _finiteNumber(object['right'], '$path/right');
         final bottom = _finiteNumber(object['bottom'], '$path/bottom');
-        if (spec.minimum != null) {
-          for (final side in {
-            'left': left,
-            'top': top,
-            'right': right,
-            'bottom': bottom,
-          }.entries) {
-            _expect(
-              spec.minimumExclusive
-                  ? side.value > spec.minimum!
-                  : side.value >= spec.minimum!,
-              'Canvas edge inset is below its minimum: $path/${side.key}',
-            );
-          }
+        final bounds = _requiredNumericBounds(spec, kind as String, path);
+        for (final side in {
+          'left': left,
+          'top': top,
+          'right': right,
+          'bottom': bottom,
+        }.entries) {
+          _expect(
+            _withinNumericBounds(side.value, bounds),
+            'Canvas edge inset is outside its bounds: $path/${side.key}',
+          );
         }
-        return CanvasValue(
-          kind as String,
-          CanvasEdgeInsets(left, top, right, bottom),
-        );
+        return CanvasValue(kind, CanvasEdgeInsets(left, top, right, bottom));
       case 'edgeInsetsDirectional':
         _exactKeys(object, path, const {
           'kind',
@@ -902,24 +910,21 @@ class CanvasValue {
         final top = _finiteNumber(object['top'], '$path/top');
         final end = _finiteNumber(object['end'], '$path/end');
         final bottom = _finiteNumber(object['bottom'], '$path/bottom');
-        if (spec.minimum != null) {
-          for (final side in {
-            'start': start,
-            'top': top,
-            'end': end,
-            'bottom': bottom,
-          }.entries) {
-            _expect(
-              spec.minimumExclusive
-                  ? side.value > spec.minimum!
-                  : side.value >= spec.minimum!,
-              'Canvas directional edge inset is below its minimum: '
-              '$path/${side.key}',
-            );
-          }
+        final bounds = _requiredNumericBounds(spec, kind as String, path);
+        for (final side in {
+          'start': start,
+          'top': top,
+          'end': end,
+          'bottom': bottom,
+        }.entries) {
+          _expect(
+            _withinNumericBounds(side.value, bounds),
+            'Canvas directional edge inset is outside its bounds: '
+            '$path/${side.key}',
+          );
         }
         return CanvasValue(
-          kind as String,
+          kind,
           CanvasEdgeInsetsDirectional(start, top, end, bottom),
         );
       case 'themeToken':
@@ -944,6 +949,38 @@ class CanvasValue {
   }
 }
 
+void _validateNumericBounds(num value, _NumericBounds? bounds, String path) {
+  _expect(bounds != null, 'Canvas numeric schema is incomplete: $path');
+  _expect(
+    _withinNumericBounds(value, bounds!),
+    'Canvas numeric value is outside its bounds: $path',
+  );
+}
+
+_NumericBounds _requiredNumericBounds(
+  _PropertySpec spec,
+  String kind,
+  String path,
+) {
+  final bounds = spec.numericBounds[kind];
+  _expect(bounds != null, 'Canvas numeric schema is incomplete: $path');
+  return bounds!;
+}
+
+bool _withinNumericBounds(num value, _NumericBounds bounds) {
+  final minimum = bounds.minimum;
+  if (minimum != null &&
+      (bounds.minimumInclusive ? value < minimum : value <= minimum)) {
+    return false;
+  }
+  final maximum = bounds.maximum;
+  if (maximum != null &&
+      (bounds.maximumInclusive ? value > maximum : value >= maximum)) {
+    return false;
+  }
+  return true;
+}
+
 class CanvasEnumValue {
   const CanvasEnumValue(this.type, this.value);
   final String type;
@@ -959,7 +996,12 @@ class CanvasEdgeInsets {
 }
 
 class CanvasEdgeInsetsDirectional {
-  const CanvasEdgeInsetsDirectional(this.start, this.top, this.end, this.bottom);
+  const CanvasEdgeInsetsDirectional(
+    this.start,
+    this.top,
+    this.end,
+    this.bottom,
+  );
   final double start;
   final double top;
   final double end;
@@ -1348,39 +1390,112 @@ const _blendModes = <String>{
 };
 
 class _WidgetSpec {
-  const _WidgetSpec(
-    this.properties,
-    this.slots, {
-    this.requiredProperties = const {},
-  });
+  const _WidgetSpec(this.properties, this.slots);
   final Map<String, _PropertySpec> properties;
-  final Map<String, String> slots;
-  final Set<String> requiredProperties;
+  final Map<String, _SlotSpec> slots;
 }
 
 class _PropertySpec {
   const _PropertySpec(
     this.kinds, {
+    this.required = false,
+    this.creationDefaultFingerprint,
+    this.numericBounds = const {},
+    this.enumLibraryUri,
     this.enumType,
     this.enumValues = const {},
-    this.minimum,
-    this.minimumExclusive = false,
     this.minimumStringLength = 0,
     this.maximumStringLength = 65536,
+    this.explicitStringLength = false,
+    this.stringPattern,
     this.themeTokens = const {},
+    this.edgeInsetsNonNegative = false,
   });
   final Set<String> kinds;
+  final bool required;
+  final String? creationDefaultFingerprint;
+  final Map<String, _NumericBounds> numericBounds;
+  final String? enumLibraryUri;
   final String? enumType;
   final Set<String> enumValues;
-  final num? minimum;
-  final bool minimumExclusive;
   final int minimumStringLength;
   final int maximumStringLength;
+  final bool explicitStringLength;
+  final String? stringPattern;
   final Set<String> themeTokens;
+  final bool edgeInsetsNonNegative;
 }
+
+class _NumericBounds {
+  const _NumericBounds({
+    this.minimum,
+    this.minimumInclusive = true,
+    this.maximum,
+    this.maximumInclusive = true,
+  });
+
+  final num? minimum;
+  final bool minimumInclusive;
+  final num? maximum;
+  final bool maximumInclusive;
+}
+
+class _SlotSpec {
+  const _SlotSpec({
+    required this.cardinality,
+    required this.required,
+    required this.minimumChildren,
+    required this.maximumChildren,
+  });
+
+  final String cardinality;
+  final bool required;
+  final int minimumChildren;
+  final int maximumChildren;
+}
+
+const _optionalSingleSlot = _SlotSpec(
+  cardinality: 'single',
+  required: false,
+  minimumChildren: 0,
+  maximumChildren: 1,
+);
+const _optionalListSlot = _SlotSpec(
+  cardinality: 'list',
+  required: false,
+  minimumChildren: 0,
+  maximumChildren: 10000,
+);
+const _unboundedDoubleBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(),
+};
+const _nonNegativeDoubleBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(minimum: 0),
+};
+const _positiveDoubleBounds = <String, _NumericBounds>{
+  'double': _NumericBounds(minimum: 0, minimumInclusive: false),
+};
+const _nonNegativeNumberBounds = <String, _NumericBounds>{
+  'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
+  'double': _NumericBounds(minimum: 0),
+};
+const _positiveIntegerBounds = <String, _NumericBounds>{
+  'integer': _NumericBounds(
+    minimum: 1,
+    maximum: maxCanvasSequence,
+    maximumInclusive: true,
+  ),
+};
+const _nonNegativeEdgeInsetsBounds = <String, _NumericBounds>{
+  'edgeInsets': _NumericBounds(minimum: 0),
+  'edgeInsetsDirectional': _NumericBounds(minimum: 0),
+};
+
+const _widgetsLibraryUri = 'package:flutter/widgets.dart';
 
 const _fontWeightProperty = _PropertySpec(
   {'enum'},
+  enumLibraryUri: _widgetsLibraryUri,
   enumType: 'FontWeight',
   enumValues: {
     'w100',
@@ -1396,21 +1511,25 @@ const _fontWeightProperty = _PropertySpec(
 );
 const _fontStyleProperty = _PropertySpec(
   {'enum'},
+  enumLibraryUri: _widgetsLibraryUri,
   enumType: 'FontStyle',
   enumValues: {'normal', 'italic'},
 );
 const _textBaselineProperty = _PropertySpec(
   {'enum'},
+  enumLibraryUri: _widgetsLibraryUri,
   enumType: 'TextBaseline',
   enumValues: {'alphabetic', 'ideographic'},
 );
 const _textLeadingDistributionProperty = _PropertySpec(
   {'enum'},
+  enumLibraryUri: _widgetsLibraryUri,
   enumType: 'TextLeadingDistribution',
   enumValues: {'proportional', 'even'},
 );
 const _textOverflowProperty = _PropertySpec(
   {'enum'},
+  enumLibraryUri: _widgetsLibraryUri,
   enumType: 'TextOverflow',
   enumValues: {'clip', 'fade', 'ellipsis', 'visible'},
 );
@@ -1418,10 +1537,13 @@ const _fontNameProperty = _PropertySpec(
   {'string'},
   minimumStringLength: 1,
   maximumStringLength: 256,
+  explicitStringLength: true,
 );
-const _fontFamilyFallbackProperty = _PropertySpec({
-  'string',
-}, maximumStringLength: 4096);
+const _fontFamilyFallbackProperty = _PropertySpec(
+  {'string'},
+  maximumStringLength: 4096,
+  explicitStringLength: true,
+);
 
 const _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.material.Scaffold': _WidgetSpec(
@@ -1429,12 +1551,17 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       'backgroundColor': _PropertySpec({'color'}),
       'resizeToAvoidBottomInset': _PropertySpec({'boolean'}),
     },
-    {'appBar': 'single', 'body': 'single', 'floatingActionButton': 'single'},
+    {
+      'appBar': _optionalSingleSlot,
+      'body': _optionalSingleSlot,
+      'floatingActionButton': _optionalSingleSlot,
+    },
   ),
   'flutter.widgets.Column': _WidgetSpec(
     {
       'mainAxisAlignment': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'MainAxisAlignment',
         enumValues: {
           'start',
@@ -1447,37 +1574,45 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       ),
       'mainAxisSize': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'MainAxisSize',
         enumValues: {'min', 'max'},
       ),
       'crossAxisAlignment': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'CrossAxisAlignment',
         enumValues: {'start', 'end', 'center', 'stretch', 'baseline'},
       ),
       'textDirection': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'TextDirection',
         enumValues: {'rtl', 'ltr'},
       ),
       'verticalDirection': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'VerticalDirection',
         enumValues: {'up', 'down'},
       ),
       'textBaseline': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'TextBaseline',
         enumValues: {'alphabetic', 'ideographic'},
       ),
-      'spacing': _PropertySpec({'double'}, minimum: 0),
+      'spacing': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
     },
-    {'children': 'list'},
+    {'children': _optionalListSlot},
   ),
   'flutter.widgets.Row': _WidgetSpec(
     {
       'mainAxisAlignment': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'MainAxisAlignment',
         enumValues: {
           'start',
@@ -1490,150 +1625,418 @@ const _widgetSpecifications = <String, _WidgetSpec>{
       ),
       'mainAxisSize': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'MainAxisSize',
         enumValues: {'min', 'max'},
       ),
       'crossAxisAlignment': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'CrossAxisAlignment',
         enumValues: {'start', 'end', 'center', 'stretch', 'baseline'},
       ),
       'textDirection': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'TextDirection',
         enumValues: {'rtl', 'ltr'},
       ),
       'verticalDirection': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'VerticalDirection',
         enumValues: {'up', 'down'},
       ),
       'textBaseline': _PropertySpec(
         {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
         enumType: 'TextBaseline',
         enumValues: {'alphabetic', 'ideographic'},
       ),
-      'spacing': _PropertySpec({'double'}, minimum: 0),
+      'spacing': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
     },
-    {'children': 'list'},
+    {'children': _optionalListSlot},
   ),
   'flutter.widgets.Padding': _WidgetSpec(
     {
-      'padding': _PropertySpec({
-        'edgeInsets',
-        'edgeInsetsDirectional',
-      }, minimum: 0),
+      'padding': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        required: true,
+        creationDefaultFingerprint: 'edgeInsets:16,16,16,16',
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
     },
-    {'child': 'single'},
-    requiredProperties: {'padding'},
+    {'child': _optionalSingleSlot},
   ),
   'flutter.widgets.Center': _WidgetSpec(
     {
-      'widthFactor': _PropertySpec({'integer', 'double'}, minimum: 0),
-      'heightFactor': _PropertySpec({'integer', 'double'}, minimum: 0),
+      'widthFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'heightFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
     },
-    {'child': 'single'},
+    {'child': _optionalSingleSlot},
   ),
-  'flutter.widgets.Text': _WidgetSpec(
+  'flutter.widgets.SizedBox': _WidgetSpec(
     {
-      'data': _PropertySpec({'string'}),
-      'textAlign': _PropertySpec(
-        {'enum'},
-        enumType: 'TextAlign',
-        enumValues: {'start', 'end', 'left', 'right', 'center', 'justify'},
-      ),
-      'textDirection': _PropertySpec(
-        {'enum'},
-        enumType: 'TextDirection',
-        enumValues: {'rtl', 'ltr'},
-      ),
-      'softWrap': _PropertySpec({'boolean'}),
-      'maxLines': _PropertySpec({'integer'}, minimum: 1),
-      'overflow': _textOverflowProperty,
-      'semanticsLabel': _PropertySpec({'string'}),
-      'semanticsIdentifier': _PropertySpec({'string'}),
-      'textWidthBasis': _PropertySpec(
-        {'enum'},
-        enumType: 'TextWidthBasis',
-        enumValues: {'parent', 'longestLine'},
-      ),
-      'selectionColor': _PropertySpec({
-        'color',
-        'themeToken',
-      }, themeTokens: canvasColorSchemeThemeTokens),
-      'localeLanguageCode': _PropertySpec({'string'}),
-      'localeScriptCode': _PropertySpec({'string'}),
-      'localeCountryCode': _PropertySpec({'string'}),
-      'textScalerFactor': _PropertySpec({'double'}, minimum: 0),
-      'textHeightApplyFirstAscent': _PropertySpec({'boolean'}),
-      'textHeightApplyLastDescent': _PropertySpec({'boolean'}),
-      'textHeightLeadingDistribution': _textLeadingDistributionProperty,
-      'styleInherit': _PropertySpec({'boolean'}),
-      'styleThemeTextStyle': _PropertySpec({
-        'themeToken',
-      }, themeTokens: canvasTextThemeTokens),
-      'styleColor': _PropertySpec({
-        'color',
-        'themeToken',
-      }, themeTokens: canvasColorSchemeThemeTokens),
-      'styleBackgroundColor': _PropertySpec({
-        'color',
-        'themeToken',
-      }, themeTokens: canvasColorSchemeThemeTokens),
-      'styleFontSize': _PropertySpec({'double'}, minimum: 0),
-      'styleFontWeight': _fontWeightProperty,
-      'styleFontStyle': _fontStyleProperty,
-      'styleLetterSpacing': _PropertySpec({'double'}),
-      'styleWordSpacing': _PropertySpec({'double'}),
-      'styleTextBaseline': _textBaselineProperty,
-      'styleHeight': _PropertySpec({'double'}),
-      'styleLeadingDistribution': _textLeadingDistributionProperty,
-      'styleLocaleLanguageCode': _PropertySpec({'string'}),
-      'styleLocaleScriptCode': _PropertySpec({'string'}),
-      'styleLocaleCountryCode': _PropertySpec({'string'}),
-      'styleDecorationUnderline': _PropertySpec({'boolean'}),
-      'styleDecorationOverline': _PropertySpec({'boolean'}),
-      'styleDecorationLineThrough': _PropertySpec({'boolean'}),
-      'styleForeground': _PropertySpec({'paint'}),
-      'styleBackground': _PropertySpec({'paint'}),
-      'styleShadows': _PropertySpec({'shadowList'}),
-      'styleFontFeatures': _PropertySpec({'fontFeatureList'}),
-      'styleFontVariations': _PropertySpec({'fontVariationList'}),
-      'styleDecorationColor': _PropertySpec({
-        'color',
-        'themeToken',
-      }, themeTokens: canvasColorSchemeThemeTokens),
-      'styleDecorationStyle': _PropertySpec(
-        {'enum'},
-        enumType: 'TextDecorationStyle',
-        enumValues: {'solid', 'double', 'dotted', 'dashed', 'wavy'},
-      ),
-      'styleDecorationThickness': _PropertySpec({'double'}),
-      'styleDebugLabel': _PropertySpec({'string'}),
-      'styleFontFamily': _fontNameProperty,
-      'styleFontFamilyFallback': _fontFamilyFallbackProperty,
-      'stylePackage': _fontNameProperty,
-      'styleOverflow': _textOverflowProperty,
-      'strutFontFamily': _fontNameProperty,
-      'strutFontFamilyFallback': _fontFamilyFallbackProperty,
-      'strutFontSize': _PropertySpec(
-        {'double'},
-        minimum: 0,
-        minimumExclusive: true,
-      ),
-      'strutHeight': _PropertySpec({'double'}),
-      'strutLeadingDistribution': _textLeadingDistributionProperty,
-      'strutLeading': _PropertySpec({'double'}, minimum: 0),
-      'strutFontWeight': _fontWeightProperty,
-      'strutFontStyle': _fontStyleProperty,
-      'strutForceHeight': _PropertySpec({'boolean'}),
-      'strutDebugLabel': _PropertySpec({'string'}),
-      'strutPackage': _fontNameProperty,
+      'width': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'height': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
     },
-    {},
-    requiredProperties: {'data'},
+    {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Text': _WidgetSpec({
+    'data': _PropertySpec(
+      {'string'},
+      required: true,
+      creationDefaultFingerprint: 'string:VGV4dA',
+    ),
+    'textAlign': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextAlign',
+      enumValues: {'start', 'end', 'left', 'right', 'center', 'justify'},
+    ),
+    'textDirection': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextDirection',
+      enumValues: {'rtl', 'ltr'},
+    ),
+    'softWrap': _PropertySpec({'boolean'}),
+    'maxLines': _PropertySpec({
+      'integer',
+    }, numericBounds: _positiveIntegerBounds),
+    'overflow': _textOverflowProperty,
+    'semanticsLabel': _PropertySpec({'string'}),
+    'semanticsIdentifier': _PropertySpec({'string'}),
+    'textWidthBasis': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextWidthBasis',
+      enumValues: {'parent', 'longestLine'},
+    ),
+    'selectionColor': _PropertySpec({
+      'color',
+      'themeToken',
+    }, themeTokens: canvasColorSchemeThemeTokens),
+    'localeLanguageCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'(?:[a-z]{2,3}|[a-z]{5,8})'),
+    'localeScriptCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'[A-Z][a-z]{3}'),
+    'localeCountryCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'(?:[A-Z]{2}|[0-9]{3})'),
+    'textScalerFactor': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'textHeightApplyFirstAscent': _PropertySpec({'boolean'}),
+    'textHeightApplyLastDescent': _PropertySpec({'boolean'}),
+    'textHeightLeadingDistribution': _textLeadingDistributionProperty,
+    'styleInherit': _PropertySpec({'boolean'}),
+    'styleThemeTextStyle': _PropertySpec({
+      'themeToken',
+    }, themeTokens: canvasTextThemeTokens),
+    'styleColor': _PropertySpec({
+      'color',
+      'themeToken',
+    }, themeTokens: canvasColorSchemeThemeTokens),
+    'styleBackgroundColor': _PropertySpec({
+      'color',
+      'themeToken',
+    }, themeTokens: canvasColorSchemeThemeTokens),
+    'styleFontSize': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'styleFontWeight': _fontWeightProperty,
+    'styleFontStyle': _fontStyleProperty,
+    'styleLetterSpacing': _PropertySpec({
+      'double',
+    }, numericBounds: _unboundedDoubleBounds),
+    'styleWordSpacing': _PropertySpec({
+      'double',
+    }, numericBounds: _unboundedDoubleBounds),
+    'styleTextBaseline': _textBaselineProperty,
+    'styleHeight': _PropertySpec({
+      'double',
+    }, numericBounds: _unboundedDoubleBounds),
+    'styleLeadingDistribution': _textLeadingDistributionProperty,
+    'styleLocaleLanguageCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'(?:[a-z]{2,3}|[a-z]{5,8})'),
+    'styleLocaleScriptCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'[A-Z][a-z]{3}'),
+    'styleLocaleCountryCode': _PropertySpec({
+      'string',
+    }, stringPattern: r'(?:[A-Z]{2}|[0-9]{3})'),
+    'styleDecorationUnderline': _PropertySpec({'boolean'}),
+    'styleDecorationOverline': _PropertySpec({'boolean'}),
+    'styleDecorationLineThrough': _PropertySpec({'boolean'}),
+    'styleForeground': _PropertySpec({'paint'}),
+    'styleBackground': _PropertySpec({'paint'}),
+    'styleShadows': _PropertySpec({'shadowList'}),
+    'styleFontFeatures': _PropertySpec({'fontFeatureList'}),
+    'styleFontVariations': _PropertySpec({'fontVariationList'}),
+    'styleDecorationColor': _PropertySpec({
+      'color',
+      'themeToken',
+    }, themeTokens: canvasColorSchemeThemeTokens),
+    'styleDecorationStyle': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextDecorationStyle',
+      enumValues: {'solid', 'double', 'dotted', 'dashed', 'wavy'},
+    ),
+    'styleDecorationThickness': _PropertySpec({
+      'double',
+    }, numericBounds: _unboundedDoubleBounds),
+    'styleDebugLabel': _PropertySpec({'string'}),
+    'styleFontFamily': _fontNameProperty,
+    'styleFontFamilyFallback': _fontFamilyFallbackProperty,
+    'stylePackage': _fontNameProperty,
+    'styleOverflow': _textOverflowProperty,
+    'strutFontFamily': _fontNameProperty,
+    'strutFontFamilyFallback': _fontFamilyFallbackProperty,
+    'strutFontSize': _PropertySpec({
+      'double',
+    }, numericBounds: _positiveDoubleBounds),
+    'strutHeight': _PropertySpec({
+      'double',
+    }, numericBounds: _unboundedDoubleBounds),
+    'strutLeadingDistribution': _textLeadingDistributionProperty,
+    'strutLeading': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'strutFontWeight': _fontWeightProperty,
+    'strutFontStyle': _fontStyleProperty,
+    'strutForceHeight': _PropertySpec({'boolean'}),
+    'strutDebugLabel': _PropertySpec({'string'}),
+    'strutPackage': _fontNameProperty,
+  }, {}),
 };
+
+const String canvasReviewedWidgetSchemaContract = '''
+
+W|flutter.material.Scaffold
+P|backgroundColor|color|0|-|-|color:any
+P|resizeToAvoidBottomInset|boolean|0|-|-|boolean:any
+S|appBar|single|0|0|1
+S|body|single|0|0|1
+S|floatingActionButton|single|0|0|1
+W|flutter.widgets.Center
+P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1
+W|flutter.widgets.Column
+P|crossAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:CrossAxisAlignment:baseline,center,end,start,stretch
+P|mainAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:MainAxisAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
+P|mainAxisSize|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:MainAxisSize:max,min
+P|spacing|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
+S|children|list|0|0|10000
+W|flutter.widgets.Padding
+P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+S|child|single|0|0|1
+W|flutter.widgets.Row
+P|crossAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:CrossAxisAlignment:baseline,center,end,start,stretch
+P|mainAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:MainAxisAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
+P|mainAxisSize|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:MainAxisSize:max,min
+P|spacing|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
+S|children|list|0|0|10000
+W|flutter.widgets.SizedBox
+P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1
+W|flutter.widgets.Text
+P|data|string|1|string:VGV4dA|-|string:any
+P|localeCountryCode|string|0|-|-|string:pattern:KD86W0EtWl17Mn18WzAtOV17M30p
+P|localeLanguageCode|string|0|-|-|string:pattern:KD86W2Etel17MiwzfXxbYS16XXs1LDh9KQ
+P|localeScriptCode|string|0|-|-|string:pattern:W0EtWl1bYS16XXszfQ
+P|maxLines|integer|0|-|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
+P|overflow|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextOverflow:clip,ellipsis,fade,visible
+P|selectionColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|semanticsIdentifier|string|0|-|-|string:any
+P|semanticsLabel|string|0|-|-|string:any
+P|softWrap|boolean|0|-|-|boolean:any
+P|strutDebugLabel|string|0|-|-|string:any
+P|strutFontFamily|string|0|-|-|string:length:1:256
+P|strutFontFamilyFallback|string|0|-|-|string:length:0:4096
+P|strutFontSize|double|0|-|double:0:0:*:1|double:range:0:0:*:1
+P|strutFontStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FontStyle:italic,normal
+P|strutFontWeight|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FontWeight:w100,w200,w300,w400,w500,w600,w700,w800,w900
+P|strutForceHeight|boolean|0|-|-|boolean:any
+P|strutHeight|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|strutLeading|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|strutLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
+P|strutPackage|string|0|-|-|string:length:1:256
+P|styleBackground|paint|0|-|-|paint:paintTokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleBackgroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleDebugLabel|string|0|-|-|string:any
+P|styleDecorationColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleDecorationLineThrough|boolean|0|-|-|boolean:any
+P|styleDecorationOverline|boolean|0|-|-|boolean:any
+P|styleDecorationStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDecorationStyle:dashed,dotted,double,solid,wavy
+P|styleDecorationThickness|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|styleDecorationUnderline|boolean|0|-|-|boolean:any
+P|styleFontFamily|string|0|-|-|string:length:1:256
+P|styleFontFamilyFallback|string|0|-|-|string:length:0:4096
+P|styleFontFeatures|fontFeatureList|0|-|-|fontFeatureList:any
+P|styleFontSize|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|styleFontStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FontStyle:italic,normal
+P|styleFontVariations|fontVariationList|0|-|-|fontVariationList:fontVariationList
+P|styleFontWeight|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FontWeight:w100,w200,w300,w400,w500,w600,w700,w800,w900
+P|styleForeground|paint|0|-|-|paint:paintTokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleHeight|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|styleInherit|boolean|0|-|-|boolean:any
+P|styleLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
+P|styleLetterSpacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|styleLocaleCountryCode|string|0|-|-|string:pattern:KD86W0EtWl17Mn18WzAtOV17M30p
+P|styleLocaleLanguageCode|string|0|-|-|string:pattern:KD86W2Etel17MiwzfXxbYS16XXs1LDh9KQ
+P|styleLocaleScriptCode|string|0|-|-|string:pattern:W0EtWl1bYS16XXszfQ
+P|styleOverflow|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextOverflow:clip,ellipsis,fade,visible
+P|stylePackage|string|0|-|-|string:length:1:256
+P|styleShadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|styleTextBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
+P|styleThemeTextStyle|themeToken|0|-|-|themeToken:tokens:material.textTheme.bodyLarge,material.textTheme.bodyMedium,material.textTheme.bodySmall,material.textTheme.displayLarge,material.textTheme.displayMedium,material.textTheme.displaySmall,material.textTheme.headlineLarge,material.textTheme.headlineMedium,material.textTheme.headlineSmall,material.textTheme.labelLarge,material.textTheme.labelMedium,material.textTheme.labelSmall,material.textTheme.titleLarge,material.textTheme.titleMedium,material.textTheme.titleSmall
+P|styleWordSpacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|textAlign|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextAlign:center,end,justify,left,right,start
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|textHeightApplyFirstAscent|boolean|0|-|-|boolean:any
+P|textHeightApplyLastDescent|boolean|0|-|-|boolean:any
+P|textHeightLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
+P|textScalerFactor|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|textWidthBasis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextWidthBasis:longestLine,parent
+''';
+
+String canvasRuntimeWidgetSchemaContractForTesting() {
+  final result = StringBuffer();
+  final widgetTypes = _widgetSpecifications.keys.toList()..sort();
+  for (final widgetType in widgetTypes) {
+    final widget = _widgetSpecifications[widgetType]!;
+    result.writeln('W|$widgetType');
+    final propertyNames = widget.properties.keys.toList()..sort();
+    for (final propertyName in propertyNames) {
+      final property = widget.properties[propertyName]!;
+      final kinds = property.kinds.toList()..sort();
+      final numericEntries = property.numericBounds.entries.toList()
+        ..sort((left, right) => left.key.compareTo(right.key));
+      final numeric = numericEntries.isEmpty
+          ? '-'
+          : numericEntries
+                .map(
+                  (entry) =>
+                      '${entry.key}:${_numericBoundsFingerprint(entry.value)}',
+                )
+                .join(';');
+      final constraints = kinds
+          .map(
+            (kind) => '$kind:${_propertyConstraintFingerprint(property, kind)}',
+          )
+          .join(';');
+      result
+        ..write('P|$propertyName|${kinds.join(',')}|')
+        ..write(property.required ? '1' : '0')
+        ..write('|${property.creationDefaultFingerprint ?? '-'}|')
+        ..write(numeric)
+        ..writeln('|$constraints');
+    }
+    final slotNames = widget.slots.keys.toList()..sort();
+    for (final slotName in slotNames) {
+      final slot = widget.slots[slotName]!;
+      result.writeln(
+        'S|$slotName|${slot.cardinality}|${slot.required ? 1 : 0}|'
+        '${slot.minimumChildren}|${slot.maximumChildren}',
+      );
+    }
+  }
+  return result.toString();
+}
+
+String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
+  final numeric = spec.numericBounds[kind];
+  if (kind == 'edgeInsets' || kind == 'edgeInsetsDirectional') {
+    _expect(numeric != null, 'Canvas EdgeInsets schema is incomplete.');
+    return 'edgeInsets:${spec.edgeInsetsNonNegative ? 1 : 0}:'
+        '${_numericBoundsFingerprint(numeric!)}';
+  }
+  if (numeric != null) {
+    return 'range:${_numericBoundsFingerprint(numeric)}';
+  }
+  if (kind == 'enum') {
+    final library = spec.enumLibraryUri;
+    final type = spec.enumType;
+    _expect(
+      library != null && type != null && spec.enumValues.isNotEmpty,
+      'Canvas enum schema is incomplete.',
+    );
+    final values = spec.enumValues.toList()..sort();
+    return 'enum:${_base64Fingerprint(library!)}:$type:${values.join(',')}';
+  }
+  if (kind == 'string') {
+    if (spec.stringPattern case final pattern?) {
+      return 'pattern:${_base64Fingerprint(pattern)}';
+    }
+    if (spec.explicitStringLength) {
+      return 'length:${spec.minimumStringLength}:${spec.maximumStringLength}';
+    }
+    return 'any';
+  }
+  if (kind == 'themeToken') {
+    final tokens = spec.themeTokens.toList()..sort();
+    _expect(tokens.isNotEmpty, 'Canvas theme-token schema is empty.');
+    return 'tokens:${tokens.join(',')}';
+  }
+  if (kind == 'paint') {
+    final tokens = canvasColorSchemeThemeTokens.toList()..sort();
+    return 'paintTokens:${tokens.join(',')}';
+  }
+  if (kind == 'shadowList') {
+    final tokens = canvasColorSchemeThemeTokens.toList()..sort();
+    return 'shadowTokens:${tokens.join(',')}';
+  }
+  if (kind == 'fontVariationList') {
+    return 'fontVariationList';
+  }
+  return 'any';
+}
+
+String _numericBoundsFingerprint(_NumericBounds bounds) =>
+    '${_canonicalBound(bounds.minimum)}:${bounds.minimumInclusive ? 1 : 0}:'
+    '${_canonicalBound(bounds.maximum)}:${bounds.maximumInclusive ? 1 : 0}';
+
+String _canonicalBound(num? value) {
+  if (value == null) {
+    return '*';
+  }
+  if (value == 0) {
+    return '0';
+  }
+  return value.toString();
+}
+
+String _base64Fingerprint(String value) =>
+    base64Url.encode(utf8.encode(value)).replaceAll('=', '');
 
 class _NodeBudget {
   int count = 0;

@@ -535,6 +535,62 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsSizedBoxDimensionsAndItsSingleChild() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.SizedBox"),
+                Map.of(
+                        property("width"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(320)),
+                        property("height"),
+                        new PropertyValue.DoubleValue(new BigDecimal("180.5"))),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const SizedBox(
+                      width: 320,
+                      height: 180.5,
+                      child: const Text('Inside'),
+                    );
+                  }
+                """, generated.build().payload());
+        assertEquals(List.of("Widget", "BuildContext", "SizedBox", "Text"),
+                generated.symbolOccurrences().stream()
+                        .map(GeneratedDartSymbolOccurrence::symbolName)
+                        .toList());
+    }
+
+    @Test
+    void emitsAnEmptySizedBoxAsTheCompactConstForm() {
+        WidgetNode root = WidgetNode.empty(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.SizedBox"));
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const SizedBox();
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
     void constructorArgumentsUseGlobalPositionalThenNamedOrder() {
         WidgetDefinition definition = orderedDefinition();
         WidgetNode child = leaf("child");

@@ -2,14 +2,12 @@
 
 Status note: ADR-024 and ADR-027 supersede the earlier provisional statements that
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
-contracts remain accepted; only the closed typed Properties slice described by
-ADR-024/ADR-027 is now enabled. ADR-025 initially enabled one historical
-Text-only insertion vertical slice. Its current superseding contract enables
-the catalog-authorized 36-cell matrix for all six exact `CORE_V1` Palette
-sources. ADR-028 separately authorizes same-tree movement of an existing
-non-root widget, and ADR-029 authorizes the first exact named-slot Properties
-editor. None authorizes cross-form movement, arbitrary native Canvas mutation
-or unreviewed slots.
+contracts remain accepted. ADR-025 records the historical Text-only and later
+six-source insertion milestones; ADR-030 now governs the current seven-widget,
+49-cell capability-gated surface including the complete `SizedBox` vertical
+slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
+ADR-029 authorizes exact named-slot management. None authorizes cross-form
+movement, arbitrary native Canvas mutation or unreviewed slots.
 
 ## ADR-001 — IDE support before Designer
 
@@ -227,19 +225,19 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024 and ADR-027 make only 76 catalog-backed non-`Scaffold`
-Properties fields writable, including the 59-leaf Text projection. ADR-025
-historically made only built-in `Text` publicly draggable. That vertical slice
-is superseded by the current six-`CORE_V1` source matrix for reviewed empty
-single slots and terminal `Row.children`/`Column.children` positions; all
-non-insertion Palette mutations remain disabled. A separate post-handshake runtime control codec publishes one exact
+framing. ADR-024, ADR-027 and ADR-030 make 78 catalog-backed non-`Scaffold`
+Properties fields writable, including the 59-leaf Text projection and two
+`SizedBox` dimensions. ADR-025 historically made only built-in `Text` publicly
+draggable and later admitted six sources; ADR-030 supersedes those surface
+counts with the seven-source, 49-cell capability-gated matrix. Same-tree
+existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-`CORE_V1` model payload accepts only reviewed built-in definitions for
-`Scaffold`, `Column`, `Row`, `Text`, `Padding` and `Center`; the isolated runner
-uses the same hardcoded allowlist and receives neither project code nor file
-authority. `CATALOG_JSON` remains reserved for a future versioned catalog
-contract.
+protocol-v5 model payload accepts only exact reviewed Canvas-capable built-ins:
+`Scaffold`, `Column`, `Row`, `Text`, `Padding`, `Center` and `SizedBox`; the
+isolated runner independently enforces the same schema and receives neither
+project code nor file authority. `CATALOG_JSON` remains reserved for a future
+versioned catalog contract.
 
 The Windows edge has a real heavyweight AWT HWND host, exact
 PID/parent/class/style validation for runner and `FLUTTERVIEW` children, a
@@ -247,11 +245,11 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated six-widget model for Mobile, Tablet, Desktop
+Canvas now renders the validated seven-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those six reviewed definitions; only ADR-025's reviewed built-in `Text`
-insertion targets have an action. No image or pixel-transfer frame kind exists.
+those seven Create-capable definitions, and the DnD-capable set uses the reviewed
+49-cell insertion matrix. No image or pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -441,8 +439,8 @@ NetBeans Palette: `Scaffold`, `Column`, `Row`, `Padding`, `Center` and `Text`.
 The target is either the terminal position of an existing
 `Row.children`/`Column.children` list or an empty `Scaffold.body`,
 `Scaffold.floatingActionButton`, `Padding.child` or `Center.child` single slot at
-index zero. This is the complete 36-cell ANY_WIDGET matrix for the current six
-sources. `Scaffold.appBar` remains unavailable because none of those sources has
+index zero. At this historical ADR-025 milestone, that was the complete 36-cell
+ANY_WIDGET matrix for its six sources. `Scaffold.appBar` remains unavailable because none of those sources has
 the required `PreferredSizeWidget` trait. Java resolves the exact source,
 parent and slot through the current widget catalog and revalidates cardinality,
 acceptance, capacity and insertion index. For this Palette `ADD` route, arbitrary list indices,
@@ -711,3 +709,36 @@ the verified `.fd` commit, pair Save atomically adopts the exact saved
 `Current` and re-anchors the command-session cursor before publishing
 `WAITING -> READY`; it does not reload a substitute catalog or revision
 identity between consecutive slot commands.
+
+## ADR-030 — Widget expansion is fail-closed and complete by capability
+
+Accepted for the first post-ADR-025 expansion stage. A built-in type is not
+interactive merely because its type id appears in the extensible catalog.
+`Properties`, `Canvas`, `Create` and `DnD` are independent capabilities granted
+only to an exact canonical built-in definition. Palette publication, property
+projection and Canvas encoding query their own capability; an altered or
+contributed same-id definition receives none. Java fingerprints the complete
+constructor/property constraints, creation defaults and slot cardinality, while
+the isolated Dart runner independently declares and enforces the same reviewed
+schema. Exact parity is a build gate.
+
+The first complete expansion is `SizedBox`. It exposes nullable non-negative
+`width` and `height`, one optional `child` slot, its own reviewed light/dark
+16×16 and 32×32 SVG icons, deterministic Dart generation, strict model decode,
+native Canvas rendering and selection, Palette/tree/Canvas insertion,
+same-tree reparenting with stable-id preservation, Slots management, Save,
+reopen and chronological Undo/Redo. An empty `SizedBox()` keeps its real 0×0
+Flutter layout; only a designer overlay supplies a selectable target, and
+coincident zero-size siblings cycle deterministically without changing layout.
+
+The current active surface therefore contains exactly seven reviewed built-ins:
+`Scaffold`, `Column`, `Row`, `Padding`, `Center`, `SizedBox` and `Text`. All seven
+are Create/Canvas/DnD-capable; the six non-`Scaffold` definitions expose 78
+writable fields. The insertion compatibility contract is the complete 49-cell
+matrix across seven sources and the seven reviewed destinations:
+`Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
+`Row.children`, `Padding.child`, `Center.child` and `SizedBox.child`.
+`Scaffold.appBar`, cross-form/native-surface movement and every definition or
+schema without the exact reviewed capability remain fail-closed. ADR-025's
+six-widget/36-cell wording remains the historical milestone it originally
+accepted; this decision supersedes it only for the current surface.

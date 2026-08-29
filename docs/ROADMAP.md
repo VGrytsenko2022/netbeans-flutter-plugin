@@ -380,13 +380,22 @@ accepted architecture is documented in
   `Column.children`. Keep occupied singles, non-terminal list indices,
   `Scaffold.appBar`, non-`CORE_V1` sources, existing-widget move/reorder and
   Linux/macOS/Web DnD disabled.
+- [x] Supersede that six-widget milestone with the first complete expansion
+  slice: `SizedBox` now has exact Create/Canvas/DnD/Properties capabilities,
+  nullable non-negative width/height editors, its named `child` slot,
+  deterministic generation, native rendering and Palette/tree/Canvas DnD.
+  The active Palette/runner contract is seven widgets and the compatibility
+  matrix is 49 cells, including `SizedBox.child`. Java and Dart independently
+  fingerprint the exact property/slot schema and fail closed on an altered or
+  merely same-id definition. Same-tree existing-widget move/reorder remains
+  enabled through its separately reviewed compatibility planner.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
-- [ ] Enable the broader public writable ten-widget slice only after those
-  gates pass. The current five-widget typed Properties slice does not imply
-  insertion support or writable `Scaffold`/`AppBar`/`Icon`/`SizedBox`/
-  `ElevatedButton` Properties.
+- [ ] Admit the remaining built-ins only as complete vertical slices after
+  those gates pass. The current six-widget typed Properties slice does not
+  imply writable `Scaffold`/`AppBar`/`Icon`/`ElevatedButton` Properties or any
+  Create/Canvas/DnD capability for `AppBar`, `Icon` or `ElevatedButton`.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

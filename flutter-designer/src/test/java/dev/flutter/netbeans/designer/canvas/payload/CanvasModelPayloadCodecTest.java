@@ -65,13 +65,14 @@ class CanvasModelPayloadCodecTest {
             new CanvasEngineIdentity("3.44.8", "framework", "engine", "3.12.0"));
 
     @Test
-    void exposesTheExactReviewedCoreV1CapabilitySetInPaletteOrder() {
+    void exposesTheExactReviewedCanvasCapabilitySetInPaletteOrder() {
         assertEquals(List.of(
                 "flutter.material.Scaffold",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
+                "flutter.widgets.SizedBox",
                 "flutter.widgets.Text"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -80,7 +81,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactSixWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactSevenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -103,7 +104,10 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Row\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Padding\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Center\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.SizedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
+        assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
+        assertTrue(json.contains("\"height\":{\"kind\":\"double\",\"value\":48.5}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -139,7 +143,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void rejectsAValidCatalogWidgetOutsideCoreV1BeforeEncoding() throws Exception {
+    void rejectsAValidCatalogWidgetOutsideReviewedCanvasBeforeEncoding() throws Exception {
         WidgetNode appBar = new WidgetNode(
                 id("d5659c06-8da0-45d1-91c8-75eef08d9442"),
                 type("flutter.material.AppBar"),
@@ -361,6 +365,15 @@ class CanvasModelPayloadCodecTest {
                 Map.of(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
                         "4508c721-215c-4059-be29-3e38fd02b411", "World"))));
+        WidgetNode sizedBox = new WidgetNode(
+                id("0cc7c095-7908-461b-b5b2-fe085343b6b2"),
+                type("flutter.widgets.SizedBox"),
+                Map.of(
+                        new PropertyName("width"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(120)),
+                        new PropertyName("height"),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(48.5))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
         WidgetNode row = new WidgetNode(
                 id("1efdd73a-0602-4200-aa1e-28982f5a22ca"),
                 type("flutter.widgets.Row"),
@@ -380,7 +393,7 @@ class CanvasModelPayloadCodecTest {
                         new PropertyName("spacing"),
                         new PropertyValue.DoubleValue(BigDecimal.valueOf(4))),
                 Map.of(new SlotName("children"),
-                        new WidgetSlot.ListSlot(List.of(centered))));
+                        new WidgetSlot.ListSlot(List.of(sizedBox))));
         WidgetNode column = new WidgetNode(
                 id("a39c394b-a85e-4d0c-b2c6-87174e20b7fd"),
                 type("flutter.widgets.Column"),

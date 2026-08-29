@@ -37,8 +37,10 @@ import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import javax.swing.event.ChangeListener;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
@@ -246,10 +248,12 @@ public final class FlutterDesignerMultiViewDesign
                 paletteDragLifecycle);
         paletteController = FlutterDesignerPalette.create(
                 BuiltInWidgetCatalog.getDefault(),
-                CanvasModelPayloadCodec::supports,
+                definition -> BuiltInWidgetCapabilityCatalog.supports(
+                        definition, WidgetCapability.CREATE),
                 paletteDragRegistry,
                 this::isPaletteCatalogInsertDragAuthorityEnabled,
-                CanvasModelPayloadCodec::supports);
+                definition -> BuiltInWidgetCapabilityCatalog.supports(
+                        definition, WidgetCapability.DND));
         effectiveLookup = new ProxyLookup(
                 ExplorerUtils.createLookup(explorerManager, visual.getActionMap()),
                 Lookups.exclude(context, Node.class),
@@ -831,7 +835,8 @@ public final class FlutterDesignerMultiViewDesign
                         currentCanvasDocument,
                         currentCanvasCatalog,
                         currentCanvasCatalog.paletteDefinitions().stream()
-                                .filter(CanvasModelPayloadCodec::supports)
+                                .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                                        definition, WidgetCapability.CREATE))
                                 .map(definition -> definition.typeId())
                                 .toList()),
                 slotMutationHandler);
@@ -1822,7 +1827,8 @@ public final class FlutterDesignerMultiViewDesign
         return document == currentCanvasDocument
                 && catalog == currentCanvasCatalog
                 && catalog.paletteDefinitions().stream()
-                        .anyMatch(CanvasModelPayloadCodec::supports);
+                        .anyMatch(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                                definition, WidgetCapability.DND));
     }
 
     private Optional<WidgetTypeId> consumePaletteDropToken(String token) {
@@ -1833,7 +1839,8 @@ public final class FlutterDesignerMultiViewDesign
                         return false;
                     }
                     return candidate.catalog().orElseThrow().find(widgetType)
-                            .filter(CanvasModelPayloadCodec::supports)
+                            .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                                    definition, WidgetCapability.DND))
                             .isPresent();
                 });
     }
@@ -2209,7 +2216,8 @@ public final class FlutterDesignerMultiViewDesign
                 || document != presentedCanvasDocument
                 || catalog != presentedCanvasCatalog
                 || catalog.find(widgetType)
-                        .filter(CanvasModelPayloadCodec::supports)
+                        .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                                definition, WidgetCapability.DND))
                         .isEmpty()) {
             return;
         }
@@ -2342,11 +2350,11 @@ public final class FlutterDesignerMultiViewDesign
                 "The on-disk imports and build regions, the SHA-256 values recorded in ")
                 .append(modelName)
                 .append(", and the deterministic generated payloads agree. The validated ")
-                .append("CORE_V1 model is published to the isolated native Flutter Canvas. ")
-                .append("Viewport preview and widget-tree selection, the six-item Palette ")
-                .append("and Properties are enabled. Supported properties on Column, Row, ")
-                .append("Padding, Center and Text are writable when exact mutation admission ")
-                .append("is ready; Scaffold properties remain read-only. ");
+                .append("reviewed model is published to the isolated native Flutter Canvas. ")
+                .append("Viewport preview, widget-tree selection, the capability-gated Palette ")
+                .append("and Properties are enabled. Reviewed properties are writable when ")
+                .append("exact mutation admission is ready; unsupported property slices remain ")
+                .append("read-only. ");
         if (isPaletteCatalogInsertDragEnabled()) {
             detail.append("Canvas-supported widgets can be dragged from the Palette into ")
                     .append("catalog-compatible empty single slots or terminal list slots; ")
@@ -2486,9 +2494,9 @@ public final class FlutterDesignerMultiViewDesign
                 "Flutter Designer widget tree");
         widgetTree.getAccessibleContext().setAccessibleDescription(
                 "Selectable widget hierarchy for " + modelName
-                + ". Supported properties on selected Column, Row, Padding, Center and "
-                + "Text widgets are writable when exact mutation admission is ready; "
-                + "Scaffold properties remain read-only. When the owning-view AWT drag "
+                + ". Capability-reviewed properties are writable when exact mutation "
+                + "admission is ready; unsupported property slices remain read-only. "
+                + "When the owning-view AWT drag "
                 + "lifecycle and native Canvas drop capability are available, Canvas-supported "
                 + "Palette widgets may be inserted into catalog-compatible empty single slots "
                 + "or terminal list slots through the native Canvas.");

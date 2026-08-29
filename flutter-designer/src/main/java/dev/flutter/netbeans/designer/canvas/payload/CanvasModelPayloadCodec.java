@@ -7,10 +7,10 @@ import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
-import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.model.ColorSource;
-import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.SlotName;
@@ -20,9 +20,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Canonical projection of one validated Designer revision for the isolated
@@ -38,125 +37,21 @@ public final class CanvasModelPayloadCodec {
     public static final int VERSION = 5;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
-    private static final Map<String, Map<String, Set<PropertyValueKind>>> PROPERTIES = Map.of(
-            "flutter.material.Scaffold", Map.of(
-                    "backgroundColor", Set.of(PropertyValueKind.COLOR),
-                    "resizeToAvoidBottomInset", Set.of(PropertyValueKind.BOOLEAN)),
-            "flutter.widgets.Column", Map.of(
-                    "mainAxisAlignment", Set.of(PropertyValueKind.ENUM),
-                    "mainAxisSize", Set.of(PropertyValueKind.ENUM),
-                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM),
-                    "textDirection", Set.of(PropertyValueKind.ENUM),
-                    "verticalDirection", Set.of(PropertyValueKind.ENUM),
-                    "textBaseline", Set.of(PropertyValueKind.ENUM),
-                    "spacing", Set.of(PropertyValueKind.DOUBLE)),
-            "flutter.widgets.Row", Map.of(
-                    "mainAxisAlignment", Set.of(PropertyValueKind.ENUM),
-                    "mainAxisSize", Set.of(PropertyValueKind.ENUM),
-                    "crossAxisAlignment", Set.of(PropertyValueKind.ENUM),
-                    "textDirection", Set.of(PropertyValueKind.ENUM),
-                    "verticalDirection", Set.of(PropertyValueKind.ENUM),
-                    "textBaseline", Set.of(PropertyValueKind.ENUM),
-                    "spacing", Set.of(PropertyValueKind.DOUBLE)),
-            "flutter.widgets.Padding", Map.of(
-                    "padding", Set.of(PropertyValueKind.EDGE_INSETS)),
-            "flutter.widgets.Center", Map.of(
-                    "widthFactor", Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
-                    "heightFactor", Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE)),
-            "flutter.widgets.Text", Map.ofEntries(
-                    property("data", PropertyValueKind.STRING),
-                    property("textAlign", PropertyValueKind.ENUM),
-                    property("textDirection", PropertyValueKind.ENUM),
-                    property("softWrap", PropertyValueKind.BOOLEAN),
-                    property("maxLines", PropertyValueKind.INTEGER),
-                    property("overflow", PropertyValueKind.ENUM),
-                    property("semanticsLabel", PropertyValueKind.STRING),
-                    property("semanticsIdentifier", PropertyValueKind.STRING),
-                    property("textWidthBasis", PropertyValueKind.ENUM),
-                    property("selectionColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
-                    property("localeLanguageCode", PropertyValueKind.STRING),
-                    property("localeScriptCode", PropertyValueKind.STRING),
-                    property("localeCountryCode", PropertyValueKind.STRING),
-                    property("textScalerFactor", PropertyValueKind.DOUBLE),
-                    property("textHeightApplyFirstAscent", PropertyValueKind.BOOLEAN),
-                    property("textHeightApplyLastDescent", PropertyValueKind.BOOLEAN),
-                    property("textHeightLeadingDistribution", PropertyValueKind.ENUM),
-                    property("styleInherit", PropertyValueKind.BOOLEAN),
-                    property("styleThemeTextStyle", PropertyValueKind.THEME_TOKEN),
-                    property("styleColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
-                    property("styleBackgroundColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
-                    property("styleFontSize", PropertyValueKind.DOUBLE),
-                    property("styleFontWeight", PropertyValueKind.ENUM),
-                    property("styleFontStyle", PropertyValueKind.ENUM),
-                    property("styleLetterSpacing", PropertyValueKind.DOUBLE),
-                    property("styleWordSpacing", PropertyValueKind.DOUBLE),
-                    property("styleTextBaseline", PropertyValueKind.ENUM),
-                    property("styleHeight", PropertyValueKind.DOUBLE),
-                    property("styleLeadingDistribution", PropertyValueKind.ENUM),
-                    property("styleLocaleLanguageCode", PropertyValueKind.STRING),
-                    property("styleLocaleScriptCode", PropertyValueKind.STRING),
-                    property("styleLocaleCountryCode", PropertyValueKind.STRING),
-                    property("styleDecorationUnderline", PropertyValueKind.BOOLEAN),
-                    property("styleDecorationOverline", PropertyValueKind.BOOLEAN),
-                    property("styleDecorationLineThrough", PropertyValueKind.BOOLEAN),
-                    property("styleForeground", PropertyValueKind.PAINT),
-                    property("styleBackground", PropertyValueKind.PAINT),
-                    property("styleShadows", PropertyValueKind.SHADOW_LIST),
-                    property("styleFontFeatures", PropertyValueKind.FONT_FEATURE_LIST),
-                    property("styleFontVariations", PropertyValueKind.FONT_VARIATION_LIST),
-                    property("styleDecorationColor", PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
-                    property("styleDecorationStyle", PropertyValueKind.ENUM),
-                    property("styleDecorationThickness", PropertyValueKind.DOUBLE),
-                    property("styleDebugLabel", PropertyValueKind.STRING),
-                    property("styleFontFamily", PropertyValueKind.STRING),
-                    property("styleFontFamilyFallback", PropertyValueKind.STRING),
-                    property("stylePackage", PropertyValueKind.STRING),
-                    property("styleOverflow", PropertyValueKind.ENUM),
-                    property("strutFontFamily", PropertyValueKind.STRING),
-                    property("strutFontFamilyFallback", PropertyValueKind.STRING),
-                    property("strutFontSize", PropertyValueKind.DOUBLE),
-                    property("strutHeight", PropertyValueKind.DOUBLE),
-                    property("strutLeadingDistribution", PropertyValueKind.ENUM),
-                    property("strutLeading", PropertyValueKind.DOUBLE),
-                    property("strutFontWeight", PropertyValueKind.ENUM),
-                    property("strutFontStyle", PropertyValueKind.ENUM),
-                    property("strutForceHeight", PropertyValueKind.BOOLEAN),
-                    property("strutDebugLabel", PropertyValueKind.STRING),
-                    property("strutPackage", PropertyValueKind.STRING)));
-    private static final Map<String, Set<String>> SLOTS = Map.of(
-            "flutter.material.Scaffold", Set.of("appBar", "body", "floatingActionButton"),
-            "flutter.widgets.Column", Set.of("children"),
-            "flutter.widgets.Row", Set.of("children"),
-            "flutter.widgets.Padding", Set.of("child"),
-            "flutter.widgets.Center", Set.of("child"),
-            "flutter.widgets.Text", Set.of());
-
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
 
-    private static Map.Entry<String, Set<PropertyValueKind>> property(
-            String name,
-            PropertyValueKind... kinds) {
-        return Map.entry(name, Set.of(kinds));
-    }
-
     /**
-     * Returns whether the definition is one of the reviewed built-in widget
-     * contracts rendered by the version 1 native Canvas projection.
+     * Returns whether the definition is one of the exact reviewed built-in
+     * contracts admitted to the native Canvas projection.
      *
-     * <p>This is the single Java-side capability predicate for both payload
-     * admission and context UI such as the NetBeans Palette. A contributed or
-     * altered definition cannot become renderable merely by reusing a supported
-     * type id.</p>
+     * <p>Payload admission is delegated to the shared capability catalog;
+     * context UI must request its own capability (for example, {@code CREATE}
+     * or {@code DND}) from that same gate. A contributed or altered definition
+     * cannot become renderable merely by reusing a supported type id.</p>
      */
     public static boolean supports(WidgetDefinition definition) {
-        Objects.requireNonNull(definition, "definition");
-        String type = definition.typeId().value();
-        if (!PROPERTIES.containsKey(type) || !SLOTS.containsKey(type)) {
-            return false;
-        }
-        return BuiltInWidgetCatalog.getDefault().find(definition.typeId())
-                .filter(definition::equals)
-                .isPresent();
+        return BuiltInWidgetCapabilityCatalog.supports(
+                Objects.requireNonNull(definition, "definition"),
+                WidgetCapability.CANVAS);
     }
 
     /** Encodes compact UTF-8 JSON in stable field and map-key order. */
@@ -203,33 +98,26 @@ public final class CanvasModelPayloadCodec {
         while (!pending.isEmpty()) {
             WidgetNode widget = pending.removeFirst();
             String type = widget.type().value();
-            Map<String, Set<PropertyValueKind>> properties = PROPERTIES.get(type);
-            Set<String> slots = SLOTS.get(type);
-            if (properties == null || slots == null) {
-                throw new CanvasModelPayloadException(
-                        "Canvas CORE_V1 does not render widget type " + type + '.');
-            }
             var active = request.snapshot().catalog().find(widget.type())
                     .orElseThrow(() -> new CanvasModelPayloadException(
                             "The active Canvas catalog is missing widget type " + type + '.'));
-            if (!supports(active)) {
-                throw new CanvasModelPayloadException(
-                        "Canvas CORE_V1 requires the reviewed built-in definition for "
-                        + type + '.');
-            }
+            var projection = BuiltInWidgetCapabilityCatalog.canvasProjection(active)
+                    .orElseThrow(() -> new CanvasModelPayloadException(
+                            "The reviewed Canvas catalog does not render widget type "
+                            + type + '.'));
             for (Map.Entry<PropertyName, PropertyValue> entry
                     : widget.properties().entrySet()) {
-                Set<PropertyValueKind> kinds = properties.get(entry.getKey().value());
+                var kinds = projection.properties().get(entry.getKey());
                 if (kinds == null || !kinds.contains(entry.getValue().kind())) {
                     throw new CanvasModelPayloadException(
-                            "Canvas CORE_V1 cannot project property "
+                            "The reviewed Canvas catalog cannot project property "
                             + entry.getKey().value() + " on " + type + '.');
                 }
             }
             for (Map.Entry<SlotName, WidgetSlot> entry : widget.slots().entrySet()) {
-                if (!slots.contains(entry.getKey().value())) {
+                if (!projection.slots().contains(entry.getKey())) {
                     throw new CanvasModelPayloadException(
-                            "Canvas CORE_V1 cannot project slot "
+                            "The reviewed Canvas catalog cannot project slot "
                             + entry.getKey().value() + " on " + type + '.');
                 }
                 switch (entry.getValue()) {
@@ -542,6 +430,6 @@ public final class CanvasModelPayloadCodec {
 
     private static IllegalStateException unsupported(PropertyValue value) {
         return new IllegalStateException(
-                "Canvas CORE_V1 cannot encode " + value.kind().wireName());
+                "The reviewed Canvas catalog cannot encode " + value.kind().wireName());
     }
 }

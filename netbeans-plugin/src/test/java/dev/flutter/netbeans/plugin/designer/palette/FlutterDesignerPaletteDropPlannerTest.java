@@ -45,6 +45,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId ROW = type("flutter.widgets.Row");
     private static final WidgetTypeId PADDING = type("flutter.widgets.Padding");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
+    private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName FLOATING_ACTION_BUTTON =
@@ -87,6 +88,16 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new AcceptedCase(
                         "explicitly empty Center child",
                         document(singleParent(CENTER, null)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
+                        "absent optional SizedBox child",
+                        document(WidgetNode.empty(ROOT_ID, SIZED_BOX)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
+                        "explicitly empty SizedBox child",
+                        document(singleParent(SIZED_BOX, null)),
                         CHILD,
                         0));
 
@@ -132,10 +143,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Column.children", COLUMN, CHILDREN),
                 target("Row.children", ROW, CHILDREN),
                 target("Padding.child", PADDING, CHILD),
-                target("Center.child", CENTER, CHILD));
+                target("Center.child", CENTER, CHILD),
+                target("SizedBox.child", SIZED_BOX, CHILD));
 
-        assertEquals(6, sources.size());
-        assertEquals(6, targets.size());
+        assertEquals(7, sources.size());
+        assertEquals(7, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
                     AtomicInteger allocations = new AtomicInteger();
@@ -200,7 +212,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("Scaffold.floatingActionButton", SCAFFOLD,
                         FLOATING_ACTION_BUTTON),
                 new SingleTargetCase("Padding.child", PADDING, CHILD),
-                new SingleTargetCase("Center.child", CENTER, CHILD));
+                new SingleTargetCase("Center.child", CENTER, CHILD),
+                new SingleTargetCase("SizedBox.child", SIZED_BOX, CHILD));
         AtomicInteger allocations = new AtomicInteger();
         Supplier<StableId> supplier = () -> {
             allocations.incrementAndGet();
@@ -650,6 +663,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new CoreSourceCase(
                         "Center",
                         CENTER,
+                        Map.of(),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "SizedBox",
+                        SIZED_BOX,
                         Map.of(),
                         Map.of(CHILD, SlotCardinality.SINGLE)),
                 new CoreSourceCase(

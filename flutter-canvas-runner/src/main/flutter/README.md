@@ -8,8 +8,8 @@ PNG, screenshots or raw pixel frames.
 
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
-`CORE_V1` decoder accepts exactly `Scaffold`, `Column`, `Row`, `Text`, `Padding`
-and `Center`, with reviewed typed properties and slots. It rejects unknown
+reviewed decoder accepts exactly `Scaffold`, `Column`, `Row`, `Text`, `Padding`,
+`Center` and `SizedBox`, with reviewed typed properties and slots. It rejects unknown
 widgets, fields and values instead of loading arbitrary project Dart code.
 Model protocol v5 also carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table and 15-role TextTheme override table. The
@@ -62,7 +62,7 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-six CORE_V1 widgets; the runner only renders validated revisions, performs
+seven reviewed Canvas widgets; the runner only renders validated revisions, performs
 bounded hit testing, returns revision-bound Palette intents and paints optional
 move feedback. Catalog JSON is reserved for a future versioned
 catalog contract, and Linux/macOS native hosts remain separate work.

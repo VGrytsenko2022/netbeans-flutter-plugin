@@ -40,6 +40,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId APP_BAR = type("flutter.material.AppBar");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
+    private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -208,6 +209,38 @@ class FlutterDesignerWidgetMovePlannerTest {
                                 A_ID,
                                 new FlutterDesignerWidgetMovePlanner.On(B_ID)),
                         FlutterDesignerWidgetMovePlanner.RejectionCode.SLOT_FULL));
+    }
+
+    @Test
+    void existingTextMovesIntoEmptySizedBoxChildWithItsStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into SizedBox");
+        WidgetNode emptySizedBox = new WidgetNode(
+                B_ID,
+                SIZED_BOX,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptySizedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptySizedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptySizedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(
+                document,
+                BUILT_INS,
+                source,
+                result);
     }
 
     @Test

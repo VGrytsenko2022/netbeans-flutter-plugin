@@ -33,18 +33,18 @@ import org.openide.util.Lookup;
 
 class FlutterDesignerPaletteTest {
     private static final WidgetCatalog CATALOG = BuiltInWidgetCatalog.getDefault();
-    private static final Set<String> CORE_V1 = Set.of(
+    private static final Set<String> CANVAS_WIDGETS = Set.of(
             "flutter.material.Scaffold",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Text",
             "flutter.widgets.Padding",
-            "flutter.widgets.Center");
+            "flutter.widgets.Center",
+            "flutter.widgets.SizedBox");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of(
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
-            "flutter.widgets.Icon",
-            "flutter.widgets.SizedBox");
+            "flutter.widgets.Icon");
 
     @Test
     void preservesCatalogCategoryAndItemOrderWithLocalizedCategoryLabels() {
@@ -70,14 +70,15 @@ class FlutterDesignerPaletteTest {
     void filtersDefinitionsBeforeGroupingAndOmitsEmptyCategories() {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
-                definition -> CORE_V1.contains(definition.typeId().value()));
+                definition -> CANVAS_WIDGETS.contains(definition.typeId().value()));
         Node[] categories = root(controller).getChildren().getNodes(true);
 
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(List.of("Scaffold"), itemLabels(categories[0]));
-        assertEquals(List.of("Column", "Row", "Padding", "Center"), itemLabels(categories[1]));
+        assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"),
+                itemLabels(categories[1]));
         assertEquals(List.of("Text"), itemLabels(categories[2]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
@@ -198,11 +199,11 @@ class FlutterDesignerPaletteTest {
                 () -> true,
                 CanvasModelPayloadCodec::supports);
 
-        assertEquals(CORE_V1, itemTypeIds(controller),
+        assertEquals(CANVAS_WIDGETS, itemTypeIds(controller),
                 "the Canvas Palette must expose exactly the payload-codec surface");
         assertTrue(java.util.Collections.disjoint(
                 itemTypeIds(controller), NON_CANVAS_BUILT_INS));
-        for (String typeId : CORE_V1.stream().sorted().toList()) {
+        for (String typeId : CANVAS_WIDGETS.stream().sorted().toList()) {
             Transferable transfer = itemNode(controller, typeId).drag();
             assertTrue(transfer.isDataFlavorSupported(DataFlavor.stringFlavor), typeId);
             String token = assertInstanceOf(
@@ -304,11 +305,11 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void sixCoreItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void sevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
-                definition -> CORE_V1.contains(definition.typeId().value()));
+                definition -> CANVAS_WIDGETS.contains(definition.typeId().value()));
         LinkedHashMap<String, String> nodeIcons = new LinkedHashMap<>();
 
         for (Node category : root(controller).getChildren().getNodes(true)) {
@@ -322,8 +323,8 @@ class FlutterDesignerPaletteTest {
             }
         }
 
-        assertEquals(CORE_V1, nodeIcons.keySet());
-        assertEquals(6, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
+        assertEquals(7, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

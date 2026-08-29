@@ -143,6 +143,7 @@ class CanvasDocumentView extends StatefulWidget {
 class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static const int _microsPerSurface = 1000000;
   static const double _minimumTerminalBand = 36;
+  static const double _minimumZeroSizedWidgetTarget = 36;
   static const double _moveInsertionMarkerExtent = 12;
   static const double _scaffoldFabDropExtent = 72;
 
@@ -151,6 +152,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'native-canvas');
   _ViewportGeometry? _viewportGeometry;
   CanvasViewportMetrics? _lastReportedViewportMetrics;
+  List<_ZeroSizedWidgetTargetGroup> _zeroSizedWidgetTargets = const [];
+  bool _zeroSizedWidgetTargetRefreshScheduled = false;
 
   @override
   void initState() {
@@ -209,6 +212,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               );
               _viewportGeometry = geometry;
               _reportViewportAfterFrame(presentation, geometry);
+              _refreshZeroSizedWidgetTargetsAfterFrame();
               return Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerSignal: _onPointerSignal,
@@ -267,6 +271,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                         ),
                       ),
                     ),
+                    for (final target in _zeroSizedWidgetTargets)
+                      Positioned.fromRect(
+                        rect: target.rect,
+                        child: _ZeroSizedWidgetTarget(
+                          widgetIds: target.widgetIds,
+                          selectedWidgetId: widget.selectedWidgetId,
+                          dark: dark,
+                          onSelected: _selectWidget,
+                        ),
+                      ),
                     if (widget.dropHoverTarget case final target?
                         when target.zone != null)
                       _DropZoneOverlay(
@@ -320,6 +334,96 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         ),
       ),
     );
+  }
+
+  void _refreshZeroSizedWidgetTargetsAfterFrame() {
+    if (_zeroSizedWidgetTargetRefreshScheduled) {
+      return;
+    }
+    _zeroSizedWidgetTargetRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _zeroSizedWidgetTargetRefreshScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      final surface = _renderBox(_surfaceKey);
+      final currentGeometry = _viewportGeometry;
+      if (surface == null || currentGeometry == null) {
+        return;
+      }
+      final surfaceRect = _globalRect(surface);
+      final viewportRect = Rect.fromLTWH(
+        currentGeometry.left,
+        currentGeometry.top,
+        currentGeometry.renderedWidth,
+        currentGeometry.renderedHeight,
+      );
+      final coincidentTargets = <Rect, List<String>>{};
+      for (final node in _emptySizedBoxes(widget.model.root)) {
+        final box = _renderBox(_nodeKeys[node.id]);
+        if (box == null || !box.size.isEmpty) {
+          continue;
+        }
+        final rendered = _globalRect(box).shift(-surfaceRect.topLeft);
+        final target = _boundedDesignerHitRect(
+          rendered,
+          viewportRect,
+          minimumExtent: _minimumZeroSizedWidgetTarget,
+        );
+        coincidentTargets.putIfAbsent(target, () => <String>[]).add(node.id);
+      }
+      final targets = <_ZeroSizedWidgetTargetGroup>[
+        for (final target in coincidentTargets.entries)
+          _ZeroSizedWidgetTargetGroup(
+            rect: target.key,
+            widgetIds: List.unmodifiable(target.value),
+          ),
+      ];
+      if (_sameTargets(_zeroSizedWidgetTargets, targets)) {
+        return;
+      }
+      setState(() => _zeroSizedWidgetTargets = List.unmodifiable(targets));
+    });
+  }
+
+  Iterable<CanvasNode> _emptySizedBoxes(CanvasNode node) sync* {
+    if (node.type == 'flutter.widgets.SizedBox' &&
+        (node.slot('child')?.children.isEmpty ?? true)) {
+      yield node;
+    }
+    for (final slot in node.slots.values) {
+      for (final child in slot.children) {
+        yield* _emptySizedBoxes(child);
+      }
+    }
+  }
+
+  static bool _sameTargets(
+    List<_ZeroSizedWidgetTargetGroup> left,
+    List<_ZeroSizedWidgetTargetGroup> right,
+  ) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var targetIndex = 0; targetIndex < left.length; targetIndex++) {
+      final leftTarget = left[targetIndex];
+      final rightTarget = right[targetIndex];
+      if (leftTarget.rect != rightTarget.rect ||
+          leftTarget.widgetIds.length != rightTarget.widgetIds.length) {
+        return false;
+      }
+      for (
+        var widgetIndex = 0;
+        widgetIndex < leftTarget.widgetIds.length;
+        widgetIndex++
+      ) {
+        if (leftTarget.widgetIds[widgetIndex] !=
+            rightTarget.widgetIds[widgetIndex]) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   void _reportViewportAfterFrame(
@@ -695,7 +799,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     }
   }
 
-  Rect _boundedDesignerHitRect(Rect rendered, Rect surface) {
+  Rect _boundedDesignerHitRect(
+    Rect rendered,
+    Rect surface, {
+    double minimumExtent = _minimumTerminalBand,
+  }) {
     if (surface.isEmpty) {
       return Rect.zero;
     }
@@ -703,11 +811,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final rawCenter = visible.isEmpty ? rendered.center : visible.center;
     final width = math.min(
       surface.width,
-      math.max(visible.width, _minimumTerminalBand),
+      math.max(visible.width, minimumExtent),
     );
     final height = math.min(
       surface.height,
-      math.max(visible.height, _minimumTerminalBand),
+      math.max(visible.height, minimumExtent),
     );
     final centerX = rawCenter.dx.clamp(
       surface.left + width / 2,
@@ -1174,6 +1282,7 @@ class _CanvasNodeView extends StatelessWidget {
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Center' => _center(),
+      'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Text' => _text(context),
       _ => const SizedBox.shrink(),
     };
@@ -1291,6 +1400,12 @@ class _CanvasNodeView extends StatelessWidget {
   Widget _center() => Center(
     widthFactor: _number('widthFactor'),
     heightFactor: _number('heightFactor'),
+    child: _single('child'),
+  );
+
+  Widget _sizedBox() => SizedBox(
+    width: _number('width'),
+    height: _number('height'),
     child: _single('child'),
   );
 
@@ -1820,6 +1935,83 @@ class _CanvasNodeView extends StatelessWidget {
     'longestLine' => TextWidthBasis.longestLine,
     _ => null,
   };
+}
+
+class _ZeroSizedWidgetTargetGroup {
+  const _ZeroSizedWidgetTargetGroup({
+    required this.rect,
+    required this.widgetIds,
+  });
+
+  final Rect rect;
+  final List<String> widgetIds;
+}
+
+class _ZeroSizedWidgetTarget extends StatelessWidget {
+  const _ZeroSizedWidgetTarget({
+    required this.widgetIds,
+    required this.selectedWidgetId,
+    required this.dark,
+    required this.onSelected,
+  });
+
+  final List<String> widgetIds;
+  final String? selectedWidgetId;
+  final bool dark;
+  final ValueChanged<String> onSelected;
+
+  bool get _grouped => widgetIds.length > 1;
+
+  bool get _selected =>
+      selectedWidgetId != null && widgetIds.contains(selectedWidgetId);
+
+  String get _keySuffix =>
+      _grouped ? 'group-${widgetIds.first}' : widgetIds.single;
+
+  String get _cyclingMessage =>
+      '${widgetIds.length} overlapping empty SizedBox widgets. '
+      'Activate repeatedly to cycle selection.';
+
+  void _activate() {
+    final selectedIndex = selectedWidgetId == null
+        ? -1
+        : widgetIds.indexOf(selectedWidgetId!);
+    final nextIndex = selectedIndex < 0
+        ? 0
+        : (selectedIndex + 1) % widgetIds.length;
+    onSelected(widgetIds[nextIndex]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final interaction = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        key: ValueKey('canvas-zero-size-widget-target-$_keySuffix'),
+        behavior: HitTestBehavior.opaque,
+        onTap: _activate,
+        child: CustomPaint(
+          key: ValueKey('canvas-zero-size-widget-outline-$_keySuffix'),
+          foregroundPainter: _CanvasWidgetOutlinePainter(
+            selected: _selected,
+            inflateEmptyLinearContainer: false,
+            visualScale: 1,
+            unselectedColor: dark
+                ? const Color(0x99b0b8c1)
+                : const Color(0x9974808a),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+    return Semantics(
+      label: _grouped ? _cyclingMessage : 'SizedBox ${widgetIds.single}',
+      selected: _selected,
+      child: _grouped
+          ? Tooltip(message: _cyclingMessage, child: interaction)
+          : interaction,
+    );
+  }
 }
 
 class _CanvasWidgetOutlinePainter extends CustomPainter {

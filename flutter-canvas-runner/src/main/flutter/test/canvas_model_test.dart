@@ -5,7 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
 
 void main() {
-  test('decodes the strict six-widget read-only projection', () {
+  test('reviewed widget schema matches runtime metadata exactly', () {
+    expect(canvasReviewedWidgetSchemaContract, startsWith('\n'));
+    expect(
+      canvasReviewedWidgetSchemaContract.substring(1),
+      canvasRuntimeWidgetSchemaContractForTesting(),
+    );
+  });
+
+  test('decodes the strict baseline projection fixture', () {
     final model = CanvasModel.decode(modelBytesForViewTest());
 
     expect(model.profile.previewMode, 'mobile');
@@ -60,6 +68,27 @@ void main() {
       'value': 1,
     };
     expect(() => _decode(integer), throwsFormatException);
+  });
+
+  test('enforces the reviewed list slot child-count bound', () {
+    final json = _modelJson();
+    _column(json)['slots'] = {
+      'children': {
+        'kind': 'list',
+        'children': List<Object?>.filled(10001, null),
+      },
+    };
+
+    expect(
+      () => _decode(json),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('slot child count is outside its bounds'),
+        ),
+      ),
+    );
   });
 
   test('requires non-negative Padding values on every physical side', () {
@@ -259,6 +288,63 @@ void main() {
         _centerProperties(negative)[property] = candidate;
         expect(
           () => _decode(negative),
+          throwsFormatException,
+          reason: '$property ${candidate['kind']}',
+        );
+      }
+    }
+  });
+
+  test('decodes strict nullable SizedBox dimensions and its single child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?>? child,
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '38f49912-8e51-4e62-bd4c-2517ecad4962',
+        'flutter.widgets.SizedBox',
+        properties: properties,
+        slots: {'child': _single(child)},
+      );
+      return json;
+    }
+
+    final text = _node(
+      'f195f817-cf8e-455c-befc-31dd30f874df',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Sized child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'width': {'kind': 'integer', 'value': 120},
+          'height': {'kind': 'double', 'value': 48.5},
+        },
+        child: text,
+      ),
+    ).root;
+    expect(decoded.type, 'flutter.widgets.SizedBox');
+    expect(decoded.properties['width']!.kind, 'integer');
+    expect(decoded.properties['width']!.value, 120);
+    expect(decoded.properties['height']!.kind, 'double');
+    expect(decoded.properties['height']!.value, 48.5);
+    expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child')!.child, isNull);
+
+    for (final property in const {'width', 'height'}) {
+      for (final candidate in const [
+        {'kind': 'integer', 'value': -1},
+        {'kind': 'double', 'value': -0.1},
+        {'kind': 'boolean', 'value': true},
+      ]) {
+        expect(
+          () => _decode(model(properties: {property: candidate})),
           throwsFormatException,
           reason: '$property ${candidate['kind']}',
         );

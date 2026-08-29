@@ -99,7 +99,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
-    void publishesExactCoreV1PaletteAndSelectedWidgetPropertiesInDesignLookup()
+    void publishesExactCapabilityPaletteAndSelectedWidgetPropertiesInDesignLookup()
             throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -115,6 +115,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Row",
                     "flutter.widgets.Padding",
                     "flutter.widgets.Center",
+                    "flutter.widgets.SizedBox",
                     "flutter.widgets.Text"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(
@@ -499,7 +500,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertFalse(progress.isVisible());
             assertNotNull(progress.getAccessibleContext().getAccessibleDescription());
             assertTrue(widgetTree.getAccessibleContext().getAccessibleDescription()
-                    .contains("Column, Row, Padding, Center and Text widgets are writable"));
+                    .contains("Capability-reviewed properties are writable"));
             assertEquals(8, previewMode.getItemCount());
             assertTrue(previewMode.getMaximumSize().width
                     >= previewMode.getPreferredSize().width);
@@ -752,12 +753,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertEquals(
                     "The on-disk imports and build regions, the SHA-256 values "
                     + "recorded in the .fd model, and the deterministic generated "
-                    + "payloads agree. The validated CORE_V1 model is published to the "
-                    + "isolated native Flutter Canvas. Viewport preview and widget-tree "
-                    + "selection, the six-item Palette and Properties are enabled. "
-                    + "Supported properties on Column, Row, Padding, Center and Text are "
-                    + "writable when exact mutation admission is ready; Scaffold properties "
-                    + "remain read-only. Palette widget drag-and-drop is unavailable because "
+                    + "payloads agree. The validated reviewed model is published to the "
+                    + "isolated native Flutter Canvas. Viewport preview, widget-tree "
+                    + "selection, the capability-gated Palette and Properties are enabled. "
+                    + "Reviewed properties are writable when exact mutation admission is "
+                    + "ready; unsupported property slices remain read-only. Palette widget "
+                    + "drag-and-drop is unavailable because "
                     + "exact mutation admission, the current rendered presentation, the "
                     + "owning-view AWT drag lifecycle, or the native Canvas drop capability "
                     + "is not ready; non-insertion drag-and-drop commands remain disabled.",

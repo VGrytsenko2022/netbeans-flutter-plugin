@@ -1,9 +1,11 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
@@ -13,14 +15,12 @@ import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
-import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.beans.PropertyEditor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.EnumMap;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
@@ -32,16 +32,9 @@ import org.openide.util.lookup.Lookups;
 /**
  * Standard NetBeans node projection for one selected Flutter Designer widget.
  * The three-argument form is fully read-only; the mutation-aware form exposes
- * only the explicitly admitted property slice.
+ * only the capability-reviewed property slice.
  */
 public final class FlutterWidgetPropertiesNode extends AbstractNode {
-    private static final Set<WidgetTypeId> WRITABLE_WIDGET_TYPES = Set.of(
-            new WidgetTypeId("flutter.widgets.Column"),
-            new WidgetTypeId("flutter.widgets.Row"),
-            new WidgetTypeId("flutter.widgets.Padding"),
-            new WidgetTypeId("flutter.widgets.Center"),
-            new WidgetTypeId("flutter.widgets.Text"));
-
     public static final String IDENTITY_SET_NAME = "identity";
     public static final String PROPERTIES_SET_NAME = Sheet.PROPERTIES;
     public static final String SLOTS_SET_NAME = "slots";
@@ -86,8 +79,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     /**
-     * Creates a widget node with the first explicitly admitted writable
-     * property slice. A {@code null} handler keeps the entire sheet read-only.
+     * Creates a widget node with its capability-reviewed writable property
+     * surface. A {@code null} handler keeps the entire sheet read-only.
      *
      * @param children explorer children representing the widget slots
      * @param widget immutable widget model node
@@ -382,7 +375,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private java.util.Optional<FlutterTypedPropertyEditors.Binding> writableBinding(
             PropertyDefinition property,
             Optional<TextWidgetPropertySchema.Definition> textSchema) {
-        if (mutationHandler == null || !WRITABLE_WIDGET_TYPES.contains(widget.type())) {
+        if (mutationHandler == null
+                || !BuiltInWidgetCapabilityCatalog.supports(
+                        definition, WidgetCapability.PROPERTIES)) {
             return java.util.Optional.empty();
         }
         return FlutterTypedPropertyEditors.binding(property, textSchema);

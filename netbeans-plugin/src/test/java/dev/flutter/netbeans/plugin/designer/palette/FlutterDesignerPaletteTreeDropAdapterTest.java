@@ -41,6 +41,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.Column");
     private static final WidgetTypeId CENTER =
             type("flutter.widgets.Center");
+    private static final WidgetTypeId SIZED_BOX =
+            type("flutter.widgets.SizedBox");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -134,6 +136,58 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                         .TOKEN_UNAVAILABLE,
                 rejection.code());
         assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void sizedBoxTokenPreviewsAndCommitsTheExactCatalogPrototype() {
+        Fixture fixture = fixture(SIZED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var preview = fixture.adapter().preview(
+                transferable,
+                DnDConstants.ACTION_MOVE,
+                document,
+                CATALOG,
+                ROOT_ID);
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                preview);
+        assertAll(
+                () -> assertEquals(SIZED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent(),
+                        "preview must not consume the palette authority"));
+
+        var committed = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID));
+        AddWidget command = committed.command();
+        assertAll(
+                () -> assertEquals(ROOT_ID,
+                        command.destination().parentId()),
+                () -> assertEquals(CHILDREN,
+                        command.destination().slotName()),
+                () -> assertEquals(0, command.destination().index()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(SIZED_BOX, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit must consume the palette authority exactly once"));
     }
 
     @Test

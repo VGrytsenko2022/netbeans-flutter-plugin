@@ -39,7 +39,7 @@ class FlutterWidgetIconRegistryTest {
     private static final Map<String, String> EXPECTED = expectedMappings();
 
     @Test
-    void mapsExactlyTheSixReviewedCoreWidgetsToUniqueIconBases() {
+    void mapsExactlyTheReviewedWidgetsToUniqueIconBases() {
         LinkedHashMap<String, String> actual = new LinkedHashMap<>();
         BuiltInWidgetCatalog.getDefault().definitions().forEach(definition ->
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId())
@@ -47,7 +47,7 @@ class FlutterWidgetIconRegistryTest {
 
         assertEquals(EXPECTED, actual);
         assertEquals(EXPECTED.size(), new HashSet<>(actual.values()).size(),
-                "each CORE_V1 widget must have a dedicated icon base");
+                "each reviewed widget must have a dedicated icon base");
     }
 
     @Test
@@ -58,8 +58,6 @@ class FlutterWidgetIconRegistryTest {
                 new WidgetTypeId("flutter.material.AppBar")).isEmpty());
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("flutter.widgets.Icon")).isEmpty());
-        assertTrue(FlutterWidgetIconRegistry.findIconPath(
-                new WidgetTypeId("flutter.widgets.SizedBox")).isEmpty());
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("flutter.material.ElevatedButton")).isEmpty());
     }
@@ -74,7 +72,7 @@ class FlutterWidgetIconRegistryTest {
             SvgResource dark32 = readSvg(variant(base, true, true), 32);
 
             assertTrue(lightSixteenGeometry.add(light16.geometry()),
-                    () -> base + " must not reuse another CORE_V1 widget geometry");
+                    () -> base + " must not reuse another reviewed widget geometry");
             assertEquals(light16.geometry(), dark16.geometry(),
                     () -> base + " light and dark 16 px variants must share geometry");
             assertEquals(light32.geometry(), dark32.geometry(),
@@ -89,6 +87,43 @@ class FlutterWidgetIconRegistryTest {
                     () -> base + " dark 16 and 32 px variants must share shape topology");
         }
         assertEquals(EXPECTED.size(), lightSixteenGeometry.size());
+    }
+
+    @Test
+    void sizedBoxFamilyUsesExactReviewedDimensionGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "sizedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=7, rx=1, stroke-width=1, width=7, x=4, y=4]",
+                "path[d=M4 12.5h7M4 11.7v1.6M11 11.7v1.6M12.5 4v7M11.7 4h1.6M11.7 11h1.6, stroke-linecap=round, stroke-width=1]",
+                "circle[cx=4, cy=4, r=.8]",
+                "circle[cx=11, cy=11, r=.8]"), light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=14, rx=2, stroke-width=2, width=14, x=8, y=8]",
+                "path[d=M8 25h14M8 23.4v3.2M22 23.4v3.2M25 8v14M23.4 8h3.2M23.4 22h3.2, stroke-linecap=round, stroke-width=2]",
+                "circle[cx=8, cy=8, r=1.6]",
+                "circle[cx=22, cy=22, r=1.6]"), light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[stroke=#1565C0]",
+                "circle[fill=#26C6DA]",
+                "circle[fill=#26C6DA]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[stroke=#29B6F6]",
+                "circle[fill=#80DEEA]",
+                "circle[fill=#80DEEA]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
     }
 
     private static SvgResource readSvg(String resource, int expectedSize) throws Exception {
@@ -239,6 +274,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Column", ICON_ROOT + "column.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
+        expected.put("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

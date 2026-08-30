@@ -1447,6 +1447,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final child = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(),
       'flutter.material.AppBar' => _appBar(context),
+      'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
@@ -1565,6 +1566,673 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     actionsPadding: _edgeInsetsGeometry('actionsPadding'),
     animateColor: _boolean('animateColor') ?? false,
   );
+
+  Widget _elevatedButton(BuildContext context) {
+    final enabled = _boolean('enabled') ?? true;
+    final onPressedPresent = _callbackPresent('onPressed');
+    final onLongPressPresent = _callbackPresent('onLongPress');
+    final onHoverPresent = _callbackPresent('onHover');
+    final onFocusChangePresent = _callbackPresent('onFocusChange');
+    return ElevatedButton(
+      onPressed: enabled && (onPressedPresent || !onLongPressPresent)
+          ? () {}
+          : null,
+      onLongPress: enabled && onLongPressPresent ? () {} : null,
+      onHover: onHoverPresent ? (_) {} : null,
+      onFocusChange: onFocusChangePresent ? (_) {} : null,
+      autofocus: _boolean('autofocus') ?? false,
+      clipBehavior: _clipBehavior(),
+      style: _elevatedButtonStyle(context),
+      child: _single('child'),
+    );
+  }
+
+  ButtonStyle? _elevatedButtonStyle(BuildContext context) {
+    if (!node.properties.keys.any((name) => name.startsWith('style'))) {
+      return null;
+    }
+    final themeStyle = ElevatedButtonTheme.of(context).style;
+    final defaultStyle = ElevatedButton(
+      onPressed: () {},
+      child: null,
+    ).defaultStyleOf(context);
+    final constraintSizes = _buttonConstraintSizeStateProperties(
+      themeMinimum: themeStyle?.minimumSize,
+      defaultMinimum: defaultStyle.minimumSize,
+      themeMaximum: themeStyle?.maximumSize,
+      defaultMaximum: defaultStyle.maximumSize,
+    );
+    return ButtonStyle(
+      textStyle: _buttonTextStyleStateProperty(
+        context,
+        themeStyle?.textStyle,
+        defaultStyle.textStyle,
+      ),
+      backgroundColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}BackgroundColor'),
+      ),
+      foregroundColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}ForegroundColor'),
+      ),
+      overlayColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}OverlayColor'),
+      ),
+      shadowColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}ShadowColor'),
+      ),
+      surfaceTintColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}SurfaceTintColor'),
+      ),
+      elevation: _buttonStateProperty<double>(
+        (prefix) => _number('${prefix}Elevation'),
+      ),
+      padding: _buttonStateProperty<EdgeInsetsGeometry>(
+        (prefix) => _edgeInsetsGeometry('${prefix}Padding'),
+      ),
+      minimumSize: constraintSizes.minimum,
+      fixedSize: _buttonSizeStateProperty(
+        'Fixed',
+        missingDimension: double.infinity,
+        themeValue: themeStyle?.fixedSize,
+        defaultValue: defaultStyle.fixedSize,
+      ),
+      maximumSize: constraintSizes.maximum,
+      iconColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}IconColor'),
+      ),
+      iconSize: _buttonStateProperty<double>(
+        (prefix) => _number('${prefix}IconSize'),
+      ),
+      side: _buttonBorderSideStateProperty(
+        context,
+        themeStyle?.side,
+        defaultStyle.side,
+        themeStyle?.shape,
+        defaultStyle.shape,
+      ),
+      shape: _buttonShapeStateProperty(
+        context,
+        themeStyle?.shape,
+        defaultStyle.shape,
+      ),
+      mouseCursor: _buttonStateProperty<MouseCursor>(
+        (prefix) => _mouseCursor('${prefix}MouseCursor'),
+      ),
+      visualDensity: _buttonVisualDensity(
+        themeStyle?.visualDensity,
+        defaultStyle.visualDensity,
+      ),
+      tapTargetSize: _buttonTapTargetSize(),
+      animationDuration: _buttonAnimationDuration(),
+      enableFeedback: _boolean('styleEnableFeedback'),
+      alignment: _buttonAlignment(),
+      splashFactory: _buttonSplashFactory(),
+    );
+  }
+
+  WidgetStateProperty<T?>? _buttonStateProperty<T>(
+    T? Function(String prefix) resolve,
+  ) {
+    final disabled = resolve('styleDisabled');
+    final pressed = resolve('stylePressed');
+    final hovered = resolve('styleHovered');
+    final focused = resolve('styleFocused');
+    final fallback = resolve('style');
+    if (disabled == null &&
+        pressed == null &&
+        hovered == null &&
+        focused == null &&
+        fallback == null) {
+      return null;
+    }
+    return WidgetStateProperty<T?>.fromMap(<WidgetStatesConstraint, T?>{
+      WidgetState.disabled: disabled,
+      WidgetState.pressed: ?pressed,
+      WidgetState.hovered: ?hovered,
+      WidgetState.focused: ?focused,
+      WidgetState.any: ?fallback,
+    });
+  }
+
+  WidgetStateProperty<TextStyle?>? _buttonTextStyleStateProperty(
+    BuildContext context,
+    WidgetStateProperty<TextStyle?>? themeValue,
+    WidgetStateProperty<TextStyle?>? defaultValue,
+  ) {
+    if (!_buttonHasAnyStateGroup(
+      (prefix) => _hasPropertyPrefix('${prefix}Text'),
+    )) {
+      return null;
+    }
+    return WidgetStateProperty.resolveWith<TextStyle?>((states) {
+      final layers = _buttonActiveStateLayers(
+        states,
+        (candidate) => _hasPropertyPrefix('${candidate}Text'),
+      );
+      if (layers.isEmpty) {
+        return null;
+      }
+      TextStyle? effective =
+          themeValue?.resolve(states) ?? defaultValue?.resolve(states);
+      for (final prefix in layers) {
+        final local = _buttonLocalTextStyle(context, prefix, effective);
+        effective = _mergeButtonTextStyle(
+          effective,
+          local,
+          inheritExplicit:
+              _themeTextStyle(context, '${prefix}TextTheme') != null ||
+              node.properties.containsKey('${prefix}TextInherit'),
+        );
+        final package = _string('${prefix}TextPackage');
+        if (package != null && effective != null) {
+          effective = _buttonApplyTextPackage(effective, package);
+        }
+      }
+      return effective;
+    });
+  }
+
+  TextStyle? _buttonLocalTextStyle(
+    BuildContext context,
+    String prefix,
+    TextStyle? inherited,
+  ) {
+    final textPrefix = '${prefix}Text';
+    if (!_hasPropertyPrefix(textPrefix)) {
+      return null;
+    }
+    final themeBase = _buttonNormalizedThemeTextStyle(
+      _themeTextStyle(context, '${textPrefix}Theme'),
+    );
+    final hasOverrides = node.properties.keys.any(
+      (name) => name.startsWith(textPrefix) && name != '${textPrefix}Theme',
+    );
+    if (!hasOverrides) {
+      return themeBase;
+    }
+    final backgroundColor = _resolvedColor(
+      context,
+      '${textPrefix}BackgroundColor',
+    );
+    final configuredBackground = _paint(context, '${textPrefix}Background');
+    final background =
+        configuredBackground ??
+        (backgroundColor == null ? null : (Paint()..color = backgroundColor));
+    final explicitInherit = _boolean('${textPrefix}Inherit');
+    final structuredBase = _mergeButtonTextStyle(
+      explicitInherit == false ? null : inherited,
+      themeBase,
+      inheritExplicit: themeBase != null,
+    );
+    final familyName = '${textPrefix}FontFamily';
+    final fallbackName = '${textPrefix}FontFamilyFallback';
+    final fontFamily = node.properties.containsKey(familyName)
+        ? _string(familyName)
+        : null;
+    final fontFamilyFallback = node.properties.containsKey(fallbackName)
+        ? _newlineList(fallbackName)
+        : null;
+    final localBase = themeBase ?? const TextStyle();
+    return localBase.copyWith(
+      inherit: explicitInherit,
+      fontSize: _number('${textPrefix}FontSize'),
+      fontWeight: _fontWeight('${textPrefix}FontWeight'),
+      fontStyle: _fontStyle('${textPrefix}FontStyle'),
+      letterSpacing: _number('${textPrefix}LetterSpacing'),
+      wordSpacing: _number('${textPrefix}WordSpacing'),
+      textBaseline: _textBaseline('${textPrefix}TextBaseline'),
+      height: _number('${textPrefix}Height'),
+      leadingDistribution: _textLeadingDistribution(
+        '${textPrefix}LeadingDistribution',
+      ),
+      locale: _buttonTextLocale(textPrefix, structuredBase?.locale),
+      background: background,
+      shadows: _shadows(context, '${textPrefix}Shadows'),
+      fontFeatures: _fontFeatures('${textPrefix}FontFeatures'),
+      fontVariations: _fontVariations('${textPrefix}FontVariations'),
+      decoration: _buttonTextDecoration(textPrefix, structuredBase?.decoration),
+      decorationColor: _resolvedColor(context, '${textPrefix}DecorationColor'),
+      decorationStyle: _textDecorationStyle('${textPrefix}DecorationStyle'),
+      decorationThickness: _number('${textPrefix}DecorationThickness'),
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
+      overflow: _textOverflow('${textPrefix}Overflow'),
+    );
+  }
+
+  TextStyle _buttonApplyTextPackage(TextStyle value, String package) {
+    final family = value.fontFamily;
+    if (family != null && !_buttonSyntheticNullFontFamily(family)) {
+      return value.copyWith(package: package);
+    }
+    final fallback = value.fontFamilyFallback;
+    if (fallback == null || fallback.isEmpty) {
+      throw StateError(
+        'Validated Canvas button TextPackage has no effective font reference.',
+      );
+    }
+    final packageFree = _buttonTextStyleWithoutPrivatePackage(
+      value,
+      includeFontReferences: false,
+    );
+    return packageFree.copyWith(
+      fontFamilyFallback: fallback
+          .map(_buttonRawFontFamily)
+          .map((family) => 'packages/$package/$family')
+          .toList(growable: false),
+    );
+  }
+
+  String _buttonRawFontFamily(String value) {
+    const prefix = 'packages/';
+    if (!value.startsWith(prefix)) {
+      return value;
+    }
+    final separator = value.indexOf('/', prefix.length);
+    return separator < 0 ? value : value.substring(separator + 1);
+  }
+
+  bool _buttonSyntheticNullFontFamily(String value) =>
+      value.startsWith('packages/') && value.endsWith('/null');
+
+  TextStyle? _buttonNormalizedThemeTextStyle(TextStyle? value) {
+    final backgroundColor = value?.backgroundColor;
+    if (value == null || backgroundColor == null || value.background != null) {
+      return value;
+    }
+    return value.copyWith(background: Paint()..color = backgroundColor);
+  }
+
+  TextStyle _buttonTextStyleWithoutPrivatePackage(
+    TextStyle value, {
+    bool includeFontReferences = true,
+  }) => TextStyle(
+    inherit: value.inherit,
+    color: value.color,
+    backgroundColor: value.backgroundColor,
+    fontSize: value.fontSize,
+    fontWeight: value.fontWeight,
+    fontStyle: value.fontStyle,
+    letterSpacing: value.letterSpacing,
+    wordSpacing: value.wordSpacing,
+    textBaseline: value.textBaseline,
+    height: value.height,
+    leadingDistribution: value.leadingDistribution,
+    locale: value.locale,
+    foreground: value.foreground,
+    background: value.background,
+    shadows: value.shadows,
+    fontFeatures: value.fontFeatures,
+    fontVariations: value.fontVariations,
+    decoration: value.decoration,
+    decorationColor: value.decorationColor,
+    decorationStyle: value.decorationStyle,
+    decorationThickness: value.decorationThickness,
+    debugLabel: value.debugLabel,
+    fontFamily: includeFontReferences ? value.fontFamily : null,
+    fontFamilyFallback: includeFontReferences ? value.fontFamilyFallback : null,
+    overflow: value.overflow,
+  );
+
+  TextStyle? _mergeButtonTextStyle(
+    TextStyle? inherited,
+    TextStyle? local, {
+    required bool inheritExplicit,
+  }) {
+    if (local == null) {
+      return inherited;
+    }
+    if (inherited == null || (inheritExplicit && !local.inherit)) {
+      return local;
+    }
+    return inherited
+        .merge(local)
+        .copyWith(inherit: inheritExplicit ? local.inherit : inherited.inherit);
+  }
+
+  Locale? _buttonTextLocale(String textPrefix, Locale? inherited) {
+    final languageName = '${textPrefix}LocaleLanguageCode';
+    final scriptName = '${textPrefix}LocaleScriptCode';
+    final countryName = '${textPrefix}LocaleCountryCode';
+    if (!node.properties.containsKey(languageName) &&
+        !node.properties.containsKey(scriptName) &&
+        !node.properties.containsKey(countryName)) {
+      return null;
+    }
+    return Locale.fromSubtags(
+      languageCode: _string(languageName) ?? inherited?.languageCode ?? 'und',
+      scriptCode: _string(scriptName) ?? inherited?.scriptCode,
+      countryCode: _string(countryName) ?? inherited?.countryCode,
+    );
+  }
+
+  TextDecoration? _buttonTextDecoration(
+    String textPrefix,
+    TextDecoration? inherited,
+  ) {
+    final underlineName = '${textPrefix}DecorationUnderline';
+    final overlineName = '${textPrefix}DecorationOverline';
+    final lineThroughName = '${textPrefix}DecorationLineThrough';
+    if (!node.properties.containsKey(underlineName) &&
+        !node.properties.containsKey(overlineName) &&
+        !node.properties.containsKey(lineThroughName)) {
+      return null;
+    }
+    final decorations = <TextDecoration>[
+      if (_boolean(underlineName) ??
+          (inherited?.contains(TextDecoration.underline) ?? false))
+        TextDecoration.underline,
+      if (_boolean(overlineName) ??
+          (inherited?.contains(TextDecoration.overline) ?? false))
+        TextDecoration.overline,
+      if (_boolean(lineThroughName) ??
+          (inherited?.contains(TextDecoration.lineThrough) ?? false))
+        TextDecoration.lineThrough,
+    ];
+    return switch (decorations.length) {
+      0 => TextDecoration.none,
+      1 => decorations.single,
+      _ => TextDecoration.combine(decorations),
+    };
+  }
+
+  WidgetStateProperty<Size?>? _buttonSizeStateProperty(
+    String role, {
+    required double missingDimension,
+    required WidgetStateProperty<Size?>? themeValue,
+    required WidgetStateProperty<Size?>? defaultValue,
+  }) {
+    bool hasGroup(String prefix) =>
+        node.properties.containsKey('$prefix${role}Width') ||
+        node.properties.containsKey('$prefix${role}Height');
+    if (!_buttonHasAnyStateGroup(hasGroup)) {
+      return null;
+    }
+    return WidgetStateProperty.resolveWith<Size?>((states) {
+      final layers = _buttonActiveStateLayers(states, hasGroup);
+      if (layers.isEmpty) {
+        return null;
+      }
+      final inherited =
+          themeValue?.resolve(states) ?? defaultValue?.resolve(states);
+      var width = inherited?.width ?? missingDimension;
+      var height = inherited?.height ?? missingDimension;
+      for (final prefix in layers) {
+        width = _number('$prefix${role}Width') ?? width;
+        height = _number('$prefix${role}Height') ?? height;
+      }
+      return Size(width, height);
+    });
+  }
+
+  ({WidgetStateProperty<Size?>? minimum, WidgetStateProperty<Size?>? maximum})
+  _buttonConstraintSizeStateProperties({
+    required WidgetStateProperty<Size?>? themeMinimum,
+    required WidgetStateProperty<Size?>? defaultMinimum,
+    required WidgetStateProperty<Size?>? themeMaximum,
+    required WidgetStateProperty<Size?>? defaultMaximum,
+  }) {
+    bool hasGroup(String prefix) =>
+        node.properties.containsKey('${prefix}MinimumWidth') ||
+        node.properties.containsKey('${prefix}MinimumHeight') ||
+        node.properties.containsKey('${prefix}MaximumWidth') ||
+        node.properties.containsKey('${prefix}MaximumHeight');
+    if (!_buttonHasAnyStateGroup(hasGroup)) {
+      return (minimum: null, maximum: null);
+    }
+
+    ({Size minimum, Size maximum})? resolve(Set<WidgetState> states) {
+      final layers = _buttonActiveStateLayers(states, hasGroup);
+      if (layers.isEmpty) {
+        return null;
+      }
+      final inheritedMinimum =
+          themeMinimum?.resolve(states) ?? defaultMinimum?.resolve(states);
+      final inheritedMaximum =
+          themeMaximum?.resolve(states) ?? defaultMaximum?.resolve(states);
+      var minimumWidth = inheritedMinimum?.width ?? 0;
+      var minimumHeight = inheritedMinimum?.height ?? 0;
+      var maximumWidth = inheritedMaximum?.width ?? double.infinity;
+      var maximumHeight = inheritedMaximum?.height ?? double.infinity;
+      for (final prefix in layers) {
+        minimumWidth = _number('${prefix}MinimumWidth') ?? minimumWidth;
+        minimumHeight = _number('${prefix}MinimumHeight') ?? minimumHeight;
+        maximumWidth = _number('${prefix}MaximumWidth') ?? maximumWidth;
+        maximumHeight = _number('${prefix}MaximumHeight') ?? maximumHeight;
+      }
+      maximumWidth = math.max(maximumWidth, minimumWidth);
+      maximumHeight = math.max(maximumHeight, minimumHeight);
+      return (
+        minimum: Size(minimumWidth, minimumHeight),
+        maximum: Size(maximumWidth, maximumHeight),
+      );
+    }
+
+    return (
+      minimum: WidgetStateProperty.resolveWith<Size?>(
+        (states) => resolve(states)?.minimum,
+      ),
+      maximum: WidgetStateProperty.resolveWith<Size?>(
+        (states) => resolve(states)?.maximum,
+      ),
+    );
+  }
+
+  WidgetStateProperty<BorderSide?>? _buttonBorderSideStateProperty(
+    BuildContext context,
+    WidgetStateProperty<BorderSide?>? themeValue,
+    WidgetStateProperty<BorderSide?>? defaultValue,
+    WidgetStateProperty<OutlinedBorder?>? themeShape,
+    WidgetStateProperty<OutlinedBorder?>? defaultShape,
+  ) {
+    bool hasGroup(String prefix) => _hasPropertyPrefix('${prefix}Side');
+    if (!_buttonHasAnyStateGroup(hasGroup)) {
+      return null;
+    }
+    return WidgetStateProperty.resolveWith<BorderSide?>((states) {
+      final layers = _buttonActiveStateLayers(states, hasGroup);
+      if (layers.isEmpty) {
+        return null;
+      }
+      final inheritedShape =
+          themeShape?.resolve(states) ?? defaultShape?.resolve(states);
+      final inherited =
+          themeValue?.resolve(states) ??
+          defaultValue?.resolve(states) ??
+          inheritedShape?.side ??
+          BorderSide.none;
+      var color = inherited.color;
+      var width = inherited.width;
+      var style = inherited.style;
+      var strokeAlign = inherited.strokeAlign;
+      for (final prefix in layers) {
+        final sidePrefix = '${prefix}Side';
+        color = _resolvedColor(context, '${sidePrefix}Color') ?? color;
+        width = _number('${sidePrefix}Width') ?? width;
+        final localStyle = _enumOrString('${sidePrefix}Style');
+        if (localStyle != null) {
+          style = localStyle == 'none' ? BorderStyle.none : BorderStyle.solid;
+        }
+        strokeAlign = _number('${sidePrefix}StrokeAlign') ?? strokeAlign;
+      }
+      return BorderSide(
+        color: color,
+        width: width,
+        style: style,
+        strokeAlign: strokeAlign,
+      );
+    });
+  }
+
+  WidgetStateProperty<OutlinedBorder?>? _buttonShapeStateProperty(
+    BuildContext context,
+    WidgetStateProperty<OutlinedBorder?>? themeValue,
+    WidgetStateProperty<OutlinedBorder?>? defaultValue,
+  ) {
+    bool hasGroup(String prefix) => _hasPropertyPrefix('${prefix}Shape');
+    if (!_buttonHasAnyStateGroup(hasGroup)) {
+      return null;
+    }
+    return WidgetStateProperty.resolveWith<OutlinedBorder?>((states) {
+      final layers = _buttonActiveStateLayers(states, hasGroup);
+      if (layers.isEmpty) {
+        return null;
+      }
+      final inherited =
+          themeValue?.resolve(states) ?? defaultValue?.resolve(states);
+      final direction = Directionality.of(context);
+      final inheritedRadius = _buttonShapeRadius(inherited, direction);
+      var kind = _buttonShapeKind(inherited);
+      var topLeft = inheritedRadius?.topLeft.x ?? 0;
+      var topRight = inheritedRadius?.topRight.x ?? 0;
+      var bottomRight = inheritedRadius?.bottomRight.x ?? 0;
+      var bottomLeft = inheritedRadius?.bottomLeft.x ?? 0;
+      var eccentricity = inherited is CircleBorder
+          ? inherited.eccentricity
+          : 0.0;
+      for (final prefix in layers) {
+        kind = _enumOrString('${prefix}ShapeKind') ?? kind;
+        topLeft = _number('${prefix}ShapeRadiusTopLeft') ?? topLeft;
+        topRight = _number('${prefix}ShapeRadiusTopRight') ?? topRight;
+        bottomRight = _number('${prefix}ShapeRadiusBottomRight') ?? bottomRight;
+        bottomLeft = _number('${prefix}ShapeRadiusBottomLeft') ?? bottomLeft;
+        eccentricity =
+            _number('${prefix}ShapeCircleEccentricity') ?? eccentricity;
+      }
+      if (kind == null) {
+        return null;
+      }
+      final radiusValue = BorderRadius.only(
+        topLeft: Radius.circular(topLeft),
+        topRight: Radius.circular(topRight),
+        bottomRight: Radius.circular(bottomRight),
+        bottomLeft: Radius.circular(bottomLeft),
+      );
+      final side = inherited?.side ?? BorderSide.none;
+      return switch (kind) {
+        'roundedRectangle' => RoundedRectangleBorder(
+          side: side,
+          borderRadius: radiusValue,
+        ),
+        'roundedSuperellipse' => RoundedSuperellipseBorder(
+          side: side,
+          borderRadius: radiusValue,
+        ),
+        'stadium' => StadiumBorder(side: side),
+        'circle' => CircleBorder(side: side, eccentricity: eccentricity),
+        'beveledRectangle' => BeveledRectangleBorder(
+          side: side,
+          borderRadius: radiusValue,
+        ),
+        'continuousRectangle' => ContinuousRectangleBorder(
+          side: side,
+          borderRadius: radiusValue,
+        ),
+        _ => throw StateError('Unreviewed Canvas button shape kind: $kind'),
+      };
+    });
+  }
+
+  BorderRadius? _buttonShapeRadius(
+    OutlinedBorder? shape,
+    TextDirection direction,
+  ) => switch (shape) {
+    RoundedRectangleBorder value => value.borderRadius.resolve(direction),
+    RoundedSuperellipseBorder value => value.borderRadius.resolve(direction),
+    BeveledRectangleBorder value => value.borderRadius.resolve(direction),
+    ContinuousRectangleBorder value => value.borderRadius.resolve(direction),
+    _ => null,
+  };
+
+  String? _buttonShapeKind(OutlinedBorder? shape) => switch (shape) {
+    RoundedRectangleBorder() => 'roundedRectangle',
+    RoundedSuperellipseBorder() => 'roundedSuperellipse',
+    StadiumBorder() => 'stadium',
+    CircleBorder() => 'circle',
+    BeveledRectangleBorder() => 'beveledRectangle',
+    ContinuousRectangleBorder() => 'continuousRectangle',
+    _ => null,
+  };
+
+  bool _buttonHasAnyStateGroup(bool Function(String prefix) hasGroup) =>
+      const <String>[
+        'styleDisabled',
+        'stylePressed',
+        'styleHovered',
+        'styleFocused',
+        'style',
+      ].any(hasGroup);
+
+  List<String> _buttonActiveStateLayers(
+    Set<WidgetState> states,
+    bool Function(String prefix) hasGroup,
+  ) {
+    if (states.contains(WidgetState.disabled)) {
+      return hasGroup('styleDisabled')
+          ? const <String>['styleDisabled']
+          : const <String>[];
+    }
+    return <String>[
+      if (hasGroup('style')) 'style',
+      if (states.contains(WidgetState.focused) && hasGroup('styleFocused'))
+        'styleFocused',
+      if (states.contains(WidgetState.hovered) && hasGroup('styleHovered'))
+        'styleHovered',
+      if (states.contains(WidgetState.pressed) && hasGroup('stylePressed'))
+        'stylePressed',
+    ];
+  }
+
+  VisualDensity? _buttonVisualDensity(
+    VisualDensity? themeValue,
+    VisualDensity? defaultValue,
+  ) {
+    final horizontal = _number('styleVisualDensityHorizontal');
+    final vertical = _number('styleVisualDensityVertical');
+    if (horizontal == null && vertical == null) {
+      return null;
+    }
+    final inherited = themeValue ?? defaultValue;
+    return VisualDensity(
+      horizontal: horizontal ?? inherited?.horizontal ?? 0,
+      vertical: vertical ?? inherited?.vertical ?? 0,
+    );
+  }
+
+  MaterialTapTargetSize? _buttonTapTargetSize() =>
+      switch (_enumOrString('styleTapTargetSize')) {
+        'padded' => MaterialTapTargetSize.padded,
+        'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+        _ => null,
+      };
+
+  Duration? _buttonAnimationDuration() {
+    final milliseconds = _number('styleAnimationDurationMs');
+    return milliseconds == null
+        ? null
+        : Duration(microseconds: (milliseconds * 1000).round());
+  }
+
+  AlignmentGeometry? _buttonAlignment() {
+    final kind = _enumOrString('styleAlignmentKind');
+    final x = _number('styleAlignmentX');
+    final y = _number('styleAlignmentY');
+    if (kind == null && x == null && y == null) {
+      return null;
+    }
+    return kind == 'directional'
+        ? AlignmentDirectional(x ?? 0, y ?? 0)
+        : Alignment(x ?? 0, y ?? 0);
+  }
+
+  InteractiveInkFeatureFactory? _buttonSplashFactory() =>
+      switch (_enumOrString('styleSplashFactory')) {
+        'inkRipple' => InkRipple.splashFactory,
+        'inkSplash' => InkSplash.splashFactory,
+        'inkSparkle' => InkSparkle.splashFactory,
+        'none' || 'noSplash' => NoSplash.splashFactory,
+        _ => null,
+      };
 
   static bool _isEmptyLinearContainer(CanvasNode node) =>
       (node.type == 'flutter.widgets.Row' ||
@@ -1957,6 +2625,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return property?.kind == 'boolean' ? property!.value as bool : null;
   }
 
+  bool _callbackPresent(String name) =>
+      node.properties[name]?.kind == 'callbackPresence';
+
   int? _integer(String name) {
     final property = node.properties[name];
     return property?.kind == 'integer' ? property!.value as int : null;
@@ -2200,6 +2871,50 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final value = property?.value;
     return value is CanvasEnumValue ? value.value : null;
   }
+
+  String? _enumOrString(String name) => _enum(name) ?? _string(name);
+
+  MouseCursor? _mouseCursor(String name) => switch (_enumOrString(name)) {
+    'defer' => MouseCursor.defer,
+    'uncontrolled' => MouseCursor.uncontrolled,
+    'none' => SystemMouseCursors.none,
+    'basic' => SystemMouseCursors.basic,
+    'click' => SystemMouseCursors.click,
+    'forbidden' => SystemMouseCursors.forbidden,
+    'wait' => SystemMouseCursors.wait,
+    'progress' => SystemMouseCursors.progress,
+    'contextMenu' => SystemMouseCursors.contextMenu,
+    'help' => SystemMouseCursors.help,
+    'text' => SystemMouseCursors.text,
+    'verticalText' => SystemMouseCursors.verticalText,
+    'cell' => SystemMouseCursors.cell,
+    'precise' => SystemMouseCursors.precise,
+    'move' => SystemMouseCursors.move,
+    'grab' => SystemMouseCursors.grab,
+    'grabbing' => SystemMouseCursors.grabbing,
+    'noDrop' => SystemMouseCursors.noDrop,
+    'alias' => SystemMouseCursors.alias,
+    'copy' => SystemMouseCursors.copy,
+    'disappearing' => SystemMouseCursors.disappearing,
+    'allScroll' => SystemMouseCursors.allScroll,
+    'resizeLeftRight' => SystemMouseCursors.resizeLeftRight,
+    'resizeUpDown' => SystemMouseCursors.resizeUpDown,
+    'resizeUpLeftDownRight' => SystemMouseCursors.resizeUpLeftDownRight,
+    'resizeUpRightDownLeft' => SystemMouseCursors.resizeUpRightDownLeft,
+    'resizeUp' => SystemMouseCursors.resizeUp,
+    'resizeDown' => SystemMouseCursors.resizeDown,
+    'resizeLeft' => SystemMouseCursors.resizeLeft,
+    'resizeRight' => SystemMouseCursors.resizeRight,
+    'resizeUpLeft' => SystemMouseCursors.resizeUpLeft,
+    'resizeUpRight' => SystemMouseCursors.resizeUpRight,
+    'resizeDownLeft' => SystemMouseCursors.resizeDownLeft,
+    'resizeDownRight' => SystemMouseCursors.resizeDownRight,
+    'resizeColumn' => SystemMouseCursors.resizeColumn,
+    'resizeRow' => SystemMouseCursors.resizeRow,
+    'zoomIn' => SystemMouseCursors.zoomIn,
+    'zoomOut' => SystemMouseCursors.zoomOut,
+    _ => null,
+  };
 
   MainAxisAlignment _mainAxisAlignment() =>
       switch (_enum('mainAxisAlignment')) {

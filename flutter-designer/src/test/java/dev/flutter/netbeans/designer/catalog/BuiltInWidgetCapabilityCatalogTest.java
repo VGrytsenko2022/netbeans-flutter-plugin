@@ -24,6 +24,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     private static final List<String> CANVAS_ORDER = List.of(
             "flutter.material.Scaffold",
             "flutter.material.AppBar",
+            "flutter.material.ElevatedButton",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -34,6 +35,7 @@ class BuiltInWidgetCapabilityCatalogTest {
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.AppBar",
+            "flutter.material.ElevatedButton",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -71,18 +73,21 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void nonInteractiveBuiltInsRemainFailClosed() {
-        Set<String> unsupported = Set.of(
-                "flutter.material.ElevatedButton");
-        for (WidgetDefinition definition
-                : BuiltInWidgetCatalog.getDefault().definitions()) {
-            if (unsupported.contains(definition.typeId().value())) {
-                assertEquals(Set.of(),
-                        BuiltInWidgetCapabilityCatalog.capabilities(definition));
-                assertTrue(BuiltInWidgetCapabilityCatalog
-                        .canvasProjection(definition).isEmpty());
-            }
-        }
+    void elevatedButtonIsFullyReviewedAndProjected() {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)
+                .orElseThrow();
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
     }
 
     @Test
@@ -199,7 +204,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals("pattern:KD86ZGVmYXVsdHxkZXB0aFplcm98YWxsKQ",
                 appBar.propertyContracts().get(new PropertyName("notificationPredicate"))
                         .constraintFingerprints().get(PropertyValueKind.STRING));
-        assertEquals("-1:1:1:1", appBar.propertyContracts()
+        assertEquals("*:1:*:1", appBar.propertyContracts()
                 .get(new PropertyName("shapeSideStrokeAlign"))
                 .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
         assertEquals("0:0:32768:0", appBar.propertyContracts()
@@ -214,6 +219,30 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals("trait:" + preferredSize,
                 projection("flutter.material.Scaffold").slotContracts()
                         .get(new SlotName("appBar")).acceptanceFingerprint());
+
+        var elevated = projection("flutter.material.ElevatedButton");
+        assertEquals(286, elevated.propertyContracts().size());
+        var enabled = elevated.propertyContracts().get(new PropertyName("enabled"));
+        assertFalse(enabled.required());
+        assertEquals(Optional.of("boolean:true"),
+                enabled.creationDefaultFingerprint());
+        assertEquals("callbackReference", elevated.propertyContracts()
+                .get(new PropertyName("onPressed"))
+                .constraintFingerprints().get(PropertyValueKind.CALLBACK));
+        assertEquals("-4:1:4:1", elevated.propertyContracts()
+                .get(new PropertyName("styleVisualDensityHorizontal"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("*:1:*:1", elevated.propertyContracts()
+                .get(new PropertyName("stylePressedSideStrokeAlign"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
+        assertTrue(elevated.propertyContracts()
+                .get(new PropertyName("styleTapTargetSize"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:"));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, true, 0, 1),
+                elevated.slotContracts().get(new SlotName("child")));
     }
 
     @Test
@@ -240,9 +269,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         int end = contract.indexOf("W|", start + 2);
         String appBar = contract.substring(start, end);
 
-        assertEquals(50_907, appBar.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(50_905, appBar.getBytes(StandardCharsets.UTF_8).length);
         assertEquals(
-                "075766cea1325f1009147bcb913d6d1dee7a9b27a177ef7331d42f976fa9f8d8",
+                "efcbcdee37b660a8ec4f8cb85b152aa92009033b6ae498b6c25861d7efbdb3be",
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(appBar.getBytes(StandardCharsets.UTF_8))));
     }

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
+import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -273,6 +274,7 @@ class FlutterWidgetPropertiesNodeTest {
                                 java.util.Optional.empty(), false, List.of())));
         List<String> types = List.of(
                 "flutter.material.AppBar",
+                "flutter.material.ElevatedButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -309,8 +311,9 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(211, writableCount,
-                "the reviewed non-Scaffold surface includes complete AppBar, Text, and Icon leaves");
+        assertEquals(497, writableCount,
+                "the reviewed non-Scaffold surface includes complete AppBar, "
+                + "ElevatedButton, Text, and Icon leaves");
     }
 
     @Test
@@ -498,22 +501,96 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void propertiesOutsideTheReviewedCapabilitySurfaceRemainReadOnly() {
+    void elevatedButtonProjectsAllWritableLeavesIntoEnterpriseGroupsAndChildSlot()
+            throws Exception {
         WidgetDefinition definition = definition("flutter.material.ElevatedButton");
-        WidgetNode widget = new WidgetNode(
-                StableId.parse("b20f626c-e6bd-45d8-aef1-26382ba3ffb6"),
-                definition.typeId(),
-                Map.of(new PropertyName("onPressed"),
-                        new PropertyValue.DartExpressionValue("null")),
-                Map.of(),
-                Extensions.empty());
+        StableId id = StableId.parse("b20f626c-e6bd-45d8-aef1-26382ba3ffb6");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
         FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
-                Children.LEAF, widget, definition, ignored -> { });
+                Children.LEAF, widget, definition, commands::add);
 
-        for (Node.Property<?> property : node.getPropertySets()[1].getProperties()) {
-            assertFalse(property.canWrite(), property.getName());
-            assertEquals(String.class, property.getValueType());
+        Node.PropertySet[] sets = node.getPropertySets();
+        List<String> expectedSets = new ArrayList<>();
+        expectedSets.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
+        Arrays.stream(ElevatedButtonWidgetPropertySchema.Group.values())
+                .map(ElevatedButtonWidgetPropertySchema.Group::setName)
+                .forEach(expectedSets::add);
+        expectedSets.add(FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(expectedSets,
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        assertEquals(java.util.Collections.nCopies(
+                        1 + ElevatedButtonWidgetPropertySchema.Group.values().length,
+                        FlutterWidgetPropertiesNode.GENERAL_TAB_NAME),
+                Arrays.stream(sets)
+                        .limit(1 + ElevatedButtonWidgetPropertySchema.Group.values().length)
+                        .map(set -> set.getValue(
+                                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
+                        .toList());
+        assertEquals(FlutterWidgetPropertiesNode.SLOTS_TAB_NAME,
+                sets[sets.length - 1].getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+
+        int writableLeaves = 0;
+        for (Node.PropertySet set : Arrays.copyOfRange(sets, 1, sets.length - 1)) {
+            for (Node.Property<?> property : set.getProperties()) {
+                assertTrue(property.canWrite(), property.getName());
+                assertEquals(FlutterPropertyCellValue.class,
+                        property.getValueType(), property.getName());
+                assertTrue(property.getPropertyEditor() != null, property.getName());
+                writableLeaves++;
+            }
         }
+        assertEquals(ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
+                writableLeaves);
+        assertEquals(286, writableLeaves);
+        assertEquals(List.of("child"),
+                names(sets[sets.length - 1].getProperties()));
+
+        PropertyEditor callback = property(node, "onPressed").getPropertyEditor();
+        assertTrue(callback.supportsCustomEditor());
+        assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT, callback.getAsText());
+        callback.setAsText("_handlePress");
+        assertEquals(new PropertyValue.CallbackValue("_handlePress"),
+                cell(callback).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> callback.setAsText("() => arbitraryDart()"));
+        assertThrows(IllegalArgumentException.class,
+                () -> callback.setAsText("class"));
+
+        PropertyEditor families = property(
+                node, "stylePressedTextFontFamilyFallback").getPropertyEditor();
+        assertTrue(families.supportsCustomEditor());
+        families.setAsText("Roboto\nNoto Sans");
+        assertEquals(new PropertyValue.StringValue("Roboto\nNoto Sans"),
+                cell(families).explicitValue().orElseThrow());
+        assertTrue(property(node, "styleDisabledPadding")
+                .getPropertyEditor().supportsCustomEditor());
+        assertTrue(property(node, "styleFocusedBackgroundColor")
+                .getPropertyEditor().supportsCustomEditor());
+        PropertyEditor shape = property(
+                node, "stylePressedShapeKind").getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "roundedRectangle", "roundedSuperellipse", "stadium", "circle",
+                "beveledRectangle", "continuousRectangle"),
+                List.of(shape.getTags()));
+        assertEquals(37, property(node, "styleHoveredMouseCursor")
+                .getPropertyEditor().getTags().length,
+                "unset plus every SystemMouseCursors constant must be selectable");
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "inkSplash", "inkRipple", "inkSparkle", "noSplash"),
+                List.of(property(node, "styleSplashFactory")
+                        .getPropertyEditor().getTags()));
+
+        cellProperty(property(node, "onPressed")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.CallbackValue("_handlePress")));
+        assertEquals(List.of(new SetProperty(
+                id,
+                new PropertyName("onPressed"),
+                new PropertyValue.CallbackValue("_handlePress"))), commands);
     }
 
     @Test
@@ -1010,11 +1087,12 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void nineCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void tenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
+                "flutter.material.ElevatedButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -1039,7 +1117,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(9, iconPaths.size(),
+        assertEquals(10, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

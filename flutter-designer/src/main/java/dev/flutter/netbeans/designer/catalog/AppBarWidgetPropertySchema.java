@@ -186,7 +186,8 @@ public final class AppBarWidgetPropertySchema {
         shape(values, "shapeSideWidth", "Side width", "Non-negative border side width.", "width", 1);
         shape(values, "shapeSideStyle", "Side style", "BorderSide none or solid.", "style", 2);
         shape(values, "shapeSideStrokeAlign", "Stroke align",
-                "BorderSide stroke alignment from inside (-1) through outside (1).",
+                "Finite BorderSide stroke alignment. Flutter's inside (-1), "
+                + "center (0), and outside (1) constants are presets, not bounds.",
                 "strokeAlign", 3);
         shape(values, "shapeRadiusTopLeft", "Top-left radius",
                 "Non-negative circular top-left radius.", "topLeft", 0);

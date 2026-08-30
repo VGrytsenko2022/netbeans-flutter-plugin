@@ -80,6 +80,10 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(
+      canvasDropSlotsForWidgetType('flutter.material.ElevatedButton'),
+      const [canvasEmptyChildDropSlot],
+    );
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Icon'), isEmpty);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Text'), isEmpty);
     expect(
@@ -88,6 +92,46 @@ void main() {
     );
     expect(canvasChildrenAppendDropSlot.modelSlotKind, 'list');
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
+  });
+
+  test('closes the 10-source by 14-destination compatibility matrix', () {
+    const sourceTypes = {
+      'flutter.material.Scaffold',
+      'flutter.material.AppBar',
+      'flutter.material.ElevatedButton',
+      'flutter.widgets.Column',
+      'flutter.widgets.Row',
+      'flutter.widgets.Padding',
+      'flutter.widgets.Center',
+      'flutter.widgets.Icon',
+      'flutter.widgets.SizedBox',
+      'flutter.widgets.Text',
+    };
+    final destinations = <CanvasDropSlotSemantics>[];
+    for (final type in sourceTypes) {
+      destinations.addAll(canvasDropSlotsForWidgetType(type));
+    }
+    expect(sourceTypes, hasLength(10));
+    expect(destinations, hasLength(14));
+
+    var accepted = 0;
+    var rejected = 0;
+    for (final widgetType in sourceTypes) {
+      final source = CanvasPaletteDragSource(
+        token: widgetType,
+        widgetType: widgetType,
+        traits: canvasWidgetTraitsForType(widgetType),
+      );
+      for (final destination in destinations) {
+        if (destination.acceptsSource(source)) {
+          accepted++;
+        } else {
+          rejected++;
+        }
+      }
+    }
+    expect(accepted, 122);
+    expect(rejected, 18);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (

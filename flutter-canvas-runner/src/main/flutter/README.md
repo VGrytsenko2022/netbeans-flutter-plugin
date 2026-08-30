@@ -9,10 +9,10 @@ PNG, screenshots or raw pixel frames.
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
 reviewed decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center` and `SizedBox`, with reviewed typed properties and slots. It
+`Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`, with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v7 carries the resolved project-theme id, seed, brightness,
+Model protocol v8 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table and 15-role TextTheme override table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
 `TextTheme.copyWith` order as generated Dart before applying form-local Text
@@ -35,6 +35,29 @@ the Java catalog and generated Dart. The runner assembles the closed
 notification-predicate, shape, icon-theme, text-style and system-UI-overlay
 projections into real Flutter objects. AppBar also carries the reviewed
 `PreferredSizeWidget` trait used by `Scaffold.appBar` and `AppBar.bottom`.
+
+`ElevatedButton` adds the same 286 typed leaves and optional-single
+required-named-nullable child slot as the Java catalog. Protocol v8 carries
+callback presence only, never callback identifiers, and the runner installs
+inert typed closures. It constructs direct sparse default/disabled/pressed/
+hovered/focused `ButtonStyle` values. Scalar leaves use disabled, pressed,
+hovered, focused and enabled/default precedence. Compound `Size`, `BorderSide`,
+shape and `TextStyle` leaves layer the enabled/default fragment, then active
+focused, hovered and pressed fragments independently over the atomic
+`ElevatedButtonTheme` or Flutter-default value; disabled uses only its own
+fragment over that inherited value. Partial axes, locale/decoration members,
+explicitly empty lists and background Paint/color replacement therefore remain
+sparse instead of acquiring Canvas-only defaults. If no inherited `fixedSize`
+exists, a missing axis uses Flutter's infinity sentinel; a finite effective
+maximum clamps it exactly as `ButtonStyleButton` does. When a local minimum or
+maximum applies, Canvas resolves the pair together and widens each maximum axis
+to its effective minimum; states without a local bound return a null pair to
+Flutter's normal theme/default fallback. Each active-state font
+package is applied after the current layered `TextStyle`, including TextTheme
+and lower active-state leaves. A fallback-only package replaces one prior
+package prefix without manufacturing `.../null`. Local text theme/inherit
+configuration must publish one transition-safe inherit mode across all
+reachable states. An empty button renders with `child: null`.
 
 The runner renders exact compatible responsive/adaptive profiles on its bound
 Windows Flutter engine. Android, iOS, macOS and Linux targets are applied through
@@ -80,9 +103,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-nine reviewed Canvas widgets. Palette insertion evaluates 117 exact
-source/destination cells across nine draggable sources and 13 reviewed slots;
-101 are accepted and 16 trait-incompatible cells are rejected. The negotiated
+ten reviewed Canvas widgets. Palette insertion evaluates 140 exact
+source/destination cells across ten draggable sources and 14 reviewed slots;
+122 are accepted and 18 trait-incompatible cells are rejected. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs

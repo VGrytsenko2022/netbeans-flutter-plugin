@@ -37,6 +37,7 @@ class FlutterDesignerPaletteTest {
     private static final Set<String> CANVAS_WIDGETS = Set.of(
             "flutter.material.Scaffold",
             "flutter.material.AppBar",
+            "flutter.material.ElevatedButton",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Text",
@@ -44,8 +45,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox");
-    private static final Set<String> NON_CANVAS_BUILT_INS = Set.of(
-            "flutter.material.ElevatedButton");
+    private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
     void preservesCatalogCategoryAndItemOrderWithLocalizedCategoryLabels() {
@@ -77,7 +77,8 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar"), itemLabels(categories[0]));
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"),
+                itemLabels(categories[0]));
         assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
@@ -382,7 +383,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void nineCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void tenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -401,7 +402,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(9, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(10, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

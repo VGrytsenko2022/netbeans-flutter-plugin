@@ -34,7 +34,7 @@ import java.util.Map;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 7;
+    public static final int VERSION = 8;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -348,7 +348,11 @@ public final class CanvasModelPayloadCodec {
             case PropertyValue.FontVariationListValue variations ->
                 writeFontVariations(json, variations);
             case PropertyValue.AssetValue ignored -> throw unsupported(value);
-            case PropertyValue.CallbackValue ignored -> throw unsupported(value);
+            case PropertyValue.CallbackValue ignored ->
+                // Executable handler identifiers never cross the Canvas
+                // boundary. The isolated runner only receives the fact that a
+                // reviewed callback reference is configured.
+                json.writeStringField("kind", "callbackPresence");
             case PropertyValue.DartExpressionValue ignored -> throw unsupported(value);
         }
         json.writeEndObject();

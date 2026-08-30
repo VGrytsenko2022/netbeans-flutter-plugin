@@ -29,6 +29,7 @@ import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
+import dev.flutter.netbeans.designer.validation.WidgetTreeValidator;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -647,7 +648,7 @@ class DartRegionGeneratorTest {
     }
 
     @Test
-    void rejectsOpaqueExpressionAtomicallyAtItsExactModelPath() {
+    void rejectsOpaqueButtonCallbackExpressionDuringClosedModelValidation() {
         WidgetDefinition buttonDefinition = BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId("flutter.material.ElevatedButton"))
                 .orElseThrow();
@@ -668,9 +669,10 @@ class DartRegionGeneratorTest {
         assertFalse(result.successful());
         assertTrue(result.generated().isEmpty());
         DartGenerationDiagnostic diagnostic = result.diagnostics().getFirst();
-        assertEquals(DartGenerationDiagnosticCode.DART_EXPRESSION_UNSUPPORTED, diagnostic.code());
+        assertEquals(DartGenerationDiagnosticCode.MODEL_INVALID, diagnostic.code());
         assertEquals("/root/properties/onPressed", diagnostic.path());
-        assertEquals(Optional.of(DartManagedRegionId.BUILD), diagnostic.region());
+        assertEquals(Optional.empty(), diagnostic.region());
+        assertTrue(diagnostic.message().contains(WidgetTreeValidator.PROPERTY_KIND));
     }
 
     @Test

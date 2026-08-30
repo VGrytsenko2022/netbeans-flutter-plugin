@@ -41,6 +41,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetCatalog BUILT_INS = BuiltInWidgetCatalog.getDefault();
     private static final WidgetTypeId SCAFFOLD = type("flutter.material.Scaffold");
     private static final WidgetTypeId APP_BAR = type("flutter.material.AppBar");
+    private static final WidgetTypeId ELEVATED_BUTTON =
+            type("flutter.material.ElevatedButton");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId ROW = type("flutter.widgets.Row");
@@ -62,6 +64,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName PADDING_VALUE = new PropertyName("padding");
     private static final PropertyName ICON_VALUE = new PropertyName("icon");
+    private static final PropertyName ENABLED = new PropertyName("enabled");
     private static final StableId DOCUMENT_ID = id("14f6c16f-893b-44d0-b809-edbd51bbcdaa");
     private static final StableId ROOT_ID = id("0209809f-351a-4ce7-8c07-1ec625b1e109");
     private static final StableId FIRST_ID = id("710c4ad9-c3cf-434e-af1e-5217ac38aa92");
@@ -107,6 +110,12 @@ class FlutterDesignerPaletteDropPlannerTest {
                         "explicitly empty SizedBox child",
                         document(singleParent(SIZED_BOX, null)),
                         CHILD,
+                        0),
+                new AcceptedCase(
+                        "absent optional ElevatedButton child",
+                        document(WidgetNodePrototypeFactory.create(
+                                definition(ELEVATED_BUTTON), ROOT_ID)),
+                        CHILD,
                         0));
 
         assertAll(cases.stream().map(testCase -> (Executable) () -> {
@@ -142,7 +151,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void plansAllNinetyNineAnyWidgetCompatibilityCellsWithExactPrototypes() {
+    void plansAllOneHundredTwentyAnyWidgetCompatibilityCellsWithExactPrototypes() {
         List<CoreSourceCase> sources = coreSources();
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
@@ -153,13 +162,14 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Padding.child", PADDING, CHILD),
                 target("Center.child", CENTER, CHILD),
                 target("SizedBox.child", SIZED_BOX, CHILD),
+                target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
                 target("AppBar.title", APP_BAR, TITLE),
                 target("AppBar.actions", APP_BAR, ACTIONS),
                 target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE));
 
-        assertEquals(9, sources.size());
-        assertEquals(11, targets.size());
+        assertEquals(10, sources.size());
+        assertEquals(12, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
                     AtomicInteger allocations = new AtomicInteger();
@@ -189,7 +199,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact101CellMatrix() {
+    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact140CellMatrix() {
         AtomicInteger allocations = new AtomicInteger();
         List<MatrixTargetCase> traitTargets = List.of(
                 target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
@@ -223,7 +233,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                             rejected.code(), source.name());
                 })));
         assertEquals(0, allocations.get(),
-                "all 16 rejected trait cells must fail before stable-id allocation");
+                "all 18 rejected trait cells must fail before stable-id allocation");
     }
 
     @Test
@@ -234,7 +244,9 @@ class FlutterDesignerPaletteDropPlannerTest {
                         FLOATING_ACTION_BUTTON),
                 new SingleTargetCase("Padding.child", PADDING, CHILD),
                 new SingleTargetCase("Center.child", CENTER, CHILD),
-                new SingleTargetCase("SizedBox.child", SIZED_BOX, CHILD));
+                new SingleTargetCase("SizedBox.child", SIZED_BOX, CHILD),
+                new SingleTargetCase(
+                        "ElevatedButton.child", ELEVATED_BUTTON, CHILD));
         AtomicInteger allocations = new AtomicInteger();
         Supplier<StableId> supplier = () -> {
             allocations.incrementAndGet();
@@ -680,6 +692,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                                 APP_BAR_SLOT, SlotCardinality.SINGLE,
                                 BODY, SlotCardinality.SINGLE,
                                 FLOATING_ACTION_BUTTON, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Elevated Button",
+                        ELEVATED_BUTTON,
+                        Map.of(ENABLED, new PropertyValue.BooleanValue(true)),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
                 new CoreSourceCase(
                         "Column",
                         COLUMN,

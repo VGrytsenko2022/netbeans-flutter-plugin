@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -166,6 +167,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIconPropertySets(sheet, hasSlotTab);
         } else if (AppBarWidgetPropertySchema.APP_BAR_TYPE.equals(widget.type())) {
             addAppBarPropertySets(sheet, hasSlotTab);
+        } else if (ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.equals(
+                widget.type())) {
+            addElevatedButtonPropertySets(sheet, hasSlotTab);
         } else {
             Sheet.Set properties = createGenericPropertySet();
             assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -415,6 +419,67 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     "circle",
                     "beveledRectangle",
                     "continuousRectangle");
+            default -> java.util.List.of();
+        };
+    }
+
+    private void addElevatedButtonPropertySets(
+            Sheet sheet,
+            boolean hasSlotTab) {
+        EnumMap<ElevatedButtonWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ElevatedButtonWidgetPropertySchema.Group.class);
+        for (ElevatedButtonWidgetPropertySchema.Group group
+                : ElevatedButtonWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ElevatedButtonWidgetPropertySchema.Definition schema =
+                    ElevatedButtonWidgetPropertySchema.find(property.name())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Built-in ElevatedButton property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    schema.encoding()
+                            == ElevatedButtonWidgetPropertySchema.Encoding
+                                    .NEWLINE_STRING_LIST,
+                    elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private static java.util.List<String> elevatedButtonStringPresets(
+            PropertyName propertyName) {
+        String name = propertyName.value();
+        if (name.endsWith("ShapeKind")) {
+            return java.util.List.of(
+                    "roundedRectangle", "roundedSuperellipse", "stadium",
+                    "circle", "beveledRectangle", "continuousRectangle");
+        }
+        if (name.endsWith("MouseCursor")) {
+            return java.util.List.of(
+                    "none", "basic", "click", "forbidden", "wait", "progress",
+                    "contextMenu", "help", "text", "verticalText", "cell",
+                    "precise", "move", "grab", "grabbing", "noDrop", "alias",
+                    "copy", "disappearing", "allScroll", "resizeLeftRight",
+                    "resizeUpDown", "resizeUpLeftDownRight",
+                    "resizeUpRightDownLeft", "resizeUp", "resizeDown",
+                    "resizeLeft", "resizeRight", "resizeUpLeft", "resizeUpRight",
+                    "resizeDownLeft", "resizeDownRight", "resizeColumn",
+                    "resizeRow", "zoomIn", "zoomOut");
+        }
+        return switch (name) {
+            case "styleAlignmentKind" ->
+                java.util.List.of("physical", "directional");
+            case "styleSplashFactory" -> java.util.List.of(
+                    "inkSplash", "inkRipple", "inkSparkle", "noSplash");
             default -> java.util.List.of();
         };
     }

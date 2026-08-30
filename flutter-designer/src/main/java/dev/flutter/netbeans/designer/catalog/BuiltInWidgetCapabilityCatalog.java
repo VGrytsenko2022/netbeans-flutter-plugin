@@ -45,13 +45,15 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.PAINT,
                     PropertyValueKind.SHADOW_LIST,
                     PropertyValueKind.FONT_FEATURE_LIST,
-                    PropertyValueKind.FONT_VARIATION_LIST));
+                    PropertyValueKind.FONT_VARIATION_LIST,
+                    PropertyValueKind.CALLBACK));
     private static final Set<PropertyValueKind> NUMERIC_SCHEMA_KINDS =
             Collections.unmodifiableSet(EnumSet.of(
                     PropertyValueKind.INTEGER,
                     PropertyValueKind.DOUBLE,
                     PropertyValueKind.EDGE_INSETS));
     private static final String WIDGETS_LIBRARY = "package:flutter/widgets.dart";
+    private static final String MATERIAL_LIBRARY = "package:flutter/material.dart";
     private static final List<String> REVIEWED_COLOR_THEME_TOKENS = List.of(
             "material.colorScheme.primary",
             "material.colorScheme.onPrimary",
@@ -129,7 +131,7 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final Map<String, Set<WidgetCapability>> CAPABILITIES = Map.ofEntries(
             Map.entry("flutter.material.Scaffold", STATIC_STRUCTURAL),
             Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
-            Map.entry("flutter.material.ElevatedButton", Set.of()),
+            Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Padding", STATIC_EDITABLE),
@@ -171,9 +173,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.DOUBLE,
                     bounds(BigDecimal.ZERO, true, BigDecimal.ONE, true));
     private static final Map<PropertyValueKind, CanvasNumericBounds>
-            MINUS_ONE_TO_ONE_DOUBLE_BOUNDS = Map.of(
+            MINUS_FOUR_TO_FOUR_DOUBLE_BOUNDS = Map.of(
                     PropertyValueKind.DOUBLE,
-                    bounds(BigDecimal.ONE.negate(), true, BigDecimal.ONE, true));
+                    bounds(BigDecimal.valueOf(-4), true,
+                            BigDecimal.valueOf(4), true));
     private static final Map<PropertyValueKind, CanvasNumericBounds>
             POSITIVE_FONT_AXIS_DOUBLE_BOUNDS = Map.of(
                     PropertyValueKind.DOUBLE,
@@ -212,6 +215,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "body", singleSlotSchema(false, 0),
                             "floatingActionButton", singleSlotSchema(false, 0)))),
             Map.entry("flutter.material.AppBar", appBarProjection()),
+            Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
             Map.entry("flutter.widgets.Padding", projection(Map.of(
@@ -461,7 +465,7 @@ public final class BuiltInWidgetCapabilityCatalog {
         put(properties, enumProperty(
                 "shapeSideStyle", "BorderStyle", "none", "solid"));
         put(properties, numericProperty(
-                "shapeSideStrokeAlign", MINUS_ONE_TO_ONE_DOUBLE_BOUNDS,
+                "shapeSideStrokeAlign", UNBOUNDED_DOUBLE_BOUNDS,
                 PropertyValueKind.DOUBLE));
         for (String radius : List.of(
                 "shapeRadiusTopLeft", "shapeRadiusTopRight",
@@ -506,7 +510,180 @@ public final class BuiltInWidgetCapabilityCatalog {
                 "flexibleSpace", singleSlotSchema(false, 0),
                 "bottom", traitSingleSlotSchema(
                         false, 0,
-                        BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
+                BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
+    }
+
+    private static CanvasProjection elevatedButtonProjection() {
+        LinkedHashMap<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        put(properties, optionalDefaultProperty(
+                "enabled", "boolean:true", PropertyValueKind.BOOLEAN));
+        for (String callback : List.of(
+                "onPressed", "onLongPress", "onHover", "onFocusChange")) {
+            put(properties, callbackProperty(callback));
+        }
+        put(properties, property("autofocus", PropertyValueKind.BOOLEAN));
+        put(properties, enumProperty(
+                "clipBehavior", "Clip", "none", "hardEdge", "antiAlias",
+                "antiAliasWithSaveLayer"));
+
+        for (String prefix : List.of(
+                "style", "styleDisabled", "stylePressed",
+                "styleHovered", "styleFocused")) {
+            appendElevatedButtonStateProjection(properties, prefix);
+            appendElevatedButtonTextProjection(properties, prefix);
+        }
+
+        put(properties, numericProperty(
+                "styleVisualDensityHorizontal",
+                MINUS_FOUR_TO_FOUR_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "styleVisualDensityVertical",
+                MINUS_FOUR_TO_FOUR_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, materialEnumProperty(
+                "styleTapTargetSize", "MaterialTapTargetSize",
+                "padded", "shrinkWrap"));
+        put(properties, numericProperty(
+                "styleAnimationDurationMs",
+                Map.of(PropertyValueKind.INTEGER, NON_NEGATIVE_PORTABLE_INTEGER),
+                PropertyValueKind.INTEGER));
+        put(properties, property("styleEnableFeedback", PropertyValueKind.BOOLEAN));
+        put(properties, stringPatternProperty(
+                "styleAlignmentKind", "(?:physical|directional)"));
+        put(properties, numericProperty(
+                "styleAlignmentX", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                "styleAlignmentY", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, stringPatternProperty(
+                "styleSplashFactory",
+                "(?:inkRipple|inkSplash|inkSparkle|noSplash)"));
+
+        if (properties.size()
+                != ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ElevatedButton Canvas projection must contain exactly "
+                    + ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT
+                    + " properties; actual=" + properties.size());
+        }
+        return projection(properties, Map.of(
+                "child", singleSlotSchema(true, 0)));
+    }
+
+    private static void appendElevatedButtonStateProjection(
+            Map<String, CanvasPropertyContract> properties,
+            String prefix) {
+        for (String suffix : List.of(
+                "BackgroundColor", "ForegroundColor", "OverlayColor",
+                "ShadowColor", "SurfaceTintColor")) {
+            put(properties, colorOrThemeProperty(prefix + suffix));
+        }
+        put(properties, numericProperty(
+                prefix + "Elevation", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, edgeInsetsProperty(prefix + "Padding", true));
+        for (String suffix : List.of(
+                "MinimumWidth", "MinimumHeight", "FixedWidth", "FixedHeight",
+                "MaximumWidth", "MaximumHeight")) {
+            put(properties, numericProperty(
+                    prefix + suffix, NON_NEGATIVE_NUMBER_BOUNDS,
+                    PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        }
+        put(properties, colorOrThemeProperty(prefix + "IconColor"));
+        put(properties, numericProperty(
+                prefix + "IconSize", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, colorOrThemeProperty(prefix + "SideColor"));
+        put(properties, numericProperty(
+                prefix + "SideWidth", NON_NEGATIVE_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                prefix + "SideStyle", "BorderStyle", "none", "solid"));
+        put(properties, numericProperty(
+                prefix + "SideStrokeAlign", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, stringPatternProperty(
+                prefix + "ShapeKind",
+                "(?:roundedRectangle|roundedSuperellipse|stadium|circle|beveledRectangle|continuousRectangle)"));
+        for (String suffix : List.of(
+                "ShapeRadiusTopLeft", "ShapeRadiusTopRight",
+                "ShapeRadiusBottomRight", "ShapeRadiusBottomLeft")) {
+            put(properties, numericProperty(
+                    prefix + suffix, NON_NEGATIVE_DOUBLE_BOUNDS,
+                    PropertyValueKind.DOUBLE));
+        }
+        put(properties, numericProperty(
+                prefix + "ShapeCircleEccentricity",
+                ZERO_TO_ONE_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, stringPatternProperty(
+                prefix + "MouseCursor",
+                "(?:none|basic|click|forbidden|wait|progress|contextMenu|help|text|verticalText|cell|precise|move|grab|grabbing|noDrop|alias|copy|disappearing|allScroll|resizeLeftRight|resizeUpDown|resizeUpLeftDownRight|resizeUpRightDownLeft|resizeUp|resizeDown|resizeLeft|resizeRight|resizeUpLeft|resizeUpRight|resizeDownLeft|resizeDownRight|resizeColumn|resizeRow|zoomIn|zoomOut)"));
+    }
+
+    private static void appendElevatedButtonTextProjection(
+            Map<String, CanvasPropertyContract> properties,
+            String prefix) {
+        String text = prefix + "Text";
+        put(properties, themeTokenProperty(
+                text + "Theme", REVIEWED_TEXT_THEME_TOKENS));
+        put(properties, property(text + "Inherit", PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty(text + "BackgroundColor"));
+        put(properties, numericProperty(
+                text + "FontSize", NON_NEGATIVE_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                text + "FontWeight", "FontWeight",
+                "w100", "w200", "w300", "w400", "w500",
+                "w600", "w700", "w800", "w900"));
+        put(properties, enumProperty(
+                text + "FontStyle", "FontStyle", "normal", "italic"));
+        put(properties, numericProperty(
+                text + "LetterSpacing", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, numericProperty(
+                text + "WordSpacing", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                text + "TextBaseline", "TextBaseline", "alphabetic", "ideographic"));
+        put(properties, numericProperty(
+                text + "Height", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, enumProperty(
+                text + "LeadingDistribution", "TextLeadingDistribution",
+                "proportional", "even"));
+        put(properties, stringPatternProperty(
+                text + "LocaleLanguageCode", "(?:[a-z]{2,3}|[a-z]{5,8})"));
+        put(properties, stringPatternProperty(
+                text + "LocaleScriptCode", "[A-Z][a-z]{3}"));
+        put(properties, stringPatternProperty(
+                text + "LocaleCountryCode", "(?:[A-Z]{2}|[0-9]{3})"));
+        put(properties, paintProperty(text + "Background"));
+        put(properties, shadowProperty(text + "Shadows"));
+        put(properties, property(
+                text + "FontFeatures", PropertyValueKind.FONT_FEATURE_LIST));
+        put(properties, fontVariationProperty(text + "FontVariations"));
+        put(properties, property(
+                text + "DecorationUnderline", PropertyValueKind.BOOLEAN));
+        put(properties, property(
+                text + "DecorationOverline", PropertyValueKind.BOOLEAN));
+        put(properties, property(
+                text + "DecorationLineThrough", PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty(text + "DecorationColor"));
+        put(properties, enumProperty(
+                text + "DecorationStyle", "TextDecorationStyle",
+                "solid", "double", "dotted", "dashed", "wavy"));
+        put(properties, numericProperty(
+                text + "DecorationThickness", UNBOUNDED_DOUBLE_BOUNDS,
+                PropertyValueKind.DOUBLE));
+        put(properties, stringLengthProperty(text + "FontFamily", 1, 256));
+        put(properties, stringLengthProperty(text + "FontFamilyFallback", 0, 4096));
+        put(properties, stringLengthProperty(text + "Package", 1, 256));
+        put(properties, enumProperty(
+                text + "Overflow", "TextOverflow",
+                "clip", "fade", "ellipsis", "visible"));
     }
 
     private static void appendIconThemeProjection(
@@ -821,7 +998,22 @@ public final class BuiltInWidgetCapabilityCatalog {
             String name,
             String enumType,
             String... values) {
-        String fingerprint = "enum:" + base64(WIDGETS_LIBRARY) + ':'
+        return enumPropertyForLibrary(name, WIDGETS_LIBRARY, enumType, values);
+    }
+
+    private static Map.Entry<String, CanvasPropertyContract> materialEnumProperty(
+            String name,
+            String enumType,
+            String... values) {
+        return enumPropertyForLibrary(name, MATERIAL_LIBRARY, enumType, values);
+    }
+
+    private static Map.Entry<String, CanvasPropertyContract> enumPropertyForLibrary(
+            String name,
+            String library,
+            String enumType,
+            String... values) {
+        String fingerprint = "enum:" + base64(library) + ':'
                 + enumType + ':' + java.util.Arrays.stream(values).sorted()
                         .collect(Collectors.joining(","));
         return Map.entry(name, constrainedSchema(
@@ -933,6 +1125,24 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.of(creationDefaultFingerprint),
                 Map.of(),
                 anyConstraintFingerprints(kinds)));
+    }
+
+    private static Map.Entry<String, CanvasPropertyContract> optionalDefaultProperty(
+            String name,
+            String creationDefaultFingerprint,
+            PropertyValueKind... kinds) {
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(kinds),
+                false,
+                Optional.of(creationDefaultFingerprint),
+                Map.of(),
+                anyConstraintFingerprints(kinds)));
+    }
+
+    private static Map.Entry<String, CanvasPropertyContract> callbackProperty(
+            String name) {
+        return Map.entry(name, constrainedSchema(
+                PropertyValueKind.CALLBACK, "callbackReference"));
     }
 
     private static Map.Entry<String, CanvasPropertyContract>
@@ -1113,6 +1323,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.FontVariationListValues) {
             return "fontVariationList";
         }
+        if (constraint instanceof PropertyValueConstraint.CallbackReference) {
+            return "callbackReference";
+        }
         throw new ExceptionInInitializerError(
                 "Canvas constraint requires a reviewed fingerprint: "
                 + constraint.getClass().getName());
@@ -1125,6 +1338,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static String defaultFingerprint(PropertyValue value) {
         if (value instanceof PropertyValue.StringValue string) {
             return "string:" + base64(string.value());
+        }
+        if (value instanceof PropertyValue.BooleanValue bool) {
+            return "boolean:" + bool.value();
         }
         if (value instanceof PropertyValue.EdgeInsetsValue insets) {
             return "edgeInsets:" + decimalText(insets.left()) + ','

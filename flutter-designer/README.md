@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical nine-widget Canvas
+responsive render profiles and the bounded canonical ten-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,13 +40,13 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for `AppBar`, `Column`, `Row`, `Padding`,
-`Center`, `SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
+bounded typed read/write slice for `ElevatedButton`, `AppBar`, `Column`, `Row`,
+`Padding`, `Center`, `SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
 separate task. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-117-cell candidate matrix: nine exact capability-reviewed sources target eleven
-any-widget and two `PreferredSizeWidget` destinations, with exactly 101
-accepted and 16 rejected cells, subject to
+140-cell candidate matrix: ten exact capability-reviewed sources target twelve
+any-widget and two `PreferredSizeWidget` destinations, with exactly 122
+accepted and 18 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -61,14 +61,16 @@ identities and stale/replay admission rules, the explicit Mobile, Tablet,
 Desktop and Web preview-mode identity, native-surface request validation, pure
 backend contracts and per-MultiView lifecycle controller, plus the bounded
 version 1 lifecycle control codec/session gate, process framing and canonical
-reviewed Canvas model payload. Model payload version 7 carries the exact resolved
+reviewed Canvas model payload. Model payload version 8 carries the exact resolved
 project-theme identity, seed, brightness and typed ColorScheme/TextTheme
 override tables; generated Dart and Flutter Canvas apply those tables in the
-same order before form-local Text overrides. Version 7 retains the closed typed
-`IconData` projection and adds AppBar plus exact slot-acceptance fingerprints.
+same order before form-local Text overrides. Version 8 retains the closed typed
+`IconData` and AppBar projections, adds ElevatedButton's sparse state contract
+and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center` and `SizedBox` from the reviewed built-in catalog and
-excludes project paths, Dart source, callbacks, extensions and persistence
+`Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton` from the reviewed
+built-in catalog and excludes project paths, Dart source, callback identifiers,
+extensions and persistence
 authority. The frame-kind whitelist remains control JSON, model JSON and catalog
 JSON; catalog JSON is reserved for a future versioned contract. There is no
 image or pixel-transfer channel. This module does not own Swing, native window
@@ -82,7 +84,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical nine-widget model, renders it
+tests. The isolated runner decodes the canonical ten-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -115,6 +117,49 @@ reset to omission.
 | `Text` | 59 typed leaves in the seven sets below | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html), [TextStyle](https://api.flutter.dev/flutter/painting/TextStyle/TextStyle.html), [StrutStyle](https://api.flutter.dev/flutter/painting/StrutStyle/StrutStyle.html) |
 | `Icon` | `icon`, `size`, `fill`, `weight`, `grade`, `opticalSize`, `color`, `shadows`, `semanticLabel`, `textDirection`, `applyTextScaling`, `blendMode`, `fontWeight` | [Icon](https://api.flutter.dev/flutter/widgets/Icon/Icon.html), [IconData](https://api.flutter.dev/flutter/widgets/IconData-class.html) |
 | `AppBar` | 120 typed leaves in the nine sets below; `leading`, `title`, `actions`, `flexibleSpace`, `bottom` slots | [AppBar](https://api.flutter.dev/flutter/material/AppBar/AppBar.html), [AppBarTheme](https://api.flutter.dev/flutter/material/AppBarTheme-class.html) |
+| `ElevatedButton` | 286 typed leaves in the state-aware sets below; optional-single `child` slot | [ElevatedButton](https://api.flutter.dev/flutter/material/ElevatedButton/ElevatedButton.html), [ButtonStyle](https://api.flutter.dev/flutter/material/ButtonStyle-class.html) |
+
+| `ElevatedButton` Properties set | Count | Projection |
+| --- | ---: | --- |
+| Direct behavior and callbacks | 7 | `enabled`, strict callback IDs for press/long-press/hover/focus, `autofocus`, `clipBehavior` |
+| Enabled/default style | 54 | 26 ButtonStyle leaves plus 28 effective TextStyle leaves |
+| Disabled style | 54 | Sparse disabled-state overrides; omission inherits theme/default |
+| Pressed style | 54 | Sparse pressed-state overrides |
+| Hovered style | 54 | Sparse hovered-state overrides |
+| Focused style | 54 | Sparse focused-state overrides |
+| Common layout and feedback | 9 | Visual density, tap target, animation duration, feedback, alignment and splash factory |
+
+ElevatedButton generation uses a direct sparse `ButtonStyle`, not lossy
+`styleFrom` reconstruction. Scalar state resolution is deterministic; compound
+leaves layer default, focused, hovered and pressed fragments independently,
+while disabled remains isolated from enabled fragments. Omitted leaves fall
+through to the non-null `ElevatedButtonTheme` compound as one atomic value,
+then framework defaults. A locally omitted `fixedSize` axis uses Flutter's
+infinity sentinel only when neither inherited source supplies a size, and a
+finite effective maximum clamps that sentinel. Minimum and maximum constraints
+resolve as a paired state projection whenever a local bound applies, with each
+maximum axis widened to the effective minimum. The effective minimum is the
+authoritative bound in that pair; otherwise both properties return `null` and
+defer normally.
+Text family, fallback and
+package leaves layer together; each package applies to the current layered
+`TextStyle`, including TextTheme, and fallback-only packages replace one prior
+prefix without constructing a synthetic `.../null` family. Local Text
+theme/inherit fields require one explicit
+transition-safe inherit mode across reachable states. The
+closed contract includes all `SystemMouseCursors`, six shape presets
+(`roundedRectangle`, `roundedSuperellipse`, `stadium`, `circle`,
+`beveledRectangle`, `continuousRectangle`) and four splash presets
+(`InkSplash`, `InkRipple`, `InkSparkle`, `NoSplash`). `TextStyle.color` is not a
+leaf because effective label color belongs to `ButtonStyle.foregroundColor`.
+`ButtonStyle.iconAlignment` is not a leaf either: pinned Flutter 3.44.8 consumes
+it only inside the icon/label child created by `ElevatedButton.icon`; this slice
+models the ordinary arbitrary-child `ElevatedButton` constructor.
+Runtime-only `key`, `focusNode`, `statesController` and layer builders are also
+excluded. Callback properties admit strict Dart identifiers only; payload v8
+sends `callbackPresence` instead of an identifier and the runner installs inert
+typed closures. The optional-single required-named-nullable child slot emits
+`child: null` while empty.
 
 | `AppBar` Properties set | Count | Projection |
 | --- | ---: | --- |
@@ -138,7 +183,7 @@ reset to omission.
 | Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` |
 | Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` |
 
-This is 211 catalog-backed property rows across the eight non-`Scaffold` widgets.
+This is 497 catalog-backed property rows across the nine non-`Scaffold` widgets.
 Editors cover single-line strings, newline-delimited font fallback lists,
 accessible optional boolean checkboxes, exact constrained integer/double
 controls, reviewed enums, physical non-negative edge insets, ARGB/theme-aware
@@ -387,22 +432,23 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the nine-source insertion matrix
+disconnected. That stage is superseded by the ten-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, nine-widget projection, responsive
-profiles, stable-ID tree selection, exact nine-item context Palette and
+Windows native read-only `FlutterView`, ten-widget projection, responsive
+profiles, stable-ID tree selection, exact ten-item context Palette and
 selected-node typed Properties are implemented. Properties are writable only
-for the 211 catalog-backed fields of `AppBar`, `Column`, `Row`, `Padding`,
-`Center`, `SizedBox`, `Text` and `Icon`, including the AppBar, Text and Icon
+for the 497 catalog-backed fields of `ElevatedButton`, `AppBar`, `Column`, `Row`,
+`Padding`, `Center`, `SizedBox`, `Text` and `Icon`, including the ElevatedButton,
+AppBar, Text and Icon
 projections above; `Scaffold` stays read-only.
-Palette DnD is enabled for the nine exact capability-reviewed source definitions and
-thirteen catalog-authorized slots, for 117 candidate cells: 101 admitted and 16
+Palette DnD is enabled for the ten exact capability-reviewed source definitions and
+fourteen catalog-authorized slots, for 140 candidate cells: 122 admitted and 18
 rejected. The
 optional runtime-faithful browser Canvas backend, cross-platform providers and
-the broader property/callback contracts remain outstanding. The native-engine
+the broader unreviewed widget contracts remain outstanding. The native-engine
 Web responsive layout preview is already available.
 
 The `.fd` document codec accepts strict UTF-8 JSON (with an optional input BOM), rejects

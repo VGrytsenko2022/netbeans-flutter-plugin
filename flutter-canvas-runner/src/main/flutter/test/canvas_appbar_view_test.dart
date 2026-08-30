@@ -140,7 +140,7 @@ void main() {
       expect(shape.side.color, colors.outline);
       expect(shape.side.width, 2);
       expect(shape.side.style, BorderStyle.solid);
-      expect(shape.side.strokeAlign, 0.25);
+      expect(shape.side.strokeAlign, 12.5);
       expect(
         shape.borderRadius,
         const BorderRadius.only(

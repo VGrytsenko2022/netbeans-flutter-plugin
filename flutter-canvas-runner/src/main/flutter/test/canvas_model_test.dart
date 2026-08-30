@@ -17,14 +17,14 @@ void main() {
   test('AppBar reviewed below-type contract matches Java fingerprint', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.AppBar\n');
-    final end = contract.indexOf('W|flutter.material.Scaffold\n', start);
+    final end = contract.indexOf('W|flutter.material.ElevatedButton\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));
-    expect(bytes, hasLength(50907));
+    expect(bytes, hasLength(50905));
     expect(
       sha256Hex(bytes),
-      '075766cea1325f1009147bcb913d6d1dee7a9b27a177ef7331d42f976fa9f8d8',
+      'efcbcdee37b660a8ec4f8cb85b152aa92009033b6ae498b6c25861d7efbdb3be',
     );
   });
 
@@ -468,7 +468,7 @@ void main() {
         _appBarModelJson(
           properties: const {
             'shapeKind': {'kind': 'string', 'value': 'stadium'},
-            'shapeSideStrokeAlign': {'kind': 'double', 'value': -1.0},
+            'shapeSideStrokeAlign': {'kind': 'double', 'value': -123.5},
           },
         ),
       ),
@@ -479,11 +479,11 @@ void main() {
         _appBarModelJson(
           properties: const {
             'shapeKind': {'kind': 'string', 'value': 'stadium'},
-            'shapeSideStrokeAlign': {'kind': 'double', 'value': 1.01},
+            'shapeSideStrokeAlign': {'kind': 'double', 'value': 123.5},
           },
         ),
       ),
-      throwsFormatException,
+      returnsNormally,
     );
     expectProperty('clipBehavior', const {
       'kind': 'enum',
@@ -530,6 +530,389 @@ void main() {
     );
     expect(() => _decode(styleConflict), throwsFormatException);
   });
+
+  test(
+    'ElevatedButton reviewed contract is exact and closed at 286 leaves',
+    () {
+      final contract = canvasRuntimeWidgetSchemaContractForTesting();
+      final start = contract.indexOf('W|flutter.material.ElevatedButton\n');
+      final end = contract.indexOf('W|flutter.material.Scaffold\n', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      final section = contract.substring(start, end);
+      expect(
+        section.split('\n').where((line) => line.startsWith('P|')),
+        hasLength(286),
+      );
+      expect(
+        section,
+        contains('P|enabled|boolean|0|boolean:true|-|boolean:any\n'),
+      );
+      expect(
+        section,
+        contains('P|onPressed|callback|0|-|-|callback:callbackReference\n'),
+      );
+      expect(section, contains('S|child|single|1|0|1|any\n'));
+    },
+  );
+
+  test('decodes callbacks as presence only and requires the child slot', () {
+    final decoded = CanvasModel.decode(elevatedButtonModelBytesForViewTest());
+    final button = decoded.root.slot('body')!.child!;
+    expect(button.type, 'flutter.material.ElevatedButton');
+    expect(button.properties.keys, elevatedButtonPropertiesForViewTest().keys);
+    for (final name in const [
+      'onPressed',
+      'onLongPress',
+      'onHover',
+      'onFocusChange',
+    ]) {
+      expect(button.properties[name]!.kind, 'callbackPresence');
+      expect(button.properties[name]!.value, isTrue);
+    }
+    expect(button.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final missingSlot = _elevatedButtonModel(
+      properties: const {
+        'enabled': {'kind': 'boolean', 'value': true},
+      },
+    );
+    (_elevatedButtonNode(missingSlot)['slots']! as Map<String, Object?>).remove(
+      'child',
+    );
+    expect(() => _decode(missingSlot), throwsFormatException);
+
+    for (final callback in const [
+      {'kind': 'callback', 'value': 'handler'},
+      {'kind': 'callbackPresence', 'configured': true},
+      {'kind': 'callbackPresence', 'value': 'handler'},
+    ]) {
+      expect(
+        () =>
+            _decode(_elevatedButtonModel(properties: {'onPressed': callback})),
+        throwsFormatException,
+        reason: '$callback',
+      );
+    }
+  });
+
+  test(
+    'enforces exact ElevatedButton bounds and pinned preset vocabularies',
+    () {
+      void expectProperty(
+        String name,
+        Map<String, Object?> value,
+        Matcher matcher,
+      ) {
+        expect(
+          () => _decode(_elevatedButtonModel(properties: {name: value})),
+          matcher,
+          reason: '$name=$value',
+        );
+      }
+
+      for (final name in const [
+        'styleElevation',
+        'styleMinimumWidth',
+        'styleFixedHeight',
+        'styleMaximumWidth',
+        'styleIconSize',
+      ]) {
+        expectProperty(name, const {
+          'kind': 'integer',
+          'value': 0,
+        }, returnsNormally);
+        expectProperty(name, const {
+          'kind': 'double',
+          'value': -0.01,
+        }, throwsFormatException);
+      }
+      for (final name in const [
+        'styleVisualDensityHorizontal',
+        'styleVisualDensityVertical',
+      ]) {
+        expectProperty(name, const {
+          'kind': 'double',
+          'value': -4.0,
+        }, returnsNormally);
+        expectProperty(name, const {
+          'kind': 'double',
+          'value': 4.0,
+        }, returnsNormally);
+        expectProperty(name, const {
+          'kind': 'double',
+          'value': 4.01,
+        }, throwsFormatException);
+      }
+      expectProperty('styleSideStrokeAlign', const {
+        'kind': 'double',
+        'value': -123.5,
+      }, returnsNormally);
+      expectProperty('styleSideStrokeAlign', const {
+        'kind': 'double',
+        'value': 123.5,
+      }, returnsNormally);
+      expectProperty('styleShapeCircleEccentricity', const {
+        'kind': 'double',
+        'value': -0.01,
+      }, throwsFormatException);
+
+      for (final preset in const [
+        'roundedSuperellipse',
+        'none',
+        'resizeColumn',
+        'resizeRow',
+        'zoomIn',
+        'zoomOut',
+        'inkSplash',
+      ]) {
+        final property = switch (preset) {
+          'roundedSuperellipse' => 'styleShapeKind',
+          'inkSplash' => 'styleSplashFactory',
+          _ => 'styleMouseCursor',
+        };
+        expectProperty(property, {
+          'kind': 'string',
+          'value': preset,
+        }, returnsNormally);
+      }
+      expectProperty('styleMouseCursor', const {
+        'kind': 'string',
+        'value': 'defer',
+      }, throwsFormatException);
+      expectProperty('styleSplashFactory', const {
+        'kind': 'string',
+        'value': 'futureSplash',
+      }, throwsFormatException);
+    },
+  );
+
+  test('enforces ElevatedButton shape and effective TextStyle relations', () {
+    for (final properties in const [
+      {
+        'styleMinimumWidth': {'kind': 'double', 'value': 101.0},
+        'styleMaximumWidth': {'kind': 'double', 'value': 100.0},
+      },
+      {
+        'styleMinimumHeight': {'kind': 'double', 'value': 40.0},
+        'styleFixedHeight': {'kind': 'double', 'value': 39.0},
+      },
+      {
+        'styleFixedWidth': {'kind': 'double', 'value': 201.0},
+        'styleMaximumWidth': {'kind': 'double', 'value': 200.0},
+      },
+    ]) {
+      expect(
+        () => _decode(_elevatedButtonModel(properties: properties)),
+        throwsFormatException,
+        reason: '$properties',
+      );
+    }
+    for (final properties in const [
+      {
+        'styleAlignmentKind': {'kind': 'string', 'value': 'physical'},
+      },
+      {
+        'styleAlignmentX': {'kind': 'double', 'value': 0.0},
+        'styleAlignmentY': {'kind': 'double', 'value': 0.0},
+      },
+    ]) {
+      expect(
+        () => _decode(_elevatedButtonModel(properties: properties)),
+        throwsFormatException,
+        reason: '$properties',
+      );
+    }
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleShapeRadiusTopLeft': {'kind': 'double', 'value': 4.0},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleShapeKind': {'kind': 'string', 'value': 'circle'},
+            'styleShapeRadiusTopLeft': {'kind': 'double', 'value': 4.0},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleShapeKind': {'kind': 'string', 'value': 'circle'},
+            'styleShapeCircleEccentricity': {'kind': 'double', 'value': 0.5},
+          },
+        ),
+      ),
+      returnsNormally,
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleShapeKind': {'kind': 'string', 'value': 'roundedRectangle'},
+            'stylePressedShapeRadiusTopLeft': {'kind': 'double', 'value': 12.0},
+          },
+        ),
+      ),
+      returnsNormally,
+      reason: 'a state shape fragment inherits the enabled/base discriminator',
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: {
+            'styleTextBackgroundColor': const {
+              'kind': 'color',
+              'argb': '0xFF000000',
+            },
+            'styleTextBackground': _paint(const {
+              'kind': 'literal',
+              'argb': '0xFFFFFFFF',
+            }),
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleTextPackage': {'kind': 'string', 'value': 'design_fonts'},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleTextFontFamily': {'kind': 'string', 'value': 'BaseFamily'},
+            'stylePressedTextPackage': {
+              'kind': 'string',
+              'value': 'design_fonts',
+            },
+          },
+        ),
+      ),
+      returnsNormally,
+      reason: 'an inheriting active fragment may reuse the raw base family',
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleTextInherit': {'kind': 'boolean', 'value': false},
+            'styleDisabledTextInherit': {'kind': 'boolean', 'value': false},
+            'styleTextFontFamily': {'kind': 'string', 'value': 'BaseFamily'},
+            'stylePressedTextInherit': {'kind': 'boolean', 'value': false},
+            'stylePressedTextPackage': {
+              'kind': 'string',
+              'value': 'design_fonts',
+            },
+          },
+        ),
+      ),
+      throwsFormatException,
+      reason: 'inherit=false may not borrow a raw family from the base layer',
+    );
+    expect(
+      () => _decode(
+        _elevatedButtonModel(
+          properties: const {
+            'styleTextInherit': {'kind': 'boolean', 'value': false},
+            'styleDisabledTextInherit': {'kind': 'boolean', 'value': false},
+            'styleTextFontFamily': {'kind': 'string', 'value': 'BaseFamily'},
+            'stylePressedTextInherit': {'kind': 'boolean', 'value': false},
+            'stylePressedTextFontFamilyFallback': {
+              'kind': 'string',
+              'value': 'PressedFallback',
+            },
+            'stylePressedTextPackage': {
+              'kind': 'string',
+              'value': 'design_fonts',
+            },
+          },
+        ),
+      ),
+      returnsNormally,
+      reason: 'inherit=false accepts a same-fragment raw fallback',
+    );
+  });
+
+  test(
+    'requires one transition-safe ElevatedButton TextStyle inherit mode',
+    () {
+      expect(
+        () => _decode(
+          _elevatedButtonModel(
+            properties: const {
+              'styleTextInherit': {'kind': 'boolean', 'value': false},
+            },
+          ),
+        ),
+        throwsFormatException,
+        reason:
+            'disabled inherit is mandatory once local inherit is configured',
+      );
+      expect(
+        () => _decode(
+          _elevatedButtonModel(
+            properties: const {
+              'styleTextInherit': {'kind': 'boolean', 'value': false},
+              'styleDisabledTextInherit': {'kind': 'boolean', 'value': false},
+              'stylePressedTextInherit': {'kind': 'boolean', 'value': true},
+            },
+          ),
+        ),
+        throwsFormatException,
+        reason: 'reachable state inherit modes may not differ',
+      );
+      expect(
+        () => _decode(
+          _elevatedButtonModel(
+            properties: const {
+              'styleTextInherit': {'kind': 'boolean', 'value': false},
+              'styleDisabledTextInherit': {'kind': 'boolean', 'value': false},
+              'stylePressedTextTheme': {
+                'kind': 'themeToken',
+                'token': 'material.textTheme.labelLarge',
+              },
+            },
+          ),
+        ),
+        throwsFormatException,
+        reason: 'a local state theme token requires an explicit matching mode',
+      );
+      expect(
+        () => _decode(
+          _elevatedButtonModel(
+            properties: const {
+              'styleTextInherit': {'kind': 'boolean', 'value': false},
+              'styleDisabledTextInherit': {'kind': 'boolean', 'value': false},
+              'stylePressedTextInherit': {'kind': 'boolean', 'value': false},
+              'stylePressedTextTheme': {
+                'kind': 'themeToken',
+                'token': 'material.textTheme.labelLarge',
+              },
+            },
+          ),
+        ),
+        returnsNormally,
+      );
+    },
+  );
 
   test('decodes the complete strict Icon contract and nullable IconData', () {
     final decoded = _decode(
@@ -1312,7 +1695,7 @@ Map<String, Object?> appBarPropertiesForViewTest() => {
   },
   'shapeSideWidth': {'kind': 'double', 'value': 2.0},
   'shapeSideStyle': {'kind': 'enum', 'type': 'BorderStyle', 'value': 'solid'},
-  'shapeSideStrokeAlign': {'kind': 'double', 'value': 0.25},
+  'shapeSideStrokeAlign': {'kind': 'double', 'value': 12.5},
   'shapeRadiusTopLeft': {'kind': 'double', 'value': 1.0},
   'shapeRadiusTopRight': {'kind': 'double', 'value': 2.0},
   'shapeRadiusBottomRight': {'kind': 'double', 'value': 3.0},
@@ -1695,9 +2078,262 @@ Map<String, Object?> _expandedTextProperties() => {
   'strutPackage': {'kind': 'string', 'value': 'metric_fonts'},
 };
 
+const elevatedButtonWidgetIdForViewTest =
+    '7452c92f-78cb-40ef-8548-c374df878d90';
+
+Uint8List elevatedButtonModelBytesForViewTest({
+  Map<String, Object?>? properties,
+  bool withChild = true,
+}) => Uint8List.fromList(
+  utf8.encode(
+    jsonEncode(
+      _elevatedButtonModel(
+        properties: properties ?? elevatedButtonPropertiesForViewTest(),
+        withChild: withChild,
+      ),
+    ),
+  ),
+);
+
+Map<String, Object?> elevatedButtonPropertiesForViewTest() => {
+  'enabled': {'kind': 'boolean', 'value': true},
+  'onPressed': {'kind': 'callbackPresence'},
+  'onLongPress': {'kind': 'callbackPresence'},
+  'onHover': {'kind': 'callbackPresence'},
+  'onFocusChange': {'kind': 'callbackPresence'},
+  'autofocus': {'kind': 'boolean', 'value': true},
+  'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+  for (final entry in const [
+    ('style', 0),
+    ('styleDisabled', 1),
+    ('stylePressed', 2),
+    ('styleHovered', 3),
+    ('styleFocused', 4),
+  ])
+    ..._elevatedButtonStatePropertiesForViewTest(entry.$1, entry.$2),
+  'styleVisualDensityHorizontal': {'kind': 'double', 'value': -2.0},
+  'styleVisualDensityVertical': {'kind': 'double', 'value': 1.5},
+  'styleTapTargetSize': {
+    'kind': 'enum',
+    'type': 'MaterialTapTargetSize',
+    'value': 'shrinkWrap',
+  },
+  'styleAnimationDurationMs': {'kind': 'integer', 'value': 275},
+  'styleEnableFeedback': {'kind': 'boolean', 'value': false},
+  'styleAlignmentKind': {'kind': 'string', 'value': 'directional'},
+  'styleAlignmentX': {'kind': 'double', 'value': 0.25},
+  'styleAlignmentY': {'kind': 'double', 'value': -0.5},
+  'styleSplashFactory': {'kind': 'string', 'value': 'inkSplash'},
+};
+
+Map<String, Object?> _elevatedButtonStatePropertiesForViewTest(
+  String prefix,
+  int index,
+) {
+  final channel = 0x20 + index * 0x10;
+  String argb(int offset) =>
+      '0xFF${(channel + offset).toRadixString(16).padLeft(2, '0').toUpperCase()}'
+      '${(0x40 + offset).toRadixString(16).padLeft(2, '0').toUpperCase()}'
+      '${(0x80 + offset).toRadixString(16).padLeft(2, '0').toUpperCase()}';
+  final cursor = const [
+    'none',
+    'resizeColumn',
+    'resizeRow',
+    'zoomIn',
+    'zoomOut',
+  ][index];
+  return {
+    '${prefix}BackgroundColor': {'kind': 'color', 'argb': argb(0)},
+    '${prefix}ForegroundColor': {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.onPrimary',
+    },
+    '${prefix}OverlayColor': {'kind': 'color', 'argb': argb(1)},
+    '${prefix}ShadowColor': {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.shadow',
+    },
+    '${prefix}SurfaceTintColor': {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.surfaceTint',
+    },
+    '${prefix}Elevation': {'kind': 'double', 'value': 1.5 + index},
+    '${prefix}Padding': index.isEven
+        ? {
+            'kind': 'edgeInsets',
+            'left': 8.0 + index,
+            'top': 9.0 + index,
+            'right': 10.0 + index,
+            'bottom': 11.0 + index,
+          }
+        : {
+            'kind': 'edgeInsetsDirectional',
+            'start': 8.0 + index,
+            'top': 9.0 + index,
+            'end': 10.0 + index,
+            'bottom': 11.0 + index,
+          },
+    '${prefix}MinimumWidth': {'kind': 'integer', 'value': 40 + index},
+    '${prefix}MinimumHeight': {'kind': 'double', 'value': 24.0 + index},
+    '${prefix}FixedWidth': {'kind': 'double', 'value': 96.0 + index},
+    '${prefix}FixedHeight': {'kind': 'integer', 'value': 44 + index},
+    '${prefix}MaximumWidth': {'kind': 'double', 'value': 240.0 + index},
+    '${prefix}MaximumHeight': {'kind': 'integer', 'value': 80 + index},
+    '${prefix}IconColor': {'kind': 'color', 'argb': argb(2)},
+    '${prefix}IconSize': {'kind': 'integer', 'value': 18 + index},
+    '${prefix}SideColor': {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.outline',
+    },
+    '${prefix}SideWidth': {'kind': 'double', 'value': 1.0 + index / 4},
+    '${prefix}SideStyle': {
+      'kind': 'enum',
+      'type': 'BorderStyle',
+      'value': 'solid',
+    },
+    '${prefix}SideStrokeAlign': {'kind': 'double', 'value': -1.0 + index / 2},
+    '${prefix}ShapeKind': {'kind': 'string', 'value': 'roundedSuperellipse'},
+    '${prefix}ShapeRadiusTopLeft': {'kind': 'double', 'value': 1.0 + index},
+    '${prefix}ShapeRadiusTopRight': {'kind': 'double', 'value': 2.0 + index},
+    '${prefix}ShapeRadiusBottomRight': {'kind': 'double', 'value': 3.0 + index},
+    '${prefix}ShapeRadiusBottomLeft': {'kind': 'double', 'value': 4.0 + index},
+    '${prefix}MouseCursor': {'kind': 'string', 'value': cursor},
+    '${prefix}TextTheme': {
+      'kind': 'themeToken',
+      'token': 'material.textTheme.labelLarge',
+    },
+    '${prefix}TextInherit': {'kind': 'boolean', 'value': true},
+    '${prefix}TextBackgroundColor': {'kind': 'color', 'argb': argb(3)},
+    '${prefix}TextFontSize': {'kind': 'double', 'value': 14.0 + index},
+    '${prefix}TextFontWeight': {
+      'kind': 'enum',
+      'type': 'FontWeight',
+      'value': 'w600',
+    },
+    '${prefix}TextFontStyle': {
+      'kind': 'enum',
+      'type': 'FontStyle',
+      'value': 'italic',
+    },
+    '${prefix}TextLetterSpacing': {'kind': 'double', 'value': 0.25 + index},
+    '${prefix}TextWordSpacing': {'kind': 'double', 'value': 0.5 + index},
+    '${prefix}TextTextBaseline': {
+      'kind': 'enum',
+      'type': 'TextBaseline',
+      'value': 'alphabetic',
+    },
+    '${prefix}TextHeight': {'kind': 'double', 'value': 1.2 + index / 10},
+    '${prefix}TextLeadingDistribution': {
+      'kind': 'enum',
+      'type': 'TextLeadingDistribution',
+      'value': 'even',
+    },
+    '${prefix}TextLocaleLanguageCode': {'kind': 'string', 'value': 'en'},
+    '${prefix}TextLocaleScriptCode': {'kind': 'string', 'value': 'Latn'},
+    '${prefix}TextLocaleCountryCode': {'kind': 'string', 'value': 'US'},
+    '${prefix}TextShadows': {
+      'kind': 'shadowList',
+      'items': [
+        {
+          'id': '11111111-1111-4111-8111-111111111111',
+          'color': {'kind': 'literal', 'argb': argb(4)},
+          'offsetX': 1.0,
+          'offsetY': 2.0,
+          'blurRadius': 3.0,
+        },
+      ],
+    },
+    '${prefix}TextFontFeatures': {
+      'kind': 'fontFeatureList',
+      'items': const [
+        {
+          'id': '22222222-2222-4222-8222-222222222222',
+          'tag': 'smcp',
+          'value': 1,
+        },
+      ],
+    },
+    '${prefix}TextFontVariations': {
+      'kind': 'fontVariationList',
+      'items': const [
+        {
+          'id': '33333333-3333-4333-8333-333333333333',
+          'axis': 'wght',
+          'value': 650.0,
+        },
+      ],
+    },
+    '${prefix}TextDecorationUnderline': {'kind': 'boolean', 'value': true},
+    '${prefix}TextDecorationOverline': {'kind': 'boolean', 'value': false},
+    '${prefix}TextDecorationLineThrough': {'kind': 'boolean', 'value': true},
+    '${prefix}TextDecorationColor': {
+      'kind': 'themeToken',
+      'token': 'material.colorScheme.error',
+    },
+    '${prefix}TextDecorationStyle': {
+      'kind': 'enum',
+      'type': 'TextDecorationStyle',
+      'value': 'wavy',
+    },
+    '${prefix}TextDecorationThickness': {
+      'kind': 'double',
+      'value': 1.25 + index,
+    },
+    '${prefix}TextFontFamily': {'kind': 'string', 'value': 'Inter'},
+    '${prefix}TextFontFamilyFallback': {
+      'kind': 'string',
+      'value': 'Noto Sans\nNoto Color Emoji',
+    },
+    '${prefix}TextPackage': {'kind': 'string', 'value': 'design_fonts'},
+    '${prefix}TextOverflow': {
+      'kind': 'enum',
+      'type': 'TextOverflow',
+      'value': 'ellipsis',
+    },
+  };
+}
+
+Map<String, Object?> _elevatedButtonModel({
+  required Map<String, Object?> properties,
+  bool withChild = true,
+}) {
+  final model = _modelJson();
+  final root = model['root']! as Map<String, Object?>;
+  final slots = root['slots']! as Map<String, Object?>;
+  slots['body'] = _single(
+    _node(
+      elevatedButtonWidgetIdForViewTest,
+      'flutter.material.ElevatedButton',
+      properties: properties,
+      slots: {
+        'child': _single(
+          withChild
+              ? _node(
+                  '45c0b04d-a3c8-4dab-8bfe-692492671835',
+                  'flutter.widgets.Text',
+                  properties: {
+                    'data': {'kind': 'string', 'value': 'Run safely'},
+                  },
+                )
+              : null,
+        ),
+      },
+    ),
+  );
+  slots.remove('floatingActionButton');
+  return model;
+}
+
+Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  return body['child']! as Map<String, Object?>;
+}
+
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 7,
+  'protocolVersion': 8,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

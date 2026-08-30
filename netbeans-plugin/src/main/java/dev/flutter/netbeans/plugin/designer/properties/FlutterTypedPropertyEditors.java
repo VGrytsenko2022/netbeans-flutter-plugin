@@ -97,6 +97,10 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.ThemeTokenValues.class::isInstance)) {
             editorKind = EditorKind.THEME_TOKEN;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.CALLBACK))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.CallbackReference.class::isInstance)) {
+            editorKind = EditorKind.CALLBACK;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.PAINT))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.PaintValues.class::isInstance)) {
@@ -135,6 +139,7 @@ final class FlutterTypedPropertyEditors {
         COLOR,
         THEME_COLOR,
         THEME_TOKEN,
+        CALLBACK,
         PAINT,
         SHADOW_LIST,
         FONT_FEATURE_LIST,
@@ -222,6 +227,7 @@ final class FlutterTypedPropertyEditors {
                 case COLOR -> new ColorEditor(this);
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
+                case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA ->
                     new StructuredEditor(this);
@@ -384,6 +390,36 @@ final class FlutterTypedPropertyEditors {
                         "Expected one of " + binding.stringPresets() + '.');
             }
             setExplicit(new PropertyValue.StringValue(value));
+        }
+    }
+
+    /** Strict Dart handler identifier; arbitrary Dart expressions are never admitted. */
+    private static final class CallbackEditor extends TypedEditor {
+        CallbackEditor(Binding binding) {
+            super(binding);
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue()
+                    .map(PropertyValue.CallbackValue.class::cast)
+                    .map(PropertyValue.CallbackValue::handler)
+                    .orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            if (parseUnset(text)) {
+                return;
+            }
+            String handler = Objects.requireNonNull(text, "text").strip();
+            try {
+                setExplicit(new PropertyValue.CallbackValue(handler));
+            } catch (IllegalArgumentException failure) {
+                throw new IllegalArgumentException(
+                        "Expected a Dart callback identifier such as onPressed or _handlePress.",
+                        failure);
+            }
         }
     }
 

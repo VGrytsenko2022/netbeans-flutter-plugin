@@ -5,9 +5,10 @@ Status note: ADR-024 and ADR-027 supersede the earlier provisional statements th
 contracts remain accepted. ADR-025 records the historical Text-only and later
 six-source insertion milestones; ADR-030 records the subsequent seven-widget
 `SizedBox` milestone, ADR-031 records the eight-widget `Icon` milestone, and
-ADR-032 governs the current nine-widget capability-gated surface with 117
-candidate cells, 101 accepted and 16 rejected, including the complete `AppBar`
-vertical slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
+ADR-032 records the nine-widget `AppBar` milestone, and ADR-033 governs the
+current ten-widget capability-gated surface with 140 candidate cells, 122
+accepted and 18 rejected, including the complete `ElevatedButton` vertical
+slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
 ADR-029 authorizes exact named-slot management. None authorizes cross-form
 movement, arbitrary native Canvas mutation or unreviewed slots.
 
@@ -227,20 +228,22 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024, ADR-027, ADR-030, ADR-031 and ADR-032 make 211 catalog-backed
+framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032 and ADR-033 make 497 catalog-backed
 non-`Scaffold` Properties fields writable, including the 59-leaf Text
 projection, two `SizedBox` dimensions, 13 typed Icon constructor properties and
-120 grouped AppBar leaves.
+120 grouped AppBar leaves plus 286 ElevatedButton leaves.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
-nine-source, 117-candidate capability matrix (101 accepted and 16 rejected). Same-tree
+nine-source, 117-candidate capability matrix (101 accepted and 16 rejected),
+and ADR-033 supersedes it with ten sources and 140 candidates (122 accepted and
+18 rejected). Same-tree
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v7 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v8 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
-`SizedBox`; the
+`SizedBox`, plus `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract.
@@ -251,12 +254,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated nine-widget model for Mobile, Tablet, Desktop
+Canvas now renders the validated ten-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those nine Create-capable definitions, and the DnD-capable set uses the reviewed
-117-cell candidate matrix across eleven any-widget and two trait-bound
-destination slots; 101 cells are accepted and 16 rejected. No image or
+those ten Create-capable definitions, and the DnD-capable set uses the reviewed
+140-cell candidate matrix across twelve any-widget and two trait-bound
+destination slots; 122 cells are accepted and 18 rejected. No image or
 pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
@@ -810,8 +813,67 @@ Java binds the opaque one-shot token to the exact current canonical type and
 traits. Flutter uses that bounded authority only to filter visual hover zones;
 Java still consumes the token, re-resolves the latest immutable revision and
 repeats the canonical planner before admitting any command. Failure to project
-the source revokes the token before a native transferable is published. The
-active surface is therefore nine Create/Canvas/DnD definitions and 211 writable
+the source revokes the token before a native transferable is published. At the
+ADR-032 milestone the active surface was nine Create/Canvas/DnD definitions and 211 writable
 properties across the eight non-`Scaffold` definitions. `ElevatedButton`,
 writable `Scaffold`, contributed same-id definitions and unreviewed slots remain
 fail-closed.
+
+## ADR-033 — ElevatedButton is a complete sparse-state vertical slice
+
+Accepted for the next 0.1.3 Designer stage. `ElevatedButton` is admitted as one
+canonical definition across Properties, Create, Canvas, Palette/tree DnD,
+deterministic Dart generation, Save/reopen and Undo/Redo. Its closed writable
+contract has exactly 286 leaves: seven direct behavior/callback fields, five
+54-leaf groups for enabled/default, disabled, pressed, hovered and focused
+state values (26 `ButtonStyle` plus 28 effective `TextStyle` leaves per group),
+and nine common layout/feedback fields. `TextStyle.color` is intentionally not
+represented because Flutter resolves effective label color through
+`ButtonStyle.foregroundColor`. `ButtonStyle.iconAlignment` is likewise absent:
+pinned Flutter 3.44.8 consumes it only in the icon/label child synthesized by
+`ElevatedButton.icon`, while this slice admits the ordinary arbitrary-child
+constructor. `key`, `focusNode`, `statesController`,
+`backgroundBuilder`, `foregroundBuilder` and other runtime object references
+remain outside the serializable model.
+
+Callbacks are strict Dart identifiers, not arbitrary expressions. Generated
+Dart may reference those identifiers, but Canvas payload protocol v8 publishes
+only callback presence. The isolated runner creates inert typed closures and
+never receives or executes a project callback name. A disabled button emits
+null press callbacks; an enabled button with no press binding receives the
+generator-owned empty `onPressed` closure required to retain enabled semantics.
+The `.fd` document schema remains v4 because the existing callback value kind
+already expresses the persisted binding.
+
+Generation uses direct sparse `ButtonStyle` state properties. Scalar leaves use
+deterministic disabled, pressed, hovered, focused and default precedence.
+Compound leaves combine default, focused, hovered and pressed fragments per
+leaf over the atomic non-null `ElevatedButtonTheme` or framework-default
+compound; disabled uses only its own fragment over the inherited value. Partial
+axes and TextStyle structures therefore inherit without Canvas-only defaults,
+while explicit empty lists and Paint/color replacement remain authoritative. A
+missing `fixedSize` axis uses Flutter's infinity sentinel only when no inherited
+size exists and is clamped by any finite effective maximum on that axis. Each
+state with a local minimum or maximum bound resolves both inherited compounds
+and widens each effective maximum axis to its minimum; a state with no local
+bound returns a null pair so normal theme/default resolution remains intact.
+Each Text package fragment is applied after its current layered `TextStyle`,
+including active TextTheme and lower active-state font leaves, without crossing
+disabled or explicit `inherit: false` isolation. A fallback-only package
+replaces one prior package prefix and never synthesizes a `.../null` family.
+Local Text theme/inherit configuration requires one consistent explicit
+inherit mode across reachable states so Flutter can animate safely. The closed style editors cover theme/literal colors,
+typography, constraints, padding, borders, all `SystemMouseCursors`, six shape
+presets (`roundedRectangle`, `roundedSuperellipse`, `stadium`, `circle`,
+`beveledRectangle`, `continuousRectangle`) and four splash presets
+(`InkSplash`, `InkRipple`, `InkSparkle`, `NoSplash`).
+
+`ElevatedButton.child` is one optional-single, required-named-but-nullable slot.
+The empty catalog prototype is valid and generates `child: null`; an occupied
+slot accepts every reviewed source. Ten sources across twelve any-widget and
+two `PreferredSizeWidget` destinations form 140 candidate cells. Exactly 122
+are admitted and 18 rejected: only AppBar carries the trait required by
+`Scaffold.appBar` and `AppBar.bottom`. The active surface is therefore ten
+Create/Canvas/DnD definitions and 497 writable properties across the nine
+non-`Scaffold` definitions. Writable `Scaffold`, contributed same-id
+definitions and unreviewed slots remain fail-closed.

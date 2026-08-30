@@ -387,7 +387,7 @@ class WidgetTreeValidatorTest {
     @Test
     void distinguishesOmittedRequiredSlotFromPresentExplicitNull() {
         Map<PropertyName, PropertyValue> properties = Map.of(
-                name("onPressed"), new PropertyValue.DartExpressionValue("null"));
+                name("enabled"), new PropertyValue.BooleanValue(false));
         WidgetNode omitted = node(
                 "omitted", "flutter.material.ElevatedButton", properties, Map.of());
         WidgetNode explicitNull = node(

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.generation;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -36,6 +37,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +61,12 @@ public final class DartRegionGenerator {
     private static final Comparator<CompositeMember> COMPOSITE_MEMBER_ORDER = Comparator
             .comparingInt(CompositeMember::order)
             .thenComparing(CompositeMember::name);
+    private static final List<ElevatedButtonState> ELEVATED_BUTTON_STATES = List.of(
+            new ElevatedButtonState("styleDisabled", "disabled"),
+            new ElevatedButtonState("stylePressed", "pressed"),
+            new ElevatedButtonState("styleHovered", "hovered"),
+            new ElevatedButtonState("styleFocused", "focused"),
+            new ElevatedButtonState("style", "any"));
 
     private final DartGenerationLimits limits;
     private final WidgetTreeValidator validator;
@@ -283,6 +291,10 @@ public final class DartRegionGenerator {
                     && AppBarWidgetPropertySchema.isCompound(property.name())) {
                 continue;
             }
+            if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)
+                    && ElevatedButtonWidgetPropertySchema.isCompound(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
@@ -310,6 +322,10 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)) {
             appendAppBarCompoundArguments(
+                    node, definition, path, baseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)) {
+            appendElevatedButtonCompoundArguments(
                     node, definition, path, baseIndent + 2, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
@@ -392,6 +408,2215 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(baseIndent) + ')');
         return lines.build(constant);
+    }
+
+    private void appendElevatedButtonCompoundArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        appendElevatedButtonCallbacks(node, definition, path, context, arguments);
+
+        LinkedHashMap<String, Map<String, RenderedValue>> states = new LinkedHashMap<>();
+        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+            states.put(state.key(), renderElevatedButtonState(
+                    node, definition, state.prefix(), path, valueIndent + 2, context));
+        }
+
+        ArrayList<CompositeMember> style = new ArrayList<>();
+        RenderedValue textStyle = renderElevatedTextStyleStateProperty(
+                node, definition, path, valueIndent + 2, context);
+        if (textStyle != null) {
+            style.add(new CompositeMember("textStyle", 0, textStyle));
+        }
+        appendElevatedStateProperty(
+                style, states, "backgroundColor", "Color", 1,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "foregroundColor", "Color", 2,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "overlayColor", "Color", 3,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "shadowColor", "Color", 4,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "surfaceTintColor", "Color", 5,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "elevation", "double", 6,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "padding", "EdgeInsetsGeometry", 7,
+                path, node.id(), context);
+        ElevatedButtonBoundSizePair boundSizes =
+                renderElevatedBoundSizeStateProperties(
+                        node, definition, path, context);
+        if (boundSizes != null) {
+            style.add(new CompositeMember(
+                    "minimumSize", 8, boundSizes.minimum()));
+        }
+        RenderedValue fixedSize = renderElevatedSizeStateProperty(
+                node, definition, "Fixed", path, context);
+        if (fixedSize != null) {
+            style.add(new CompositeMember("fixedSize", 9, fixedSize));
+        }
+        if (boundSizes != null) {
+            style.add(new CompositeMember(
+                    "maximumSize", 10, boundSizes.maximum()));
+        }
+        appendElevatedStateProperty(
+                style, states, "iconColor", "Color", 11,
+                path, node.id(), context);
+        appendElevatedStateProperty(
+                style, states, "iconSize", "double", 12,
+                path, node.id(), context);
+        RenderedValue side = renderElevatedSideStateProperty(
+                node, definition, path, context);
+        if (side != null) {
+            style.add(new CompositeMember("side", 14, side));
+        }
+        RenderedValue shape = renderElevatedShapeStateProperty(
+                node, definition, path, context);
+        if (shape != null) {
+            style.add(new CompositeMember("shape", 15, shape));
+        }
+        appendElevatedStateProperty(
+                style, states, "mouseCursor", "MouseCursor", 16,
+                path, node.id(), context);
+
+        appendElevatedButtonCommonStyle(
+                node, definition, path, valueIndent + 2, context, style);
+        if (!style.isEmpty()) {
+            style.sort(COMPOSITE_MEMBER_ORDER);
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(4, false),
+                    "style",
+                    false,
+                    renderNamedCompositeMembers(
+                            MATERIAL_IMPORT, "ButtonStyle", Optional.empty(),
+                            style, valueIndent, path + "/properties/style",
+                            node.id(), context)));
+        }
+    }
+
+    private void appendElevatedButtonCallbacks(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        boolean enabled = !(node.properties().get(new PropertyName("enabled"))
+                instanceof PropertyValue.BooleanValue value) || value.value();
+        PropertyDefinition onPressed = elevatedProperty(definition, "onPressed");
+        PropertyDefinition onLongPress = elevatedProperty(definition, "onLongPress");
+        PropertyValue pressedValue = node.properties().get(onPressed.name());
+        PropertyValue longValue = node.properties().get(onLongPress.name());
+
+        RenderedValue pressed;
+        if (!enabled) {
+            pressed = scalar("null", true,
+                    path + "/properties/enabled", node.id(), context);
+        } else if (pressedValue != null) {
+            pressed = renderProperty(
+                    pressedValue, onPressed,
+                    path + "/properties/onPressed", node.id(), context);
+        } else if (longValue != null) {
+            pressed = scalar("null", true,
+                    path + "/properties/onPressed", node.id(), context);
+        } else {
+            pressed = scalar("() {}", false,
+                    path + "/properties/onPressed", node.id(), context);
+        }
+        arguments.add(new ConstructorArgument(
+                DartParameter.named(0, true), "onPressed", false, pressed));
+
+        if (!enabled) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(1, false), "onLongPress", false,
+                    scalar("null", true,
+                            path + "/properties/enabled", node.id(), context)));
+        } else if (longValue != null) {
+            arguments.add(new ConstructorArgument(
+                    DartParameter.named(1, false), "onLongPress", false,
+                    renderProperty(
+                            longValue, onLongPress,
+                            path + "/properties/onLongPress", node.id(), context)));
+        }
+
+    }
+
+    private static PropertyDefinition elevatedProperty(
+            WidgetDefinition definition,
+            String name) {
+        return definition.property(new PropertyName(name)).orElseThrow(() ->
+                new IllegalStateException(
+                        "ElevatedButton catalog is missing property " + name));
+    }
+
+    private Map<String, RenderedValue> renderElevatedButtonState(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String prefix,
+            String path,
+            int valueIndent,
+            GenerationContext context) {
+        LinkedHashMap<String, RenderedValue> values = new LinkedHashMap<>();
+        putElevatedScalar(node, definition, prefix + "BackgroundColor",
+                "backgroundColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "ForegroundColor",
+                "foregroundColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "OverlayColor",
+                "overlayColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "ShadowColor",
+                "shadowColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "SurfaceTintColor",
+                "surfaceTintColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "Elevation",
+                "elevation", path, context, values);
+        putElevatedScalar(node, definition, prefix + "Padding",
+                "padding", path, context, values);
+        putElevatedScalar(node, definition, prefix + "IconColor",
+                "iconColor", path, context, values);
+        putElevatedScalar(node, definition, prefix + "IconSize",
+                "iconSize", path, context, values);
+
+        putIfPresent(values, "mouseCursor", renderElevatedCursor(
+                node, definition, prefix + "MouseCursor", path, context));
+        return Map.copyOf(values);
+    }
+
+    private void putElevatedScalar(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String propertyName,
+            String fieldName,
+            String path,
+            GenerationContext context,
+            Map<String, RenderedValue> values) {
+        PropertyDefinition property = elevatedProperty(definition, propertyName);
+        PropertyValue value = node.properties().get(property.name());
+        if (value != null) {
+            values.put(fieldName, renderProperty(
+                    value, property,
+                    path + "/properties/" + pointer(propertyName),
+                    node.id(), context));
+        }
+    }
+
+    private static void putIfPresent(
+            Map<String, RenderedValue> values,
+            String name,
+            RenderedValue value) {
+        if (value != null) {
+            values.put(name, value);
+        }
+    }
+
+    private void appendElevatedStateProperty(
+            List<CompositeMember> style,
+            Map<String, Map<String, RenderedValue>> states,
+            String dartName,
+            String valueType,
+            int order,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        Map<String, RenderedValue> disabled = states.get("disabled");
+        Map<String, RenderedValue> pressed = states.get("pressed");
+        Map<String, RenderedValue> hovered = states.get("hovered");
+        Map<String, RenderedValue> focused = states.get("focused");
+        Map<String, RenderedValue> fallback = states.get("any");
+        RenderedValue disabledValue = disabled.get(dartName);
+        RenderedValue pressedValue = pressed.get(dartName);
+        RenderedValue hoveredValue = hovered.get(dartName);
+        RenderedValue focusedValue = focused.get(dartName);
+        RenderedValue fallbackValue = fallback.get(dartName);
+        if (disabledValue == null
+                && pressedValue == null
+                && hoveredValue == null
+                && focusedValue == null
+                && fallbackValue == null) {
+            return;
+        }
+
+        ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+        if (disabledValue != null) {
+            entries.add(new ElevatedButtonStateEntry("disabled", disabledValue));
+        } else {
+            // Every locally configured enabled-state value is guarded. A
+            // disabled widget can simultaneously retain focus/hover in
+            // Flutter, so omitting this exact null would let a lower-priority
+            // enabled-state entry leak into disabled rendering.
+            entries.add(new ElevatedButtonStateEntry(
+                    "disabled",
+                    scalar("null", true, path + "/properties/styleDisabled",
+                            widgetId, context)));
+        }
+        if (pressedValue != null) {
+            entries.add(new ElevatedButtonStateEntry("pressed", pressedValue));
+        }
+        if (hoveredValue != null) {
+            entries.add(new ElevatedButtonStateEntry("hovered", hoveredValue));
+        }
+        if (focusedValue != null) {
+            entries.add(new ElevatedButtonStateEntry("focused", focusedValue));
+        }
+        if (fallbackValue != null) {
+            entries.add(new ElevatedButtonStateEntry("any", fallbackValue));
+        }
+        style.add(new CompositeMember(
+                dartName,
+                order,
+                renderElevatedStateMap(
+                        dartName, valueType, entries,
+                        path + "/properties/style/" + dartName,
+                        widgetId, context)));
+    }
+
+    private RenderedValue renderElevatedStateMap(
+            String propertyName,
+            String valueType,
+            List<ElevatedButtonStateEntry> entries,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol constraintType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStatesConstraint");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        RenderedSymbol valueSymbol = valueType.equals("double")
+                ? null
+                : context.planner().renderedSymbol(WIDGETS_IMPORT, valueType);
+
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + widgetId + ":button-style:" + propertyName
+                + ":state-property", path, widgetId);
+        rendered.append('<');
+        appendElevatedType(
+                rendered, occurrences, valueType, valueSymbol,
+                "widget:" + widgetId + ":button-style:" + propertyName
+                + ":value-type-1", path, widgetId);
+        rendered.append("?>.fromMap(<");
+        appendElevatedSymbol(
+                rendered, occurrences, constraintType,
+                "widget:" + widgetId + ":button-style:" + propertyName
+                + ":constraint-type", path, widgetId);
+        rendered.append(", ");
+        appendElevatedType(
+                rendered, occurrences, valueType, valueSymbol,
+                "widget:" + widgetId + ":button-style:" + propertyName
+                + ":value-type-2", path, widgetId);
+        rendered.append("?>{");
+        for (int index = 0; index < entries.size(); index++) {
+            if (index > 0) {
+                rendered.append(", ");
+            }
+            ElevatedButtonStateEntry entry = entries.get(index);
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + widgetId + ":button-style:" + propertyName
+                    + ":state:" + entry.state(), path, widgetId);
+            rendered.append('.').append(entry.state()).append(": ");
+            appendRendered(rendered, occurrences, entry.value());
+        }
+        rendered.append("})");
+        return scalar(rendered.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private static void appendElevatedType(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String valueType,
+            RenderedSymbol symbol,
+            String occurrenceId,
+            String path,
+            StableId widgetId) {
+        if (symbol == null) {
+            rendered.append(valueType);
+        } else {
+            appendElevatedSymbol(
+                    rendered, occurrences, symbol, occurrenceId, path, widgetId);
+        }
+    }
+
+    private static void appendElevatedSymbol(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            RenderedSymbol symbol,
+            String occurrenceId,
+            String path,
+            StableId widgetId) {
+        int offset = rendered.length();
+        rendered.append(symbol.text());
+        occurrences.add(occurrence(
+                occurrenceId,
+                offset + symbol.nameOffset(),
+                symbol.name(),
+                symbol.libraryUri(),
+                path,
+                Optional.of(widgetId)));
+    }
+
+    private ElevatedButtonBoundSizePair renderElevatedBoundSizeStateProperties(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context) {
+        LinkedHashMap<String, ElevatedButtonLayer> layers = elevatedLayers(
+                node, definition, path, context,
+                List.of(
+                        "MinimumWidth", "MinimumHeight",
+                        "MaximumWidth", "MaximumHeight"));
+        if (layers.values().stream().noneMatch(ElevatedButtonLayer::configured)) {
+            return null;
+        }
+        return new ElevatedButtonBoundSizePair(
+                renderElevatedBoundSizeStateProperty(
+                        node, layers, false, path, context),
+                renderElevatedBoundSizeStateProperty(
+                        node, layers, true, path, context));
+    }
+
+    private RenderedValue renderElevatedBoundSizeStateProperty(
+            WidgetNode node,
+            Map<String, ElevatedButtonLayer> layers,
+            boolean returnMaximum,
+            String path,
+            GenerationContext context) {
+        String dartField = returnMaximum ? "maximumSize" : "minimumSize";
+        String propertyPath = path + "/properties/style/" + dartField;
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol sizeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Size");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + node.id() + ":button-style:" + dartField
+                + ":paired-resolver",
+                propertyPath, node.id());
+        rendered.append(".resolveWith<");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + node.id() + ":button-style:" + dartField
+                + ":paired-value-type",
+                propertyPath, node.id());
+        rendered.append("?>((states) {\n");
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                "paired-" + dartField);
+        appendElevatedInheritedBoundSize(
+                rendered, occurrences, sizeType, node.id(), context,
+                propertyPath, dartField, "minimumSize", "inheritedMinimum");
+        appendElevatedInheritedBoundSize(
+                rendered, occurrences, sizeType, node.id(), context,
+                propertyPath, dartField, "maximumSize", "inheritedMaximum");
+
+        rendered.append("  if (states.contains(");
+        appendElevatedSymbol(
+                rendered, occurrences, stateType,
+                "widget:" + node.id() + ":button-style:" + dartField
+                + ":paired-disabled-state",
+                propertyPath, node.id());
+        rendered.append(".disabled)) {\n");
+        ElevatedButtonLayer disabled = layers.get("disabled");
+        if (disabled.configured()) {
+            appendElevatedBoundSizeResolution(
+                    rendered, occurrences, node.id(), layers, disabled,
+                    true, returnMaximum, sizeType, stateType,
+                    propertyPath, dartField, "disabled");
+        } else {
+            rendered.append("    return null;\n");
+        }
+        rendered.append("  }\n");
+
+        ElevatedButtonLayer base = layers.get("any");
+        List<String> configuredStates = List.of("focused", "hovered", "pressed")
+                .stream()
+                .filter(state -> layers.get(state).configured())
+                .toList();
+        if (!base.configured() && configuredStates.isEmpty()) {
+            rendered.append("  return null;\n})");
+            return scalar(rendered.toString(), false, propertyPath,
+                    node.id(), context, occurrences);
+        }
+        if (!base.configured()) {
+            rendered.append("  if (");
+            for (int index = 0; index < configuredStates.size(); index++) {
+                if (index > 0) {
+                    rendered.append(" && ");
+                }
+                String state = configuredStates.get(index);
+                rendered.append("!states.contains(");
+                appendElevatedSymbol(
+                        rendered, occurrences, stateType,
+                        "widget:" + node.id() + ":button-style:" + dartField
+                        + ":paired-applicability:" + state,
+                        propertyPath, node.id());
+                rendered.append('.').append(state).append(')');
+            }
+            rendered.append(") {\n    return null;\n  }\n");
+        }
+        appendElevatedBoundSizeResolution(
+                rendered, occurrences, node.id(), layers, null,
+                false, returnMaximum, sizeType, stateType,
+                propertyPath, dartField, "enabled");
+        rendered.append("})");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private void appendElevatedInheritedBoundSize(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            RenderedSymbol sizeType,
+            StableId widgetId,
+            GenerationContext context,
+            String path,
+            String resolverField,
+            String inheritedField,
+            String variable) {
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + widgetId + ":button-style:" + resolverField
+                + ":paired-inherited-type:" + inheritedField,
+                path, widgetId);
+        rendered.append("? ").append(variable).append(" = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, inheritedField, path, widgetId, context,
+                "frameworkDefaults");
+        rendered.append(";\n");
+    }
+
+    private void appendElevatedBoundSizeResolution(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            StableId widgetId,
+            Map<String, ElevatedButtonLayer> layers,
+            ElevatedButtonLayer isolated,
+            boolean disabled,
+            boolean returnMaximum,
+            RenderedSymbol sizeType,
+            RenderedSymbol stateType,
+            String path,
+            String resolverField,
+            String branch) {
+        String indent = disabled ? "    " : "  ";
+        rendered.append(indent).append("final effectiveMinimum = ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + widgetId + ":button-style:" + resolverField
+                + ":paired-minimum:" + branch,
+                path, widgetId);
+        rendered.append('(');
+        appendElevatedBoundLeaf(
+                rendered, occurrences, layers, isolated,
+                "MinimumWidth", "inheritedMinimum?.width", "0.0",
+                stateType, widgetId, path,
+                resolverField + "-minimum-width", disabled);
+        rendered.append(", ");
+        appendElevatedBoundLeaf(
+                rendered, occurrences, layers, isolated,
+                "MinimumHeight", "inheritedMinimum?.height", "0.0",
+                stateType, widgetId, path,
+                resolverField + "-minimum-height", disabled);
+        rendered.append(");\n");
+
+        rendered.append(indent).append("final unresolvedMaximum = ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + widgetId + ":button-style:" + resolverField
+                + ":paired-unresolved-maximum:" + branch,
+                path, widgetId);
+        rendered.append('(');
+        appendElevatedBoundLeaf(
+                rendered, occurrences, layers, isolated,
+                "MaximumWidth", "inheritedMaximum?.width", "double.infinity",
+                stateType, widgetId, path,
+                resolverField + "-maximum-width", disabled);
+        rendered.append(", ");
+        appendElevatedBoundLeaf(
+                rendered, occurrences, layers, isolated,
+                "MaximumHeight", "inheritedMaximum?.height", "double.infinity",
+                stateType, widgetId, path,
+                resolverField + "-maximum-height", disabled);
+        rendered.append(");\n");
+
+        rendered.append(indent).append("final effectiveMaximum = ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + widgetId + ":button-style:" + resolverField
+                + ":paired-effective-maximum:" + branch,
+                path, widgetId);
+        rendered.append("(\n")
+                .append(indent).append("  unresolvedMaximum.width ")
+                .append("< effectiveMinimum.width\n")
+                .append(indent).append("      ? effectiveMinimum.width\n")
+                .append(indent).append("      : unresolvedMaximum.width,\n")
+                .append(indent).append("  unresolvedMaximum.height ")
+                .append("< effectiveMinimum.height\n")
+                .append(indent).append("      ? effectiveMinimum.height\n")
+                .append(indent).append("      : unresolvedMaximum.height,\n")
+                .append(indent).append(");\n")
+                .append(indent).append("return ")
+                .append(returnMaximum ? "effectiveMaximum" : "effectiveMinimum")
+                .append(";\n");
+    }
+
+    private static void appendElevatedBoundLeaf(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            Map<String, ElevatedButtonLayer> layers,
+            ElevatedButtonLayer isolated,
+            String suffix,
+            String inherited,
+            String terminalFallback,
+            RenderedSymbol stateType,
+            StableId widgetId,
+            String path,
+            String leafId,
+            boolean disabled) {
+        if (disabled) {
+            appendElevatedLeafFallback(
+                    rendered, occurrences, isolated.values().get(suffix), null,
+                    inherited, terminalFallback);
+            return;
+        }
+        appendElevatedLayeredStateLeaf(
+                rendered, occurrences, layers, suffix, inherited,
+                terminalFallback, stateType, widgetId, path, leafId);
+    }
+
+    private RenderedValue renderElevatedSizeStateProperty(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String sizeKind,
+            String path,
+            GenerationContext context) {
+        LinkedHashMap<String, ElevatedButtonLayer> layers = elevatedLayers(
+                node, definition, path, context,
+                List.of(sizeKind + "Width", sizeKind + "Height"));
+        if (layers.values().stream().noneMatch(ElevatedButtonLayer::configured)) {
+            return null;
+        }
+
+        String dartField = Character.toLowerCase(sizeKind.charAt(0))
+                + sizeKind.substring(1) + "Size";
+        String propertyPath = path + "/properties/style/" + dartField;
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol sizeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Size");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + node.id() + ":button-style:" + dartField + ":resolver",
+                propertyPath, node.id());
+        rendered.append(".resolveWith<");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + node.id() + ":button-style:" + dartField + ":value-type",
+                propertyPath, node.id());
+        rendered.append("?>((states) {\n");
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                dartField);
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + node.id() + ":button-style:" + dartField + ":inherited-type",
+                propertyPath, node.id());
+        rendered.append("? inherited = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, dartField, propertyPath, node.id(), context,
+                "frameworkDefaults");
+        rendered.append(";\n  if (states.contains(");
+        appendElevatedSymbol(
+                rendered, occurrences, stateType,
+                "widget:" + node.id() + ":button-style:" + dartField + ":disabled-state",
+                propertyPath, node.id());
+        rendered.append(".disabled)) {\n");
+        ElevatedButtonLayer disabled = layers.get("disabled");
+        if (disabled.configured()) {
+            appendElevatedSizeReturn(
+                    rendered, occurrences, node, sizeType, sizeKind,
+                    disabled, null, propertyPath, context, "disabled");
+        } else {
+            rendered.append("    return inherited;\n");
+        }
+        rendered.append("  }\n");
+        rendered.append("  return ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + node.id() + ":button-size:" + sizeKind + ":enabled",
+                propertyPath, node.id());
+        rendered.append('(');
+        appendElevatedLayeredStateLeaf(
+                rendered, occurrences, layers, sizeKind + "Width",
+                "inherited?.width",
+                sizeKind.equals("Minimum") ? "0.0" : "double.infinity",
+                stateType, node.id(), propertyPath, "width");
+        rendered.append(", ");
+        appendElevatedLayeredStateLeaf(
+                rendered, occurrences, layers, sizeKind + "Height",
+                "inherited?.height",
+                sizeKind.equals("Minimum") ? "0.0" : "double.infinity",
+                stateType, node.id(), propertyPath, "height");
+        rendered.append(");\n");
+        rendered.append("})");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private void appendElevatedSizeReturn(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            RenderedSymbol sizeType,
+            String sizeKind,
+            ElevatedButtonLayer selected,
+            ElevatedButtonLayer base,
+            String path,
+            GenerationContext context,
+            String branch) {
+        String fallback = sizeKind.equals("Minimum") ? "0.0" : "double.infinity";
+        rendered.append("    return ");
+        appendElevatedSymbol(
+                rendered, occurrences, sizeType,
+                "widget:" + node.id() + ":button-size:" + sizeKind + ':' + branch,
+                path, node.id());
+        rendered.append('(');
+        appendElevatedLeafFallback(
+                rendered, occurrences, selected.values().get(sizeKind + "Width"),
+                base == null ? null : base.values().get(sizeKind + "Width"),
+                "inherited?.width", fallback);
+        rendered.append(", ");
+        appendElevatedLeafFallback(
+                rendered, occurrences, selected.values().get(sizeKind + "Height"),
+                base == null ? null : base.values().get(sizeKind + "Height"),
+                "inherited?.height", fallback);
+        rendered.append(");\n");
+    }
+
+    private RenderedValue renderElevatedSideStateProperty(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context) {
+        List<String> suffixes = List.of(
+                "SideColor", "SideWidth", "SideStyle", "SideStrokeAlign");
+        LinkedHashMap<String, ElevatedButtonLayer> layers = elevatedLayers(
+                node, definition, path, context, suffixes);
+        if (layers.values().stream().noneMatch(ElevatedButtonLayer::configured)) {
+            return null;
+        }
+
+        String propertyPath = path + "/properties/style/side";
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol sideType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "BorderSide");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + node.id() + ":button-style:side:resolver",
+                propertyPath, node.id());
+        rendered.append(".resolveWith<");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-style:side:value-type",
+                propertyPath, node.id());
+        rendered.append("?>((states) {\n");
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                "side");
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-style:side:inherited-type",
+                propertyPath, node.id());
+        rendered.append("? inherited = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, "side", propertyPath, node.id(), context,
+                "frameworkDefaults");
+        rendered.append(";\n  final ");
+        RenderedSymbol shapeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "OutlinedBorder");
+        appendElevatedSymbol(
+                rendered, occurrences, shapeType,
+                "widget:" + node.id() + ":button-style:side:inherited-shape-type",
+                propertyPath, node.id());
+        rendered.append("? inheritedShape = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, "shape", propertyPath, node.id(), context,
+                "frameworkDefaults");
+        rendered.append(";\n  if (states.contains(");
+        appendElevatedSymbol(
+                rendered, occurrences, stateType,
+                "widget:" + node.id() + ":button-style:side:disabled-state",
+                propertyPath, node.id());
+        rendered.append(".disabled)) {\n");
+        ElevatedButtonLayer disabled = layers.get("disabled");
+        if (disabled.configured()) {
+            appendElevatedSideReturn(
+                    rendered, occurrences, node, sideType,
+                    disabled, null, propertyPath, "disabled");
+        } else {
+            rendered.append("    return inherited;\n");
+        }
+        rendered.append("  }\n");
+
+        rendered.append("  var resolved = inherited ?? inheritedShape?.side ?? ");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-side:fallback:enabled",
+                propertyPath, node.id());
+        rendered.append(".none;\n");
+        ElevatedButtonLayer base = layers.get("any");
+        if (base.configured()) {
+            appendElevatedSideAssignment(
+                    rendered, occurrences, base, propertyPath, "any", node.id());
+        }
+        for (String state : List.of("focused", "hovered", "pressed")) {
+            ElevatedButtonLayer layer = layers.get(state);
+            if (!layer.configured()) {
+                continue;
+            }
+            rendered.append("  if (states.contains(");
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + node.id() + ":button-style:side:" + state + "-state",
+                    propertyPath, node.id());
+            rendered.append('.').append(state).append(")) {\n");
+            appendElevatedSideAssignment(
+                    rendered, occurrences, layer,
+                    propertyPath, state, node.id());
+            rendered.append("  }\n");
+        }
+        rendered.append("  return resolved;\n");
+        rendered.append("})");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private void appendElevatedSideReturn(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            RenderedSymbol sideType,
+            ElevatedButtonLayer selected,
+            ElevatedButtonLayer base,
+            String path,
+            String branch) {
+        rendered.append("    return (inherited ?? inheritedShape?.side ?? ");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-side:fallback:" + branch,
+                path, node.id());
+        rendered.append(".none).copyWith(");
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "color", "SideColor", selected, base);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "width", "SideWidth", selected, base);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "style", "SideStyle", selected, base);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "strokeAlign", "SideStrokeAlign", selected, base);
+        trimTrailingCommaSpace(rendered);
+        rendered.append(");\n");
+    }
+
+    private static void appendElevatedSideAssignment(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            ElevatedButtonLayer layer,
+            String path,
+            String branch,
+            StableId widgetId) {
+        rendered.append("    resolved = resolved.copyWith(");
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "color", "SideColor", layer, null);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "width", "SideWidth", layer, null);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "style", "SideStyle", layer, null);
+        appendElevatedCopyWithLeaf(
+                rendered, occurrences, "strokeAlign", "SideStrokeAlign", layer, null);
+        trimTrailingCommaSpace(rendered);
+        rendered.append(");\n");
+    }
+
+    private static void appendElevatedLayeredStateLeaf(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            Map<String, ElevatedButtonLayer> layers,
+            String suffix,
+            String inherited,
+            String terminalFallback,
+            RenderedSymbol stateType,
+            StableId widgetId,
+            String path,
+            String leafId) {
+        for (String state : List.of("pressed", "hovered", "focused")) {
+            RenderedValue value = layers.get(state).values().get(suffix);
+            if (value == null) {
+                continue;
+            }
+            rendered.append("states.contains(");
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + widgetId + ":button-style:" + leafId
+                    + ':' + state + "-state",
+                    path, widgetId);
+            rendered.append('.').append(state).append(") ? ");
+            appendRendered(rendered, occurrences, value);
+            rendered.append(" : ");
+        }
+        RenderedValue base = layers.get("any").values().get(suffix);
+        if (base != null) {
+            appendRendered(rendered, occurrences, base);
+        } else {
+            rendered.append(inherited).append(" ?? ").append(terminalFallback);
+        }
+    }
+
+    private LinkedHashMap<String, ElevatedButtonLayer> elevatedLayers(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<String> suffixes) {
+        LinkedHashMap<String, ElevatedButtonLayer> layers = new LinkedHashMap<>();
+        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+            LinkedHashMap<String, RenderedValue> values = new LinkedHashMap<>();
+            for (String suffix : suffixes) {
+                String propertyName = state.prefix() + suffix;
+                PropertyDefinition property = elevatedProperty(definition, propertyName);
+                PropertyValue value = node.properties().get(property.name());
+                if (value != null) {
+                    values.put(suffix, renderProperty(
+                            value, property,
+                            path + "/properties/" + pointer(propertyName),
+                            node.id(), context));
+                }
+            }
+            layers.put(state.key(), new ElevatedButtonLayer(
+                    state.prefix(), Map.copyOf(values)));
+        }
+        return layers;
+    }
+
+    private void appendElevatedInheritedStateValue(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String field,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            String frameworkVariable) {
+        RenderedSymbol themeType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "ElevatedButtonTheme");
+        appendElevatedSymbol(
+                rendered, occurrences, themeType,
+                "widget:" + widgetId + ":button-style:" + field + ":theme:" + path,
+                path, widgetId);
+        rendered.append(".of(context).style?.").append(field)
+                .append("?.resolve(states) ?? ")
+                .append(frameworkVariable).append('.').append(field)
+                .append("?.resolve(states)");
+    }
+
+    private void appendElevatedFrameworkDefaultsDeclaration(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            String scope) {
+        RenderedSymbol styleType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "ButtonStyle");
+        RenderedSymbol buttonType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "ElevatedButton");
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, styleType,
+                "widget:" + widgetId + ":button-style:framework-style-type:"
+                + scope + ':' + path,
+                path, widgetId);
+        rendered.append(" frameworkDefaults = (const ");
+        appendElevatedSymbol(
+                rendered, occurrences, buttonType,
+                "widget:" + widgetId + ":button-style:default-button:"
+                + scope + ':' + path,
+                path, widgetId);
+        rendered.append("(onPressed: null, child: null)).defaultStyleOf(context);\n");
+    }
+
+    private static void appendElevatedLeafFallback(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            RenderedValue selected,
+            RenderedValue base,
+            String inherited,
+            String terminalFallback) {
+        if (selected != null) {
+            appendRendered(rendered, occurrences, selected);
+            return;
+        }
+        if (base != null) {
+            appendRendered(rendered, occurrences, base);
+            return;
+        }
+        rendered.append(inherited).append(" ?? ").append(terminalFallback);
+    }
+
+    private static void appendElevatedCopyWithLeaf(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String dartName,
+            String suffix,
+            ElevatedButtonLayer selected,
+            ElevatedButtonLayer base) {
+        RenderedValue value = selected.values().get(suffix);
+        if (value == null && base != null) {
+            value = base.values().get(suffix);
+        }
+        if (value != null) {
+            rendered.append(dartName).append(": ");
+            appendRendered(rendered, occurrences, value);
+            rendered.append(", ");
+        }
+    }
+
+    private static void trimTrailingCommaSpace(StringBuilder rendered) {
+        if (rendered.length() >= 2
+                && rendered.substring(rendered.length() - 2).equals(", ")) {
+            rendered.setLength(rendered.length() - 2);
+        }
+    }
+
+    private void addElevatedMember(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String propertyName,
+            String dartName,
+            int order,
+            String path,
+            GenerationContext context,
+            List<CompositeMember> members) {
+        PropertyDefinition property = elevatedProperty(definition, propertyName);
+        PropertyValue value = node.properties().get(property.name());
+        if (value != null) {
+            members.add(new CompositeMember(
+                    dartName,
+                    order,
+                    renderProperty(value, property,
+                            path + "/properties/" + pointer(propertyName),
+                            node.id(), context)));
+        }
+    }
+
+    private RenderedValue renderElevatedCursor(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String propertyName,
+            String path,
+            GenerationContext context) {
+        PropertyDefinition property = elevatedProperty(definition, propertyName);
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof PropertyValue.StringValue cursor)) {
+            throw catalogInconsistency(
+                    path + "/properties/" + pointer(propertyName), node.id(),
+                    propertyName + " must be a validated cursor preset string.");
+        }
+        RenderedSymbol cursors = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "SystemMouseCursors");
+        return scalar(
+                cursors.text() + '.' + cursor.value(),
+                true,
+                path + "/properties/" + pointer(propertyName),
+                node.id(),
+                context,
+                List.of(occurrence(
+                        "widget:" + node.id() + ":button-cursor:" + propertyName,
+                        cursors.nameOffset(), cursors.name(), cursors.libraryUri(),
+                        path + "/properties/" + pointer(propertyName),
+                        Optional.of(node.id()))));
+    }
+
+    private RenderedValue renderElevatedShapeStateProperty(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context) {
+        List<String> suffixes = List.of(
+                "ShapeKind",
+                "ShapeRadiusTopLeft", "ShapeRadiusTopRight",
+                "ShapeRadiusBottomRight", "ShapeRadiusBottomLeft",
+                "ShapeCircleEccentricity");
+        LinkedHashMap<String, ElevatedButtonLayer> layers = elevatedLayers(
+                node, definition, path, context, suffixes);
+        if (layers.values().stream().noneMatch(ElevatedButtonLayer::configured)) {
+            return null;
+        }
+
+        String propertyPath = path + "/properties/style/shape";
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol shapeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "OutlinedBorder");
+        RenderedSymbol borderRadiusType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "BorderRadius");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + node.id() + ":button-style:shape:resolver",
+                propertyPath, node.id());
+        rendered.append(".resolveWith<");
+        appendElevatedSymbol(
+                rendered, occurrences, shapeType,
+                "widget:" + node.id() + ":button-style:shape:value-type",
+                propertyPath, node.id());
+        rendered.append("?>((states) {\n");
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                "shape");
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, shapeType,
+                "widget:" + node.id() + ":button-style:shape:inherited-type",
+                propertyPath, node.id());
+        rendered.append("? inherited = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, "shape", propertyPath, node.id(), context,
+                "frameworkDefaults");
+        rendered.append(";\n  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, borderRadiusType,
+                "widget:" + node.id() + ":button-style:shape:inherited-radius-type",
+                propertyPath, node.id());
+        rendered.append(" inheritedRadii = switch (inherited) {\n");
+        for (String dartClass : List.of(
+                "RoundedRectangleBorder", "RoundedSuperellipseBorder",
+                "BeveledRectangleBorder", "ContinuousRectangleBorder")) {
+            RenderedSymbol subtype = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, dartClass);
+            rendered.append("    ");
+            appendElevatedSymbol(
+                    rendered, occurrences, subtype,
+                    "widget:" + node.id() + ":button-style:shape:inherited-" + dartClass,
+                    propertyPath, node.id());
+            rendered.append(" value => value.borderRadius.resolve(Directionality.of(context)),\n");
+        }
+        rendered.append("    _ => ");
+        appendElevatedSymbol(
+                rendered, occurrences, borderRadiusType,
+                "widget:" + node.id() + ":button-style:shape:zero-radius",
+                propertyPath, node.id());
+        rendered.append(".zero,\n  };\n  if (states.contains(");
+        appendElevatedSymbol(
+                rendered, occurrences, stateType,
+                "widget:" + node.id() + ":button-style:shape:disabled-state",
+                propertyPath, node.id());
+        rendered.append(".disabled)) {\n");
+        ElevatedButtonLayer disabled = layers.get("disabled");
+        if (disabled.configured()) {
+            appendElevatedShapeReturn(
+                    rendered, occurrences, node, disabled, null,
+                    propertyPath, context, "disabled");
+        } else {
+            rendered.append("    return inherited;\n");
+        }
+        rendered.append("  }\n");
+
+        for (String state : List.of("pressed", "hovered", "focused")) {
+            ElevatedButtonLayer layer = layers.get(state);
+            if (!layer.values().containsKey("ShapeKind")) {
+                continue;
+            }
+            rendered.append("  if (states.contains(");
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + node.id() + ":button-style:shape:" + state + "-state",
+                    propertyPath, node.id());
+            rendered.append('.').append(state).append(")) {\n");
+            appendElevatedLayeredShapeReturn(
+                    rendered, occurrences, node, layer, layers,
+                    propertyPath, context, state, stateType);
+            rendered.append("  }\n");
+        }
+        ElevatedButtonLayer base = layers.get("any");
+        if (base.values().containsKey("ShapeKind")) {
+            appendElevatedLayeredShapeReturn(
+                    rendered, occurrences, node, base, layers,
+                    propertyPath, context, "any", stateType);
+        } else {
+            rendered.append("  return inherited;\n");
+        }
+        rendered.append("})");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private void appendElevatedShapeReturn(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            ElevatedButtonLayer selected,
+            ElevatedButtonLayer base,
+            String path,
+            GenerationContext context,
+            String branch) {
+        PropertyValue rawKind = node.properties().get(new PropertyName(
+                selected.prefix() + "ShapeKind"));
+        if (!(rawKind instanceof PropertyValue.StringValue kind)) {
+            throw catalogInconsistency(
+                    path, node.id(),
+                    selected.prefix() + "ShapeKind must be a validated shape preset string.");
+        }
+        String dartClass = switch (kind.value()) {
+            case "roundedRectangle" -> "RoundedRectangleBorder";
+            case "roundedSuperellipse" -> "RoundedSuperellipseBorder";
+            case "stadium" -> "StadiumBorder";
+            case "circle" -> "CircleBorder";
+            case "beveledRectangle" -> "BeveledRectangleBorder";
+            case "continuousRectangle" -> "ContinuousRectangleBorder";
+            default -> throw catalogInconsistency(
+                    path, node.id(),
+                    "Unsupported validated ElevatedButton shape kind '"
+                    + kind.value() + "'.");
+        };
+        RenderedSymbol shapeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        RenderedSymbol sideType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "BorderSide");
+        rendered.append("    return ");
+        appendElevatedSymbol(
+                rendered, occurrences, shapeType,
+                "widget:" + node.id() + ":button-shape:" + dartClass + ':' + branch,
+                path, node.id());
+        rendered.append("(side: inherited?.side ?? ");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-shape:side-fallback:" + branch,
+                path, node.id());
+        rendered.append(".none");
+        if (Set.of(
+                "roundedRectangle", "roundedSuperellipse",
+                "beveledRectangle", "continuousRectangle")
+                .contains(kind.value())) {
+            RenderedSymbol borderRadiusType = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "BorderRadius");
+            rendered.append(", borderRadius: ");
+            appendElevatedSymbol(
+                    rendered, occurrences, borderRadiusType,
+                    "widget:" + node.id() + ":button-shape:border-radius:" + branch,
+                    path, node.id());
+            rendered.append(".only(");
+            appendElevatedShapeRadius(
+                    rendered, occurrences, node, selected, base,
+                    "TopLeft", "topLeft", path, context, branch);
+            appendElevatedShapeRadius(
+                    rendered, occurrences, node, selected, base,
+                    "TopRight", "topRight", path, context, branch);
+            appendElevatedShapeRadius(
+                    rendered, occurrences, node, selected, base,
+                    "BottomRight", "bottomRight", path, context, branch);
+            appendElevatedShapeRadius(
+                    rendered, occurrences, node, selected, base,
+                    "BottomLeft", "bottomLeft", path, context, branch);
+            trimTrailingCommaSpace(rendered);
+            rendered.append(')');
+        } else if (kind.value().equals("circle")) {
+            rendered.append(", eccentricity: ");
+            appendElevatedLeafFallback(
+                    rendered, occurrences,
+                    selected.values().get("ShapeCircleEccentricity"),
+                    base == null ? null
+                            : base.values().get("ShapeCircleEccentricity"),
+                    "inherited is CircleBorder ? inherited.eccentricity : null",
+                    "0.0");
+        }
+        rendered.append(");\n");
+    }
+
+    private void appendElevatedShapeRadius(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            ElevatedButtonLayer selected,
+            ElevatedButtonLayer base,
+            String suffix,
+            String dartName,
+            String path,
+            GenerationContext context,
+            String branch) {
+        rendered.append(dartName).append(": ");
+        RenderedValue value = selected.values().get("ShapeRadius" + suffix);
+        if (value == null && base != null) {
+            value = base.values().get("ShapeRadius" + suffix);
+        }
+        if (value == null) {
+            rendered.append("inheritedRadii.").append(dartName);
+        } else {
+            RenderedSymbol radiusType = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "Radius");
+            appendElevatedSymbol(
+                    rendered, occurrences, radiusType,
+                    "widget:" + node.id() + ":button-shape:radius-"
+                    + dartName + ':' + branch,
+                    path, node.id());
+            rendered.append(".circular(");
+            appendRendered(rendered, occurrences, value);
+            rendered.append(')');
+        }
+        rendered.append(", ");
+    }
+
+    private void appendElevatedLayeredShapeReturn(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            ElevatedButtonLayer selectedKind,
+            Map<String, ElevatedButtonLayer> layers,
+            String path,
+            GenerationContext context,
+            String branch,
+            RenderedSymbol stateType) {
+        PropertyValue rawKind = node.properties().get(new PropertyName(
+                selectedKind.prefix() + "ShapeKind"));
+        if (!(rawKind instanceof PropertyValue.StringValue kind)) {
+            throw catalogInconsistency(
+                    path, node.id(),
+                    selectedKind.prefix()
+                    + "ShapeKind must be a validated shape preset string.");
+        }
+        String dartClass = switch (kind.value()) {
+            case "roundedRectangle" -> "RoundedRectangleBorder";
+            case "roundedSuperellipse" -> "RoundedSuperellipseBorder";
+            case "stadium" -> "StadiumBorder";
+            case "circle" -> "CircleBorder";
+            case "beveledRectangle" -> "BeveledRectangleBorder";
+            case "continuousRectangle" -> "ContinuousRectangleBorder";
+            default -> throw catalogInconsistency(
+                    path, node.id(),
+                    "Unsupported validated ElevatedButton shape kind '"
+                    + kind.value() + "'.");
+        };
+        RenderedSymbol shapeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        RenderedSymbol sideType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "BorderSide");
+        rendered.append("    return ");
+        appendElevatedSymbol(
+                rendered, occurrences, shapeType,
+                "widget:" + node.id() + ":button-shape:layered-"
+                + dartClass + ':' + branch,
+                path, node.id());
+        rendered.append("(side: inherited?.side ?? ");
+        appendElevatedSymbol(
+                rendered, occurrences, sideType,
+                "widget:" + node.id() + ":button-shape:layered-side:" + branch,
+                path, node.id());
+        rendered.append(".none");
+        if (Set.of(
+                "roundedRectangle", "roundedSuperellipse",
+                "beveledRectangle", "continuousRectangle")
+                .contains(kind.value())) {
+            RenderedSymbol borderRadiusType = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "BorderRadius");
+            rendered.append(", borderRadius: ");
+            appendElevatedSymbol(
+                    rendered, occurrences, borderRadiusType,
+                    "widget:" + node.id() + ":button-shape:layered-radius:" + branch,
+                    path, node.id());
+            rendered.append(".only(");
+            appendElevatedLayeredShapeRadius(
+                    rendered, occurrences, node, layers,
+                    "TopLeft", "topLeft", path, context, branch, stateType);
+            appendElevatedLayeredShapeRadius(
+                    rendered, occurrences, node, layers,
+                    "TopRight", "topRight", path, context, branch, stateType);
+            appendElevatedLayeredShapeRadius(
+                    rendered, occurrences, node, layers,
+                    "BottomRight", "bottomRight", path, context, branch, stateType);
+            appendElevatedLayeredShapeRadius(
+                    rendered, occurrences, node, layers,
+                    "BottomLeft", "bottomLeft", path, context, branch, stateType);
+            trimTrailingCommaSpace(rendered);
+            rendered.append(')');
+        } else if (kind.value().equals("circle")) {
+            rendered.append(", eccentricity: ");
+            appendElevatedLayeredStateLeaf(
+                    rendered, occurrences, layers, "ShapeCircleEccentricity",
+                    "inherited is CircleBorder ? inherited.eccentricity : null",
+                    "0.0", stateType, node.id(), path,
+                    "shape-eccentricity-" + branch);
+        }
+        rendered.append(");\n");
+    }
+
+    private void appendElevatedLayeredShapeRadius(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            Map<String, ElevatedButtonLayer> layers,
+            String suffix,
+            String dartName,
+            String path,
+            GenerationContext context,
+            String branch,
+            RenderedSymbol stateType) {
+        rendered.append(dartName).append(": ");
+        for (String state : List.of("pressed", "hovered", "focused")) {
+            RenderedValue value = layers.get(state).values().get(
+                    "ShapeRadius" + suffix);
+            if (value == null) {
+                continue;
+            }
+            rendered.append("states.contains(");
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + node.id() + ":button-shape:" + dartName
+                    + ':' + branch + ':' + state,
+                    path, node.id());
+            rendered.append('.').append(state).append(") ? ");
+            appendElevatedRadiusValue(
+                    rendered, occurrences, node, value,
+                    path, context, branch + ':' + state + ':' + dartName);
+            rendered.append(" : ");
+        }
+        RenderedValue base = layers.get("any").values().get(
+                "ShapeRadius" + suffix);
+        if (base != null) {
+            appendElevatedRadiusValue(
+                    rendered, occurrences, node, base,
+                    path, context, branch + ":any:" + dartName);
+        } else {
+            rendered.append("inheritedRadii.").append(dartName);
+        }
+        rendered.append(", ");
+    }
+
+    private void appendElevatedRadiusValue(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            WidgetNode node,
+            RenderedValue value,
+            String path,
+            GenerationContext context,
+            String branch) {
+        RenderedSymbol radiusType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Radius");
+        appendElevatedSymbol(
+                rendered, occurrences, radiusType,
+                "widget:" + node.id() + ":button-shape:layered-radius-value:" + branch,
+                path, node.id());
+        rendered.append(".circular(");
+        appendRendered(rendered, occurrences, value);
+        rendered.append(')');
+    }
+
+    private RenderedValue renderElevatedTextStyleStateProperty(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context) {
+        LinkedHashMap<String, ElevatedButtonTextLayer> layers =
+                elevatedTextLayers(node, definition, path, context);
+        if (layers.values().stream().noneMatch(ElevatedButtonTextLayer::configured)) {
+            return null;
+        }
+
+        String propertyPath = path + "/properties/style/textStyle";
+        RenderedSymbol propertyType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetStateProperty");
+        RenderedSymbol textStyleType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextStyle");
+        RenderedSymbol stateType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "WidgetState");
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(
+                rendered, occurrences, propertyType,
+                "widget:" + node.id() + ":button-style:textStyle:resolver",
+                propertyPath, node.id());
+        rendered.append(".resolveWith<");
+        appendElevatedSymbol(
+                rendered, occurrences, textStyleType,
+                "widget:" + node.id() + ":button-style:textStyle:value-type",
+                propertyPath, node.id());
+        rendered.append("?>((states) {\n");
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                "textStyle");
+        rendered.append("  final ");
+        appendElevatedSymbol(
+                rendered, occurrences, textStyleType,
+                "widget:" + node.id() + ":button-style:textStyle:inherited-type",
+                propertyPath, node.id());
+        rendered.append("? inherited = ");
+        appendElevatedInheritedStateValue(
+                rendered, occurrences, "textStyle",
+                propertyPath, node.id(), context, "frameworkDefaults");
+        rendered.append(";\n  if (states.contains(");
+        appendElevatedSymbol(
+                rendered, occurrences, stateType,
+                "widget:" + node.id() + ":button-style:textStyle:disabled-state",
+                propertyPath, node.id());
+        rendered.append(".disabled)) {\n");
+        ElevatedButtonTextLayer disabled = layers.get("disabled");
+        if (disabled.configured()) {
+            rendered.append("    var resolved = inherited ?? const ");
+            appendElevatedSymbol(
+                    rendered, occurrences, textStyleType,
+                    "widget:" + node.id() + ":button-text:fallback:disabled",
+                    propertyPath, node.id());
+            rendered.append("();\n");
+            appendElevatedTextLayer(
+                    rendered, occurrences, disabled, "disabled",
+                    propertyPath, node.id(), context);
+            rendered.append("    return resolved;\n");
+        } else {
+            rendered.append("    return inherited;\n");
+        }
+        rendered.append("  }\n  var resolved = inherited ?? const ");
+        appendElevatedSymbol(
+                rendered, occurrences, textStyleType,
+                "widget:" + node.id() + ":button-text:fallback:enabled",
+                propertyPath, node.id());
+        rendered.append("();\n");
+        ElevatedButtonTextLayer base = layers.get("any");
+        if (base.configured()) {
+            appendElevatedTextLayer(
+                    rendered, occurrences, base, "any",
+                    propertyPath, node.id(), context);
+        }
+        for (String state : List.of("focused", "hovered", "pressed")) {
+            ElevatedButtonTextLayer layer = layers.get(state);
+            if (!layer.configured()) {
+                continue;
+            }
+            rendered.append("  if (states.contains(");
+            appendElevatedSymbol(
+                    rendered, occurrences, stateType,
+                    "widget:" + node.id() + ":button-style:textStyle:"
+                    + state + "-state",
+                    propertyPath, node.id());
+            rendered.append('.').append(state).append(")) {\n");
+            appendElevatedTextLayer(
+                    rendered, occurrences, layer, state,
+                    propertyPath, node.id(), context);
+            rendered.append("  }\n");
+        }
+        rendered.append("  return resolved;\n})");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private LinkedHashMap<String, ElevatedButtonTextLayer> elevatedTextLayers(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context) {
+        LinkedHashMap<String, ElevatedButtonTextLayer> layers = new LinkedHashMap<>();
+        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+            ArrayList<ElevatedButtonTextMember> styleMembers = new ArrayList<>();
+            ArrayList<ElevatedButtonTextMember> localeMembers = new ArrayList<>();
+            ArrayList<ElevatedButtonTextMember> decorationMembers = new ArrayList<>();
+            RenderedValue theme = null;
+            String textPrefix = state.prefix() + "Text";
+            for (PropertyDefinition property : definition.properties()) {
+                String propertyName = property.name().value();
+                if (!propertyName.startsWith(textPrefix)) {
+                    continue;
+                }
+                PropertyValue value = node.properties().get(property.name());
+                if (value == null) {
+                    continue;
+                }
+                ElevatedButtonWidgetPropertySchema.Definition binding =
+                        ElevatedButtonWidgetPropertySchema.find(property.name())
+                                .orElseThrow();
+                String propertyPath = path + "/properties/" + pointer(propertyName);
+                RenderedValue rendered = switch (binding.encoding()) {
+                    case SCALAR -> renderProperty(
+                            value, property, propertyPath, node.id(), context);
+                    case NEWLINE_STRING_LIST -> renderStringList(
+                            value, propertyPath, node.id(), context);
+                    case DECORATION_FLAG -> renderProperty(
+                            value, property, propertyPath, node.id(), context);
+                };
+                ElevatedButtonTextMember member = new ElevatedButtonTextMember(
+                        property, binding, value, rendered);
+                switch (binding.target()) {
+                    case STYLE_TEXT -> {
+                        if (binding.dartName().equals("textStyle.theme")) {
+                            theme = rendered;
+                        } else {
+                            styleMembers.add(member);
+                        }
+                    }
+                    case STYLE_TEXT_LOCALE -> localeMembers.add(member);
+                    case STYLE_TEXT_DECORATION -> decorationMembers.add(member);
+                    default -> {
+                        // Only reviewed TextStyle targets share this prefix.
+                    }
+                }
+            }
+            styleMembers.sort(Comparator.comparingInt(
+                    member -> member.binding().dartOrder()));
+            localeMembers.sort(Comparator.comparingInt(
+                    member -> member.binding().dartOrder()));
+            decorationMembers.sort(Comparator.comparingInt(
+                    member -> member.binding().dartOrder()));
+            layers.put(state.key(), new ElevatedButtonTextLayer(
+                    state.prefix(), theme,
+                    List.copyOf(styleMembers),
+                    List.copyOf(localeMembers),
+                    List.copyOf(decorationMembers)));
+        }
+        return layers;
+    }
+
+    private void appendElevatedTextLayer(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            ElevatedButtonTextLayer layer,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        String local = "local" + Character.toUpperCase(branch.charAt(0))
+                + branch.substring(1);
+        RenderedSymbol textStyleType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextStyle");
+        rendered.append("    var ").append(local).append(" = ");
+        if (layer.theme() != null) {
+            appendRendered(rendered, occurrences, layer.theme());
+            rendered.append(" ?? const ");
+            appendElevatedSymbol(
+                    rendered, occurrences, textStyleType,
+                    "widget:" + widgetId + ":button-text:theme-fallback-type:"
+                    + branch,
+                    path, widgetId);
+            rendered.append("()");
+        } else {
+            rendered.append("const ");
+            appendElevatedSymbol(
+                    rendered, occurrences, textStyleType,
+                    "widget:" + widgetId + ":button-text:local-type:" + branch,
+                    path, widgetId);
+            rendered.append("()");
+        }
+        rendered.append(";\n");
+        if (layer.theme() != null) {
+            RenderedSymbol paintType = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "Paint");
+            rendered.append("    if (").append(local)
+                    .append(".backgroundColor != null && ")
+                    .append(local).append(".background == null) {\n")
+                    .append("      ").append(local).append(" = ")
+                    .append(local).append(".copyWith(background: (");
+            appendElevatedSymbol(
+                    rendered, occurrences, paintType,
+                    "widget:" + widgetId
+                    + ":button-text:theme-background-paint:" + branch,
+                    path, widgetId);
+            rendered.append("()..color = ").append(local)
+                    .append(".backgroundColor!));\n    }\n");
+        }
+        List<ElevatedButtonTextMember> styleMembers = layer.styleMembers();
+        if (styleMembers.isEmpty()
+                && layer.localeMembers().isEmpty()
+                && layer.decorationMembers().isEmpty()) {
+            appendElevatedTextMerge(rendered, layer, local);
+            return;
+        }
+        boolean inheritsLower = elevatedTextLayerInheritsLower(layer);
+        List<ElevatedButtonTextMember> copiedStyleMembers = styleMembers.stream()
+                .filter(member -> !tail(member.binding().dartName())
+                        .equals("package"))
+                .toList();
+        if (!copiedStyleMembers.isEmpty()
+                || !layer.localeMembers().isEmpty()
+                || !layer.decorationMembers().isEmpty()) {
+            rendered.append("    ").append(local).append(" = ")
+                    .append(local).append(".copyWith(");
+            for (ElevatedButtonTextMember member : copiedStyleMembers) {
+                String dartName = tail(member.binding().dartName());
+                if (dartName.equals("backgroundColor")) {
+                    rendered.append("background: ");
+                    appendElevatedBackgroundPaint(
+                            rendered, occurrences, member.rendered(),
+                            branch, path, widgetId, context);
+                } else {
+                    rendered.append(dartName).append(": ");
+                    appendRendered(rendered, occurrences, member.rendered());
+                }
+                rendered.append(", ");
+            }
+            if (!layer.localeMembers().isEmpty()) {
+                rendered.append("locale: ");
+                appendElevatedTextLocaleFallback(
+                        rendered, occurrences, layer.localeMembers(),
+                        branch, path, widgetId, context, local, inheritsLower);
+                rendered.append(", ");
+            }
+            if (!layer.decorationMembers().isEmpty()) {
+                rendered.append("decoration: ");
+                appendElevatedTextDecorationFallback(
+                        rendered, occurrences, layer.decorationMembers(),
+                        branch, path, widgetId, context, local, inheritsLower);
+                rendered.append(", ");
+            }
+            trimTrailingCommaSpace(rendered);
+            rendered.append(");\n");
+        }
+        appendElevatedTextMerge(rendered, layer, local);
+        appendElevatedTextPackage(
+                rendered, occurrences, layer,
+                branch, path, widgetId, context);
+    }
+
+    private static void appendElevatedTextMerge(
+            StringBuilder rendered,
+            ElevatedButtonTextLayer layer,
+            String local) {
+        ElevatedButtonTextMember inherit = elevatedTextMember(
+                layer.styleMembers(), "inherit");
+        rendered.append("    resolved = resolved.merge(")
+                .append(local).append(')');
+        if (inherit != null
+                && inherit.value() instanceof PropertyValue.BooleanValue value) {
+            rendered.append(".copyWith(inherit: ")
+                    .append(value.value()).append(')');
+        }
+        rendered.append(";\n");
+    }
+
+    private void appendElevatedTextPackage(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            ElevatedButtonTextLayer layer,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ElevatedButtonTextMember packageMember = elevatedTextMember(
+                layer.styleMembers(), "package");
+        if (packageMember == null) {
+            return;
+        }
+        ElevatedButtonTextMember familyMember = elevatedTextMember(
+                layer.styleMembers(), "fontFamily");
+        ElevatedButtonTextMember fallbackMember = elevatedTextMember(
+                layer.styleMembers(), "fontFamilyFallback");
+        String suffix = Character.toUpperCase(branch.charAt(0))
+                + branch.substring(1);
+        String packageVariable = "package" + suffix;
+        String familyVariable = "resolvedFontFamily" + suffix;
+        String fallbackVariable = "repackagedFallback" + suffix;
+        rendered.append("    final ").append(packageVariable).append(" = ");
+        appendRendered(rendered, occurrences, packageMember.rendered());
+        rendered.append(";\n    final ").append(familyVariable)
+                .append(" = resolved.fontFamily;\n")
+                .append("    if (").append(familyVariable)
+                .append(" == null || (").append(familyVariable)
+                .append(".startsWith('packages/') && ")
+                .append(familyVariable).append(".endsWith('/null'))) {\n")
+                .append("      final ").append(fallbackVariable)
+                .append(" = resolved.fontFamilyFallback?.map((family) {\n")
+                .append("        if (!family.startsWith('packages/')) return family;\n")
+                .append("        final separator = family.indexOf('/', 9);\n")
+                .append("        return separator < 0 ? family : ")
+                .append("family.substring(separator + 1);\n")
+                .append("      }).map((family) => 'packages/$")
+                .append(packageVariable).append("/$family').toList();\n")
+                .append("      resolved = ");
+        appendElevatedTextStyleWithoutPackage(
+                rendered, occurrences, fallbackVariable,
+                branch, path, widgetId, context);
+        rendered.append(";\n")
+                .append("    } else {\n")
+                .append("      resolved = resolved.copyWith(");
+        if (familyMember != null) {
+            rendered.append("fontFamily: ");
+            appendRendered(rendered, occurrences, familyMember.rendered());
+            rendered.append(", ");
+        }
+        if (fallbackMember != null) {
+            rendered.append("fontFamilyFallback: ");
+            appendRendered(rendered, occurrences, fallbackMember.rendered());
+            rendered.append(", ");
+        }
+        rendered.append("package: ").append(packageVariable).append(");\n")
+                .append("    }\n");
+    }
+
+    private void appendElevatedTextStyleWithoutPackage(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            String fallbackVariable,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol textStyleType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextStyle");
+        appendElevatedSymbol(
+                rendered, occurrences, textStyleType,
+                "widget:" + widgetId
+                + ":button-text:package-free-fallback:" + branch,
+                path, widgetId);
+        rendered.append("(\n")
+                .append("        inherit: resolved.inherit,\n")
+                .append("        color: resolved.foreground == null ")
+                .append("? resolved.color : null,\n")
+                .append("        backgroundColor: resolved.background == null ")
+                .append("? resolved.backgroundColor : null,\n")
+                .append("        fontSize: resolved.fontSize,\n")
+                .append("        fontWeight: resolved.fontWeight,\n")
+                .append("        fontStyle: resolved.fontStyle,\n")
+                .append("        letterSpacing: resolved.letterSpacing,\n")
+                .append("        wordSpacing: resolved.wordSpacing,\n")
+                .append("        textBaseline: resolved.textBaseline,\n")
+                .append("        height: resolved.height,\n")
+                .append("        leadingDistribution: resolved.leadingDistribution,\n")
+                .append("        locale: resolved.locale,\n")
+                .append("        foreground: resolved.foreground,\n")
+                .append("        background: resolved.background,\n")
+                .append("        shadows: resolved.shadows,\n")
+                .append("        fontFeatures: resolved.fontFeatures,\n")
+                .append("        fontVariations: resolved.fontVariations,\n")
+                .append("        decoration: resolved.decoration,\n")
+                .append("        decorationColor: resolved.decorationColor,\n")
+                .append("        decorationStyle: resolved.decorationStyle,\n")
+                .append("        decorationThickness: resolved.decorationThickness,\n")
+                .append("        debugLabel: resolved.debugLabel,\n")
+                .append("        fontFamilyFallback: ")
+                .append(fallbackVariable).append(",\n")
+                .append("        overflow: resolved.overflow,\n")
+                .append("      )");
+    }
+
+    private static boolean elevatedTextLayerInheritsLower(
+            ElevatedButtonTextLayer layer) {
+        return layer.styleMembers().stream()
+                .filter(member -> tail(member.binding().dartName()).equals("inherit"))
+                .map(ElevatedButtonTextMember::value)
+                .filter(PropertyValue.BooleanValue.class::isInstance)
+                .map(PropertyValue.BooleanValue.class::cast)
+                .map(PropertyValue.BooleanValue::value)
+                .findFirst()
+                .orElse(true);
+    }
+
+    private static ElevatedButtonTextMember elevatedTextMember(
+            List<ElevatedButtonTextMember> members,
+            String dartName) {
+        return members.stream()
+                .filter(member -> tail(member.binding().dartName())
+                        .equals(dartName))
+                .findFirst().orElse(null);
+    }
+
+    private void appendElevatedBackgroundPaint(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            RenderedValue color,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol paintType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Paint");
+        rendered.append('(');
+        appendElevatedSymbol(
+                rendered, occurrences, paintType,
+                "widget:" + widgetId + ":button-text:background-paint:" + branch,
+                path, widgetId);
+        rendered.append("()..color = ");
+        appendRendered(rendered, occurrences, color);
+        rendered.append(')');
+    }
+
+    private void appendElevatedTextLocaleFallback(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            List<ElevatedButtonTextMember> members,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            String local,
+            boolean inheritsLower) {
+        RenderedSymbol localeType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Locale");
+        appendElevatedSymbol(
+                rendered, occurrences, localeType,
+                "widget:" + widgetId + ":button-text:locale:" + branch,
+                path, widgetId);
+        rendered.append(".fromSubtags(languageCode: ");
+        appendElevatedTextSubtag(
+                rendered, occurrences, members, "languageCode",
+                local + ".locale?.languageCode"
+                + (inheritsLower
+                        ? " ?? resolved.locale?.languageCode ?? 'und'"
+                        : " ?? 'und'"));
+        rendered.append(", scriptCode: ");
+        appendElevatedTextSubtag(
+                rendered, occurrences, members, "scriptCode",
+                local + ".locale == null"
+                + (inheritsLower
+                        ? " ? resolved.locale?.scriptCode : "
+                        : " ? null : ")
+                + local + ".locale?.scriptCode");
+        rendered.append(", countryCode: ");
+        appendElevatedTextSubtag(
+                rendered, occurrences, members, "countryCode",
+                local + ".locale == null"
+                + (inheritsLower
+                        ? " ? resolved.locale?.countryCode : "
+                        : " ? null : ")
+                + local + ".locale?.countryCode");
+        rendered.append(')');
+    }
+
+    private static void appendElevatedTextSubtag(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            List<ElevatedButtonTextMember> members,
+            String dartName,
+            String fallback) {
+        ElevatedButtonTextMember match = members.stream()
+                .filter(member -> tail(member.binding().dartName()).equals(dartName))
+                .findFirst().orElse(null);
+        if (match == null) {
+            rendered.append(fallback);
+        } else {
+            appendRendered(rendered, occurrences, match.rendered());
+        }
+    }
+
+    private void appendElevatedTextDecorationFallback(
+            StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences,
+            List<ElevatedButtonTextMember> members,
+            String branch,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            String local,
+            boolean inheritsLower) {
+        RenderedSymbol type = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "TextDecoration");
+        rendered.append("(() { final values = <");
+        appendElevatedSymbol(
+                rendered, occurrences, type,
+                "widget:" + widgetId + ":button-text:decoration-list:" + branch,
+                path, widgetId);
+        rendered.append(">[");
+        for (String flag : List.of("underline", "overline", "lineThrough")) {
+            ElevatedButtonTextMember member = members.stream()
+                    .filter(candidate -> tail(candidate.binding().dartName()).equals(flag))
+                    .findFirst().orElse(null);
+            rendered.append("if (");
+            if (member == null) {
+                rendered.append(local).append(".decoration?.contains(");
+                appendElevatedSymbol(
+                        rendered, occurrences, type,
+                        "widget:" + widgetId + ":button-text:decoration-check:"
+                        + branch + ':' + flag,
+                        path, widgetId);
+                rendered.append('.').append(flag).append(") ?? ");
+                if (inheritsLower) {
+                    rendered.append("resolved.decoration?.contains(");
+                    appendElevatedSymbol(
+                            rendered, occurrences, type,
+                            "widget:" + widgetId
+                            + ":button-text:decoration-inherited-check:"
+                            + branch + ':' + flag,
+                            path, widgetId);
+                    rendered.append('.').append(flag).append(") ?? false");
+                } else {
+                    rendered.append("false");
+                }
+            } else {
+                appendRendered(rendered, occurrences, member.rendered());
+            }
+            rendered.append(") ");
+            appendElevatedSymbol(
+                    rendered, occurrences, type,
+                    "widget:" + widgetId + ":button-text:decoration-value:"
+                    + branch + ':' + flag,
+                    path, widgetId);
+            rendered.append('.').append(flag).append(", ");
+        }
+        trimTrailingCommaSpace(rendered);
+        rendered.append("]; return values.isEmpty ? ");
+        appendElevatedSymbol(
+                rendered, occurrences, type,
+                "widget:" + widgetId + ":button-text:decoration-none:" + branch,
+                path, widgetId);
+        rendered.append(".none : ");
+        appendElevatedSymbol(
+                rendered, occurrences, type,
+                "widget:" + widgetId + ":button-text:decoration-combine:" + branch,
+                path, widgetId);
+        rendered.append(".combine(values); })()");
+    }
+
+    private static String tail(String path) {
+        return path.substring(path.lastIndexOf('.') + 1);
+    }
+
+    private void appendElevatedButtonCommonStyle(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context,
+            List<CompositeMember> style) {
+        RenderedValue density = renderElevatedVisualDensity(
+                node, definition, path, valueIndent, context);
+        if (density != null) {
+            style.add(new CompositeMember("visualDensity", 17, density));
+        }
+        addElevatedCommonDirect(
+                node, definition, "styleTapTargetSize", "tapTargetSize", 18,
+                path, context, style);
+
+        PropertyDefinition durationProperty = elevatedProperty(
+                definition, "styleAnimationDurationMs");
+        PropertyValue durationValue = node.properties().get(durationProperty.name());
+        if (durationValue != null) {
+            RenderedValue duration = renderNamedCompositeMembers(
+                    "Duration", Optional.empty(),
+                    List.of(new CompositeMember(
+                            "milliseconds", 0,
+                            renderProperty(
+                                    durationValue, durationProperty,
+                                    path + "/properties/styleAnimationDurationMs",
+                                    node.id(), context))),
+                    valueIndent,
+                    path + "/properties/styleAnimationDuration",
+                    node.id(), context);
+            style.add(new CompositeMember("animationDuration", 19, duration));
+        }
+        addElevatedCommonDirect(
+                node, definition, "styleEnableFeedback", "enableFeedback", 20,
+                path, context, style);
+        RenderedValue alignment = renderElevatedAlignment(
+                node, definition, path, valueIndent, context);
+        if (alignment != null) {
+            style.add(new CompositeMember("alignment", 21, alignment));
+        }
+        RenderedValue splash = renderElevatedSplashFactory(
+                node, definition, path, context);
+        if (splash != null) {
+            style.add(new CompositeMember("splashFactory", 22, splash));
+        }
+    }
+
+    private RenderedValue renderElevatedVisualDensity(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context) {
+        PropertyDefinition horizontalProperty = elevatedProperty(
+                definition, "styleVisualDensityHorizontal");
+        PropertyDefinition verticalProperty = elevatedProperty(
+                definition, "styleVisualDensityVertical");
+        PropertyValue horizontalValue = node.properties().get(
+                horizontalProperty.name());
+        PropertyValue verticalValue = node.properties().get(
+                verticalProperty.name());
+        if (horizontalValue == null && verticalValue == null) {
+            return null;
+        }
+        String propertyPath = path + "/properties/styleVisualDensity";
+        RenderedValue horizontal = horizontalValue == null ? null : renderProperty(
+                horizontalValue, horizontalProperty,
+                path + "/properties/styleVisualDensityHorizontal",
+                node.id(), context);
+        RenderedValue vertical = verticalValue == null ? null : renderProperty(
+                verticalValue, verticalProperty,
+                path + "/properties/styleVisualDensityVertical",
+                node.id(), context);
+        RenderedSymbol densityType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "VisualDensity");
+        RenderedSymbol themeType = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, "ElevatedButtonTheme");
+        StringBuilder rendered = new StringBuilder("(() {\n");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedFrameworkDefaultsDeclaration(
+                rendered, occurrences, propertyPath, node.id(), context,
+                "visualDensity");
+        rendered.append("  final inherited = ");
+        appendElevatedSymbol(
+                rendered, occurrences, themeType,
+                "widget:" + node.id() + ":button-density:theme",
+                propertyPath, node.id());
+        rendered.append(".of(context).style?.visualDensity "
+                + "?? frameworkDefaults.visualDensity ?? ");
+        appendElevatedSymbol(
+                rendered, occurrences, densityType,
+                "widget:" + node.id() + ":button-density:standard",
+                propertyPath, node.id());
+        rendered.append(".standard;\n  return ");
+        appendElevatedSymbol(
+                rendered, occurrences, densityType,
+                "widget:" + node.id() + ":button-density:value",
+                propertyPath, node.id());
+        rendered.append("(horizontal: ");
+        if (horizontal == null) {
+            rendered.append("inherited.horizontal");
+        } else {
+            appendRendered(rendered, occurrences, horizontal);
+        }
+        rendered.append(", vertical: ");
+        if (vertical == null) {
+            rendered.append("inherited.vertical");
+        } else {
+            appendRendered(rendered, occurrences, vertical);
+        }
+        rendered.append(");\n})()");
+        return scalar(rendered.toString(), false, propertyPath,
+                node.id(), context, occurrences);
+    }
+
+    private void addElevatedCommonDirect(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String propertyName,
+            String dartName,
+            int order,
+            String path,
+            GenerationContext context,
+            List<CompositeMember> style) {
+        addElevatedMember(
+                node, definition, propertyName, dartName, order,
+                path, context, style);
+    }
+
+    private RenderedValue renderElevatedAlignment(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            int valueIndent,
+            GenerationContext context) {
+        PropertyDefinition kindProperty = elevatedProperty(
+                definition, "styleAlignmentKind");
+        PropertyDefinition xProperty = elevatedProperty(
+                definition, "styleAlignmentX");
+        PropertyDefinition yProperty = elevatedProperty(
+                definition, "styleAlignmentY");
+        PropertyValue kindValue = node.properties().get(kindProperty.name());
+        PropertyValue xValue = node.properties().get(xProperty.name());
+        PropertyValue yValue = node.properties().get(yProperty.name());
+        if (kindValue == null && xValue == null && yValue == null) {
+            return null;
+        }
+        if (!(kindValue instanceof PropertyValue.StringValue kind)
+                || xValue == null || yValue == null) {
+            throw catalogInconsistency(
+                    path + "/properties/styleAlignment", node.id(),
+                    "ButtonStyle alignment requires kind, X, and Y together.");
+        }
+        RenderedValue x = renderProperty(
+                xValue, xProperty, path + "/properties/styleAlignmentX",
+                node.id(), context);
+        RenderedValue y = renderProperty(
+                yValue, yProperty, path + "/properties/styleAlignmentY",
+                node.id(), context);
+        String dartClass = kind.value().equals("directional")
+                ? "AlignmentDirectional" : "Alignment";
+        RenderedSymbol type = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        StringBuilder rendered = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        if (x.constant() && y.constant()) {
+            rendered.append("const ");
+        }
+        appendElevatedSymbol(
+                rendered, occurrences, type,
+                "widget:" + node.id() + ":button-alignment:type",
+                path + "/properties/styleAlignment", node.id());
+        rendered.append('(');
+        appendRendered(rendered, occurrences, x);
+        rendered.append(", ");
+        appendRendered(rendered, occurrences, y);
+        rendered.append(')');
+        return scalar(rendered.toString(), x.constant() && y.constant(),
+                path + "/properties/styleAlignment", node.id(), context, occurrences);
+    }
+
+    private RenderedValue renderElevatedSplashFactory(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context) {
+        String propertyName = "styleSplashFactory";
+        PropertyDefinition property = elevatedProperty(definition, propertyName);
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(
+                    path + "/properties/" + propertyName, node.id(),
+                    propertyName + " must be a validated splash preset string.");
+        }
+        String dartClass = switch (preset.value()) {
+            case "inkRipple" -> "InkRipple";
+            case "inkSplash" -> "InkSplash";
+            case "inkSparkle" -> "InkSparkle";
+            case "noSplash" -> "NoSplash";
+            default -> throw catalogInconsistency(
+                    path + "/properties/" + propertyName, node.id(),
+                    "Unsupported validated splash preset '" + preset.value() + "'.");
+        };
+        RenderedSymbol type = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, dartClass);
+        return scalar(
+                type.text() + ".splashFactory",
+                true,
+                path + "/properties/" + propertyName,
+                node.id(),
+                context,
+                List.of(occurrence(
+                        "widget:" + node.id() + ":button-splash:" + propertyName,
+                        type.nameOffset(), type.name(), type.libraryUri(),
+                        path + "/properties/" + propertyName,
+                        Optional.of(node.id()))));
     }
 
     private void appendAppBarCompoundArguments(
@@ -1994,6 +4219,65 @@ public final class DartRegionGenerator {
         String propertyPath(String widgetPath) {
             return widgetPath + "/properties/" + pointer(property.name().value());
         }
+    }
+
+    private record ElevatedButtonState(String prefix, String key) {
+    }
+
+    private record ElevatedButtonStateEntry(
+            String state,
+            RenderedValue value) {
+    }
+
+    private record ElevatedButtonBoundSizePair(
+            RenderedValue minimum,
+            RenderedValue maximum) {
+    }
+
+    private record ElevatedButtonLayer(
+            String prefix,
+            Map<String, RenderedValue> values) {
+
+        private ElevatedButtonLayer {
+            prefix = Objects.requireNonNull(prefix, "prefix");
+            values = Map.copyOf(Objects.requireNonNull(values, "values"));
+        }
+
+        boolean configured() {
+            return !values.isEmpty();
+        }
+    }
+
+    private record ElevatedButtonTextLayer(
+            String prefix,
+            RenderedValue theme,
+            List<ElevatedButtonTextMember> styleMembers,
+            List<ElevatedButtonTextMember> localeMembers,
+            List<ElevatedButtonTextMember> decorationMembers) {
+
+        private ElevatedButtonTextLayer {
+            prefix = Objects.requireNonNull(prefix, "prefix");
+            styleMembers = List.copyOf(Objects.requireNonNull(
+                    styleMembers, "styleMembers"));
+            localeMembers = List.copyOf(Objects.requireNonNull(
+                    localeMembers, "localeMembers"));
+            decorationMembers = List.copyOf(Objects.requireNonNull(
+                    decorationMembers, "decorationMembers"));
+        }
+
+        boolean configured() {
+            return theme != null
+                    || !styleMembers.isEmpty()
+                    || !localeMembers.isEmpty()
+                    || !decorationMembers.isEmpty();
+        }
+    }
+
+    private record ElevatedButtonTextMember(
+            PropertyDefinition property,
+            ElevatedButtonWidgetPropertySchema.Definition binding,
+            PropertyValue value,
+            RenderedValue rendered) {
     }
 
     private record CompositeMember(

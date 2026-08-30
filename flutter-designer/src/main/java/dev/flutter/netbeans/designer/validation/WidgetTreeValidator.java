@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.designer.validation;
 
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -15,16 +16,19 @@ import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -324,6 +328,19 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.value())) {
+            for (String prefix : List.of(
+                    "style", "styleDisabled", "stylePressed",
+                    "styleHovered", "styleFocused")) {
+                validateElevatedButtonState(node, propertiesPath, issues, prefix);
+            }
+            validateElevatedButtonEffectiveDimensions(node, propertiesPath, issues);
+            validateElevatedButtonEffectiveShapes(node, propertiesPath, issues);
+            validateElevatedButtonTextInherit(node, propertiesPath, issues);
+            validateElevatedButtonAlignment(node, propertiesPath, issues);
+            return;
+        }
+
         if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())) {
             validateFontPackageDependency(
                     node, propertiesPath, issues,
@@ -470,6 +487,402 @@ public final class WidgetTreeValidator {
                         "AppBar shapeCircleEccentricity is only valid for circle shapeKind."));
             }
         }
+    }
+
+    private static void validateElevatedButtonState(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String prefix) {
+        String owner = "ElevatedButton " + prefix + " state";
+        validateElevatedButtonFontPackage(
+                node, propertiesPath, issues, prefix, owner);
+        validateMutuallyExclusiveProperties(
+                node, propertiesPath, issues,
+                prefix + "TextBackgroundColor",
+                prefix + "TextBackground",
+                owner + " TextStyle");
+    }
+
+    private static void validateElevatedButtonEffectiveDimensions(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        HashSet<String> reported = new HashSet<>();
+        for (String dimension : List.of("Width", "Height")) {
+            validateEffectiveDimension(
+                    node, propertiesPath, issues, dimension,
+                    Set.of(), false, reported);
+            validateEffectiveDimension(
+                    node, propertiesPath, issues, dimension,
+                    Set.of(), true, reported);
+            List<String> states = List.of("Focused", "Hovered", "Pressed");
+            for (int mask = 1; mask < (1 << states.size()); mask++) {
+                HashSet<String> active = new HashSet<>();
+                for (int index = 0; index < states.size(); index++) {
+                    if ((mask & (1 << index)) != 0) {
+                        active.add(states.get(index));
+                    }
+                }
+                validateEffectiveDimension(
+                        node, propertiesPath, issues, dimension,
+                        Set.copyOf(active), false, reported);
+            }
+        }
+    }
+
+    private static void validateEffectiveDimension(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String dimension,
+            Set<String> activeStates,
+            boolean disabled,
+            Set<String> reported) {
+        EffectiveNumber minimum = effectiveElevatedNumber(
+                node, "Minimum" + dimension, activeStates, disabled);
+        EffectiveNumber maximum = effectiveElevatedNumber(
+                node, "Maximum" + dimension, activeStates, disabled);
+        if (minimum == null || maximum == null
+                || minimum.value().compareTo(maximum.value()) <= 0) {
+            return;
+        }
+        String key = minimum.propertyName() + '|' + maximum.propertyName();
+        if (!reported.add(key)) {
+            return;
+        }
+        String stateDescription = disabled
+                ? "disabled"
+                : activeStates.isEmpty()
+                        ? "enabled/default"
+                        : activeStates.stream().sorted().collect(
+                                Collectors.joining(" + "));
+        issues.add(issue(
+                PROPERTY_CONFLICT,
+                propertiesPath + '/' + maximum.propertyName(),
+                node.id(),
+                "ElevatedButton effective " + stateDescription + ' '
+                + dimension.toLowerCase()
+                + " resolves '" + minimum.propertyName() + "' above '"
+                + maximum.propertyName() + "'. Minimum size must be less than "
+                + "or equal to maximum size."));
+    }
+
+    private static EffectiveNumber effectiveElevatedNumber(
+            WidgetNode node,
+            String suffix,
+            Set<String> activeStates,
+            boolean disabled) {
+        if (disabled) {
+            EffectiveNumber value = elevatedNumber(
+                    node, "styleDisabled" + suffix);
+            return value != null ? value : elevatedFrameworkMinimum(suffix);
+        }
+        for (String state : List.of("Pressed", "Hovered", "Focused")) {
+            if (activeStates.contains(state)) {
+                EffectiveNumber value = elevatedNumber(
+                        node, "style" + state + suffix);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+        EffectiveNumber value = elevatedNumber(node, "style" + suffix);
+        return value != null ? value : elevatedFrameworkMinimum(suffix);
+    }
+
+    private static EffectiveNumber elevatedFrameworkMinimum(String suffix) {
+        // Validation has no BuildContext, so the deterministic floor is the
+        // pinned generated-project Material 3 default. A runtime-supplied
+        // ElevatedButtonTheme may replace this value; Dart generation still
+        // resolves that external theme exactly before framework defaults.
+        return switch (suffix) {
+            case "MinimumWidth" -> new EffectiveNumber(
+                    "Flutter M3 framework minimumWidth", BigDecimal.valueOf(64));
+            case "MinimumHeight" -> new EffectiveNumber(
+                    "Flutter M3 framework minimumHeight", BigDecimal.valueOf(40));
+            default -> null;
+        };
+    }
+
+    private static EffectiveNumber elevatedNumber(
+            WidgetNode node,
+            String propertyName) {
+        BigDecimal value = numericValue(node, propertyName);
+        return value == null ? null : new EffectiveNumber(propertyName, value);
+    }
+
+    private static void validateElevatedButtonFontPackage(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String prefix,
+            String owner) {
+        String packageName = prefix + "TextPackage";
+        if (!node.properties().containsKey(new PropertyName(packageName))) {
+            return;
+        }
+        boolean localFamily = hasNonBlankString(
+                node, prefix + "TextFontFamily")
+                || hasNonBlankLine(node, prefix + "TextFontFamilyFallback");
+        boolean mayUseBase = !prefix.equals("style")
+                && !prefix.equals("styleDisabled")
+                && !Boolean.FALSE.equals(booleanValue(
+                        node, prefix + "TextInherit"));
+        boolean baseFamily = mayUseBase
+                && (hasNonBlankString(node, "styleTextFontFamily")
+                    || hasNonBlankLine(node, "styleTextFontFamilyFallback"));
+        if (!localFamily && !baseFamily) {
+            issues.add(issue(
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + '/' + packageName,
+                    node.id(),
+                    owner + " property '" + packageName
+                    + "' requires an effective fontFamily or fontFamilyFallback"
+                    + (mayUseBase ? " from this state or enabled/default style." : ".")));
+        }
+    }
+
+    private static void validateElevatedButtonTextInherit(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        List<String> prefixes = List.of(
+                "style", "styleDisabled", "styleFocused",
+                "styleHovered", "stylePressed");
+        boolean guardedFeaturePresent = prefixes.stream().anyMatch(prefix ->
+                node.properties().containsKey(new PropertyName(prefix + "TextInherit"))
+                || node.properties().containsKey(new PropertyName(prefix + "TextTheme")));
+        if (!guardedFeaturePresent) {
+            return;
+        }
+
+        Boolean base = booleanValue(node, "styleTextInherit");
+        Boolean disabled = booleanValue(node, "styleDisabledTextInherit");
+        if (base == null) {
+            issues.add(issue(
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + "/styleTextInherit",
+                    node.id(),
+                    "ElevatedButton stateful TextStyle inherit/theme overrides require "
+                    + "an explicit enabled/default styleTextInherit value."));
+        }
+        if (disabled == null) {
+            issues.add(issue(
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + "/styleDisabledTextInherit",
+                    node.id(),
+                    "ElevatedButton stateful TextStyle inherit/theme overrides require "
+                    + "an explicit disabled TextInherit value so animated state "
+                    + "transitions remain safe."));
+        } else if (base != null && !disabled.equals(base)) {
+            issues.add(issue(
+                    PROPERTY_CONFLICT,
+                    propertiesPath + "/styleDisabledTextInherit",
+                    node.id(),
+                    "ElevatedButton reachable TextStyle values must use one inherit "
+                    + "value; disabled differs from enabled/default."));
+        }
+
+        for (String prefix : prefixes) {
+            boolean themePresent = node.properties().containsKey(
+                    new PropertyName(prefix + "TextTheme"));
+            Boolean value = booleanValue(node, prefix + "TextInherit");
+            if (themePresent && value == null) {
+                issues.add(issue(
+                        PROPERTY_DEPENDENCY,
+                        propertiesPath + '/' + prefix + "TextInherit",
+                        node.id(),
+                        "ElevatedButton property '" + prefix
+                        + "TextTheme' requires an explicit same-state TextInherit "
+                        + "value for transition-safe TextStyle resolution."));
+            } else if (!prefix.equals("style")
+                    && !prefix.equals("styleDisabled")
+                    && value != null && base != null && !value.equals(base)) {
+                issues.add(issue(
+                        PROPERTY_CONFLICT,
+                        propertiesPath + '/' + prefix + "TextInherit",
+                        node.id(),
+                        "ElevatedButton reachable TextStyle values must use the "
+                        + "enabled/default inherit value " + base + "."));
+            }
+        }
+    }
+
+    private static Boolean booleanValue(
+            WidgetNode node,
+            String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value instanceof PropertyValue.BooleanValue flag
+                ? flag.value() : null;
+    }
+
+    private static void validateElevatedButtonEffectiveShapes(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        HashSet<String> reported = new HashSet<>();
+        validateEffectiveShape(
+                node, propertiesPath, issues, Set.of(), true, reported);
+        List<String> states = List.of("Focused", "Hovered", "Pressed");
+        for (int mask = 0; mask < (1 << states.size()); mask++) {
+            HashSet<String> active = new HashSet<>();
+            for (int index = 0; index < states.size(); index++) {
+                if ((mask & (1 << index)) != 0) {
+                    active.add(states.get(index));
+                }
+            }
+            validateEffectiveShape(
+                    node, propertiesPath, issues, Set.copyOf(active),
+                    false, reported);
+        }
+    }
+
+    private static void validateEffectiveShape(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            Set<String> activeStates,
+            boolean disabled,
+            Set<String> reported) {
+        EffectiveShapeValue kind = effectiveElevatedShapeValue(
+                node, "ShapeKind", activeStates, disabled);
+        String stateDescription = disabled
+                ? "disabled"
+                : activeStates.isEmpty()
+                        ? "enabled/default"
+                        : activeStates.stream().sorted().collect(
+                                Collectors.joining(" + "));
+        for (String suffix : List.of(
+                "ShapeRadiusTopLeft", "ShapeRadiusTopRight",
+                "ShapeRadiusBottomRight", "ShapeRadiusBottomLeft")) {
+            EffectiveShapeValue radius = effectiveElevatedShapeValue(
+                    node, suffix, activeStates, disabled);
+            if (radius == null) {
+                continue;
+            }
+            if (kind == null) {
+                addEffectiveShapeIssue(
+                        node, propertiesPath, issues, reported,
+                        PROPERTY_DEPENDENCY, radius.propertyName(),
+                        "ElevatedButton effective " + stateDescription
+                        + " corner radius requires a locally configured effective "
+                        + "shape kind.");
+            } else if (!(kind.value() instanceof PropertyValue.StringValue name)
+                    || !Set.of(
+                            "roundedRectangle", "roundedSuperellipse",
+                            "beveledRectangle", "continuousRectangle")
+                            .contains(name.value())) {
+                addEffectiveShapeIssue(
+                        node, propertiesPath, issues, reported,
+                        PROPERTY_CONFLICT, radius.propertyName(),
+                        "ElevatedButton effective " + stateDescription
+                        + " corner radius is incompatible with '"
+                        + shapeKindName(kind) + "' from '"
+                        + kind.propertyName() + "'.");
+            }
+        }
+        EffectiveShapeValue eccentricity = effectiveElevatedShapeValue(
+                node, "ShapeCircleEccentricity", activeStates, disabled);
+        if (eccentricity == null) {
+            return;
+        }
+        if (kind == null) {
+            addEffectiveShapeIssue(
+                    node, propertiesPath, issues, reported,
+                    PROPERTY_DEPENDENCY, eccentricity.propertyName(),
+                    "ElevatedButton effective " + stateDescription
+                    + " circle eccentricity requires a locally configured "
+                    + "effective shape kind.");
+        } else if (!(kind.value() instanceof PropertyValue.StringValue name)
+                || !name.value().equals("circle")) {
+            addEffectiveShapeIssue(
+                    node, propertiesPath, issues, reported,
+                    PROPERTY_CONFLICT, eccentricity.propertyName(),
+                    "ElevatedButton effective " + stateDescription
+                    + " circle eccentricity is incompatible with '"
+                    + shapeKindName(kind) + "' from '"
+                    + kind.propertyName() + "'.");
+        }
+    }
+
+    private static EffectiveShapeValue effectiveElevatedShapeValue(
+            WidgetNode node,
+            String suffix,
+            Set<String> activeStates,
+            boolean disabled) {
+        if (disabled) {
+            return elevatedShapeValue(node, "styleDisabled" + suffix);
+        }
+        for (String state : List.of("Pressed", "Hovered", "Focused")) {
+            if (activeStates.contains(state)) {
+                EffectiveShapeValue value = elevatedShapeValue(
+                        node, "style" + state + suffix);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+        return elevatedShapeValue(node, "style" + suffix);
+    }
+
+    private static EffectiveShapeValue elevatedShapeValue(
+            WidgetNode node,
+            String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value == null ? null : new EffectiveShapeValue(propertyName, value);
+    }
+
+    private static String shapeKindName(EffectiveShapeValue kind) {
+        return kind.value() instanceof PropertyValue.StringValue value
+                ? value.value() : kind.value().kind().name();
+    }
+
+    private static void addEffectiveShapeIssue(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            Set<String> reported,
+            String code,
+            String propertyName,
+            String message) {
+        if (reported.add(code + '|' + propertyName)) {
+            issues.add(issue(
+                    code, propertiesPath + '/' + propertyName,
+                    node.id(), message));
+        }
+    }
+
+    private static void validateElevatedButtonAlignment(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        List<String> names = List.of(
+                "styleAlignmentKind", "styleAlignmentX", "styleAlignmentY");
+        long present = names.stream()
+                .filter(name -> node.properties().containsKey(new PropertyName(name)))
+                .count();
+        if (present > 0 && present < names.size()) {
+            issues.add(issue(
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + "/styleAlignmentKind",
+                    node.id(),
+                    "ElevatedButton ButtonStyle alignment requires "
+                    + "styleAlignmentKind, styleAlignmentX, and styleAlignmentY together."));
+        }
+    }
+
+    private static BigDecimal numericValue(
+            WidgetNode node,
+            String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        if (value instanceof PropertyValue.IntegerValue integer) {
+            return new BigDecimal(integer.value());
+        }
+        if (value instanceof PropertyValue.DoubleValue decimal) {
+            return decimal.value();
+        }
+        return null;
     }
 
     private static boolean hasNonBlankString(WidgetNode node, String propertyName) {
@@ -750,6 +1163,16 @@ public final class WidgetTreeValidator {
 
     private static String pointer(String value) {
         return value.replace("~", "~0").replace("/", "~1");
+    }
+
+    private record EffectiveNumber(
+            String propertyName,
+            BigDecimal value) {
+    }
+
+    private record EffectiveShapeValue(
+            String propertyName,
+            PropertyValue value) {
     }
 
     private record PositionalArgument(

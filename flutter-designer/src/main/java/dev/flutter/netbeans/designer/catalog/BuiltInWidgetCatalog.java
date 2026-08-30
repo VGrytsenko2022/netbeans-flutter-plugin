@@ -106,7 +106,7 @@ public final class BuiltInWidgetCatalog {
         properties.add(namedProperty("shapeSideStyle", order++, false,
                 enumValues("BorderStyle", "none", "solid")));
         properties.add(namedProperty("shapeSideStrokeAlign", order++, false,
-                minusOneToOneDoubles()));
+                finiteDoubles()));
         properties.add(namedProperty("shapeRadiusTopLeft", order++, false,
                 nonNegativeDoubles()));
         properties.add(namedProperty("shapeRadiusTopRight", order++, false,
@@ -482,23 +482,184 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition elevatedButton() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        int order = 0;
+        properties.add(namedProperty(
+                "enabled", order++, false,
+                any(PropertyValueKind.BOOLEAN),
+                new PropertyValue.BooleanValue(true)));
+        properties.add(namedProperty("onPressed", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("onLongPress", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("onHover", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("onFocusChange", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("autofocus", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("clipBehavior", order++, false,
+                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer")));
+
+        for (String prefix : List.of(
+                "style", "styleDisabled", "stylePressed",
+                "styleHovered", "styleFocused")) {
+            order = appendElevatedButtonStateProperties(properties, prefix, order);
+            order = appendElevatedButtonTextStyleProperties(properties, prefix, order);
+        }
+
+        properties.add(namedProperty("styleVisualDensityHorizontal", order++, false,
+                minusFourToFourDoubles()));
+        properties.add(namedProperty("styleVisualDensityVertical", order++, false,
+                minusFourToFourDoubles()));
+        properties.add(namedProperty("styleTapTargetSize", order++, false,
+                materialEnumValues("MaterialTapTargetSize", "padded", "shrinkWrap")));
+        properties.add(namedProperty("styleAnimationDurationMs", order++, false,
+                nonNegativeIntegers()));
+        properties.add(namedProperty("styleEnableFeedback", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("styleAlignmentKind", order++, false,
+                stringPattern("(?:physical|directional)",
+                        "ButtonStyle alignment kind: physical or directional")));
+        properties.add(namedProperty("styleAlignmentX", order++, false, finiteDoubles()));
+        properties.add(namedProperty("styleAlignmentY", order++, false, finiteDoubles()));
+        properties.add(namedProperty("styleSplashFactory", order++, false,
+                stringPattern("(?:inkRipple|inkSplash|inkSparkle|noSplash)",
+                        "ButtonStyle splash factory preset")));
+
+        if (properties.size() != 286) {
+            throw new ExceptionInInitializerError(
+                    "ElevatedButton schema must expose exactly 286 properties; actual="
+                    + properties.size());
+        }
         return widget(
                 "flutter.material.ElevatedButton",
                 "ElevatedButton",
-                true,
+                false,
                 MATERIAL_IMPORT,
-                List.of(MATERIAL_IMPORT),
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT),
                 Set.of(),
                 palette("flutter.material", 100, 30, "Elevated Button"),
-                List.of(new PropertyDefinition(
-                        new PropertyName("onPressed"),
-                        DartParameter.named(0, true),
-                        List.of(
-                                new PropertyValueConstraint.CallbackReference(),
-                                new PropertyValueConstraint.AnyValue(PropertyValueKind.DART_EXPRESSION)),
-                        Optional.of(new PropertyValue.DartExpressionValue("null")))),
-                // Flutter marks child as a required named but nullable argument.
-                List.of(singleSlot("child", 1, true, 0, ANY_WIDGET)));
+                List.copyOf(properties),
+                // The reviewed Designer projection deliberately permits an
+                // empty slot and emits the required named argument as null.
+                // This keeps a freshly created Palette prototype structurally
+                // valid while preserving the exact one-child capacity.
+                List.of(singleSlot("child", order, true, 0, ANY_WIDGET)));
+    }
+
+    private static int appendElevatedButtonStateProperties(
+            List<PropertyDefinition> properties,
+            String prefix,
+            int order) {
+        for (String suffix : List.of(
+                "BackgroundColor", "ForegroundColor", "OverlayColor",
+                "ShadowColor", "SurfaceTintColor")) {
+            properties.add(namedProperty(prefix + suffix, order++, false, colorOrTheme()));
+        }
+        properties.add(namedProperty(prefix + "Elevation", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty(prefix + "Padding", order++, false,
+                List.of(new PropertyValueConstraint.EdgeInsetsValues(true))));
+        for (String suffix : List.of(
+                "MinimumWidth", "MinimumHeight", "FixedWidth", "FixedHeight",
+                "MaximumWidth", "MaximumHeight")) {
+            properties.add(namedProperty(prefix + suffix, order++, false,
+                    nonNegativeNumbers()));
+        }
+        properties.add(namedProperty(prefix + "IconColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty(prefix + "IconSize", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty(prefix + "SideColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty(prefix + "SideWidth", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty(prefix + "SideStyle", order++, false,
+                enumValues("BorderStyle", "none", "solid")));
+        properties.add(namedProperty(prefix + "SideStrokeAlign", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "ShapeKind", order++, false,
+                stringPattern(
+                        "(?:roundedRectangle|roundedSuperellipse|stadium|circle|beveledRectangle|continuousRectangle)",
+                        "closed ButtonStyle OutlinedBorder kind")));
+        for (String suffix : List.of(
+                "ShapeRadiusTopLeft", "ShapeRadiusTopRight",
+                "ShapeRadiusBottomRight", "ShapeRadiusBottomLeft")) {
+            properties.add(namedProperty(prefix + suffix, order++, false,
+                    nonNegativeDoubles()));
+        }
+        properties.add(namedProperty(prefix + "ShapeCircleEccentricity", order++, false,
+                zeroToOneDoubles()));
+        properties.add(namedProperty(prefix + "MouseCursor", order++, false,
+                stringPattern(
+                        "(?:none|basic|click|forbidden|wait|progress|contextMenu|help|text|verticalText|cell|precise|move|grab|grabbing|noDrop|alias|copy|disappearing|allScroll|resizeLeftRight|resizeUpDown|resizeUpLeftDownRight|resizeUpRightDownLeft|resizeUp|resizeDown|resizeLeft|resizeRight|resizeUpLeft|resizeUpRight|resizeDownLeft|resizeDownRight|resizeColumn|resizeRow|zoomIn|zoomOut)",
+                        "reviewed SystemMouseCursors preset")));
+        return order;
+    }
+
+    private static int appendElevatedButtonTextStyleProperties(
+            List<PropertyDefinition> properties,
+            String prefix,
+            int order) {
+        properties.add(namedProperty(prefix + "TextTheme", order++, false,
+                textStyleTheme()));
+        properties.add(namedProperty(prefix + "TextInherit", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "TextBackgroundColor", order++, false,
+                colorOrTheme()));
+        properties.add(namedProperty(prefix + "TextFontSize", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty(prefix + "TextFontWeight", order++, false,
+                enumValues("FontWeight", "w100", "w200", "w300", "w400",
+                        "w500", "w600", "w700", "w800", "w900")));
+        properties.add(namedProperty(prefix + "TextFontStyle", order++, false,
+                enumValues("FontStyle", "normal", "italic")));
+        properties.add(namedProperty(prefix + "TextLetterSpacing", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "TextWordSpacing", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "TextTextBaseline", order++, false,
+                enumValues("TextBaseline", "alphabetic", "ideographic")));
+        properties.add(namedProperty(prefix + "TextHeight", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "TextLeadingDistribution", order++, false,
+                enumValues("TextLeadingDistribution", "proportional", "even")));
+        properties.add(namedProperty(prefix + "TextLocaleLanguageCode", order++, false,
+                localeLanguageCode()));
+        properties.add(namedProperty(prefix + "TextLocaleScriptCode", order++, false,
+                localeScriptCode()));
+        properties.add(namedProperty(prefix + "TextLocaleCountryCode", order++, false,
+                localeCountryCode()));
+        properties.add(namedProperty(prefix + "TextBackground", order++, false,
+                paintValues()));
+        properties.add(namedProperty(prefix + "TextShadows", order++, false,
+                shadowValues()));
+        properties.add(namedProperty(prefix + "TextFontFeatures", order++, false,
+                any(PropertyValueKind.FONT_FEATURE_LIST)));
+        properties.add(namedProperty(prefix + "TextFontVariations", order++, false,
+                fontVariationValues()));
+        properties.add(namedProperty(prefix + "TextDecorationUnderline", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "TextDecorationOverline", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "TextDecorationLineThrough", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty(prefix + "TextDecorationColor", order++, false,
+                colorOrTheme()));
+        properties.add(namedProperty(prefix + "TextDecorationStyle", order++, false,
+                enumValues("TextDecorationStyle", "solid", "double", "dotted",
+                        "dashed", "wavy")));
+        properties.add(namedProperty(prefix + "TextDecorationThickness", order++, false,
+                finiteDoubles()));
+        properties.add(namedProperty(prefix + "TextFontFamily", order++, false,
+                stringLength(1, 256)));
+        properties.add(namedProperty(prefix + "TextFontFamilyFallback", order++, false,
+                stringLength(0, 4096)));
+        properties.add(namedProperty(prefix + "TextPackage", order++, false,
+                stringLength(1, 256)));
+        properties.add(namedProperty(prefix + "TextOverflow", order++, false,
+                enumValues("TextOverflow", "clip", "fade", "ellipsis", "visible")));
+        return order;
     }
 
     private static WidgetDefinition widget(
@@ -542,6 +703,19 @@ public final class BuiltInWidgetCatalog {
                 DartParameter.named(order, required),
                 constraints,
                 Optional.empty());
+    }
+
+    private static PropertyDefinition namedProperty(
+            String name,
+            int order,
+            boolean required,
+            List<PropertyValueConstraint> constraints,
+            PropertyValue creationDefault) {
+        return new PropertyDefinition(
+                new PropertyName(name),
+                DartParameter.named(order, required),
+                constraints,
+                Optional.of(creationDefault));
     }
 
     private static SlotDefinition singleSlot(
@@ -610,6 +784,11 @@ public final class BuiltInWidgetCatalog {
                 new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, true, null, true));
     }
 
+    private static List<PropertyValueConstraint> nonNegativeIntegers() {
+        return List.of(new PropertyValueConstraint.IntegerRange(
+                BigInteger.ZERO, DartNumericLiterals.MAX_PORTABLE_INTEGER));
+    }
+
     private static List<PropertyValueConstraint> nonNegativeDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
                 BigDecimal.ZERO, true, null, true));
@@ -625,9 +804,9 @@ public final class BuiltInWidgetCatalog {
                 BigDecimal.ZERO, true, BigDecimal.ONE, true));
     }
 
-    private static List<PropertyValueConstraint> minusOneToOneDoubles() {
+    private static List<PropertyValueConstraint> minusFourToFourDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
-                BigDecimal.ONE.negate(), true, BigDecimal.ONE, true));
+                BigDecimal.valueOf(-4), true, BigDecimal.valueOf(4), true));
     }
 
     private static List<PropertyValueConstraint> positiveFontAxisDoubles() {
@@ -678,5 +857,11 @@ public final class BuiltInWidgetCatalog {
     private static List<PropertyValueConstraint> enumValues(String type, String... values) {
         return List.of(new PropertyValueConstraint.EnumValues(
                 new DartSymbolReference(WIDGETS_IMPORT, type), List.of(values)));
+    }
+
+    private static List<PropertyValueConstraint> materialEnumValues(
+            String type, String... values) {
+        return List.of(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference(MATERIAL_IMPORT, type), List.of(values)));
     }
 }

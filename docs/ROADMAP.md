@@ -407,19 +407,35 @@ accepted architecture is documented in
   `leading`, `title`, `actions`, `flexibleSpace` and `bottom`. `AppBar` carries
   the canonical `PreferredSizeWidget` trait, so only AppBar is accepted by
   `Scaffold.appBar` and `AppBar.bottom`; all nine sources remain valid in the
-  eleven any-widget destinations. The active surface is nine
+  eleven any-widget destinations. At that milestone the active surface was nine
   Create/Canvas/DnD sources, 211 writable rows across eight non-`Scaffold`
   widgets and 117 compatibility candidates: exactly 101 accepted and 16
   rejected. Source-aware Palette
   authorization binds an opaque token to the exact current type and traits for
   Canvas hover, while Java repeats the canonical planner before mutation.
+- [x] Supersede the AppBar milestone with the complete `ElevatedButton`
+  vertical slice. Canvas payload protocol v8, deterministic generation and the
+  native runner share 286 typed leaves: seven direct behavior/callback fields,
+  five 54-leaf default/disabled/pressed/hovered/focused style groups and nine
+  common layout/feedback fields. Callback values are strict Dart identifiers;
+  the Canvas receives only `callbackPresence` and cannot execute project code.
+  Direct sparse `ButtonStyle` maps preserve the local → `ElevatedButtonTheme`
+  → framework fallback. The closed contract includes every
+  `SystemMouseCursor`, six shape presets including `roundedSuperellipse`, four
+  splash presets and deliberately omits ineffective `TextStyle.color` plus
+  runtime-only keys/controllers/builders. Its optional-single,
+  required-named-nullable `child` slot emits `child: null` when empty. The
+  current surface is ten Create/Canvas/DnD sources, 497 writable rows across
+  nine non-`Scaffold` widgets and 140 compatibility candidates across twelve
+  any-widget plus two trait-bound destinations: exactly 122 accepted and 18
+  rejected. The `.fd` schema remains v4.
 - [ ] Pass runner crash/restart/close, native-handle cleanup, pair Save,
   Undo/Redo and assembled-Windows-runtime gates; then implement and verify the
   Linux and macOS SPI providers.
 - [ ] Admit the remaining built-ins only as complete vertical slices after
-  those gates pass. The current eight-widget non-`Scaffold` typed Properties
-  slice does not imply writable `Scaffold`/`ElevatedButton` Properties or any
-  Create/Canvas/DnD capability for `ElevatedButton`.
+  those gates pass. The current typed Properties slice spans nine
+  non-`Scaffold` widgets and still does not imply writable `Scaffold` Properties or capability for
+  any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

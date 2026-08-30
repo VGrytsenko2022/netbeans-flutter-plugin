@@ -932,6 +932,85 @@ void main() {
   );
 
   testWidgets(
+    'admits ElevatedButton as an exact source-aware runtime type',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyScaffoldModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      final rootId = runtime.model!.root.id;
+      runtime.setDropResolver(
+        (_, _, [source]) =>
+            source?.widgetType == 'flutter.material.ElevatedButton'
+            ? CanvasDropTarget(
+                parentWidgetId: rootId,
+                slotName: 'body',
+                insertionIndex: 0,
+              )
+            : null,
+      );
+      const token =
+          'nbfdnd:v1:bca8a67d-5ea2-4fd3-b1b6-ded21d143aa2:'
+          'b0f76ad5-65bc-4016-ab42-6930c12fac83';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request,
+          widgetType: 'flutter.material.ElevatedButton',
+        ),
+        isTrue,
+      );
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (await _decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('token', token));
+      expect(drops.single['body'], containsPair('parentWidgetId', rootId));
+      expect(drops.single['body'], containsPair('slotName', 'body'));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'publishes exact ADD into an empty Center child and rejects other slots',
     (tester) async {
       final input = StreamController<List<int>>();

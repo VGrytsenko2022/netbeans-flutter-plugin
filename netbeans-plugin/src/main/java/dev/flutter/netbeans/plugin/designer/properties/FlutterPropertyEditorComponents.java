@@ -69,6 +69,7 @@ final class FlutterPropertyEditorComponents {
     static final String COLOR_ALPHA_NAME = "flutter.color.alpha";
     static final String EDGE_ALL_NAME = "flutter.edgeInsets.all";
     static final String NEWLINE_LIST_TEXT_NAME = "flutter.newlineList.text";
+    static final String CALLBACK_TEXT_NAME = "flutter.callback.text";
     static final String MATERIAL_ICON_SEARCH_NAME = "flutter.materialIcon.search";
     static final String MATERIAL_ICON_RESULTS_NAME = "flutter.materialIcon.results";
     static final String MATERIAL_ICON_NONE_NAME = "flutter.materialIcon.none";
@@ -92,7 +93,7 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
+            case STRING, CALLBACK, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA -> true;
             default -> false;
@@ -108,6 +109,7 @@ final class FlutterPropertyEditorComponents {
                 : PropertyEnv.create(new FeatureDescriptor());
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
+            case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
                     editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
@@ -682,6 +684,87 @@ final class FlutterPropertyEditorComponents {
                     ? FlutterPropertyCellValue.unset()
                     : FlutterPropertyCellValue.explicit(
                             new PropertyValue.StringValue(textArea.getText())));
+        }
+    }
+
+    /** Compact, strict editor for one persisted Dart callback identifier. */
+    private static final class CallbackCustomEditor extends CommitOnValidPanel {
+        private static final String DESCRIPTION =
+                "Dart callback identifier such as onPressed or _handlePress; "
+                + "expressions are not accepted.";
+
+        private final JTextField handler = new JTextField(36);
+        private final JCheckBox useDefault = new JCheckBox(
+                "Use inherited/default value (omit argument)");
+        private boolean updating;
+
+        CallbackCustomEditor(
+                PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding,
+                PropertyEnv environment) {
+            super(editor, binding, environment);
+            setLayout(new BorderLayout(0, 8));
+            setName("flutter.callback.custom");
+            getAccessibleContext().setAccessibleName(
+                    binding.definition().name().value() + " callback editor");
+            getAccessibleContext().setAccessibleDescription(DESCRIPTION);
+
+            JLabel label = new JLabel("Handler:");
+            label.setLabelFor(handler);
+            handler.setName(CALLBACK_TEXT_NAME);
+            handler.getAccessibleContext().setAccessibleName(
+                    binding.definition().name().value() + " callback handler");
+            handler.getAccessibleContext().setAccessibleDescription(DESCRIPTION);
+            JPanel row = new JPanel(new BorderLayout(8, 0));
+            row.add(label, BorderLayout.WEST);
+            row.add(handler, BorderLayout.CENTER);
+            add(row, BorderLayout.CENTER);
+
+            if (binding.optional()) {
+                useDefault.getAccessibleContext().setAccessibleDescription(
+                        "When selected, removes this callback binding.");
+                add(useDefault, BorderLayout.NORTH);
+                useDefault.addActionListener(ignored -> updateDraft());
+            }
+            FlutterPropertyCellValue initial = initialValue();
+            updating = true;
+            try {
+                boolean unset = initial.explicitValue().isEmpty();
+                useDefault.setSelected(unset);
+                handler.setEnabled(!unset);
+                handler.setText(initial.explicitValue()
+                        .map(PropertyValue.CallbackValue.class::cast)
+                        .map(PropertyValue.CallbackValue::handler)
+                        .orElse(""));
+                handler.setCaretPosition(0);
+            } finally {
+                updating = false;
+            }
+            handler.getDocument().addDocumentListener(
+                    documentListener(this::updateDraft));
+            activate();
+        }
+
+        private void updateDraft() {
+            if (updating) {
+                return;
+            }
+            boolean unset = binding.optional() && useDefault.isSelected();
+            handler.setEnabled(!unset);
+            if (unset) {
+                clearInvalid(handler, DESCRIPTION);
+                markValid(FlutterPropertyCellValue.unset());
+                return;
+            }
+            try {
+                FlutterPropertyCellValue candidate = FlutterPropertyCellValue.explicit(
+                        new PropertyValue.CallbackValue(handler.getText().strip()));
+                binding.validate(candidate);
+                clearInvalid(handler, DESCRIPTION);
+                markValid(candidate);
+            } catch (IllegalArgumentException failure) {
+                markInvalid(failure.getMessage(), handler);
+            }
         }
     }
 

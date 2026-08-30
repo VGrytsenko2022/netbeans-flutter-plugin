@@ -418,9 +418,16 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     List.of(body.path("traits").get(0).asText()));
             assertEquals(1, body.path("traits").size());
 
-            assertFalse(onEdt(() -> harness.session.authorizePaletteDragSource(
+            assertTrue(onEdt(() -> harness.session.authorizePaletteDragSource(
                     DROP_TOKEN_B,
                     new WidgetTypeId("flutter.material.ElevatedButton"))));
+            JsonNode buttonBody = harness.process.readHostControl(
+                    "host.paletteDragSource");
+            assertEquals(DROP_TOKEN_B, buttonBody.path("token").asText());
+            assertEquals("flutter.material.ElevatedButton",
+                    buttonBody.path("widgetType").asText());
+            assertEquals(0, buttonBody.path("traits").size(),
+                    "ElevatedButton is a normal Widget, not PreferredSizeWidget");
         } finally {
             harness.close();
         }

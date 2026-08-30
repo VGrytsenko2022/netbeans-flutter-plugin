@@ -54,8 +54,6 @@ class FlutterWidgetIconRegistryTest {
     void leavesUnknownAndUnreviewedTypesUnmapped() {
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("example.extension.Calendar")).isEmpty());
-        assertTrue(FlutterWidgetIconRegistry.findIconPath(
-                new WidgetTypeId("flutter.material.ElevatedButton")).isEmpty());
     }
 
     @Test
@@ -266,6 +264,8 @@ class FlutterWidgetIconRegistryTest {
     private static Map<String, String> expectedMappings() {
         LinkedHashMap<String, String> expected = new LinkedHashMap<>();
         expected.put("flutter.material.AppBar", ICON_ROOT + "appbar.svg");
+        expected.put("flutter.material.ElevatedButton",
+                ICON_ROOT + "elevatedbutton.svg");
         expected.put("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg");
         expected.put("flutter.widgets.Center", ICON_ROOT + "center.svg");
         expected.put("flutter.widgets.Column", ICON_ROOT + "column.svg");

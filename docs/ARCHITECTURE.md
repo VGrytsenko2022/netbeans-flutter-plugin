@@ -60,7 +60,7 @@ Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith`. Canvas model protocol v7 carries the same resolved role
+`TextTheme.copyWith`. Canvas model protocol v8 carries the same resolved role
 tables and applies that order before form-local Text overrides. Theme
 definitions remain independent of every form `.fd` model.
 
@@ -130,7 +130,7 @@ Rename and Delete close a clean editor, stage both paths under deterministic loc
 
 Pair-aware Cut/Move uses a private one-shot `NodeTransfer.CLIPBOARD_CUT` paste. It keeps the basename and exact pair bytes, stays within one Flutter project, and accepts only an already existing writable destination with an already existing mirrored counterpart folder owned by that exact project. A bounded, strict `pubspec.yaml`/`package_config.json`-bound project Dart inventory blocks outgoing relative directives, incoming references to the old location, references that could acquire the destination, unsafe URI/package aliases, nested packages and conservative case/Unicode collisions. At the final boundary, exact proof-file locks and the actual NetBeans 30 MasterFS child-cache mutexes cover every proof/source/target directory and its physical ancestor chain; inventory verification and commit share one EDT admission, and an unavailable/different MasterFS shape fails closed. Move closes a clean source editor, publishes `.fd` before Dart, locks both targets, retires the source identities through reversible `.nbmove` tombstones, then creates fresh target DataObjects. Rollback restores both exact sources before removing owned targets; if safe recreation cannot be proved, verified targets are retained for recovery. Once exact targets and both source tombstones establish commit, late cleanup/provider failures are recovery warnings rather than a false uncommitted result. This is an in-process guarantee with no durable crash journal, and an external non-NetBeans writer remains a residual race.
 
-Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, including migration of schema v1-v3 to v4. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, nine-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 211 catalog-backed fields of `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. AppBar contributes 120 grouped typed leaves and five exact slots; Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; Icon contributes its typed nullable positional `IconData` plus all 12 supported named constructor properties. Semantic Material `ColorScheme`, `TextTheme` and the theme-backed subsets of `AppBarTheme` and `IconTheme` inheritance are preserved identically by generated Dart and native Canvas; explicit local values remain local overrides. The bundled searchable Material Icons registry contains 8,825 entries locked to Flutter 3.44.8 and requires `flutter.uses-material-design: true` in generated applications. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix; the historical SizedBox and Icon expansions followed. The current contract admits nine exact capability-gated Palette sources across eleven any-widget and two `PreferredSizeWidget` destination slots: 117 candidates, of which 101 are accepted and 16 rejected. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner; cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, including migration of schema v1-v3 to v4. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, ten-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 497 catalog-backed fields of `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. ElevatedButton contributes 286 typed leaves and one optional-single required-named-nullable child slot; AppBar contributes 120 grouped typed leaves and five exact slots; Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; Icon contributes its typed nullable positional `IconData` plus all 12 supported named constructor properties. ElevatedButton generation uses direct sparse state maps and preserves local → `ElevatedButtonTheme` → framework fallback; Canvas receives callback presence only and never a callback identifier. Semantic Material `ColorScheme`, `TextTheme` and the theme-backed subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` inheritance are preserved identically by generated Dart and native Canvas; explicit local values remain local overrides. The bundled searchable Material Icons registry contains 8,825 entries locked to Flutter 3.44.8 and requires `flutter.uses-material-design: true` in generated applications. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix; the historical SizedBox, Icon and AppBar expansions followed. The current contract admits ten exact capability-gated Palette sources across twelve any-widget and two `PreferredSizeWidget` destination slots: 140 candidates, of which 122 are accepted and 18 rejected. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner; cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
 The paired DataObject also owns one read-only document controller shared by
 all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
@@ -285,7 +285,7 @@ the platform can safely host and supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current nine-definition
+historical source restriction is superseded by the current ten-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -323,8 +323,8 @@ remains the only path to an `AddWidget` command. That command uses the
 established generation, analysis, paired replacement, Save and chronological
 Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
-authority. DnD outside the nine-source, 117-candidate matrix (101 accepted,
-16 rejected) remains disabled; process separation is not described as an OS security
+authority. DnD outside the ten-source, 140-candidate matrix (122 accepted,
+18 rejected) remains disabled; process separation is not described as an OS security
 sandbox.
 
 The current internal slice implements the NetBeans-independent Canvas
@@ -334,9 +334,9 @@ fail-stop bounded process framing. After the handshake, bounded runtime control
 publishes one exact validated revision, acknowledges its layout, synchronizes
 selection and capability-gates the narrowly typed `runner.paletteDrop` intent.
 Protocol negotiation and decoding do not authorize mutation. The canonical
-protocol-v7 model payload admits only exact reviewed built-in definitions with
+protocol-v8 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center` and `SizedBox`. Java fingerprints the complete property/slot schema and the
+`Padding`, `Center`, `SizedBox` and `ElevatedButton`. Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
 future versioned catalog contract.
@@ -356,13 +356,15 @@ an empty configured set leaves the selector empty and Canvas unavailable.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact nine widgets carrying
-the Create capability. `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-`SizedBox`, `Text` and `Icon` admit the reviewed 211-property Set/Reset slice
+Design lookup supplies a Palette filtered to the exact ten widgets carrying
+the Create capability. `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`,
+`Center`, `SizedBox`, `Text` and `Icon` admit the reviewed 497-property Set/Reset slice
 through an exact revision token and analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then
-reach generated Dart and the runner through one shared composite mapping;
+reach generated Dart and the runner through one shared composite mapping. The
+286 ElevatedButton leaves use strict callback identifiers and direct sparse
+state-aware `ButtonStyle` projections; Canvas receives callback presence only.
 `Scaffold` remains read-only.
 A standalone
 automated Win32 smoke proves the three-window hierarchy and resize path; its

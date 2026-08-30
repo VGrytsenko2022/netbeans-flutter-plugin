@@ -45,10 +45,12 @@ class BuiltInWidgetCatalogTest {
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
         assertEquals(10, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(9, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(8, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(List.of("flutter.material.AppBar"),
+        assertEquals(List.of(
+                        "flutter.material.AppBar",
+                        "flutter.material.ElevatedButton"),
                 BuiltInWidgetCatalog.getDefault().definitions().stream()
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
@@ -106,6 +108,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
+                new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextDecorationStyle"),
@@ -150,9 +153,11 @@ class BuiltInWidgetCatalogTest {
                         false,
                         List.of()),
                 property(catalog, "flutter.widgets.Icon", "icon").creationDefault().orElseThrow());
-        assertEquals(new PropertyValue.DartExpressionValue("null"),
-                property(catalog, "flutter.material.ElevatedButton", "onPressed")
+        assertEquals(new PropertyValue.BooleanValue(true),
+                property(catalog, "flutter.material.ElevatedButton", "enabled")
                         .creationDefault().orElseThrow());
+        assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
+                .creationDefault().isEmpty());
     }
 
     @Test
@@ -225,7 +230,7 @@ class BuiltInWidgetCatalogTest {
         assertDoubleRange(appBar, "toolbarOpacity",
                 BigDecimal.ZERO, true, BigDecimal.ONE, true);
         assertDoubleRange(appBar, "shapeSideStrokeAlign",
-                BigDecimal.ONE.negate(), true, BigDecimal.ONE, true);
+                null, true, null, true);
         assertDoubleRange(appBar, "iconThemeWeight",
                 BigDecimal.ZERO, false, BigDecimal.valueOf(32768), false);
         assertDoubleRange(appBar, "actionsIconThemeGrade",
@@ -502,6 +507,32 @@ class BuiltInWidgetCatalogTest {
         assertInstanceOf(PropertyValueConstraint.CallbackReference.class, callback);
         assertTrue(callback.accepts(new PropertyValue.CallbackValue("onContinue")));
         assertFalse(callback.accepts(new PropertyValue.CallbackValue("class")));
+    }
+
+    @Test
+    void elevatedButtonExposesExactFlutter344EnterpriseSurfaceAndMaxPresets() {
+        WidgetDefinition button = definition("flutter.material.ElevatedButton");
+        assertFalse(button.constConstructor());
+        assertEquals(286, button.properties().size());
+        assertEquals(ElevatedButtonWidgetPropertySchema.definitions().keySet(),
+                button.properties().stream()
+                        .map(value -> value.name().value())
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(List.of("child"), button.slots().stream()
+                .map(value -> value.name().value()).toList());
+        assertStringPattern(button, "styleShapeKind", "roundedSuperellipse",
+                "superellipse", "rectangle");
+        for (String cursor : List.of(
+                "none", "resizeColumn", "resizeRow", "zoomIn", "zoomOut")) {
+            assertStringPattern(button, "styleMouseCursor", cursor,
+                    cursor + "Unknown");
+        }
+        assertStringPattern(button, "styleSplashFactory", "inkSplash",
+                "splash", "inkFeature");
+        assertDoubleRange(button, "styleSideStrokeAlign",
+                null, true, null, true);
+        assertDoubleRange(button, "stylePressedSideStrokeAlign",
+                null, true, null, true);
     }
 
     private static void assertAcceptsZero(PropertyDefinition property) {

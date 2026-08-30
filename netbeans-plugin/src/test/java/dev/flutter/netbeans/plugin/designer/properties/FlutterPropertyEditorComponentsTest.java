@@ -327,6 +327,25 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void elevatedButtonStrokeAlignEditorAcceptsFiniteValuesBeyondPresetConstants() {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.material.ElevatedButton",
+                        "stylePressedSideStrokeAlign"));
+        PropertyEditor editor = binding.createEditor();
+
+        editor.setAsText("-3.5");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.DoubleValue(new BigDecimal("-3.5"))),
+                editor.getValue());
+        editor.setAsText("12.25");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.DoubleValue(new BigDecimal("12.25"))),
+                editor.getValue());
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("NaN"));
+    }
+
+    @Test
     void nullableDoubleAcceptsZeroAndRestoresUnsetWithoutChangingItsKind()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(
@@ -606,6 +625,48 @@ class FlutterPropertyEditorComponentsTest {
             assertEquals(FlutterPropertyCellValue.explicit(
                             new PropertyValue.StringValue(
                                     FlutterPropertyCellValue.NOT_SET_TEXT)),
+                    editor.getValue());
+            return null;
+        });
+    }
+
+    @Test
+    void callbackCustomEditorStartsEmptyAndCommitsOnlyAValidatedIdentifier()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.material.ElevatedButton", "onPressed"));
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "On pressed", "Optional validated Dart callback identifier."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JCheckBox useDefault = findByText(panel, JCheckBox.class,
+                    "Use inherited/default value (omit argument)");
+            JTextField handler = findNamed(panel, JTextField.class,
+                    FlutterPropertyEditorComponents.CALLBACK_TEXT_NAME);
+            assertNotNull(useDefault);
+            assertNotNull(handler);
+            assertTrue(useDefault.isSelected());
+            assertFalse(handler.isEnabled());
+            assertEquals("", handler.getText(),
+                    "the <not set> presentation token must not leak into edit mode");
+
+            useDefault.doClick();
+            assertTrue(handler.isEnabled());
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            handler.setText("() => arbitraryDart()");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(),
+                    "invalid callback drafts must stay local");
+
+            handler.setText("_handlePress");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.CallbackValue("_handlePress")),
                     editor.getValue());
             return null;
         });

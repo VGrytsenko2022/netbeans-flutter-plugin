@@ -6,7 +6,25 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
-- The complete `AppBar` vertical slice expands the exact Palette/Canvas surface
+- The complete `ElevatedButton` vertical slice expands the exact
+  Palette/Canvas surface to ten widgets and the writable surface to 497 rows
+  across nine non-`Scaffold` widgets. Its 286 typed leaves comprise seven direct
+  fields, five 54-leaf default/disabled/pressed/hovered/focused style groups and
+  nine common layout/feedback fields. Strict callback identifiers are never
+  arbitrary Dart expressions; Canvas payload protocol v8 transmits only
+  `callbackPresence` and cannot execute a project handler. Deterministic Dart
+  uses direct sparse `ButtonStyle` state maps so omitted values fall through
+  from the local button to `ElevatedButtonTheme` and Flutter defaults.
+  `TextStyle.color` is intentionally excluded because effective text color is
+  owned by `foregroundColor`; runtime-only keys, focus/state controllers and
+  builders remain excluded. The closed editors include every
+  `SystemMouseCursor`, six shape presets including `roundedSuperellipse`, and
+  `InkSplash`, `InkRipple`, `InkSparkle` and `NoSplash`. Its optional-single
+  required-named-nullable `child` slot emits `child: null` when empty. Ten
+  sources across twelve any-widget and two `PreferredSizeWidget` destinations
+  form 140 candidates: exactly 122 are admitted and 18 rejected. The `.fd`
+  document schema remains v4.
+- The earlier complete `AppBar` vertical slice expanded the exact Palette/Canvas surface
   to nine widgets. It exposes 120 typed, independently resettable Properties in
   nine enterprise groups and exact `leading`, `title`, `actions`,
   `flexibleSpace` and `bottom` slots. Deterministic Dart generation and the
@@ -16,8 +34,8 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   acceptance, and negotiated source-aware DnD binds an opaque token to the
   exact current widget type and traits before hover. `Scaffold.appBar` and
   `AppBar.bottom` accept only `PreferredSizeWidget`; the complete matrix has
-  117 candidate cells, of which 101 are admitted and 16 rejected. The current
-  writable surface is 211 rows across eight non-`Scaffold` widgets.
+  117 candidate cells, of which 101 are admitted and 16 rejected. At that
+  milestone the writable surface was 211 rows across eight non-`Scaffold` widgets.
 - The earlier complete capability-gated vertical slice added `Icon` as the eighth
   Palette/Canvas widget. It exposes the positional typed nullable `IconData`
   value and all 12 supported named constructor properties, for 91 writable
@@ -136,7 +154,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 - The first NetBeans 30 Flutter Designer integration slice: mirrored `lib/<relative>/<name>.dart` ↔ `.fd_templates/<relative>/<name>.fd` pairing, a dedicated `Design`/`Source` MultiView, and a single Dart editor document shared with language services. `File > New File > Flutter Designer > Flutter Designer Form` now creates a canonical stateless starter pair atomically, accepts targets only inside `lib`, and mirrors every nested relative folder under `.fd_templates`.
 - Theme-aware 16×16 file-type icons now distinguish ordinary and Designer-owned Dart sources from `.fd` models in the Projects and Files trees. The Dart Class and Flutter Designer Form entries in New File use the same matching icons, while the pair-aware Designer loader retains priority but declines every Dart source without its exact mirrored `.fd`. Such files are owned by the dedicated ordinary `DartDataObject`, which opens a standard `text/x-dart` `CloneableEditor` by double-click or the first `Open` context action and retains lexer highlighting, diagnostics, completion, navigation, refactoring, Quick Fixes and formatting without a Designer MultiView.
-- The eight currently rendered Designer widgets now have distinct semantic SVG icons shared by the Palette and Design tree: Scaffold, Column, Row, Padding, Center, SizedBox, Text and Icon. Each family includes reviewed 16×16 and 32×32 light/dark resources; unknown contributor widgets remain safely unmapped instead of receiving a misleading built-in identity.
+- At the earlier Icon milestone, the eight then-rendered Designer widgets received distinct semantic SVG icons shared by the Palette and Design tree: Scaffold, Column, Row, Padding, Center, SizedBox, Text and Icon. Each family includes reviewed 16×16 and 32×32 light/dark resources; unknown contributor widgets remain safely unmapped instead of receiving a misleading built-in identity.
 - Guarded generated Dart regions with strict marker parsing in Dart's real lexical state, stable source offsets, marker round-trip persistence, and rejection of malformed, nested, unmatched, or duplicate markers. Marker-looking text inside strings and block comments remains ordinary Dart content.
 - Fail-closed guarded persistence: an invalid, removed, renamed, overlapping, or otherwise unexpected live guard set cannot be saved as masked marker placeholders; the last known-good marker-bearing source is retained and the save is rejected.
 - Unit and assembled-runtime gates for MIME/loader registration, orphan handling, both pair-open orders, late safe revalidation, an unsaved orphan buffer, the real `Design`/`Source` MultiView, Dart EditorKit reuse, guarded user edits, Save lifecycle, and marker persistence. The ordinary-Dart runtime gate now rejects fallback `DefaultDataObject` ownership and any test-only MIME substitution, and proves the Dart lexer, parser-error stripe, completion with auto-import, diagnostics with Quick Fix, definition, references, rename and LSP formatting against a real SDK.
@@ -174,7 +192,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 - Packaged NetBeans 30 coverage now proves one shared Design/Source Undo identity and the public CES dirty→Save→Undo→Redo savepoint lifecycle. The strict release verifier and isolated clean-install lifecycle pass through activation, SDK auto-discovery, project reopen, disable, uninstall and fresh-cache cleanup with no critical log entries or plugin-owned ordering warnings.
 - A new Designer command may now branch from an exact noncanonical saved-history endpoint such as `C1/S0`. An opaque staged command-source token binds the logical owner, endpoint-specific `SavedHistoryProof`, live identity, monotonic NetBeans document version and coordinator epochs; even edit-to-exact-revert ABA is rejected before replacement publication. The pending lease derives and pins `C3/S0` from that exact pair until joint analyzer/document/pair/command adoption. The generalized replacement/recovery path accepts analyzer-free saved predecessors without fabricating analyzer evidence, rejects canonical-pair or stale-token substitution without mutation, preserves the older native semantic graph across an atomically rolled-back failed apply, and counts the candidate with all physical history variants before analyzer or CES work. Adoption preserves durable `C2/S2`, truncates the obsolete `S2/C2` redo suffix, installs the exact `B/S0→C1/S0→C3/S0` branch, and keeps `S0` sticky for the following ordinary command.
 
-- The active Flutter Designer `Design` lookup now publishes the standard NetBeans Palette filtered by the exact Create capability to `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. Stable-ID tree/Canvas selection drives standard selected-Node Properties: 211 catalog-backed fields are writable across the eight non-`Scaffold` widgets, including the 120-leaf AppBar, 59-leaf Text and 13-property Icon projections. The historical first DnD vertical slice admitted only built-in `Text`, followed by the six-, seven- and eight-source matrices; all are superseded for the current surface by the nine-source capability-gated matrix described above. The widget catalog remains the Java authority for source type, traits, slot cardinality and acceptance. Palette and Properties open once on the first Design activation without taking focus from the editor.
+- The active Flutter Designer `Design` lookup now publishes the standard NetBeans Palette filtered by the exact Create capability to `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text`, `Icon` and `ElevatedButton`. Stable-ID tree/Canvas selection drives standard selected-Node Properties: 497 catalog-backed fields are writable across the nine non-`Scaffold` widgets, including the 286-leaf ElevatedButton, 120-leaf AppBar, 59-leaf Text and 13-property Icon projections. The historical first DnD vertical slice admitted only built-in `Text`, followed by the six-, seven-, eight- and nine-source matrices; all are superseded for the current surface by the ten-source capability-gated matrix described above. The widget catalog remains the Java authority for source type, traits, slot cardinality and acceptance. Palette and Properties open once on the first Design activation without taking focus from the editor.
 
 ### Fixed
 
@@ -190,7 +208,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 - The Flutter Designer footer is now a single compact status row. Normal state shows only `Designer ready.` and the current Canvas summary; full model/source/hash diagnostics remain available through tooltips and accessibility metadata, while the existing Canvas `Details...` dialog remains reserved for failed or unavailable native rendering.
 - `.dart` is the technical primary NetBeans entry for a designer pair while `.fd` remains the canonical visual-model source of truth. Dart-only Save As remains withheld until a dedicated pair-aware Save As flow is implemented.
-- Designer mutation remains closed except for the admitted revision-bound 211-property Set/Reset path, selected-widget Delete, same-tree compatibility-planned move/reorder, exact-slot management and the separately fenced catalog-driven insertion path for the nine DnD-capable Palette sources. Insertion accepts exactly 101 of the 117 reviewed source/destination cells, with trait-bound AppBar slots enforced on both host and Canvas. Scanner/generator probes, analyzed replacement, exact rollback/rebind, native Source/model replay, Pair/Source Save re-anchoring, the isolated native Canvas host and the NetBeans 30 runtime/release gate remain authoritative; `Scaffold` Properties, unreviewed Palette definitions and unreviewed object graphs stay disabled.
+- Designer mutation remains closed except for the admitted revision-bound 497-property Set/Reset path, selected-widget Delete, same-tree compatibility-planned move/reorder, exact-slot management and the separately fenced catalog-driven insertion path for the ten DnD-capable Palette sources. Insertion accepts exactly 122 of the 140 reviewed source/destination cells, with trait-bound AppBar slots enforced on both host and Canvas. Scanner/generator probes, analyzed replacement, exact rollback/rebind, native Source/model replay, Pair/Source Save re-anchoring, the isolated native Canvas host and the NetBeans 30 runtime/release gate remain authoritative; `Scaffold` Properties, unreviewed Palette definitions and unreviewed object graphs stay disabled.
 - Moved the `.fd` MIME resolver away from NetBeans 30's built-in position `350` and left the Dart `UndoableEditWrapper` unpositioned with the other heterogeneous Dart MIME services, eliminating both plugin-owned layer-ordering warnings found by isolated install smoke.
 - Corrected pre-release version 1 schema bounds before a codec ships: widget type ids now accept the intended 1–255 characters, enum type names require non-empty dot-separated Dart identifiers, and the reserved Dart identifier `Function` is no longer accepted as a generated class name.
 

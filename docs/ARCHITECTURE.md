@@ -374,16 +374,16 @@ The separately selected runtime-faithful Windows Web architecture compiles the
 same bounded runner from `main_web.dart` as a static Flutter Web release bundle.
 It embeds Flutter directly into one browser-managed DOM host through multi-view;
 it does not introduce an iframe, transferred image or second model protocol. A
-narrow native Win32 adapter is to create a windowed Microsoft Edge WebView2
-controller as a child of the heavyweight AWT peer and own the COM STA, message
-pump, focus, bounds, visibility and teardown edges. The cached `build/web`
-bundle is to be exposed under a unique isolated HTTPS virtual host with minimum
-cross-origin access, local CanvasKit resources, strict navigation/resource/CSP
-policy and no project-directory mapping. JavaFX WebView is not an alternative
-backend, and Java does not own WebView2 COM objects directly.
+narrow native Win32 adapter now creates a windowed Microsoft Edge WebView2
+controller as a child of the heavyweight AWT peer and owns the COM STA, message
+pump, focus, bounds, visibility and teardown edges. The adapter and Microsoft's
+architecture-matched loader are packaged with an exact size/SHA-256 manifest,
+license and notice; Java extracts and revalidates that closed x64 bundle before
+JNA loads it. JavaFX WebView is not an alternative backend, and Java never owns
+WebView2 COM objects directly.
 
-The implemented Web slice currently ends at the browser page boundary. The
-shared Canvas runtime now has process-specific and browser-specific I/O adapters,
+The internal host foundation now extends through the browser page boundary. The
+shared Canvas runtime has process-specific and browser-specific I/O adapters,
 and the Web entry point creates one widget root per browser-managed Flutter view.
 The JavaScript bridge is available only when WebView2 and the exact host-injected
 256-bit session nonce are present. It fixes the bridge format, version and
@@ -396,21 +396,49 @@ and decoded byte bound and fails closed on drift or replay. Focused Dart tests
 and a manually executable headless-browser harness cover both sides of that
 boundary. The explicit Web runtime profile observes binding metrics so resize
 invalidates stale geometry and republishes layout, but it neither installs nor
-advertises the Windows OLE Palette DnD channel. A twice-reproduced pinned Flutter release build from the offline
-dependency cache proves the Web compiler closure and locally packaged CanvasKit
-boundary. For the current English-only scope it also registers local Roboto,
-ships its Apache-2.0 license and routes fallback fonts to packaged assets. This
-does not yet prove an offline browser runtime: native resource/network
-confinement and the product WebView2 load remain required.
+advertises the Windows OLE Palette DnD channel. A twice-reproduced pinned Flutter
+release build from the offline dependency cache proves the Web compiler closure
+and locally packaged CanvasKit boundary. For the current English-only scope it
+also registers local Roboto, ships its Apache-2.0 license and routes fallback
+fonts to packaged assets.
 
-That completion is not product routing or browser acceptance. No native
-WebView2 Runtime detector/loader, COM adapter/controller, virtual-host mapping,
-CSP/navigation enforcement, authenticated Java host endpoint, Web provider
-runner/cache contract, Web `CanvasEngineIdentity`, retry/teardown path or
-assembled NetBeans physical gate is implemented by this slice. Until those
-separate gates pass, selecting Web still uses only the native-engine responsive
-layout preview described above and must not claim `kIsWeb`, DOM, browser fonts,
-plugins or platform channels.
+Before hosting, the validated mutable `build/web` evidence is copied file by
+file into a private leased per-generation publication. Every source and
+published file is rechecked by size and SHA-256; links, reparse points, hard
+links, traversal, case aliases and source mutation fail closed, while
+`.last_build_id` is verified but never served. ABI v2 passes the sorted
+path/size/SHA-256 manifest to native code, which rehashes every file and freezes
+the complete bounded resource set in memory before returning from session
+creation. Browser requests therefore never reread executable files and no
+project/publication folder remains as a WebView2 fallback mapping.
+
+A nonce/generation digest selects one lowercase `.invalid` HTTPS origin. Only
+exact known snapshot paths and the exact `/index.html` navigation are admitted.
+The frozen CSP and response security headers block workers, off-origin execution
+and unapproved resource classes; the native host also requires exclusive
+per-session user-data ownership and denies permissions, downloads, new windows,
+external drop, DevTools and context menus. The Java bridge revalidates exact
+document source, nonce, direction, canonical base64 bounds and contiguous
+sequences before exposing the existing NBFC byte streams.
+
+Runtime admission requires `100.0.1185.39` or newer, sets that same native
+target-compatible version and retains COM `QueryInterface` capability checks.
+The standalone native smoke has physically accepted installed-Runtime probing,
+exact release-page/authenticated bridge readiness, an authenticated NBFC
+`host.hello` → digest-verified `runner.hello` round trip, read-back-verified
+bounds and visibility changes, the focus API, and deadline-bounded closed
+teardown. That proof is deliberately not product routing or the assembled
+NetBeans browser acceptance matrix. No Web provider build/cache/session route,
+Web `CanvasEngineIdentity`, production Retry lifecycle, or product model/layout/
+selection and mixed-DPI gate is enabled. Product routing additionally requires
+the AWT parent HWND to outlive confirmed native teardown, a terminal poisoned
+host state after an unconfirmed native destroy, browser-process-exit
+synchronization before user-data-folder deletion, and retry-safe partial UDF
+cleanup that preserves ownership evidence. Until those separate gates pass,
+selecting Web still uses only the native-engine responsive layout preview above
+and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform channels.
+Web input acceptance is English-only; physical CJK IME and other language-
+specific input remain deferred to the final internationalization phase.
 
 Windows live resize is a latest-only transaction over parent-owned geometry.
 The verified heavyweight AWT parent client bounds and its DPI are authoritative;

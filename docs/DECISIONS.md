@@ -285,31 +285,45 @@ The separate Windows browser backend is now fixed to a compiled Flutter Web
 release bundle hosted directly in a windowed Microsoft Edge WebView2 child
 controller. A narrow native Win32 adapter, not JavaFX WebView, owns WebView2's
 COM STA, message pump, controller and child HWND beneath the heavyweight AWT
-carrier. The static bundle is to be exposed under one isolated HTTPS virtual
-host with minimum cross-origin access, local CanvasKit resources, blocked
-off-origin navigation and an explicit browser lifecycle. Flutter uses direct
-DOM multi-view embedding rather than an iframe. WebView2 JSON web messages carry
-the existing bounded NBFC frame bytes; they do not replace the lifecycle/model
-protocol or grant browser code model, file or mutation authority.
+carrier. The adapter and architecture-matched Microsoft loader are distributed
+as one manifest-pinned x64 bundle with exact sizes, SHA-256 digests, license and
+notice. Flutter uses direct DOM multi-view embedding rather than an iframe.
+WebView2 JSON web messages carry the existing bounded NBFC frame bytes; they do
+not replace the lifecycle/model protocol or grant browser code model, file or
+mutation authority.
 
-Only the browser-side runner and transport foundation is implemented at this
-stage. `main_web.dart` reuses the bounded Canvas runtime through platform-specific
-I/O, creates browser-managed Flutter views, and refuses to start without the
-WebView2 page bridge. That bridge requires one exact host-issued 256-bit session
-nonce, fixed format/version/direction, contiguous sequences and bounded canonical
-base64 chunks. Foreign sessions are ignored, while any authenticated malformed,
-oversized or non-contiguous host message is a terminal failure reported to Dart
-and the host. Focused Dart tests plus a manually executable production-JavaScript
-headless-browser harness accept those authentication, ordering, size and close
-rules. An explicit Web runtime profile observes binding metrics and invalidates
-geometry after resize while making native OLE Palette DnD unavailable. The deterministic pinned Flutter release bundle has been built twice from
-the offline dependency cache with local CanvasKit and a registered local Roboto
-font plus its Apache-2.0 license for the current English-only scope. This proof does not implement
-or accept the native WebView2 loader/Runtime detection, COM host, virtual-origin
-and CSP policy, Java product bridge, provider/build/cache routing, Web
-`CanvasEngineIdentity`, teardown or assembled NetBeans physical lifecycle. The
-backend therefore remains unavailable in the product until those independent
-gates pass.
+The internal host foundation is implemented but is not product-routed.
+`main_web.dart` reuses the bounded Canvas runtime through platform-specific I/O,
+creates browser-managed Flutter views, and refuses to start without the WebView2
+page bridge. The Java/native host detects the installed Runtime, extracts and
+verifies the pinned bundle, owns the child controller lifecycle, leases one
+private publication generation and passes an ABI-v2 path/size/SHA-256 manifest
+to native code. Native creation rehashes and freezes every resource in memory;
+the isolated `.invalid` HTTPS origin has no disk-folder fallback. It admits exact
+snapshot paths under a frozen CSP, requires an exclusive owned user-data folder,
+injects the exact 256-bit session nonce before page script and exposes only the
+authenticated, bounded, contiguous NBFC stream. Runtime admission requires
+`100.0.1185.39` or newer, sets the same native target-compatible version, and
+retains COM `QueryInterface` capability checks. Foreign sessions are ignored;
+authenticated malformed, oversized or non-contiguous messages terminate the
+channel.
+
+The deterministic Flutter release bundle has been reproduced from the offline
+dependency cache with local CanvasKit and registered local Roboto plus its
+Apache-2.0 license. A standalone physical Windows x64 smoke accepts installed-
+Runtime detection, exact page/bridge authentication, an authenticated NBFC
+`host.hello` → digest-verified `runner.hello` round trip, read-back-verified
+bounds and visibility, the focus API and deadline-bounded teardown.
+That smoke does not authorize provider/product selection, build/cache/session
+routing, Web `CanvasEngineIdentity`, production Retry/crash recovery, or the
+assembled NetBeans model/layout/selection, DPI and isolation matrix. The backend
+therefore remains unavailable in the product until those independent gates pass.
+Before routing, the assembled lifecycle must keep the AWT parent HWND alive
+through confirmed native close, reject restart after an unconfirmed native
+destroy, wait for the matching browser process to release the UDF, and make
+partial UDF deletion retry-safe without losing ownership evidence.
+Current Web input acceptance is English-only; physical CJK IME and other
+language-specific input remain deferred to the final internationalization phase.
 The platform-neutral SPI, completed broader Windows acceptance matrix,
 Linux/macOS providers, cross-form/native-surface drag-and-drop, remaining Properties and the
 broader Designer mutation surface remain foundation gates.

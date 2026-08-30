@@ -22,6 +22,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class WebCanvasArtifactContractTest {
+
+    @Test
+    void defaultLimitsMatchTheNativeImmutableSnapshotBoundary() {
+        WebCanvasArtifactContract.Limits limits =
+                WebCanvasArtifactContract.Limits.defaults();
+
+        assertEquals(WebCanvasArtifactContract.MAX_SNAPSHOT_FILES,
+                limits.maxFiles());
+        assertEquals(WebCanvasArtifactContract.MAX_SNAPSHOT_FILE_BYTES,
+                limits.maxFileBytes());
+        assertEquals(WebCanvasArtifactContract.MAX_SNAPSHOT_TOTAL_BYTES,
+                limits.maxTotalBytes());
+    }
     private static final Set<String> NON_EMPTY_FILES = Set.of(
             ".last_build_id",
             "canvas_bridge.js",
@@ -360,6 +373,72 @@ class WebCanvasArtifactContractTest {
     }
 
     @Test
+    void requiresOneExactFrozenContentSecurityPolicyBeforeActiveResources()
+            throws Exception {
+        String policyMeta = contentSecurityPolicyMeta();
+
+        Path missing = createArtifact("csp-missing");
+        replaceBuildText(missing, "index.html", policyMeta, "");
+        IOException missingError = assertThrows(IOException.class,
+                () -> testContract(missing).validate(missing));
+        assertTrue(missingError.getMessage().contains("Content-Security-Policy"));
+
+        Path changed = createArtifact("csp-changed");
+        replaceBuildText(changed, "index.html", "worker-src 'none'",
+                "worker-src 'self' blob:");
+        IOException changedError = assertThrows(IOException.class,
+                () -> testContract(changed).validate(changed));
+        assertTrue(changedError.getMessage().contains("http-equiv"));
+
+        Path duplicate = createArtifact("csp-duplicate");
+        replaceBuildText(duplicate, "index.html", policyMeta,
+                policyMeta + "\n    " + policyMeta);
+        IOException duplicateError = assertThrows(IOException.class,
+                () -> testContract(duplicate).validate(duplicate));
+        assertTrue(duplicateError.getMessage().contains("exactly one"));
+
+        Path late = createArtifact("csp-late");
+        replaceBuildText(late, "index.html",
+                policyMeta + "\n    <link rel=\"stylesheet\" href=\"canvas.css\">",
+                "<link rel=\"stylesheet\" href=\"canvas.css\">\n    " + policyMeta);
+        IOException lateError = assertThrows(IOException.class,
+                () -> testContract(late).validate(late));
+        assertTrue(lateError.getMessage().contains("must precede"));
+    }
+
+    @Test
+    void rejectsAlternateHttpEquivMetaForm() throws Exception {
+        Path alternate = createArtifact("csp-alternate-meta");
+        replaceBuildText(alternate, "index.html", contentSecurityPolicyMeta(),
+                "<meta content=\"" + contentSecurityPolicy()
+                        + "\" http-equiv=\"Content-Security-Policy\">");
+
+        IOException error = assertThrows(IOException.class,
+                () -> testContract(alternate).validate(alternate));
+
+        assertTrue(error.getMessage().contains("unapproved http-equiv"));
+    }
+
+    @Test
+    void rejectsCommentedOrOutOfHeadContentSecurityPolicy() throws Exception {
+        String policyMeta = contentSecurityPolicyMeta();
+        Path commented = createArtifact("csp-commented");
+        replaceBuildText(commented, "index.html", policyMeta,
+                "<!-- " + policyMeta + " -->");
+        IOException commentedError = assertThrows(IOException.class,
+                () -> testContract(commented).validate(commented));
+        assertTrue(commentedError.getMessage().contains("inert HTML"));
+
+        Path outsideHead = createArtifact("csp-outside-head");
+        replaceBuildText(outsideHead, "index.html",
+                "<head>\n    <base href=\"/\">\n    " + policyMeta,
+                policyMeta + "\n  <head>\n    <base href=\"/\">");
+        IOException outsideError = assertThrows(IOException.class,
+                () -> testContract(outsideHead).validate(outsideHead));
+        assertTrue(outsideError.getMessage().contains("single document head"));
+    }
+
+    @Test
     void rejectsBuiltTrustedSourceCopyMismatch() throws Exception {
         Path sourceRoot = createArtifact("trusted-copy");
         WebCanvasArtifactContract contract = testContract(sourceRoot);
@@ -506,13 +585,27 @@ class WebCanvasArtifactContractTest {
                 <html>
                   <head>
                     <base href="/">
+                    %s
                     <link rel="stylesheet" href="canvas.css">
                     <script src="canvas_bridge.js" defer></script>
                     <script src="flutter_bootstrap.js" defer></script>
                   </head>
                   <body><div id="flutter-host"></div></body>
                 </html>
-                """;
+                """.formatted(contentSecurityPolicyMeta());
+    }
+
+    private static String contentSecurityPolicyMeta() {
+        return "<meta http-equiv=\"Content-Security-Policy\" content=\""
+                + contentSecurityPolicy() + "\">";
+    }
+
+    private static String contentSecurityPolicy() {
+        return "default-src 'none'; base-uri 'none'; connect-src 'self'; "
+                + "font-src 'self'; form-action 'none'; frame-ancestors 'none'; "
+                + "img-src 'self' data: blob:; manifest-src 'none'; media-src 'none'; "
+                + "object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; "
+                + "style-src 'self' 'unsafe-inline'; worker-src 'none'";
     }
 
     private static String validCss() {

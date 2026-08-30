@@ -49,6 +49,10 @@ import java.util.regex.Pattern;
  * internals are not confused with the active bootstrap invocation.
  */
 final class WebCanvasArtifactContract {
+    static final int MAX_SNAPSHOT_FILES = 128;
+    static final long MAX_SNAPSHOT_FILE_BYTES = 64L * 1024 * 1024;
+    static final long MAX_SNAPSHOT_TOTAL_BYTES = 128L * 1024 * 1024;
+
     private static final Path WEB_OUTPUT = Path.of("build", "web");
     private static final String SNAPSHOT_FORMAT = "NETBEANS_WEB_CANVAS_ARTIFACT|1";
     private static final String EXPECTED_MANIFEST_HEADER =
@@ -57,6 +61,25 @@ final class WebCanvasArtifactContract {
             "flutter-web-canvas-artifact-v1-flutter-3.44.8-dart2js-canvaskit";
     private static final String SERVICE_WORKER = "flutter_service_worker.js";
     private static final String BUILD_METADATA = ".last_build_id";
+    private static final String REQUIRED_CONTENT_SECURITY_POLICY = String.join(" ",
+            "default-src 'none';",
+            "base-uri 'none';",
+            "connect-src 'self';",
+            "font-src 'self';",
+            "form-action 'none';",
+            "frame-ancestors 'none';",
+            "img-src 'self' data: blob:;",
+            "manifest-src 'none';",
+            "media-src 'none';",
+            "object-src 'none';",
+            "script-src 'self' 'wasm-unsafe-eval';",
+            "style-src 'self' 'unsafe-inline';",
+            "worker-src 'none'");
+    private static final String EXACT_CONTENT_SECURITY_POLICY_META =
+            "<meta http-equiv=\"Content-Security-Policy\" content=\""
+                    + REQUIRED_CONTENT_SECURITY_POLICY + "\">";
+    private static final String EXACT_X_UA_COMPATIBLE_META =
+            "<meta content=\"IE=Edge\" http-equiv=\"X-UA-Compatible\">";
     private static final Set<String> TRUSTED_SOURCE_COPIES = Set.of(
             "canvas_bridge.js", "canvas.css");
     private static final ObjectMapper JSON = new ObjectMapper(JsonFactory.builder()
@@ -126,6 +149,18 @@ final class WebCanvasArtifactContract {
             "(?i)(?:^|\\s)async(?:\\s|=|$)");
     private static final Pattern LINK_ELEMENT = Pattern.compile(
             "(?is)<link\\b([^>]*)>");
+    private static final Pattern META_ELEMENT = Pattern.compile(
+            "(?is)<meta\\b([^>]*)>");
+    private static final Pattern HTTP_EQUIV_ATTRIBUTE = Pattern.compile(
+            "(?i)(?:^|\\s)http-equiv(?:\\s|=|$)");
+    private static final Pattern EXECUTABLE_OR_STYLE_RESOURCE = Pattern.compile(
+            "(?is)<(?:script|style|link)\\b");
+    private static final Pattern HEAD_START = Pattern.compile(
+            "(?is)<head(?:\\s[^>]*)?>");
+    private static final Pattern HEAD_END = Pattern.compile(
+            "(?is)</head\\s*>");
+    private static final Pattern INERT_HTML_CONTENT = Pattern.compile(
+            "(?is)<!--|-->|<(?:template|noscript)\\b");
     private static final Pattern LINK_HREF = Pattern.compile(
             "(?is)\\bhref\\s*=\\s*(['\"])(.*?)\\1");
     private static final Pattern STYLESHEET_RELATION = Pattern.compile(
@@ -440,7 +475,9 @@ final class WebCanvasArtifactContract {
 
     private static void validateIndex(String index, Map<String, ArtifactFile> files)
             throws IOException {
-        rejectRemoteOrDangerous(index, "index.html");
+        String indexWithoutContentSecurityPolicy =
+                validateContentSecurityPolicy(index);
+        rejectRemoteOrDangerous(indexWithoutContentSecurityPolicy, "index.html");
         rejectServiceWorkerConfiguration(index, "index.html");
 
         List<String> scripts = new java.util.ArrayList<>();
@@ -516,6 +553,57 @@ final class WebCanvasArtifactContract {
                 && !index.contains("id='flutter-host'")) {
             throw new IOException("Flutter Web Canvas index is missing flutter-host");
         }
+    }
+
+    private static String validateContentSecurityPolicy(String index) throws IOException {
+        if (INERT_HTML_CONTENT.matcher(index).find()) {
+            throw new IOException("Flutter Web Canvas index must not hide policy or resources "
+                    + "inside inert HTML content");
+        }
+        Matcher metas = META_ELEMENT.matcher(index);
+        int policyCount = 0;
+        int policyStart = -1;
+        int policyEnd = -1;
+        while (metas.find()) {
+            String element = metas.group();
+            String attributes = metas.group(1);
+            if (!HTTP_EQUIV_ATTRIBUTE.matcher(attributes).find()) {
+                continue;
+            }
+            if (EXACT_CONTENT_SECURITY_POLICY_META.equals(element)) {
+                policyCount++;
+                policyStart = metas.start();
+                policyEnd = metas.end();
+                continue;
+            }
+            if (!EXACT_X_UA_COMPATIBLE_META.equals(element)) {
+                throw new IOException("Flutter Web Canvas index contains an unapproved "
+                        + "http-equiv meta element");
+            }
+        }
+        if (policyCount != 1) {
+            throw new IOException("Flutter Web Canvas index must contain exactly one frozen "
+                    + "Content-Security-Policy meta element");
+        }
+        Matcher headStart = HEAD_START.matcher(index);
+        Matcher headEnd = HEAD_END.matcher(index);
+        if (!headStart.find() || !headEnd.find()) {
+            throw new IOException("Flutter Web Canvas Content-Security-Policy must be inside the "
+                    + "single document head");
+        }
+        int headContentStart = headStart.end();
+        int headContentEnd = headEnd.start();
+        if (headStart.find() || headEnd.find()
+                || policyStart < headContentStart || policyEnd > headContentEnd) {
+            throw new IOException("Flutter Web Canvas Content-Security-Policy must be inside the "
+                    + "single document head");
+        }
+        Matcher activeResource = EXECUTABLE_OR_STYLE_RESOURCE.matcher(index);
+        if (activeResource.find() && activeResource.start() < policyStart) {
+            throw new IOException("Flutter Web Canvas Content-Security-Policy must precede every "
+                    + "executable or style resource");
+        }
+        return index.substring(0, policyStart) + index.substring(policyEnd);
     }
 
     private static boolean containsHtmlToken(String value, String expected) {
@@ -1038,11 +1126,11 @@ final class WebCanvasArtifactContract {
 
         static Limits defaults() {
             return new Limits(
-                    256,
+                    MAX_SNAPSHOT_FILES,
                     8,
                     DEFAULT_MAX_PATH_CHARACTERS,
-                    128L * 1024 * 1024,
-                    512L * 1024 * 1024,
+                    MAX_SNAPSHOT_FILE_BYTES,
+                    MAX_SNAPSHOT_TOTAL_BYTES,
                     1024 * 1024);
         }
     }

@@ -12,7 +12,11 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
@@ -41,6 +45,24 @@ class PluginPackageMetadataIT {
     private static final String CANVAS_RUNNER_LIBRARY =
             "netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/"
             + "dev-flutter-netbeans/flutter-canvas-runner.jar";
+    private static final String WEBVIEW2_NATIVE_RESOURCE_ROOT =
+            "dev/flutter/netbeans/plugin/designer/canvas/webview2/win-x64/";
+    private static final Map<String, PackagedFile> WEBVIEW2_NATIVE_FILES = Map.of(
+            WEBVIEW2_NATIVE_RESOURCE_ROOT + "native.manifest",
+            new PackagedFile(634,
+                    "9a61d29087f7186593626da33b371b2243f981e7dd4ecc9f68104aa3d1e46a3b"),
+            WEBVIEW2_NATIVE_RESOURCE_ROOT + "WebView2Loader.dll",
+            new PackagedFile(163_680,
+                    "c66e4a92fdc7a216118e43b7a5024ea2200e8c43f9310bf20d96a0084f82c5bc"),
+            WEBVIEW2_NATIVE_RESOURCE_ROOT + "nb_flutter_webview2_host.dll",
+            new PackagedFile(368_128,
+                    "fc3dcd30e209f5f98d1801063bed44c0ef273a9c4c5b9a4a29135a86b9fa9760"),
+            WEBVIEW2_NATIVE_RESOURCE_ROOT + "Microsoft.Web.WebView2-LICENSE.txt",
+            new PackagedFile(1_487,
+                    "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"),
+            WEBVIEW2_NATIVE_RESOURCE_ROOT + "Microsoft.Web.WebView2-NOTICE.txt",
+            new PackagedFile(3_894,
+                    "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90"));
     private static final Set<String> CORE_RUNTIME_ENTRIES = Set.of(
             "dev/flutter/netbeans/api/DartCandidateCapacityBudget.class");
     private static final Set<String> CANVAS_RUNNER_RUNTIME_ENTRIES = Set.of(
@@ -335,6 +357,46 @@ class PluginPackageMetadataIT {
                 MODULE_RUNTIME_ENTRIES);
     }
 
+    @Test
+    void packagesPinnedWindowsWebView2NativeBundleInTheModuleJar() throws Exception {
+        Path nbm = requiredPath("nbm.file");
+        byte[] moduleJar;
+        try (ZipFile zip = new ZipFile(nbm.toFile())) {
+            ZipEntry entry = zip.getEntry(MODULE_JAR);
+            assertNotNull(entry, "NBM is missing its NetBeans module JAR");
+            assertTrue(entry.getSize() > 0, "NetBeans module JAR is empty");
+            assertTrue(entry.getSize() <= 64L * 1024L * 1024L,
+                    "NetBeans module JAR exceeds the packaging safety bound");
+            try (InputStream input = zip.getInputStream(entry)) {
+                moduleJar = input.readAllBytes();
+            }
+        }
+
+        Set<String> missing = new HashSet<>(WEBVIEW2_NATIVE_FILES.keySet());
+        Set<String> observed = new HashSet<>();
+        try (ZipInputStream nested = new ZipInputStream(
+                new ByteArrayInputStream(moduleJar))) {
+            ZipEntry entry;
+            while ((entry = nested.getNextEntry()) != null) {
+                String entryName = entry.getName();
+                PackagedFile expected = WEBVIEW2_NATIVE_FILES.get(entryName);
+                if (expected == null) {
+                    continue;
+                }
+                assertTrue(observed.add(entryName),
+                        () -> "duplicate packaged WebView2 native entry: " + entryName);
+                byte[] bytes = nested.readAllBytes();
+                assertEquals(expected.size(), (long) bytes.length,
+                        () -> "packaged WebView2 native size drift: " + entryName);
+                assertEquals(expected.sha256(), sha256(bytes),
+                        () -> "packaged WebView2 native digest drift: " + entryName);
+                missing.remove(entryName);
+            }
+        }
+        assertTrue(missing.isEmpty(),
+                () -> "packaged WebView2 native bundle is missing entries: " + missing);
+    }
+
     private static void assertNestedJarContains(
             Path nbm,
             String libraryPath,
@@ -426,5 +488,22 @@ class PluginPackageMetadataIT {
 
     private static String normalizeNewlines(String value) {
         return value.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("JDK does not provide SHA-256", exception);
+        }
+    }
+
+    private record PackagedFile(long size, String sha256) {
+        private PackagedFile {
+            if (size <= 0 || !sha256.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException("invalid packaged file evidence");
+            }
+        }
     }
 }

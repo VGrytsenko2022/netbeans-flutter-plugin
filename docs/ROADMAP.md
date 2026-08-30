@@ -346,20 +346,43 @@ accepted architecture is documented in
     Two clean builds are byte-for-byte deterministic. This proves compiler
     closure and the static bundle boundary only; it is not a browser-runtime,
     origin/CSP, lifecycle or product acceptance gate.
-  - [ ] Implement the native WebView2 host: Runtime detection and actionable
-    missing-Runtime failure, architecture-matched loader/native adapter, COM STA
-    lifecycle, child-HWND controller, exact bounds/focus/visibility handling,
-    isolated user-data ownership, HTTPS virtual-host mapping, CSP/navigation and
-    resource policy, authenticated bootstrap injection, teardown and crash
-    recovery.
+  - [x] Implement the internal native WebView2 host foundation: actionable
+    Runtime detection, a manifest-pinned and integrity-checked x64 loader/native
+    adapter with the Microsoft license and notice, native COM STA lifecycle and
+    message pump, a windowed child-HWND controller, read-back-verified bounds/
+    visibility and focus-command routing,
+    exclusive owned user-data admission, leased private artifact publication,
+    ABI-v2 native rehash plus immutable in-memory resource snapshots, one
+    nonce/generation-derived `.invalid` HTTPS origin without a disk fallback,
+    frozen CSP/navigation/resource policy, authenticated bootstrap and Java NBFC
+    bridge, process-failure reporting and bounded teardown.
+  - [x] Pass the standalone physical Windows x64 host smoke gate against an
+    admitted WebView2 Runtime `100.0.1185.39+`: exact release-page and
+    authenticated bridge readiness, an authenticated NBFC `host.hello` →
+    digest-verified `runner.hello` round trip, read-back-verified bounds and
+    visibility, the focus API and deadline-bounded closed native teardown all
+    complete.
+    This is an internal host gate, not the assembled NetBeans product route or
+    its model/layout/selection, DPI, Retry/crash and cleanup acceptance matrix.
   - [ ] Route the WebView2 backend through the provider/product selection,
     build/cache/session lifecycle and exact Web `CanvasEngineIdentity`. Until
     this passes, the existing native-engine Web responsive preview remains the
     only product-routed Web choice and still does not claim `kIsWeb`.
+    - [ ] Keep the heavyweight AWT parent HWND valid until native controller
+      teardown is confirmed; do not let asynchronous close race peer removal.
+    - [ ] Treat an unconfirmed or failed native destroy as terminal/poisoned and
+      reject restart until native ownership is proven released.
+    - [ ] Synchronize UDF deletion with the matching WebView2 browser-process
+      exit rather than relying on short blind filesystem retries.
+    - [ ] Make partial UDF cleanup retry-safe while retaining independently
+      verifiable ownership evidence after any intermediate deletion failure.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of
     stale or unauthenticated web messages.
+    Current input acceptance remains English-only; physical CJK IME and other
+    language-specific input are deferred to the final internationalization
+    phase and are not implied by the standalone host smoke.
 - [ ] Complete Windows child-window acceptance in the assembled NetBeans
   MultiView. Do not introduce a PNG, screenshot or raw-pixel fallback.
   - [x] Exercise production Designer DataObjects and assembled MultiViews with

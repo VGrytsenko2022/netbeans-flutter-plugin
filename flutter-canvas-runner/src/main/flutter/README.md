@@ -6,7 +6,7 @@ each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
 PNG, screenshots or raw pixel frames.
 
-## Browser-compiled foundation (not product-routed)
+## Internal browser-host foundation (not product-routed)
 
 This package now also has a `main_web.dart` entry point for the optional
 runtime-faithful Web Canvas. It reuses the same bounded runtime and model decoder
@@ -14,7 +14,8 @@ through browser-specific I/O and uses Flutter direct-DOM multi-view so the host
 can add and remove a browser-managed view without an iframe or image transfer.
 The Windows hosting architecture is fixed to a windowed Microsoft Edge WebView2
 child controller owned by a narrow native Win32 adapter beneath the heavyweight
-AWT carrier. That native host is not implemented or selected by the product yet.
+AWT carrier. That internal host foundation is implemented and physically smoke-
+gated on Windows x64, but it is not selected by the product yet.
 
 `web/canvas_bridge.js` deliberately becomes available only when
 `window.chrome.webview` and an exact host-injected lowercase 256-bit session
@@ -42,15 +43,26 @@ cases. Flutter 3.44.8 also completes a deterministic release Web build from the
 offline dependency cache with local CanvasKit output. The current English-only
 bundle registers local Roboto, carries its Apache-2.0 license and routes the
 fallback-font base to packaged assets. That remains only a compiler/static-bundle
-proof: native runtime network denial and physical resource-load acceptance are
-part of the unimplemented host gate.
+proof until paired with the separately implemented host boundary.
 
-The remaining product work is the native WebView2 Runtime detector/loader and
-COM controller, isolated HTTPS virtual-host/CSP/navigation/resource policy,
-authenticated Java endpoint, provider/build/cache and exact Web engine routing,
-plus assembled NetBeans readiness, focus/resize/DPI, crash, close and cleanup
-acceptance. Until those gates pass, the product continues to route Web only to
-the native Windows-engine responsive layout preview described below.
+The internal boundary now includes installed-Runtime detection, a manifest-
+pinned WebView2 loader/native adapter with Microsoft license and notice, native
+COM STA/controller lifecycle, leased private artifact publication, ABI-v2
+native rehash and immutable in-memory resource snapshots, one nonce/generation-
+derived HTTPS `.invalid` origin without a disk fallback, exclusive per-session
+user-data ownership, exact resource/navigation and frozen CSP policy,
+authenticated Java NBFC streams, process-failure reporting and bounded teardown.
+Runtime admission requires `100.0.1185.39+`, uses the same native compatible
+target and retains COM capability probes. Its standalone physical smoke accepts
+exact page/bridge authentication, an NBFC hello round trip with frame-digest
+verification, read-back-verified bounds/visibility, focus API completion and a
+deadline-bounded close. Product provider/build/cache/
+session routing, exact Web `CanvasEngineIdentity`, production Retry and the full
+assembled NetBeans model/layout/selection, DPI, isolation and cleanup matrix are
+still pending. Until those gates pass, the product continues to route Web only
+to the native Windows-engine responsive layout preview described below. Input
+acceptance is English-only; physical CJK IME and other language-specific input
+remain deferred to the final internationalization phase.
 
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
@@ -114,7 +126,7 @@ Web target uses its browser-sized responsive viewport with Windows adaptive
 controls as an explicit native-engine layout preview. It does not claim
 `kIsWeb`, DOM, browser fonts, plugins or platform-channel behavior; those require
 the separately compiled browser runner plus the still-pending WebView2 product
-host and physical gate. Each widget retains its stable `.fd` UUID;
+route and assembled acceptance gate. Each widget retains its stable `.fd` UUID;
 revision-, presentation- and layout-bound messages synchronize read-only
 selection between Flutter hit testing and the NetBeans Explorer tree. Every
 rendered widget has a non-layout-affecting thin dashed outline; the selected

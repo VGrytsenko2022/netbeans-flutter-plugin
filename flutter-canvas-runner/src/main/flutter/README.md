@@ -6,6 +6,52 @@ each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
 PNG, screenshots or raw pixel frames.
 
+## Browser-compiled foundation (not product-routed)
+
+This package now also has a `main_web.dart` entry point for the optional
+runtime-faithful Web Canvas. It reuses the same bounded runtime and model decoder
+through browser-specific I/O and uses Flutter direct-DOM multi-view so the host
+can add and remove a browser-managed view without an iframe or image transfer.
+The Windows hosting architecture is fixed to a windowed Microsoft Edge WebView2
+child controller owned by a narrow native Win32 adapter beneath the heavyweight
+AWT carrier. That native host is not implemented or selected by the product yet.
+
+`web/canvas_bridge.js` deliberately becomes available only when
+`window.chrome.webview` and an exact host-injected lowercase 256-bit session
+nonce are present. Its JSON envelopes fix the bridge format, version, direction
+and nonce; canonical base64 chunks are bounded and sequenced, pre-registration
+buffering is capped, diagnostics are truncated and close is terminal. Foreign
+nonces are ignored, while a malformed, oversized or non-contiguous envelope
+carrying the exact session nonce terminates the channel and reports failure to
+both Dart and the host. The Dart
+transport independently requires the same nonce, contiguous host/runner
+sequences and a one-megabyte decoded chunk bound before feeding the unchanged
+NBFC stream. These transport checks authenticate one host-created session; they
+do not grant model, file, Save, Undo/Redo or mutation authority.
+
+The Web host profile observes Flutter binding metrics so every browser resize
+invalidates stale interaction geometry and republishes an exact layout. It never
+installs or advertises the Windows native OLE Palette DnD method channel.
+
+Focused Dart tests cover invalid nonces, nonce drift, replay/gaps/out-of-order
+input, malformed/non-canonical/oversize chunks, ordered immutable output and
+idempotent close. The manual headless-browser harness in
+`test/web/canvas_bridge_browser_case.html` executes the production JavaScript
+bridge for foreign, malformed, oversized, sequence, envelope and pending-queue
+cases. Flutter 3.44.8 also completes a deterministic release Web build from the
+offline dependency cache with local CanvasKit output. The current English-only
+bundle registers local Roboto, carries its Apache-2.0 license and routes the
+fallback-font base to packaged assets. That remains only a compiler/static-bundle
+proof: native runtime network denial and physical resource-load acceptance are
+part of the unimplemented host gate.
+
+The remaining product work is the native WebView2 Runtime detector/loader and
+COM controller, isolated HTTPS virtual-host/CSP/navigation/resource policy,
+authenticated Java endpoint, provider/build/cache and exact Web engine routing,
+plus assembled NetBeans readiness, focus/resize/DPI, crash, close and cleanup
+acceptance. Until those gates pass, the product continues to route Web only to
+the native Windows-engine responsive layout preview described below.
+
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
 strict runtime control and one digest-described canonical model payload. The
 reviewed decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -66,8 +112,9 @@ Flutter's `ThemeData.platform`; they test Flutter adaptive widget appearance but
 do not claim a device operating system, plugin or platform-channel runtime. A
 Web target uses its browser-sized responsive viewport with Windows adaptive
 controls as an explicit native-engine layout preview. It does not claim
-`kIsWeb`, DOM, browser fonts, plugins or platform-channel behavior; those would
-require a separately compiled browser backend. Each widget retains its stable `.fd` UUID;
+`kIsWeb`, DOM, browser fonts, plugins or platform-channel behavior; those require
+the separately compiled browser runner plus the still-pending WebView2 product
+host and physical gate. Each widget retains its stable `.fd` UUID;
 revision-, presentation- and layout-bound messages synchronize read-only
 selection between Flutter hit testing and the NetBeans Explorer tree. Every
 rendered widget has a non-layout-affecting thin dashed outline; the selected

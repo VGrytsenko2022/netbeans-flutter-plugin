@@ -39,6 +39,19 @@ class CanvasRunnerSourceBundleTest {
         assertEquals(first, second);
         assertTrue(Files.readString(first.resolve("lib/main.dart"))
                 .contains("Native Flutter Canvas"));
+        assertTrue(Files.isRegularFile(first.resolve("lib/main_web.dart")));
+        assertTrue(Files.isRegularFile(
+                first.resolve("lib/src/canvas_web_transport.dart")));
+        assertTrue(Files.isRegularFile(
+                first.resolve("lib/src/canvas_web_transport_core.dart")));
+        assertTrue(Files.isRegularFile(first.resolve("web/index.html")));
+        assertTrue(Files.isRegularFile(first.resolve("web/canvas.css")));
+        assertTrue(Files.isRegularFile(first.resolve("web/canvas_bridge.js")));
+        assertTrue(Files.isRegularFile(first.resolve("web/flutter_bootstrap.js")));
+        assertTrue(Files.isRegularFile(
+                first.resolve("assets/fonts/Roboto-Regular.ttf")));
+        assertTrue(Files.isRegularFile(
+                first.resolve("assets/licenses/Roboto-LICENSE.txt")));
         assertTrue(Files.isRegularFile(first.resolve("windows/runner/main.cpp")));
     }
 

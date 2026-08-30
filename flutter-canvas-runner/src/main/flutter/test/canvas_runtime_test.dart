@@ -96,6 +96,48 @@ void main() {
   });
 
   test(
+    'Web host observes resize metrics and never advertises native OLE DnD',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+        hostProfile: CanvasRuntimeHostProfile.webView,
+      );
+
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      for (var attempt = 0; attempt < 20 && output.isEmpty; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      expect(runtime.bindingObserverInstalled, isTrue);
+      expect(runtime.nativeDropHandlerInstalled, isFalse);
+      final hello = _decodeControlMessages(output).single;
+      final accepted =
+          (hello['body'] as Map<String, Object?>)['acceptedCapabilities']
+              as List<Object?>;
+      expect(accepted, isNot(contains('palette.drop.catalogInsert.v1')));
+      expect(accepted, isNot(contains('palette.drop.sourceAware.v1')));
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      await input.close();
+      await running;
+      expect(runtime.bindingObserverInstalled, isFalse);
+    },
+  );
+
+  test(
     'projects and clears an exact host-authorized widget move target',
     () async {
       final input = StreamController<List<int>>();

@@ -22,7 +22,9 @@ void main() {
         return true;
       };
 
-      final runtime = CanvasRuntimeController();
+      final runtime = CanvasRuntimeController(
+        hostProfile: CanvasRuntimeHostProfile.nativeProcess,
+      );
       runApp(NativeCanvasApp(runtime: runtime));
       unawaited(runtime.start());
     },

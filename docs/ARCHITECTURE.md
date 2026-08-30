@@ -370,6 +370,48 @@ layout preview, using Windows adaptive controls because Flutter has no
 Platform-folder changes reconcile open Design views on the Swing event thread;
 an empty configured set leaves the selector empty and Canvas unavailable.
 
+The separately selected runtime-faithful Windows Web architecture compiles the
+same bounded runner from `main_web.dart` as a static Flutter Web release bundle.
+It embeds Flutter directly into one browser-managed DOM host through multi-view;
+it does not introduce an iframe, transferred image or second model protocol. A
+narrow native Win32 adapter is to create a windowed Microsoft Edge WebView2
+controller as a child of the heavyweight AWT peer and own the COM STA, message
+pump, focus, bounds, visibility and teardown edges. The cached `build/web`
+bundle is to be exposed under a unique isolated HTTPS virtual host with minimum
+cross-origin access, local CanvasKit resources, strict navigation/resource/CSP
+policy and no project-directory mapping. JavaFX WebView is not an alternative
+backend, and Java does not own WebView2 COM objects directly.
+
+The implemented Web slice currently ends at the browser page boundary. The
+shared Canvas runtime now has process-specific and browser-specific I/O adapters,
+and the Web entry point creates one widget root per browser-managed Flutter view.
+The JavaScript bridge is available only when WebView2 and the exact host-injected
+256-bit session nonce are present. It fixes the bridge format, version and
+direction, bounds canonical base64 chunks, diagnostics and pre-registration
+buffering, and carries the existing NBFC bytes with contiguous host/runner
+sequences. Foreign nonces are ignored; malformed, oversized, out-of-order or
+wrong-envelope messages carrying the exact session nonce terminate the channel
+and publish one bounded failure. Dart independently checks the nonce, sequence
+and decoded byte bound and fails closed on drift or replay. Focused Dart tests
+and a manually executable headless-browser harness cover both sides of that
+boundary. The explicit Web runtime profile observes binding metrics so resize
+invalidates stale geometry and republishes layout, but it neither installs nor
+advertises the Windows OLE Palette DnD channel. A twice-reproduced pinned Flutter release build from the offline
+dependency cache proves the Web compiler closure and locally packaged CanvasKit
+boundary. For the current English-only scope it also registers local Roboto,
+ships its Apache-2.0 license and routes fallback fonts to packaged assets. This
+does not yet prove an offline browser runtime: native resource/network
+confinement and the product WebView2 load remain required.
+
+That completion is not product routing or browser acceptance. No native
+WebView2 Runtime detector/loader, COM adapter/controller, virtual-host mapping,
+CSP/navigation enforcement, authenticated Java host endpoint, Web provider
+runner/cache contract, Web `CanvasEngineIdentity`, retry/teardown path or
+assembled NetBeans physical gate is implemented by this slice. Until those
+separate gates pass, selecting Web still uses only the native-engine responsive
+layout preview described above and must not claim `kIsWeb`, DOM, browser fonts,
+plugins or platform channels.
+
 Windows live resize is a latest-only transaction over parent-owned geometry.
 The verified heavyweight AWT parent client bounds and its DPI are authoritative;
 only one asynchronous child resize may be in flight, and an AWT resize burst
@@ -434,10 +476,11 @@ every non-`Text` widget. One admitted event becomes at most one existing
 `SetProperty(data)` command; unchanged text is a no-op. Generation, analyzer
 admission, Pair Save and chronological Undo/Redo remain the sole persistence
 path. Deterministic Flutter and Java codec/channel/session plus
-view/mutation-bridge tests accept this product slice. Physical CJK IME
-acceptance remains open because the current assembled gate host has no
-composition-capable input method; Linux/macOS and runtime-faithful Web inline
-editing are not implemented by this decision.
+view/mutation-bridge tests accept this product slice. Current acceptance is
+English input only. Physical CJK IME and other language-specific acceptance are
+deferred to the final internationalization phase because the current assembled
+gate host has no composition-capable input method; Linux/macOS and
+runtime-faithful Web inline editing are not implemented by this decision.
 
 A standalone automated Win32 smoke proves the three-window hierarchy and resize
 path; its `JFrame` is only a test harness and is not part of the plugin UI. The

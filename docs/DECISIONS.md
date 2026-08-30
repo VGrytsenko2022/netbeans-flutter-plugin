@@ -277,8 +277,39 @@ canonical target is selected. An empty snapshot disables Preview and does not
 fall back to Mobile. Android/iOS/macOS/Linux targets reach Flutter
 `ThemeData.platform` on the Windows engine. Selecting Web renders the exact Web
 responsive viewport on that same engine as a design-time layout preview. The UI
-states that browser-only runtime behavior is not emulated; a future compiled
-browser backend is required only for browser-runtime fidelity.
+states that browser-only runtime behavior is not emulated. Browser-runtime
+fidelity remains a separate backend and is not implied by this native layout
+preview.
+
+The separate Windows browser backend is now fixed to a compiled Flutter Web
+release bundle hosted directly in a windowed Microsoft Edge WebView2 child
+controller. A narrow native Win32 adapter, not JavaFX WebView, owns WebView2's
+COM STA, message pump, controller and child HWND beneath the heavyweight AWT
+carrier. The static bundle is to be exposed under one isolated HTTPS virtual
+host with minimum cross-origin access, local CanvasKit resources, blocked
+off-origin navigation and an explicit browser lifecycle. Flutter uses direct
+DOM multi-view embedding rather than an iframe. WebView2 JSON web messages carry
+the existing bounded NBFC frame bytes; they do not replace the lifecycle/model
+protocol or grant browser code model, file or mutation authority.
+
+Only the browser-side runner and transport foundation is implemented at this
+stage. `main_web.dart` reuses the bounded Canvas runtime through platform-specific
+I/O, creates browser-managed Flutter views, and refuses to start without the
+WebView2 page bridge. That bridge requires one exact host-issued 256-bit session
+nonce, fixed format/version/direction, contiguous sequences and bounded canonical
+base64 chunks. Foreign sessions are ignored, while any authenticated malformed,
+oversized or non-contiguous host message is a terminal failure reported to Dart
+and the host. Focused Dart tests plus a manually executable production-JavaScript
+headless-browser harness accept those authentication, ordering, size and close
+rules. An explicit Web runtime profile observes binding metrics and invalidates
+geometry after resize while making native OLE Palette DnD unavailable. The deterministic pinned Flutter release bundle has been built twice from
+the offline dependency cache with local CanvasKit and a registered local Roboto
+font plus its Apache-2.0 license for the current English-only scope. This proof does not implement
+or accept the native WebView2 loader/Runtime detection, COM host, virtual-origin
+and CSP policy, Java product bridge, provider/build/cache routing, Web
+`CanvasEngineIdentity`, teardown or assembled NetBeans physical lifecycle. The
+backend therefore remains unavailable in the product until those independent
+gates pass.
 The platform-neutral SPI, completed broader Windows acceptance matrix,
 Linux/macOS providers, cross-form/native-surface drag-and-drop, remaining Properties and the
 broader Designer mutation surface remain foundation gates.
@@ -292,7 +323,8 @@ device-pixel ratio. Android/iOS/macOS/Linux adaptive appearance does not claim
 their operating-system runtime, fonts, plugins, platform channels, IME or
 accessibility stack. Likewise the native Web layout preview does not claim
 `kIsWeb`, browser fonts, DOM, plugins or platform channels. Those require a
-separate browser backend.
+completed and physically accepted browser backend; the compiled runner and
+JavaScript transport foundation alone do not satisfy that gate.
 
 Accepting this ADR did not by itself enable writable UI. ADR-024 later enables
 only the reviewed typed Properties allowlist after its revision fencing,
@@ -966,8 +998,10 @@ cardinality, `.fd` schema or Canvas protocol.
 
 ## ADR-036 — Windows inline Text editing is Flutter-owned and one-shot
 
-Accepted for the bounded Windows product slice; physical CJK IME acceptance is
-still open. Inline editing applies only to the selected existing
+Accepted for the bounded Windows product slice. The current product acceptance
+scope is English input only; physical CJK IME and other language-specific input
+acceptance are intentionally deferred to the final internationalization phase.
+Inline editing applies only to the selected existing
 `flutter.widgets.Text` and only to its `data` property. Double-click or F2
 activates a real multiline Flutter `TextField` backed by Flutter's
 `TextInputClient`. Ordinary Enter inserts a newline. Ctrl+Enter requests final
@@ -1008,6 +1042,6 @@ view/mutation-bridge tests cover Unicode, bounds, exact fields, capability,
 admission fencing, no-op handling and the `SetProperty(data)` boundary. Those
 tests accept the product vertical slice but do not prove a physical IME. The
 current assembled Windows gate host has no composition-capable CJK input
-method, so physical CJK composition remains `OPEN`. This decision does not
-claim Linux, macOS or runtime-faithful Web inline editing, and it does not mark
+method, so physical CJK composition remains `OPEN` and deferred. This decision
+does not claim Linux, macOS or runtime-faithful Web inline editing, and it does not mark
 broad Canvas IME/menu/popup acceptance complete.

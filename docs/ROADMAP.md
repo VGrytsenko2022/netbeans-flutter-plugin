@@ -318,10 +318,48 @@ accepted architecture is documented in
 - [x] Render the Web responsive viewport through the existing native Flutter
   Canvas as an explicitly bounded layout preview. It does not emulate `kIsWeb`
   or browser-only behavior.
-- [ ] Implement the optional runtime-faithful Flutter Web Canvas backend: compile
-  the bounded runner for Web, host it in an embedded browser surface, bridge the
-  existing session/revision/selection protocol without image transfer, and prove
-  browser lifecycle, origin, resource and teardown boundaries.
+- [ ] Complete the optional runtime-faithful Flutter Web Canvas backend. The
+  selected Windows architecture is the bounded Flutter Web release bundle in a
+  windowed Microsoft Edge WebView2 child controller owned through a narrow
+  native Win32 adapter, with direct DOM multi-view embedding, an isolated HTTPS
+  virtual host and JSON web messages carrying the existing framed protocol. It
+  has no image-transfer path.
+  - [x] Compile the same bounded Canvas runtime for Web through `main_web.dart`,
+    separate process-only I/O from the shared runtime, and attach one Flutter
+    widget root per browser-managed view through Flutter multi-view.
+  - [x] Add the authenticated JavaScript transport foundation. The page bridge
+    requires WebView2 plus one exact host-issued 256-bit session nonce, fixes the
+    bridge format/version/direction, bounds canonical base64 chunks, diagnostics
+    and pre-registration buffering, and enforces contiguous host and runner
+    sequences while preserving the existing NBFC frame bytes. Exact-session
+    malformed/oversized/wrong-envelope input is terminal; foreign nonces are
+    ignored. Focused Dart tests and a manually executable production-JavaScript
+    headless-browser harness cover nonce drift, replay/gaps/out-of-order delivery,
+    malformed or oversize chunks, ordered output, bounded pending input and
+    idempotent close.
+  - [x] Separate Web host capabilities from process-I/O ownership: Web observes
+    Flutter binding metrics and invalidates stale geometry after resize, while
+    native Windows OLE Palette DnD remains uninstalled and unadvertised.
+  - [x] Prove the pinned Flutter release bundle builds from the offline dependency
+    cache with the Web entry point, locally packaged CanvasKit and registered
+    local Roboto plus its Apache-2.0 license for the current English-only scope.
+    Two clean builds are byte-for-byte deterministic. This proves compiler
+    closure and the static bundle boundary only; it is not a browser-runtime,
+    origin/CSP, lifecycle or product acceptance gate.
+  - [ ] Implement the native WebView2 host: Runtime detection and actionable
+    missing-Runtime failure, architecture-matched loader/native adapter, COM STA
+    lifecycle, child-HWND controller, exact bounds/focus/visibility handling,
+    isolated user-data ownership, HTTPS virtual-host mapping, CSP/navigation and
+    resource policy, authenticated bootstrap injection, teardown and crash
+    recovery.
+  - [ ] Route the WebView2 backend through the provider/product selection,
+    build/cache/session lifecycle and exact Web `CanvasEngineIdentity`. Until
+    this passes, the existing native-engine Web responsive preview remains the
+    only product-routed Web choice and still does not claim `kIsWeb`.
+  - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
+    model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
+    Retry/crash cleanup, origin/navigation/resource isolation and rejection of
+    stale or unauthenticated web messages.
 - [ ] Complete Windows child-window acceptance in the assembled NetBeans
   MultiView. Do not introduce a PNG, screenshot or raw-pixel fallback.
   - [x] Exercise production Designer DataObjects and assembled MultiViews with
@@ -388,6 +426,8 @@ accepted architecture is documented in
     now supplies the selected-Text Flutter `TextInputClient` described below,
     but the current physical gate host has no composition-capable input method.
     Deterministic composition tests do not close this physical acceptance item.
+    The current acceptance scope is English input; CJK and other languages are
+    intentionally deferred until the final internationalization phase.
 - [x] Define the canonical bounded `CORE_V1` model payload and bundled
   allowlisted runner projection for exactly `Scaffold`, `Column`, `Row`, `Text`,
   `Padding` and `Center`. The runner receives no project paths, Dart source, file

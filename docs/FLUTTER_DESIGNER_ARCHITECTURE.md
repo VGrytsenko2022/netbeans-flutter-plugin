@@ -1618,7 +1618,9 @@ events produce no mutation. One admitted event maps to at most one existing
 reuses deterministic generation, analyzer admission, paired Save and
 chronological Undo/Redo. Deterministic Flutter and Java codec/channel/session
 plus view/mutation-bridge tests accept this Windows product slice.
-Physical CJK IME acceptance remains open because the current gate host has no
+Current acceptance is English input only. Physical CJK IME and other
+language-specific acceptance remain open and are deferred to the final
+internationalization phase because the current gate host has no
 composition-capable input method. No Linux/macOS or runtime-faithful Web inline
 editor is claimed.
 
@@ -1639,12 +1641,32 @@ Android/iOS/macOS/Linux `ThemeData.platform` behavior does not claim their OS,
 fonts, plugins or platform channels. Web renders its exact browser-sized
 responsive viewport on the native engine as a bounded layout preview, using
 Windows adaptive controls because Flutter has no `TargetPlatform.web`. It does
-not claim `kIsWeb`, DOM, browser fonts, plugins or platform channels; an optional
-future browser-compiled backend is required for that runtime fidelity. A complex
-built-in or contributed widget is rendered only after
+not claim `kIsWeb`, DOM, browser fonts, plugins or platform channels. Runtime
+fidelity belongs to the separately selected browser-compiled WebView2 backend;
+the existing native preview does not acquire those claims merely because the
+browser runner foundation now compiles. A complex built-in or contributed
+widget is rendered only after
 its type and constructor metadata are present in the validated catalog; the
 runner may not execute arbitrary unreviewed project code merely because Flutter
 can load it.
+
+That WebView2 backend uses a static Flutter Web release bundle, direct DOM
+multi-view embedding and the same bounded Canvas runtime/model decoder. Its page
+bridge transports existing NBFC bytes through JSON web messages only after an
+exact host-issued 256-bit session nonce is present; fixed format, version,
+direction, contiguous sequences and bounded canonical base64 chunks fence the
+transport. Exact-session malformed, oversized, wrong-envelope and sequence-invalid
+messages are terminal; foreign nonces are ignored. The browser entry point,
+authenticated JavaScript/Dart transport, focused Dart tests, manually executable
+headless-browser bridge harness and deterministic offline release-build proof
+with local CanvasKit and licensed local Roboto for the English-only scope are
+complete. The Web runtime profile observes resize metrics and republishes exact
+layout geometry without installing or advertising the Windows OLE DnD channel.
+The native Win32 WebView2 Runtime/loader and COM child-controller host,
+virtual HTTPS origin and CSP/navigation/resource policy, Java endpoint,
+provider/build/cache/product routing, Web engine identity, teardown/retry and
+assembled physical acceptance remain open. Therefore this implemented
+foundation is not yet a product-available Canvas backend.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -1675,8 +1697,9 @@ Implementation proceeds through explicit gates:
 4. [Current Windows ten-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
-   viewport with no image-transfer path. A browser-compiled backend remains
-   pending for browser-runtime fidelity, not for responsive layout preview.
+   viewport with no image-transfer path. The separately compiled browser runner
+   foundation described below does not change this product route until its
+   native WebView2 and physical gates pass.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
    with the Explorer/Nodes widget tree, publish the exact ten-item Palette and
    expose selected-node Properties. Enable catalog-driven Set/Reset for the 514
@@ -1715,9 +1738,17 @@ Implementation proceeds through explicit gates:
    Flutter and Java tests pass; the
    current physical host still lacks a composition-capable input method. This
    gate does not claim Linux/macOS or runtime-faithful Web support.
-10. Prove runner crash/restart/close, native-handle cleanup, pair Save and
-   Undo/Redo behavior, then implement the Linux and macOS SPI providers.
-11. Admit every further built-in only as a complete capability-gated vertical
+10. [Authenticated Web runner/transport and offline build proof complete;
+    native/product gates open] Keep the browser entry point, multi-view root and
+    nonce-, sequence- and size-fenced JavaScript/Dart transport on the existing
+    bounded NBFC/model protocol. Next implement the native WebView2 host and
+    virtual-origin/resource policy, route an exact Web engine through provider,
+    build/cache and product lifecycle, and pass the assembled Windows physical
+    readiness, interaction and teardown gate. None of those next steps is marked
+    complete by the static bundle proof.
+11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
+    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
+12. Admit every further built-in only as a complete capability-gated vertical
     slice after all applicable gates pass and Palette expansion resumes.
 
 ## Remaining decisions for broader writable UI
@@ -1749,8 +1780,10 @@ infrastructure.
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Windows inline Text product
    slice is also implemented under ADR-036, while physical CJK IME acceptance
-   remains open. The Web backend and Linux/macOS native-surface providers
-   remain pending.
+   remains open. The authenticated browser runner/transport foundation and its
+   offline static-build proof are complete, while the native WebView2 host,
+   origin/resource confinement, product routing and assembled physical gate
+   remain pending alongside the Linux/macOS native-surface providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

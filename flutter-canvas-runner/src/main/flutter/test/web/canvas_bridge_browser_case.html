@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Canvas bridge browser case</title>
+</head>
+<body>
+<script>
+  'use strict';
+  const nonce = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const posted = [];
+  const listeners = new Map();
+  globalThis.__netBeansCanvasBootstrap = Object.freeze({sessionNonce: nonce});
+  globalThis.chrome = Object.freeze({
+    webview: Object.freeze({
+      addEventListener(type, callback) { listeners.set(type, callback); },
+      removeEventListener(type, callback) {
+        if (listeners.get(type) === callback) listeners.delete(type);
+      },
+      postMessage(message) { posted.push(message); },
+    }),
+  });
+  function hostMessage(overrides) {
+    return Object.assign({
+      format: 'netbeans-flutter-canvas-web-bridge',
+      version: 1,
+      sessionNonce: nonce,
+      direction: 'host-to-runner',
+      kind: 'chunk',
+      sequence: 1,
+      chunk: 'AQ==',
+    }, overrides || {});
+  }
+</script>
+<script src="../../web/canvas_bridge.js"></script>
+<script>
+  'use strict';
+  const scenario = location.hash.substring(1);
+  const received = [];
+  const failures = [];
+  let registrationRejected = false;
+  function emit(message) { listeners.get('message')({data: message}); }
+  function register() {
+    netBeansCanvasBridge.registerRunner(
+      (...args) => received.push(args),
+      (...args) => failures.push(args),
+    );
+  }
+  if (scenario === 'malformed') {
+    register();
+    emit(hostMessage({chunk: 'AB=='}));
+  } else if (scenario === 'oversize') {
+    register();
+    emit(hostMessage({chunk: 'AAAA'.repeat(349526)}));
+  } else if (scenario === 'sequence') {
+    register();
+    emit(hostMessage({sequence: 2}));
+  } else if (scenario === 'envelope') {
+    register();
+    emit(hostMessage({version: 2}));
+  } else if (scenario === 'foreign') {
+    register();
+    emit(hostMessage({sessionNonce: 'f'.repeat(64), chunk: 'AB=='}));
+    emit(hostMessage());
+  } else if (scenario === 'pending-overflow') {
+    for (let sequence = 1; sequence <= 65; sequence += 1) {
+      emit(hostMessage({sequence}));
+    }
+    try { register(); } catch (_) { registrationRejected = true; }
+  }
+  const failuresPosted = posted.filter((message) => message.kind === 'failure');
+  const readyPosted = posted.filter((message) => message.kind === 'ready');
+  const passed = scenario === 'foreign'
+    ? received.length === 1 && failures.length === 0 &&
+      failuresPosted.length === 0 && readyPosted.length === 1
+    : scenario === 'pending-overflow'
+      ? registrationRejected && failures.length === 0 &&
+        failuresPosted.length === 1 && readyPosted.length === 0
+      : received.length === 0 && failures.length === 1 &&
+        failuresPosted.length === 1 && readyPosted.length === 1;
+  document.body.textContent = `CANVAS_BRIDGE_CASE:${scenario}:${passed ? 'PASS' : 'FAIL'}`;
+</script>
+</body>
+</html>

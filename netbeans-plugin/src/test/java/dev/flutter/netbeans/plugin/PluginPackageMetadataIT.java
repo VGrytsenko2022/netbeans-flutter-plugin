@@ -46,8 +46,13 @@ class PluginPackageMetadataIT {
     private static final Set<String> CANVAS_RUNNER_RUNTIME_ENTRIES = Set.of(
             "dev/flutter/netbeans/canvas/runner/CanvasRunnerBundle.class",
             "dev/flutter/netbeans/canvas/runner/CanvasRunnerBundle.manifest",
+            "dev/flutter/netbeans/canvas/runner/WebCanvasArtifact.manifest",
             "dev/flutter/netbeans/canvas/runner/v1/pubspec.yaml",
+            "dev/flutter/netbeans/canvas/runner/v1/assets/fonts/Roboto-Regular.ttf",
+            "dev/flutter/netbeans/canvas/runner/v1/assets/licenses/Roboto-LICENSE.txt",
             "dev/flutter/netbeans/canvas/runner/v1/lib/main.dart",
+            "dev/flutter/netbeans/canvas/runner/v1/lib/main_web.dart",
+            "dev/flutter/netbeans/canvas/runner/v1/web/index.html",
             "dev/flutter/netbeans/canvas/runner/v1/windows/runner/main.cpp",
             "dev/flutter/netbeans/canvas/runner/v1/windows/runner/resources/app_icon.ico");
     private static final Set<String> MODULE_RUNTIME_ENTRIES = Set.of(

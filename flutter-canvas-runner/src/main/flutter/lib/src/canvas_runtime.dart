@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -9,6 +8,7 @@ import 'package:flutter/widgets.dart';
 
 import 'canvas_drop.dart';
 import 'canvas_model.dart';
+import 'canvas_runtime_platform.dart';
 import 'sha256.dart';
 
 const nbfcControlJson = 1;
@@ -69,6 +69,39 @@ class NbfcFrame {
   final int kind;
   final Uint8List payload;
   final String digestHex;
+}
+
+/// Selects host-owned runtime capabilities independently of the byte transport.
+///
+/// Product entry points must choose either [nativeProcess] or [webView]. The
+/// [injectedTest] profile preserves deterministic protocol fixtures without
+/// installing operating-system channels or binding observers.
+enum CanvasRuntimeHostProfile {
+  nativeProcess(
+    observesBindingMetrics: true,
+    installsNativeDropMethodChannel: true,
+    assumesNativeDropForProtocolTests: false,
+  ),
+  webView(
+    observesBindingMetrics: true,
+    installsNativeDropMethodChannel: false,
+    assumesNativeDropForProtocolTests: false,
+  ),
+  injectedTest(
+    observesBindingMetrics: false,
+    installsNativeDropMethodChannel: false,
+    assumesNativeDropForProtocolTests: true,
+  );
+
+  const CanvasRuntimeHostProfile({
+    required this.observesBindingMetrics,
+    required this.installsNativeDropMethodChannel,
+    required this.assumesNativeDropForProtocolTests,
+  });
+
+  final bool observesBindingMetrics;
+  final bool installsNativeDropMethodChannel;
+  final bool assumesNativeDropForProtocolTests;
 }
 
 /// View-only placement of one fixed logical Flutter viewport in the native
@@ -353,11 +386,24 @@ class CanvasRuntimeController extends ChangeNotifier
     Future<void> Function()? flush,
     void Function(String)? diagnostic,
     this.nativeDropAvailabilityProbe,
-  }) : _reader = NbfcFrameReader(input ?? stdin),
-       _output = output ?? stdout.add,
-       _flush = flush ?? stdout.flush,
-       _diagnostic = diagnostic ?? stderr.writeln,
-       _ownsProcessIo = input == null && output == null && flush == null;
+    this.hostProfile = CanvasRuntimeHostProfile.injectedTest,
+  }) : _reader = NbfcFrameReader(input ?? canvasRuntimeProcessInput()),
+       _output = output ?? canvasRuntimeProcessOutput,
+       _flush = flush ?? canvasRuntimeProcessFlush,
+       _diagnostic = diagnostic ?? canvasRuntimeProcessDiagnostic,
+       _ownsProcessIo = input == null && output == null && flush == null {
+    if (hostProfile == CanvasRuntimeHostProfile.nativeProcess &&
+        !_ownsProcessIo) {
+      throw ArgumentError(
+        'The native-process Canvas profile requires process-owned I/O.',
+      );
+    }
+    if (hostProfile == CanvasRuntimeHostProfile.webView && _ownsProcessIo) {
+      throw ArgumentError(
+        'The WebView Canvas profile requires an injected browser transport.',
+      );
+    }
+  }
 
   final NbfcFrameReader _reader;
   final void Function(List<int>) _output;
@@ -365,6 +411,7 @@ class CanvasRuntimeController extends ChangeNotifier
   final void Function(String) _diagnostic;
   @visibleForTesting
   final Future<bool> Function()? nativeDropAvailabilityProbe;
+  final CanvasRuntimeHostProfile hostProfile;
   final bool _ownsProcessIo;
 
   CanvasModel? _model;
@@ -420,6 +467,12 @@ class CanvasRuntimeController extends ChangeNotifier
   CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
   CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
   bool get inlineTextEditNegotiated => _inlineTextEditNegotiated;
+
+  @visibleForTesting
+  bool get bindingObserverInstalled => _bindingObserverInstalled;
+
+  @visibleForTesting
+  bool get nativeDropHandlerInstalled => _nativeDropHandlerInstalled;
 
   @visibleForTesting
   String? get paletteDragSourceToken =>
@@ -502,9 +555,11 @@ class CanvasRuntimeController extends ChangeNotifier
 
   Future<void> start() async {
     try {
-      if (_ownsProcessIo) {
+      if (hostProfile.observesBindingMetrics) {
         WidgetsBinding.instance.addObserver(this);
         _bindingObserverInstalled = true;
+      }
+      if (hostProfile.installsNativeDropMethodChannel) {
         _paletteDropChannel.setMethodCallHandler(_handleNativeDropMethod);
         _nativeDropHandlerInstalled = true;
       }
@@ -618,11 +673,11 @@ class CanvasRuntimeController extends ChangeNotifier
       if (probe != null) {
         return await probe();
       }
-      // Unit tests and other injected protocol transports do not own a native
-      // FlutterView. Preserve their deterministic protocol fixture unless a
-      // test explicitly supplies a probe.
-      if (!_ownsProcessIo) {
+      if (hostProfile.assumesNativeDropForProtocolTests) {
         return true;
+      }
+      if (!hostProfile.installsNativeDropMethodChannel) {
+        return false;
       }
       return await _paletteDropChannel.invokeMethod<bool>('isAvailable') ==
           true;
@@ -1822,7 +1877,7 @@ class CanvasRuntimeController extends ChangeNotifier
     await _reader.cancel();
     if (_ownsProcessIo) {
       await _flush();
-      exit(0);
+      canvasRuntimeProcessExit(0);
     }
   }
 
@@ -2009,7 +2064,7 @@ Map<String, Object?> _runnerHello(
         'flutterVersion': 'bundled',
         'frameworkRevision': 'bundled',
         'engineRevision': 'bundled',
-        'dartSdkVersion': Platform.version.split(' ').first,
+        'dartSdkVersion': canvasRuntimeDartSdkVersion(),
       },
       'acceptedCapabilities': [
         for (final capability in capabilityOrder)

@@ -10,8 +10,8 @@
   </parent>
   <artifactId>flutter-canvas-runner</artifactId>
   <packaging>jar</packaging>
-  <name>Flutter native Canvas runner sources</name>
-  <description>Versioned Flutter sources for the isolated native Canvas child window.</description>
+  <name>Flutter Canvas runner sources</name>
+  <description>Versioned Flutter sources for isolated native and browser Canvas surfaces.</description>
 
   <build>
     <resources>

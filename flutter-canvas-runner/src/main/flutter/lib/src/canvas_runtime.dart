@@ -21,6 +21,7 @@ const _runnerVersion = '0.1.3-SNAPSHOT';
 const _paletteDropCapability = 'palette.drop.catalogInsert.v1';
 const _paletteDropSourceAwareCapability = 'palette.drop.sourceAware.v1';
 const _deleteSelectedWidgetCapability = 'widget.deleteSelection.v1';
+const _inlineTextEditCapability = 'widget.inlineTextEdit.v1';
 const _widgetMovePreviewCapability = 'widget.movePreview.v1';
 const _viewportPresentationCapability = 'viewport.presentation.v1';
 const _surfacePresentationCapability = 'surface.presentation.v1';
@@ -28,6 +29,22 @@ const _maximumDevicePixelRatioMicros = 2147483647;
 const minimumCanvasZoomMicros = 250000;
 const maximumCanvasZoomMicros = 2000000;
 const canvasViewportMicros = 1000000;
+const maximumInlineTextUtf16Units = 65536;
+const maximumInlineTextUnicodeScalars = 32768;
+
+String? inlineTextValidationError(String value) {
+  final metrics = _inlineTextMetrics(value);
+  if (metrics == null) {
+    return 'Text must contain well-formed UTF-16.';
+  }
+  if (metrics.utf16Units > maximumInlineTextUtf16Units) {
+    return 'Text exceeds $maximumInlineTextUtf16Units UTF-16 code units.';
+  }
+  if (metrics.unicodeScalars > maximumInlineTextUnicodeScalars) {
+    return 'Text exceeds $maximumInlineTextUnicodeScalars Unicode scalar values.';
+  }
+  return null;
+}
 
 @visibleForTesting
 int reserveNextCanvasLayoutSequence(int current, int? pending) =>
@@ -380,6 +397,7 @@ class CanvasRuntimeController extends ChangeNotifier
   bool _paletteDropNegotiated = false;
   bool _paletteDropSourceAwareNegotiated = false;
   bool _deleteSelectedWidgetNegotiated = false;
+  bool _inlineTextEditNegotiated = false;
   bool _widgetMovePreviewNegotiated = false;
   bool _viewportPresentationNegotiated = false;
   bool _surfacePresentationNegotiated = false;
@@ -401,6 +419,7 @@ class CanvasRuntimeController extends ChangeNotifier
   @visibleForTesting
   CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
   CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
+  bool get inlineTextEditNegotiated => _inlineTextEditNegotiated;
 
   @visibleForTesting
   String? get paletteDragSourceToken =>
@@ -507,6 +526,9 @@ class CanvasRuntimeController extends ChangeNotifier
           hello.capabilities.contains(_paletteDropSourceAwareCapability);
       _deleteSelectedWidgetNegotiated = hello.capabilities.contains(
         _deleteSelectedWidgetCapability,
+      );
+      _inlineTextEditNegotiated = hello.capabilities.contains(
+        _inlineTextEditCapability,
       );
       _widgetMovePreviewNegotiated = hello.capabilities.contains(
         _widgetMovePreviewCapability,
@@ -786,6 +808,44 @@ class CanvasRuntimeController extends ChangeNotifier
         'widgetId': widgetId,
       });
     unawaited(_writeRuntime('runner.deleteSelection', body));
+    return true;
+  }
+
+  /// Publishes one final, composition-free edit of an exact Text.data value.
+  ///
+  /// The Java host remains the persistence authority. The immutable model is
+  /// never changed in the runner, and preedit/composing values are never sent.
+  bool commitInlineTextEdit(
+    String widgetId,
+    String text,
+    bool compositionObserved,
+  ) {
+    final current = _model;
+    final selected = _selectedWidgetId;
+    if (_closed ||
+        !_inlineTextEditNegotiated ||
+        current == null ||
+        selected != widgetId ||
+        !_interactionInputEnabledForCurrentLayout() ||
+        _lastPresentedIdentity != _identity(current) ||
+        inlineTextValidationError(text) != null) {
+      return false;
+    }
+    final node = _findNode(current.root, widgetId);
+    if (node == null || node.type != 'flutter.widgets.Text') {
+      return false;
+    }
+    final body = _identityBody(current)
+      ..addAll({
+        'frameSequence': 0,
+        'layoutSequence': _layoutSequence,
+        'intentSequence': _intentSequence++,
+        'interactionFenceSequence': _interactionFenceSequence,
+        'widgetId': widgetId,
+        'text': text,
+        'compositionObserved': compositionObserved,
+      });
+    unawaited(_writeRuntime('runner.textEditCommit', body));
     return true;
   }
 
@@ -1876,7 +1936,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 9) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 10) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -1886,6 +1946,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
     _paletteDropCapability,
     _paletteDropSourceAwareCapability,
     _deleteSelectedWidgetCapability,
+    _inlineTextEditCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
     _surfacePresentationCapability,
@@ -1929,6 +1990,7 @@ Map<String, Object?> _runnerHello(
     _paletteDropCapability,
     _paletteDropSourceAwareCapability,
     _deleteSelectedWidgetCapability,
+    _inlineTextEditCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
     _surfacePresentationCapability,
@@ -2339,6 +2401,30 @@ bool _sameDropTarget(CanvasDropTarget? left, CanvasDropTarget? right) {
           leftZone.topMicros == rightZone.topMicros &&
           leftZone.rightMicros == rightZone.rightMicros &&
           leftZone.bottomMicros == rightZone.bottomMicros;
+}
+
+({int utf16Units, int unicodeScalars})? _inlineTextMetrics(String value) {
+  var scalars = 0;
+  for (var index = 0; index < value.length; index++) {
+    final unit = value.codeUnitAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (index + 1 >= value.length) {
+        return null;
+      }
+      final low = value.codeUnitAt(index + 1);
+      if (low < 0xdc00 || low > 0xdfff) {
+        return null;
+      }
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return null;
+    }
+    scalars++;
+    if (scalars > maximumInlineTextUnicodeScalars) {
+      return (utf16Units: value.length, unicodeScalars: scalars);
+    }
+  }
+  return (utf16Units: value.length, unicodeScalars: scalars);
 }
 
 CanvasNode? _findNode(CanvasNode node, String id) {

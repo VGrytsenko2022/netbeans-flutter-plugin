@@ -44,6 +44,8 @@ import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
 import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
@@ -100,6 +102,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
+            CanvasWireCapability.INLINE_TEXT_EDIT_V1,
             CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1,
             CanvasWireCapability.SURFACE_PRESENTATION_V1);
     private static final List<CanvasWireCapability> VIEWPORT_CAPABILITIES = List.of(
@@ -1497,6 +1500,109 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     @Test
+    void inlineTextEditDeliversCanonicalUnicodeAndEmptyOnceForSelectedText()
+            throws Exception {
+        Harness harness = Harness.start(textDocument(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            onEdt(() -> harness.session.selectWidget(CHILD));
+            HostSelection selection = harness.process.readSelection();
+            assertEquals(currentLayout, selection.layout());
+            assertEquals(CHILD, selection.widgetId());
+            String unicode = "Привіт 你好 😀 𐐷 e\u0301";
+
+            harness.ui.hold();
+            harness.process.sendTextEditCommit(
+                    currentLayout, 0, 0, CHILD, unicode, false);
+            harness.process.sendTextEditCommit(
+                    currentLayout, 0, 0, CHILD, "replay", false);
+            harness.process.sendTextEditCommit(
+                    currentLayout, 1, 0, CHILD, "", true);
+            harness.awaitUiTasks(3);
+            onEdt(harness.ui::releaseAll);
+
+            assertEquals(2, harness.runnerTextEdits.size());
+            CanvasRunnerRuntimeEvent.TextEditCommit populated =
+                    harness.runnerTextEdits.get(0);
+            CanvasRunnerRuntimeEvent.TextEditCommit empty =
+                    harness.runnerTextEdits.get(1);
+            assertEquals(currentLayout, populated.intentKey().layoutKey());
+            assertEquals(0,
+                    populated.intentKey().intentId().intentSequence());
+            assertEquals(0, populated.interactionFenceSequence());
+            assertEquals(CHILD, populated.widgetId());
+            assertEquals(unicode, populated.text());
+            assertFalse(populated.compositionObserved());
+            assertEquals(1, empty.intentKey().intentId().intentSequence());
+            assertEquals("", empty.text());
+            assertTrue(empty.compositionObserved());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void inlineTextEditRejectsStaleLayoutFenceAndHiddenDelivery()
+            throws Exception {
+        Harness harness = Harness.start(textDocument(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            onEdt(() -> harness.session.selectWidget(CHILD));
+            harness.process.readSelection();
+            CanvasLayoutKey staleLayout = new CanvasLayoutKey(
+                    currentLayout.frameKey(), currentLayout.layoutSequence() + 1);
+
+            harness.ui.hold();
+            harness.process.sendTextEditCommit(
+                    staleLayout, 0, 0, CHILD, "stale", false);
+            harness.process.sendTextEditCommit(
+                    currentLayout, 1, 1, CHILD, "wrong fence", false);
+            harness.awaitUiTasks(2);
+            onEdt(harness.ui::releaseAll);
+            assertTrue(harness.runnerTextEdits.isEmpty());
+
+            onEdt(harness.session::hide);
+            HostInteractionFence hiddenFence =
+                    harness.process.readInteractionFence();
+            assertEquals(currentLayout, hiddenFence.layout());
+            harness.ui.hold();
+            harness.process.sendTextEditCommit(
+                    currentLayout,
+                    2,
+                    hiddenFence.interactionFenceSequence(),
+                    CHILD,
+                    "hidden",
+                    false);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertTrue(harness.runnerTextEdits.isEmpty());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void inlineTextEditRequiresTheExactSelectedTextWidget()
+            throws Exception {
+        Harness harness = Harness.start(textDocument(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+
+            harness.ui.hold();
+            harness.process.sendTextEditCommit(
+                    currentLayout, 0, 0, CHILD, "not selected", false);
+            harness.process.sendTextEditCommit(
+                    currentLayout, 1, 0, ROOT, "not Text", false);
+            harness.awaitUiTasks(2);
+            onEdt(harness.ui::releaseAll);
+
+            assertTrue(harness.runnerTextEdits.isEmpty());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
     void widgetMovePreviewUsesExactLayoutAndClearsExplicitlyAndOnHide()
             throws Exception {
         Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
@@ -1630,6 +1736,31 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             StableId documentId,
             StableId rootId,
             StableId childId) {
+        WidgetNode child = childId == null
+                ? null
+                : WidgetNode.empty(
+                        childId, new WidgetTypeId("flutter.widgets.Center"));
+        return documentWithChild(documentId, rootId, child);
+    }
+
+    private static DesignerDocument textDocument(
+            StableId documentId,
+            StableId rootId,
+            StableId childId) {
+        WidgetNode child = new WidgetNode(
+                childId,
+                TEXT,
+                Map.of(
+                        new PropertyName("data"),
+                        new PropertyValue.StringValue("initial")),
+                Map.of());
+        return documentWithChild(documentId, rootId, child);
+    }
+
+    private static DesignerDocument documentWithChild(
+            StableId documentId,
+            StableId rootId,
+            WidgetNode child) {
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         DartSourceDescriptor source = new DartSourceDescriptor(
                 "home_page.dart",
@@ -1638,12 +1769,10 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                 Optional.of("0.1.3-SNAPSHOT"),
                 new ManagedRegions(region, region));
         WidgetNode root;
-        if (childId == null) {
+        if (child == null) {
             root = WidgetNode.empty(
                     rootId, new WidgetTypeId("flutter.material.Scaffold"));
         } else {
-            WidgetNode child = WidgetNode.empty(
-                    childId, new WidgetTypeId("flutter.widgets.Center"));
             root = new WidgetNode(
                     rootId,
                     new WidgetTypeId("flutter.material.Scaffold"),
@@ -1738,6 +1867,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         private final List<WidgetTypeId> runnerPaletteDropTypes = new ArrayList<>();
         private final List<CanvasRunnerRuntimeEvent.DeleteSelection>
                 runnerDeletions = new ArrayList<>();
+        private final List<CanvasRunnerRuntimeEvent.TextEditCommit>
+                runnerTextEdits = new ArrayList<>();
         private final List<CanvasViewportMetrics> runnerViewportMetrics =
                 new ArrayList<>();
         private final List<FlutterDesignerNativeCanvasStatus> statuses =
@@ -1797,6 +1928,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     runnerDeletions::add);
             session.setViewportMetricsListener(runnerViewportMetrics::add);
             session.setInteractionListener(runnerInteractions::incrementAndGet);
+            session.setTextEditCommitListener(runnerTextEdits::add);
         }
 
         static Harness start(DesignerDocument document) throws Exception {
@@ -2571,6 +2703,28 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             + ",\"layoutSequence\":" + layout.layoutSequence()
                             + ",\"intentSequence\":" + intentSequence
                             + ",\"widgetId\":\"" + widgetId + "\""));
+        }
+
+        void sendTextEditCommit(
+                CanvasLayoutKey layout,
+                long intentSequence,
+                long interactionFenceSequence,
+                StableId widgetId,
+                String text,
+                boolean compositionObserved) throws Exception {
+            sendRuntime(runtimeEnvelope(
+                    layout.frameKey().revisionKey(),
+                    "runner.textEditCommit",
+                    "\"frameSequence\":" + layout.frameKey().frameSequence()
+                            + ",\"layoutSequence\":"
+                            + layout.layoutSequence()
+                            + ",\"intentSequence\":" + intentSequence
+                            + ",\"interactionFenceSequence\":"
+                            + interactionFenceSequence
+                            + ",\"widgetId\":\"" + widgetId + "\""
+                            + ",\"text\":" + json.writeValueAsString(text)
+                            + ",\"compositionObserved\":"
+                            + compositionObserved));
         }
 
         void sendViewportMetrics(

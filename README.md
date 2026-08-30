@@ -45,6 +45,18 @@ The current usable workflow is:
     Each Design tab defaults to `Fit`, also offers 25–200% manual zoom, and
     exposes native Canvas scrollbars whenever the fixed logical profile no
     longer fits. Zoom and scroll are view-only and are never written to `.fd`.
+12. On the Windows Canvas, double-click or press F2 on the selected existing
+    `Text` widget to edit its `data` through a real Flutter `TextField` and
+    `TextInputClient`. Enter inserts a newline; Ctrl+Enter commits and Escape
+    cancels only when Flutter reports no active composing range. IME preedit
+    remains runner-local. One admitted final commit is bound to the exact
+    session, revision, layout, interaction fence and selected stable ID, then
+    produces at most one existing `SetProperty(data)` command; unchanged text
+    is a no-op. Deterministic Flutter and Java protocol/session plus
+    view/mutation-bridge tests cover this Windows slice, but physical CJK IME
+    acceptance remains open because the current gate host has no
+    composition-capable input method. This does not claim a Linux, macOS or
+    runtime-faithful Web implementation.
 
 With the core IDE workflow stable, version 0.1.3 is now building the
 Matisse-like Flutter Designer in staged, non-authorizing slices.

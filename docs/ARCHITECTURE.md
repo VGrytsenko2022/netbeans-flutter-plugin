@@ -347,7 +347,8 @@ identities/admission gates, bounded native-surface request validation, a pure
 per-MultiView lifecycle controller, the exact version 1 lifecycle handshake and
 fail-stop bounded process framing. After the handshake, bounded runtime control
 publishes one exact validated revision, acknowledges its layout, synchronizes
-selection and capability-gates the narrowly typed `runner.paletteDrop` intent.
+selection and capability-gates the narrowly typed `runner.paletteDrop` and
+`runner.textEditCommit` intents.
 Protocol negotiation and decoding do not authorize mutation. The canonical
 protocol-v9 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
@@ -413,6 +414,31 @@ optional booleans, a non-negative numeric editor, strict callback identifiers
 and a bounded restoration ID. Widget-valued Scaffold constructor parameters,
 `persistentFooterDecoration` and `bottomSheetScrimBuilder` remain outside this
 scalar slice.
+
+The Windows-only inline Text slice is activated only for the selected existing
+`flutter.widgets.Text`, by double-click or F2. Flutter temporarily owns a real
+multiline `TextField` and `TextInputClient`; ordinary Enter inserts a newline,
+Ctrl+Enter requests final commit, and Escape requests cancel. Commit and cancel
+are ignored while Flutter reports a non-empty composing range, so preedit stays
+inside the runner and is never projected as a Java property mutation. The AWT
+carrier disables input methods and the native host neither interprets nor
+relays `WM_IME`; the embedded Flutter engine owns OS text input directly.
+
+`widget.inlineTextEdit.v1` gates one final `runner.textEditCommit`. Its strict
+body carries the exact presentation/document/logical-revision/frame/layout and
+intent identities, the current interaction-fence sequence, selected widget ID,
+well-formed bounded Unicode text and `compositionObserved` metadata. Java
+rejects missing/extra/malformed or oversize bodies, unnegotiated, stale,
+foreign, replayed or hidden events, a mismatched fence/layout/selection, and
+every non-`Text` widget. One admitted event becomes at most one existing
+`SetProperty(data)` command; unchanged text is a no-op. Generation, analyzer
+admission, Pair Save and chronological Undo/Redo remain the sole persistence
+path. Deterministic Flutter and Java codec/channel/session plus
+view/mutation-bridge tests accept this product slice. Physical CJK IME
+acceptance remains open because the current assembled gate host has no
+composition-capable input method; Linux/macOS and runtime-faithful Web inline
+editing are not implemented by this decision.
+
 A standalone automated Win32 smoke proves the three-window hierarchy and resize
 path; its `JFrame` is only a test harness and is not part of the plugin UI. The
 assembled Windows gate additionally opens production Designer DataObjects and
@@ -513,11 +539,12 @@ Properties-driven persistence proof does not claim a second physical Palette
 drop path. A real per-monitor DPI transition
 between two physical monitors with different scaling remains unaccepted because
 the current gate has no second mixed-DPI monitor and does not synthesize
-`WM_DPICHANGED`. IME composition and broader menu/popup paths beyond the
-accepted local Preview selector and standard **Window → Services** menu remain
-unaccepted. IME also lacks both an editable
-Flutter text-input client in the reviewed Canvas catalog and a
-composition-capable input method on the current physical gate.
+`WM_DPICHANGED`. Physical CJK IME composition and broader menu/popup paths
+beyond the accepted local Preview selector and standard **Window → Services**
+menu remain unaccepted. The inline editor supplies the real Flutter
+`TextInputClient`, but the current physical gate still lacks a
+composition-capable input method; deterministic composition tests are not a
+substitute for that acceptance.
 Linux/macOS providers, every
 broader drag-and-drop operation, unreviewed shader/filter graphs and the broader
 Designer mutation surface remain outstanding. The deprecated

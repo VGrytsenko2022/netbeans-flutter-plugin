@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
@@ -17,6 +18,7 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         CanvasRunnerRuntimeEvent.InteractionFenceApplied,
         CanvasRunnerRuntimeEvent.PaletteDrop,
         CanvasRunnerRuntimeEvent.DeleteSelection,
+        CanvasRunnerRuntimeEvent.TextEditCommit,
         CanvasRunnerRuntimeEvent.ViewportMetrics {
 
     record Presented(
@@ -97,11 +99,58 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         }
     }
 
+    /** One final, composition-free inline edit of {@code Text.data}. */
+    record TextEditCommit(
+            CanvasIntentKey intentKey,
+            long interactionFenceSequence,
+            StableId widgetId,
+            String text,
+            boolean compositionObserved) implements CanvasRunnerRuntimeEvent {
+        public TextEditCommit {
+            Objects.requireNonNull(intentKey, "intentKey");
+            if (interactionFenceSequence < 0
+                    || interactionFenceSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+                throw new IllegalArgumentException(
+                        "interactionFenceSequence is outside the wire range");
+            }
+            Objects.requireNonNull(widgetId, "widgetId");
+            validateInlineText(text);
+        }
+    }
+
     /** Runner-confirmed presentation metrics for one exact Canvas revision. */
     record ViewportMetrics(
             CanvasViewportMetrics metrics) implements CanvasRunnerRuntimeEvent {
         public ViewportMetrics {
             Objects.requireNonNull(metrics, "metrics");
+        }
+    }
+
+    private static void validateInlineText(String text) {
+        Objects.requireNonNull(text, "text");
+        if (text.length() > CanvasWireLimits.DEFAULT_MAX_STRING_UTF16_UNITS) {
+            throw new IllegalArgumentException(
+                    "text exceeds the Canvas wire UTF-16 limit");
+        }
+        int scalarCount = 0;
+        for (int index = 0; index < text.length(); index++) {
+            char unit = text.charAt(index);
+            if (Character.isHighSurrogate(unit)) {
+                if (index + 1 >= text.length()
+                        || !Character.isLowSurrogate(text.charAt(index + 1))) {
+                    throw new IllegalArgumentException(
+                            "text contains malformed UTF-16");
+                }
+                index++;
+            } else if (Character.isLowSurrogate(unit)) {
+                throw new IllegalArgumentException(
+                        "text contains malformed UTF-16");
+            }
+            scalarCount++;
+            if (scalarCount > CanvasWireLimits.DEFAULT_MAX_STRING_CODE_POINTS) {
+                throw new IllegalArgumentException(
+                        "text exceeds the Canvas wire Unicode scalar limit");
+            }
         }
     }
 }

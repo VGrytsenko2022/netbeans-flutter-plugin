@@ -91,6 +91,7 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
+            CanvasWireCapability.INLINE_TEXT_EDIT_V1,
             CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1,
             CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
 
@@ -598,6 +599,74 @@ class CanvasRunnerProcessChannelTest {
         assertEquals(widgetId, harness.listener.deletion.widgetId());
         assertEquals(1, harness.listener.deleteSelectionCalls.get());
         assertTrue(harness.listener.failureReason == null);
+    }
+
+    @Test
+    void dispatchesInlineTextEditForTheExactNegotiatedSession()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasRevisionKey revision = request.revisionKey();
+        StableId widgetId = request.snapshot().document().root().id();
+        String text = "Привіт 你好 😀 e\u0301";
+
+        harness.sendRuntime(textEditCommit(
+                revision, 3, 5, 7, 11, widgetId, text, true));
+
+        assertTrue(harness.listener.textEditCommit.await(2, TimeUnit.SECONDS));
+        CanvasRunnerRuntimeEvent.TextEditCommit commit =
+                harness.listener.inlineTextEdit;
+        assertEquals(new CanvasIntentKey(
+                new CanvasIntentId(harness.sessionId, 7),
+                new CanvasLayoutKey(new CanvasFrameKey(revision, 3), 5)),
+                commit.intentKey());
+        assertEquals(11, commit.interactionFenceSequence());
+        assertEquals(widgetId, commit.widgetId());
+        assertEquals(text, commit.text());
+        assertTrue(commit.compositionObserved());
+        assertEquals(1, harness.listener.textEditCommitCalls.get());
+        assertTrue(harness.listener.failureReason == null);
+    }
+
+    @Test
+    void rejectsInlineTextEditWhenCapabilityWasNotNegotiated()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.sendHello(ALL_CAPABILITIES.stream()
+                .filter(capability -> capability
+                        != CanvasWireCapability.INLINE_TEXT_EDIT_V1)
+                .toList());
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        StableId widgetId = request.snapshot().document().root().id();
+
+        harness.sendRuntime(textEditCommit(
+                request.revisionKey(), 0, 0, 0, 0,
+                widgetId, "blocked", false));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains(
+                "without negotiating"));
+        assertEquals(0, harness.listener.textEditCommitCalls.get());
+        assertFalse(harness.channel.isReady());
+    }
+
+    @Test
+    void rejectsInlineTextEditFromAnotherSessionWithoutDispatchingIt()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest foreign = renderRequest(CanvasSessionId.random());
+        StableId widgetId = foreign.snapshot().document().root().id();
+
+        harness.sendRuntime(textEditCommit(
+                foreign.revisionKey(), 0, 0, 0, 0,
+                widgetId, "foreign", false));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("stale or foreign"));
+        assertEquals(0, harness.listener.textEditCommitCalls.get());
+        assertFalse(harness.channel.isReady());
     }
 
     @Test
@@ -1656,6 +1725,29 @@ class CanvasRunnerProcessChannelTest {
                 + ",\"widgetId\":\"" + widgetId + "\"");
     }
 
+    private static String textEditCommit(
+            CanvasRevisionKey revision,
+            long frame,
+            long layout,
+            long intent,
+            long interactionFenceSequence,
+            StableId widgetId,
+            String text,
+            boolean compositionObserved) {
+        return runtimeEnvelope(
+                revision,
+                "runner.textEditCommit",
+                "\"frameSequence\":" + frame
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"intentSequence\":" + intent
+                        + ",\"interactionFenceSequence\":"
+                        + interactionFenceSequence
+                        + ",\"widgetId\":\"" + widgetId + "\""
+                        + ",\"text\":\"" + text + "\""
+                        + ",\"compositionObserved\":"
+                        + compositionObserved);
+    }
+
     private static String viewportMetrics(
             CanvasRevisionKey revision,
             long commandSequence,
@@ -1921,6 +2013,7 @@ class CanvasRunnerProcessChannelTest {
                 new CountDownLatch(1);
         private final CountDownLatch paletteDrop = new CountDownLatch(1);
         private final CountDownLatch deleteSelection = new CountDownLatch(1);
+        private final CountDownLatch textEditCommit = new CountDownLatch(1);
         private final CountDownLatch viewportMetrics = new CountDownLatch(1);
         private final CountDownLatch closed = new CountDownLatch(1);
         private final CountDownLatch warning = new CountDownLatch(1);
@@ -1928,6 +2021,7 @@ class CanvasRunnerProcessChannelTest {
         private final AtomicInteger paletteDropCalls = new AtomicInteger();
         private final AtomicInteger interactionCalls = new AtomicInteger();
         private final AtomicInteger deleteSelectionCalls = new AtomicInteger();
+        private final AtomicInteger textEditCommitCalls = new AtomicInteger();
         private final AtomicInteger viewportMetricsCalls = new AtomicInteger();
         private volatile CanvasEngineIdentity engine;
         private volatile CanvasLayoutKey layout;
@@ -1939,6 +2033,7 @@ class CanvasRunnerProcessChannelTest {
         private volatile StableId widgetId;
         private volatile CanvasRunnerRuntimeEvent.PaletteDrop drop;
         private volatile CanvasRunnerRuntimeEvent.DeleteSelection deletion;
+        private volatile CanvasRunnerRuntimeEvent.TextEditCommit inlineTextEdit;
         private volatile CanvasViewportMetrics metrics;
         private volatile String failureReason;
 
@@ -1989,6 +2084,14 @@ class CanvasRunnerProcessChannelTest {
             deletion = value;
             deleteSelectionCalls.incrementAndGet();
             deleteSelection.countDown();
+        }
+
+        @Override
+        public void textEditCommit(
+                CanvasRunnerRuntimeEvent.TextEditCommit value) {
+            inlineTextEdit = value;
+            textEditCommitCalls.incrementAndGet();
+            textEditCommit.countDown();
         }
 
         @Override

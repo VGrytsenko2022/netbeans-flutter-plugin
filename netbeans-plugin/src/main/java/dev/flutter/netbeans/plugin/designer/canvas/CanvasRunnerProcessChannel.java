@@ -1060,6 +1060,27 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             dispatch(() -> listener.deleteSelection(deletion));
             return true;
         }
+        if (event instanceof CanvasRunnerRuntimeEvent.TextEditCommit commit) {
+            final boolean inlineTextEditNegotiated;
+            synchronized (stateLock) {
+                inlineTextEditNegotiated = acceptedCapabilities.contains(
+                        CanvasWireCapability.INLINE_TEXT_EDIT_V1);
+            }
+            if (!inlineTextEditNegotiated) {
+                fail("Canvas runner sent an inline text edit without "
+                        + "negotiating its capability.");
+                return false;
+            }
+            if (!exactSession(commit.intentKey().intentId().sessionId())
+                    || !exactSession(
+                            commit.intentKey().layoutKey().sessionId())) {
+                fail("Canvas runner sent an inline text edit for a stale or "
+                        + "foreign Canvas session.");
+                return false;
+            }
+            dispatch(() -> listener.textEditCommit(commit));
+            return true;
+        }
         CanvasRunnerRuntimeEvent.PaletteDrop drop =
                 (CanvasRunnerRuntimeEvent.PaletteDrop) event;
         final boolean paletteDropNegotiated;
@@ -1293,6 +1314,11 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         /** Optional until the owning Designer session wires the mutation slice. */
         default void deleteSelection(
                 CanvasRunnerRuntimeEvent.DeleteSelection deletion) {
+        }
+
+        /** Optional final composition-free edit of one {@code Text.data}. */
+        default void textEditCommit(
+                CanvasRunnerRuntimeEvent.TextEditCommit commit) {
         }
 
         /** Optional runner-confirmed viewport presentation state. */

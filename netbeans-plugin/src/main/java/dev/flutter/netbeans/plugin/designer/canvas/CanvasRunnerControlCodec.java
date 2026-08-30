@@ -19,6 +19,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameKind;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessPayloadDescriptor;
@@ -57,6 +58,11 @@ public final class CanvasRunnerControlCodec {
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "interactionFenceSequence");
     private static final Set<String> DELETE_SELECTION_FIELDS = SELECTION_FIELDS;
+    private static final Set<String> TEXT_EDIT_COMMIT_FIELDS = Set.of(
+            "presentationSequence", "documentId", "logicalRevisionId",
+            "frameSequence", "layoutSequence", "intentSequence",
+            "interactionFenceSequence", "widgetId", "text",
+            "compositionObserved");
     private static final Set<String> PALETTE_DROP_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "token",
@@ -97,7 +103,7 @@ public final class CanvasRunnerControlCodec {
                         .maxNestingDepth(16)
                         .maxTokenCount(128)
                         .maxNameLength(64)
-                        .maxStringLength(256)
+                        .maxStringLength(CanvasWireLimits.DEFAULT_MAX_STRING_UTF16_UNITS)
                         .maxNumberLength(32)
                         .build())
                 .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
@@ -322,6 +328,8 @@ public final class CanvasRunnerControlCodec {
                 case "runner.paletteDrop" -> decodePaletteDrop(sessionId, body);
                 case "runner.deleteSelection" -> decodeDeleteSelection(
                         sessionId, body);
+                case "runner.textEditCommit" -> decodeTextEditCommit(
+                        sessionId, body);
                 case "runner.viewport" -> decodeViewport(sessionId, body);
                 default -> throw invalid("Canvas runtime message type is not supported.");
             };
@@ -452,6 +460,26 @@ public final class CanvasRunnerControlCodec {
                 parseStableId(body, "widgetId"));
     }
 
+    private static CanvasRunnerRuntimeEvent.TextEditCommit decodeTextEditCommit(
+            CanvasSessionId sessionId,
+            JsonNode body) throws CanvasRunnerControlException {
+        requireFields(
+                body, TEXT_EDIT_COMMIT_FIELDS, "runner.textEditCommit body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        CanvasFrameKey frame = new CanvasFrameKey(
+                revision, requireSequence(body, "frameSequence"));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        CanvasIntentId intentId = new CanvasIntentId(
+                sessionId, requireSequence(body, "intentSequence"));
+        return new CanvasRunnerRuntimeEvent.TextEditCommit(
+                new CanvasIntentKey(intentId, layout),
+                requireSequence(body, "interactionFenceSequence"),
+                parseStableId(body, "widgetId"),
+                requireInlineText(body),
+                requireBoolean(body, "compositionObserved"));
+    }
+
     private static CanvasRunnerRuntimeEvent.ViewportMetrics decodeViewport(
             CanvasSessionId sessionId,
             JsonNode body) throws CanvasRunnerControlException {
@@ -563,6 +591,39 @@ public final class CanvasRunnerControlCodec {
         if (!expected.equals(requireText(object, name))) {
             throw invalid("Canvas runtime field " + name + " is not supported.");
         }
+    }
+
+    private static String requireInlineText(JsonNode object)
+            throws CanvasRunnerControlException {
+        JsonNode value = required(object, "text");
+        if (!value.isTextual()) {
+            throw invalid("Canvas runtime field text must be text.");
+        }
+        String text = value.textValue();
+        if (text.length() > CanvasWireLimits.DEFAULT_MAX_STRING_UTF16_UNITS) {
+            throw invalid("Canvas runtime field text exceeds its UTF-16 limit.");
+        }
+        int scalarCount = 0;
+        for (int index = 0; index < text.length(); index++) {
+            char unit = text.charAt(index);
+            if (Character.isHighSurrogate(unit)) {
+                if (index + 1 >= text.length()
+                        || !Character.isLowSurrogate(text.charAt(index + 1))) {
+                    throw invalid(
+                            "Canvas runtime field text contains malformed UTF-16.");
+                }
+                index++;
+            } else if (Character.isLowSurrogate(unit)) {
+                throw invalid(
+                        "Canvas runtime field text contains malformed UTF-16.");
+            }
+            scalarCount++;
+            if (scalarCount > CanvasWireLimits.DEFAULT_MAX_STRING_CODE_POINTS) {
+                throw invalid(
+                        "Canvas runtime field text exceeds its Unicode scalar limit.");
+            }
+        }
+        return text;
     }
 
     private static void requireExactInt(JsonNode object, String name, int expected)

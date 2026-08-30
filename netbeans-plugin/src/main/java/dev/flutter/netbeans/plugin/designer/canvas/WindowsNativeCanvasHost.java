@@ -83,6 +83,10 @@ public final class WindowsNativeCanvasHost extends JPanel implements NativeCanva
         this.canvas = new HostCanvas();
         canvas.setBackground(new Color(0x20, 0x22, 0x24));
         canvas.setFocusable(true);
+        // The heavyweight carrier is not a Java text component. The child
+        // FLUTTERVIEW owns the native IME client and composing state, so an
+        // overlapping AWT input-method pipeline would risk duplicate commits.
+        canvas.enableInputMethods(false);
         canvas.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent event) {

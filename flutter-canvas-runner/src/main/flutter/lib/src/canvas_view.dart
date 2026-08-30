@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'canvas_drop.dart';
@@ -9,6 +10,11 @@ import 'canvas_model.dart';
 import 'canvas_runtime.dart';
 
 bool _ignoreDeleteSelected() => false;
+bool _ignoreInlineTextCommit(
+  String widgetId,
+  String text,
+  bool compositionObserved,
+) => false;
 
 class NativeCanvasApp extends StatelessWidget {
   const NativeCanvasApp({required this.runtime, super.key});
@@ -41,6 +47,8 @@ class NativeCanvasApp extends StatelessWidget {
           onInteraction: runtime.interactFromCanvas,
           interactionInputSynchronized: runtime.interactionInputSynchronized,
           onDeleteSelected: runtime.deleteSelectedFromCanvas,
+          inlineTextEditEnabled: runtime.inlineTextEditNegotiated,
+          onInlineTextCommit: runtime.commitInlineTextEdit,
           dropHoverTarget: runtime.dropHoverTarget,
           dropIndicatorKind: runtime.hasWidgetMovePreview
               ? CanvasDropIndicatorKind.widgetMove
@@ -65,6 +73,8 @@ class CanvasModelApp extends StatelessWidget {
     this.onInteraction,
     this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
+    this.inlineTextEditEnabled = false,
+    this.onInlineTextCommit = _ignoreInlineTextCommit,
     this.dropHoverTarget,
     this.dropIndicatorKind = CanvasDropIndicatorKind.paletteInsertion,
     this.onDropResolverChanged,
@@ -81,6 +91,8 @@ class CanvasModelApp extends StatelessWidget {
   final VoidCallback? onInteraction;
   final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
+  final bool inlineTextEditEnabled;
+  final bool Function(String, String, bool) onInlineTextCommit;
   final CanvasDropTarget? dropHoverTarget;
   final CanvasDropIndicatorKind dropIndicatorKind;
   final ValueChanged<CanvasDropResolver?>? onDropResolverChanged;
@@ -104,6 +116,8 @@ class CanvasModelApp extends StatelessWidget {
         onInteraction: onInteraction,
         interactionInputSynchronized: interactionInputSynchronized,
         onDeleteSelected: onDeleteSelected,
+        inlineTextEditEnabled: inlineTextEditEnabled,
+        onInlineTextCommit: onInlineTextCommit,
         dropHoverTarget: dropHoverTarget,
         dropIndicatorKind: dropIndicatorKind,
         onDropResolverChanged: onDropResolverChanged,
@@ -124,6 +138,8 @@ class CanvasDocumentView extends StatefulWidget {
     this.onInteraction,
     this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
+    this.inlineTextEditEnabled = false,
+    this.onInlineTextCommit = _ignoreInlineTextCommit,
     this.dropHoverTarget,
     this.dropIndicatorKind = CanvasDropIndicatorKind.paletteInsertion,
     this.onDropResolverChanged,
@@ -140,6 +156,8 @@ class CanvasDocumentView extends StatefulWidget {
   final VoidCallback? onInteraction;
   final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
+  final bool inlineTextEditEnabled;
+  final bool Function(String, String, bool) onInlineTextCommit;
   final CanvasDropTarget? dropHoverTarget;
   final CanvasDropIndicatorKind dropIndicatorKind;
   final ValueChanged<CanvasDropResolver?>? onDropResolverChanged;
@@ -166,6 +184,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   CanvasViewportMetrics? _lastReportedViewportMetrics;
   List<_ZeroSizedWidgetTargetGroup> _zeroSizedWidgetTargets = const [];
   bool _zeroSizedWidgetTargetRefreshScheduled = false;
+  _InlineTextEditSession? _inlineTextEditSession;
 
   @override
   void initState() {
@@ -178,6 +197,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   void didUpdateWidget(CanvasDocumentView oldWidget) {
     super.didUpdateWidget(oldWidget);
     _nodeKeys.removeWhere((id, _) => !widget.model.widgetIds.contains(id));
+    if (_inlineTextEditSession case final session?
+        when !_inlineTextEditStillCurrent(session)) {
+      _inlineTextEditSession = null;
+      _restoreCanvasFocusAfterFrame();
+    }
     if (oldWidget.onDropResolverChanged != widget.onDropResolverChanged) {
       oldWidget.onDropResolverChanged?.call(null);
       widget.onDropResolverChanged?.call(_resolveDrop);
@@ -229,7 +253,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: (_) {
                   if (widget.interactionInputSynchronized) {
-                    _focusNode.requestFocus();
+                    if (_inlineTextEditSession == null) {
+                      _focusNode.requestFocus();
+                    }
                     widget.onInteraction?.call();
                   }
                 },
@@ -285,6 +311,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                                 onSelected: _selectWidget,
                                 nodeKey: _nodeKey,
                                 overlayScale: geometry.scale,
+                                inlineTextEditEnabled:
+                                    widget.inlineTextEditEnabled &&
+                                    widget.interactionInputSynchronized,
+                                inlineTextEditingWidgetId:
+                                    _inlineTextEditSession?.widgetId,
+                                onBeginInlineTextEdit: _beginInlineTextEdit,
+                                onCommitInlineTextEdit: _commitInlineTextEdit,
+                                onCancelInlineTextEdit: _cancelInlineTextEdit,
                               ),
                             ),
                           ),
@@ -545,11 +579,24 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   void _changeViewport(CanvasViewportPresentation presentation) {
-    _focusNode.requestFocus();
+    if (_inlineTextEditSession == null) {
+      _focusNode.requestFocus();
+    }
     widget.onViewportPresentationChanged?.call(presentation);
   }
 
   void _selectWidget(String widgetId) {
+    if (_inlineTextEditSession != null &&
+        SchedulerBinding.instance.schedulerPhase ==
+            SchedulerPhase.persistentCallbacks) {
+      return;
+    }
+    if (_inlineTextEditSession?.widgetId != widgetId) {
+      _cancelInlineTextEdit();
+    }
+    if (_inlineTextEditSession != null) {
+      return;
+    }
     _focusNode.requestFocus();
     widget.onSelected(widgetId);
   }
@@ -558,9 +605,29 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (!widget.interactionInputSynchronized) {
       return KeyEventResult.handled;
     }
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
     final keyboard = HardwareKeyboard.instance;
-    if (event is! KeyDownEvent ||
-        event.logicalKey != LogicalKeyboardKey.delete ||
+    final unmodified =
+        !keyboard.isControlPressed &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isMetaPressed;
+    if (event.logicalKey == LogicalKeyboardKey.f2 && unmodified) {
+      if (_inlineTextEditSession != null) {
+        return KeyEventResult.handled;
+      }
+      final selected = widget.selectedWidgetId;
+      return selected != null && _beginInlineTextEdit(selected)
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.delete &&
+        _inlineTextEditSession != null) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey != LogicalKeyboardKey.delete ||
         keyboard.isControlPressed ||
         keyboard.isShiftPressed ||
         keyboard.isAltPressed ||
@@ -570,6 +637,86 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     return widget.onDeleteSelected()
         ? KeyEventResult.handled
         : KeyEventResult.ignored;
+  }
+
+  bool _beginInlineTextEdit(String widgetId) {
+    if (!widget.inlineTextEditEnabled ||
+        !widget.interactionInputSynchronized ||
+        widget.selectedWidgetId != widgetId) {
+      return false;
+    }
+    final node = _findCanvasNode(widget.model.root, widgetId);
+    if (node == null ||
+        node.type != 'flutter.widgets.Text' ||
+        node.properties['data']?.value is! String) {
+      return false;
+    }
+    if (_inlineTextEditSession?.widgetId == widgetId) {
+      return true;
+    }
+    setState(() {
+      _inlineTextEditSession = _InlineTextEditSession(
+        widgetId: widgetId,
+        presentationSequence: widget.model.presentationSequence,
+        documentId: widget.model.documentId,
+        logicalRevisionId: widget.model.logicalRevisionId,
+      );
+    });
+    return true;
+  }
+
+  bool _commitInlineTextEdit(
+    String widgetId,
+    String text,
+    bool compositionObserved,
+  ) {
+    final session = _inlineTextEditSession;
+    if (session == null ||
+        session.widgetId != widgetId ||
+        !_inlineTextEditStillCurrent(session)) {
+      _cancelInlineTextEdit();
+      return false;
+    }
+    final accepted = widget.onInlineTextCommit(
+      widgetId,
+      text,
+      compositionObserved,
+    );
+    if (accepted) {
+      _cancelInlineTextEdit();
+    }
+    return accepted;
+  }
+
+  void _cancelInlineTextEdit() {
+    if (_inlineTextEditSession == null) {
+      return;
+    }
+    setState(() => _inlineTextEditSession = null);
+    _restoreCanvasFocusAfterFrame();
+  }
+
+  bool _inlineTextEditStillCurrent(_InlineTextEditSession session) {
+    if (!widget.inlineTextEditEnabled ||
+        !widget.interactionInputSynchronized ||
+        widget.selectedWidgetId != session.widgetId ||
+        widget.model.presentationSequence != session.presentationSequence ||
+        widget.model.documentId != session.documentId ||
+        widget.model.logicalRevisionId != session.logicalRevisionId) {
+      return false;
+    }
+    return _findCanvasNode(widget.model.root, session.widgetId)?.type ==
+        'flutter.widgets.Text';
+  }
+
+  void _restoreCanvasFocusAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          widget.interactionInputSynchronized &&
+          _inlineTextEditSession == null) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   GlobalKey _nodeKey(String id) =>
@@ -1490,6 +1637,21 @@ class _DropZoneOverlay extends StatelessWidget {
   }
 }
 
+@immutable
+class _InlineTextEditSession {
+  const _InlineTextEditSession({
+    required this.widgetId,
+    required this.presentationSequence,
+    required this.documentId,
+    required this.logicalRevisionId,
+  });
+
+  final String widgetId;
+  final int presentationSequence;
+  final String documentId;
+  final int logicalRevisionId;
+}
+
 class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
@@ -1497,6 +1659,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     required this.onSelected,
     required this.nodeKey,
     required this.overlayScale,
+    required this.inlineTextEditEnabled,
+    required this.inlineTextEditingWidgetId,
+    required this.onBeginInlineTextEdit,
+    required this.onCommitInlineTextEdit,
+    required this.onCancelInlineTextEdit,
   });
 
   final CanvasNode node;
@@ -1504,6 +1671,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   final ValueChanged<String> onSelected;
   final GlobalKey Function(String id) nodeKey;
   final double overlayScale;
+  final bool inlineTextEditEnabled;
+  final String? inlineTextEditingWidgetId;
+  final bool Function(String) onBeginInlineTextEdit;
+  final bool Function(String, String, bool) onCommitInlineTextEdit;
+  final VoidCallback onCancelInlineTextEdit;
 
   @override
   Size get preferredSize => node.type == 'flutter.material.AppBar'
@@ -1518,6 +1690,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final paddingGeometry = node.type == 'flutter.widgets.Padding'
         ? _paddingGeometry()
         : null;
+    final editing = inlineTextEditingWidgetId == node.id;
     final child = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
@@ -1528,7 +1701,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
-      'flutter.widgets.Text' => _text(context),
+      'flutter.widgets.Text' =>
+        editing ? _inlineTextEditor(context) : _text(context),
       _ => const SizedBox.shrink(),
     };
     final selected = selectedWidgetId == node.id;
@@ -1563,13 +1737,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       label: '${_displayType(node.type)} ${node.id}',
       selected: selected,
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: editing ? SystemMouseCursors.text : SystemMouseCursors.click,
         child: KeyedSubtree(
           key: ValueKey('canvas-widget-${node.id}'),
           child: GestureDetector(
             key: nodeKey(node.id),
             behavior: HitTestBehavior.translucent,
-            onTap: () => onSelected(node.id),
+            onTap: editing ? null : () => onSelected(node.id),
+            onDoubleTap:
+                !editing &&
+                    inlineTextEditEnabled &&
+                    selected &&
+                    node.type == 'flutter.widgets.Text'
+                ? () => Future<void>.microtask(
+                    () => onBeginInlineTextEdit(node.id),
+                  )
+                : null,
             child: selected
                 ? KeyedSubtree(
                     key: ValueKey('canvas-selection-outline-${node.id}'),
@@ -2595,6 +2778,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     selectionColor: _resolvedColor(context, 'selectionColor'),
   );
 
+  Widget _inlineTextEditor(BuildContext context) => _CanvasInlineTextEditor(
+    key: ValueKey('canvas-inline-text-editor-${node.id}'),
+    widgetId: node.id,
+    initialText: _string('data')!,
+    style: _textStyle(context),
+    strutStyle: _strutStyle(),
+    textAlign: _textAlign() ?? TextAlign.start,
+    textDirection: _textDirection(),
+    maxLines: _integer('maxLines') ?? 8,
+    cursorColor:
+        _resolvedColor(context, 'selectionColor') ??
+        Theme.of(context).colorScheme.primary,
+    onCommit: onCommitInlineTextEdit,
+    onCancel: onCancelInlineTextEdit,
+  );
+
   TextStyle? _textStyle(BuildContext context, [String prefix = 'style']) {
     if (!_hasPropertyPrefix(prefix)) {
       return null;
@@ -2757,6 +2956,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     onSelected: onSelected,
     nodeKey: nodeKey,
     overlayScale: overlayScale,
+    inlineTextEditEnabled: inlineTextEditEnabled,
+    inlineTextEditingWidgetId: inlineTextEditingWidgetId,
+    onBeginInlineTextEdit: onBeginInlineTextEdit,
+    onCommitInlineTextEdit: onCommitInlineTextEdit,
+    onCancelInlineTextEdit: onCancelInlineTextEdit,
   );
 
   String? _string(String name) {
@@ -3168,6 +3372,157 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     'longestLine' => TextWidthBasis.longestLine,
     _ => null,
   };
+}
+
+class _CanvasInlineTextEditor extends StatefulWidget {
+  const _CanvasInlineTextEditor({
+    required this.widgetId,
+    required this.initialText,
+    required this.style,
+    required this.strutStyle,
+    required this.textAlign,
+    required this.textDirection,
+    required this.maxLines,
+    required this.cursorColor,
+    required this.onCommit,
+    required this.onCancel,
+    super.key,
+  });
+
+  final String widgetId;
+  final String initialText;
+  final TextStyle? style;
+  final StrutStyle? strutStyle;
+  final TextAlign textAlign;
+  final TextDirection? textDirection;
+  final int maxLines;
+  final Color cursorColor;
+  final bool Function(String, String, bool) onCommit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_CanvasInlineTextEditor> createState() =>
+      _CanvasInlineTextEditorState();
+}
+
+class _CanvasInlineTextEditorState extends State<_CanvasInlineTextEditor> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  bool _composing = false;
+  bool _compositionObserved = false;
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController.fromValue(
+      TextEditingValue(
+        text: widget.initialText,
+        selection: TextSelection.collapsed(offset: widget.initialText.length),
+      ),
+    )..addListener(_onEditingValueChanged);
+    _focusNode = FocusNode(debugLabel: 'canvas-inline-text-${widget.widgetId}');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_onEditingValueChanged)
+      ..dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bindings = <ShortcutActivator, VoidCallback>{
+      if (!_composing)
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _commit,
+      if (!_composing)
+        const SingleActivator(LogicalKeyboardKey.escape): _cancel,
+    };
+    return CallbackShortcuts(
+      bindings: bindings,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        autofocus: true,
+        keyboardType: TextInputType.multiline,
+        maxLines: widget.maxLines,
+        style: widget.style,
+        strutStyle: widget.strutStyle,
+        textAlign: widget.textAlign,
+        textDirection: widget.textDirection,
+        cursorColor: widget.cursorColor,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          errorText: _validationError,
+          errorStyle: const TextStyle(fontSize: 10, height: 1),
+        ),
+      ),
+    );
+  }
+
+  void _onEditingValueChanged() {
+    final composing = _hasActiveComposition(_controller.value);
+    if (composing) {
+      _compositionObserved = true;
+    }
+    final validationError = inlineTextValidationError(_controller.text);
+    if ((composing != _composing || validationError != _validationError) &&
+        mounted) {
+      setState(() {
+        _composing = composing;
+        _validationError = validationError;
+      });
+    }
+  }
+
+  void _commit() {
+    if (_hasActiveComposition(_controller.value)) {
+      return;
+    }
+    if (_validationError != null) {
+      return;
+    }
+    final accepted = widget.onCommit(
+      widget.widgetId,
+      _controller.text,
+      _compositionObserved,
+    );
+    if (!accepted && mounted) {
+      setState(() {
+        _validationError =
+            'The host rejected this edit because its Canvas authority changed.';
+      });
+      _focusNode.requestFocus();
+    }
+  }
+
+  void _cancel() {
+    if (_hasActiveComposition(_controller.value)) {
+      return;
+    }
+    widget.onCancel();
+  }
+
+  bool _hasActiveComposition(TextEditingValue value) {
+    final composing = value.composing;
+    return composing.start >= 0 &&
+        composing.start < composing.end &&
+        composing.end <= value.text.length;
+  }
 }
 
 class _ZeroSizedWidgetTargetGroup {

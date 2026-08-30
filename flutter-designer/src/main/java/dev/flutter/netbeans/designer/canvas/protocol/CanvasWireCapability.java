@@ -11,6 +11,7 @@ public enum CanvasWireCapability {
     PALETTE_DROP_CATALOG_INSERT_V1("palette.drop.catalogInsert.v1"),
     PALETTE_DROP_SOURCE_AWARE_V1("palette.drop.sourceAware.v1"),
     DELETE_SELECTED_WIDGET_V1("widget.deleteSelection.v1"),
+    INLINE_TEXT_EDIT_V1("widget.inlineTextEdit.v1"),
     WIDGET_MOVE_PREVIEW_V1("widget.movePreview.v1"),
     VIEWPORT_PRESENTATION_V1("viewport.presentation.v1");
 

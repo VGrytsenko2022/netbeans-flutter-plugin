@@ -10,8 +10,11 @@ ten-widget `ElevatedButton` milestone and its 140 candidate Palette/DnD cells,
 122 accepted and 18 rejected. ADR-034 extends exact named-slot management with
 atomic replacement and clear-all commands. ADR-035 governs the current writable
 surface: 514 typed rows across the same ten widgets, including 17 closed scalar
-`Scaffold` fields. ADR-028 authorizes same-tree movement of an existing non-root
-widget, and ADR-029 authorizes the first exact named-slot management slice.
+`Scaffold` fields. ADR-036 authorizes the Windows-only capability-gated inline
+editor for one selected existing `Text.data`; its deterministic product slice
+is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
+same-tree movement of an existing non-root widget, and ADR-029 authorizes the
+first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
 unreviewed slots or additional Palette/DnD types.
 
@@ -960,3 +963,51 @@ non-`Scaffold` definitions, these 17 fields make the current exact total 514
 writable rows across ten widgets. This slice changes no Palette publication,
 Create capability, DnD source/destination, compatibility matrix, slot
 cardinality, `.fd` schema or Canvas protocol.
+
+## ADR-036 — Windows inline Text editing is Flutter-owned and one-shot
+
+Accepted for the bounded Windows product slice; physical CJK IME acceptance is
+still open. Inline editing applies only to the selected existing
+`flutter.widgets.Text` and only to its `data` property. Double-click or F2
+activates a real multiline Flutter `TextField` backed by Flutter's
+`TextInputClient`. Ordinary Enter inserts a newline. Ctrl+Enter requests final
+commit and Escape requests cancel only when Flutter reports an empty composing
+range. A non-empty composing range permits neither terminal transition, and
+preedit remains runner-local; Java never receives an intermediate composition
+value. Cancel produces no property command.
+
+The heavyweight AWT carrier disables Java input methods. The native host does
+not decode, synthesize or relay `WM_IME`; the embedded Flutter engine and its
+text-input client own OS text input directly. This avoids two competing IME
+stacks and keeps Java outside platform-specific composition protocols.
+
+The runner must negotiate `widget.inlineTextEdit.v1`. It may then publish one
+strict `runner.textEditCommit` body containing the exact presentation,
+document, logical revision, frame, layout and intent identities, the current
+interaction-fence sequence, widget stable ID, final `text`, and required
+`compositionObserved` metadata. Text must be well-formed UTF-16 and fit both
+the 65,536 UTF-16-unit and 32,768 Unicode-scalar limits. The metadata reports
+only that the runner observed a non-empty Flutter composing range during the
+edit; Java does not validate OS provenance. It is not mutation authority and
+does not expose preedit.
+
+Java rejects the event unless the capability was negotiated, both session
+identities are exact, the intent is first-delivery, the presentation is current
+and visible, layout and interaction fence are synchronized, and the widget is
+the exact selected existing `Text`. Missing, extra, malformed, oversize,
+foreign, stale, replayed, hidden, selection-mismatched and non-Text events fail
+closed. One admitted event maps to at most one existing `SetProperty(data)`
+command; unchanged text is a no-op. Changed text therefore uses the same
+deterministic generation, analyzer admission, paired persistence, Save and
+chronological Undo/Redo pipeline as Properties; the runner receives no direct
+model, file or history authority.
+
+Deterministic Flutter tests cover activation, composition-aware keyboard
+semantics and final/cancel behavior, while Java codec/channel/session and
+view/mutation-bridge tests cover Unicode, bounds, exact fields, capability,
+admission fencing, no-op handling and the `SetProperty(data)` boundary. Those
+tests accept the product vertical slice but do not prove a physical IME. The
+current assembled Windows gate host has no composition-capable CJK input
+method, so physical CJK composition remains `OPEN`. This decision does not
+claim Linux, macOS or runtime-faithful Web inline editing, and it does not mark
+broad Canvas IME/menu/popup acceptance complete.

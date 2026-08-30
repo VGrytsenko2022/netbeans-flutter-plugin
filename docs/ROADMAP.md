@@ -382,12 +382,12 @@ accepted architecture is documented in
     the JVM while the menu is active, close it without executing the command,
     and restore exact `FLUTTERVIEW` focus with unchanged runner PID, three HWNDs,
     exact metrics, rendered/idle state and no Retry.
-  - [ ] Accept IME composition and broader native menu/popup paths beyond the
-    accepted local Preview selector and standard **Window → Services** menu in
-    the assembled physical Windows runtime. IME remains blocked on a real
-    editable Flutter text-input client and
-    composition-capable host input method; neither is present in the current
-    reviewed Canvas catalog.
+  - [ ] Physically accept CJK IME composition and broader native menu/popup
+    paths beyond the accepted local Preview selector and standard
+    **Window → Services** menu in the assembled Windows runtime. The product
+    now supplies the selected-Text Flutter `TextInputClient` described below,
+    but the current physical gate host has no composition-capable input method.
+    Deterministic composition tests do not close this physical acceptance item.
 - [x] Define the canonical bounded `CORE_V1` model payload and bundled
   allowlisted runner projection for exactly `Scaffold`, `Column`, `Row`, `Text`,
   `Padding` and `Center`. The runner receives no project paths, Dart source, file
@@ -398,6 +398,17 @@ accepted architecture is documented in
 - [x] Synchronize stable-ID selection between the native Canvas and the
   read-only Explorer/Nodes widget tree, publishing the selected Node through the
   standard lookup without enabling document mutation.
+- [x] Implement the capability-gated Windows inline `Text.data` vertical slice.
+  Double-click or F2 on the selected existing `flutter.widgets.Text` opens a
+  real Flutter `TextField`/`TextInputClient`; ordinary Enter remains newline,
+  while Ctrl+Enter commits and Escape cancels only with an empty composing
+  range. Keep preedit runner-local, disable AWT input methods on the carrier and
+  never relay `WM_IME`. Admit one bounded `runner.textEditCommit` only for the
+  exact current session/revision/layout/fence/selection and map it to at most
+  one existing `SetProperty(data)` command; unchanged text is a no-op, while
+  changed text uses the established Save/Undo/Redo pipeline. Deterministic
+  Flutter and Java tests are complete; physical CJK IME acceptance remains
+  open, and Linux/macOS/Web implementations are not claimed.
 - [x] Publish a context-sensitive standard NetBeans Palette for the exact six
   `CORE_V1` definitions and selected-node standard Properties baseline.
 - [x] Enable catalog-driven typed read/write Properties for the 76 properties
@@ -533,9 +544,9 @@ accepted architecture is documented in
     `Redo C1` is dirty/`STAGED_PAIR` without changing durable B and the final
     `Undo B` returns to the clean savepoint with no `SaveCookie`.
   - [ ] Pass the remaining Windows interaction acceptance above independently
-    of persistence: physical mixed-DPI movement, IME and broader native
-    menu/popup paths beyond the accepted Preview selector. Two simultaneous
-    surfaces plus bounded tab and Split Document heavyweight-peer
+    of persistence: physical mixed-DPI movement, physical CJK IME and broader
+    native menu/popup paths beyond the accepted Preview selector. Two
+    simultaneous surfaces plus bounded tab and Split Document heavyweight-peer
     teardown/recreation now pass the physical runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Admit further built-ins only as complete vertical slices after the core

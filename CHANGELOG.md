@@ -108,6 +108,25 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   opening a form.
 - A `Target Platforms` step in the Flutter Application wizard with Recommended, Mobile, Desktop, Web, All, and custom selections. The exact non-empty canonical selection is passed to `flutter create --platforms=...` and every requested real directory is verified before the project is opened.
 - Safe later platform scaffolding for existing Flutter applications through `Flutter > Add Flutter Platforms...` and the project context menu. Only absent canonical paths are offered, occupied directories/files/symbolic links are never overwritten, unsupported Flutter project types fail closed, and execution uses native Output, progress, cancellation, and postcondition checks.
+- A capability-gated Windows inline editor for the selected existing
+  `flutter.widgets.Text`. Double-click or F2 replaces the rendered label with a
+  real Flutter `TextField`/`TextInputClient`; ordinary Enter inserts a newline,
+  while Ctrl+Enter commits and Escape cancels only when the composing range is
+  empty. Preedit never crosses into Java. The final
+  `runner.textEditCommit` carries the exact session, presentation, document,
+  revision, frame, layout, intent, interaction-fence and selected widget
+  identity, the bounded well-formed Unicode text and `compositionObserved`.
+  After `widget.inlineTextEdit.v1` negotiation, Java admits that one-shot event
+  only for the current visible selected `Text` and maps it to at most one
+  existing `SetProperty(data)` command; unchanged text is a no-op. Changed
+  text preserves the established generation, analyzer, Pair Save and
+  chronological Undo/Redo path. The AWT carrier has
+  input methods disabled and does not relay `WM_IME`; Flutter owns native text
+  input. Deterministic Flutter and Java codec/channel/session plus
+  view/mutation-bridge tests are accepted. Physical CJK IME acceptance remains
+  open because the current gate
+  host has no composition-capable input method; this entry claims no
+  Linux/macOS or runtime-faithful Web implementation.
 - The first isolated native Flutter Canvas host foundation for each open `.fd` Design tab: versioned runner sources are packaged in the NBM, built outside the EDT, integrity-checked and cached by SDK/source identity, launched as a separate process, and attached as a verified Windows child window without PNG or pixel-frame transport.
 - The first Windows native read-only Canvas projection: one bounded validated
   `.fd` revision is encoded as the canonical `CORE_V1` model and rendered by a

@@ -74,6 +74,7 @@ import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -128,6 +129,10 @@ public final class FlutterDesignerMultiViewDesign
     private static final Logger LOGGER = Logger.getLogger(
             FlutterDesignerMultiViewDesign.class.getName());
     static final String DELETE_WIDGET_ACTION_KEY = "delete";
+    private static final WidgetTypeId TEXT_WIDGET_TYPE =
+            new WidgetTypeId("flutter.widgets.Text");
+    private static final PropertyName TEXT_DATA_PROPERTY =
+            new PropertyName("data");
     private static final int SWING_FOCUS_REPAIR_DELAY_MILLIS = 50;
     static final int MAX_SWING_FOCUS_REPAIR_ATTEMPTS = 8;
     private final Lookup context;
@@ -210,6 +215,7 @@ public final class FlutterDesignerMultiViewDesign
     private boolean deleteWidgetSubmitting;
     private boolean moveWidgetSubmitting;
     private boolean slotWidgetSubmitting;
+    private boolean inlineTextEditSubmitting;
     private StableId pendingWidgetSelection;
     private volatile boolean componentLifecycleOpen;
     private long mutationViewEpoch;
@@ -435,6 +441,10 @@ public final class FlutterDesignerMultiViewDesign
         nativeCanvasFocusSurface = findUniqueNativeCanvasSurface(
                 canvasHostComponent);
         nativeCanvasSession = canvasSession;
+        if (nativeCanvasSession != null) {
+            nativeCanvasSession.setTextEditCommitListener(
+                    this::applyInlineTextEditCommit);
+        }
         // Enabled only after the current bundled runner confirms the negotiated
         // viewport capability with exact metrics for this presentation.
         viewportControls.setControlsEnabled(false);
@@ -568,6 +578,7 @@ public final class FlutterDesignerMultiViewDesign
         deleteWidgetSubmitting = false;
         moveWidgetSubmitting = false;
         slotWidgetSubmitting = false;
+        inlineTextEditSubmitting = false;
         pendingWidgetSelection = null;
         updateDeleteWidgetAction();
         if (paletteCatalogInsertDndEnabled.getAsBoolean()
@@ -639,6 +650,7 @@ public final class FlutterDesignerMultiViewDesign
         pendingViewportPresentation = null;
         deleteWidgetSubmitting = false;
         moveWidgetSubmitting = false;
+        inlineTextEditSubmitting = false;
         invalidatePaletteDragAuthority();
         paletteDragLifecycle.uninstall();
         if (projectPlatforms != null && platformListening) {
@@ -2404,6 +2416,7 @@ public final class FlutterDesignerMultiViewDesign
                 && !slotWidgetSubmitting
                 && !moveWidgetSubmitting
                 && !deleteWidgetSubmitting
+                && !inlineTextEditSubmitting
                 && componentLifecycleOpen
                 && mutationListening
                 && mutationController == controllerForEdit
@@ -2891,12 +2904,93 @@ public final class FlutterDesignerMultiViewDesign
         deleteSelectedWidget();
     }
 
+    private void applyInlineTextEditCommit(
+            CanvasRunnerRuntimeEvent.TextEditCommit commit) {
+        Objects.requireNonNull(commit, "commit");
+        FlutterDesignerMutationController controllerForEdit = mutationController;
+        FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
+        if (!java.awt.EventQueue.isDispatchThread()
+                || inlineTextEditSubmitting
+                || deleteWidgetSubmitting
+                || moveWidgetSubmitting
+                || slotWidgetSubmitting
+                || !componentLifecycleOpen
+                || !mutationUiEnabled.getAsBoolean()
+                || !mutationListening
+                || controllerForEdit == null
+                || candidate == null
+                || candidate.status()
+                        != FlutterDesignerMutationController.Status.READY
+                || candidate.token().isEmpty()
+                || candidate.document().isEmpty()
+                || candidate.catalog().isEmpty()
+                || !currentCanvasMutationEnabled
+                || candidate.document().orElseThrow() != currentCanvasDocument
+                || candidate.catalog().orElseThrow() != currentCanvasCatalog
+                || candidate.document().orElseThrow() != presentedCanvasDocument
+                || candidate.catalog().orElseThrow() != presentedCanvasCatalog
+                || selectedWidgetId().filter(commit.widgetId()::equals)
+                        .isEmpty()) {
+            return;
+        }
+
+        WidgetNode widget = findWidget(
+                        candidate.document().orElseThrow().root(),
+                        commit.widgetId())
+                .orElse(null);
+        if (widget == null || !widget.type().equals(TEXT_WIDGET_TYPE)) {
+            return;
+        }
+        PropertyValue current = widget.properties().get(TEXT_DATA_PROPERTY);
+        if (!(current instanceof PropertyValue.StringValue stringValue)) {
+            return;
+        }
+        if (stringValue.value().equals(commit.text())) {
+            return;
+        }
+
+        inlineTextEditSubmitting = true;
+        updateDeleteWidgetAction();
+        String target = modelName + " — widget " + commit.widgetId()
+                + ", property " + TEXT_DATA_PROPERTY.value();
+        try {
+            submitDesignerMutation(
+                    controllerForEdit,
+                    candidate.token().orElseThrow(),
+                    new SetProperty(
+                            commit.widgetId(),
+                            TEXT_DATA_PROPERTY,
+                            new PropertyValue.StringValue(commit.text())),
+                    "Edit Flutter text on Canvas",
+                    target,
+                    result -> inlineTextEditCompleted(commit.widgetId(), result));
+        } catch (RuntimeException failure) {
+            inlineTextEditSubmitting = false;
+            updateDeleteWidgetAction();
+            showMutationResult(FlutterDesignerMutationController.MutationResult.failed(
+                    "Edit Flutter text on Canvas",
+                    target,
+                    failureReason(failure)));
+        }
+    }
+
+    private void inlineTextEditCompleted(
+            StableId widgetId,
+            FlutterDesignerMutationController.MutationResult result) {
+        inlineTextEditSubmitting = false;
+        if (result.outcome() == FlutterDesignerMutationController.Outcome.APPLIED) {
+            selectWidgetAfterMutation(widgetId);
+        }
+        updateDeleteWidgetAction();
+    }
+
     private Optional<DeleteWidgetAdmission> deleteWidgetAdmission() {
         FlutterDesignerMutationController controllerForDelete = mutationController;
         FlutterDesignerMutationController.Snapshot candidate = mutationSnapshot;
         if (deleteWidgetSubmitting
                 || moveWidgetSubmitting
                 || slotWidgetSubmitting
+                || inlineTextEditSubmitting
                 || !mutationUiEnabled.getAsBoolean()
                 || !mutationListening
                 || controllerForDelete == null
@@ -3068,6 +3162,7 @@ public final class FlutterDesignerMultiViewDesign
                 || slotWidgetSubmitting
                 || moveWidgetSubmitting
                 || deleteWidgetSubmitting
+                || inlineTextEditSubmitting
                 || !designVisible
                 || !paletteDragLifecycle.isInstalled()) {
             return false;
@@ -3349,6 +3444,7 @@ public final class FlutterDesignerMultiViewDesign
                 || moveWidgetSubmitting
                 || deleteWidgetSubmitting
                 || slotWidgetSubmitting
+                || inlineTextEditSubmitting
                 || !componentLifecycleOpen
                 || !mutationUiEnabled.getAsBoolean()
                 || !mutationListening

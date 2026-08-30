@@ -84,6 +84,7 @@ void main() {
         'palette.drop.catalogInsert.v1',
         'palette.drop.sourceAware.v1',
         'widget.deleteSelection.v1',
+        'widget.inlineTextEdit.v1',
         'widget.movePreview.v1',
         'viewport.presentation.v1',
         'surface.presentation.v1',
@@ -255,6 +256,7 @@ void main() {
           'readOnly.layout',
           'readOnly.selection',
           'widget.deleteSelection.v1',
+          'widget.inlineTextEdit.v1',
         ],
       );
     },
@@ -673,6 +675,7 @@ void main() {
           'readOnly.layout',
           'readOnly.selection',
           'widget.deleteSelection.v1',
+          'widget.inlineTextEdit.v1',
         ],
       );
       expect(closedJson['type'], 'runner.closed');
@@ -1041,6 +1044,217 @@ void main() {
     }
     await running;
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('publishes one exact final Unicode inline Text commit', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: fail,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+    );
+    _addRender(input, fixture.modelBytesForViewTest());
+    await _waitUntil(() => runtime.model != null);
+    runtime.completePendingLayoutForTesting();
+    await _synchronizeInteractionFence(runtime, input);
+
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    const committedText = 'Привіт, 世界 👩🏽‍💻';
+    runtime.selectFromCanvas(textId);
+    expect(runtime.inlineTextEditNegotiated, isTrue);
+    expect(runtime.commitInlineTextEdit(textId, committedText, true), isTrue);
+
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+    );
+    await input.close();
+    await running;
+
+    final model = runtime.model!;
+    final commits = _decodeControlMessages(
+      output,
+    ).where((message) => message['type'] == 'runner.textEditCommit').toList();
+    expect(commits, hasLength(1));
+    expect(commits.single['sessionId'], _hello()['sessionId']);
+    expect(commits.single['body'], {
+      'presentationSequence': model.presentationSequence,
+      'documentId': model.documentId,
+      'logicalRevisionId': model.logicalRevisionId,
+      'frameSequence': 0,
+      'layoutSequence': 0,
+      'intentSequence': 1,
+      'interactionFenceSequence': runtime.interactionFenceSequence,
+      'widgetId': textId,
+      'text': committedText,
+      'compositionObserved': true,
+    });
+  });
+
+  test(
+    'rejects inline Text commits without capability or current authority',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(inlineTextEdit: false))),
+        ),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await _waitUntil(() => runtime.model != null);
+      runtime.completePendingLayoutForTesting();
+      await _synchronizeInteractionFence(runtime, input);
+
+      const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      runtime.selectFromCanvas(textId);
+      expect(runtime.inlineTextEditNegotiated, isFalse);
+      expect(runtime.commitInlineTextEdit(textId, 'blocked', false), isFalse);
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+      expect(
+        _decodeControlMessages(
+          output,
+        ).where((message) => message['type'] == 'runner.textEditCommit'),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'rejects stale, mismatched, and non-Text inline edit authority',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await _waitUntil(() => runtime.model != null);
+      runtime.completePendingLayoutForTesting();
+
+      const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+      expect(runtime.commitInlineTextEdit(textId, 'no fence', false), isFalse);
+      await _synchronizeInteractionFence(runtime, input);
+      runtime.selectFromCanvas(rowId);
+      expect(runtime.commitInlineTextEdit(rowId, 'not Text', false), isFalse);
+      expect(
+        runtime.commitInlineTextEdit(textId, 'selection mismatch', false),
+        isFalse,
+      );
+      runtime.selectFromCanvas(textId);
+      runtime.didChangeMetrics();
+      expect(
+        runtime.commitInlineTextEdit(textId, 'stale layout', false),
+        isFalse,
+      );
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+      expect(
+        _decodeControlMessages(
+          output,
+        ).where((message) => message['type'] == 'runner.textEditCommit'),
+        isEmpty,
+      );
+    },
+  );
+
+  test('enforces inline Text UTF-16 and Unicode scalar limits', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: fail,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+    );
+    _addRender(input, fixture.modelBytesForViewTest());
+    await _waitUntil(() => runtime.model != null);
+    runtime.completePendingLayoutForTesting();
+    await _synchronizeInteractionFence(runtime, input);
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    runtime.selectFromCanvas(textId);
+
+    final exactMaximum = String.fromCharCodes(
+      List<int>.filled(maximumInlineTextUnicodeScalars, 0x1f642),
+    );
+    expect(exactMaximum.length, maximumInlineTextUtf16Units);
+    expect(runtime.commitInlineTextEdit(textId, exactMaximum, false), isTrue);
+    expect(
+      runtime.commitInlineTextEdit(textId, '${exactMaximum}a', false),
+      isFalse,
+    );
+    expect(
+      runtime.commitInlineTextEdit(
+        textId,
+        List<String>.filled(maximumInlineTextUnicodeScalars + 1, 'a').join(),
+        false,
+      ),
+      isFalse,
+    );
+    expect(
+      runtime.commitInlineTextEdit(
+        textId,
+        String.fromCharCodes(const [0xd800]),
+        false,
+      ),
+      isFalse,
+    );
+    expect(
+      runtime.commitInlineTextEdit(
+        textId,
+        String.fromCharCodes(const [0xdc00]),
+        false,
+      ),
+      isFalse,
+    );
+
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+    );
+    await input.close();
+    await running;
+    final commits = _decodeControlMessages(
+      output,
+    ).where((message) => message['type'] == 'runner.textEditCommit').toList();
+    expect(commits, hasLength(1));
+    expect(
+      (commits.single['body'] as Map<String, Object?>)['text'],
+      exactMaximum,
+    );
   });
 
   testWidgets(
@@ -2409,6 +2623,7 @@ Future<void> _waitUntil(bool Function() predicate) async {
 
 Map<String, Object?> _hello({
   bool deleteSelected = true,
+  bool inlineTextEdit = true,
   bool viewport = false,
   bool widgetMovePreview = false,
   bool surfacePresentation = false,
@@ -2428,6 +2643,7 @@ Map<String, Object?> _hello({
       'palette.drop.catalogInsert.v1',
       if (sourceAwarePaletteDrop) 'palette.drop.sourceAware.v1',
       if (deleteSelected) 'widget.deleteSelection.v1',
+      if (inlineTextEdit) 'widget.inlineTextEdit.v1',
       if (widgetMovePreview) 'widget.movePreview.v1',
       if (viewport) 'viewport.presentation.v1',
       if (surfacePresentation) 'surface.presentation.v1',

@@ -1444,7 +1444,8 @@ After the handshake, a strict runtime control codec carries `host.render`,
 `runner.presented`, `host.selection`, `runner.selection`, the capability-gated
 `host.viewport`/`runner.viewport` pair and the capability-gated
 `runner.paletteDrop` event and source-aware `host.paletteDragSource` command,
-plus the optional capability-gated
+the capability-gated `runner.textEditCommit` event, and the optional
+capability-gated
 `host.widgetMovePreview`/`host.widgetMovePreviewClear` pair, for exact session,
 presentation, revision, frame and layout identities. Viewport commands use a monotonically increasing
 `commandSequence`; exact acknowledgements, delayed-metric rejection and bounded
@@ -1594,7 +1595,35 @@ acceptance passed. This statement does not claim a separate saved-history Undo
 movement outside the same-tree `ON_OR_INSERT` contract remain disabled,
 including native Linux, macOS and Web DnD backends.
 
-Selection and future property intents follow the same host-authoritative rule.
+Inline `Text.data` editing follows the same host-authoritative rule and adds no
+second model or persistence channel. On Windows, double-click or F2 activates
+only the selected existing `flutter.widgets.Text`. The runner temporarily
+renders a real multiline Flutter `TextField`, whose `TextInputClient` owns OS
+text input and composition. Ordinary Enter inserts a newline. Ctrl+Enter emits
+a final commit and Escape cancels only when the composing range is empty;
+preedit remains runner-local and never becomes an intermediate Java command.
+The heavyweight AWT carrier disables input methods, and Java neither decodes
+nor relays `WM_IME` into Flutter.
+
+The runner must negotiate `widget.inlineTextEdit.v1` before it may emit one
+`runner.textEditCommit`. The strict body binds presentation, document, logical
+revision, frame, layout and one-shot intent identities, the current
+interaction-fence sequence and selected stable widget ID to bounded
+well-formed Unicode final text plus `compositionObserved` metadata. Host
+admission requires the exact current visible presentation/layout/fence, the
+exact selected existing `Text`, and first delivery. Missing, extra, malformed,
+oversize, stale, foreign, replayed, hidden, selection-mismatched or non-Text
+events produce no mutation. One admitted event maps to at most one existing
+`SetProperty(data)` command; unchanged text is a no-op. Changed text therefore
+reuses deterministic generation, analyzer admission, paired Save and
+chronological Undo/Redo. Deterministic Flutter and Java codec/channel/session
+plus view/mutation-bridge tests accept this Windows product slice.
+Physical CJK IME acceptance remains open because the current gate host has no
+composition-capable input method. No Linux/macOS or runtime-faithful Web inline
+editor is claimed.
+
+Selection and other future property intents follow the same
+host-authoritative rule.
 Render-profile limits reject a requested native surface above 4096 physical
 pixels on either axis or 8,388,608 total pixels before native allocation. This
 is a resource bound for the embedded surface, not a raw-RGBA transfer budget.
@@ -1678,9 +1707,17 @@ Implementation proceeds through explicit gates:
    All through one revision-bound command and the shared Save/Undo pipeline.
    Compound operations use `ReplaceSlotChild` and `ClearSlotChildren` with exact
    current-child fences and one chronological Undo/Redo step.
-9. Prove runner crash/restart/close, native-handle cleanup, pair Save and
+9. [Windows inline Text product slice complete; physical CJK acceptance open]
+   Activate a real Flutter `TextField`/`TextInputClient` only for the selected
+   existing Text, keep composition runner-local, and admit one capability-
+   gated exact revision/layout/fence/selection-bound final commit into at most
+   one `SetProperty(data)` command; unchanged text is a no-op. Deterministic
+   Flutter and Java tests pass; the
+   current physical host still lacks a composition-capable input method. This
+   gate does not claim Linux/macOS or runtime-faithful Web support.
+10. Prove runner crash/restart/close, native-handle cleanup, pair Save and
    Undo/Redo behavior, then implement the Linux and macOS SPI providers.
-10. Admit every further built-in only as a complete capability-gated vertical
+11. Admit every further built-in only as a complete capability-gated vertical
     slice after all applicable gates pass and Palette expansion resumes.
 
 ## Remaining decisions for broader writable UI
@@ -1710,8 +1747,10 @@ infrastructure.
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
    intent validation required by ADR-021. The bounded protocol-v9 capability-gated model payload,
    direct native rendering, stable-ID selection bridge and bounded typed
-   Properties path are already implemented. The Web backend and Linux/macOS
-   native-surface providers remain pending.
+   Properties path are already implemented. The Windows inline Text product
+   slice is also implemented under ADR-036, while physical CJK IME acceptance
+   remains open. The Web backend and Linux/macOS native-surface providers
+   remain pending.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

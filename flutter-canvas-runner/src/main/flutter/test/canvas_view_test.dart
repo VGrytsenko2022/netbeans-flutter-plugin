@@ -565,6 +565,374 @@ void main() {
     },
   );
 
+  testWidgets(
+    'opens inline Text.data editing only by selected Text double-click or F2',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+
+      Future<void> pump({required String? selected, required bool enabled}) =>
+          tester.pumpWidget(
+            MaterialApp(
+              home: CanvasDocumentView(
+                model: model,
+                selectedWidgetId: selected,
+                onSelected: (_) {},
+                inlineTextEditEnabled: enabled,
+              ),
+            ),
+          );
+
+      await pump(selected: null, enabled: true);
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$textId')),
+      );
+      await tester.pump();
+      expect(find.byType(TextField), findsNothing);
+
+      await pump(selected: rowId, enabled: true);
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$rowId')),
+      );
+      await tester.pump();
+      expect(find.byType(TextField), findsNothing);
+
+      await pump(selected: textId, enabled: false);
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$textId')),
+      );
+      await tester.pump();
+      expect(find.byType(TextField), findsNothing);
+
+      await pump(selected: textId, enabled: true);
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$textId')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('canvas-inline-text-editor-$textId')),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('canvas-widget-$textId')));
+      await tester.pump(kDoubleTapTimeout);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('canvas-inline-text-editor-$textId')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('keeps IME preedit local and emits one final Unicode commit', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    final commits = <({String id, String text, bool compositionObserved})>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: model,
+          selectedWidgetId: textId,
+          onSelected: (_) {},
+          inlineTextEditEnabled: true,
+          onInlineTextCommit: (id, text, compositionObserved) {
+            commits.add((
+              id: id,
+              text: text,
+              compositionObserved: compositionObserved,
+            ));
+            return true;
+          },
+        ),
+      ),
+    );
+    await _doubleTap(
+      tester,
+      find.byKey(const ValueKey('canvas-widget-$textId')),
+    );
+    await tester.pump();
+
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'に',
+        selection: TextSelection.collapsed(offset: 1),
+        composing: TextRange(start: 0, end: 1),
+      ),
+    );
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(commits, isEmpty, reason: 'a composing preedit is never an intent');
+    expect(find.byType(TextField), findsOneWidget);
+
+    const committedText = '日本語 👩🏽‍💻';
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: committedText,
+        selection: TextSelection.collapsed(offset: committedText.length),
+      ),
+    );
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(commits, [
+      (id: textId, text: committedText, compositionObserved: true),
+    ]);
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('reports direct typing without a fabricated composition', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    final compositions = <bool>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: model,
+          selectedWidgetId: textId,
+          onSelected: (_) {},
+          inlineTextEditEnabled: true,
+          onInlineTextCommit: (_, _, compositionObserved) {
+            compositions.add(compositionObserved);
+            return true;
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('canvas-widget-$textId')));
+    await tester.pump(kDoubleTapTimeout);
+    await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'plain typing');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(compositions, [false]);
+  });
+
+  testWidgets('preserves rejected and over-limit inline drafts in the editor', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    var commitCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: model,
+          selectedWidgetId: textId,
+          onSelected: (_) {},
+          inlineTextEditEnabled: true,
+          onInlineTextCommit: (_, _, _) {
+            commitCalls++;
+            return false;
+          },
+        ),
+      ),
+    );
+    await _doubleTap(
+      tester,
+      find.byKey(const ValueKey('canvas-widget-$textId')),
+    );
+    await tester.pump();
+    final editor = find.byType(TextField);
+    await tester.enterText(editor, 'unsaved draft');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(commitCalls, 1);
+    expect(editor, findsOneWidget);
+    expect(tester.widget<TextField>(editor).controller!.text, 'unsaved draft');
+    expect(
+      find.text(
+        'The host rejected this edit because its Canvas authority changed.',
+      ),
+      findsOneWidget,
+    );
+
+    final overScalarLimit = List<String>.filled(
+      maximumInlineTextUnicodeScalars + 1,
+      'a',
+    ).join();
+    tester.widget<TextField>(editor).controller!.text = overScalarLimit;
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(
+      commitCalls,
+      1,
+      reason: 'invalid local text never becomes an intent',
+    );
+    expect(editor, findsOneWidget);
+    expect(tester.widget<TextField>(editor).controller!.text, overScalarLimit);
+    expect(
+      find.text(
+        'Text exceeds $maximumInlineTextUnicodeScalars Unicode scalar values.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'Escape waits for composition and Delete never deletes the widget',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+      var deletes = 0;
+      var commits = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: textId,
+            onSelected: (_) {},
+            inlineTextEditEnabled: true,
+            onDeleteSelected: () {
+              deletes++;
+              return true;
+            },
+            onInlineTextCommit: (_, _, _) {
+              commits++;
+              return true;
+            },
+          ),
+        ),
+      );
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$textId')),
+      );
+      await tester.pump();
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '文',
+          selection: TextSelection.collapsed(offset: 1),
+          composing: TextRange(start: 0, end: 1),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(deletes, 0);
+      expect(commits, 0);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '文',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.byType(TextField), findsNothing);
+      expect(deletes, 0);
+      expect(commits, 0);
+    },
+  );
+
+  testWidgets('selection, revision, fence, and capability loss cancel drafts', (
+    tester,
+  ) async {
+    var model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    const textId = '5ab6c203-3d32-489c-9d7a-7c14f29637cb';
+    const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+    var selected = textId;
+    var synchronized = true;
+    var enabled = true;
+    var commits = 0;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selected,
+              onSelected: (_) {},
+              interactionInputSynchronized: synchronized,
+              inlineTextEditEnabled: enabled,
+              onInlineTextCommit: (_, _, _) {
+                commits++;
+                return true;
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    Future<void> openEditor() async {
+      await _doubleTap(
+        tester,
+        find.byKey(const ValueKey('canvas-widget-$textId')),
+      );
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
+    }
+
+    await openEditor();
+    rebuild(() => selected = rowId);
+    await tester.pump();
+    expect(find.byType(TextField), findsNothing);
+
+    rebuild(() => selected = textId);
+    await tester.pump();
+    await openEditor();
+    rebuild(() => synchronized = false);
+    await tester.pump();
+    expect(find.byType(TextField), findsNothing);
+
+    rebuild(() => synchronized = true);
+    await tester.pump();
+    await openEditor();
+    final json =
+        jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+            as Map<String, Object?>;
+    json['logicalRevisionId'] = (json['logicalRevisionId']! as int) + 1;
+    rebuild(
+      () => model = CanvasModel.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(TextField), findsNothing);
+
+    await openEditor();
+    rebuild(() => enabled = false);
+    await tester.pump();
+    expect(find.byType(TextField), findsNothing);
+    expect(commits, 0);
+  });
+
   testWidgets('renders the exact resolved light and dark project theme seed', (
     tester,
   ) async {
@@ -2904,6 +3272,13 @@ Map<String, Object?>? _findNodeOrNull(Map<String, Object?> node, String type) {
   } on StateError {
     return null;
   }
+}
+
+Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump(kDoubleTapMinTime);
+  await tester.tap(finder);
+  await tester.pump(kDoubleTapTimeout);
 }
 
 CustomPainter _foregroundPainter(WidgetTester tester, String customPaintKey) =>

@@ -125,6 +125,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private static final int MAX_INTERACTION_FENCE_RETRY_ATTEMPTS = 20;
     private static final int INTERACTION_FENCE_ACK_TIMEOUT_MILLIS = 1_500;
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final WidgetTypeId TEXT_WIDGET_TYPE =
+            new WidgetTypeId("flutter.widgets.Text");
     private static final Logger LOGGER = Logger.getLogger(
             FlutterDesignerNativeCanvasSession.class.getName());
 
@@ -146,6 +148,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     private final Set<Long> inFlightLaunches = ConcurrentHashMap.newKeySet();
     private Consumer<CanvasViewportMetrics> viewportMetricsListener = ignored -> { };
     private Runnable interactionListener = () -> { };
+    private Consumer<CanvasRunnerRuntimeEvent.TextEditCommit>
+            textEditCommitListener = ignored -> { };
     private Consumer<InteractionBarrierState> interactionBarrierListener =
             ignored -> { };
     private InteractionBarrierState interactionBarrierState =
@@ -878,6 +882,13 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     void setInteractionListener(Runnable listener) {
         requireEventDispatchThread();
         interactionListener = Objects.requireNonNull(listener, "listener");
+    }
+
+    /** Installs the per-view sink for a revision-fenced inline Text edit. */
+    void setTextEditCommitListener(
+            Consumer<CanvasRunnerRuntimeEvent.TextEditCommit> listener) {
+        requireEventDispatchThread();
+        textEditCommitListener = Objects.requireNonNull(listener, "listener");
     }
 
     /** Publishes typed runner-input synchronization state on the EDT. */
@@ -1962,6 +1973,12 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                     }
 
                     @Override
+                    public void textEditCommit(
+                            CanvasRunnerRuntimeEvent.TextEditCommit commit) {
+                        processChannelTextEditCommit(sessionId, commit);
+                    }
+
+                    @Override
                     public void viewportMetrics(CanvasViewportMetrics metrics) {
                         processChannelViewportMetrics(sessionId, metrics);
                     }
@@ -2574,6 +2591,61 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             return;
         }
         deleteSelectionListener.accept(deletion);
+    }
+
+    private void processChannelTextEditCommit(
+            CanvasSessionId sessionId,
+            CanvasRunnerRuntimeEvent.TextEditCommit commit) {
+        requireEventDispatchThread();
+        Objects.requireNonNull(commit, "commit");
+        if (!isCurrentChannel(sessionId)) {
+            return;
+        }
+        CanvasIntentReplayGate replayGate = intentReplayGate;
+        CanvasRenderRequest request = currentRenderRequest;
+        CanvasLayoutKey layout = currentLayout;
+        if (replayGate == null || request == null || layout == null) {
+            return;
+        }
+        CanvasIntentAdmission replay = replayGate.consume(
+                commit.intentKey(), CanvasIntentReplayPolicy.ONE_SHOT);
+        WidgetNode widget = findWidget(
+                request.snapshot().document().root(), commit.widgetId());
+        if (!replay.firstDelivery()
+                || commit.interactionFenceSequence()
+                        != interactionFenceSequence
+                || !requestedVisible
+                || presentationGate == null
+                || !interactionInputEnabledFor(
+                        commit.intentKey().layoutKey())
+                || widget == null
+                || !widget.type().equals(TEXT_WIDGET_TYPE)
+                || !Objects.equals(desiredSelection, commit.widgetId())
+                || presentationGate.admitSelection(
+                        commit.intentKey().layoutKey())
+                        != CanvasAdmission.ACCEPTED) {
+            return;
+        }
+        textEditCommitListener.accept(commit);
+    }
+
+    private static WidgetNode findWidget(WidgetNode root, StableId widgetId) {
+        if (root.id().equals(widgetId)) {
+            return root;
+        }
+        for (WidgetSlot slot : root.slots().values()) {
+            List<WidgetNode> children = switch (slot) {
+                case WidgetSlot.SingleSlot single -> single.child().stream().toList();
+                case WidgetSlot.ListSlot list -> list.children();
+            };
+            for (WidgetNode child : children) {
+                WidgetNode found = findWidget(child, widgetId);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean interactionInputEnabledFor(CanvasLayoutKey layout) {

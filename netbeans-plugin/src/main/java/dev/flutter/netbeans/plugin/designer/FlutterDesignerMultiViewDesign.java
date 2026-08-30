@@ -176,10 +176,10 @@ public final class FlutterDesignerMultiViewDesign
             new FlutterDesignerProjectThemeResolver();
     private final ChangeListener projectPlatformListener =
             event -> projectPlatformsChanged();
-    private final NativeCanvasHost nativeCanvasHost;
-    private final JComponent nativeCanvasHostComponent;
-    private final Component nativeCanvasFocusSurface;
-    private final FlutterDesignerNativeCanvasSession nativeCanvasSession;
+    private final FlutterDesignerCanvasBackendSelector canvasBackendSelector;
+    private final JComponent canvasHostComponent;
+    private final Component canvasFocusSurface;
+    private final FlutterDesignerCanvasSession canvasSession;
     private final PropertyChangeListener permanentFocusOwnerListener =
             this::permanentFocusOwnerChanged;
     private final AWTEventListener swingInputFocusListener =
@@ -259,11 +259,25 @@ public final class FlutterDesignerMultiViewDesign
             Lookup context,
             BooleanSupplier mutationUiEnabled,
             BooleanSupplier paletteCatalogInsertDndEnabled) {
+        this(
+                context,
+                mutationUiEnabled,
+                paletteCatalogInsertDndEnabled,
+                FlutterDesignerCanvasBackendSelector.production());
+    }
+
+    FlutterDesignerMultiViewDesign(
+            Lookup context,
+            BooleanSupplier mutationUiEnabled,
+            BooleanSupplier paletteCatalogInsertDndEnabled,
+            FlutterDesignerCanvasBackendSelector canvasBackendSelector) {
         this.context = context;
         this.mutationUiEnabled = Objects.requireNonNull(
                 mutationUiEnabled, "mutationUiEnabled");
         this.paletteCatalogInsertDndEnabled = Objects.requireNonNull(
                 paletteCatalogInsertDndEnabled, "paletteCatalogInsertDndEnabled");
+        this.canvasBackendSelector = Objects.requireNonNull(
+                canvasBackendSelector, "canvasBackendSelector");
         dataObject = context.lookup(FlutterDesignerDataObject.class);
         projectPlatforms = dataObject == null
                 ? null
@@ -380,8 +394,8 @@ public final class FlutterDesignerMultiViewDesign
         viewportCommandTimer = new Timer(24, event -> flushViewportPresentation());
         viewportCommandTimer.setRepeats(false);
         NativeCanvasHost canvasHost = null;
-        FlutterDesignerNativeCanvasSession canvasSession = null;
-        JComponent canvasHostComponent = null;
+        FlutterDesignerCanvasSession selectedCanvasSession = null;
+        JComponent selectedCanvasHostComponent = null;
         NativeCanvasPlatformProvider canvasProvider = null;
         try {
             canvasProvider = Objects.requireNonNull(
@@ -391,10 +405,7 @@ public final class FlutterDesignerMultiViewDesign
                 canvasHost = Objects.requireNonNull(
                         canvasProvider.createHost(),
                         "Native Canvas provider returned no host");
-                canvasHostComponent = Objects.requireNonNull(
-                        canvasHost.component(),
-                        "Native Canvas host returned no component");
-                canvasSession = FlutterDesignerNativeCanvasSession.createDefault(
+                selectedCanvasSession = FlutterDesignerNativeCanvasSession.createDefault(
                         canvasProvider,
                         canvasHost,
                         this::renderNativeCanvasStatus,
@@ -403,6 +414,9 @@ public final class FlutterDesignerMultiViewDesign
                         this::applyAdmittedPaletteDrop,
                         deletion -> deleteSelectedWidgetFromCanvas(
                                 deletion.widgetId()));
+                selectedCanvasHostComponent = Objects.requireNonNull(
+                        selectedCanvasSession.component(),
+                        "Canvas session returned no component");
             } else {
                 renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                         FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
@@ -412,9 +426,9 @@ public final class FlutterDesignerMultiViewDesign
             }
         } catch (IOException | RuntimeException | LinkageError failure) {
             String reason = failureReason(failure);
-            if (canvasSession != null) {
+            if (selectedCanvasSession != null) {
                 try {
-                    canvasSession.close();
+                    selectedCanvasSession.close();
                 } catch (RuntimeException | LinkageError cleanupFailure) {
                     reason += "; session cleanup failed: "
                             + failureReason(cleanupFailure);
@@ -428,32 +442,31 @@ public final class FlutterDesignerMultiViewDesign
                 }
             }
             canvasHost = null;
-            canvasHostComponent = null;
-            canvasSession = null;
+            selectedCanvasHostComponent = null;
+            selectedCanvasSession = null;
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas is unavailable.",
                     "Target: " + safeNativeCanvasTarget(canvasProvider)
                     + ". Reason: " + reason));
         }
-        nativeCanvasHost = canvasHost;
-        nativeCanvasHostComponent = canvasHostComponent;
-        nativeCanvasFocusSurface = findUniqueNativeCanvasSurface(
-                canvasHostComponent);
-        nativeCanvasSession = canvasSession;
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.setTextEditCommitListener(
+        canvasHostComponent = selectedCanvasHostComponent;
+        canvasFocusSurface = findUniqueNativeCanvasSurface(
+                selectedCanvasHostComponent);
+        canvasSession = selectedCanvasSession;
+        if (canvasSession != null) {
+            canvasSession.setTextEditCommitListener(
                     this::applyInlineTextEditCommit);
         }
         // Enabled only after the current bundled runner confirms the negotiated
         // viewport capability with exact metrics for this presentation.
         viewportControls.setControlsEnabled(false);
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.setViewportMetricsListener(
+        if (canvasSession != null) {
+            canvasSession.setViewportMetricsListener(
                     this::renderViewportMetrics);
-            nativeCanvasSession.setInteractionListener(
+            canvasSession.setInteractionListener(
                     this::nativeCanvasInteractionFromRunner);
-            nativeCanvasSession.setInteractionBarrierListener(
+            canvasSession.setInteractionBarrierListener(
                     this::renderInteractionBarrierState);
         }
         JPanel canvasPanel = new JPanel(new BorderLayout());
@@ -462,8 +475,8 @@ public final class FlutterDesignerMultiViewDesign
         // Otherwise JSplitPane clamps its minimum and maximum divider locations
         // to the same value as soon as the validated-model detail is rendered.
         canvasPanel.setMinimumSize(new Dimension(320, 120));
-        if (canvasHostComponent != null) {
-            canvasPanel.add(canvasHostComponent, BorderLayout.CENTER);
+        if (this.canvasHostComponent != null) {
+            canvasPanel.add(this.canvasHostComponent, BorderLayout.CENTER);
         }
         canvasPanel.add(statusPanel, BorderLayout.SOUTH);
         JSplitPane split = new JSplitPane(
@@ -570,7 +583,7 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentOpened() {
         componentLifecycleOpen = true;
-        if (nativeCanvasSession != null && nativeCanvasHost != null) {
+        if (canvasSession != null) {
             installPermanentFocusOwnerListener();
             installSwingInputFocusListener();
         }
@@ -594,7 +607,7 @@ public final class FlutterDesignerMultiViewDesign
             refreshPreviewChoices(selectedPreviewTarget().orElse(null), null);
         }
         if (dataObject != null
-                && nativeCanvasSession != null
+                && canvasSession != null
                 && projectThemeResolutionController == null) {
             try {
                 Path projectRoot = Path.of(
@@ -683,8 +696,8 @@ public final class FlutterDesignerMultiViewDesign
         propertiesTabController.reset();
         clearPresentedCanvasIdentity();
         clearWidgetTree();
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.close();
+        if (canvasSession != null) {
+            canvasSession.close();
         }
         if (controller != null && listening) {
             listening = false;
@@ -726,12 +739,10 @@ public final class FlutterDesignerMultiViewDesign
     public void componentShowing() {
         designVisible = true;
         invalidatePaletteDragAuthority();
-        if (nativeCanvasSession != null) {
-            if (nativeCanvasHost != null) {
-                installPermanentFocusOwnerListener();
-                installSwingInputFocusListener();
-            }
-            nativeCanvasSession.show();
+        if (canvasSession != null) {
+            installPermanentFocusOwnerListener();
+            installSwingInputFocusListener();
+            canvasSession.show();
         }
     }
 
@@ -743,16 +754,16 @@ public final class FlutterDesignerMultiViewDesign
         uninstallSwingInputFocusListener();
         uninstallPermanentFocusOwnerListener();
         invalidatePaletteDragAuthority();
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.hide();
+        if (canvasSession != null) {
+            canvasSession.hide();
         }
     }
 
     @Override
     public void componentActivated() {
         FlutterDesignerAuxiliaryWindows.openDefaultOnce();
-        if (nativeCanvasSession != null && !swingFocusClaimedForActivation) {
-            nativeCanvasSession.requestFocus();
+        if (canvasSession != null && !swingFocusClaimedForActivation) {
+            canvasSession.requestFocus();
         }
     }
 
@@ -760,8 +771,8 @@ public final class FlutterDesignerMultiViewDesign
     public void componentDeactivated() {
         nativeCanvasFocusBootstrapEpoch++;
         clearSwingFocusClaim();
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.clearFocusRequest();
+        if (canvasSession != null) {
+            canvasSession.clearFocusRequest();
         }
     }
 
@@ -835,7 +846,7 @@ public final class FlutterDesignerMultiViewDesign
         if (canPreserveSwingClaimForIntermediateNativeRelease(
                 releaseMarker,
                 focusOwner,
-                nativeCanvasFocusSurface,
+                canvasFocusSurface,
                 swingFocusRepairEpoch,
                 nativeCanvasFocusBootstrapEpoch,
                 swingFocusClaimedForActivation,
@@ -845,16 +856,16 @@ public final class FlutterDesignerMultiViewDesign
         if (releaseMarker != null) {
             swingFocusRepairNativeRelease = null;
         }
-        if (nativeCanvasHostComponent != null
-                && sameOrDescendant(focusOwner, nativeCanvasHostComponent)) {
+        if (canvasHostComponent != null
+                && sameOrDescendant(focusOwner, canvasHostComponent)) {
             clearSwingFocusClaim();
             return;
         }
         if (swingFocusClaimedForActivation
                 && !insideAnyRoot(focusOwner, visual, toolbar)) {
             clearSwingFocusClaim();
-            if (nativeCanvasSession != null) {
-                nativeCanvasSession.clearFocusRequest();
+            if (canvasSession != null) {
+                canvasSession.clearFocusRequest();
             }
             return;
         }
@@ -862,17 +873,17 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void cancelDeferredCanvasFocusFor(Component focusOwner) {
-        if (nativeCanvasSession != null
+        if (canvasSession != null
                 && swingFocusClaimedForActivation
                 && isDesignInteractionActive()
                 && shouldCancelDeferredCanvasFocus(
                         focusOwner,
                         visual,
                         toolbar,
-                        nativeCanvasHostComponent)) {
+                        canvasHostComponent)) {
             retainedSwingFocusTarget = nearestFocusableSwingComponent(
                     focusOwner, visual, toolbar);
-            nativeCanvasSession.clearFocusRequest();
+            canvasSession.clearFocusRequest();
         }
     }
 
@@ -917,23 +928,22 @@ public final class FlutterDesignerMultiViewDesign
             clearSwingFocusClaim();
         }
         long bootstrapEpoch = ++nativeCanvasFocusBootstrapEpoch;
-        if (nativeCanvasSession == null
-                || nativeCanvasHost == null
+        if (canvasSession == null
                 || !isDesignInteractionActive()) {
             return;
         }
         boolean exactNativeCanvasPress = isNativeCanvasFocusBootstrapPress(
                 physicalPointerDown,
                 source,
-                nativeCanvasFocusSurface,
+                canvasFocusSurface,
                 pointInsideShowingComponent(
-                        physicalPointerScreenPoint, nativeCanvasFocusSurface));
-        FlutterDesignerNativeCanvasSession.InteractionBarrierState barrier =
-                nativeCanvasSession.interactionBarrierState();
-        boolean hostShowing = nativeCanvasHostComponent != null
-                && nativeCanvasHostComponent.isShowing();
-        boolean exactSurfaceShowing = nativeCanvasFocusSurface != null
-                && nativeCanvasFocusSurface.isShowing();
+                        physicalPointerScreenPoint, canvasFocusSurface));
+        FlutterDesignerCanvasSession.InteractionBarrierState barrier =
+                canvasSession.interactionBarrierState();
+        boolean hostShowing = canvasHostComponent != null
+                && canvasHostComponent.isShowing();
+        boolean exactSurfaceShowing = canvasFocusSurface != null
+                && canvasFocusSurface.isShowing();
         boolean bootstrapAllowed = canScheduleNativeCanvasFocusBootstrap(
                 exactNativeCanvasPress,
                 isDesignInteractionActive(),
@@ -954,7 +964,7 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         switch (classifySwingInput(
-                source, visual, toolbar, nativeCanvasHostComponent)) {
+                source, visual, toolbar, canvasHostComponent)) {
             case NATIVE_CANVAS -> {
                 clearSwingFocusClaim();
                 return;
@@ -964,10 +974,10 @@ public final class FlutterDesignerMultiViewDesign
                 // a retained target from this Design view. It must fence both
                 // late Swing repair and deferred native activation.
                 clearSwingFocusClaim();
-                nativeCanvasSession.clearFocusRequest();
+                canvasSession.clearFocusRequest();
                 if (isStandardSwingMenuInteraction(source)) {
                     releaseRunnerFocusSafely(
-                            nativeCanvasHost::releaseRunnerFocus);
+                            canvasSession::releaseSurfaceFocus);
                 }
                 return;
             }
@@ -980,7 +990,7 @@ public final class FlutterDesignerMultiViewDesign
         retainedSwingFocusTarget = nearestFocusableSwingComponent(
                 source, visual, toolbar);
         cancelSwingFocusRepairTimer();
-        nativeCanvasSession.clearFocusRequest();
+        canvasSession.clearFocusRequest();
         repairClaimedSwingFocusIfRunnerFocused(repairEpoch);
     }
 
@@ -988,21 +998,21 @@ public final class FlutterDesignerMultiViewDesign
             long bootstrapEpoch,
             Component source,
             Point physicalPointerScreenPoint) {
-        if (nativeCanvasSession == null || nativeCanvasHost == null) {
+        if (canvasSession == null) {
             return;
         }
-        FlutterDesignerNativeCanvasSession.InteractionBarrierState barrier =
-                nativeCanvasSession.interactionBarrierState();
+        FlutterDesignerCanvasSession.InteractionBarrierState barrier =
+                canvasSession.interactionBarrierState();
         boolean exactNativeCanvasPress = isNativeCanvasFocusBootstrapPress(
                 true,
                 source,
-                nativeCanvasFocusSurface,
+                canvasFocusSurface,
                 pointInsideShowingComponent(
-                        physicalPointerScreenPoint, nativeCanvasFocusSurface));
-        boolean hostShowing = nativeCanvasHostComponent != null
-                && nativeCanvasHostComponent.isShowing();
-        boolean exactSurfaceShowing = nativeCanvasFocusSurface != null
-                && nativeCanvasFocusSurface.isShowing();
+                        physicalPointerScreenPoint, canvasFocusSurface));
+        boolean hostShowing = canvasHostComponent != null
+                && canvasHostComponent.isShowing();
+        boolean exactSurfaceShowing = canvasFocusSurface != null
+                && canvasFocusSurface.isShowing();
         boolean menuPathEmpty = MenuSelectionManager.defaultManager()
                 .getSelectedPath().length == 0;
         boolean bootstrapAllowed = canCompleteNativeCanvasFocusBootstrap(
@@ -1024,7 +1034,7 @@ public final class FlutterDesignerMultiViewDesign
         // inside the exact AWT Canvas. Wait until that AWT press is completely
         // dispatched before restoring the verified Flutter child. This owns
         // no model-mutation authority and is fenced to the synchronized frame.
-        nativeCanvasSession.requestFocus();
+        canvasSession.requestFocus();
     }
 
     private void repairClaimedSwingFocusIfRunnerFocused() {
@@ -1036,14 +1046,13 @@ public final class FlutterDesignerMultiViewDesign
         if (!swingFocusClaimedForActivation
                 || focusTarget == null
                 || repairEpoch != swingFocusRepairEpoch
-                || nativeCanvasSession == null
-                || nativeCanvasHost == null
+                || canvasSession == null
                 || !isDesignInteractionActive()
                 || !canvasFrameRendered) {
             return;
         }
         if (!isUsableSwingFocusTarget(
-                focusTarget, visual, toolbar, nativeCanvasHostComponent)) {
+                focusTarget, visual, toolbar, canvasHostComponent)) {
             clearSwingFocusClaim();
             return;
         }
@@ -1056,12 +1065,12 @@ public final class FlutterDesignerMultiViewDesign
             // Do not steal focus from a newer AWT owner if its property event
             // has not reached this listener yet.
             clearSwingFocusClaim();
-            nativeCanvasSession.clearFocusRequest();
+            canvasSession.clearFocusRequest();
             return;
         }
         final boolean runnerFocused;
         try {
-            runnerFocused = nativeCanvasHost.isRunnerFocused();
+            runnerFocused = canvasSession.isSurfaceFocused();
         } catch (RuntimeException | LinkageError ignored) {
             // Focus repair is intentionally non-terminal. The host/session
             // remain the authorities for reporting attachment failures.
@@ -1096,7 +1105,7 @@ public final class FlutterDesignerMultiViewDesign
                         focusTarget);
         swingFocusRepairNativeRelease = releaseMarker;
         if (!beginSwingFocusRepairFromRunner(
-                nativeCanvasHost::releaseRunnerFocus,
+                canvasSession::releaseSurfaceFocus,
                 () -> clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
                         () -> KeyboardFocusManager
                                 .getCurrentKeyboardFocusManager()
@@ -1144,7 +1153,7 @@ public final class FlutterDesignerMultiViewDesign
                                 focusTarget,
                                 visual,
                                 toolbar,
-                                nativeCanvasHostComponent)
+                                canvasHostComponent)
                         && currentOwnerAllowsSwingFocusRepair(owner, focusTarget)) {
                     try {
                         boolean accepted = focusTarget.requestFocusInWindow();
@@ -1166,7 +1175,7 @@ public final class FlutterDesignerMultiViewDesign
                         && owner != null
                         && !currentOwnerAllowsSwingFocusRepair(owner, focusTarget)) {
                     clearSwingFocusClaim();
-                    nativeCanvasSession.clearFocusRequest();
+                    canvasSession.clearFocusRequest();
                 }
             } finally {
                 if (swingFocusRepairNativeRelease == releaseMarker) {
@@ -1945,8 +1954,8 @@ public final class FlutterDesignerMultiViewDesign
         currentCanvasMutationEnabled = false;
         clearPresentedCanvasIdentity();
         clearWidgetTree();
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.withdraw();
+        if (canvasSession != null) {
+            canvasSession.withdraw();
         }
     }
 
@@ -1970,13 +1979,15 @@ public final class FlutterDesignerMultiViewDesign
         invalidatePaletteDragAuthority();
         DesignerDocument document = currentCanvasDocument;
         WidgetCatalog catalog = currentCanvasCatalog;
-        if (nativeCanvasSession == null || document == null || catalog == null) {
+        if (document == null || catalog == null) {
             return;
         }
         Optional<PreviewTarget> selected = selectedPreviewTarget();
         if (selected.isEmpty()) {
             clearPresentedCanvasIdentity();
-            nativeCanvasSession.withdraw();
+            if (canvasSession != null) {
+                canvasSession.withdraw();
+            }
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas is unavailable.",
@@ -1986,9 +1997,26 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         PreviewTarget target = selected.orElseThrow();
+        if (canvasBackendSelector.select(target.targetPlatform())
+                == FlutterDesignerCanvasBackendSelector.Backend.EXACT_WEB) {
+            clearPresentedCanvasIdentity();
+            if (canvasSession != null) {
+                canvasSession.withdraw();
+            }
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    "Exact Flutter Web Canvas is unavailable.",
+                    "Target: " + target.displayName() + " preview. Reason: exact "
+                    + "Flutter Web routing is enabled, but no admitted Web Canvas "
+                    + "backend is installed."));
+            return;
+        }
+        if (canvasSession == null) {
+            return;
+        }
         if (dataObject == null) {
             clearPresentedCanvasIdentity();
-            nativeCanvasSession.withdraw();
+            canvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas is unavailable.",
@@ -1998,7 +2026,7 @@ public final class FlutterDesignerMultiViewDesign
         }
         if (projectThemeResolutionController == null) {
             clearPresentedCanvasIdentity();
-            nativeCanvasSession.withdraw();
+            canvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas is unavailable.",
@@ -2017,7 +2045,7 @@ public final class FlutterDesignerMultiViewDesign
                         FlutterDesignerProjectThemeResolver.uiBrightness());
         if (cachedTheme.isEmpty()) {
             clearPresentedCanvasIdentity();
-            nativeCanvasSession.withdraw();
+            canvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.STARTING,
                     "Resolving Flutter project theme...",
@@ -2029,7 +2057,7 @@ public final class FlutterDesignerMultiViewDesign
                 cachedTheme.orElseThrow();
         if (!themeResolution.available()) {
             clearPresentedCanvasIdentity();
-            nativeCanvasSession.withdraw();
+            canvasSession.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas theme is unavailable.",
@@ -2042,10 +2070,10 @@ public final class FlutterDesignerMultiViewDesign
                 && presentedCanvasCatalog == catalog
                 && Objects.equals(presentedCanvasTarget, target)
                 && Objects.equals(presentedCanvasTheme, resolvedTheme)) {
-            selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+            selectedWidgetId().ifPresent(canvasSession::selectWidget);
             return;
         }
-        nativeCanvasSession.present(
+        canvasSession.present(
                 document,
                 catalog,
                 target.mode(),
@@ -2055,7 +2083,7 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasCatalog = catalog;
         presentedCanvasTarget = target;
         presentedCanvasTheme = resolvedTheme;
-        selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+        selectedWidgetId().ifPresent(canvasSession::selectWidget);
     }
 
     private List<PreviewTarget> availablePreviewChoices() {
@@ -2131,8 +2159,8 @@ public final class FlutterDesignerMultiViewDesign
     private void flushViewportPresentation() {
         CanvasViewportPresentation presentation = pendingViewportPresentation;
         pendingViewportPresentation = null;
-        if (presentation != null && nativeCanvasSession != null) {
-            nativeCanvasSession.setViewportPresentation(presentation);
+        if (presentation != null && canvasSession != null) {
+            canvasSession.setViewportPresentation(presentation);
         }
     }
 
@@ -3099,8 +3127,8 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         updateDeleteWidgetAction();
-        if (nativeCanvasSession != null) {
-            selectedWidgetId().ifPresent(nativeCanvasSession::selectWidget);
+        if (canvasSession != null) {
+            selectedWidgetId().ifPresent(canvasSession::selectWidget);
         }
     }
 
@@ -3126,8 +3154,8 @@ public final class FlutterDesignerMultiViewDesign
 
     private boolean isPaletteCatalogInsertDragEnabled() {
         if (!isPaletteCatalogInsertDragAuthorityEnabled()
-                || nativeCanvasSession == null
-                || !nativeCanvasSession.paletteCatalogInsertDropAvailable()
+                || canvasSession == null
+                || !canvasSession.paletteCatalogInsertDropAvailable()
                 || lastCanvasStatus == null
                 || lastCanvasStatus.stage()
                 != FlutterDesignerNativeCanvasStatus.Stage.RUNNING) {
@@ -3149,7 +3177,7 @@ public final class FlutterDesignerMultiViewDesign
             throw new IllegalStateException(
                     "Palette drag source must be authorized on the event-dispatch thread.");
         }
-        FlutterDesignerNativeCanvasSession session = nativeCanvasSession;
+        FlutterDesignerCanvasSession session = canvasSession;
         return session != null
                 && isPaletteCatalogInsertDragEnabled()
                 && session.authorizePaletteDragSource(
@@ -3334,7 +3362,7 @@ public final class FlutterDesignerMultiViewDesign
         // bounded focus intent for this exact native presentation only.
         applyAdmittedNativeInteractionFocus(
                 this::clearSwingFocusClaim,
-                nativeCanvasSession::requestFocus);
+                canvasSession::requestFocus);
     }
 
     static void applyAdmittedNativeInteractionFocus(
@@ -3349,7 +3377,7 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     void renderInteractionBarrierState(
-            FlutterDesignerNativeCanvasSession.InteractionBarrierState state) {
+            FlutterDesignerCanvasSession.InteractionBarrierState state) {
         Objects.requireNonNull(state, "state");
         if (!java.awt.EventQueue.isDispatchThread()) {
             java.awt.EventQueue.invokeLater(
@@ -3507,8 +3535,8 @@ public final class FlutterDesignerMultiViewDesign
 
         MoveWidget command = ((FlutterDesignerWidgetMovePlanner.Accepted) result)
                 .command();
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.showWidgetMovePreview(
+        if (canvasSession != null) {
+            canvasSession.showWidgetMovePreview(
                     sourceId, command.destination());
         }
         return FlutterDesignerWidgetTreeDropSupport.Preview.accepted(
@@ -3595,8 +3623,8 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void clearWidgetMovePreview() {
-        if (nativeCanvasSession != null) {
-            nativeCanvasSession.clearWidgetMovePreview();
+        if (canvasSession != null) {
+            canvasSession.clearWidgetMovePreview();
         }
     }
 
@@ -3658,7 +3686,7 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void applyAdmittedPaletteDrop(
-            FlutterDesignerNativeCanvasSession.AdmittedPaletteDrop admission) {
+            FlutterDesignerCanvasSession.AdmittedPaletteDrop admission) {
         Objects.requireNonNull(admission, "admission");
         CanvasRunnerRuntimeEvent.PaletteDrop drop = admission.drop();
         WidgetTypeId widgetType = admission.widgetType();
@@ -4040,8 +4068,8 @@ public final class FlutterDesignerMultiViewDesign
                 || state.stage() == FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE;
         boolean retryAvailable = state.stage()
                 == FlutterDesignerNativeCanvasStatus.Stage.FAILED
-                && nativeCanvasSession != null
-                && nativeCanvasSession.canRestart();
+                && canvasSession != null
+                && canvasSession.canRestart();
         canvasRetryButton.setVisible(retryAvailable);
         canvasRetryButton.setEnabled(retryAvailable);
         canvasRetryButton.setToolTipText(retryAvailable
@@ -4071,7 +4099,7 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void retryNativeCanvas() {
-        FlutterDesignerNativeCanvasSession session = nativeCanvasSession;
+        FlutterDesignerCanvasSession session = canvasSession;
         if (session == null || !session.canRestart()) {
             return;
         }

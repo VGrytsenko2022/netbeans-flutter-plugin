@@ -449,6 +449,13 @@ layout/selection and mixed-DPI gate is enabled. Until those separate gates
 pass, selecting Web still uses only the native-engine responsive layout preview
 above and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform
 channels.
+The assembled MultiView now owns a backend-neutral Canvas-session contract for
+surface lifecycle, focus, presentation, selection, viewport and drag/drop
+operations instead of retaining a `NativeCanvasHost` field. A separate pure
+selector is production-defaulted to the existing native route for every target.
+Its exact-Web branch is test-only and fails closed with an explicit unavailable
+state when no admitted Web session is installed; it cannot silently substitute
+the native engine. This seam is routing preparation, not Web product admission.
 Web input acceptance is English-only; physical CJK IME and other language-
 specific input remain deferred to the final internationalization phase.
 

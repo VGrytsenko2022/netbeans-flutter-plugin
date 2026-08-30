@@ -73,40 +73,12 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.JComponent;
 import javax.swing.Timer;
 
 /** Per-MultiView lifecycle for one provider-owned native Flutter surface. */
-final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
-    enum InteractionBarrierPhase {
-        INACTIVE,
-        SYNCHRONIZING,
-        SYNCHRONIZED,
-        TIMED_OUT
-    }
-
-    record InteractionBarrierState(
-            InteractionBarrierPhase phase,
-            long fenceSequence,
-            Optional<CanvasLayoutKey> layoutKey) {
-        InteractionBarrierState {
-            Objects.requireNonNull(phase, "phase");
-            Objects.requireNonNull(layoutKey, "layoutKey");
-            if (fenceSequence < 0
-                    || fenceSequence > CanvasWireProtocol.MAX_SEQUENCE) {
-                throw new IllegalArgumentException(
-                        "interaction fence sequence is outside the wire range");
-            }
-            if (phase == InteractionBarrierPhase.SYNCHRONIZED
-                    && layoutKey.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "a synchronized interaction barrier requires a layout");
-            }
-        }
-
-        boolean inputEnabled() {
-            return phase == InteractionBarrierPhase.SYNCHRONIZED;
-        }
-    }
+final class FlutterDesignerNativeCanvasSession
+        implements FlutterDesignerCanvasSession {
 
     private static final Duration ATTACH_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration CLOSE_ACK_BEFORE_PEER_TEARDOWN_TIMEOUT =
@@ -345,7 +317,26 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         host.onSurfaceMetricsChanged(this::surfaceMetricsChanged);
     }
 
-    void show() {
+    @Override
+    public JComponent component() {
+        requireEventDispatchThread();
+        return host.component();
+    }
+
+    @Override
+    public boolean isSurfaceFocused() {
+        requireEventDispatchThread();
+        return host.isRunnerFocused();
+    }
+
+    @Override
+    public boolean releaseSurfaceFocus() {
+        requireEventDispatchThread();
+        return host.releaseRunnerFocus();
+    }
+
+    @Override
+    public void show() {
         requireEventDispatchThread();
         if (closed) {
             return;
@@ -365,7 +356,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         startIfPossible();
     }
 
-    void hide() {
+    @Override
+    public void hide() {
         requireEventDispatchThread();
         clearWidgetMovePreview();
         clearFocusRequest();
@@ -378,7 +370,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Transfers activation to the currently verified provider-owned surface. */
-    void requestFocus() {
+    @Override
+    public void requestFocus() {
         requireEventDispatchThread();
         if (closed) {
             return;
@@ -389,7 +382,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Clears deferred activation so a late native attachment cannot steal focus. */
-    void clearFocusRequest() {
+    @Override
+    public void clearFocusRequest() {
         requireEventDispatchThread();
         if (closed) {
             return;
@@ -706,7 +700,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
      * protocol-session generation. Failures never schedule this retry
      * themselves, preventing a crash/restart loop on the event-dispatch thread.
      */
-    boolean restart() {
+    @Override
+    public boolean restart() {
         requireEventDispatchThread();
         if (closed || !restartAvailable || process != null || launchPending
                 || !inFlightLaunches.isEmpty() || !retiringProcesses.isEmpty()) {
@@ -725,7 +720,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         return launchPending || process != null;
     }
 
-    boolean canRestart() {
+    @Override
+    public boolean canRestart() {
         requireEventDispatchThread();
         return !closed && restartAvailable && process == null && !launchPending
                 && inFlightLaunches.isEmpty() && retiringProcesses.isEmpty();
@@ -757,7 +753,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Publishes the latest validated read-only document for this Design view. */
-    void present(
+    @Override
+    public void present(
             DesignerDocument document,
             WidgetCatalog catalog,
             CanvasPreviewMode previewMode,
@@ -810,7 +807,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Invalidates old Canvas interaction authority and removes stale pixels. */
-    void withdraw() {
+    @Override
+    public void withdraw() {
         requireEventDispatchThread();
         clearWidgetMovePreview();
         presentationGeneration++;
@@ -848,7 +846,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Mirrors trusted NetBeans tree selection into the current Flutter overlay. */
-    void selectWidget(StableId widgetId) {
+    @Override
+    public void selectWidget(StableId widgetId) {
         requireEventDispatchThread();
         Objects.requireNonNull(widgetId, "widgetId");
         Set<StableId> availableWidgetIds = pendingPresentation == null
@@ -873,26 +872,31 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
     }
 
     /** Installs the per-view presentation feedback sink without changing the model. */
-    void setViewportMetricsListener(Consumer<CanvasViewportMetrics> listener) {
+    @Override
+    public void setViewportMetricsListener(
+            Consumer<CanvasViewportMetrics> listener) {
         requireEventDispatchThread();
         viewportMetricsListener = Objects.requireNonNull(listener, "listener");
     }
 
     /** Installs the per-view sink for an admitted native-surface pointer-down. */
-    void setInteractionListener(Runnable listener) {
+    @Override
+    public void setInteractionListener(Runnable listener) {
         requireEventDispatchThread();
         interactionListener = Objects.requireNonNull(listener, "listener");
     }
 
     /** Installs the per-view sink for a revision-fenced inline Text edit. */
-    void setTextEditCommitListener(
+    @Override
+    public void setTextEditCommitListener(
             Consumer<CanvasRunnerRuntimeEvent.TextEditCommit> listener) {
         requireEventDispatchThread();
         textEditCommitListener = Objects.requireNonNull(listener, "listener");
     }
 
     /** Publishes typed runner-input synchronization state on the EDT. */
-    void setInteractionBarrierListener(
+    @Override
+    public void setInteractionBarrierListener(
             Consumer<InteractionBarrierState> listener) {
         requireEventDispatchThread();
         interactionBarrierListener = Objects.requireNonNull(
@@ -900,7 +904,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
         interactionBarrierListener.accept(interactionBarrierState);
     }
 
-    InteractionBarrierState interactionBarrierState() {
+    @Override
+    public InteractionBarrierState interactionBarrierState() {
         requireEventDispatchThread();
         return interactionBarrierState;
     }
@@ -909,7 +914,9 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
      * Changes only the in-IDE view transform. The logical Flutter viewport and
      * persisted {@code .fd} document remain unchanged.
      */
-    void setViewportPresentation(CanvasViewportPresentation presentation) {
+    @Override
+    public void setViewportPresentation(
+            CanvasViewportPresentation presentation) {
         requireEventDispatchThread();
         Objects.requireNonNull(presentation, "presentation");
         if (closed) {
@@ -2661,7 +2668,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
                 && layout.equals(appliedInteractionFenceLayout);
     }
 
-    boolean paletteCatalogInsertDropAvailable() {
+    @Override
+    public boolean paletteCatalogInsertDropAvailable() {
         requireEventDispatchThread();
         return paletteCatalogInsertDropAvailable;
     }
@@ -2671,7 +2679,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
      * for Flutter-side trait-aware hover. Mutation authority remains entirely
      * in the Java token consumer and canonical drop planner.
      */
-    boolean authorizePaletteDragSource(
+    @Override
+    public boolean authorizePaletteDragSource(
             String token,
             WidgetTypeId widgetType) {
         requireEventDispatchThread();
@@ -2721,7 +2730,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
      * never plans or applies a mutation; callers must first admit the target
      * through the canonical catalog compatibility matrix.
      */
-    void showWidgetMovePreview(
+    @Override
+    public void showWidgetMovePreview(
             StableId sourceWidgetId,
             WidgetPlacement destination) {
         requireEventDispatchThread();
@@ -2772,7 +2782,8 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
      * idempotent, which lets drag exit, cancel, drop and view teardown all call
      * this same edge.
      */
-    void clearWidgetMovePreview() {
+    @Override
+    public void clearWidgetMovePreview() {
         requireEventDispatchThread();
         WidgetMovePreviewPlacement active = widgetMovePreviewPlacement;
         WidgetMovePreviewCommand desired = desiredWidgetMovePreviewCommand;
@@ -3729,16 +3740,6 @@ final class FlutterDesignerNativeCanvasSession implements AutoCloseable {
             if (message.isBlank()) {
                 throw new IllegalArgumentException("SDK resolution message cannot be blank");
             }
-        }
-    }
-
-    /** One opaque drag token resolved once to its authoritative Palette type. */
-    record AdmittedPaletteDrop(
-            WidgetTypeId widgetType,
-            CanvasRunnerRuntimeEvent.PaletteDrop drop) {
-        AdmittedPaletteDrop {
-            Objects.requireNonNull(widgetType, "widgetType");
-            Objects.requireNonNull(drop, "drop");
         }
     }
 

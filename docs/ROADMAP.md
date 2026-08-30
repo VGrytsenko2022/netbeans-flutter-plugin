@@ -371,6 +371,11 @@ accepted architecture is documented in
     build/cache/session lifecycle and exact Web `CanvasEngineIdentity`. Until
     this passes, the existing native-engine Web responsive preview remains the
     only product-routed Web choice and still does not claim `kIsWeb`.
+    - [x] Decouple the assembled MultiView from `NativeCanvasHost` behind one
+      backend-neutral Canvas-session contract and a deterministic backend
+      selector. Production keeps every target on the existing native route;
+      the test-only exact-Web decision fails closed until an admitted Web
+      session exists and never silently falls back to native rendering.
     - [x] Provide an asynchronous pre-peer-loss barrier that fences future AWT
       attachment and reparents the controller to a private parking HWND before
       the heavyweight parent may be removed. The future product owner must

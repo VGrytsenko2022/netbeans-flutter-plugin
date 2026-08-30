@@ -326,6 +326,13 @@ poisoned state with exact-handle teardown retry, matching-PID
 external per-session ownership marker. Failed native startup also returns any
 retained exact handle to Java; a null failed-create handle is release proof,
 while an unconfirmed/malformed result quarantines its callback and UDF.
+The assembled MultiView now talks to one backend-neutral Canvas-session
+contract and chooses a route through a pure selector. Production fixes that
+selector to the existing native route for all targets, including the bounded
+Web responsive preview. The exact-Web selector branch is test-only, reports a
+concrete unavailable state when no admitted backend exists and must never use a
+native-engine fallback. This establishes an ownership/routing seam without
+claiming Web product readiness.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.

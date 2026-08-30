@@ -1278,6 +1278,48 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
+    void exactWebRouteFailsClosedWhenNoAdmittedBackendIsInstalled()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(
+                            Lookup.EMPTY,
+                            () -> true,
+                            () -> true,
+                            new FlutterDesignerCanvasBackendSelector(true));
+            try {
+                JPanel visual = (JPanel) design.getVisualRepresentation();
+                JToolBar toolbar = (JToolBar) design.getToolbarRepresentation();
+                publish(design, currentState(List.of()));
+                JComboBox<?> previews = findNamed(
+                        toolbar,
+                        JComboBox.class,
+                        "Flutter Canvas preview target");
+                int web = java.util.stream.IntStream
+                        .range(0, previews.getItemCount())
+                        .filter(index -> "Web — 1440×900".equals(
+                                previews.getItemAt(index).toString()))
+                        .findFirst()
+                        .orElseThrow();
+                previews.setSelectedIndex(web);
+
+                JLabel canvasStatus = findNamed(
+                        visual,
+                        JLabel.class,
+                        "Native Flutter Canvas status");
+                assertEquals("Exact Flutter Web Canvas is unavailable.",
+                        canvasStatus.getText());
+                assertTrue(canvasStatus.getToolTipText().contains(
+                        "no admitted Web Canvas backend is installed"));
+                assertFalse(canvasStatus.getToolTipText().contains(
+                        "owning Flutter project is unavailable"));
+            } finally {
+                design.componentClosed();
+            }
+        });
+    }
+
+    @Test
     void synchronizesPreviewChoicesWithLiveFlutterProjectPlatforms() throws Exception {
         Path root = Files.createDirectory(temporaryDirectory.resolve("desktop_only"));
         Files.createDirectories(root.resolve("lib"));

@@ -4,13 +4,16 @@ Status note: ADR-024 and ADR-027 supersede the earlier provisional statements th
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted. ADR-025 records the historical Text-only and later
 six-source insertion milestones; ADR-030 records the subsequent seven-widget
-`SizedBox` milestone, ADR-031 records the eight-widget `Icon` milestone, and
-ADR-032 records the nine-widget `AppBar` milestone, and ADR-033 governs the
-current ten-widget capability-gated surface with 140 candidate cells, 122
-accepted and 18 rejected, including the complete `ElevatedButton` vertical
-slice. ADR-028 authorizes same-tree movement of an existing non-root widget, and
-ADR-029 authorizes exact named-slot management. None authorizes cross-form
-movement, arbitrary native Canvas mutation or unreviewed slots.
+`SizedBox` milestone, ADR-031 records the eight-widget `Icon` milestone,
+ADR-032 records the nine-widget `AppBar` milestone, and ADR-033 records the
+ten-widget `ElevatedButton` milestone and its 140 candidate Palette/DnD cells,
+122 accepted and 18 rejected. ADR-034 extends exact named-slot management with
+atomic replacement and clear-all commands. ADR-035 governs the current writable
+surface: 514 typed rows across the same ten widgets, including 17 closed scalar
+`Scaffold` fields. ADR-028 authorizes same-tree movement of an existing non-root
+widget, and ADR-029 authorizes the first exact named-slot management slice.
+None authorizes cross-form movement, arbitrary native Canvas mutation,
+unreviewed slots or additional Palette/DnD types.
 
 ## ADR-001 — IDE support before Designer
 
@@ -241,7 +244,7 @@ and ADR-033 supersedes it with ten sources and 140 candidates (122 accepted and
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v8 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v9 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
 `SizedBox`, plus `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
@@ -545,15 +548,26 @@ may be literal ARGB values or semantic references to the same ColorScheme role
 catalog. Omission means inherit the seed-derived Material value; an explicitly
 empty decoration means `TextDecoration.none`.
 
-Schema v1-v3 definitions migrate in memory with empty override tables, while an
-explicit save emits canonical v4. An individually disabled definition remains
+Schema v5 adds one closed table of exactly 36 typed component colors:
+Scaffold background; AppBar background, foreground, shadow and surface tint;
+global Icon color; and ElevatedButton background, foreground, overlay, shadow,
+surface tint and icon colors for default, disabled, pressed, hovered and
+focused states. Values reuse the literal/semantic theme-color algebra. Schema
+v4 migrates to empty components without changing generated Dart bytes; an
+explicit save emits canonical v5. Generated Dart and Canvas preserve local
+widget value > project component theme > Flutter framework precedence.
+
+Schema v1-v3 definitions migrate in memory with empty override tables, schema
+v4 migrates with an empty component table, and an explicit save emits
+canonical v5. An individually disabled definition remains
 in the canonical descriptor but is omitted from the generated Dart map. While
 project themes are globally enabled, the selected light/dark references must
 point to enabled definitions of the required brightness. Global disable
 preserves those references and individual states, generated nullable accessors
 return `null`, and both MaterialApp and Canvas use bounded Flutter defaults.
 Re-enabling restores the selected definitions without reconstructing deleted
-state. Component themes, shapes, theme extensions, Paint/shadow/OpenType/font-
+state. Component properties outside the admitted 36 colors, shapes, theme
+extensions, Paint/shadow/OpenType/font-
 variation graphs, shaders, filters and arbitrary Dart expressions remain
 outside this schema and must not enter through an opaque escape hatch; they
 require typed fields, generation rules, preview parity and a schema migration.
@@ -572,19 +586,19 @@ The theme editor is a singleton docked TopComponent in NetBeans'
 `commonpalette` mode next to Palette. Opening the canonical descriptor or the
 Flutter menu action loads that project into the tab; Save and Reload make draft
 ownership explicit, per-definition enablement and custom-theme CRUD are edited
-there, and baseline conflicts fail closed. Its `General`, `Colors` and
-`Typography` tabs expose the complete schema-v4 role catalog through typed
+there, and baseline conflicts fail closed. Its `General`, `Colors`,
+`Typography` and `Components` tabs expose the complete schema-v5 catalog through typed
 editors; each optional role or field has an explicit inherit/reset path, and an
 invalid draft cannot silently replace the persisted theme pair.
 
 Canvas inherits the project default unless its existing `canvas.themeMode`
 selects a preview brightness. It consumes a validated theme definition and
-revision digest, not project Dart code. At this theme milestone Canvas model
-protocol v5 carried the
-complete resolved ColorScheme and TextTheme override tables. Generated Dart and
-Canvas both apply `ColorScheme.fromSeed`, `ColorScheme.copyWith`,
-`ThemeData.from`, then `TextTheme.copyWith`; form-local Text leaves are applied
-after that base and therefore remain intentional local overrides. An older
+revision digest, not project Dart code. Canvas model protocol v9 carries the
+complete resolved ColorScheme, TextTheme and component-color override tables.
+Generated Dart and Canvas both apply `ColorScheme.fromSeed`,
+`ColorScheme.copyWith`, `ThemeData.from`, `TextTheme.copyWith`, then component
+themes; form-local widget leaves are applied after that base and therefore
+remain intentional local overrides. An older
 project with no descriptor uses the bounded legacy preview without being
 modified merely by opening it. Once any descriptor exists, invalid JSON,
 unsafe paths, missing generated Dart or a hash mismatch makes the theme
@@ -697,24 +711,26 @@ The model and schema remain unchanged: `WidgetPlacement(parentId, slotName,
 index)` is already the exact address, and the catalog remains the sole
 cardinality, capacity and type-acceptance matrix.
 
-Each row opens one transactional custom editor. It may append a compatible
-reviewed Palette prototype, move/reorder an existing non-root widget to an
-exact planner-admitted post-removal index, or remove one exact direct child.
-For an occupied single slot the remove action is presented as `Clear`.
-An occupied single slot is not replaced implicitly, list clear-all is not
-implemented as several partial deletions, and Cancel produces no intent.
+Each row opens one transactional custom editor. The first bounded slice could
+append a compatible reviewed Palette prototype, move/reorder an existing
+non-root widget to an exact planner-admitted post-removal index, or remove one
+exact direct child. For an occupied single slot that remove action was
+presented as `Clear`. ADR-034 extends the same editor with explicit atomic
+replacement and list `Clear All`; neither operation is an implicit add/remove
+sequence, and Cancel still produces no intent.
 
 The editor owns only a semantic draft bound to the presented immutable
 document, catalog and revision. On OK, MultiView revalidates that exact
-authority and repeats the appropriate Palette-add, exact-slot move or direct-
-child removal plan. One accepted `AddWidget`, `MoveWidget` or `RemoveWidget`
-then enters the existing generator, analyzer, pair Save and chronological
-Undo/Redo pipeline. Stale dialogs, roots, cycles, missing definitions,
-incompatible/full/cardinality-mismatched slots, minimum-child violations,
-invalid indices and no-op moves fail closed. This decision adds no `.fd` schema
-or Canvas protocol field, no alternate persistence path and no second history.
-Flattened-tree drop remains ambiguous for multi-slot parents; the explicit
-Properties row is the exact-choice route.
+authority and repeats the appropriate Palette-add, exact-slot move, direct-
+child removal, ADR-034 replacement or clear-all plan. One accepted
+`AddWidget`, `MoveWidget`, `RemoveWidget`, `ReplaceSlotChild` or
+`ClearSlotChildren` command then enters the existing generator, analyzer, pair
+Save and chronological Undo/Redo pipeline. Stale dialogs, roots, cycles,
+missing definitions, incompatible/full/cardinality-mismatched slots,
+minimum-child violations, invalid indices and no-op moves fail closed. This
+decision adds no `.fd` schema or Canvas protocol field, no alternate
+persistence path and no second history. Flattened-tree drop remains ambiguous
+for multi-slot parents; the explicit Properties row is the exact-choice route.
 
 A byte-identical Dart result follows the existing `FD_ONLY` boundary. After
 the verified `.fd` commit, pair Save atomically adopts the exact saved
@@ -877,3 +893,70 @@ are admitted and 18 rejected: only AppBar carries the trait required by
 Create/Canvas/DnD definitions and 497 writable properties across the nine
 non-`Scaffold` definitions. Writable `Scaffold`, contributed same-id
 definitions and unreviewed slots remain fail-closed.
+
+## ADR-034 — Occupied-single replacement and list clear-all are explicit atomic commands
+
+Accepted for the current exact Slots editor. An occupied `SINGLE` slot exposes
+three explicit operations: replace its exact expected child with a fresh
+catalog-canonical widget, replace it with an existing non-root widget from the
+same document, or `Clear` that one child. A `LIST` slot exposes `Clear All` for
+its exact ordered child set in addition to its existing add, move, reorder and
+single-child removal operations. Replacement is never inferred from an add,
+and clear-all is never implemented as a loop of partial `RemoveWidget`
+commands.
+
+Every editor draft is bound to the immutable document revision and exact
+owner/slot address presented to the user. Replacement carries the expected
+occupied child id; clear-all carries the complete expected ordered child-id
+list. Labels, confirmations and disabled states distinguish replacement with a
+new canonical prototype, replacement with an existing subtree, single clear
+and list clear-all. OK has a one-submit guard and Cancel submits nothing.
+
+Before submission, the editor and MultiView adapter revalidate the exact
+revision, owner, slot, cardinality and expected child fence. A new replacement
+must still resolve to the exact canonical catalog definition and pass the
+shared compatibility matrix. An existing replacement must additionally remain
+detachable, non-root, same-document, non-cyclic and planner-admitted after
+removal. Clear operations must preserve the slot's minimum cardinality. The
+domain transformer independently repeats compatibility, cycle, root,
+cardinality, minimum, stale-id and no-op checks.
+
+One accepted replacement becomes one `ReplaceSlotChild` command whose payload
+is either `NewSubtree` or `ExistingWidget`; one accepted list clear becomes one
+`ClearSlotChildren` command. Each produces one candidate revision, one
+generator/analyzer and pair-Save admission, and one chronological Undo/Redo
+edit. Incompatible sources, roots, cycles, stale revisions or child ids,
+missing definitions, minimum violations, cardinality changes and no-ops are
+rejected without a partial model mutation, generated-Dart change, persistence
+write or history entry. This decision changes no `.fd` schema, Canvas protocol,
+Palette definition or DnD compatibility cell.
+
+## ADR-035 — Scaffold has a closed writable scalar contract
+
+Accepted for the current ten-widget Properties surface. `Scaffold` exposes
+exactly 17 independently resettable closed scalar fields in `General`:
+`floatingActionButtonLocation`, `floatingActionButtonAnimator`,
+`persistentFooterAlignment`, `onDrawerChanged`, `onEndDrawerChanged`,
+`backgroundColor`, `resizeToAvoidBottomInset`, `primary`,
+`drawerDragStartBehavior`, `extendBody`, `drawerBarrierDismissible`,
+`extendBodyBehindAppBar`, `drawerScrimColor`, `drawerEdgeDragWidth`,
+`drawerEnableOpenDragGesture`, `endDrawerEnableOpenDragGesture` and
+`restorationId`. The PropertySheet groups them as Floating action button,
+Appearance, Layout, Drawer behavior and Restoration. Static Flutter presets,
+booleans, non-negative finite dimensions, theme/literal colors, strict callback
+identifiers and the non-empty restoration id are typed and validated before
+they reach deterministic generation or the native Canvas.
+
+The existing exact `appBar`, `body` and `floatingActionButton` slots are
+unchanged and remain managed through `Slots`. This slice deliberately excludes
+`key`; the widget-valued `persistentFooterButtons`, `drawer`, `endDrawer`,
+`bottomNavigationBar` and `bottomSheet`; and the open/runtime-valued
+`persistentFooterDecoration` and `bottomSheetScrimBuilder`. Those arguments
+require separately reviewed persistence or named-slot contracts and are not
+smuggled through scalar strings or executable expressions.
+
+Together with ADR-033's historical 497 writable rows across the nine
+non-`Scaffold` definitions, these 17 fields make the current exact total 514
+writable rows across ten widgets. This slice changes no Palette publication,
+Create capability, DnD source/destination, compatibility matrix, slot
+cardinality, `.fd` schema or Canvas protocol.

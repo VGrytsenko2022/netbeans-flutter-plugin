@@ -216,9 +216,30 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             return currentChildren.size() < maximum;
         }
 
+        boolean occupiedSingle() {
+            return structuralProblem.isEmpty()
+                    && slot.cardinality() == SlotCardinality.SINGLE
+                    && currentChildren.size() == 1;
+        }
+
+        boolean canReplaceNew() {
+            return occupiedSingle() && !addChoices.isEmpty();
+        }
+
+        boolean canReplaceExisting() {
+            return occupiedSingle() && !moveChoices.isEmpty();
+        }
+
         boolean canRemove() {
             return structuralProblem.isEmpty()
                     && currentChildren.size() > slot.minChildren();
+        }
+
+        boolean canClearAll() {
+            return structuralProblem.isEmpty()
+                    && slot.cardinality() == SlotCardinality.LIST
+                    && !currentChildren.isEmpty()
+                    && slot.minChildren() == 0;
         }
 
         int appendIndex() {
@@ -243,6 +264,67 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 throw new IllegalArgumentException(
                         "Slot mutation targets another owner or slot.");
             }
+            switch (intent) {
+                case FlutterWidgetSlotMutation.Add add -> {
+                    boolean accepted = addChoices.stream().anyMatch(choice ->
+                        choice.definition().typeId().equals(add.widgetType()));
+                    if (!canAdd() || !accepted || add.index() != appendIndex()) {
+                        throw new IllegalArgumentException(
+                                "Add intent is stale or incompatible with this slot revision.");
+                    }
+                }
+                case FlutterWidgetSlotMutation.Move move -> {
+                    Optional<MoveChoice> source = moveChoices.stream()
+                            .filter(choice -> choice.widget().id().equals(move.sourceId()))
+                            .findFirst();
+                    boolean position = source.stream()
+                            .flatMap(choice -> choice.positions().stream())
+                            .anyMatch(choice -> choice.index() == move.postRemovalIndex());
+                    if (occupiedSingle() || !position) {
+                        throw new IllegalArgumentException(
+                                "Move intent is stale or incompatible with this slot revision.");
+                    }
+                }
+                case FlutterWidgetSlotMutation.Remove remove -> {
+                    boolean direct = currentChildren.stream().anyMatch(child ->
+                        child.id().equals(remove.childId()));
+                    if (!canRemove() || !direct) {
+                        throw new IllegalArgumentException(
+                                "Remove intent no longer identifies a removable direct child.");
+                    }
+                }
+                case FlutterWidgetSlotMutation.Replace replace -> {
+                    if (!occupiedSingle()
+                            || !currentChildren.getFirst().id().equals(
+                                    replace.expectedChildId())) {
+                        throw new IllegalArgumentException(
+                                "Replace intent no longer identifies the occupied single slot.");
+                    }
+                    boolean accepted = switch (replace.replacement()) {
+                        case FlutterWidgetSlotMutation.Replace.NewWidget fresh ->
+                            canReplaceNew() && addChoices.stream().anyMatch(choice ->
+                                choice.definition().typeId().equals(fresh.widgetType()));
+                        case FlutterWidgetSlotMutation.Replace.ExistingWidget existing ->
+                            canReplaceExisting() && moveChoices.stream().anyMatch(choice ->
+                                choice.widget().id().equals(existing.sourceId()));
+                    };
+                    if (!accepted) {
+                        throw new IllegalArgumentException(
+                                "Replacement source is stale or incompatible with this slot revision.");
+                    }
+                }
+                case FlutterWidgetSlotMutation.ClearAll clear -> {
+                    if (!canClearAll()
+                            || !currentChildIds().equals(clear.expectedChildIds())) {
+                        throw new IllegalArgumentException(
+                                "Clear All intent is stale or violates the slot minimum.");
+                    }
+                }
+            }
+        }
+
+        List<StableId> currentChildIds() {
+            return currentChildren.stream().map(WidgetNode::id).toList();
         }
 
         private List<DefinitionChoice> buildAddChoices() {
@@ -262,6 +344,10 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         private List<MoveChoice> buildMoveChoices() {
             if (structuralProblem.isPresent()) {
                 return List.of();
+            }
+            if (slot.cardinality() == SlotCardinality.SINGLE
+                    && currentChildren.size() == 1) {
+                return buildSingleReplacementChoices();
             }
             FlutterDesignerWidgetMovePlanner planner =
                     new FlutterDesignerWidgetMovePlanner();
@@ -304,6 +390,44 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 }
             }
             return List.copyOf(choices);
+        }
+
+        private List<MoveChoice> buildSingleReplacementChoices() {
+            ArrayList<MoveChoice> choices = new ArrayList<>();
+            ArrayList<WidgetNode> nodes = new ArrayList<>();
+            collect(context.document().root(), nodes);
+            StableId currentId = currentChildren.getFirst().id();
+            for (WidgetNode candidate : nodes) {
+                if (candidate.id().equals(context.document().root().id())
+                        || candidate.id().equals(currentId)
+                        || contains(candidate, owner.id())
+                        || !slot.acceptance().accepts(definition(candidate))
+                        || !canDetach(candidate.id())) {
+                    continue;
+                }
+                choices.add(new MoveChoice(
+                        widgetChoice(candidate),
+                        List.of(new PositionChoice(0, "Replace current child"))));
+            }
+            return List.copyOf(choices);
+        }
+
+        private boolean canDetach(StableId candidateId) {
+            Optional<ParentRef> parent = findParent(
+                    context.document().root(), candidateId);
+            if (parent.isEmpty()) {
+                return false;
+            }
+            ParentRef source = parent.orElseThrow();
+            WidgetDefinition definition = definition(source.owner());
+            Optional<SlotDefinition> sourceSlot = definition.slot(source.slotName());
+            if (sourceSlot.isEmpty()
+                    || source.value().cardinality()
+                            != sourceSlot.orElseThrow().cardinality()) {
+                return false;
+            }
+            return children(source.value()).size() - 1
+                    >= sourceSlot.orElseThrow().minChildren();
         }
 
         private WidgetDefinition definition(WidgetNode node) {
@@ -355,6 +479,32 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             return Optional.empty();
         }
 
+        private static Optional<ParentRef> findParent(
+                WidgetNode owner,
+                StableId childId) {
+            for (var entry : owner.slots().entrySet()) {
+                for (WidgetNode child : children(entry.getValue())) {
+                    if (child.id().equals(childId)) {
+                        return Optional.of(new ParentRef(
+                                owner, entry.getKey(), entry.getValue()));
+                    }
+                    Optional<ParentRef> nested = findParent(child, childId);
+                    if (nested.isPresent()) {
+                        return nested;
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+
+        private static boolean contains(WidgetNode root, StableId id) {
+            if (root.id().equals(id)) {
+                return true;
+            }
+            return directChildren(root).stream().anyMatch(child ->
+                contains(child, id));
+        }
+
         private static void collect(WidgetNode root, List<WidgetNode> target) {
             target.add(root);
             for (WidgetNode child : directChildren(root)) {
@@ -372,6 +522,12 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 }
             }
             return result;
+        }
+
+        private record ParentRef(
+                WidgetNode owner,
+                dev.flutter.netbeans.designer.model.SlotName slotName,
+                WidgetSlot value) {
         }
     }
 
@@ -434,20 +590,35 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             status.setName(STATUS_NAME);
             action.getAccessibleContext().setAccessibleName("Slot operation");
             addType.getAccessibleContext().setAccessibleName("New widget type");
-            moveSource.getAccessibleContext().setAccessibleName("Existing widget to move");
+            moveSource.getAccessibleContext().setAccessibleName(
+                    "Existing widget source");
             position.getAccessibleContext().setAccessibleName("Destination position");
             status.getAccessibleContext().setAccessibleName("Slot operation status");
 
             action.addItem(ActionChoice.NONE);
-            if (model.canAdd()) {
-                action.addItem(ActionChoice.ADD);
-            }
-            if (!model.moveChoices().isEmpty()) {
-                action.addItem(ActionChoice.MOVE);
-            }
-            if (model.canRemove()) {
-                action.addItem(model.slot().cardinality() == SlotCardinality.SINGLE
-                        ? ActionChoice.CLEAR : ActionChoice.REMOVE);
+            if (model.occupiedSingle()) {
+                if (model.canReplaceNew()) {
+                    action.addItem(ActionChoice.REPLACE_NEW);
+                }
+                if (model.canReplaceExisting()) {
+                    action.addItem(ActionChoice.REPLACE_EXISTING);
+                }
+                if (model.canRemove()) {
+                    action.addItem(ActionChoice.CLEAR_SINGLE);
+                }
+            } else {
+                if (model.canAdd()) {
+                    action.addItem(ActionChoice.ADD);
+                }
+                if (!model.moveChoices().isEmpty()) {
+                    action.addItem(ActionChoice.MOVE);
+                }
+                if (model.canRemove()) {
+                    action.addItem(ActionChoice.REMOVE);
+                }
+                if (model.canClearAll()) {
+                    action.addItem(ActionChoice.CLEAR_ALL);
+                }
             }
             model.addChoices().forEach(addType::addItem);
             model.moveChoices().forEach(moveSource::addItem);
@@ -502,18 +673,23 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             }
             ActionChoice selected = Objects.requireNonNullElse(
                     (ActionChoice) action.getSelectedItem(), ActionChoice.NONE);
-            addType.setEnabled(selected == ActionChoice.ADD);
-            moveSource.setEnabled(selected == ActionChoice.MOVE);
+            addType.setEnabled(selected == ActionChoice.ADD
+                    || selected == ActionChoice.REPLACE_NEW);
+            moveSource.setEnabled(selected == ActionChoice.MOVE
+                    || selected == ActionChoice.REPLACE_EXISTING);
             position.setEnabled(selected == ActionChoice.MOVE);
             current.setEnabled(selected == ActionChoice.REMOVE
-                    || selected == ActionChoice.CLEAR
+                    || selected == ActionChoice.CLEAR_SINGLE
                     || selected == ActionChoice.NONE);
             try {
                 draft = switch (selected) {
                     case NONE -> FlutterWidgetSlotCellValue.current(model.summary());
                     case ADD -> addDraft();
                     case MOVE -> moveDraft();
-                    case REMOVE, CLEAR -> removeDraft(selected);
+                    case REPLACE_NEW -> replaceNewDraft();
+                    case REPLACE_EXISTING -> replaceExistingDraft();
+                    case REMOVE, CLEAR_SINGLE -> removeDraft(selected);
+                    case CLEAR_ALL -> clearAllDraft();
                 };
                 environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION);
                 String message = selected == ActionChoice.NONE
@@ -558,6 +734,51 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                     + destination, intent);
         }
 
+        private FlutterWidgetSlotCellValue replaceNewDraft() {
+            DefinitionChoice selected = (DefinitionChoice) addType.getSelectedItem();
+            if (selected == null || !model.canReplaceNew()) {
+                throw new IllegalArgumentException(
+                        "No compatible canonical widget can replace this single child.");
+            }
+            WidgetChoice currentChild = model.currentChoices().getFirst();
+            FlutterWidgetSlotMutation.Replace intent =
+                    new FlutterWidgetSlotMutation.Replace(
+                            model.owner().id(),
+                            model.slot().name(),
+                            currentChild.id(),
+                            new FlutterWidgetSlotMutation.Replace.NewWidget(
+                                    selected.definition().typeId()));
+            return FlutterWidgetSlotCellValue.staged(
+                    "Replace " + currentChild.shortLabel() + " — "
+                    + currentChild.id() + " with a new canonical " + selected
+                    + " in " + model.owner().id() + "."
+                    + model.slot().name().value(),
+                    intent);
+        }
+
+        private FlutterWidgetSlotCellValue replaceExistingDraft() {
+            MoveChoice selected = (MoveChoice) moveSource.getSelectedItem();
+            if (selected == null || !model.canReplaceExisting()) {
+                throw new IllegalArgumentException(
+                        "No compatible existing widget can replace this single child.");
+            }
+            WidgetChoice currentChild = model.currentChoices().getFirst();
+            FlutterWidgetSlotMutation.Replace intent =
+                    new FlutterWidgetSlotMutation.Replace(
+                            model.owner().id(),
+                            model.slot().name(),
+                            currentChild.id(),
+                            new FlutterWidgetSlotMutation.Replace.ExistingWidget(
+                                    selected.widget().id()));
+            return FlutterWidgetSlotCellValue.staged(
+                    "Replace " + currentChild.shortLabel() + " — "
+                    + currentChild.id() + " with existing "
+                    + selected.widget().shortLabel() + " — "
+                    + selected.widget().id() + " in " + model.owner().id()
+                    + "." + model.slot().name().value(),
+                    intent);
+        }
+
         private FlutterWidgetSlotCellValue removeDraft(ActionChoice selected) {
             WidgetChoice child = current.getSelectedValue();
             if (child == null || !model.canRemove()) {
@@ -567,9 +788,25 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             FlutterWidgetSlotMutation.Remove intent =
                     new FlutterWidgetSlotMutation.Remove(
                             model.owner().id(), model.slot().name(), child.id());
-            String verb = selected == ActionChoice.CLEAR ? "Clear" : "Remove";
+            String verb = selected == ActionChoice.CLEAR_SINGLE
+                    ? "Clear single child" : "Remove";
             return FlutterWidgetSlotCellValue.staged(
                     verb + " " + child.shortLabel(), intent);
+        }
+
+        private FlutterWidgetSlotCellValue clearAllDraft() {
+            if (!model.canClearAll()) {
+                throw new IllegalArgumentException(
+                        "This list slot cannot be cleared without violating its minimum.");
+            }
+            List<StableId> expected = model.currentChildIds();
+            FlutterWidgetSlotMutation.ClearAll intent =
+                    new FlutterWidgetSlotMutation.ClearAll(
+                            model.owner().id(), model.slot().name(), expected);
+            return FlutterWidgetSlotCellValue.staged(
+                    "Clear all " + expected.size() + " widgets from "
+                    + model.owner().id() + "." + model.slot().name().value(),
+                    intent);
         }
 
         private void setStatus(String message, boolean error) {
@@ -621,8 +858,11 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         NONE("No change"),
         ADD("Add new widget"),
         MOVE("Move existing widget here"),
+        REPLACE_NEW("Replace with new widget"),
+        REPLACE_EXISTING("Replace with existing widget"),
         REMOVE("Remove selected widget"),
-        CLEAR("Clear slot");
+        CLEAR_SINGLE("Clear single child"),
+        CLEAR_ALL("Clear all widgets");
 
         private final String label;
 

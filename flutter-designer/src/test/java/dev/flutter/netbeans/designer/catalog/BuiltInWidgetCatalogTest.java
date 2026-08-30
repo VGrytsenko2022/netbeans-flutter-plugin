@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BuiltInWidgetCatalogTest {
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
+    private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
 
     @Test
@@ -87,7 +88,7 @@ class BuiltInWidgetCatalogTest {
     }
 
     @Test
-    void everyBuiltInEnumSymbolIsOwnedByTheWidgetsLibrary() {
+    void everyBuiltInEnumSymbolUsesItsExactFlutterUmbrellaLibrary() {
         List<DartSymbolReference> enumTypes = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(value -> value.properties().stream())
                 .flatMap(value -> value.constraints().stream())
@@ -104,6 +105,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
+                new DartSymbolReference(GESTURES_IMPORT, "DragStartBehavior"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),

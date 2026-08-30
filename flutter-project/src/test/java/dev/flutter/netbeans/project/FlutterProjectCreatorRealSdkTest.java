@@ -5,12 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.sdk.FlutterCli;
 import dev.flutter.netbeans.sdk.FlutterSdkLocator;
+import dev.flutter.netbeans.project.theme.FlutterGeneratedThemeArtifact;
+import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
+import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
+import dev.flutter.netbeans.project.theme.FlutterProjectThemeCodec;
+import dev.flutter.netbeans.project.theme.FlutterProjectThemeDartGenerator;
+import dev.flutter.netbeans.project.theme.FlutterProjectThemeDefinition;
+import dev.flutter.netbeans.project.theme.FlutterProjectThemeDigests;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeLoadStatus;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemePaths;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeStore;
+import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
+import dev.flutter.netbeans.project.theme.FlutterThemeOverrides;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.EnumMap;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -48,13 +59,25 @@ class FlutterProjectCreatorRealSdkTest {
                 FlutterProjectThemePaths.DESCRIPTOR_PATH)));
         assertTrue(Files.isRegularFile(created.root().resolve(
                 FlutterProjectThemePaths.GENERATED_DART_PATH)));
-        assertEquals(FlutterProjectThemeLoadStatus.VALID,
-                new FlutterProjectThemeStore().load(created.root()).status());
+        var loaded = new FlutterProjectThemeStore().load(created.root());
+        assertEquals(FlutterProjectThemeLoadStatus.VALID, loaded.status());
         String main = Files.readString(created.root().resolve("lib/main.dart"));
         assertTrue(main.contains("import 'theme/app_theme.dart';"));
         assertTrue(main.contains("theme: AppTheme.light"));
         assertTrue(main.contains("darkTheme: AppTheme.dark"));
         assertTrue(main.contains("themeMode: AppTheme.mode"));
+
+        FlutterProjectTheme componentTheme = withAllComponentColors(
+                loaded.theme().orElseThrow());
+        byte[] componentDart = FlutterProjectThemeDartGenerator.generate(componentTheme);
+        Files.write(
+                created.root().resolve(FlutterProjectThemePaths.GENERATED_DART_PATH),
+                componentDart);
+        Files.write(
+                created.root().resolve(FlutterProjectThemePaths.DESCRIPTOR_PATH),
+                new FlutterProjectThemeCodec().encode(componentTheme));
+        assertEquals(FlutterProjectThemeLoadStatus.VALID,
+                new FlutterProjectThemeStore().load(created.root()).status());
 
         var analyze = cli.execute(created.root(), Duration.ofMinutes(5), "analyze");
         assertTrue(analyze.success(), () -> "flutter analyze failed:\n"
@@ -62,5 +85,39 @@ class FlutterProjectCreatorRealSdkTest {
         var test = cli.execute(created.root(), Duration.ofMinutes(5), "test");
         assertTrue(test.success(), () -> "flutter test failed:\n"
                 + test.stdout() + "\n" + test.stderr());
+    }
+
+    private static FlutterProjectTheme withAllComponentColors(
+            FlutterProjectTheme original) {
+        EnumMap<FlutterThemeComponentColorRole, FlutterThemeColorValue> components =
+                new EnumMap<>(FlutterThemeComponentColorRole.class);
+        FlutterMaterialColorRole[] semanticRoles = FlutterMaterialColorRole.values();
+        for (FlutterThemeComponentColorRole role
+                : FlutterThemeComponentColorRole.values()) {
+            FlutterThemeColorValue value = role.ordinal() % 2 == 0
+                    ? new FlutterThemeColorValue.Literal(
+                            0xFF000000 | (role.ordinal() * 0x0003070B))
+                    : new FlutterThemeColorValue.ColorRole(
+                            semanticRoles[role.ordinal() % semanticRoles.length]);
+            components.put(role, value);
+        }
+        FlutterProjectThemeDefinition light = original.lightTheme();
+        FlutterProjectThemeDefinition componentLight = new FlutterProjectThemeDefinition(
+                light.id(), light.displayName(), light.brightness(), light.seedArgb(),
+                light.enabled(), new FlutterThemeOverrides(
+                        light.overrides().colorScheme(),
+                        light.overrides().textTheme(),
+                        components));
+        FlutterProjectTheme provisional = new FlutterProjectTheme(
+                original.enabled(), original.defaultMode(), original.lightThemeId(),
+                original.darkThemeId(), java.util.List.of(
+                        componentLight, original.darkTheme()), original.generated());
+        byte[] dart = FlutterProjectThemeDartGenerator.generate(provisional);
+        return new FlutterProjectTheme(
+                provisional.enabled(), provisional.defaultMode(),
+                provisional.lightThemeId(), provisional.darkThemeId(),
+                provisional.themes(), new FlutterGeneratedThemeArtifact(
+                        FlutterProjectThemePaths.GENERATED_DART_WIRE_PATH,
+                        FlutterProjectThemeDigests.sha256(dart)));
     }
 }

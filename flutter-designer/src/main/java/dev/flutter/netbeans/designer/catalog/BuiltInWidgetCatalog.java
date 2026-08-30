@@ -18,6 +18,7 @@ public final class BuiltInWidgetCatalog {
     public static final String PREFERRED_SIZE_WIDGET_TRAIT = "flutter.widgets.PreferredSizeWidget";
 
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
+    private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final SlotAcceptance ANY_WIDGET = new SlotAcceptance.AnyWidget();
     private static final WidgetCatalog INSTANCE = WidgetCatalog.strict(List.of(
@@ -40,17 +41,58 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition scaffold() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        int order = 3;
+        properties.add(namedProperty("floatingActionButtonLocation", order++, false,
+                stringPattern(
+                        "(?:startTop|miniStartTop|centerTop|miniCenterTop|endTop|miniEndTop|startFloat|miniStartFloat|centerFloat|miniCenterFloat|endFloat|miniEndFloat|startDocked|miniStartDocked|centerDocked|miniCenterDocked|endDocked|miniEndDocked|endContained)",
+                        "reviewed FloatingActionButtonLocation static preset")));
+        properties.add(namedProperty("floatingActionButtonAnimator", order++, false,
+                stringPattern("(?:scaling|noAnimation)",
+                        "reviewed FloatingActionButtonAnimator static preset")));
+        properties.add(namedProperty("persistentFooterAlignment", order++, false,
+                stringPattern(
+                        "(?:topStart|topCenter|topEnd|centerStart|center|centerEnd|bottomStart|bottomCenter|bottomEnd)",
+                        "reviewed AlignmentDirectional static preset")));
+        properties.add(namedProperty("onDrawerChanged", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("onEndDrawerChanged", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("backgroundColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("resizeToAvoidBottomInset", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("primary", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("drawerDragStartBehavior", order++, false,
+                gesturesEnumValues("DragStartBehavior", "down", "start")));
+        properties.add(namedProperty("extendBody", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("drawerBarrierDismissible", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("extendBodyBehindAppBar", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("drawerScrimColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("drawerEdgeDragWidth", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty("drawerEnableOpenDragGesture", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("endDrawerEnableOpenDragGesture", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("restorationId", order++, false,
+                stringLength(1, 256)));
+        if (properties.size() != ScaffoldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "Scaffold catalog/property schema count mismatch");
+        }
         return widget(
                 "flutter.material.Scaffold",
                 "Scaffold",
                 true,
                 MATERIAL_IMPORT,
-                List.of(MATERIAL_IMPORT),
+                List.of(MATERIAL_IMPORT, GESTURES_IMPORT),
                 Set.of(),
                 palette("flutter.material", 100, 10, "Scaffold"),
-                List.of(
-                        namedProperty("backgroundColor", 3, false, any(PropertyValueKind.COLOR)),
-                        namedProperty("resizeToAvoidBottomInset", 4, false, any(PropertyValueKind.BOOLEAN))),
+                List.copyOf(properties),
                 List.of(
                         singleSlot("appBar", 0, false, 0,
                                 new SlotAcceptance.HasTrait(PREFERRED_SIZE_WIDGET_TRAIT)),
@@ -863,5 +905,11 @@ public final class BuiltInWidgetCatalog {
             String type, String... values) {
         return List.of(new PropertyValueConstraint.EnumValues(
                 new DartSymbolReference(MATERIAL_IMPORT, type), List.of(values)));
+    }
+
+    private static List<PropertyValueConstraint> gesturesEnumValues(
+            String type, String... values) {
+        return List.of(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference(GESTURES_IMPORT, type), List.of(values)));
     }
 }

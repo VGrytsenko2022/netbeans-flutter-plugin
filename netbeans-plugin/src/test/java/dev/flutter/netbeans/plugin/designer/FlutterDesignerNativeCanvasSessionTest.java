@@ -1,26 +1,45 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
+import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
+import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
+import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
+import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildResult;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerCacheIdentity;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerLeaseTestSupport;
+import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerProcessChannel;
+import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
+import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasPlatformProvider;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasHost;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasParentHandle;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatform;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasSurfaceMetrics;
 import java.awt.EventQueue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -29,45 +48,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class FlutterDesignerNativeCanvasSessionTest {
-    private static final String NONCE = "01".repeat(32);
-
-    @Test
-    void launchCommandUsesOpaqueHexHwndAndExactProcessIdentity() {
-        Path executable = Path.of("C:\\Canvas Cache\\runner.exe").toAbsolutePath();
-
-        List<String> command = FlutterDesignerNativeCanvasSession.launchCommand(
-                executable, 0x12ab34L, 4321L, 7L, NONCE);
-
-        assertEquals(List.of(
-                executable.normalize().toString(),
-                "--netbeans-parent-hwnd=0x000000000012AB34",
-                "--netbeans-host-pid=4321",
-                "--netbeans-surface-epoch=7",
-                "--netbeans-session-nonce=" + NONCE), command);
-    }
-
-    @Test
-    void launchCommandRejectsInvalidOrNumericJsonUnsafeIdentities() {
-        Path executable = Path.of("runner.exe").toAbsolutePath();
-
-        assertThrows(IllegalArgumentException.class, () ->
-                FlutterDesignerNativeCanvasSession.launchCommand(
-                        executable, 0, 1, 1, NONCE));
-        assertThrows(IllegalArgumentException.class, () ->
-                FlutterDesignerNativeCanvasSession.launchCommand(
-                        executable, 1, 0x1_0000_0000L, 1, NONCE));
-        assertThrows(IllegalArgumentException.class, () ->
-                FlutterDesignerNativeCanvasSession.launchCommand(
-                        executable, 1, 1, 0, NONCE));
-        assertThrows(IllegalArgumentException.class, () ->
-                FlutterDesignerNativeCanvasSession.launchCommand(
-                        executable, 1, 1, 1, "not-a-256-bit-nonce"));
-    }
-
     @Test
     void deadParentHandleDuringLaunchPreparationFailsWithoutStartingAProcess()
             throws Exception {
@@ -136,8 +122,30 @@ class FlutterDesignerNativeCanvasSessionTest {
         assertEquals(0, harness.launches.pendingCount());
         assertTrue(harness.processes.commands.isEmpty());
         assertTrue(harness.terminated.isEmpty());
+        assertEquals(0, harness.host.detachCalls);
         assertEquals(1, harness.host.closeCalls);
         assertTrue(harness.runner.runtimeLease().isClosed());
+    }
+
+    @Test
+    void lateFocusClearAfterCloseCannotRepublishInteractionBarrier() throws Exception {
+        Harness harness = Harness.create("late-focus-clear", 0x109L);
+        List<FlutterDesignerNativeCanvasSession.InteractionBarrierState> states =
+                new ArrayList<>();
+
+        onEdt(() -> {
+            harness.session.setInteractionBarrierListener(states::add);
+            harness.session.close();
+            FlutterDesignerNativeCanvasSession.InteractionBarrierState terminal =
+                    harness.session.interactionBarrierState();
+            int publicationsAfterClose = states.size();
+
+            harness.session.clearFocusRequest();
+
+            assertEquals(terminal, harness.session.interactionBarrierState());
+            assertEquals(publicationsAfterClose, states.size(),
+                    "late focus clear must not republish a closed barrier");
+        });
     }
 
     @Test
@@ -158,11 +166,21 @@ class FlutterDesignerNativeCanvasSessionTest {
         assertTrue(leasedRunner.runtimeLease().isClosed());
         assertTrue(process.isAlive());
         assertTrue(CanvasRunnerLeaseTestSupport.isGenerationLeased(temporaryDirectory));
+        assertTrue(harness.terminated.isEmpty());
+        assertFalse(harness.hasStage(FlutterDesignerNativeCanvasStatus.Stage.STOPPED));
+
+        onEdt(() -> {
+            assertEquals(1, harness.launches.pendingCount());
+            harness.launches.runNext();
+        });
+
         assertEquals(List.of(process), harness.terminated);
 
         onEdt(() -> process.exit(0));
 
         assertFalse(CanvasRunnerLeaseTestSupport.isGenerationLeased(temporaryDirectory));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                harness.statuses.getLast().stage());
     }
 
     @Test
@@ -172,13 +190,14 @@ class FlutterDesignerNativeCanvasSessionTest {
                 CanvasRunnerLeaseTestSupport.createResult(temporaryDirectory);
         Harness harness = Harness.create("failed-exit-observation", 0x10cL, leasedRunner);
         FakeProcess process = new FakeProcess(1112L);
+        process.failNextOnExitObservation();
 
         onEdt(() -> {
             harness.host.attachAvailable = true;
             harness.startAttaching(process);
             harness.polls.runActivePoll();
-            process.failNextOnExitObservation();
             harness.session.close();
+            harness.launches.runNext();
         });
 
         assertTrue(process.isAlive());
@@ -189,6 +208,90 @@ class FlutterDesignerNativeCanvasSessionTest {
         awaitCondition(
                 () -> !CanvasRunnerLeaseTestSupport.isGenerationLeased(temporaryDirectory),
                 "runtime generation lease was not released after physical process exit");
+    }
+
+    @Test
+    void synchronousOnExitFailureFallsBackToPhysicalExitObservation(
+            @TempDir Path temporaryDirectory) throws Exception {
+        CanvasRunnerBuildResult leasedRunner =
+                CanvasRunnerLeaseTestSupport.createResult(temporaryDirectory);
+        Harness harness = Harness.create(
+                "synchronous-exit-observation-failure", 0x10dL, leasedRunner);
+        FakeProcess process = new FakeProcess(1212L);
+        process.throwNextOnExitObservation();
+
+        onEdt(() -> {
+            harness.processes.enqueue(process);
+            harness.session.show();
+            harness.build.complete(harness.runner);
+            harness.session.close();
+            harness.launches.runNext();
+        });
+
+        assertTrue(process.isAlive());
+        assertTrue(CanvasRunnerLeaseTestSupport.isGenerationLeased(temporaryDirectory));
+        assertFalse(harness.hasStage(FlutterDesignerNativeCanvasStatus.Stage.STOPPED));
+
+        onEdt(() -> process.exit(0));
+        awaitCondition(
+                () -> !CanvasRunnerLeaseTestSupport.isGenerationLeased(temporaryDirectory),
+                "runtime lease remained retained after fallback observed physical exit");
+        awaitCondition(
+                () -> harness.statuses.getLast().stage()
+                        == FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                "STOPPED was not published after fallback observed physical exit");
+    }
+
+    @Test
+    void cleanupFailureBecomesFreshRetryReadyStatusOnlyAfterPhysicalExit()
+            throws Exception {
+        Harness harness = Harness.create("retry-after-cleanup-failure", 0x10eL);
+        FakeProcess process = new FakeProcess(1213L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.terminationFailure = new IllegalStateException(
+                    "simulated async cleanup failure");
+            harness.host.fireAttachmentFailed("simulated surface ownership loss");
+        });
+
+        assertFalse(onEdt(harness.session::canRestart));
+        assertTrue(process.isAlive());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "Retry remains unavailable while that process is alive"));
+
+        onEdt(() -> process.exit(0));
+
+        assertTrue(onEdt(harness.session::canRestart));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "Every previous runner PID has now physically exited"));
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "Retry is available"));
+        assertFalse(harness.statuses.getLast().detail().contains(
+                "Retry remains unavailable while that process is alive"));
+    }
+
+    @Test
+    void changedNativeSurfaceMetricsRefreshRunningStatusDetail() throws Exception {
+        Harness harness = Harness.create("surface-metrics-refresh", 0x10fL);
+        FakeProcess process = new FakeProcess(1214L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_200, 900, 1_500_000));
+        });
+
+        FlutterDesignerNativeCanvasStatus status = harness.statuses.getLast();
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.RUNNING, status.stage());
+        assertTrue(status.detail().contains("1200×900"));
+        assertTrue(status.detail().contains("1.5× native scale"));
     }
 
     @Test
@@ -240,7 +343,8 @@ class FlutterDesignerNativeCanvasSessionTest {
         });
 
         assertFalse(harness.polls.hasActivePoll());
-        assertEquals(1, harness.host.closeCalls);
+        assertEquals(1, harness.host.detachCalls);
+        assertEquals(0, harness.host.closeCalls);
         assertTrue(harness.terminated.isEmpty());
         assertEquals(1, harness.statuses.stream()
                 .filter(status -> status.stage()
@@ -251,7 +355,303 @@ class FlutterDesignerNativeCanvasSessionTest {
     }
 
     @Test
-    void staleOnExitCannotTearDownTheNewGenerationAfterPeerRestart() throws Exception {
+    void terminalCrashWaitsForExplicitRestartAndUsesAFreshProcessGeneration()
+            throws Exception {
+        Harness harness = Harness.create("explicit-restart", 0x10dL);
+        FakeProcess first = new FakeProcess(1113L);
+        FakeProcess second = new FakeProcess(2113L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(first);
+            harness.polls.runActivePoll();
+            first.exit(41);
+            assertTrue(harness.session.canRestart());
+            harness.session.show();
+            assertEquals(0, harness.launches.pendingCount());
+
+            harness.processes.enqueue(second);
+            assertTrue(harness.session.restart());
+            assertFalse(harness.session.canRestart());
+            assertEquals(1, harness.launches.pendingCount());
+            harness.launches.runNext();
+            harness.polls.runActivePoll();
+        });
+
+        assertEquals(2, harness.processes.commands.size());
+        assertFalse(harness.processes.commands.get(0).getLast().equals(
+                harness.processes.commands.get(1).getLast()));
+        assertEquals(List.of(first.pid(), second.pid()), harness.host.attachPids);
+        assertEquals(1, harness.statuses.stream()
+                .filter(status -> status.stage()
+                        == FlutterDesignerNativeCanvasStatus.Stage.FAILED)
+                .count());
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                harness.statuses.getLast().stage());
+    }
+
+    @Test
+    void transientFocusFailureDoesNotTerminateOrFailAHealthyRunner()
+            throws Exception {
+        Harness harness = Harness.create("focus-policy", 0x10fL);
+        FakeProcess process = new FakeProcess(1115L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.focusFailure = new IllegalStateException(
+                    "simulated foreground policy refusal");
+            harness.session.requestFocus();
+        });
+
+        assertTrue(process.isAlive());
+        assertTrue(harness.host.attached);
+        assertTrue(harness.terminated.isEmpty());
+        assertFalse(onEdt(harness.session::canRestart));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                harness.statuses.getLast().stage());
+        onEdt(harness.session::clearFocusRequest);
+    }
+
+    @Test
+    void policyRefusalIsRetriedAndEventuallyFocusesCurrentGeneration()
+            throws Exception {
+        Harness harness = Harness.create("focus-policy-retry", 0x112L);
+        FakeProcess process = new FakeProcess(1118L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.focusRefusalsRemaining = 1;
+            harness.session.requestFocus();
+            assertEquals(1, harness.host.focusCalls);
+        });
+
+        awaitCondition(
+                () -> harness.host.focusCalls >= 2,
+                "a transient policy refusal must receive a bounded retry");
+        assertTrue(harness.host.focused);
+        assertTrue(process.isAlive());
+        assertTrue(harness.terminated.isEmpty());
+    }
+
+    @Test
+    void clearingFocusIntentCancelsPendingPolicyRetry() throws Exception {
+        Harness harness = Harness.create("cancel-focus-policy-retry", 0x113L);
+        FakeProcess process = new FakeProcess(1119L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.focusRefusalsRemaining = 100;
+            harness.session.requestFocus();
+            assertEquals(1, harness.host.focusCalls);
+            harness.session.clearFocusRequest();
+        });
+
+        Thread.sleep(150);
+        assertEquals(1, harness.host.focusCalls);
+        assertFalse(harness.host.focused);
+        assertTrue(process.isAlive());
+    }
+
+    @Test
+    void persistentPolicyRefusalStopsAtTheBoundedAttemptLimit()
+            throws Exception {
+        Harness harness = Harness.create("bounded-focus-policy-retry", 0x114L);
+        FakeProcess process = new FakeProcess(1120L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.focusRefusalsRemaining = 100;
+            harness.session.requestFocus();
+        });
+
+        awaitCondition(
+                () -> harness.host.focusCalls
+                        == FlutterDesignerNativeCanvasSession.MAX_FOCUS_RETRY_ATTEMPTS,
+                "focus retries must reach their explicit bounded limit");
+        Thread.sleep(150);
+        assertEquals(
+                FlutterDesignerNativeCanvasSession.MAX_FOCUS_RETRY_ATTEMPTS,
+                harness.host.focusCalls);
+        assertFalse(harness.host.focused);
+        assertTrue(process.isAlive());
+        assertTrue(harness.terminated.isEmpty());
+        onEdt(harness.session::clearFocusRequest);
+    }
+
+    @Test
+    void activationBeforeAttachmentIsReplayedToTheExactAttachedGeneration()
+            throws Exception {
+        Harness harness = Harness.create("deferred-focus", 0x110L);
+        FakeProcess process = new FakeProcess(1116L);
+
+        onEdt(() -> {
+            harness.startAttaching(process);
+            harness.session.requestFocus();
+            assertEquals(0, harness.host.focusCalls);
+            harness.host.attachAvailable = true;
+            harness.polls.runActivePoll();
+        });
+
+        assertEquals(1, harness.host.focusCalls);
+        assertTrue(harness.host.focused);
+        assertTrue(process.isAlive());
+        assertTrue(harness.terminated.isEmpty());
+    }
+
+    @Test
+    void deactivationBeforeLateAttachmentCancelsDeferredFocus()
+            throws Exception {
+        Harness harness = Harness.create("cancel-deferred-focus", 0x111L);
+        FakeProcess process = new FakeProcess(1117L);
+
+        onEdt(() -> {
+            harness.startAttaching(process);
+            harness.session.requestFocus();
+            harness.session.clearFocusRequest();
+            harness.host.attachAvailable = true;
+            harness.polls.runActivePoll();
+        });
+
+        assertEquals(0, harness.host.focusCalls);
+        assertFalse(harness.host.focused);
+        assertTrue(process.isAlive());
+        assertTrue(harness.host.attached);
+    }
+
+    @Test
+    void closeWhileLaunchIsQueuedFencesAndTerminatesTheLateProcess()
+            throws Exception {
+        Harness harness = Harness.create("close-queued-launch", 0x10eL);
+        FakeProcess process = new FakeProcess(1114L);
+
+        onEdt(() -> {
+            harness.processes.enqueue(process);
+            harness.session.show();
+            harness.build.complete(harness.runner);
+            assertEquals(1, harness.launches.pendingCount());
+            harness.session.close();
+            harness.launches.runNext();
+        });
+
+        assertEquals(List.of(process), harness.terminated);
+        assertFalse(harness.polls.hasActivePoll());
+        assertTrue(process.isAlive());
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "STOPPED will not be reported"));
+
+        onEdt(() -> process.exit(0));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                harness.statuses.getLast().stage());
+    }
+
+    @Test
+    void hostCleanupFailureOnProcessExitIsContainedAndReported() throws Exception {
+        Harness harness = Harness.create("exit-cleanup-failure", 0x10fL);
+        FakeProcess process = new FakeProcess(1115L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.host.detachFailure = new IllegalStateException(
+                    "simulated native handle cleanup failure");
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            assertDoesNotThrow(() -> process.exit(52));
+        });
+
+        assertTrue(onEdt(harness.session::canRestart));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "simulated native handle cleanup failure"));
+    }
+
+    @Test
+    void closeWithoutProtocolTerminationFailureNeverEscapesEdtAndRetainsProcess()
+            throws Exception {
+        Harness harness = Harness.create("close-termination-failure", 0x110L);
+        FakeProcess process = new FakeProcess(1116L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.terminationFailure = new IllegalStateException(
+                    "simulated bounded termination failure");
+            harness.session.close();
+            assertDoesNotThrow(harness.launches::runNext);
+        });
+
+        assertTrue(process.isAlive());
+        assertTrue(harness.terminated.isEmpty());
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "simulated bounded termination failure"));
+
+        onEdt(() -> process.exit(0));
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                harness.statuses.getLast().stage());
+    }
+
+    @Test
+    void hostDetachCallbacksDuringCloseCannotBypassTheGracefulDeadline()
+            throws Exception {
+        Harness harness = Harness.create("close-detach-callback", 0x111L);
+        FakeProcess process = new FakeProcess(1117L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.closeFiresPeerLost = true;
+            harness.session.close();
+        });
+
+        assertTrue(process.isAlive());
+        assertTrue(harness.terminated.isEmpty());
+        assertFalse(harness.polls.hasActivePoll());
+        assertEquals(1, harness.launches.pendingCount());
+
+        onEdt(harness.launches::runNext);
+        assertEquals(List.of(process), harness.terminated);
+    }
+
+    @Test
+    void hostCleanupFailureDuringCloseIsContainedUntilPhysicalExitAndReported()
+            throws Exception {
+        Harness harness = Harness.create("close-host-cleanup-failure", 0x112L);
+        FakeProcess process = new FakeProcess(1118L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            harness.host.closeFailure = new IllegalStateException(
+                    "simulated close-time native cleanup failure");
+            assertDoesNotThrow(harness.session::close);
+            harness.launches.runNext();
+            process.exit(0);
+        });
+
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "simulated close-time native cleanup failure"));
+    }
+
+    @Test
+    void peerRestartWaitsForOldPhysicalExitAndStaleExitCannotTearDownNewGeneration()
+            throws Exception {
         Harness harness = Harness.create("stale-exit", 0x105L);
         FakeProcess first = new FakeProcess(1105L);
         FakeProcess second = new FakeProcess(2105L);
@@ -262,9 +662,11 @@ class FlutterDesignerNativeCanvasSessionTest {
             harness.processes.enqueue(second);
             harness.host.attachAvailable = true;
             harness.host.firePeerReady();
-            harness.launches.runNext();
+            assertEquals(0, harness.launches.pendingCount());
 
             first.exit(91);
+            assertEquals(1, harness.launches.pendingCount());
+            harness.launches.runNext();
             harness.polls.runActivePoll();
         });
 
@@ -306,6 +708,38 @@ class FlutterDesignerNativeCanvasSessionTest {
                 .count());
         assertTrue(harness.statuses.getLast().detail().contains(
                 "simulated persistent attachment failure"));
+        assertFalse(onEdt(harness.session::canRestart));
+
+        onEdt(() -> process.exit(0));
+
+        assertTrue(onEdt(harness.session::canRestart));
+        assertEquals(0, harness.launches.pendingCount());
+    }
+
+    @Test
+    void postAttachLivenessLossRetiresOldPidBeforeRetryBecomesAvailable()
+            throws Exception {
+        Harness harness = Harness.create("surface-liveness-loss", 0x119L);
+        FakeProcess process = new FakeProcess(1125L);
+
+        onEdt(() -> {
+            harness.host.attachAvailable = true;
+            harness.startAttaching(process);
+            harness.polls.runActivePoll();
+            assertEquals(FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                    harness.statuses.getLast().stage());
+            harness.host.surfaceLive = false;
+            harness.polls.runActivePoll();
+        });
+
+        assertEquals(List.of(process), harness.terminated);
+        assertFalse(onEdt(harness.session::canRestart));
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "surface is no longer live"));
+
+        onEdt(() -> process.exit(0));
+
+        assertTrue(onEdt(harness.session::canRestart));
     }
 
     @Test
@@ -393,6 +827,8 @@ class FlutterDesignerNativeCanvasSessionTest {
 
         onEdt(first.session::close);
 
+        assertTrue(first.terminated.isEmpty());
+        onEdt(first.launches::runNext);
         assertEquals(List.of(firstProcess), first.terminated);
         assertTrue(second.terminated.isEmpty());
         assertTrue(second.host.attached);
@@ -401,7 +837,92 @@ class FlutterDesignerNativeCanvasSessionTest {
             second.session.show();
         });
         assertEquals(List.of(true, false, true), second.host.visibility);
-        onEdt(second.session::close);
+        onEdt(() -> {
+            second.session.close();
+            second.launches.runNext();
+        });
+    }
+
+    @Test
+    void boundedInteractionFenceQueueRejectionPublishesTimedOutState()
+            throws Exception {
+        Harness harness = Harness.create("bounded-interaction-fence-queue", 0x203L);
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(
+                        new CanvasRevisionKey(
+                                sessionId, 1, StableId.random(), 1),
+                        0),
+                0);
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                new FakeProcess(1203L),
+                sessionId,
+                Runnable::run,
+                new CanvasRunnerProcessChannel.Listener() {
+                    @Override
+                    public void ready(CanvasEngineIdentity ignored) {
+                    }
+
+                    @Override
+                    public void presented(
+                            CanvasRunnerRuntimeEvent.Presented ignored) {
+                    }
+
+                    @Override
+                    public void selection(
+                            CanvasIntentKey ignored,
+                            StableId ignoredWidget) {
+                    }
+
+                    @Override
+                    public void failed(String ignored) {
+                    }
+                });
+        try {
+            onEdt(() -> {
+                setPrivateField(harness.session, "processChannel", channel);
+                setPrivateField(harness.session, "currentLayout", layout);
+                setPrivateField(harness.session, "interactionFenceSequence", 9L);
+                setPrivateField(
+                        harness.session,
+                        "interactionBarrierState",
+                        new FlutterDesignerNativeCanvasSession.InteractionBarrierState(
+                                FlutterDesignerNativeCanvasSession
+                                        .InteractionBarrierPhase.SYNCHRONIZING,
+                                9,
+                                Optional.of(layout)));
+                setPrivateField(
+                        harness.session,
+                        "pendingInteractionFenceLayout",
+                        layout);
+                setPrivateField(
+                        harness.session,
+                        "pendingInteractionFenceSequence",
+                        9L);
+                setPrivateField(
+                        harness.session,
+                        "interactionFenceRetryAttempts",
+                        19);
+                invokePrivateNoArgs(
+                        harness.session, "scheduleInteractionFenceRetry");
+
+                FlutterDesignerNativeCanvasSession.InteractionBarrierState state =
+                        harness.session.interactionBarrierState();
+                assertEquals(
+                        FlutterDesignerNativeCanvasSession
+                                .InteractionBarrierPhase.TIMED_OUT,
+                        state.phase());
+                assertEquals(9, state.fenceSequence());
+                assertEquals(Optional.of(layout), state.layoutKey());
+                assertEquals(
+                        -1L,
+                        privateLongField(
+                                harness.session,
+                                "pendingInteractionFenceSequence"));
+            });
+        } finally {
+            channel.abort();
+        }
     }
 
     private static void onEdt(ThrowingRunnable runnable) throws Exception {
@@ -449,6 +970,38 @@ class FlutterDesignerNativeCanvasSessionTest {
         assertTrue(condition.getAsBoolean(), message);
     }
 
+    private static void setPrivateField(
+            Object target,
+            String fieldName,
+            Object value) throws ReflectiveOperationException {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static long privateLongField(
+            Object target,
+            String fieldName) throws ReflectiveOperationException {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getLong(target);
+    }
+
+    private static void invokePrivateNoArgs(
+            Object target,
+            String methodName) throws ReflectiveOperationException {
+        Method method = target.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        try {
+            method.invoke(target);
+        } catch (InvocationTargetException failure) {
+            if (failure.getCause() instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            throw failure;
+        }
+    }
+
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run() throws Exception;
@@ -465,10 +1018,12 @@ class FlutterDesignerNativeCanvasSessionTest {
         private final FakeProcessStarter processes = new FakeProcessStarter();
         private final ManualExecutor launches = new ManualExecutor();
         private final ManualPollScheduler polls = new ManualPollScheduler();
+        private final ManualClock clock = new ManualClock();
         private final List<Process> terminated = new ArrayList<>();
         private final List<FlutterDesignerNativeCanvasStatus> statuses = new ArrayList<>();
         private final CanvasRunnerBuildResult runner;
         private final FlutterDesignerNativeCanvasSession session;
+        private RuntimeException terminationFailure;
 
         private Harness(String name, long parentWindow) {
             this(name, parentWindow, null);
@@ -484,12 +1039,18 @@ class FlutterDesignerNativeCanvasSessionTest {
             Path sdkHome = root.resolve("flutter-sdk");
             FlutterSdk sdk = new FlutterSdk(
                     sdkHome, sdkHome.resolve("bin").resolve("flutter.bat"));
+            var provider = new WindowsNativeCanvasPlatformProvider();
+            var contract = provider.runnerContract().orElseThrow();
             CanvasRunnerCacheIdentity identity = new CanvasRunnerCacheIdentity(
-                    "a".repeat(64), "test-engine", "b".repeat(64));
+                    "a".repeat(64),
+                    "test-engine",
+                    contract.fingerprint(),
+                    "b".repeat(64));
             Path runnerRoot = root.resolve("runner-cache");
             runner = suppliedRunner == null
                     ? new CanvasRunnerBuildResult(
-                            runnerRoot.resolve("runner.exe"),
+                            runnerRoot.resolve(
+                                    contract.buildTarget().executableName()),
                             runnerRoot,
                             identity,
                             false,
@@ -502,10 +1063,35 @@ class FlutterDesignerNativeCanvasSessionTest {
                             ignored -> build,
                             processes,
                             launches,
-                            Runnable::run,
+                            Harness::dispatchUi,
                             polls,
-                            terminated::add);
-            session = new FlutterDesignerNativeCanvasSession(host, runtime, statuses::add);
+                            this::terminate,
+                            clock::nanoTime);
+            session = new FlutterDesignerNativeCanvasSession(
+                    provider,
+                    host,
+                    runtime,
+                    statuses::add,
+                    ignored -> { },
+                    ignored -> Optional.empty(),
+                    ignored -> { },
+                    ignored -> { });
+        }
+
+        private static void dispatchUi(Runnable task) {
+            if (EventQueue.isDispatchThread()) {
+                task.run();
+            } else {
+                EventQueue.invokeLater(task);
+            }
+        }
+
+        private CompletableFuture<Void> terminate(Process process) {
+            if (terminationFailure != null) {
+                return CompletableFuture.failedFuture(terminationFailure);
+            }
+            terminated.add(process);
+            return CompletableFuture.completedFuture(null);
         }
 
         static Harness create(String name, long parentWindow) throws Exception {
@@ -535,29 +1121,48 @@ class FlutterDesignerNativeCanvasSessionTest {
         }
     }
 
-    private static final class FakeHost
-            implements FlutterDesignerNativeCanvasSession.NativeCanvasHost {
+    private static final class FakeHost implements NativeCanvasHost {
+        private NativeCanvasSurfaceMetrics surfaceMetrics =
+                new NativeCanvasSurfaceMetrics(800, 600, 1_000_000);
+
         private final long parentWindow;
+        private final JPanel component = new JPanel();
         private final List<Long> attachPids = new ArrayList<>();
         private final List<Boolean> visibility = new ArrayList<>();
         private boolean ready = true;
         private boolean attachAvailable;
         private LinkageError attachFailure;
         private boolean attached;
+        private boolean surfaceLive = true;
         private boolean failAttachmentOnNextVisibility;
+        private boolean closeFiresPeerLost;
+        private RuntimeException detachFailure;
+        private RuntimeException closeFailure;
+        private RuntimeException focusFailure;
+        private int focusRefusalsRemaining;
+        private volatile int focusCalls;
+        private volatile boolean focused;
         private int parentWindowHandleCalls;
         private int failingParentWindowHandleCall = -1;
+        private int detachCalls;
         private int closeCalls;
         private Runnable peerReady = () -> { };
         private Runnable peerLost = () -> { };
         private Consumer<String> attachmentFailed = ignored -> { };
+        private Consumer<NativeCanvasSurfaceMetrics> surfaceMetricsChanged =
+                ignored -> { };
 
         private FakeHost(long parentWindow) {
             this.parentWindow = parentWindow;
         }
 
         @Override
-        public long parentWindowHandle() {
+        public JComponent component() {
+            return component;
+        }
+
+        @Override
+        public NativeCanvasParentHandle parentHandle() {
             parentWindowHandleCalls++;
             if (parentWindowHandleCalls == failingParentWindowHandleCall) {
                 throw new IllegalStateException("native peer disappeared");
@@ -565,11 +1170,14 @@ class FlutterDesignerNativeCanvasSessionTest {
             if (!ready) {
                 throw new IllegalStateException("peer is not ready");
             }
-            return parentWindow;
+            return new NativeCanvasParentHandle(
+                    NativeCanvasPlatform.WINDOWS,
+                    "0x" + String.format(
+                            java.util.Locale.ROOT, "%016X", parentWindow));
         }
 
         @Override
-        public boolean tryAttach(long runnerProcessId) {
+        public boolean attachRunner(long runnerProcessId) {
             if (attachFailure != null) {
                 throw attachFailure;
             }
@@ -578,17 +1186,37 @@ class FlutterDesignerNativeCanvasSessionTest {
             }
             attachPids.add(runnerProcessId);
             attached = true;
+            surfaceLive = true;
             return true;
         }
 
         @Override
-        public boolean isAttached() {
+        public void detachRunner() {
+            detachCalls++;
+            attached = false;
+            if (detachFailure != null) {
+                throw detachFailure;
+            }
+        }
+
+        @Override
+        public boolean isRunnerAttached() {
             return attached;
+        }
+
+        @Override
+        public boolean isRunnerSurfaceLive() {
+            return attached && surfaceLive;
         }
 
         @Override
         public boolean isNativePeerReady() {
             return ready;
+        }
+
+        @Override
+        public Optional<NativeCanvasSurfaceMetrics> surfaceMetrics() {
+            return attached ? Optional.of(surfaceMetrics) : Optional.empty();
         }
 
         @Override
@@ -601,6 +1229,26 @@ class FlutterDesignerNativeCanvasSessionTest {
             if (attached) {
                 visibility.add(visible);
             }
+        }
+
+        @Override
+        public boolean requestRunnerFocus() {
+            focusCalls++;
+            if (focusFailure != null) {
+                throw focusFailure;
+            }
+            if (focusRefusalsRemaining > 0) {
+                focusRefusalsRemaining--;
+                focused = false;
+                return false;
+            }
+            focused = attached;
+            return focused;
+        }
+
+        @Override
+        public boolean isRunnerFocused() {
+            return attached && focused;
         }
 
         @Override
@@ -619,9 +1267,22 @@ class FlutterDesignerNativeCanvasSessionTest {
         }
 
         @Override
+        public void onSurfaceMetricsChanged(
+                Consumer<NativeCanvasSurfaceMetrics> listener) {
+            surfaceMetricsChanged = listener;
+        }
+
+        @Override
         public void close() {
             closeCalls++;
             attached = false;
+            if (closeFailure != null) {
+                throw closeFailure;
+            }
+            if (closeFiresPeerLost) {
+                ready = false;
+                peerLost.run();
+            }
         }
 
         void firePeerLost() {
@@ -633,6 +1294,16 @@ class FlutterDesignerNativeCanvasSessionTest {
         void firePeerReady() {
             ready = true;
             peerReady.run();
+        }
+
+        void fireAttachmentFailed(String reason) {
+            attached = false;
+            attachmentFailed.accept(reason);
+        }
+
+        void fireSurfaceMetrics(NativeCanvasSurfaceMetrics metrics) {
+            surfaceMetrics = metrics;
+            surfaceMetricsChanged.accept(metrics);
         }
 
         void failParentWindowHandleOnCall(int call) {
@@ -658,6 +1329,18 @@ class FlutterDesignerNativeCanvasSessionTest {
                 throw new AssertionError("No pending launch");
             }
             command.run();
+        }
+    }
+
+    private static final class ManualClock {
+        private long now;
+
+        long nanoTime() {
+            return now;
+        }
+
+        void advance(Duration duration) {
+            now += duration.toNanos();
         }
     }
 
@@ -722,6 +1405,7 @@ class FlutterDesignerNativeCanvasSessionTest {
         private boolean alive = true;
         private int exitCode;
         private RuntimeException nextOnExitFailure;
+        private RuntimeException nextSynchronousOnExitFailure;
 
         private FakeProcess(long pid) {
             this.pid = pid;
@@ -739,6 +1423,11 @@ class FlutterDesignerNativeCanvasSessionTest {
         void failNextOnExitObservation() {
             nextOnExitFailure = new IllegalStateException(
                     "simulated exceptional Process.onExit completion");
+        }
+
+        void throwNextOnExitObservation() {
+            nextSynchronousOnExitFailure = new IllegalStateException(
+                    "simulated synchronous Process.onExit failure");
         }
 
         @Override
@@ -808,6 +1497,11 @@ class FlutterDesignerNativeCanvasSessionTest {
 
         @Override
         public CompletableFuture<Process> onExit() {
+            if (nextSynchronousOnExitFailure != null) {
+                RuntimeException failure = nextSynchronousOnExitFailure;
+                nextSynchronousOnExitFailure = null;
+                throw failure;
+            }
             if (nextOnExitFailure != null) {
                 RuntimeException failure = nextOnExitFailure;
                 nextOnExitFailure = null;

@@ -11,6 +11,8 @@ public sealed interface DesignerCommand permits
         AddWidget,
         RemoveWidget,
         MoveWidget,
+        ReplaceSlotChild,
+        ClearSlotChildren,
         WrapWidget,
         SetProperty,
         ResetProperty {

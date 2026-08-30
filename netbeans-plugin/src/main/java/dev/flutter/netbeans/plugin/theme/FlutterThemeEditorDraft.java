@@ -5,6 +5,8 @@ import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeDefinition;
 import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
 import dev.flutter.netbeans.project.theme.FlutterMaterialTextStyleRole;
+import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeOverrides;
 import dev.flutter.netbeans.project.theme.FlutterThemeTextStyleOverride;
 import dev.flutter.netbeans.project.theme.FlutterThemeBrightness;
@@ -214,6 +216,15 @@ final class FlutterThemeEditorDraft {
                 Objects.requireNonNull(style, "style"));
     }
 
+    void setComponentColorOverride(
+            ThemeRow target,
+            FlutterThemeComponentColorRole role,
+            FlutterThemeColorValue color) {
+        requireOwned(target);
+        target.setComponentColorOverride(
+                Objects.requireNonNull(role, "role"), color);
+    }
+
     FlutterProjectTheme build(FlutterGeneratedThemeArtifact generated) {
         List<FlutterProjectThemeDefinition> definitions = themes.stream()
                 .map(ThemeRow::toDefinition)
@@ -361,7 +372,8 @@ final class FlutterThemeEditorDraft {
             } else {
                 colors.put(role, argb);
             }
-            overrides = new FlutterThemeOverrides(colors, overrides.textTheme());
+            overrides = new FlutterThemeOverrides(
+                    colors, overrides.textTheme(), overrides.componentColors());
         }
 
         private void setTextStyleOverride(
@@ -374,7 +386,23 @@ final class FlutterThemeEditorDraft {
             } else {
                 styles.put(role, style);
             }
-            overrides = new FlutterThemeOverrides(overrides.colorScheme(), styles);
+            overrides = new FlutterThemeOverrides(
+                    overrides.colorScheme(), styles, overrides.componentColors());
+        }
+
+        private void setComponentColorOverride(
+                FlutterThemeComponentColorRole role,
+                FlutterThemeColorValue color) {
+            java.util.EnumMap<FlutterThemeComponentColorRole, FlutterThemeColorValue> values =
+                    new java.util.EnumMap<>(FlutterThemeComponentColorRole.class);
+            values.putAll(overrides.componentColors());
+            if (color == null) {
+                values.remove(role);
+            } else {
+                values.put(role, color);
+            }
+            overrides = new FlutterThemeOverrides(
+                    overrides.colorScheme(), overrides.textTheme(), values);
         }
 
         private FlutterProjectThemeDefinition toDefinition() {

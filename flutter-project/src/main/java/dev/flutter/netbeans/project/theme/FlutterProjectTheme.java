@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-/** Immutable, validated project-wide Flutter theme model for schemas v1-v4. */
+/** Immutable, validated project-wide Flutter theme model for schemas v1-v5. */
 public record FlutterProjectTheme(
         boolean enabled,
         FlutterThemeMode defaultMode,

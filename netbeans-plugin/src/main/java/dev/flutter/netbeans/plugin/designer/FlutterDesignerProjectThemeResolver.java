@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
@@ -135,7 +136,8 @@ final class FlutterDesignerProjectThemeResolver {
                         brightness,
                         digest,
                         canvasColors(definition),
-                        canvasTextTheme(definition)),
+                        canvasTextTheme(definition),
+                        canvasComponentColors(definition)),
                 false,
                 "Canvas uses verified project theme " + definition.displayName()
                 + " (" + definition.id() + ").");
@@ -220,6 +222,16 @@ final class FlutterDesignerProjectThemeResolver {
                 style.decorationColor().map(FlutterDesignerProjectThemeResolver::canvasColor),
                 style.decorationStyle().map(value -> value.wireName()),
                 style.decorationThickness());
+    }
+
+    private static Map<CanvasThemeComponentColorRole, CanvasThemeColorValue>
+            canvasComponentColors(FlutterProjectThemeDefinition definition) {
+        Map<CanvasThemeComponentColorRole, CanvasThemeColorValue> values =
+                new java.util.EnumMap<>(CanvasThemeComponentColorRole.class);
+        definition.overrides().componentColors().forEach((role, color) -> values.put(
+                CanvasThemeComponentColorRole.fromWireName(role.wireName()),
+                canvasColor(color)));
+        return Map.copyOf(values);
     }
 
     private static CanvasThemeColorValue canvasColor(FlutterThemeColorValue color) {

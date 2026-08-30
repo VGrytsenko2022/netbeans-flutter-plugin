@@ -19,6 +19,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasTextScaleFactor;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.CanvasViewport;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
@@ -95,13 +96,14 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":8"));
+        assertTrue(json.contains("\"protocolVersion\":9"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
         assertTrue(json.contains("\"digestIdentity\":\"" + "A".repeat(64) + "\""));
         assertTrue(json.contains("\"colorScheme\":{}"));
         assertTrue(json.contains("\"textTheme\":{}"));
+        assertTrue(json.contains("\"components\":{}"));
         assertTrue(json.contains("\"type\":\"flutter.material.Scaffold\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Column\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Row\""));
@@ -175,7 +177,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV8() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV9() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -215,7 +217,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":8"), json);
+        assertTrue(json.contains("\"protocolVersion\":9"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -239,7 +241,8 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsResolvedThemeOverridesInCanonicalProtocolV4Order() throws Exception {
+    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV9Order()
+            throws Exception {
         CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
                 Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
                 Optional.empty(), Optional.of(16.0d), Optional.of("w600"),
@@ -252,7 +255,14 @@ class CanvasModelPayloadCodecTest {
                 "light", 0xFF6750A4, CanvasThemeBrightness.LIGHT,
                 "B".repeat(64),
                 Map.of("surface", 0xFF020202, "primary", 0xFF010101),
-                Map.of("bodyMedium", body));
+                Map.of("bodyMedium", body),
+                Map.of(
+                        CanvasThemeComponentColorRole.APP_BAR_FOREGROUND,
+                        new CanvasThemeColorValue.ColorRole("onPrimary"),
+                        CanvasThemeComponentColorRole.SCAFFOLD_BACKGROUND,
+                        new CanvasThemeColorValue.Literal(0xFF030303),
+                        CanvasThemeComponentColorRole.ELEVATED_BUTTON_OVERLAY_PRESSED,
+                        new CanvasThemeColorValue.Literal(0x44010101)));
         CanvasRenderProfile profile = new CanvasRenderProfile(
                 CanvasPreviewMode.MOBILE, CanvasTargetPlatform.ANDROID,
                 new CanvasViewport(390, 844), new CanvasDevicePixelRatio(1),
@@ -269,6 +279,12 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"decoration\":[\"underline\",\"lineThrough\"]"), json);
         assertTrue(json.contains("\"decorationColor\":{\"kind\":\"argb\","
                 + "\"argb\":\"0xFF123456\"}"), json);
+        assertTrue(json.indexOf("\"scaffold.backgroundColor\"")
+                < json.indexOf("\"appBar.foregroundColor\""), json);
+        assertTrue(json.indexOf("\"appBar.foregroundColor\"")
+                < json.indexOf("\"elevatedButton.overlayColor.pressed\""), json);
+        assertTrue(json.contains("\"appBar.foregroundColor\":{"
+                + "\"kind\":\"colorScheme\",\"role\":\"onPrimary\"}"), json);
     }
 
     @Test

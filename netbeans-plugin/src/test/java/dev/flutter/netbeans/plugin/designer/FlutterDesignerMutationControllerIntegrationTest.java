@@ -27,6 +27,7 @@ import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
 import dev.flutter.netbeans.designer.command.MoveWidget;
 import dev.flutter.netbeans.designer.command.RemoveWidget;
+import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
@@ -1367,6 +1368,119 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void scaffoldPropertySetResetPersistAndReplayThroughUndoRedo()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_scaffold_property_history",
+                scaffoldCenterTextExactPair());
+        PropertyName primary = new PropertyName("primary");
+        PropertyValue.BooleanValue explicitFalse =
+                new PropertyValue.BooleanValue(false);
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot baseline = fixture.ready();
+            FlutterDesignerMutationController.MutationResult set =
+                    fixture.mutations().submit(
+                            baseline.token().orElseThrow(),
+                            new SetProperty(SCAFFOLD_ID, primary, explicitFalse),
+                            "Scaffold.primary")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    set.outcome(), set::reason);
+            FlutterDesignerMutationController.Snapshot setSnapshot =
+                    awaitReadyWithScaffoldPropertyAfterToken(
+                            fixture.mutations(), primary, explicitFalse,
+                            baseline.token().orElseThrow());
+            assertTrue(fixture.analyzedContents().getLast()
+                    .contains("primary: false"));
+            PairSaveEvidence setEvidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(setEvidence);
+            SaveCookie saveSet = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(saveSet);
+            saveSet.save();
+            awaitCurrentWithPair(
+                    fixture.controller(),
+                    setEvidence.preparedPairIdentity().prospectiveFdBytes(),
+                    setEvidence.candidateDartBytes());
+            FlutterDesignerMutationController.Snapshot savedSet =
+                    awaitReadyWithScaffoldPropertyAfterToken(
+                            fixture.mutations(), primary, explicitFalse,
+                            setSnapshot.token().orElseThrow());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            DesignerDocument durableSet = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(Files.readAllBytes(
+                            fixture.fdPath()))).document();
+            assertEquals(explicitFalse,
+                    durableSet.root().properties().get(primary));
+
+            FlutterDesignerMutationController.MutationResult reset =
+                    fixture.mutations().submit(
+                            savedSet.token().orElseThrow(),
+                            new ResetProperty(SCAFFOLD_ID, primary),
+                            "Scaffold.primary")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    reset.outcome(), reset::reason);
+            FlutterDesignerMutationController.Snapshot resetSnapshot =
+                    awaitReadyWithScaffoldPropertyAfterToken(
+                            fixture.mutations(), primary, null,
+                            savedSet.token().orElseThrow());
+            assertFalse(fixture.analyzedContents().getLast()
+                    .contains("primary:"));
+            assertEquals(2, fixture.analysisCalls().get());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithScaffoldPropertyAfterToken(
+                            fixture.mutations(), primary, explicitFalse,
+                            resetSnapshot.token().orElseThrow());
+            assertTrue(new String(
+                    fixture.editor().liveSnapshot().markerBearingUtf8(),
+                    StandardCharsets.UTF_8).contains("primary: false"));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithScaffoldPropertyAfterToken(
+                            fixture.mutations(), primary, null,
+                            undone.token().orElseThrow());
+            assertFalse(new String(
+                    fixture.editor().liveSnapshot().markerBearingUtf8(),
+                    StandardCharsets.UTF_8).contains("primary:"));
+            assertEquals(2, fixture.analysisCalls().get(),
+                    "Undo/Redo must replay validated paired revisions");
+
+            PairSaveEvidence resetEvidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(resetEvidence);
+            SaveCookie saveReset = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(saveReset);
+            saveReset.save();
+            awaitCurrentWithPair(
+                    fixture.controller(),
+                    resetEvidence.preparedPairIdentity().prospectiveFdBytes(),
+                    resetEvidence.candidateDartBytes());
+            awaitReadyWithScaffoldPropertyAfterToken(
+                    fixture.mutations(), primary, null,
+                    redone.token().orElseThrow());
+            DesignerDocument durableReset = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(Files.readAllBytes(
+                            fixture.fdPath()))).document();
+            assertFalse(durableReset.root().properties().containsKey(primary));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
     void multiViewRejectsAnUnusedStalePropertyNodeBeforeAnalyzerAdmission()
             throws Exception {
         MutationFixture fixture = fixture("mutation_multiview_stale_property_node");
@@ -1599,6 +1713,281 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 FlutterDesignerMultiViewDesign design = designRef.get();
                 if (design != null) {
                     onEdt(design::componentClosed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void multiViewSlotBridgeMapsAtomicReplaceAndClearAllWithRevisionAndSubmitGuards()
+            throws Exception {
+        MutationFixture replaceFixture = fixture(
+                "mutation_multiview_slot_atomic_replace",
+                scaffoldCenterTextExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> replaceDesignRef =
+                new AtomicReference<>();
+        List<String> replaceFailures = new CopyOnWriteArrayList<>();
+
+        try (replaceFixture) {
+            FlutterDesignerMutationController.Snapshot baseline =
+                    replaceFixture.ready();
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    replaceFixture.dataObject().getLookup());
+                    replaceDesignRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = replaceDesignRef.get();
+                assertNotNull(design);
+                awaitWidgetNode(design, SCAFFOLD_ID);
+                awaitStableSlotPresentation(design, replaceFixture.mutations());
+                CompletableFuture<FlutterDesignerMutationController.MutationResult>
+                        completion = new CompletableFuture<>();
+                AtomicReference<FlutterWidgetPropertiesNode.SlotMutationHandler>
+                        handler = new AtomicReference<>();
+                FlutterWidgetSlotMutation.Replace replace =
+                        new FlutterWidgetSlotMutation.Replace(
+                                SCAFFOLD_ID,
+                                BODY,
+                                CENTER_ID,
+                                new FlutterWidgetSlotMutation.Replace.NewWidget(
+                                        new WidgetTypeId("flutter.widgets.Text")));
+                onEdt(() -> {
+                    handler.set(design.slotMutationHandlerForTests(
+                            (intent, reason) -> replaceFailures.add(reason),
+                            completion::complete));
+                    assertNotNull(handler.get());
+                    handler.get().submit(replace);
+                    handler.get().submit(replace);
+                });
+                assertApplied(completion.get(10, TimeUnit.SECONDS));
+                FlutterDesignerMutationController.Snapshot replaced =
+                        awaitReadyWithScaffoldBodyAfterToken(
+                                replaceFixture.mutations(),
+                                baseline.token().orElseThrow(),
+                                false);
+                WidgetSlot.SingleSlot body = assertInstanceOf(
+                        WidgetSlot.SingleSlot.class,
+                        replaced.document().orElseThrow().root().slots().get(BODY));
+                WidgetNode replacement = body.child().orElseThrow();
+                assertEquals(new WidgetTypeId("flutter.widgets.Text"),
+                        replacement.type());
+                assertEquals(new PropertyValue.StringValue("Text"),
+                        replacement.properties().get(DATA));
+                awaitSelectedWidget(design, replacement.id());
+                assertEquals(1, replaceFixture.analysisCalls().get(),
+                        "double submit must admit one atomic replacement only");
+                assertEquals(List.of(), replaceFailures);
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        replaceFixture.coordinator().state().status());
+            } finally {
+                FlutterDesignerMultiViewDesign design = replaceDesignRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+
+        MutationFixture clearFixture = fixture(
+                "mutation_multiview_slot_atomic_clear_all",
+                columnExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> clearDesignRef =
+                new AtomicReference<>();
+        List<String> clearFailures = new CopyOnWriteArrayList<>();
+
+        try (clearFixture) {
+            FlutterDesignerMutationController.Snapshot baseline =
+                    clearFixture.ready();
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    clearFixture.dataObject().getLookup());
+                    clearDesignRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = clearDesignRef.get();
+                assertNotNull(design);
+                awaitWidgetNode(design, COLUMN_ID);
+                awaitStableSlotPresentation(design, clearFixture.mutations());
+
+                FlutterWidgetPropertiesNode.SlotMutationHandler stale =
+                        awaitSlotMutationHandler(design, clearFailures);
+                onEdt(() -> stale.submit(new FlutterWidgetSlotMutation.ClearAll(
+                        COLUMN_ID,
+                        CHILDREN,
+                        List.of(SECOND_ID, FIRST_ID))));
+                assertEquals(1, clearFailures.size());
+                assertTrue(clearFailures.getFirst().contains(
+                        "changed after the editor opened"), clearFailures::toString);
+                assertSame(baseline.token().orElseThrow(),
+                        clearFixture.mutations().snapshot().token().orElseThrow());
+                assertEquals(0, clearFixture.analysisCalls().get(),
+                        "stale ordered ids must reject before analyzer admission");
+
+                awaitStableSlotPresentation(design, clearFixture.mutations());
+                assertApplied(submitCurrentSlotMutation(
+                        design,
+                        clearFailures,
+                        new FlutterWidgetSlotMutation.ClearAll(
+                                COLUMN_ID,
+                                CHILDREN,
+                                List.of(FIRST_ID, SECOND_ID))));
+                FlutterDesignerMutationController.Snapshot cleared =
+                        awaitReadyWithEmptyColumnAfterToken(
+                                clearFixture.mutations(),
+                                baseline.token().orElseThrow());
+                awaitSelectedWidget(design, COLUMN_ID);
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        clearFixture.coordinator().state().status());
+
+                DesignerCombinedUndoRedo combined = clearFixture.dataObject()
+                        .getCombinedUndoRedo();
+                onEdt(() -> {
+                    assertTrue(combined.canUndo());
+                    combined.undo();
+                });
+                FlutterDesignerMutationController.Snapshot undone =
+                        awaitReadyWithColumnChildIdsAfterToken(
+                                clearFixture.mutations(),
+                                cleared.token().orElseThrow(),
+                                List.of(FIRST_ID, SECOND_ID));
+                onEdt(() -> {
+                    assertTrue(combined.canRedo());
+                    combined.redo();
+                });
+                awaitReadyWithEmptyColumnAfterToken(
+                        clearFixture.mutations(),
+                        undone.token().orElseThrow());
+                assertEquals(1, clearFixture.analysisCalls().get(),
+                        "Clear All and exact Undo/Redo reuse one generated pair");
+                assertEquals(1, clearFailures.size(),
+                        "only the deliberate stale intent may report a failure");
+            } finally {
+                FlutterDesignerMultiViewDesign design = clearDesignRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+    }
+
+    @Test
+    void multiViewSlotBridgeMovesExistingReplacementThroughSaveAndReopen()
+            throws Exception {
+        ExactPair durablePair;
+        MutationFixture fixture = fixture(
+                "mutation_multiview_slot_existing_replace_save",
+                centerAndSourceExactPair());
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+        List<String> failures = new CopyOnWriteArrayList<>();
+
+        try (fixture) {
+            try {
+                FlutterDesignerMutationController.Snapshot baseline = fixture.ready();
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+                awaitWidgetNode(design, CENTER_ID);
+                awaitStableSlotPresentation(design, fixture.mutations());
+
+                assertApplied(submitCurrentSlotMutation(
+                        design,
+                        failures,
+                        new FlutterWidgetSlotMutation.Replace(
+                                CENTER_ID,
+                                CHILD,
+                                FIRST_ID,
+                                new FlutterWidgetSlotMutation.Replace.ExistingWidget(
+                                        SECOND_ID))));
+                FlutterDesignerMutationController.Snapshot replaced =
+                        awaitReadyWithCenterChildAfterToken(
+                                fixture.mutations(),
+                                baseline.token().orElseThrow(),
+                                SECOND_ID);
+                assertExistingReplacement(replaced.document().orElseThrow());
+                awaitSelectedWidget(design, SECOND_ID);
+                assertEquals(1, fixture.analysisCalls().get());
+                assertEquals(List.of(), failures);
+                assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                        fixture.coordinator().state().status());
+
+                PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+                assertNotNull(evidence);
+                byte[] savedDart = evidence.candidateDartBytes();
+                byte[] savedFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+                SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+                assertNotNull(save);
+                save.save();
+                awaitCurrentWithPair(
+                        fixture.controller(), savedFd, savedDart);
+                FlutterDesignerMutationController.Snapshot saved =
+                        awaitReadyWithCenterChildAfterToken(
+                                fixture.mutations(),
+                                replaced.token().orElseThrow(),
+                                SECOND_ID);
+                assertExistingReplacement(saved.document().orElseThrow());
+                assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                        fixture.coordinator().state().status());
+                assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+                assertArrayEquals(savedDart, Files.readAllBytes(fixture.dartPath()));
+                assertArrayEquals(savedFd, Files.readAllBytes(fixture.fdPath()));
+                durablePair = new ExactPair(savedDart, savedFd);
+            } finally {
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                if (design != null) {
+                    onEdt(design::componentClosed);
+                }
+            }
+        }
+
+        // Reopen through a clean DataObject/controller session. Reusing the
+        // first DataObject would intentionally retain its Designer Undo/Redo
+        // identity and would not model an application-level reopen.
+        MutationFixture reopened = fixture(
+                "mutation_multiview_slot_existing_replace_reopen",
+                durablePair);
+        AtomicReference<FlutterDesignerMultiViewDesign> reopenedDesignRef =
+                new AtomicReference<>();
+        try (reopened) {
+            try {
+                assertArrayEquals(durablePair.dartBytes(),
+                        Files.readAllBytes(reopened.dartPath()));
+                assertArrayEquals(durablePair.fdBytes(),
+                        Files.readAllBytes(reopened.fdPath()));
+                assertExistingReplacement(
+                        reopened.ready().document().orElseThrow());
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign reopenedDesign =
+                            new FlutterDesignerMultiViewDesign(
+                                    reopened.dataObject().getLookup());
+                    reopenedDesignRef.set(reopenedDesign);
+                    reopenedDesign.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign reopenedDesign =
+                        reopenedDesignRef.get();
+                assertNotNull(reopenedDesign);
+                awaitWidgetNode(reopenedDesign, CENTER_ID);
+                awaitWidgetNode(reopenedDesign, SECOND_ID);
+                awaitStableSlotPresentation(reopenedDesign, reopened.mutations());
+                assertExistingReplacement(
+                        reopened.mutations().snapshot().document().orElseThrow());
+                assertEquals(0, reopened.analysisCalls().get(),
+                        "reopening the exact saved pair must not synthesize a mutation");
+            } finally {
+                FlutterDesignerMultiViewDesign reopenedDesign =
+                        reopenedDesignRef.get();
+                if (reopenedDesign != null) {
+                    onEdt(reopenedDesign::componentClosed);
                 }
             }
         }
@@ -3561,6 +3950,23 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new FdDocumentCodec().encode(exact).copyBytes());
     }
 
+    private ExactPair centerAndSourceExactPair() throws Exception {
+        DesignerDocument provisional = centerAndSourceDocument(
+                descriptor("0".repeat(64), "0".repeat(64)));
+        GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
+                .generate(provisional, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DesignerDocument exact = centerAndSourceDocument(descriptor(
+                provisionalGenerated.imports().normalizedSha256(),
+                provisionalGenerated.build().normalizedSha256()));
+        GeneratedDartRegions generated = new DartRegionGenerator()
+                .generate(exact, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        return new ExactPair(
+                source(generated).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+    }
+
     private ExactPair scaffoldCenterEmptyColumnExactPair() throws Exception {
         DesignerDocument provisional = scaffoldCenterEmptyColumnDocument(
                 descriptor("0".repeat(64), "0".repeat(64)));
@@ -3762,6 +4168,41 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     private static FlutterDesignerMutationController.Snapshot
+            awaitReadyWithEmptyColumnAfterToken(
+                    FlutterDesignerMutationController controller,
+                    FlutterDesignerMutationController.RevisionToken oldToken)
+                    throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && current.token().isPresent()
+                    && current.token().orElseThrow() != oldToken
+                    && current.document().isPresent()) {
+                WidgetNode root = current.document().orElseThrow().root();
+                WidgetSlot slot = root.slots().get(CHILDREN);
+                boolean empty = slot == null
+                        || slot instanceof WidgetSlot.ListSlot list
+                                && list.children().isEmpty();
+                if (COLUMN_ID.equals(root.id()) && empty) {
+                    return current;
+                }
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError(
+                "Timed out waiting for empty Column.children after revision token "
+                + oldToken + ": " + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot
             awaitReadyWithScaffoldBodyAfterToken(
                     FlutterDesignerMutationController controller,
                     FlutterDesignerMutationController.RevisionToken oldToken,
@@ -3924,6 +4365,42 @@ class FlutterDesignerMutationControllerIntegrationTest {
         }
         throw new AssertionError("Timed out waiting for Text.softWrap="
                 + expectedValue + ": " + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot
+            awaitReadyWithScaffoldPropertyAfterToken(
+                    FlutterDesignerMutationController controller,
+                    PropertyName property,
+                    PropertyValue expectedValue,
+                    FlutterDesignerMutationController.RevisionToken oldToken)
+                    throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && current.token().isPresent()
+                    && current.token().orElseThrow() != oldToken
+                    && current.document().isPresent()
+                    && SCAFFOLD_ID.equals(current.document().orElseThrow()
+                            .root().id())
+                    && Objects.equals(expectedValue,
+                            current.document().orElseThrow().root()
+                                    .properties().get(property))) {
+                return current;
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for Scaffold."
+                + property.value() + "=" + expectedValue
+                + " after revision token " + oldToken + ": "
+                + controller.snapshot());
     }
 
     private static FlutterDesignerMutationController.Snapshot
@@ -4631,6 +5108,46 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Map.of(),
                 Map.of(BODY, WidgetSlot.SingleSlot.of(center)));
         return new DesignerDocument(DOCUMENT_ID, source, scaffold);
+    }
+
+    private static DesignerDocument centerAndSourceDocument(
+            DartSourceDescriptor source) {
+        WidgetNode obsolete = new WidgetNode(
+                FIRST_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("obsolete")),
+                Map.of());
+        WidgetNode replacement = new WidgetNode(
+                SECOND_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("replacement")),
+                Map.of());
+        WidgetNode center = new WidgetNode(
+                CENTER_ID,
+                new WidgetTypeId("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(obsolete)));
+        WidgetNode column = new WidgetNode(
+                COLUMN_ID,
+                new WidgetTypeId("flutter.widgets.Column"),
+                Map.of(),
+                Map.of(CHILDREN,
+                        new WidgetSlot.ListSlot(List.of(center, replacement))));
+        return new DesignerDocument(DOCUMENT_ID, source, column);
+    }
+
+    private static void assertExistingReplacement(DesignerDocument document) {
+        assertColumnChildren(document, List.of(CENTER_ID));
+        WidgetNode center = findModelWidget(document.root(), CENTER_ID);
+        assertNotNull(center);
+        WidgetSlot.SingleSlot child = assertInstanceOf(
+                WidgetSlot.SingleSlot.class, center.slots().get(CHILD));
+        WidgetNode replacement = child.child().orElseThrow();
+        assertEquals(SECOND_ID, replacement.id());
+        assertEquals(new PropertyValue.StringValue("replacement"),
+                replacement.properties().get(DATA));
+        assertFalse(containsWidget(document.root(), FIRST_ID),
+                "replacement must remove the exact former single-slot subtree");
     }
 
     private static DesignerDocument scaffoldCenterEmptyColumnDocument(

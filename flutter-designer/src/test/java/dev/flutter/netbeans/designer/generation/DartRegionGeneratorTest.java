@@ -879,6 +879,92 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsEveryReviewedScaffoldScalarWithExactImportsAndClosedPresets() {
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(property("floatingActionButtonLocation"),
+                new PropertyValue.StringValue("miniCenterDocked"));
+        properties.put(property("floatingActionButtonAnimator"),
+                new PropertyValue.StringValue("noAnimation"));
+        properties.put(property("persistentFooterAlignment"),
+                new PropertyValue.StringValue("bottomStart"));
+        properties.put(property("onDrawerChanged"),
+                new PropertyValue.CallbackValue("_drawerChanged"));
+        properties.put(property("onEndDrawerChanged"),
+                new PropertyValue.CallbackValue("_endDrawerChanged"));
+        properties.put(property("backgroundColor"),
+                new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.surface")));
+        properties.put(property("resizeToAvoidBottomInset"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(property("primary"), new PropertyValue.BooleanValue(false));
+        properties.put(property("drawerDragStartBehavior"),
+                new PropertyValue.EnumValue("DragStartBehavior", "down"));
+        properties.put(property("extendBody"), new PropertyValue.BooleanValue(true));
+        properties.put(property("drawerBarrierDismissible"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(property("extendBodyBehindAppBar"),
+                new PropertyValue.BooleanValue(true));
+        properties.put(property("drawerScrimColor"),
+                new PropertyValue.ColorValue(0x80112233L));
+        properties.put(property("drawerEdgeDragWidth"),
+                new PropertyValue.DoubleValue(new BigDecimal("24.5")));
+        properties.put(property("drawerEnableOpenDragGesture"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(property("endDrawerEnableOpenDragGesture"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(property("restorationId"),
+                new PropertyValue.StringValue("home-scaffold"));
+        WidgetNode scaffold = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.Scaffold"),
+                properties,
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(scaffold, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        DartImportDirective gestures = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals("package:flutter/gestures.dart"))
+                .findFirst().orElseThrow();
+        String gesturesPrefix = gestures.prefix().orElseThrow();
+        assertEquals(List.of("package:flutter/gestures.dart", MATERIAL_IMPORT),
+                generated.importPlan().directives().stream()
+                        .map(DartImportDirective::uri).toList());
+        String build = generated.build().payload();
+        assertTrue(build.contains("floatingActionButtonLocation: "
+                + "FloatingActionButtonLocation.miniCenterDocked"), build);
+        assertTrue(build.contains("floatingActionButtonAnimator: "
+                + "FloatingActionButtonAnimator.noAnimation"), build);
+        assertTrue(build.contains(
+                "persistentFooterAlignment: AlignmentDirectional.bottomStart"), build);
+        assertTrue(build.contains("onDrawerChanged: _drawerChanged"), build);
+        assertTrue(build.contains("onEndDrawerChanged: _endDrawerChanged"), build);
+        assertTrue(build.contains(
+                "backgroundColor: Theme.of(context).colorScheme.surface"), build);
+        assertTrue(build.contains("resizeToAvoidBottomInset: false"), build);
+        assertTrue(build.contains("primary: false"), build);
+        assertTrue(build.contains("drawerDragStartBehavior: " + gesturesPrefix
+                + ".DragStartBehavior.down"), build);
+        assertTrue(build.contains("extendBody: true"), build);
+        assertTrue(build.contains("drawerBarrierDismissible: false"), build);
+        assertTrue(build.contains("extendBodyBehindAppBar: true"), build);
+        assertTrue(build.contains("drawerScrimColor: const Color(0x80112233)"), build);
+        assertTrue(build.contains("drawerEdgeDragWidth: 24.5"), build);
+        assertTrue(build.contains("drawerEnableOpenDragGesture: false"), build);
+        assertTrue(build.contains("endDrawerEnableOpenDragGesture: false"), build);
+        assertTrue(build.contains("restorationId: 'home-scaffold'"), build);
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("DragStartBehavior")
+                        && occurrence.libraryUri().equals(
+                                "package:flutter/gestures.dart")));
+        assertFalse(build.contains("floatingActionButtonLocation: '"), build);
+    }
+
+    @Test
     void bareAppBarPreservesThemeInheritanceAndLegacyGoldenImports() {
         WidgetNode appBar = new WidgetNode(
                 StableId.random(),

@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
+import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -109,12 +110,15 @@ class FlutterWidgetPropertiesNodeTest {
                 node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
 
         Node.PropertySet[] sets = node.getPropertySets();
-        assertEquals(List.of("General", "General", "Slots"),
-                Arrays.stream(sets)
-                        .map(set -> set.getValue(
-                                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
-                        .toList(),
+        List<Object> tabs = Arrays.stream(sets)
+                .map(set -> set.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
+                .toList();
+        assertEquals(Set.of("General", "Slots"), Set.copyOf(tabs),
                 "the native PropertySheet must render exactly General and Slots tabs");
+        assertEquals("Slots", tabs.getLast());
+        assertTrue(tabs.subList(0, tabs.size() - 1).stream()
+                .allMatch("General"::equals));
         assertEquals(List.of("appBar", "body", "floatingActionButton"),
                 names(slots.getProperties()));
         assertEquals("Empty", slots.getProperties()[0].getValue().toString());
@@ -273,6 +277,7 @@ class FlutterWidgetPropertiesNodeTest {
                                 java.util.Optional.of("MaterialIcons"),
                                 java.util.Optional.empty(), false, List.of())));
         List<String> types = List.of(
+                "flutter.material.Scaffold",
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.widgets.Column",
@@ -311,8 +316,8 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(497, writableCount,
-                "the reviewed non-Scaffold surface includes complete AppBar, "
+        assertEquals(514, writableCount,
+                "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, Text, and Icon leaves");
     }
 
@@ -486,17 +491,73 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void scaffoldRemainsEntirelyReadOnlyEvenWhenAHandlerIsProvided() {
+    void scaffoldProjectsEnterpriseGroupsPresetsAndExactSetResetCommands()
+            throws Exception {
         WidgetDefinition definition = definition("flutter.material.Scaffold");
-        WidgetNode widget = WidgetNode.empty(
-                StableId.parse("fe1e6841-39d2-4729-87ea-8e40cfdce57f"),
-                definition.typeId());
+        StableId id = StableId.parse("fe1e6841-39d2-4729-87ea-8e40cfdce57f");
+        PropertyName background = new PropertyName("backgroundColor");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(background, new PropertyValue.ColorValue(0xFF102030L)),
+                Map.of(),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
         FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
-                Children.LEAF, widget, definition, ignored -> { });
+                Children.LEAF, widget, definition, commands::add);
 
-        for (Node.Property<?> property : node.getPropertySets()[1].getProperties()) {
-            assertFalse(property.canWrite(), property.getName());
-            assertEquals(String.class, property.getValueType());
+        Node.PropertySet[] sets = node.getPropertySets();
+        List<String> expectedSets = new ArrayList<>();
+        expectedSets.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
+        Arrays.stream(ScaffoldWidgetPropertySchema.Group.values())
+                .map(ScaffoldWidgetPropertySchema.Group::setName)
+                .forEach(expectedSets::add);
+        expectedSets.add(FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(expectedSets,
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        assertEquals(ScaffoldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                Arrays.stream(sets)
+                        .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME
+                                .equals(set.getName()))
+                        .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME
+                                .equals(set.getName()))
+                        .mapToInt(set -> set.getProperties().length)
+                        .sum());
+
+        PropertyEditor location = property(
+                node, "floatingActionButtonLocation").getPropertyEditor();
+        assertEquals(20, location.getTags().length,
+                "unset plus every public Flutter 3.44.8 location preset");
+        assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT, location.getTags()[0]);
+        location.setAsText("miniCenterDocked");
+        assertEquals(new PropertyValue.StringValue("miniCenterDocked"),
+                cell(location).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> location.setAsText("customLocation"));
+
+        PropertyEditor callback = property(node, "onDrawerChanged").getPropertyEditor();
+        callback.setAsText("_drawerChanged");
+        assertEquals(new PropertyValue.CallbackValue("_drawerChanged"),
+                cell(callback).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> callback.setAsText("(open) => log(open)"));
+
+        cellProperty(property(node, "primary")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.BooleanValue(false)));
+        cellProperty(property(node, "backgroundColor")).restoreDefaultValue();
+        assertEquals(List.of(
+                        new SetProperty(
+                                id, new PropertyName("primary"),
+                                new PropertyValue.BooleanValue(false)),
+                        new ResetProperty(id, background)),
+                commands);
+
+        for (Node.PropertySet set : Arrays.copyOfRange(sets, 1, sets.length - 1)) {
+            for (Node.Property<?> property : set.getProperties()) {
+                assertTrue(property.canWrite(), property.getName());
+                assertEquals(FlutterPropertyCellValue.class, property.getValueType());
+            }
         }
     }
 

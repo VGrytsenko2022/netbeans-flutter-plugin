@@ -40,9 +40,10 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for `ElevatedButton`, `AppBar`, `Column`, `Row`,
-`Padding`, `Center`, `SizedBox`, `Text` and `Icon`; `Scaffold` remains read-only and is deliberately reserved for a
-separate task. The historical first mutating Palette vertical slice admitted
+bounded typed read/write slice for all ten canonical widgets: `Scaffold`,
+`ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`,
+`Text` and `Icon`. The exact catalog currently contains 514 writable property
+rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
 140-cell candidate matrix: ten exact capability-reviewed sources target twelve
 any-widget and two `PreferredSizeWidget` destinations, with exactly 122
@@ -51,6 +52,13 @@ empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
 disabled.
+
+The Properties `Slots` tab also uses catalog-authorized atomic commands. An
+occupied single slot is replaced as one fenced edit, rather than as a visible
+remove-then-add sequence. Optional slots can be cleared, and list slots expose
+`Clear All`; each operation validates the exact source revision and expected
+ordered children and is one Undo/Redo unit.
+
 ADR-021 explicitly forbids implementing
 the Canvas as Swing-painted widgets or a transferred PNG/JPEG/raw-pixel surface.
 A planned platform SPI will generalize the Windows host to Linux and macOS; the
@@ -61,7 +69,7 @@ identities and stale/replay admission rules, the explicit Mobile, Tablet,
 Desktop and Web preview-mode identity, native-surface request validation, pure
 backend contracts and per-MultiView lifecycle controller, plus the bounded
 version 1 lifecycle control codec/session gate, process framing and canonical
-reviewed Canvas model payload. Model payload version 8 carries the exact resolved
+reviewed Canvas model payload. Model payload version 9 carries the exact resolved
 project-theme identity, seed, brightness and typed ColorScheme/TextTheme
 override tables; generated Dart and Flutter Canvas apply those tables in the
 same order before form-local Text overrides. Version 8 retains the closed typed
@@ -156,8 +164,9 @@ leaf because effective label color belongs to `ButtonStyle.foregroundColor`.
 it only inside the icon/label child created by `ElevatedButton.icon`; this slice
 models the ordinary arbitrary-child `ElevatedButton` constructor.
 Runtime-only `key`, `focusNode`, `statesController` and layer builders are also
-excluded. Callback properties admit strict Dart identifiers only; payload v8
-sends `callbackPresence` instead of an identifier and the runner installs inert
+excluded. Callback properties admit strict Dart identifiers only. That slice
+originally landed on payload v8; the current aggregate protocol is v9 and still
+sends `callbackPresence` instead of an identifier, so the runner installs inert
 typed closures. The optional-single required-named-nullable child slot emits
 `child: null` while empty.
 
@@ -183,7 +192,9 @@ typed closures. The optional-single required-named-nullable child slot emits
 | Advanced typography | 2 | `styleFontFeatures`, `styleFontVariations` |
 | Strut style | 11 | `strutFontFamily`, `strutFontFamilyFallback`, `strutFontSize`, `strutHeight`, `strutLeadingDistribution`, `strutLeading`, `strutFontWeight`, `strutFontStyle`, `strutForceHeight`, `strutDebugLabel`, `strutPackage` |
 
-This is 497 catalog-backed property rows across the nine non-`Scaffold` widgets.
+The tables above account for 497 catalog-backed property rows across the nine
+non-`Scaffold` widgets. `Scaffold` adds 17 reviewed scalar rows, bringing the
+current exact total to 514 writable rows across all ten canonical widgets.
 Editors cover single-line strings, newline-delimited font fallback lists,
 accessible optional boolean checkboxes, exact constrained integer/double
 controls, reviewed enums, physical non-negative edge insets, ARGB/theme-aware
@@ -227,11 +238,14 @@ future reviewed definitions, but the current built-in exposes no custom metadata
 entry. Material font glyphs require
 `flutter.uses-material-design: true` in the application `pubspec.yaml`.
 
+`Scaffold` exposes only its 17 reviewed scalar constructor fields. Runtime
+controllers/builders, `key`, the `BoxDecoration` graph and widget-valued fields
+which do not yet have an admitted catalog slot remain intentionally excluded.
+
 The deprecated `Text.textScaleFactor` argument and `key` are not exposed;
 `textScalerFactor` targets the current `textScaler` API. Arbitrary shaders,
 color filters, image filters and raw Dart escape expressions remain excluded.
-`Scaffold` Properties,
-broader Palette insertion/DnD, the optional runtime-faithful browser Canvas
+Broader Palette expansion, the optional runtime-faithful browser Canvas
 backend and Linux/macOS native-surface providers remain pending.
 
 Important current document semantics:
@@ -439,11 +453,11 @@ Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
 Windows native read-only `FlutterView`, ten-widget projection, responsive
 profiles, stable-ID tree selection, exact ten-item context Palette and
-selected-node typed Properties are implemented. Properties are writable only
-for the 497 catalog-backed fields of `ElevatedButton`, `AppBar`, `Column`, `Row`,
-`Padding`, `Center`, `SizedBox`, `Text` and `Icon`, including the ElevatedButton,
-AppBar, Text and Icon
-projections above; `Scaffold` stays read-only.
+selected-node typed Properties are implemented. Properties expose exactly
+514 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+`AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`,
+including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
+above.
 Palette DnD is enabled for the ten exact capability-reviewed source definitions and
 fourteen catalog-authorized slots, for 140 candidate cells: 122 admitted and 18
 rejected. The

@@ -91,6 +91,12 @@ class Win32Window {
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
 
+  // Keeps an embedded runner window at the exact parent-client bounds.
+  void FitToParentClientArea();
+
+  // Keeps the Flutter engine content at the exact runner client bounds.
+  void ResizeChildContentToClientArea();
+
   bool quit_on_close_ = false;
 
   // window handle for top level window.

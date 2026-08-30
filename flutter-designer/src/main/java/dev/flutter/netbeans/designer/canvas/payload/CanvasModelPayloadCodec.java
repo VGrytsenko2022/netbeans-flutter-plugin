@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderProfile;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
@@ -34,7 +35,7 @@ import java.util.Map;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -173,6 +174,15 @@ public final class CanvasModelPayloadCodec {
             json.writeObjectFieldStart(entry.getKey());
             writeTextStyleOverride(json, entry.getValue());
             json.writeEndObject();
+        }
+        json.writeEndObject();
+        json.writeObjectFieldStart("components");
+        for (CanvasThemeComponentColorRole role
+                : CanvasThemeComponentColorRole.values()) {
+            CanvasThemeColorValue value = profile.theme().componentColors().get(role);
+            if (value != null) {
+                writeThemeColor(json, role.wireName(), java.util.Optional.of(value));
+            }
         }
         json.writeEndObject();
         json.writeEndObject();

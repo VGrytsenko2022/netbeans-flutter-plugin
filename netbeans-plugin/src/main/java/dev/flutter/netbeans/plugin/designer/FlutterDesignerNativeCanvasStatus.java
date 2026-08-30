@@ -6,11 +6,20 @@ import java.util.Objects;
 record FlutterDesignerNativeCanvasStatus(
         Stage stage,
         String summary,
-        String detail) {
+        String detail,
+        boolean rendered) {
+    FlutterDesignerNativeCanvasStatus(Stage stage, String summary, String detail) {
+        this(stage, summary, detail, false);
+    }
+
     FlutterDesignerNativeCanvasStatus {
         stage = Objects.requireNonNull(stage, "stage");
         summary = requireText(summary, "summary");
         detail = requireText(detail, "detail");
+        if (rendered && stage != Stage.RUNNING) {
+            throw new IllegalArgumentException(
+                    "only a running Canvas status can confirm a rendered frame");
+        }
     }
 
     boolean busy() {

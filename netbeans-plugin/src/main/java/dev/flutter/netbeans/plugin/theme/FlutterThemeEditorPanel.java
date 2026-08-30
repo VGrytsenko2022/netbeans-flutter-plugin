@@ -7,6 +7,7 @@ import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeDefinition;
 import dev.flutter.netbeans.project.theme.FlutterThemeBrightness;
 import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeFontStyle;
 import dev.flutter.netbeans.project.theme.FlutterThemeFontWeight;
 import dev.flutter.netbeans.project.theme.FlutterThemeMode;
@@ -77,6 +78,8 @@ import org.openide.util.NbBundle.Messages;
     "TAB_ThemeGeneral=General",
     "TAB_ThemeColors=Colors",
     "TAB_ThemeTypography=Typography",
+    "TAB_ThemeComponents=Components",
+    "LBL_ThemeComponentColors=Component colors (36)",
     "LBL_ThemeColorRoles=ColorScheme roles",
     "LBL_ThemeColorInherited=Inherited from the seed-generated ColorScheme",
     "# {0} - exact ARGB color",
@@ -122,6 +125,7 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
     private final JTabbedPane tabs = new JTabbedPane();
     private final ColorOverridesEditor colorOverridesEditor;
     private final TypographyOverridesEditor typographyOverridesEditor;
+    private final ComponentColorsEditor componentColorsEditor;
     private final DefaultListModel<FlutterThemeEditorDraft.ThemeRow> listModel =
             new DefaultListModel<>();
     private final JList<FlutterThemeEditorDraft.ThemeRow> themeList =
@@ -167,6 +171,7 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
         this.colorChooser = Objects.requireNonNull(colorChooser, "colorChooser");
         colorOverridesEditor = new ColorOverridesEditor();
         typographyOverridesEditor = new TypographyOverridesEditor();
+        componentColorsEditor = new ComponentColorsEditor();
         setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         getAccessibleContext().setAccessibleName("Flutter project themes editor");
         getAccessibleContext().setAccessibleDescription(
@@ -179,6 +184,7 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
         tabs.addTab(Bundle.TAB_ThemeGeneral(), general);
         tabs.addTab(Bundle.TAB_ThemeColors(), colorOverridesEditor);
         tabs.addTab(Bundle.TAB_ThemeTypography(), typographyOverridesEditor);
+        tabs.addTab(Bundle.TAB_ThemeComponents(), componentColorsEditor);
         add(tabs, BorderLayout.CENTER);
         configureAccessibility();
         configureListeners();
@@ -350,6 +356,14 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
         return typographyOverridesEditor.decorationThickness;
     }
 
+    JList<FlutterThemeComponentColorRole> componentColorRoleListForTest() {
+        return componentColorsEditor.roles;
+    }
+
+    OptionalColorControl componentColorControlForTest() {
+        return componentColorsEditor.color;
+    }
+
     String statusTextForTest() {
         return status.getText();
     }
@@ -451,7 +465,8 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
     private void configureAccessibility() {
         configure(tabs, "Flutter theme editor sections",
                 "Switches between general theme settings, ColorScheme overrides, "
-                + "and TextTheme typography overrides for the selected theme.");
+                + "TextTheme typography overrides, and the closed 36-leaf "
+                + "component color contract for the selected theme.");
         configure(themesEnabled, "Enable project themes",
                 "Controls whether MaterialApp receives the project light, dark, "
                 + "and mode values. The theme catalog is preserved while disabled.");
@@ -729,7 +744,8 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
                     displayName.getText(),
                     (FlutterThemeBrightness) brightness.getSelectedItem(),
                     selectedSeedArgb,
-                    selectedThemeEnabled.isSelected());
+                    selectedThemeEnabled.isSelected(),
+                    selected.overrides());
             for (FlutterThemeEditorDraft.ThemeRow candidate : draft.themes()) {
                 if (candidate != selected && candidate.id().equals(id.getText())) {
                     throw new IllegalArgumentException(
@@ -793,6 +809,7 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
         }
         colorOverridesEditor.showTheme(row);
         typographyOverridesEditor.showTheme(row);
+        componentColorsEditor.showTheme(row);
         updateButtonState();
         validateCurrentInput();
     }
@@ -1138,6 +1155,108 @@ final class FlutterThemeEditorPanel extends JPanel implements Scrollable {
                             : Bundle.LBL_ThemeColorOverride(
                                     FlutterThemeTextStyleOverride
                                             .argbLiteral(override)));
+        }
+    }
+
+    private final class ComponentColorsEditor extends JPanel {
+        private final DefaultListModel<FlutterThemeComponentColorRole> model =
+                new DefaultListModel<>();
+        private final JList<FlutterThemeComponentColorRole> roles =
+                new JList<>(model);
+        private final OptionalColorControl color =
+                new OptionalColorControl("Component color", this::storeCurrent);
+        private FlutterThemeEditorDraft.ThemeRow theme;
+        private boolean loading;
+
+        ComponentColorsEditor() {
+            super(new BorderLayout(4, 4));
+            setBorder(BorderFactory.createTitledBorder(
+                    Bundle.LBL_ThemeComponentColors()));
+            for (FlutterThemeComponentColorRole role
+                    : FlutterThemeComponentColorRole.values()) {
+                model.addElement(role);
+            }
+            roles.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            roles.setVisibleRowCount(11);
+            roles.setCellRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(
+                        JList<?> list,
+                        Object value,
+                        int index,
+                        boolean selectedValue,
+                        boolean focused) {
+                    FlutterThemeComponentColorRole role =
+                            (FlutterThemeComponentColorRole) value;
+                    FlutterThemeColorValue configured = theme == null
+                            ? null
+                            : theme.overrides().componentColors().get(role);
+                    String state = configured == null
+                            ? Bundle.LBL_ThemeInherit()
+                            : switch (configured) {
+                                case FlutterThemeColorValue.Literal literal ->
+                                    literal.argbLiteral();
+                                case FlutterThemeColorValue.ColorRole semantic ->
+                                    "ColorScheme." + semantic.role().wireName();
+                            };
+                    String text = role.displayName() + " — " + state;
+                    JLabel label = (JLabel) super.getListCellRendererComponent(
+                            list, text, index, selectedValue, focused);
+                    label.setToolTipText(role.wireName() + " — " + state);
+                    return label;
+                }
+            });
+            JScrollPane scroll = new JScrollPane(roles);
+            scroll.setHorizontalScrollBarPolicy(
+                    JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+            add(scroll, BorderLayout.CENTER);
+            add(color, BorderLayout.SOUTH);
+
+            configure(roles, "Flutter component color leaves",
+                    "Lists the exact 36 schema-v5 Scaffold, AppBar, Icon and "
+                    + "ElevatedButton component color leaves.");
+            roles.addListSelectionListener(event -> {
+                if (!event.getValueIsAdjusting() && !loading) {
+                    loadCurrent();
+                }
+            });
+            roles.setSelectedIndex(0);
+        }
+
+        void showTheme(FlutterThemeEditorDraft.ThemeRow next) {
+            theme = next;
+            roles.setEnabled(next != null);
+            loadCurrent();
+            roles.repaint();
+        }
+
+        private void loadCurrent() {
+            loading = true;
+            try {
+                FlutterThemeComponentColorRole role = roles.getSelectedValue();
+                FlutterThemeColorValue value = theme == null || role == null
+                        ? null
+                        : theme.overrides().componentColors().get(role);
+                color.load(Optional.ofNullable(value));
+                color.setEnabled(theme != null && role != null);
+            } finally {
+                loading = false;
+            }
+        }
+
+        private void storeCurrent() {
+            if (loading || updating || theme == null) {
+                return;
+            }
+            FlutterThemeComponentColorRole role = roles.getSelectedValue();
+            if (role == null) {
+                return;
+            }
+            draft.setComponentColorOverride(
+                    theme, role, color.read().orElse(null));
+            roles.repaint();
+            validateCurrentInput();
+            markChanged();
         }
     }
 

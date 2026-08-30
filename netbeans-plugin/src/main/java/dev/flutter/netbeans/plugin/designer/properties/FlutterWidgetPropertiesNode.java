@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
+import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
@@ -161,7 +162,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         assignTab(identity, hasSlotTab ? GENERAL_TAB_NAME : null);
         sheet.put(identity);
 
-        if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
+        if (ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE.equals(widget.type())) {
+            addScaffoldPropertySets(sheet, hasSlotTab);
+        } else if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
             addTextPropertySets(sheet, hasSlotTab);
         } else if (IconWidgetPropertySchema.ICON_TYPE.equals(widget.type())) {
             addIconPropertySets(sheet, hasSlotTab);
@@ -405,6 +408,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.encoding()
                             == AppBarWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
                     appBarStringPresets(property.name())));
+        }
+    }
+
+    private void addScaffoldPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ScaffoldWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ScaffoldWidgetPropertySchema.Group.class);
+        for (ScaffoldWidgetPropertySchema.Group group
+                : ScaffoldWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ScaffoldWidgetPropertySchema.Definition schema =
+                    ScaffoldWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in Scaffold property is missing its presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    false,
+                    schema.presets()));
         }
     }
 

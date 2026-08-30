@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.project.theme.FlutterGeneratedThemeArtifact;
+import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
 import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeDefinition;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemePaths;
 import dev.flutter.netbeans.project.theme.FlutterThemeBrightness;
+import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeMode;
 import org.junit.jupiter.api.Test;
 
@@ -116,6 +119,43 @@ class FlutterThemeEditorDraftTest {
 
         assertFalse(custom.enabled());
         assertTrue(duplicate.enabled());
+    }
+
+    @Test
+    void componentColorOverridesAreTypedCopiedAndIndependentlyInherited() {
+        FlutterThemeEditorDraft draft = new FlutterThemeEditorDraft(defaultTheme());
+        FlutterThemeEditorDraft.ThemeRow custom = draft.addCustom();
+        FlutterThemeColorValue literal =
+                new FlutterThemeColorValue.Literal(0x80123456);
+        FlutterThemeColorValue semantic = new FlutterThemeColorValue.ColorRole(
+                FlutterMaterialColorRole.ON_PRIMARY_CONTAINER);
+
+        draft.setComponentColorOverride(custom,
+                FlutterThemeComponentColorRole.APP_BAR_SHADOW, literal);
+        draft.setComponentColorOverride(custom,
+                FlutterThemeComponentColorRole.ELEVATED_BUTTON_ICON_PRESSED,
+                semantic);
+        FlutterThemeEditorDraft.ThemeRow duplicate = draft.duplicate(custom);
+
+        assertEquals(literal, duplicate.overrides().componentColors().get(
+                FlutterThemeComponentColorRole.APP_BAR_SHADOW));
+        assertEquals(semantic, duplicate.overrides().componentColors().get(
+                FlutterThemeComponentColorRole.ELEVATED_BUTTON_ICON_PRESSED));
+
+        draft.setComponentColorOverride(custom,
+                FlutterThemeComponentColorRole.APP_BAR_SHADOW, null);
+        assertFalse(custom.overrides().componentColors().containsKey(
+                FlutterThemeComponentColorRole.APP_BAR_SHADOW));
+        assertEquals(literal, duplicate.overrides().componentColors().get(
+                FlutterThemeComponentColorRole.APP_BAR_SHADOW),
+                "resetting one theme must not mutate a duplicate's overrides");
+
+        FlutterProjectTheme saved = draft.build(defaultTheme().generated());
+        assertEquals(semantic, saved.themes().stream()
+                .filter(theme -> custom.id().equals(theme.id()))
+                .findFirst().orElseThrow().overrides().componentColors().get(
+                        FlutterThemeComponentColorRole
+                                .ELEVATED_BUTTON_ICON_PRESSED));
     }
 
     private static FlutterProjectTheme defaultTheme() {

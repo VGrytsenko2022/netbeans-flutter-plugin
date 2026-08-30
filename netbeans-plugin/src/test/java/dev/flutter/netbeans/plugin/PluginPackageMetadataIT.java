@@ -125,7 +125,8 @@ class PluginPackageMetadataIT {
             "META-INF/netbeans-flutter-designer/schema/fd-v4.schema.json";
     private static final Set<String> DESIGNER_PUBLIC_PACKAGES = Set.of(
             "dev.flutter.netbeans.designer.catalog.*",
-            "dev.flutter.netbeans.designer.model.*");
+            "dev.flutter.netbeans.designer.model.*",
+            "dev.flutter.netbeans.plugin.designer.canvas.spi.*");
     private static final Set<String> DESIGNER_RUNTIME_ENTRIES = Set.of(
             DESIGNER_CODEC_CLASS,
             DESIGNER_SCHEMA_V1,

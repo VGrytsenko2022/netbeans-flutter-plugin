@@ -728,6 +728,54 @@ class PairSaveCoordinatorIntegrationTest {
                     Files.readAllBytes(pair.dartPath()));
             assertArrayEquals(history.oldFd(),
                     Files.readAllBytes(pair.designerPath()));
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.REDO);
+
+            DesignerCommandRevision redoneC1 = orchestrator.currentRevision();
+            assertEquals(history.savedRevisionId(), redoneC1.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                    redoneC1.persistenceKind());
+            assertTrue(orchestrator.dirty(),
+                    "Redo above the newly saved B endpoint must be dirty");
+            assertTrue(pair.dataObject().getEditorSupport().sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR,
+                    pair.coordinator().state().status());
+            assertNotNull(pair.coordinator().stagedProofSnapshot(),
+                    "Redo C1 must rebind its retained semantic edge against saved B");
+            assertSame(cookie,
+                    pair.dataObject().getCookie(SaveCookie.class),
+                    "Redo C1 must republish the stable pair SaveCookie");
+            assertArrayEquals(history.savedDart(),
+                    pair.dataObject().getEditorSupport()
+                            .liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(history.oldDart(),
+                    Files.readAllBytes(pair.dartPath()),
+                    "Redo C1 must not rewrite the newly saved B Dart bytes");
+            assertArrayEquals(history.oldFd(),
+                    Files.readAllBytes(pair.designerPath()),
+                    "Redo C1 must not rewrite the newly saved B .fd bytes");
+
+            replayPairHistory(
+                    pair, DesignerSemanticUndoableEdit.Direction.UNDO);
+
+            DesignerCommandRevision returnedB = orchestrator.currentRevision();
+            assertEquals(history.oldRevisionId(), returnedB.revisionId());
+            assertEquals(DesignerRevisionPersistenceKind.BASELINE,
+                    returnedB.persistenceKind());
+            assertFalse(orchestrator.dirty());
+            assertFalse(pair.dataObject().getEditorSupport().sourceModified());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    pair.coordinator().state().status());
+            assertNull(pair.coordinator().stagedProofSnapshot());
+            assertNull(pair.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(history.oldDart(),
+                    pair.dataObject().getEditorSupport()
+                            .liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(history.oldDart(),
+                    Files.readAllBytes(pair.dartPath()));
+            assertArrayEquals(history.oldFd(),
+                    Files.readAllBytes(pair.designerPath()));
         }
     }
 

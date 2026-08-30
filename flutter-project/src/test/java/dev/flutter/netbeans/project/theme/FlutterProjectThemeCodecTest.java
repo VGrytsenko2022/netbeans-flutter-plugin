@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -15,8 +17,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class FlutterProjectThemeCodecTest {
+    private static final String FROZEN_V4_ROLE_OVERRIDE_DART_SHA256 =
+            "19B60CF503844E4FF1B976AF61EBAAF92B90D4811A3F200B38DD55E771C1E566";
+
+    @TempDir
+    Path temporaryDirectory;
+
     private final FlutterProjectThemeCodec codec = new FlutterProjectThemeCodec();
 
     @Test
@@ -34,7 +43,7 @@ class FlutterProjectThemeCodecTest {
         assertEquals(theme, codec.decode(first));
         assertTrue(json.endsWith("\n"));
         assertTrue(json.contains("\"format\" : \"netbeans-flutter-project-theme\""));
-        assertTrue(json.contains("\"schemaVersion\" : 4"));
+        assertTrue(json.contains("\"schemaVersion\" : 5"));
         assertTrue(json.contains("\"enabled\" : true"));
         assertTrue(json.indexOf("\"enabled\"") < json.indexOf("\"defaultMode\""));
         assertTrue(json.indexOf("\"defaultMode\"") < json.indexOf("\"themes\""));
@@ -42,6 +51,7 @@ class FlutterProjectThemeCodecTest {
         assertTrue(json.contains("\"seedArgb\" : \"0xFF6750A4\""));
         assertEquals(2, countOccurrences(json, "\"colorScheme\" : { }"));
         assertEquals(2, countOccurrences(json, "\"textTheme\" : { }"));
+        assertEquals(2, countOccurrences(json, "\"components\" : { }"));
         assertTrue(json.contains("\"dartFile\" : \"lib/theme/app_theme.dart\""));
         assertTrue(json.contains("\"sha256\" : \""
                 + theme.generated().sha256() + "\""));
@@ -79,11 +89,12 @@ class FlutterProjectThemeCodecTest {
             throws Exception {
         FlutterProjectTheme current = defaultTheme();
         String schemaV1 = new String(codec.encode(current), StandardCharsets.UTF_8)
-                .replace("\"schemaVersion\" : 4,\n  \"enabled\" : true,",
+                .replace("\"schemaVersion\" : 5,\n  \"enabled\" : true,",
                         "\"schemaVersion\" : 1,")
                 .replace("    \"enabled\" : true,\n", "")
                 .replaceAll("(?s),\\s*\"colorScheme\"\\s*:\\s*\\{\\s*\\}\\s*,"
-                        + "\\s*\"textTheme\"\\s*:\\s*\\{\\s*\\}", "");
+                        + "\\s*\"textTheme\"\\s*:\\s*\\{\\s*\\}\\s*,"
+                        + "\\s*\"components\"\\s*:\\s*\\{\\s*\\}", "");
 
         FlutterProjectTheme decoded = codec.decode(
                 schemaV1.getBytes(StandardCharsets.UTF_8));
@@ -99,10 +110,11 @@ class FlutterProjectThemeCodecTest {
     void decodesSchemaV2WithEveryCatalogThemeEnabled() throws Exception {
         FlutterProjectTheme current = defaultTheme();
         String schemaV2 = new String(codec.encode(current), StandardCharsets.UTF_8)
-                .replace("\"schemaVersion\" : 4", "\"schemaVersion\" : 2")
+                .replace("\"schemaVersion\" : 5", "\"schemaVersion\" : 2")
                 .replace("    \"enabled\" : true,\n", "")
                 .replaceAll("(?s),\\s*\"colorScheme\"\\s*:\\s*\\{\\s*\\}\\s*,"
-                        + "\\s*\"textTheme\"\\s*:\\s*\\{\\s*\\}", "");
+                        + "\\s*\"textTheme\"\\s*:\\s*\\{\\s*\\}\\s*,"
+                        + "\\s*\"components\"\\s*:\\s*\\{\\s*\\}", "");
 
         FlutterProjectTheme decoded = codec.decode(schemaV2.getBytes(StandardCharsets.UTF_8));
 
@@ -325,6 +337,179 @@ class FlutterProjectThemeCodecTest {
     }
 
     @Test
+    void schemaV4MigratesToEmptyComponentsWithoutChangingGeneratedDartBytes()
+            throws Exception {
+        FlutterThemeTextStyleOverride textOverride = new FlutterThemeTextStyleOverride(
+                Optional.of(new FlutterThemeColorValue.ColorRole(
+                        FlutterMaterialColorRole.ON_SURFACE)),
+                Optional.empty(), Optional.of(15.0d), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty());
+        FlutterProjectTheme base = defaultTheme();
+        FlutterProjectThemeDefinition light = new FlutterProjectThemeDefinition(
+                "light", "Light", FlutterThemeBrightness.LIGHT, 0xFF6750A4, true,
+                new FlutterThemeOverrides(
+                        Map.of(FlutterMaterialColorRole.PRIMARY, 0xFF123456),
+                        Map.of(FlutterMaterialTextStyleRole.BODY_MEDIUM, textOverride)));
+        FlutterProjectTheme current = new FlutterProjectTheme(
+                true, base.defaultMode(), "light", "dark",
+                List.of(light, base.darkTheme()), base.generated());
+        byte[] legacyDart = FlutterProjectThemeDartGenerator.generate(current);
+        assertEquals(FROZEN_V4_ROLE_OVERRIDE_DART_SHA256,
+                FlutterProjectThemeDigests.sha256(legacyDart));
+        FlutterProjectTheme verifiedV4 = new FlutterProjectTheme(
+                current.enabled(), current.defaultMode(), current.lightThemeId(),
+                current.darkThemeId(), current.themes(),
+                new FlutterGeneratedThemeArtifact(
+                        FlutterProjectThemePaths.GENERATED_DART_WIRE_PATH,
+                        FROZEN_V4_ROLE_OVERRIDE_DART_SHA256));
+        String schemaV4 = new String(codec.encode(verifiedV4), StandardCharsets.UTF_8)
+                .replace("\"schemaVersion\" : 5", "\"schemaVersion\" : 4")
+                .replaceAll(",\\s*\"components\"\\s*:\\s*\\{\\s*\\}", "");
+
+        Path project = Files.createDirectory(temporaryDirectory.resolve("verified-v4"));
+        Path descriptor = project.resolve(FlutterProjectThemePaths.DESCRIPTOR_PATH);
+        Path dartFile = project.resolve(FlutterProjectThemePaths.GENERATED_DART_PATH);
+        Files.createDirectories(descriptor.getParent());
+        Files.createDirectories(dartFile.getParent());
+        Files.writeString(descriptor, schemaV4, StandardCharsets.UTF_8);
+        Files.write(dartFile, legacyDart);
+        assertEquals(FlutterProjectThemeLoadStatus.VALID,
+                new FlutterProjectThemeStore().load(project).status());
+
+        FlutterProjectTheme migrated = codec.decode(
+                schemaV4.getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(migrated.themes().stream()
+                .allMatch(theme -> theme.overrides().componentColors().isEmpty()));
+        assertEquals(current.lightTheme().overrides().colorScheme(),
+                migrated.lightTheme().overrides().colorScheme());
+        assertEquals(current.lightTheme().overrides().textTheme(),
+                migrated.lightTheme().overrides().textTheme());
+        assertEquals(FROZEN_V4_ROLE_OVERRIDE_DART_SHA256,
+                migrated.generated().sha256());
+        assertArrayEquals(legacyDart,
+                FlutterProjectThemeDartGenerator.generate(migrated));
+
+        byte[] canonicalV5 = codec.encode(migrated);
+        String canonicalV5Json = new String(canonicalV5, StandardCharsets.UTF_8);
+        assertTrue(canonicalV5Json.contains("\"schemaVersion\" : 5"));
+        assertEquals(2, countOccurrences(canonicalV5Json, "\"components\" : { }"));
+        Files.write(descriptor, canonicalV5);
+        assertEquals(FlutterProjectThemeLoadStatus.VALID,
+                new FlutterProjectThemeStore().load(project).status());
+    }
+
+    @Test
+    void componentColorsRoundTripAndGenerateClosedThemeDataContracts()
+            throws Exception {
+        assertEquals(36, FlutterThemeComponentColorRole.values().length);
+        EnumMap<FlutterThemeComponentColorRole, FlutterThemeColorValue> components =
+                new EnumMap<>(FlutterThemeComponentColorRole.class);
+        components.put(FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND,
+                new FlutterThemeColorValue.Literal(0xFF102030));
+        components.put(FlutterThemeComponentColorRole.APP_BAR_FOREGROUND,
+                new FlutterThemeColorValue.ColorRole(FlutterMaterialColorRole.ON_PRIMARY));
+        components.put(FlutterThemeComponentColorRole.ICON_COLOR,
+                new FlutterThemeColorValue.ColorRole(FlutterMaterialColorRole.SECONDARY));
+        components.put(FlutterThemeComponentColorRole.ELEVATED_BUTTON_BACKGROUND_DEFAULT,
+                new FlutterThemeColorValue.ColorRole(FlutterMaterialColorRole.PRIMARY));
+        components.put(FlutterThemeComponentColorRole.ELEVATED_BUTTON_BACKGROUND_DISABLED,
+                new FlutterThemeColorValue.Literal(0x61102030));
+        components.put(FlutterThemeComponentColorRole.ELEVATED_BUTTON_ICON_FOCUSED,
+                new FlutterThemeColorValue.ColorRole(FlutterMaterialColorRole.TERTIARY));
+        components.put(FlutterThemeComponentColorRole.ELEVATED_BUTTON_OVERLAY_PRESSED,
+                new FlutterThemeColorValue.Literal(0x22102030));
+        FlutterProjectTheme base = defaultTheme();
+        FlutterProjectThemeDefinition light = new FlutterProjectThemeDefinition(
+                "light", "Light", FlutterThemeBrightness.LIGHT, 0xFF6750A4, true,
+                new FlutterThemeOverrides(Map.of(), Map.of(), components));
+        FlutterProjectTheme theme = new FlutterProjectTheme(
+                true, base.defaultMode(), "light", "dark",
+                List.of(light, base.darkTheme()), base.generated());
+
+        byte[] encoded = codec.encode(theme);
+        String json = new String(encoded, StandardCharsets.UTF_8);
+        String dart = new String(
+                FlutterProjectThemeDartGenerator.generate(theme), StandardCharsets.UTF_8);
+
+        assertEquals(theme, codec.decode(encoded));
+        assertTrue(json.contains("\"scaffold.backgroundColor\""));
+        assertTrue(json.contains("\"elevatedButton.iconColor.focused\""));
+        assertTrue(dart.contains("scaffoldBackgroundColor: const Color(0xFF102030)"));
+        assertTrue(dart.contains("appBarTheme: base.appBarTheme.copyWith("));
+        assertTrue(dart.contains("foregroundColor: colorScheme.onPrimary"));
+        assertTrue(dart.contains("iconTheme: base.iconTheme.copyWith("));
+        assertTrue(dart.contains("elevatedButtonTheme: ElevatedButtonThemeData("));
+        assertTrue(dart.contains("backgroundColor: WidgetStateProperty.resolveWith<Color?>"));
+        assertTrue(dart.contains("states.contains(WidgetState.disabled)"));
+        assertTrue(dart.contains("return colorScheme.primary;"));
+        assertTrue(dart.contains("iconColor: WidgetStateProperty.resolveWith<Color?>"));
+        assertTrue(dart.contains(
+                ").merge(base.elevatedButtonTheme.style),"),
+                "component ButtonStyle must keep unrelated base theme fields");
+        int overlay = dart.indexOf(
+                "overlayColor: WidgetStateProperty.resolveWith<Color?>");
+        int disabledGuard = dart.indexOf(
+                "if (states.contains(WidgetState.disabled))", overlay);
+        int nullFallback = dart.indexOf("return null;", disabledGuard);
+        int pressedBranch = dart.indexOf(
+                "if (states.contains(WidgetState.pressed))", disabledGuard);
+        assertTrue(overlay >= 0 && disabledGuard > overlay
+                && nullFallback > disabledGuard && pressedBranch > nullFallback,
+                "disabled must terminate with null before pressed/hovered/focused");
+    }
+
+    @Test
+    void componentBuildersUseUniqueLintSafeNamesWithoutChangingLegacyBuilders() {
+        FlutterThemeOverrides component = new FlutterThemeOverrides(
+                Map.of(), Map.of(), Map.of(
+                        FlutterThemeComponentColorRole.ICON_COLOR,
+                        new FlutterThemeColorValue.Literal(0xFF123456)));
+        FlutterProjectTheme base = defaultTheme();
+        FlutterProjectTheme theme = new FlutterProjectTheme(
+                true, FlutterThemeMode.SYSTEM, "a_b", "dark",
+                List.of(
+                        new FlutterProjectThemeDefinition(
+                                "a_b", "A B", FlutterThemeBrightness.LIGHT,
+                                0xFF6750A4, true, component),
+                        new FlutterProjectThemeDefinition(
+                                "a__b", "A double B", FlutterThemeBrightness.LIGHT,
+                                0xFF123456, true, component),
+                        base.darkTheme()),
+                base.generated());
+
+        String dart = new String(
+                FlutterProjectThemeDartGenerator.generate(theme), StandardCharsets.UTF_8);
+
+        assertTrue(dart.contains("'a_b': _buildComponentTheme0(),"));
+        assertTrue(dart.contains("'a__b': _buildComponentTheme1(),"));
+        assertTrue(dart.contains("static ThemeData _buildComponentTheme0()"));
+        assertTrue(dart.contains("static ThemeData _buildComponentTheme1()"));
+        assertFalse(dart.contains("_build_a_b"));
+        assertFalse(dart.contains("_build_a__b"));
+    }
+
+    @Test
+    void schemaV5ComponentContractRejectsUnknownMissingAndLegacyInjection()
+            throws Exception {
+        String valid = new String(codec.encode(defaultTheme()), StandardCharsets.UTF_8);
+        assertThrows(IOException.class, () -> codec.decode(valid.replaceFirst(
+                "\"components\" : \\{ \\}",
+                "\"components\" : { \"unknown.color\" : "
+                + "{ \"kind\" : \"argb\", \"argb\" : \"0xFF000000\" } }")
+                .getBytes(StandardCharsets.UTF_8)));
+        assertThrows(IOException.class, () -> codec.decode(valid.replaceFirst(
+                ",\\s*\"components\"\\s*:\\s*\\{\\s*\\}", "")
+                .getBytes(StandardCharsets.UTF_8)));
+        String schemaV4WithComponents = valid.replace(
+                "\"schemaVersion\" : 5", "\"schemaVersion\" : 4");
+        assertThrows(IOException.class, () -> codec.decode(
+                schemaV4WithComponents.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void disabledCatalogThemeRoundTripsButIsOmittedFromGeneratedMap() throws Exception {
         FlutterProjectTheme current = defaultTheme();
         FlutterProjectThemeDefinition custom = new FlutterProjectThemeDefinition(
@@ -413,18 +598,18 @@ class FlutterProjectThemeCodecTest {
                 "\"format\"", "\"unknown\" : true,\n  \"format\"")
                 .getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replaceFirst(
-                "\"schemaVersion\" : 4", "\"schemaVersion\" : 4,\n"
-                + "  \"schemaVersion\" : 4").getBytes(StandardCharsets.UTF_8)));
+                "\"schemaVersion\" : 5", "\"schemaVersion\" : 5,\n"
+                + "  \"schemaVersion\" : 5").getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replaceFirst(
                 "\"enabled\" : true", "\"enabled\" : \"true\"")
                 .getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replace(
                 "  \"enabled\" : true,\n", "").getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replace(
-                "\"schemaVersion\" : 4", "\"schemaVersion\" : 5")
+                "\"schemaVersion\" : 5", "\"schemaVersion\" : 6")
                 .getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replace(
-                "\"schemaVersion\" : 4", "\"schemaVersion\" : 1")
+                "\"schemaVersion\" : 5", "\"schemaVersion\" : 1")
                 .getBytes(StandardCharsets.UTF_8)));
         assertThrows(IOException.class, () -> codec.decode(valid.replaceFirst(
                 "    \"enabled\" : true,\n", "")
@@ -517,7 +702,15 @@ class FlutterProjectThemeCodecTest {
         for (FlutterMaterialTextStyleRole role : FlutterMaterialTextStyleRole.values()) {
             text.put(role, style);
         }
-        FlutterThemeOverrides overrides = new FlutterThemeOverrides(colors, text);
+        EnumMap<FlutterThemeComponentColorRole, FlutterThemeColorValue> components =
+                new EnumMap<>(FlutterThemeComponentColorRole.class);
+        for (FlutterThemeComponentColorRole role
+                : FlutterThemeComponentColorRole.values()) {
+            components.put(role, new FlutterThemeColorValue.Literal(
+                    0xFF000000 | role.ordinal()));
+        }
+        FlutterThemeOverrides overrides = new FlutterThemeOverrides(
+                colors, text, components);
         List<FlutterProjectThemeDefinition> definitions = new ArrayList<>();
         definitions.add(new FlutterProjectThemeDefinition(
                 "light", "Light", FlutterThemeBrightness.LIGHT,

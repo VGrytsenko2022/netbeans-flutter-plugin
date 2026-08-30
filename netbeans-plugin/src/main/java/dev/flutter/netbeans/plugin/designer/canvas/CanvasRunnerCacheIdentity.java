@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasRunnerContract;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -16,33 +17,39 @@ import java.util.Objects;
 public record CanvasRunnerCacheIdentity(
         String sourceDigest,
         String engineRevision,
+        String runnerContractIdentity,
         String cacheKey) {
     private static final int MAX_IDENTITY_FILE_BYTES = 4096;
 
     public CanvasRunnerCacheIdentity {
         sourceDigest = requireDigest(sourceDigest, "source digest");
         engineRevision = requireRecordValue(engineRevision, "Flutter engine revision");
+        runnerContractIdentity = requireDigest(
+                runnerContractIdentity, "Canvas runner contract fingerprint");
         cacheKey = requireDigest(cacheKey, "cache key");
     }
 
-    /** Short Windows-safe directory segment; the full digest remains in cache markers. */
+    /** Short portable directory segment; the full digest remains in cache markers. */
     public String cacheDirectoryName() {
         return "r-" + cacheKey.substring(0, 20);
     }
 
     public static CanvasRunnerCacheIdentity create(
             CanvasRunnerSourceBundle bundle,
-            FlutterSdk sdk) throws IOException {
-        return create(bundle, sdk, CanvasRunnerBuildService.BUILD_PROFILE);
+            FlutterSdk sdk,
+            NativeCanvasRunnerContract contract) throws IOException {
+        Objects.requireNonNull(contract, "contract");
+        return create(bundle, sdk, contract.fingerprint());
     }
 
     static CanvasRunnerCacheIdentity create(
             CanvasRunnerSourceBundle bundle,
             FlutterSdk sdk,
-            String buildProfile) throws IOException {
+            String runnerContractFingerprint) throws IOException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(sdk, "sdk");
-        buildProfile = requireValue(buildProfile, "Canvas runner build profile");
+        runnerContractFingerprint = requireDigest(
+                runnerContractFingerprint, "Canvas runner contract fingerprint");
         Path sdkHome = sdk.home().toRealPath(LinkOption.NOFOLLOW_LINKS);
         Path executable = sdk.flutterExecutable().toRealPath(LinkOption.NOFOLLOW_LINKS);
         if (Files.isSymbolicLink(sdkHome) || Files.isSymbolicLink(executable)) {
@@ -65,9 +72,12 @@ public record CanvasRunnerCacheIdentity(
         update(digest, "flutter-executable", executable.toString());
         update(digest, "framework", frameworkVersion);
         update(digest, "engine", engineRevision);
-        update(digest, "build-profile", buildProfile);
+        update(digest, "runner-contract", runnerContractFingerprint);
         return new CanvasRunnerCacheIdentity(
-                bundle.sourceDigest(), engineRevision, HexFormat.of().formatHex(digest.digest()));
+                bundle.sourceDigest(),
+                engineRevision,
+                runnerContractFingerprint,
+                HexFormat.of().formatHex(digest.digest()));
     }
 
     private static String readIdentityFile(Path file, String label) throws IOException {

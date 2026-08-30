@@ -181,6 +181,71 @@ void main() {
     },
   );
 
+  testWidgets('gates all Canvas input behind a visible exact fence barrier', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+    var interactions = 0;
+    var deletes = 0;
+    final selections = <String>[];
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: selections.add,
+        onInteraction: () => interactions++,
+        onDeleteSelected: () {
+          deletes++;
+          return true;
+        },
+        interactionInputSynchronized: false,
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('canvas-interaction-fence-overlay')),
+      findsOneWidget,
+    );
+    expect(find.text('Synchronizing input…'), findsOneWidget);
+    await tester.tapAt(const Offset(8, 300));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+
+    expect(interactions, 0);
+    expect(selections, isEmpty);
+    expect(deletes, 0);
+
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: selections.add,
+        onInteraction: () => interactions++,
+        onDeleteSelected: () {
+          deletes++;
+          return true;
+        },
+        interactionInputSynchronized: true,
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('canvas-interaction-fence-overlay')),
+      findsNothing,
+    );
+    await tester.tapAt(const Offset(8, 300));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+
+    expect(interactions, 2);
+    expect(deletes, 1);
+  });
+
   testWidgets(
     'keeps the logical MediaQuery fixed while manual zoom enables panning',
     (tester) async {
@@ -424,24 +489,79 @@ void main() {
       await tester.pump();
 
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-      expect(deleteCalls, 1);
+      expect(
+        deleteCalls,
+        0,
+        reason: 'rendering the Canvas must not claim keyboard focus',
+      );
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      expect(deleteCalls, 1);
+      expect(deleteCalls, 0);
 
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-      expect(deleteCalls, 1, reason: 'an unfocused Canvas must stay inert');
+      expect(deleteCalls, 0, reason: 'an unfocused Canvas must stay inert');
 
       await tester.tap(find.byKey(ValueKey('canvas-widget-$selected')));
       await tester.pump();
       expect(selections, hasLength(1));
       expect(model.widgetIds, contains(selections.single));
       await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-      expect(deleteCalls, 2, reason: 'widget tap restores Canvas focus');
+      expect(deleteCalls, 1, reason: 'widget tap gives the Canvas focus');
+    },
+  );
+
+  testWidgets(
+    'does not steal external focus on render and claims it on Canvas pointer down',
+    (tester) async {
+      final model = CanvasModel.decode(fixture.modelBytesForViewTest());
+      final externalFocusNode = FocusNode(debugLabel: 'external-owner');
+      addTearDown(externalFocusNode.dispose);
+      var interactions = 0;
+
+      Widget buildApp() {
+        return MaterialApp(
+          home: Column(
+            children: [
+              Focus(
+                focusNode: externalFocusNode,
+                child: const SizedBox(width: 1, height: 1),
+              ),
+              Expanded(
+                child: CanvasDocumentView(
+                  model: model,
+                  selectedWidgetId: null,
+                  onSelected: (_) {},
+                  onInteraction: () => interactions++,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      await tester.pumpWidget(buildApp());
+      externalFocusNode.requestFocus();
+      await tester.pump();
+      expect(externalFocusNode.hasFocus, isTrue);
+
+      await tester.pumpWidget(buildApp());
+      await tester.pump();
+      expect(
+        externalFocusNode.hasFocus,
+        isTrue,
+        reason: 'a Canvas rebuild must preserve the current external owner',
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('canvas-interaction-surface')),
+      );
+      await tester.pump();
+      expect(externalFocusNode.hasFocus, isFalse);
+      expect(interactions, 1);
     },
   );
 
@@ -563,6 +683,117 @@ void main() {
       );
     },
   );
+
+  testWidgets('applies component colors and keeps local widget colors last', (
+    tester,
+  ) async {
+    final json =
+        jsonDecode(
+              utf8.decode(
+                fixture.elevatedButtonModelBytesForViewTest(
+                  properties: {
+                    'onPressed': {'kind': 'callbackPresence'},
+                    'styleForegroundColor': {
+                      'kind': 'color',
+                      'argb': '0xFFABCDEF',
+                    },
+                  },
+                ),
+              ),
+            )
+            as Map<String, Object?>;
+    final theme =
+        (json['profile']! as Map<String, Object?>)['theme']!
+            as Map<String, Object?>;
+    theme['components'] = {
+      'scaffold.backgroundColor': {'kind': 'argb', 'argb': '0xFF102030'},
+      'appBar.backgroundColor': {'kind': 'argb', 'argb': '0xFF203040'},
+      'appBar.foregroundColor': {'kind': 'colorScheme', 'role': 'onPrimary'},
+      'appBar.shadowColor': {'kind': 'argb', 'argb': '0xFF304050'},
+      'appBar.surfaceTintColor': {'kind': 'argb', 'argb': '0xFF405060'},
+      'icon.color': {'kind': 'argb', 'argb': '0xFF506070'},
+      'elevatedButton.backgroundColor.default': {
+        'kind': 'argb',
+        'argb': '0xFF607080',
+      },
+      'elevatedButton.backgroundColor.disabled': {
+        'kind': 'argb',
+        'argb': '0xFF708090',
+      },
+      'elevatedButton.backgroundColor.pressed': {
+        'kind': 'argb',
+        'argb': '0xFF8090A0',
+      },
+      'elevatedButton.foregroundColor.default': {
+        'kind': 'argb',
+        'argb': '0xFF90A0B0',
+      },
+      'elevatedButton.overlayColor.pressed': {
+        'kind': 'argb',
+        'argb': '0x66A0B0C0',
+      },
+    };
+    final model = CanvasModel.decode(
+      Uint8List.fromList(utf8.encode(jsonEncode(json))),
+    );
+
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    final resolvedTheme = app.theme!;
+    expect(resolvedTheme.scaffoldBackgroundColor, const Color(0xff102030));
+    expect(resolvedTheme.appBarTheme.backgroundColor, const Color(0xff203040));
+    expect(
+      resolvedTheme.appBarTheme.foregroundColor,
+      resolvedTheme.colorScheme.onPrimary,
+    );
+    expect(resolvedTheme.appBarTheme.shadowColor, const Color(0xff304050));
+    expect(resolvedTheme.appBarTheme.surfaceTintColor, const Color(0xff405060));
+    expect(resolvedTheme.iconTheme.color, const Color(0xff506070));
+
+    final componentStyle = resolvedTheme.elevatedButtonTheme.style!;
+    expect(
+      componentStyle.backgroundColor!.resolve(const <WidgetState>{}),
+      const Color(0xff607080),
+    );
+    expect(
+      componentStyle.backgroundColor!.resolve(const {
+        WidgetState.disabled,
+        WidgetState.pressed,
+      }),
+      const Color(0xff708090),
+      reason: 'disabled has priority over pressed',
+    );
+    expect(
+      componentStyle.overlayColor!.resolve(const {
+        WidgetState.disabled,
+        WidgetState.pressed,
+      }),
+      isNull,
+      reason:
+          'an absent disabled override must fall through to framework, '
+          'never to the pressed component override',
+    );
+
+    expect(
+      tester
+          .widgetList<Scaffold>(find.byType(Scaffold))
+          .map((widget) => widget.backgroundColor),
+      contains(const Color(0xffffffff)),
+      reason: 'local Scaffold color wins over the component theme',
+    );
+    expect(
+      tester
+          .widget<ElevatedButton>(find.byType(ElevatedButton))
+          .style!
+          .foregroundColor!
+          .resolve(const <WidgetState>{}),
+      const Color(0xffabcdef),
+      reason: 'local ButtonStyle color wins over the component theme',
+    );
+  });
 
   testWidgets('renders actual Flutter widgets and reports a stable selection', (
     tester,
@@ -789,6 +1020,101 @@ void main() {
           .first,
     );
     expect(text.data, isEmpty);
+  });
+
+  testWidgets('renders every reviewed Scaffold scalar with framework parity', (
+    tester,
+  ) async {
+    const scaffoldId = '6e88bff4-8d73-48aa-92b5-87aa3344f6a7';
+    const themedScrim = Color(0xff5a1234);
+    final json = _modelJsonForView();
+    final root = json['root']! as Map<String, Object?>;
+    root['properties'] = <String, Object?>{
+      'floatingActionButtonLocation': {
+        'kind': 'string',
+        'value': 'miniCenterDocked',
+      },
+      'floatingActionButtonAnimator': {
+        'kind': 'string',
+        'value': 'noAnimation',
+      },
+      'persistentFooterAlignment': {'kind': 'string', 'value': 'bottomStart'},
+      'onDrawerChanged': {'kind': 'callbackPresence'},
+      'onEndDrawerChanged': {'kind': 'callbackPresence'},
+      'backgroundColor': {'kind': 'color', 'argb': '0xFF102030'},
+      'resizeToAvoidBottomInset': {'kind': 'boolean', 'value': false},
+      'primary': {'kind': 'boolean', 'value': false},
+      'drawerDragStartBehavior': {
+        'kind': 'enum',
+        'type': 'DragStartBehavior',
+        'value': 'down',
+      },
+      'extendBody': {'kind': 'boolean', 'value': true},
+      'drawerBarrierDismissible': {'kind': 'boolean', 'value': false},
+      'extendBodyBehindAppBar': {'kind': 'boolean', 'value': true},
+      'drawerScrimColor': {
+        'kind': 'themeToken',
+        'token': 'material.colorScheme.scrim',
+      },
+      'drawerEdgeDragWidth': {'kind': 'double', 'value': 24.5},
+      'drawerEnableOpenDragGesture': {'kind': 'boolean', 'value': false},
+      'endDrawerEnableOpenDragGesture': {'kind': 'boolean', 'value': false},
+      'restorationId': {'kind': 'string', 'value': 'home-scaffold'},
+    };
+    final model = CanvasModel.decode(
+      Uint8List.fromList(utf8.encode(jsonEncode(json))),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.from(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xff6750a4),
+            scrim: themedScrim,
+          ),
+        ),
+        home: CanvasDocumentView(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      ),
+    );
+
+    final scaffold = tester.widget<Scaffold>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$scaffoldId')),
+            matching: find.byType(Scaffold),
+          )
+          .first,
+    );
+    expect(
+      scaffold.floatingActionButtonLocation,
+      same(FloatingActionButtonLocation.miniCenterDocked),
+    );
+    expect(
+      scaffold.floatingActionButtonAnimator,
+      same(FloatingActionButtonAnimator.noAnimation),
+    );
+    expect(
+      scaffold.persistentFooterAlignment,
+      AlignmentDirectional.bottomStart,
+    );
+    expect(scaffold.onDrawerChanged, isNotNull);
+    expect(scaffold.onEndDrawerChanged, isNotNull);
+    expect(scaffold.backgroundColor, const Color(0xff102030));
+    expect(scaffold.resizeToAvoidBottomInset, isFalse);
+    expect(scaffold.primary, isFalse);
+    expect(scaffold.drawerDragStartBehavior, DragStartBehavior.down);
+    expect(scaffold.extendBody, isTrue);
+    expect(scaffold.drawerBarrierDismissible, isFalse);
+    expect(scaffold.extendBodyBehindAppBar, isTrue);
+    expect(scaffold.drawerScrimColor, themedScrim);
+    expect(scaffold.drawerEdgeDragWidth, 24.5);
+    expect(scaffold.drawerEnableOpenDragGesture, isFalse);
+    expect(scaffold.endDrawerEnableOpenDragGesture, isFalse);
+    expect(scaffold.restorationId, 'home-scaffold');
   });
 
   testWidgets('renders exact Padding sides and nullable Center factors', (

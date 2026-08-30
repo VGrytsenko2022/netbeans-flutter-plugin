@@ -38,6 +38,8 @@ class NativeCanvasApp extends StatelessWidget {
           model: model,
           selectedWidgetId: runtime.selectedWidgetId,
           onSelected: runtime.selectFromCanvas,
+          onInteraction: runtime.interactFromCanvas,
+          interactionInputSynchronized: runtime.interactionInputSynchronized,
           onDeleteSelected: runtime.deleteSelectedFromCanvas,
           dropHoverTarget: runtime.dropHoverTarget,
           dropIndicatorKind: runtime.hasWidgetMovePreview
@@ -60,6 +62,8 @@ class CanvasModelApp extends StatelessWidget {
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.onInteraction,
+    this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
     this.dropHoverTarget,
     this.dropIndicatorKind = CanvasDropIndicatorKind.paletteInsertion,
@@ -74,6 +78,8 @@ class CanvasModelApp extends StatelessWidget {
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final VoidCallback? onInteraction;
+  final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
   final CanvasDropTarget? dropHoverTarget;
   final CanvasDropIndicatorKind dropIndicatorKind;
@@ -95,6 +101,8 @@ class CanvasModelApp extends StatelessWidget {
         model: model,
         selectedWidgetId: selectedWidgetId,
         onSelected: onSelected,
+        onInteraction: onInteraction,
+        interactionInputSynchronized: interactionInputSynchronized,
         onDeleteSelected: onDeleteSelected,
         dropHoverTarget: dropHoverTarget,
         dropIndicatorKind: dropIndicatorKind,
@@ -113,6 +121,8 @@ class CanvasDocumentView extends StatefulWidget {
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.onInteraction,
+    this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
     this.dropHoverTarget,
     this.dropIndicatorKind = CanvasDropIndicatorKind.paletteInsertion,
@@ -127,6 +137,8 @@ class CanvasDocumentView extends StatefulWidget {
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final VoidCallback? onInteraction;
+  final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
   final CanvasDropTarget? dropHoverTarget;
   final CanvasDropIndicatorKind dropIndicatorKind;
@@ -194,7 +206,6 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         widget.viewportPresentation ??
         CanvasViewportPresentation.fit(widget.model);
     return Focus(
-      autofocus: true,
       focusNode: _focusNode,
       onKeyEvent: _onKeyEvent,
       child: Scaffold(
@@ -214,8 +225,17 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               _reportViewportAfterFrame(presentation, geometry);
               _refreshZeroSizedWidgetTargetsAfterFrame();
               return Listener(
+                key: const ValueKey('canvas-interaction-surface'),
                 behavior: HitTestBehavior.opaque,
-                onPointerSignal: _onPointerSignal,
+                onPointerDown: (_) {
+                  if (widget.interactionInputSynchronized) {
+                    _focusNode.requestFocus();
+                    widget.onInteraction?.call();
+                  }
+                },
+                onPointerSignal: widget.interactionInputSynchronized
+                    ? _onPointerSignal
+                    : null,
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
@@ -326,6 +346,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                             presentation.copyWith(verticalScrollMicros: value),
                           ),
                         ),
+                      ),
+                    if (!widget.interactionInputSynchronized)
+                      const Positioned.fill(
+                        child: _InteractionBarrierOverlay(),
                       ),
                   ],
                 ),
@@ -531,6 +555,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (!widget.interactionInputSynchronized) {
+      return KeyEventResult.handled;
+    }
     final keyboard = HardwareKeyboard.instance;
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.delete ||
@@ -1074,6 +1101,53 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 }
 
+class _InteractionBarrierOverlay extends StatelessWidget {
+  const _InteractionBarrierOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return AbsorbPointer(
+      key: const ValueKey('canvas-interaction-fence-overlay'),
+      absorbing: true,
+      child: ColoredBox(
+        color: dark ? const Color(0x26000000) : const Color(0x14000000),
+        child: Center(
+          child: Semantics(
+            liveRegion: true,
+            label: 'Synchronizing Canvas input',
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xff303134) : const Color(0xfff8f9fa),
+                border: Border.all(
+                  color: dark
+                      ? const Color(0xff5f6368)
+                      : const Color(0xffbdc1c6),
+                ),
+                borderRadius: BorderRadius.circular(3),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Text(
+                  'Synchronizing input…',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DropCandidate {
   const _DropCandidate(
     this.node,
@@ -1445,7 +1519,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         ? _paddingGeometry()
         : null;
     final child = switch (node.type) {
-      'flutter.material.Scaffold' => _scaffold(),
+      'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.widgets.Column' => _column(),
@@ -1508,17 +1582,87 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _scaffold() {
-    final background = _color('backgroundColor');
-    final resize = _boolean('resizeToAvoidBottomInset');
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
-      resizeToAvoidBottomInset: resize,
       appBar: _preferredSizeSingle('appBar'),
       body: _single('body') ?? const SizedBox.expand(),
       floatingActionButton: _single('floatingActionButton'),
+      floatingActionButtonLocation: _scaffoldFloatingActionButtonLocation(),
+      floatingActionButtonAnimator: _scaffoldFloatingActionButtonAnimator(),
+      persistentFooterAlignment:
+          _scaffoldPersistentFooterAlignment() ??
+          AlignmentDirectional.centerEnd,
+      onDrawerChanged: _callbackPresent('onDrawerChanged') ? (_) {} : null,
+      onEndDrawerChanged: _callbackPresent('onEndDrawerChanged')
+          ? (_) {}
+          : null,
+      backgroundColor: _resolvedColor(context, 'backgroundColor'),
+      resizeToAvoidBottomInset: _boolean('resizeToAvoidBottomInset'),
+      primary: _boolean('primary') ?? true,
+      drawerDragStartBehavior: _scaffoldDrawerDragStartBehavior(),
+      extendBody: _boolean('extendBody') ?? false,
+      drawerBarrierDismissible: _boolean('drawerBarrierDismissible') ?? true,
+      extendBodyBehindAppBar: _boolean('extendBodyBehindAppBar') ?? false,
+      drawerScrimColor: _resolvedColor(context, 'drawerScrimColor'),
+      drawerEdgeDragWidth: _number('drawerEdgeDragWidth'),
+      drawerEnableOpenDragGesture:
+          _boolean('drawerEnableOpenDragGesture') ?? true,
+      endDrawerEnableOpenDragGesture:
+          _boolean('endDrawerEnableOpenDragGesture') ?? true,
+      restorationId: _string('restorationId'),
     );
   }
+
+  FloatingActionButtonLocation? _scaffoldFloatingActionButtonLocation() =>
+      switch (_string('floatingActionButtonLocation')) {
+        'startTop' => FloatingActionButtonLocation.startTop,
+        'miniStartTop' => FloatingActionButtonLocation.miniStartTop,
+        'centerTop' => FloatingActionButtonLocation.centerTop,
+        'miniCenterTop' => FloatingActionButtonLocation.miniCenterTop,
+        'endTop' => FloatingActionButtonLocation.endTop,
+        'miniEndTop' => FloatingActionButtonLocation.miniEndTop,
+        'startFloat' => FloatingActionButtonLocation.startFloat,
+        'miniStartFloat' => FloatingActionButtonLocation.miniStartFloat,
+        'centerFloat' => FloatingActionButtonLocation.centerFloat,
+        'miniCenterFloat' => FloatingActionButtonLocation.miniCenterFloat,
+        'endFloat' => FloatingActionButtonLocation.endFloat,
+        'miniEndFloat' => FloatingActionButtonLocation.miniEndFloat,
+        'startDocked' => FloatingActionButtonLocation.startDocked,
+        'miniStartDocked' => FloatingActionButtonLocation.miniStartDocked,
+        'centerDocked' => FloatingActionButtonLocation.centerDocked,
+        'miniCenterDocked' => FloatingActionButtonLocation.miniCenterDocked,
+        'endDocked' => FloatingActionButtonLocation.endDocked,
+        'miniEndDocked' => FloatingActionButtonLocation.miniEndDocked,
+        'endContained' => FloatingActionButtonLocation.endContained,
+        _ => null,
+      };
+
+  FloatingActionButtonAnimator? _scaffoldFloatingActionButtonAnimator() =>
+      switch (_string('floatingActionButtonAnimator')) {
+        'scaling' => FloatingActionButtonAnimator.scaling,
+        'noAnimation' => FloatingActionButtonAnimator.noAnimation,
+        _ => null,
+      };
+
+  AlignmentDirectional? _scaffoldPersistentFooterAlignment() =>
+      switch (_string('persistentFooterAlignment')) {
+        'topStart' => AlignmentDirectional.topStart,
+        'topCenter' => AlignmentDirectional.topCenter,
+        'topEnd' => AlignmentDirectional.topEnd,
+        'centerStart' => AlignmentDirectional.centerStart,
+        'center' => AlignmentDirectional.center,
+        'centerEnd' => AlignmentDirectional.centerEnd,
+        'bottomStart' => AlignmentDirectional.bottomStart,
+        'bottomCenter' => AlignmentDirectional.bottomCenter,
+        'bottomEnd' => AlignmentDirectional.bottomEnd,
+        _ => null,
+      };
+
+  DragStartBehavior _scaffoldDrawerDragStartBehavior() =>
+      switch (_enum('drawerDragStartBehavior')) {
+        'down' => DragStartBehavior.down,
+        _ => DragStartBehavior.start,
+      };
 
   Widget _column() => Column(
     mainAxisAlignment: _mainAxisAlignment(),
@@ -2639,11 +2783,6 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return value is num ? value.toDouble() : null;
   }
 
-  Color? _color(String name) {
-    final property = node.properties[name];
-    return property?.kind == 'color' ? Color(property!.value as int) : null;
-  }
-
   Color? _resolvedColor(BuildContext context, String name) {
     final property = node.properties[name];
     if (property == null) {
@@ -3393,7 +3532,7 @@ ThemeData _theme(CanvasProfile profile, Brightness brightness) {
     profile.theme.colorScheme,
   );
   final base = ThemeData.from(colorScheme: colorScheme);
-  return base.copyWith(
+  final roleTheme = base.copyWith(
     textTheme: _applyTextThemeOverrides(
       base.textTheme,
       colorScheme,
@@ -3401,6 +3540,109 @@ ThemeData _theme(CanvasProfile profile, Brightness brightness) {
     ),
     platform: canvasAdaptiveTargetPlatform(profile.targetPlatform),
   );
+  return _applyComponentColorOverrides(
+    roleTheme,
+    colorScheme,
+    profile.theme.components,
+  );
+}
+
+ThemeData _applyComponentColorOverrides(
+  ThemeData base,
+  ColorScheme colorScheme,
+  Map<String, CanvasThemeColorValue> values,
+) {
+  Color? color(String role) => _themeOverrideColor(values[role], colorScheme);
+  final hasAppBar = values.keys.any((key) => key.startsWith('appBar.'));
+  final hasIcon = values.containsKey('icon.color');
+  final hasElevated = values.keys.any(
+    (key) => key.startsWith('elevatedButton.'),
+  );
+  return base.copyWith(
+    scaffoldBackgroundColor: color('scaffold.backgroundColor'),
+    appBarTheme: hasAppBar
+        ? base.appBarTheme.copyWith(
+            backgroundColor: color('appBar.backgroundColor'),
+            foregroundColor: color('appBar.foregroundColor'),
+            shadowColor: color('appBar.shadowColor'),
+            surfaceTintColor: color('appBar.surfaceTintColor'),
+          )
+        : null,
+    iconTheme: hasIcon
+        ? base.iconTheme.copyWith(color: color('icon.color'))
+        : null,
+    elevatedButtonTheme: hasElevated
+        ? ElevatedButtonThemeData(
+            style: (base.elevatedButtonTheme.style ?? const ButtonStyle())
+                .copyWith(
+                  backgroundColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'backgroundColor',
+                  ),
+                  foregroundColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'foregroundColor',
+                  ),
+                  overlayColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'overlayColor',
+                  ),
+                  shadowColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'shadowColor',
+                  ),
+                  surfaceTintColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'surfaceTintColor',
+                  ),
+                  iconColor: _componentButtonColor(
+                    colorScheme,
+                    values,
+                    'iconColor',
+                  ),
+                ),
+          )
+        : null,
+  );
+}
+
+WidgetStateProperty<Color?>? _componentButtonColor(
+  ColorScheme colorScheme,
+  Map<String, CanvasThemeColorValue> values,
+  String property,
+) {
+  CanvasThemeColorValue? value(String state) =>
+      values['elevatedButton.$property.$state'];
+  if (const [
+    'default',
+    'disabled',
+    'pressed',
+    'hovered',
+    'focused',
+  ].every((state) => value(state) == null)) {
+    return null;
+  }
+  return WidgetStateProperty.resolveWith<Color?>((states) {
+    if (states.contains(WidgetState.disabled)) {
+      return _themeOverrideColor(value('disabled'), colorScheme);
+    }
+    for (final entry in const <(WidgetState, String)>[
+      (WidgetState.pressed, 'pressed'),
+      (WidgetState.hovered, 'hovered'),
+      (WidgetState.focused, 'focused'),
+    ]) {
+      final configured = value(entry.$2);
+      if (states.contains(entry.$1) && configured != null) {
+        return _themeOverrideColor(configured, colorScheme);
+      }
+    }
+    return _themeOverrideColor(value('default'), colorScheme);
+  });
 }
 
 ColorScheme _applyColorSchemeOverrides(

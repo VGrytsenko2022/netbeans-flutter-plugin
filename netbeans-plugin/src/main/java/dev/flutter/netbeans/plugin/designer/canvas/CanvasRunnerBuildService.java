@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasRunnerContract;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -15,7 +16,6 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -28,31 +28,30 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.openide.modules.Places;
 
-/** Builds and reuses the isolated Windows Flutter Canvas runner in NetBeans' cache. */
+/** Builds and reuses one provider-contracted isolated Flutter Canvas runner. */
 public final class CanvasRunnerBuildService {
     static final Duration DEFAULT_BUILD_TIMEOUT = Duration.ofMinutes(10);
     static final int MAX_DIAGNOSTIC_CHARS = 64 * 1024;
-    static final String EXPECTED_EXECUTABLE = "netbeans_flutter_canvas_runner.exe";
-    static final String BUILD_MODE = "release";
-    static final String BUILD_PROFILE = "windows-" + BUILD_MODE
-            + "-dynamic-icons-no-tree-shake-v2";
-    private static final String WINDOWS_CACHE_DIRECTORY = "nb-fcr";
     private static final String BUILD_MARKER = ".netbeans-canvas-runner-build";
     private static final ConcurrentHashMap<String, BuildLock> JVM_BUILD_LOCKS =
             new ConcurrentHashMap<>();
 
     private final Path cacheRoot;
+    private final NativeCanvasRunnerContract runnerContract;
     private final CanvasRunnerSourceBundle sources;
     private final CanvasRunnerProcessStarter processStarter;
     private final Duration buildTimeout;
     private final Executor asyncExecutor;
 
-    public static CanvasRunnerBuildService createDefault() throws IOException {
+    public static CanvasRunnerBuildService createDefault(
+            NativeCanvasRunnerContract runnerContract) throws IOException {
+        Objects.requireNonNull(runnerContract, "runnerContract");
         Path cacheRoot = resolveDefaultCacheRoot(
-                System.getProperty("os.name", ""),
+                runnerContract,
                 Places.getCacheSubdirectory("flutter-canvas-runner").toPath(),
                 Path.of(System.getProperty("java.io.tmpdir")));
         return new CanvasRunnerBuildService(
+                runnerContract,
                 cacheRoot,
                 CanvasRunnerSourceBundle.packaged(),
                 CanvasRunnerProcessStarter.system(),
@@ -61,20 +60,21 @@ public final class CanvasRunnerBuildService {
     }
 
     static Path resolveDefaultCacheRoot(
-            String osName,
+            NativeCanvasRunnerContract runnerContract,
             Path netBeansCacheRoot,
             Path userTemporaryDirectory) {
-        Objects.requireNonNull(osName, "osName");
-        Objects.requireNonNull(netBeansCacheRoot, "netBeansCacheRoot");
-        Objects.requireNonNull(userTemporaryDirectory, "userTemporaryDirectory");
-        Path selected = osName.toLowerCase(Locale.ROOT).startsWith("windows")
-                ? userTemporaryDirectory.resolve(WINDOWS_CACHE_DIRECTORY)
-                : netBeansCacheRoot;
-        return selected.toAbsolutePath().normalize();
+        return Objects.requireNonNull(runnerContract, "runnerContract")
+                .cachePolicy().resolveRoot(
+                        Objects.requireNonNull(netBeansCacheRoot,
+                                "netBeansCacheRoot").toAbsolutePath().normalize(),
+                        Objects.requireNonNull(userTemporaryDirectory,
+                                "userTemporaryDirectory").toAbsolutePath().normalize());
     }
 
-    public CanvasRunnerBuildService(Path cacheRoot) throws IOException {
-        this(cacheRoot,
+    public CanvasRunnerBuildService(
+            NativeCanvasRunnerContract runnerContract,
+            Path cacheRoot) throws IOException {
+        this(runnerContract, cacheRoot,
                 CanvasRunnerSourceBundle.packaged(),
                 CanvasRunnerProcessStarter.system(),
                 DEFAULT_BUILD_TIMEOUT,
@@ -82,11 +82,14 @@ public final class CanvasRunnerBuildService {
     }
 
     CanvasRunnerBuildService(
+            NativeCanvasRunnerContract runnerContract,
             Path cacheRoot,
             CanvasRunnerSourceBundle sources,
             CanvasRunnerProcessStarter processStarter,
             Duration buildTimeout,
             Executor asyncExecutor) {
+        this.runnerContract = Objects.requireNonNull(
+                runnerContract, "runnerContract");
         this.cacheRoot = Objects.requireNonNull(cacheRoot, "cacheRoot").toAbsolutePath().normalize();
         this.sources = Objects.requireNonNull(sources, "sources");
         this.processStarter = Objects.requireNonNull(processStarter, "processStarter");
@@ -110,7 +113,7 @@ public final class CanvasRunnerBuildService {
     public CanvasRunnerBuildResult build(FlutterSdk sdk) throws IOException {
         Objects.requireNonNull(sdk, "sdk");
         CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
-                sources, sdk, BUILD_PROFILE);
+                sources, sdk, runnerContract);
         BuildLock processLock = retainBuildLock(identity.cacheKey());
         processLock.lock.lock();
         try {
@@ -161,15 +164,12 @@ public final class CanvasRunnerBuildService {
                 return leasedResult(
                         cached, sourceDirectory, identity, false, "");
             }
-            CanvasRunnerRuntimeCache.discardIncompleteBuild(sourceDirectory, BUILD_MARKER);
+            CanvasRunnerRuntimeCache.discardIncompleteBuild(
+                    sourceDirectory, BUILD_MARKER, runnerContract);
             sources.verifyMutableBuildPaths(sourceDirectory);
 
-            List<String> command = List.of(
-                    sdk.flutterExecutable().toString(),
-                    "build",
-                    "windows",
-                    "--" + BUILD_MODE,
-                    "--no-tree-shake-icons");
+            List<String> command = runnerContract.buildTarget().command(
+                    sdk.flutterExecutable().toAbsolutePath().normalize());
             Process process = processStarter.start(command, sourceDirectory);
             BoundedDiagnostics diagnostics = new BoundedDiagnostics(MAX_DIAGNOSTIC_CHARS);
             Thread drainer = Thread.ofVirtual()
@@ -198,9 +198,10 @@ public final class CanvasRunnerBuildService {
                 throw new IOException("Flutter Canvas runner build failed with exit code "
                         + process.exitValue() + "\n" + diagnostics.snapshot());
             }
-            Path executable = locateExactlyOneExpectedExecutable(sourceDirectory);
+            Path executable = locateExactlyOneExpectedExecutable(
+                    sourceDirectory, runnerContract);
             Path publishedExecutable = CanvasRunnerRuntimeCache.commit(
-                    sourceDirectory, executable, identity.cacheKey());
+                    sourceDirectory, executable, identity.cacheKey(), runnerContract);
             writeBuildMarker(sourceDirectory, identity);
             return leasedResult(
                     publishedExecutable,
@@ -235,7 +236,7 @@ public final class CanvasRunnerBuildService {
         }
     }
 
-    private static Path completedExecutable(
+    private Path completedExecutable(
             Path sourceDirectory,
             CanvasRunnerCacheIdentity identity) throws IOException {
         Path marker = sourceDirectory.resolve(BUILD_MARKER);
@@ -247,39 +248,50 @@ public final class CanvasRunnerBuildService {
                 || Files.size(marker) > 256) {
             return null;
         }
-        String expected = identity.cacheKey() + "\n" + EXPECTED_EXECUTABLE + "\n";
+        String expected = identity.cacheKey() + "\n"
+                + runnerContract.buildTarget().executableName() + "\n";
         if (!expected.equals(Files.readString(marker, StandardCharsets.US_ASCII))) {
             return null;
         }
-        return CanvasRunnerRuntimeCache.validate(sourceDirectory, identity.cacheKey());
+        return CanvasRunnerRuntimeCache.validate(
+                sourceDirectory, identity.cacheKey(), runnerContract);
     }
 
-    private static void writeBuildMarker(
+    private void writeBuildMarker(
             Path sourceDirectory,
             CanvasRunnerCacheIdentity identity) throws IOException {
         Path marker = sourceDirectory.resolve(BUILD_MARKER);
         rejectSymlink(marker, "Canvas runner build marker");
-        byte[] bytes = (identity.cacheKey() + "\n" + EXPECTED_EXECUTABLE + "\n")
+        byte[] bytes = (identity.cacheKey() + "\n"
+                + runnerContract.buildTarget().executableName() + "\n")
                 .getBytes(StandardCharsets.US_ASCII);
         CanvasRunnerRuntimeCache.writeAtomically(
                 marker, bytes, "Canvas runner build marker");
     }
 
-    static Path locateExactlyOneExpectedExecutable(Path sourceDirectory) throws IOException {
-        Path buildRoot = sourceDirectory.resolve("build").resolve("windows");
-        rejectSymlink(buildRoot, "Canvas runner Windows build directory");
+    static Path locateExactlyOneExpectedExecutable(
+            Path sourceDirectory,
+            NativeCanvasRunnerContract runnerContract) throws IOException {
+        Objects.requireNonNull(runnerContract, "runnerContract");
+        Path buildRoot = runnerContract.buildTarget().outputRoot(
+                sourceDirectory.toAbsolutePath().normalize());
+        rejectSymlink(buildRoot, "Canvas runner build output directory");
         if (!Files.isDirectory(buildRoot, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("Flutter did not create the Canvas runner Windows build directory");
+            throw new IOException("Flutter did not create the contracted Canvas runner "
+                    + "build output directory");
         }
+        String expectedExecutable = runnerContract.buildTarget().executableName();
         List<Path> matches;
-        try (Stream<Path> files = Files.find(buildRoot, 12,
+        try (Stream<Path> files = Files.find(
+                buildRoot,
+                runnerContract.buildTarget().executableSearchDepth(),
                 (path, attributes) -> attributes.isRegularFile()
                         && !Files.isSymbolicLink(path)
-                        && EXPECTED_EXECUTABLE.equals(path.getFileName().toString()))) {
+                        && expectedExecutable.equals(path.getFileName().toString()))) {
             matches = files.limit(2).map(Path::toAbsolutePath).map(Path::normalize).toList();
         }
         if (matches.size() != 1 || !matches.getFirst().startsWith(sourceDirectory)) {
-            throw new IOException("expected exactly one " + EXPECTED_EXECUTABLE
+            throw new IOException("expected exactly one " + expectedExecutable
                     + " in the Canvas runner build, found " + matches.size());
         }
         return matches.getFirst();

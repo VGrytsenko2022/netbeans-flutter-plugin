@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeCodec;
@@ -12,6 +14,7 @@ import dev.flutter.netbeans.project.theme.FlutterProjectThemeDefinition;
 import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
 import dev.flutter.netbeans.project.theme.FlutterMaterialTextStyleRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeOverrides;
 import dev.flutter.netbeans.project.theme.FlutterThemeTextStyleOverride;
 import dev.flutter.netbeans.project.theme.FlutterProjectThemeLoadResult;
@@ -187,7 +190,14 @@ class FlutterDesignerProjectThemeResolverTest {
                 Optional.empty());
         FlutterThemeOverrides overrides = new FlutterThemeOverrides(
                 Map.of(FlutterMaterialColorRole.PRIMARY, 0xFF123456),
-                Map.of(FlutterMaterialTextStyleRole.BODY_MEDIUM, body));
+                Map.of(FlutterMaterialTextStyleRole.BODY_MEDIUM, body),
+                Map.of(
+                        FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND,
+                        new FlutterThemeColorValue.Literal(0x80112233),
+                        FlutterThemeComponentColorRole
+                                .ELEVATED_BUTTON_FOREGROUND_PRESSED,
+                        new FlutterThemeColorValue.ColorRole(
+                                FlutterMaterialColorRole.ON_PRIMARY)));
         FlutterProjectTheme customized = new FlutterProjectTheme(
                 true, THEME.defaultMode(), "light", "dark",
                 List.of(new FlutterProjectThemeDefinition(
@@ -205,6 +215,13 @@ class FlutterDesignerProjectThemeResolverTest {
         assertEquals("onSurface", ((dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue
                 .ColorRole) canvas.textThemeOverrides().get("bodyMedium")
                 .color().orElseThrow()).role());
+        assertEquals(new CanvasThemeColorValue.Literal(0x80112233),
+                canvas.componentColors().get(
+                        CanvasThemeComponentColorRole.SCAFFOLD_BACKGROUND));
+        assertEquals(new CanvasThemeColorValue.ColorRole("onPrimary"),
+                canvas.componentColors().get(
+                        CanvasThemeComponentColorRole
+                                .ELEVATED_BUTTON_FOREGROUND_PRESSED));
         assertEquals(64, canvas.digestIdentity().length());
     }
 

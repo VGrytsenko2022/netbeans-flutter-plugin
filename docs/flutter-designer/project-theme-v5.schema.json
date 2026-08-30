@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:netbeans-flutter-designer:schema:project-theme:5",
+  "title": "NetBeans Flutter project theme",
+  "description": "Version 5 project-wide theme catalog with typed Material role and component color overrides.",
+  "type": "object",
+  "required": ["format", "schemaVersion", "enabled", "defaultMode", "lightThemeId", "darkThemeId", "themes", "generated"],
+  "properties": {
+    "format": {"const": "netbeans-flutter-project-theme"},
+    "schemaVersion": {"const": 5},
+    "enabled": {"type": "boolean"},
+    "defaultMode": {"enum": ["system", "light", "dark"]},
+    "lightThemeId": {"$ref": "#/$defs/themeId"},
+    "darkThemeId": {"$ref": "#/$defs/themeId"},
+    "themes": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/theme"}},
+    "generated": {"$ref": "#/$defs/generated"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "themeId": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64},
+    "argb": {"type": "string", "pattern": "^0x[0-9A-F]{8}$"},
+    "colorRole": {
+      "enum": [
+        "primary", "onPrimary", "primaryContainer", "onPrimaryContainer", "primaryFixed", "primaryFixedDim", "onPrimaryFixed", "onPrimaryFixedVariant",
+        "secondary", "onSecondary", "secondaryContainer", "onSecondaryContainer", "secondaryFixed", "secondaryFixedDim", "onSecondaryFixed", "onSecondaryFixedVariant",
+        "tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer", "tertiaryFixed", "tertiaryFixedDim", "onTertiaryFixed", "onTertiaryFixedVariant",
+        "error", "onError", "errorContainer", "onErrorContainer", "surface", "onSurface", "surfaceDim", "surfaceBright", "surfaceContainerLowest", "surfaceContainerLow",
+        "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest", "onSurfaceVariant", "outline", "outlineVariant", "shadow", "scrim", "inverseSurface",
+        "onInverseSurface", "inversePrimary", "surfaceTint"
+      ]
+    },
+    "textRole": {
+      "enum": [
+        "displayLarge", "displayMedium", "displaySmall", "headlineLarge", "headlineMedium", "headlineSmall", "titleLarge", "titleMedium", "titleSmall",
+        "bodyLarge", "bodyMedium", "bodySmall", "labelLarge", "labelMedium", "labelSmall"
+      ]
+    },
+    "componentColorRole": {
+      "enum": [
+        "scaffold.backgroundColor",
+        "appBar.backgroundColor", "appBar.foregroundColor", "appBar.shadowColor", "appBar.surfaceTintColor",
+        "icon.color",
+        "elevatedButton.backgroundColor.default", "elevatedButton.backgroundColor.disabled", "elevatedButton.backgroundColor.pressed", "elevatedButton.backgroundColor.hovered", "elevatedButton.backgroundColor.focused",
+        "elevatedButton.foregroundColor.default", "elevatedButton.foregroundColor.disabled", "elevatedButton.foregroundColor.pressed", "elevatedButton.foregroundColor.hovered", "elevatedButton.foregroundColor.focused",
+        "elevatedButton.overlayColor.default", "elevatedButton.overlayColor.disabled", "elevatedButton.overlayColor.pressed", "elevatedButton.overlayColor.hovered", "elevatedButton.overlayColor.focused",
+        "elevatedButton.shadowColor.default", "elevatedButton.shadowColor.disabled", "elevatedButton.shadowColor.pressed", "elevatedButton.shadowColor.hovered", "elevatedButton.shadowColor.focused",
+        "elevatedButton.surfaceTintColor.default", "elevatedButton.surfaceTintColor.disabled", "elevatedButton.surfaceTintColor.pressed", "elevatedButton.surfaceTintColor.hovered", "elevatedButton.surfaceTintColor.focused",
+        "elevatedButton.iconColor.default", "elevatedButton.iconColor.disabled", "elevatedButton.iconColor.pressed", "elevatedButton.iconColor.hovered", "elevatedButton.iconColor.focused"
+      ]
+    },
+    "themeColor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "argb"],
+          "properties": {"kind": {"const": "argb"}, "argb": {"$ref": "#/$defs/argb"}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "role"],
+          "properties": {"kind": {"const": "colorScheme"}, "role": {"$ref": "#/$defs/colorRole"}},
+          "additionalProperties": false
+        }
+      ]
+    },
+    "textStyleOverride": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "color": {"$ref": "#/$defs/themeColor"},
+        "backgroundColor": {"$ref": "#/$defs/themeColor"},
+        "fontSize": {"type": "number", "minimum": 0},
+        "fontWeight": {"enum": ["w100", "w200", "w300", "w400", "w500", "w600", "w700", "w800", "w900"]},
+        "fontStyle": {"enum": ["normal", "italic"]},
+        "letterSpacing": {"type": "number"},
+        "wordSpacing": {"type": "number"},
+        "height": {"type": "number", "exclusiveMinimum": 0},
+        "fontFamily": {"type": "string", "minLength": 1, "maxLength": 128},
+        "decoration": {"type": "array", "uniqueItems": true, "maxItems": 3, "items": {"enum": ["underline", "overline", "lineThrough"]}},
+        "decorationColor": {"$ref": "#/$defs/themeColor"},
+        "decorationStyle": {"enum": ["solid", "double", "dotted", "dashed", "wavy"]},
+        "decorationThickness": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "colorSchemeOverrides": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/colorRole"},
+      "additionalProperties": {"$ref": "#/$defs/argb"}
+    },
+    "textThemeOverrides": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/textRole"},
+      "additionalProperties": {"$ref": "#/$defs/textStyleOverride"}
+    },
+    "componentColorOverrides": {
+      "type": "object",
+      "maxProperties": 36,
+      "propertyNames": {"$ref": "#/$defs/componentColorRole"},
+      "additionalProperties": {"$ref": "#/$defs/themeColor"}
+    },
+    "theme": {
+      "type": "object",
+      "required": ["id", "enabled", "displayName", "brightness", "seedArgb", "colorScheme", "textTheme", "components"],
+      "properties": {
+        "id": {"$ref": "#/$defs/themeId"},
+        "enabled": {"type": "boolean"},
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^(?![\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200A\\u2028\\u2029\\u205F\\u3000])(?!.*[\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200A\\u2028\\u2029\\u205F\\u3000]$)(?!.*[\\u0000-\\u001F\\u007F-\\u009F]).+$"
+        },
+        "brightness": {"enum": ["light", "dark"]},
+        "seedArgb": {"type": "string", "pattern": "^0xFF[0-9A-F]{6}$"},
+        "colorScheme": {"$ref": "#/$defs/colorSchemeOverrides"},
+        "textTheme": {"$ref": "#/$defs/textThemeOverrides"},
+        "components": {"$ref": "#/$defs/componentColorOverrides"}
+      },
+      "additionalProperties": false
+    },
+    "generated": {
+      "type": "object",
+      "required": ["dartFile", "sha256"],
+      "properties": {
+        "dartFile": {"const": "lib/theme/app_theme.dart"},
+        "sha256": {"type": "string", "pattern": "^[0-9A-F]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

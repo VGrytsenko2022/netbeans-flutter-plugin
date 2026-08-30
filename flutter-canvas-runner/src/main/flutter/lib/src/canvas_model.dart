@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 8;
+const canvasModelProtocolVersion = 9;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -150,6 +150,45 @@ const canvasTextThemeRoles = <String>{
   'labelLarge',
   'labelMedium',
   'labelSmall',
+};
+
+const canvasThemeComponentColorRoles = <String>{
+  'scaffold.backgroundColor',
+  'appBar.backgroundColor',
+  'appBar.foregroundColor',
+  'appBar.shadowColor',
+  'appBar.surfaceTintColor',
+  'icon.color',
+  'elevatedButton.backgroundColor.default',
+  'elevatedButton.backgroundColor.disabled',
+  'elevatedButton.backgroundColor.pressed',
+  'elevatedButton.backgroundColor.hovered',
+  'elevatedButton.backgroundColor.focused',
+  'elevatedButton.foregroundColor.default',
+  'elevatedButton.foregroundColor.disabled',
+  'elevatedButton.foregroundColor.pressed',
+  'elevatedButton.foregroundColor.hovered',
+  'elevatedButton.foregroundColor.focused',
+  'elevatedButton.overlayColor.default',
+  'elevatedButton.overlayColor.disabled',
+  'elevatedButton.overlayColor.pressed',
+  'elevatedButton.overlayColor.hovered',
+  'elevatedButton.overlayColor.focused',
+  'elevatedButton.shadowColor.default',
+  'elevatedButton.shadowColor.disabled',
+  'elevatedButton.shadowColor.pressed',
+  'elevatedButton.shadowColor.hovered',
+  'elevatedButton.shadowColor.focused',
+  'elevatedButton.surfaceTintColor.default',
+  'elevatedButton.surfaceTintColor.disabled',
+  'elevatedButton.surfaceTintColor.pressed',
+  'elevatedButton.surfaceTintColor.hovered',
+  'elevatedButton.surfaceTintColor.focused',
+  'elevatedButton.iconColor.default',
+  'elevatedButton.iconColor.disabled',
+  'elevatedButton.iconColor.pressed',
+  'elevatedButton.iconColor.hovered',
+  'elevatedButton.iconColor.focused',
 };
 
 final _stableIdPattern = RegExp(
@@ -330,6 +369,7 @@ class CanvasTheme {
     required this.digestIdentity,
     required this.colorScheme,
     required this.textTheme,
+    this.components = const <String, CanvasThemeColorValue>{},
   });
 
   final String definitionId;
@@ -338,6 +378,7 @@ class CanvasTheme {
   final String digestIdentity;
   final Map<String, int> colorScheme;
   final Map<String, CanvasThemeTextStyleOverride> textTheme;
+  final Map<String, CanvasThemeColorValue> components;
 
   static CanvasTheme decode(Object? value) {
     final object = _object(value, r'$/profile/theme');
@@ -348,6 +389,7 @@ class CanvasTheme {
       'digestIdentity',
       'colorScheme',
       'textTheme',
+      'components',
     });
     final definitionId = _boundedText(
       object['definitionId'],
@@ -388,6 +430,7 @@ class CanvasTheme {
     );
     final colorScheme = _decodeThemeColorScheme(object['colorScheme']);
     final textTheme = _decodeThemeTextTheme(object['textTheme']);
+    final components = _decodeThemeComponentColors(object['components']);
     return CanvasTheme(
       definitionId: definitionId,
       seedArgb: int.parse(seedLiteral.substring(2), radix: 16),
@@ -395,6 +438,7 @@ class CanvasTheme {
       digestIdentity: digestIdentity,
       colorScheme: Map.unmodifiable(colorScheme),
       textTheme: Map.unmodifiable(textTheme),
+      components: Map.unmodifiable(components),
     );
   }
 }
@@ -611,6 +655,26 @@ Map<String, CanvasThemeTextStyleOverride> _decodeThemeTextTheme(Object? value) {
     result[entry.key] = CanvasThemeTextStyleOverride.decode(
       entry.value,
       r'$/profile/theme/textTheme/${entry.key}',
+    );
+  }
+  return result;
+}
+
+Map<String, CanvasThemeColorValue> _decodeThemeComponentColors(Object? value) {
+  final object = _object(value, r'$/profile/theme/components');
+  _expect(
+    object.length <= canvasThemeComponentColorRoles.length,
+    'Canvas theme has too many component color overrides.',
+  );
+  final result = <String, CanvasThemeColorValue>{};
+  for (final entry in object.entries) {
+    _expect(
+      canvasThemeComponentColorRoles.contains(entry.key),
+      'Canvas theme has an unknown component color role: ${entry.key}',
+    );
+    result[entry.key] = CanvasThemeColorValue.decode(
+      entry.value,
+      r'$/profile/theme/components/${entry.key}',
     );
   }
   return result;
@@ -1692,7 +1756,7 @@ class _SlotAcceptance {
     : kind = _SlotAcceptanceKind.requiredTrait,
       exactTypes = const {};
 
-  // Reserved by the protocol-v8 closed union even though the current ten
+  // Reserved by the protocol-v9 closed union even though the current ten
   // widgets use only `any` and `requiredTrait` slot acceptance.
   // ignore: unused_element
   const _SlotAcceptance.exactTypes(this.exactTypes)
@@ -2216,20 +2280,57 @@ Map<String, _PropertySpec> _appBarProperties() => {
   }),
 };
 
+Map<String, _PropertySpec> _scaffoldProperties() => {
+  'floatingActionButtonLocation': _PropertySpec(
+    {'string'},
+    stringPattern:
+        r'(?:startTop|miniStartTop|centerTop|miniCenterTop|endTop|miniEndTop|startFloat|miniStartFloat|centerFloat|miniCenterFloat|endFloat|miniEndFloat|startDocked|miniStartDocked|centerDocked|miniCenterDocked|endDocked|miniEndDocked|endContained)',
+  ),
+  'floatingActionButtonAnimator': _PropertySpec({
+    'string',
+  }, stringPattern: r'(?:scaling|noAnimation)'),
+  'persistentFooterAlignment': _PropertySpec(
+    {'string'},
+    stringPattern:
+        r'(?:topStart|topCenter|topEnd|centerStart|center|centerEnd|bottomStart|bottomCenter|bottomEnd)',
+  ),
+  'onDrawerChanged': _PropertySpec({'callback'}),
+  'onEndDrawerChanged': _PropertySpec({'callback'}),
+  'backgroundColor': _themeAwareColorProperty,
+  'resizeToAvoidBottomInset': _PropertySpec({'boolean'}),
+  'primary': _PropertySpec({'boolean'}),
+  'drawerDragStartBehavior': _PropertySpec(
+    {'enum'},
+    enumLibraryUri: 'package:flutter/gestures.dart',
+    enumType: 'DragStartBehavior',
+    enumValues: {'down', 'start'},
+  ),
+  'extendBody': _PropertySpec({'boolean'}),
+  'drawerBarrierDismissible': _PropertySpec({'boolean'}),
+  'extendBodyBehindAppBar': _PropertySpec({'boolean'}),
+  'drawerScrimColor': _themeAwareColorProperty,
+  'drawerEdgeDragWidth': _PropertySpec({
+    'integer',
+    'double',
+  }, numericBounds: _nonNegativeNumberBounds),
+  'drawerEnableOpenDragGesture': _PropertySpec({'boolean'}),
+  'endDrawerEnableOpenDragGesture': _PropertySpec({'boolean'}),
+  'restorationId': _PropertySpec(
+    {'string'},
+    minimumStringLength: 1,
+    maximumStringLength: 256,
+    explicitStringLength: true,
+  ),
+};
+
 // Source-parity extraction marker retained for the packaged Java gate:
 // const _widgetSpecifications
 final _widgetSpecifications = <String, _WidgetSpec>{
-  'flutter.material.Scaffold': _WidgetSpec(
-    {
-      'backgroundColor': _PropertySpec({'color'}),
-      'resizeToAvoidBottomInset': _PropertySpec({'boolean'}),
-    },
-    {
-      'appBar': _optionalPreferredSizeSingleSlot,
-      'body': _optionalSingleSlot,
-      'floatingActionButton': _optionalSingleSlot,
-    },
-  ),
+  'flutter.material.Scaffold': _WidgetSpec(_scaffoldProperties(), {
+    'appBar': _optionalPreferredSizeSingleSlot,
+    'body': _optionalSingleSlot,
+    'floatingActionButton': _optionalSingleSlot,
+  }),
   'flutter.material.AppBar': _WidgetSpec(
     _appBarProperties(),
     const {
@@ -2977,8 +3078,23 @@ P|styleVisualDensityHorizontal|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
 P|styleVisualDensityVertical|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
 S|child|single|1|0|1|any
 W|flutter.material.Scaffold
-P|backgroundColor|color|0|-|-|color:any
+P|backgroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|drawerBarrierDismissible|boolean|0|-|-|boolean:any
+P|drawerDragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
+P|drawerEdgeDragWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|drawerEnableOpenDragGesture|boolean|0|-|-|boolean:any
+P|drawerScrimColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|endDrawerEnableOpenDragGesture|boolean|0|-|-|boolean:any
+P|extendBody|boolean|0|-|-|boolean:any
+P|extendBodyBehindAppBar|boolean|0|-|-|boolean:any
+P|floatingActionButtonAnimator|string|0|-|-|string:pattern:KD86c2NhbGluZ3xub0FuaW1hdGlvbik
+P|floatingActionButtonLocation|string|0|-|-|string:pattern:KD86c3RhcnRUb3B8bWluaVN0YXJ0VG9wfGNlbnRlclRvcHxtaW5pQ2VudGVyVG9wfGVuZFRvcHxtaW5pRW5kVG9wfHN0YXJ0RmxvYXR8bWluaVN0YXJ0RmxvYXR8Y2VudGVyRmxvYXR8bWluaUNlbnRlckZsb2F0fGVuZEZsb2F0fG1pbmlFbmRGbG9hdHxzdGFydERvY2tlZHxtaW5pU3RhcnREb2NrZWR8Y2VudGVyRG9ja2VkfG1pbmlDZW50ZXJEb2NrZWR8ZW5kRG9ja2VkfG1pbmlFbmREb2NrZWR8ZW5kQ29udGFpbmVkKQ
+P|onDrawerChanged|callback|0|-|-|callback:callbackReference
+P|onEndDrawerChanged|callback|0|-|-|callback:callbackReference
+P|persistentFooterAlignment|string|0|-|-|string:pattern:KD86dG9wU3RhcnR8dG9wQ2VudGVyfHRvcEVuZHxjZW50ZXJTdGFydHxjZW50ZXJ8Y2VudGVyRW5kfGJvdHRvbVN0YXJ0fGJvdHRvbUNlbnRlcnxib3R0b21FbmQp
+P|primary|boolean|0|-|-|boolean:any
 P|resizeToAvoidBottomInset|boolean|0|-|-|boolean:any
+P|restorationId|string|0|-|-|string:length:1:256
 S|appBar|single|0|0|1|trait:Zmx1dHRlci53aWRnZXRzLlByZWZlcnJlZFNpemVXaWRnZXQ
 S|body|single|0|0|1|any
 S|floatingActionButton|single|0|0|1|any

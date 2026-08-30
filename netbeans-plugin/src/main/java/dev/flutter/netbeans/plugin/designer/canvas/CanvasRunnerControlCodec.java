@@ -11,9 +11,11 @@ import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentId;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasRenderProfile;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
@@ -42,10 +44,18 @@ public final class CanvasRunnerControlCodec {
             "format", "protocolVersion", "sessionId", "type", "body");
     private static final Set<String> PRESENTED_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
-            "frameSequence", "layoutSequence");
+            "frameSequence", "layoutSequence", "physicalWidth",
+            "physicalHeight", "devicePixelRatioMicros");
     private static final Set<String> SELECTION_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
             "frameSequence", "layoutSequence", "intentSequence", "widgetId");
+    private static final Set<String> INTERACTION_FIELDS = Set.of(
+            "presentationSequence", "documentId", "logicalRevisionId",
+            "frameSequence", "layoutSequence", "intentSequence",
+            "interactionFenceSequence");
+    private static final Set<String> INTERACTION_FENCE_APPLIED_FIELDS = Set.of(
+            "presentationSequence", "documentId", "logicalRevisionId",
+            "frameSequence", "layoutSequence", "interactionFenceSequence");
     private static final Set<String> DELETE_SELECTION_FIELDS = SELECTION_FIELDS;
     private static final Set<String> PALETTE_DROP_FIELDS = Set.of(
             "presentationSequence", "documentId", "logicalRevisionId",
@@ -129,6 +139,26 @@ public final class CanvasRunnerControlCodec {
             json.writeNumberField("frameSequence", layout.frameKey().frameSequence());
             json.writeNumberField("layoutSequence", layout.layoutSequence());
             json.writeStringField("widgetId", widgetId.toString());
+            writeEnvelopeEnd(json);
+        });
+    }
+
+    /** Advances the host-owned interaction fence for one exact Canvas layout. */
+    public byte[] encodeInteractionFence(
+            CanvasLayoutKey layout,
+            long interactionFenceSequence) throws CanvasRunnerControlException {
+        Objects.requireNonNull(layout, "layout");
+        requireInteractionFenceSequence(interactionFenceSequence);
+        return encode(json -> {
+            CanvasRevisionKey revision = layout.frameKey().revisionKey();
+            writeEnvelopeStart(
+                    json, revision.sessionId(), "host.interactionFence");
+            writeRevision(json, revision);
+            json.writeNumberField(
+                    "frameSequence", layout.frameKey().frameSequence());
+            json.writeNumberField("layoutSequence", layout.layoutSequence());
+            json.writeNumberField(
+                    "interactionFenceSequence", interactionFenceSequence);
             writeEnvelopeEnd(json);
         });
     }
@@ -286,6 +316,9 @@ public final class CanvasRunnerControlCodec {
             return switch (type) {
                 case "runner.presented" -> decodePresented(sessionId, body);
                 case "runner.selection" -> decodeSelection(sessionId, body);
+                case "runner.interaction" -> decodeInteraction(sessionId, body);
+                case "runner.interactionFenceApplied" ->
+                    decodeInteractionFenceApplied(sessionId, body);
                 case "runner.paletteDrop" -> decodePaletteDrop(sessionId, body);
                 case "runner.deleteSelection" -> decodeDeleteSelection(
                         sessionId, body);
@@ -307,8 +340,25 @@ public final class CanvasRunnerControlCodec {
         CanvasRevisionKey revision = readRevision(sessionId, body);
         CanvasFrameKey frame = new CanvasFrameKey(
                 revision, requireSequence(body, "frameSequence"));
-        return new CanvasRunnerRuntimeEvent.Presented(new CanvasLayoutKey(
-                frame, requireSequence(body, "layoutSequence")));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        CanvasSurfaceMetrics metrics = new CanvasSurfaceMetrics(
+                requireBoundedInt(
+                        body,
+                        "physicalWidth",
+                        1,
+                        CanvasRenderProfile.MAX_PHYSICAL_DIMENSION),
+                requireBoundedInt(
+                        body,
+                        "physicalHeight",
+                        1,
+                        CanvasRenderProfile.MAX_PHYSICAL_DIMENSION),
+                requireBoundedInt(
+                        body,
+                        "devicePixelRatioMicros",
+                        CanvasSurfaceMetrics.MIN_DEVICE_PIXEL_RATIO_MICROS,
+                        CanvasSurfaceMetrics.MAX_DEVICE_PIXEL_RATIO_MICROS));
+        return new CanvasRunnerRuntimeEvent.Presented(layout, metrics);
     }
 
     private static CanvasRunnerRuntimeEvent.Selection decodeSelection(
@@ -325,6 +375,40 @@ public final class CanvasRunnerControlCodec {
         return new CanvasRunnerRuntimeEvent.Selection(
                 new CanvasIntentKey(intentId, layout),
                 StableId.parse(requireText(body, "widgetId")));
+    }
+
+    private static CanvasRunnerRuntimeEvent.Interaction decodeInteraction(
+            CanvasSessionId sessionId,
+            JsonNode body) throws CanvasRunnerControlException {
+        requireFields(body, INTERACTION_FIELDS, "runner.interaction body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        CanvasFrameKey frame = new CanvasFrameKey(
+                revision, requireSequence(body, "frameSequence"));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        CanvasIntentId intentId = new CanvasIntentId(
+                sessionId, requireSequence(body, "intentSequence"));
+        return new CanvasRunnerRuntimeEvent.Interaction(
+                new CanvasIntentKey(intentId, layout),
+                requireSequence(body, "interactionFenceSequence"));
+    }
+
+    private static CanvasRunnerRuntimeEvent.InteractionFenceApplied
+            decodeInteractionFenceApplied(
+                    CanvasSessionId sessionId,
+                    JsonNode body) throws CanvasRunnerControlException {
+        requireFields(
+                body,
+                INTERACTION_FENCE_APPLIED_FIELDS,
+                "runner.interactionFenceApplied body");
+        CanvasRevisionKey revision = readRevision(sessionId, body);
+        CanvasFrameKey frame = new CanvasFrameKey(
+                revision, requireSequence(body, "frameSequence"));
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                frame, requireSequence(body, "layoutSequence"));
+        return new CanvasRunnerRuntimeEvent.InteractionFenceApplied(
+                layout,
+                requireSequence(body, "interactionFenceSequence"));
     }
 
     private static CanvasRunnerRuntimeEvent.PaletteDrop decodePaletteDrop(
@@ -521,6 +605,15 @@ public final class CanvasRunnerControlCodec {
                     + CanvasWireProtocol.MAX_SEQUENCE);
         }
         return previewSequence;
+    }
+
+    private static long requireInteractionFenceSequence(long sequence) {
+        if (sequence < 0 || sequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "Canvas interaction fence sequence must be between 0 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE);
+        }
+        return sequence;
     }
 
     private static int requireInsertionIndex(int insertionIndex, String label) {

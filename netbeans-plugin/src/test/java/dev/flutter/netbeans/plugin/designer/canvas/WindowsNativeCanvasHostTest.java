@@ -1,5 +1,9 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasHost;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasParentHandle;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatform;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasSurfaceMetrics;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -151,6 +155,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
+        windows.bounds = new NativeCanvasWindowBounds(641, 481);
         windows.killRunnerDuringNextBoundsRequest = true;
 
         onEdt(() -> {
@@ -180,6 +185,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
+        windows.bounds = new NativeCanvasWindowBounds(641, 481);
         windows.failNextBoundsRequest = true;
 
         onEdt(() -> {
@@ -224,6 +230,7 @@ class WindowsNativeCanvasHostTest {
             host.tryAttach(77L).orElseThrow();
             return null;
         });
+        windows.bounds = new NativeCanvasWindowBounds(641, 481);
         windows.failNextBoundsRequest = true;
 
         onEdt(() -> {
@@ -275,7 +282,7 @@ class WindowsNativeCanvasHostTest {
     }
 
     @Test
-    void closeClearsAttachmentEvenWhenNativeHideThrowsLinkageError()
+    void closeClearsAttachmentAndReportsNativeHideLinkageError()
             throws Exception {
         FakeWindowsApi windows = FakeWindowsApi.attachable();
         WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
@@ -285,17 +292,409 @@ class WindowsNativeCanvasHostTest {
         });
         windows.failNextShowWithLinkageError = true;
 
+        assertThrows(UnsatisfiedLinkError.class, () -> onEdt(() -> {
+                host.close();
+                return null;
+            }));
+
+        assertTrue(onEdt(() -> host.attachment().isEmpty()));
+    }
+
+    @Test
+    void implementsPlatformContractWithOpaqueParentAndIdempotentDetach()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        NativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
+
+        NativeCanvasParentHandle parent = onEdt(host::parentHandle);
+        assertEquals(NativeCanvasPlatform.WINDOWS, parent.platform());
+        assertEquals("0x000000000000000A", parent.encodedValue());
+        assertEquals("WINDOWS:<opaque>", parent.toString());
+        assertTrue(onEdt(() -> host.attachRunner(77L)));
+        assertTrue(onEdt(host::isRunnerAttached));
+        assertTrue(onEdt(host::isRunnerSurfaceLive));
+
+        onEdt(() -> {
+            host.detachRunner();
+            host.detachRunner();
+            host.close();
+            host.close();
+            return null;
+        });
+
+        assertFalse(onEdt(host::isRunnerAttached));
+        assertEquals(List.of("20:false", "20:false"), windows.visibility);
+    }
+
+    @Test
+    void transfersFocusAcrossTheVerifiedPairWithoutInvalidatingOnPolicyRefusal()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
+        AtomicInteger failures = new AtomicInteger();
+        onEdt(() -> {
+            host.onAttachmentFailed(ignored -> failures.incrementAndGet());
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+
+        assertTrue(onEdt(host::requestRunnerFocus));
+        assertEquals(List.of(30L), windows.focusRequests);
+        assertTrue(onEdt(host::isRunnerFocused));
+        assertTrue(onEdt(host::isRunnerAttached));
+
+        assertTrue(onEdt(host::releaseRunnerFocus));
+        assertEquals(List.of(10L), windows.focusReleases);
+        assertFalse(onEdt(host::isRunnerFocused));
+        assertTrue(onEdt(host::isRunnerAttached));
+
+        windows.focusResult = WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED;
+        windows.focused = false;
+        assertFalse(onEdt(host::requestRunnerFocus));
+        assertEquals(List.of(30L, 30L), windows.focusRequests);
+        assertFalse(onEdt(host::isRunnerFocused));
+        assertTrue(onEdt(host::isRunnerAttached));
+        assertTrue(onEdt(host::isRunnerSurfaceLive));
+        assertEquals(0, failures.get());
+
+        windows.releaseFocusResult =
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED;
+        assertFalse(onEdt(host::releaseRunnerFocus));
+        assertEquals(List.of(10L, 10L), windows.focusReleases);
+        assertTrue(onEdt(host::isRunnerAttached));
+        assertEquals(0, failures.get());
+
+        windows.deadWindows.add(30L);
+        assertFalse(onEdt(host::requestRunnerFocus));
+        assertFalse(onEdt(host::isRunnerAttached));
+        assertEquals(1, failures.get());
+    }
+
+    @Test
+    void invalidatesIdentityDriftAndInputQueueDetachFailureReportedByNativeBoundary()
+            throws Exception {
+        FakeWindowsApi identityDrift = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost driftHost = onEdt(
+                () -> new WindowsNativeCanvasHost(identityDrift));
+        AtomicInteger driftFailures = new AtomicInteger();
+        onEdt(() -> {
+            driftHost.onAttachmentFailed(ignored -> driftFailures.incrementAndGet());
+            driftHost.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        identityDrift.focusResult = WindowsNativeCanvasApi.FocusResult.TARGET_INVALID;
+
+        assertFalse(onEdt(driftHost::requestRunnerFocus));
+        assertFalse(onEdt(driftHost::isRunnerAttached));
+        assertEquals(1, driftFailures.get());
+
+        FakeWindowsApi detachFailure = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost detachHost = onEdt(
+                () -> new WindowsNativeCanvasHost(detachFailure));
+        AtomicInteger detachFailures = new AtomicInteger();
+        onEdt(() -> {
+            detachHost.onAttachmentFailed(ignored -> detachFailures.incrementAndGet());
+            detachHost.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        detachFailure.focusResult =
+                WindowsNativeCanvasApi.FocusResult.INPUT_QUEUE_DETACH_FAILED;
+
+        assertFalse(onEdt(detachHost::requestRunnerFocus));
+        assertFalse(onEdt(detachHost::isRunnerAttached));
+        assertEquals(1, detachFailures.get());
+
+        FakeWindowsApi releaseDetachFailure = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost releaseDetachHost = onEdt(
+                () -> new WindowsNativeCanvasHost(releaseDetachFailure));
+        AtomicInteger releaseDetachFailures = new AtomicInteger();
+        onEdt(() -> {
+            releaseDetachHost.onAttachmentFailed(
+                    ignored -> releaseDetachFailures.incrementAndGet());
+            releaseDetachHost.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        releaseDetachFailure.releaseFocusResult =
+                WindowsNativeCanvasApi.FocusResult.INPUT_QUEUE_DETACH_FAILED;
+
+        assertFalse(onEdt(releaseDetachHost::releaseRunnerFocus));
+        assertFalse(onEdt(releaseDetachHost::isRunnerAttached));
+        assertEquals(1, releaseDetachFailures.get());
+    }
+
+    @Test
+    void publishesExactBoundsAndDprChangesWithoutDuplicateEvents()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
+        List<NativeCanvasSurfaceMetrics> metrics = new ArrayList<>();
+        onEdt(() -> {
+            host.onSurfaceMetricsChanged(metrics::add);
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+
+        assertEquals(List.of(new NativeCanvasSurfaceMetrics(
+                640, 480, NativeCanvasSurfaceMetrics.MICROS_PER_UNIT)), metrics);
+        assertEquals(metrics.getFirst(), onEdt(() -> host.surfaceMetrics().orElseThrow()));
+        assertFalse(windows.dpiRequests.isEmpty());
+        assertTrue(windows.dpiRequests.stream().allMatch(window -> window == 10L),
+                "Target DPR must be read from the verified AWT parent HWND");
+
+        windows.bounds = new NativeCanvasWindowBounds(800, 600);
+        windows.dpi = 144;
+        windows.dpiRequests.clear();
+        onEdt(() -> {
+            dispatchMove(host);
+            dispatchMove(host);
+            return null;
+        });
+
+        assertEquals(List.of(
+                new NativeCanvasSurfaceMetrics(640, 480, 1_000_000),
+                new NativeCanvasSurfaceMetrics(800, 600, 1_500_000)), metrics);
+        assertFalse(windows.dpiRequests.isEmpty());
+        assertTrue(windows.dpiRequests.stream().allMatch(window -> window == 10L),
+                "DPR updates must remain bound to the verified AWT parent HWND");
+    }
+
+    @Test
+    void invalidNativeDpiInvalidatesAttachmentAndReportsOneFailure()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
+        AtomicInteger failures = new AtomicInteger();
+        windows.dpi = 0;
+
+        Optional<NativeCanvasAttachment> result = onEdt(() -> {
+            host.onAttachmentFailed(ignored -> failures.incrementAndGet());
+            return host.tryAttach(77L);
+        });
+
+        assertTrue(result.isEmpty());
+        assertFalse(onEdt(host::isRunnerAttached));
+        assertEquals(1, failures.get());
+    }
+
+    @Test
+    void serializesOneResizeInFlightAndCoalescesAwtBurstToLatestTarget()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        ManualResizeObservationScheduler scheduler =
+                new ManualResizeObservationScheduler();
+        WindowsNativeCanvasHost host = onEdt(
+                () -> new WindowsNativeCanvasHost(windows, scheduler, 8));
+        List<NativeCanvasSurfaceMetrics> metrics = new ArrayList<>();
+        onEdt(() -> {
+            host.onSurfaceMetricsChanged(metrics::add);
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        windows.applyBoundsRequestsImmediately = false;
+
+        windows.bounds = new NativeCanvasWindowBounds(700, 500);
+        onEdt(() -> {
+            dispatchResize(host);
+            return null;
+        });
+        windows.bounds = new NativeCanvasWindowBounds(800, 600);
+        onEdt(() -> {
+            dispatchResize(host);
+            return null;
+        });
+        windows.bounds = new NativeCanvasWindowBounds(900, 700);
+        onEdt(() -> {
+            dispatchResize(host);
+            return null;
+        });
+
+        assertEquals(List.of(
+                new NativeCanvasWindowBounds(640, 480),
+                new NativeCanvasWindowBounds(700, 500)), windows.moves);
+        assertEquals(new NativeCanvasSurfaceMetrics(900, 700, 1_000_000),
+                metrics.getLast(),
+                "The latest target must be published before native delivery");
+        assertEquals(1, scheduler.pendingCount());
+
+        windows.runnerBounds = new NativeCanvasWindowBounds(700, 500);
+        onEdt(() -> {
+            scheduler.runNext();
+            return null;
+        });
+        assertEquals(2, windows.moves.size(),
+                "FlutterView must settle too before the latest target is delivered");
+
+        windows.flutterViewBounds = new NativeCanvasWindowBounds(700, 500);
+        onEdt(() -> {
+            scheduler.runNext();
+            return null;
+        });
+        assertEquals(List.of(
+                new NativeCanvasWindowBounds(640, 480),
+                new NativeCanvasWindowBounds(700, 500),
+                new NativeCanvasWindowBounds(900, 700)), windows.moves,
+                "Only the newest queued target may follow the settled in-flight target");
+
+        windows.runnerBounds = new NativeCanvasWindowBounds(900, 700);
+        windows.flutterViewBounds = new NativeCanvasWindowBounds(900, 700);
+        onEdt(() -> {
+            scheduler.runNext();
+            return null;
+        });
+        assertEquals(0, scheduler.pendingCount());
+        assertTrue(onEdt(host::isRunnerAttached));
+    }
+
+    @Test
+    void canceledOldGenerationObservationCannotAffectDetachedOrClosedHost()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        ManualResizeObservationScheduler scheduler =
+                new ManualResizeObservationScheduler();
+        WindowsNativeCanvasHost host = onEdt(
+                () -> new WindowsNativeCanvasHost(windows, scheduler, 8));
+        onEdt(() -> {
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        windows.applyBoundsRequestsImmediately = false;
+        windows.bounds = new NativeCanvasWindowBounds(700, 500);
+        onEdt(() -> {
+            dispatchResize(host);
+            return null;
+        });
+        assertEquals(1, scheduler.pendingCount());
         onEdt(() -> {
             host.close();
             return null;
         });
 
-        assertTrue(onEdt(() -> host.attachment().isEmpty()));
+        assertEquals(0, scheduler.pendingCount());
+        onEdt(() -> {
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        assertEquals(1, scheduler.pendingCount());
+        int movesBeforeStaleCallback = windows.moves.size();
+        onEdt(() -> {
+            scheduler.runFirstEvenIfCanceled();
+            return null;
+        });
+        assertEquals(movesBeforeStaleCallback, windows.moves.size());
+        assertEquals(1, scheduler.pendingCount(),
+                "An old generation callback must not clear the new generation timer");
+        assertTrue(onEdt(host::isRunnerAttached));
+
+        onEdt(() -> {
+            host.close();
+            return null;
+        });
+        assertEquals(0, scheduler.pendingCount());
+    }
+
+    @Test
+    void invalidatesOnceWhenBothChildWindowsCannotSettleWithinBound()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        ManualResizeObservationScheduler scheduler =
+                new ManualResizeObservationScheduler();
+        WindowsNativeCanvasHost host = onEdt(
+                () -> new WindowsNativeCanvasHost(windows, scheduler, 3));
+        AtomicInteger failures = new AtomicInteger();
+        onEdt(() -> {
+            host.onAttachmentFailed(ignored -> failures.incrementAndGet());
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        windows.applyBoundsRequestsImmediately = false;
+        windows.bounds = new NativeCanvasWindowBounds(700, 500);
+        onEdt(() -> {
+            dispatchResize(host);
+            return null;
+        });
+
+        onEdt(() -> {
+            scheduler.runNext();
+            scheduler.runNext();
+            return null;
+        });
+
+        assertFalse(onEdt(host::isRunnerAttached));
+        assertEquals(1, failures.get());
+        assertEquals(0, scheduler.pendingCount());
+    }
+
+    @Test
+    void pureParentDpiChangePublishesTargetAndReassertsBounds()
+            throws Exception {
+        FakeWindowsApi windows = FakeWindowsApi.attachable();
+        windows.flutterViewDpi = 0;
+        WindowsNativeCanvasHost host = onEdt(() -> new WindowsNativeCanvasHost(windows));
+        List<NativeCanvasSurfaceMetrics> metrics = new ArrayList<>();
+        onEdt(() -> {
+            host.onSurfaceMetricsChanged(metrics::add);
+            host.tryAttach(77L).orElseThrow();
+            return null;
+        });
+        windows.dpiRequests.clear();
+        windows.dpi = 144;
+
+        onEdt(() -> {
+            dispatchMove(host);
+            return null;
+        });
+
+        assertEquals(List.of(
+                new NativeCanvasWindowBounds(640, 480),
+                new NativeCanvasWindowBounds(640, 480)), windows.moves);
+        assertEquals(new NativeCanvasSurfaceMetrics(640, 480, 1_500_000),
+                metrics.getLast());
+        assertTrue(windows.dpiRequests.stream().allMatch(window -> window == 10L));
+        assertTrue(onEdt(host::isRunnerAttached),
+                "FlutterView DPI must not be consulted for the parent target");
+    }
+
+    @Test
+    void normalizesZeroParentClientAreaAndRejectsExcessiveDpr()
+            throws Exception {
+        FakeWindowsApi zeroBounds = FakeWindowsApi.attachable();
+        zeroBounds.bounds = new NativeCanvasWindowBounds(0, 0);
+        zeroBounds.runnerBounds = new NativeCanvasWindowBounds(1, 1);
+        zeroBounds.flutterViewBounds = new NativeCanvasWindowBounds(1, 1);
+        WindowsNativeCanvasHost zeroHost = onEdt(
+                () -> new WindowsNativeCanvasHost(zeroBounds));
+        List<NativeCanvasSurfaceMetrics> metrics = new ArrayList<>();
+
+        onEdt(() -> {
+            zeroHost.onSurfaceMetricsChanged(metrics::add);
+            zeroHost.tryAttach(77L).orElseThrow();
+            return null;
+        });
+
+        assertEquals(List.of(new NativeCanvasWindowBounds(1, 1)), zeroBounds.moves);
+        assertEquals(List.of(new NativeCanvasSurfaceMetrics(1, 1, 1_000_000)), metrics);
+
+        FakeWindowsApi excessiveDpr = FakeWindowsApi.attachable();
+        excessiveDpr.dpi = 961;
+        WindowsNativeCanvasHost excessiveHost = onEdt(
+                () -> new WindowsNativeCanvasHost(excessiveDpr));
+        AtomicInteger failures = new AtomicInteger();
+        Optional<NativeCanvasAttachment> result = onEdt(() -> {
+            excessiveHost.onAttachmentFailed(ignored -> failures.incrementAndGet());
+            return excessiveHost.tryAttach(77L);
+        });
+        assertTrue(result.isEmpty());
+        assertEquals(1, failures.get());
     }
 
     private static void dispatchResize(WindowsNativeCanvasHost host) {
         Component canvas = host.getComponent(0);
         canvas.dispatchEvent(new ComponentEvent(canvas, ComponentEvent.COMPONENT_RESIZED));
+    }
+
+    private static void dispatchMove(WindowsNativeCanvasHost host) {
+        Component canvas = host.getComponent(0);
+        canvas.dispatchEvent(new ComponentEvent(canvas, ComponentEvent.COMPONENT_MOVED));
     }
 
     private static <T> T onEdt(Callable<T> callable) throws Exception {
@@ -321,6 +720,9 @@ class WindowsNativeCanvasHostTest {
         if (failure.value instanceof Exception exception) {
             throw exception;
         }
+        if (failure.value instanceof Error error) {
+            throw error;
+        }
         if (failure.value != null) {
             throw new AssertionError(failure.value);
         }
@@ -329,6 +731,55 @@ class WindowsNativeCanvasHostTest {
 
     private static final class Holder<T> {
         private T value;
+    }
+
+    private static final class ManualResizeObservationScheduler
+            implements WindowsNativeCanvasHost.ResizeObservationScheduler {
+        private final List<ScheduledObservation> observations = new ArrayList<>();
+
+        @Override
+        public WindowsNativeCanvasHost.ResizeObservationHandle schedule(
+                int delayMillis,
+                Runnable task) {
+            assertEquals(15, delayMillis);
+            ScheduledObservation observation = new ScheduledObservation(task);
+            observations.add(observation);
+            return () -> observation.canceled = true;
+        }
+
+        int pendingCount() {
+            return (int) observations.stream()
+                    .filter(observation -> !observation.completed && !observation.canceled)
+                    .count();
+        }
+
+        void runNext() {
+            ScheduledObservation observation = observations.stream()
+                    .filter(candidate -> !candidate.completed && !candidate.canceled)
+                    .findFirst()
+                    .orElseThrow();
+            observation.completed = true;
+            observation.task.run();
+        }
+
+        void runFirstEvenIfCanceled() {
+            ScheduledObservation observation = observations.stream()
+                    .filter(candidate -> !candidate.completed)
+                    .findFirst()
+                    .orElseThrow();
+            observation.completed = true;
+            observation.task.run();
+        }
+
+        private static final class ScheduledObservation {
+            private final Runnable task;
+            private boolean canceled;
+            private boolean completed;
+
+            private ScheduledObservation(Runnable task) {
+                this.task = task;
+            }
+        }
     }
 
     private static final class FakeWindowsApi implements WindowsNativeCanvasApi {
@@ -342,6 +793,21 @@ class WindowsNativeCanvasHostTest {
         private final Set<Long> deadWindows = new HashSet<>();
         private final List<NativeCanvasWindowBounds> moves = new ArrayList<>();
         private final List<String> visibility = new ArrayList<>();
+        private final List<Long> focusRequests = new ArrayList<>();
+        private final List<Long> focusReleases = new ArrayList<>();
+        private final List<Long> dpiRequests = new ArrayList<>();
+        private NativeCanvasWindowBounds bounds =
+                new NativeCanvasWindowBounds(640, 480);
+        private NativeCanvasWindowBounds runnerBounds = bounds;
+        private NativeCanvasWindowBounds flutterViewBounds = bounds;
+        private int dpi = 96;
+        private int flutterViewDpi = 96;
+        private boolean applyBoundsRequestsImmediately = true;
+        private WindowsNativeCanvasApi.FocusResult focusResult =
+                WindowsNativeCanvasApi.FocusResult.FOCUSED;
+        private WindowsNativeCanvasApi.FocusResult releaseFocusResult =
+                WindowsNativeCanvasApi.FocusResult.FOCUSED;
+        private boolean focused;
         private boolean failNextBoundsRequest;
         private boolean killRunnerDuringNextBoundsRequest;
         private boolean failNextShowWithLinkageError;
@@ -408,7 +874,17 @@ class WindowsNativeCanvasHostTest {
 
         @Override
         public NativeCanvasWindowBounds clientBounds(long window) {
-            return new NativeCanvasWindowBounds(640, 480);
+            return switch ((int) window) {
+                case 20 -> runnerBounds;
+                case 30 -> flutterViewBounds;
+                default -> bounds;
+            };
+        }
+
+        @Override
+        public int windowDpi(long window) {
+            dpiRequests.add(window);
+            return window == 10L ? dpi : flutterViewDpi;
         }
 
         @Override
@@ -425,6 +901,10 @@ class WindowsNativeCanvasHostTest {
                 failNextBoundsRequest = false;
                 return false;
             }
+            if (applyBoundsRequestsImmediately) {
+                runnerBounds = bounds;
+                flutterViewBounds = bounds;
+            }
             return true;
         }
 
@@ -435,6 +915,29 @@ class WindowsNativeCanvasHostTest {
                 throw new UnsatisfiedLinkError("simulated ShowWindow linkage failure");
             }
             visibility.add(window + ":" + visible);
+        }
+
+        @Override
+        public WindowsNativeCanvasApi.FocusResult requestFocus(
+                NativeCanvasAttachment attachment) {
+            focusRequests.add(attachment.flutterViewWindow());
+            focused = focusResult == WindowsNativeCanvasApi.FocusResult.FOCUSED;
+            return focusResult;
+        }
+
+        @Override
+        public WindowsNativeCanvasApi.FocusResult releaseFocus(
+                NativeCanvasAttachment attachment) {
+            focusReleases.add(attachment.parentWindow());
+            if (releaseFocusResult == WindowsNativeCanvasApi.FocusResult.FOCUSED) {
+                focused = false;
+            }
+            return releaseFocusResult;
+        }
+
+        @Override
+        public boolean isFocused(NativeCanvasAttachment attachment) {
+            return focused && attachment.flutterViewWindow() == 30L;
         }
     }
 }

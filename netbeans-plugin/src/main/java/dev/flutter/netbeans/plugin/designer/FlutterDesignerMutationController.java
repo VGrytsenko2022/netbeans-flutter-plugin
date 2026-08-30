@@ -6,7 +6,6 @@ import dev.flutter.netbeans.dart.DartCandidateAnalysisResult;
 import dev.flutter.netbeans.dart.DartCandidateAnalyzer;
 import dev.flutter.netbeans.dart.DartCandidateWarningPolicy;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
-import dev.flutter.netbeans.designer.command.AddWidget;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.DesignerCommandDiagnostic;
 import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
@@ -14,11 +13,6 @@ import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerCommandSessionOpenResult;
 import dev.flutter.netbeans.designer.command.DesignerCommandSessionResult;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
-import dev.flutter.netbeans.designer.command.MoveWidget;
-import dev.flutter.netbeans.designer.command.RemoveWidget;
-import dev.flutter.netbeans.designer.command.ResetProperty;
-import dev.flutter.netbeans.designer.command.SetProperty;
-import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainService;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainStatus;
@@ -1386,31 +1380,11 @@ final class FlutterDesignerMutationController implements AutoCloseable {
     }
 
     private static String operationName(DesignerCommand command) {
-        return switch (command.kind()) {
-            case ADD_WIDGET -> "Add Flutter widget";
-            case REMOVE_WIDGET -> "Remove Flutter widget";
-            case MOVE_WIDGET -> "Move Flutter widget";
-            case WRAP_WIDGET -> "Wrap Flutter widget";
-            case SET_PROPERTY -> "Set Flutter property";
-            case RESET_PROPERTY -> "Reset Flutter property";
-        };
+        return DesignerCommandPresentation.operation(command);
     }
 
     private static String commandTarget(DesignerCommand command) {
-        return switch (command) {
-            case SetProperty set -> set.widgetId() + "." + set.propertyName();
-            case ResetProperty reset ->
-                reset.widgetId() + "." + reset.propertyName();
-            case AddWidget add -> add.destination().parentId() + "."
-                    + add.destination().slotName() + "["
-                    + add.destination().index() + "]";
-            case RemoveWidget remove -> remove.widgetId().toString();
-            case MoveWidget move -> move.widgetId() + " -> "
-                    + move.destination().parentId() + "."
-                    + move.destination().slotName() + "["
-                    + move.destination().index() + "]";
-            case WrapWidget wrap -> wrap.widgetId().toString();
-        };
+        return DesignerCommandPresentation.target(command);
     }
 
     private static String concreteReason(Throwable failure) {

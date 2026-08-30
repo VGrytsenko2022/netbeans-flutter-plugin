@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatform;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasRunnerContract;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +17,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.HashSet;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,7 +30,8 @@ class CanvasRunnerSourceBundleTest {
     void packagedSourcesExtractOnceAndAreVerifiedBeforeReuse() throws Exception {
         CanvasRunnerSourceBundle bundle = CanvasRunnerSourceBundle.packaged();
         FlutterSdk sdk = sdk("engine-a");
-        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(bundle, sdk);
+        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, windowsContract());
 
         Path first = bundle.extract(temporary.resolve("cache"), identity);
         Path second = bundle.extract(temporary.resolve("cache"), identity);
@@ -41,7 +45,8 @@ class CanvasRunnerSourceBundleTest {
     @Test
     void modifiedCachedSourceIsNeverReused() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle(Map.of("lib/main.dart", "void main() {}"));
-        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(bundle, sdk("engine-a"));
+        CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
+                bundle, sdk("engine-a"), windowsContract());
         Path extracted = bundle.extract(temporary.resolve("cache"), identity);
         Files.writeString(extracted.resolve("lib/main.dart"), "tampered");
 
@@ -68,26 +73,83 @@ class CanvasRunnerSourceBundleTest {
     void engineRevisionAndSdkLocationArePartOfCacheIdentity() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle(Map.of("pubspec.yaml", "name: runner\n"));
 
-        CanvasRunnerCacheIdentity first = CanvasRunnerCacheIdentity.create(bundle, sdk("engine-a"));
-        CanvasRunnerCacheIdentity second = CanvasRunnerCacheIdentity.create(bundle, sdk("engine-b"));
+        CanvasRunnerCacheIdentity first = CanvasRunnerCacheIdentity.create(
+                bundle, sdk("engine-a"), windowsContract());
+        CanvasRunnerCacheIdentity second = CanvasRunnerCacheIdentity.create(
+                bundle, sdk("engine-b"), windowsContract());
 
         assertNotEquals(first.cacheKey(), second.cacheKey());
         assertEquals("engine-a", first.engineRevision());
     }
 
     @Test
-    void buildProfileIsPartOfCacheIdentity() throws Exception {
+    void completeRunnerContractFingerprintIsPartOfCacheIdentity() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle(Map.of("pubspec.yaml", "name: runner\n"));
         FlutterSdk sdk = sdk("engine-profile");
 
-        CanvasRunnerCacheIdentity release = CanvasRunnerCacheIdentity.create(bundle, sdk);
+        NativeCanvasRunnerContract contract = windowsContract();
+        CanvasRunnerCacheIdentity release = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, contract);
         CanvasRunnerCacheIdentity explicitRelease = CanvasRunnerCacheIdentity.create(
-                bundle, sdk, CanvasRunnerBuildService.BUILD_PROFILE);
+                bundle, sdk, contract.fingerprint());
         CanvasRunnerCacheIdentity debug = CanvasRunnerCacheIdentity.create(
-                bundle, sdk, "windows-debug-v1");
+                bundle, sdk, "c".repeat(64));
 
         assertEquals(release.cacheKey(), explicitRelease.cacheKey());
         assertNotEquals(release.cacheKey(), debug.cacheKey());
+        assertEquals(contract.fingerprint(), release.runnerContractIdentity());
+    }
+
+    @Test
+    void samePolicyIdentityCannotReuseAnotherPlatformTargetOrRuntimeLayout()
+            throws Exception {
+        CanvasRunnerSourceBundle bundle = bundle(Map.of(
+                "pubspec.yaml", "name: runner\n"));
+        FlutterSdk sdk = sdk("engine-contract");
+        NativeCanvasRunnerContract windows = windowsContract();
+        NativeCanvasRunnerContract.BuildTarget debugTarget =
+                new NativeCanvasRunnerContract.BuildTarget(
+                        windows.buildTarget().flutterTarget(),
+                        "debug",
+                        windows.buildTarget().buildOptions(),
+                        windows.buildTarget().outputDirectory(),
+                        windows.buildTarget().executableName(),
+                        windows.buildTarget().executableSearchDepth());
+        NativeCanvasRunnerContract debug = new NativeCanvasRunnerContract(
+                windows.platform(), debugTarget, windows.runtimeLayout(),
+                windows.cachePolicy());
+        HashSet<String> allowed = new HashSet<>(
+                windows.runtimeLayout().allowedFiles());
+        allowed.add("optional.dat");
+        NativeCanvasRunnerContract layout = new NativeCanvasRunnerContract(
+                windows.platform(),
+                windows.buildTarget(),
+                new NativeCanvasRunnerContract.RuntimeLayout(
+                        windows.runtimeLayout().requiredFiles(),
+                        allowed,
+                        windows.runtimeLayout().allowedFilePrefixes(),
+                        windows.runtimeLayout().allowedDirectories(),
+                        windows.runtimeLayout().allowedDirectoryPrefixes(),
+                        windows.runtimeLayout().ignoredFiles()),
+                windows.cachePolicy());
+        NativeCanvasRunnerContract linux = new NativeCanvasRunnerContract(
+                NativeCanvasPlatform.LINUX,
+                windows.buildTarget(),
+                windows.runtimeLayout(),
+                windows.cachePolicy());
+
+        CanvasRunnerCacheIdentity baseline = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, windows);
+        CanvasRunnerCacheIdentity targetIdentity = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, debug);
+        CanvasRunnerCacheIdentity layoutIdentity = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, layout);
+        CanvasRunnerCacheIdentity platformIdentity = CanvasRunnerCacheIdentity.create(
+                bundle, sdk, linux);
+
+        assertNotEquals(baseline.cacheKey(), targetIdentity.cacheKey());
+        assertNotEquals(baseline.cacheKey(), layoutIdentity.cacheKey());
+        assertNotEquals(baseline.cacheKey(), platformIdentity.cacheKey());
     }
 
     @Test
@@ -95,7 +157,7 @@ class CanvasRunnerSourceBundleTest {
         CanvasRunnerSourceBundle bundle = bundle(Map.of(
                 "lib/main.dart", "void main() {}"));
         CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
-                bundle, sdk("engine-link-source"));
+                bundle, sdk("engine-link-source"), windowsContract());
         Path extracted = bundle.extract(temporary.resolve("cache"), identity);
         Path outside = Files.createDirectories(temporary.resolve("outside-lib"));
         Files.writeString(outside.resolve("main.dart"), "void main() {}");
@@ -115,7 +177,7 @@ class CanvasRunnerSourceBundleTest {
         CanvasRunnerSourceBundle bundle = bundle(Map.of(
                 "lib/main.dart", "void main() {}"));
         CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
-                bundle, sdk("engine-link-build"));
+                bundle, sdk("engine-link-build"), windowsContract());
         Path extracted = bundle.extract(temporary.resolve("cache"), identity);
         Path outside = Files.createDirectories(temporary.resolve("outside-build"));
         createDirectorySymlinkOrSkip(extracted.resolve("build"), outside);
@@ -132,7 +194,7 @@ class CanvasRunnerSourceBundleTest {
         CanvasRunnerSourceBundle bundle = bundle(Map.of(
                 "lib/main.dart", "void main() {}"));
         CanvasRunnerCacheIdentity identity = CanvasRunnerCacheIdentity.create(
-                bundle, sdk("engine-link-generated-file"));
+                bundle, sdk("engine-link-generated-file"), windowsContract());
         Path extracted = bundle.extract(temporary.resolve("cache"), identity);
         Path outside = temporary.resolve("outside-generated-file");
         Files.writeString(outside, "protected\n");
@@ -208,5 +270,9 @@ class CanvasRunnerSourceBundleTest {
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
+    }
+
+    private static NativeCanvasRunnerContract windowsContract() {
+        return new WindowsNativeCanvasPlatformProvider().runnerContract().orElseThrow();
     }
 }

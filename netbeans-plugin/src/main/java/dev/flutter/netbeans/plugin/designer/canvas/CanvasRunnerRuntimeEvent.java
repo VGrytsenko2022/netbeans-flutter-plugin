@@ -2,7 +2,9 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import java.util.Objects;
@@ -11,13 +13,18 @@ import java.util.Objects;
 public sealed interface CanvasRunnerRuntimeEvent permits
         CanvasRunnerRuntimeEvent.Presented,
         CanvasRunnerRuntimeEvent.Selection,
+        CanvasRunnerRuntimeEvent.Interaction,
+        CanvasRunnerRuntimeEvent.InteractionFenceApplied,
         CanvasRunnerRuntimeEvent.PaletteDrop,
         CanvasRunnerRuntimeEvent.DeleteSelection,
         CanvasRunnerRuntimeEvent.ViewportMetrics {
 
-    record Presented(CanvasLayoutKey layoutKey) implements CanvasRunnerRuntimeEvent {
+    record Presented(
+            CanvasLayoutKey layoutKey,
+            CanvasSurfaceMetrics metrics) implements CanvasRunnerRuntimeEvent {
         public Presented {
             Objects.requireNonNull(layoutKey, "layoutKey");
+            Objects.requireNonNull(metrics, "metrics");
         }
     }
 
@@ -27,6 +34,34 @@ public sealed interface CanvasRunnerRuntimeEvent permits
         public Selection {
             Objects.requireNonNull(intentKey, "intentKey");
             Objects.requireNonNull(widgetId, "widgetId");
+        }
+    }
+
+    /** One authenticated pointer-down on the exact presented Canvas layout. */
+    record Interaction(
+            CanvasIntentKey intentKey,
+            long interactionFenceSequence) implements CanvasRunnerRuntimeEvent {
+        public Interaction {
+            Objects.requireNonNull(intentKey, "intentKey");
+            if (interactionFenceSequence < 0
+                    || interactionFenceSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+                throw new IllegalArgumentException(
+                        "interactionFenceSequence is outside the wire range");
+            }
+        }
+    }
+
+    /** Runner acknowledgement that one exact-layout input fence is active. */
+    record InteractionFenceApplied(
+            CanvasLayoutKey layoutKey,
+            long interactionFenceSequence) implements CanvasRunnerRuntimeEvent {
+        public InteractionFenceApplied {
+            Objects.requireNonNull(layoutKey, "layoutKey");
+            if (interactionFenceSequence < 0
+                    || interactionFenceSequence > CanvasWireProtocol.MAX_SEQUENCE) {
+                throw new IllegalArgumentException(
+                        "interactionFenceSequence is outside the wire range");
+            }
         }
     }
 

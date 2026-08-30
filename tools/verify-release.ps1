@@ -6,6 +6,7 @@ param(
     [string]$InstalledUserdir,
     [string]$ExpectedSha256,
     [switch]$RequireOptionalSdkTests,
+    [switch]$RequireOptionalPlatformTests,
     [switch]$SkipFreshnessCheck
 )
 
@@ -36,6 +37,14 @@ $OptionalSdkTestClasses = @(
     'dev.flutter.netbeans.project.FlutterProjectCreatorRealSdkTest',
     'dev.flutter.netbeans.run.AndroidSdkAvdRealSdkTest',
     'dev.flutter.netbeans.runtime.DartEditorEndToEndIT'
+)
+$OptionalSdkTestCases = @(
+    'dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested',
+    'dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+)
+$OptionalPlatformTestCases = @(
+    'dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable',
+    'dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
 )
 $Failures = New-Object 'System.Collections.Generic.List[string]'
 
@@ -182,7 +191,9 @@ function Get-ReportSummary {
         Failures = 0
         Errors = 0
         Skipped = 0
-        SkippedClasses = New-Object 'System.Collections.Generic.List[string]'
+        # ArrayList avoids a PowerShell 7 binder defect when an empty generic
+        # List[object] is converted with @(...).
+        SkippedTests = New-Object System.Collections.ArrayList
     }
     foreach ($report in $Reports) {
         $document = Read-SafeXmlFile $report.FullName
@@ -213,7 +224,10 @@ function Get-ReportSummary {
                     "//*[local-name()='testcase'][*[local-name()='skipped']]"))) {
             $className = $testcase.GetAttribute('classname')
             if (-not [string]::IsNullOrWhiteSpace($className)) {
-                [void]$summary.SkippedClasses.Add($className)
+                [void]$summary.SkippedTests.Add([pscustomobject]@{
+                        ClassName = $className
+                        Name = $testcase.GetAttribute('name')
+                    })
             }
         }
     }
@@ -233,6 +247,26 @@ function Find-TestReport {
         }
     }
     return $null
+}
+
+function Test-ReportsContainCase {
+    param(
+        [System.IO.FileInfo[]]$Reports,
+        [string]$ClassName,
+        [string]$TestName
+    )
+
+    foreach ($report in $Reports) {
+        $document = Read-SafeXmlFile $report.FullName
+        foreach ($testcase in @($document.SelectNodes(
+                    "//*[local-name()='testcase']"))) {
+            if ($testcase.GetAttribute('classname') -ceq $ClassName -and
+                    $testcase.GetAttribute('name') -ceq $TestName) {
+                return $true
+            }
+        }
+    }
+    return $false
 }
 
 function Verify-TestReports {
@@ -324,21 +358,74 @@ function Verify-TestReports {
         Write-Pass 'All recorded Maven tests have zero failures and zero errors.'
     }
 
-    $skippedClasses = @($unit.SkippedClasses) + @($integration.SkippedClasses)
-    if ($RequireOptionalSdkTests -and ($unit.Skipped + $integration.Skipped) -gt 0) {
-        Add-Failure ("Maven reports contain {0} skipped test(s), but -RequireOptionalSdkTests was set." -f
-            ($unit.Skipped + $integration.Skipped))
-    } else {
-        foreach ($className in $skippedClasses) {
-            if ($OptionalSdkTestClasses -notcontains $className) {
-                Add-Failure "Unexpected skipped test class '$className'."
+    $skippedTests = @($unit.SkippedTests) + @($integration.SkippedTests)
+    $optionalSdkSkips = @($skippedTests | Where-Object {
+            $OptionalSdkTestClasses -contains $_.ClassName -or
+            $OptionalSdkTestCases -contains ("{0}#{1}" -f $_.ClassName, $_.Name)
+        })
+    $optionalPlatformSkips = @($skippedTests | Where-Object {
+            $OptionalPlatformTestCases -contains ("{0}#{1}" -f $_.ClassName, $_.Name)
+        })
+    $unexpectedSkips = @($skippedTests | Where-Object {
+            $key = "{0}#{1}" -f $_.ClassName, $_.Name
+            $OptionalSdkTestClasses -notcontains $_.ClassName -and
+            $OptionalSdkTestCases -notcontains $key -and
+            $OptionalPlatformTestCases -notcontains $key
+        })
+
+    foreach ($test in $unexpectedSkips) {
+        Add-Failure ("Unexpected skipped test class '{0}' (test '{1}')." -f
+            $test.ClassName, $test.Name)
+    }
+    if (($unit.Skipped + $integration.Skipped) -gt $skippedTests.Count) {
+        Add-Failure 'At least one skipped Maven test did not identify its test class.'
+    }
+
+    if ($optionalSdkSkips.Count -gt 0) {
+        $sdkClasses = (($optionalSdkSkips | ForEach-Object { $_.ClassName } |
+                    Sort-Object -Unique) -join ', ')
+        if ($RequireOptionalSdkTests) {
+            Add-Failure ("Optional SDK test(s) were skipped while " +
+                "-RequireOptionalSdkTests was set: $sdkClasses")
+        } else {
+            Write-Info "Allowed optional SDK skips: $sdkClasses"
+        }
+    } elseif ($RequireOptionalSdkTests) {
+        Write-Pass 'All optional SDK-backed tests ran without skips.'
+    }
+    $allReports = @($unitReports.ToArray()) + @($integrationReports.ToArray())
+    if ($RequireOptionalSdkTests) {
+        foreach ($identity in $OptionalSdkTestCases) {
+            $parts = $identity.Split('#', 2)
+            if (Test-ReportsContainCase $allReports $parts[0] $parts[1]) {
+                Write-Pass "Required optional SDK test case is recorded: $identity"
+            } else {
+                Add-Failure "Required optional SDK test case report is missing: $identity"
             }
         }
-        if (($unit.Skipped + $integration.Skipped) -gt $skippedClasses.Count) {
-            Add-Failure 'At least one skipped Maven test did not identify its test class.'
-        } elseif (($unit.Skipped + $integration.Skipped) -gt 0) {
-            Write-Info ('Allowed optional SDK skips: ' +
-                (($skippedClasses | Sort-Object -Unique) -join ', '))
+    }
+
+    if ($optionalPlatformSkips.Count -gt 0) {
+        $platformClasses = (($optionalPlatformSkips |
+                    ForEach-Object { $_.ClassName } | Sort-Object -Unique) -join ', ')
+        if ($RequireOptionalPlatformTests) {
+            Add-Failure ("Optional platform-dependent test(s) were skipped while " +
+                "-RequireOptionalPlatformTests was set: $platformClasses")
+        } else {
+            Write-Info ("Allowed optional platform-dependent filesystem skips: " +
+                $platformClasses)
+        }
+    } elseif ($RequireOptionalPlatformTests) {
+        Write-Pass 'All optional platform-dependent tests ran without skips.'
+    }
+    if ($RequireOptionalPlatformTests) {
+        foreach ($identity in $OptionalPlatformTestCases) {
+            $parts = $identity.Split('#', 2)
+            if (Test-ReportsContainCase $allReports $parts[0] $parts[1]) {
+                Write-Pass "Required optional platform test case is recorded: $identity"
+            } else {
+                Add-Failure "Required optional platform test case report is missing: $identity"
+            }
         }
     }
 

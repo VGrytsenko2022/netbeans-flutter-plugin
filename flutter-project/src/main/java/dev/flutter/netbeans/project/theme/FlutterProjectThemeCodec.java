@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 /** Strict bounded reader and deterministic writer for {@code project.fdtheme}. */
 public final class FlutterProjectThemeCodec {
-    /** Bounded for the complete 64-theme v4 catalog, including every typed role override. */
+    /** Bounded for the complete 64-theme v5 catalog, including every typed override. */
     public static final int MAX_DESCRIPTOR_BYTES = 2 * 1024 * 1024;
     private static final int MAX_JSON_DEPTH = 24;
     private static final int MAX_STRING_LENGTH = 4_096;
@@ -73,6 +73,7 @@ public final class FlutterProjectThemeCodec {
                 json.writeStringField("seedArgb", theme.seedArgbLiteral());
                 writeColorScheme(json, theme.overrides().colorScheme());
                 writeTextTheme(json, theme.overrides().textTheme());
+                writeComponentColors(json, theme.overrides().componentColors());
                 json.writeEndObject();
             }
             json.writeEndArray();
@@ -91,7 +92,7 @@ public final class FlutterProjectThemeCodec {
         return bytes;
     }
 
-    /** Decodes and validates one bounded schema-v1 through schema-v4 descriptor. */
+    /** Decodes and validates one bounded schema-v1 through schema-v5 descriptor. */
     public FlutterProjectTheme decode(byte[] bytes) throws IOException {
         Objects.requireNonNull(bytes, "bytes");
         if (bytes.length == 0 || bytes.length > MAX_DESCRIPTOR_BYTES) {
@@ -140,11 +141,13 @@ public final class FlutterProjectThemeCodec {
                     || (schemaVersion != FlutterProjectThemePaths.LEGACY_SCHEMA_VERSION
                     && schemaVersion != FlutterProjectThemePaths.GLOBAL_ENABLED_SCHEMA_VERSION
                     && schemaVersion != FlutterProjectThemePaths.PER_THEME_ENABLED_SCHEMA_VERSION
+                    && schemaVersion != FlutterProjectThemePaths.OVERRIDES_SCHEMA_VERSION
                     && schemaVersion != FlutterProjectThemePaths.SCHEMA_VERSION)) {
                 throw invalid("schemaVersion must be "
                         + FlutterProjectThemePaths.LEGACY_SCHEMA_VERSION + ", "
                         + FlutterProjectThemePaths.GLOBAL_ENABLED_SCHEMA_VERSION + ", "
-                        + FlutterProjectThemePaths.PER_THEME_ENABLED_SCHEMA_VERSION + ", or "
+                        + FlutterProjectThemePaths.PER_THEME_ENABLED_SCHEMA_VERSION + ", "
+                        + FlutterProjectThemePaths.OVERRIDES_SCHEMA_VERSION + ", or "
                         + FlutterProjectThemePaths.SCHEMA_VERSION, null);
             }
             if (schemaVersion == FlutterProjectThemePaths.LEGACY_SCHEMA_VERSION) {
@@ -216,6 +219,7 @@ public final class FlutterProjectThemeCodec {
         Integer seedArgb = null;
         Map<FlutterMaterialColorRole, Integer> colorScheme = null;
         Map<FlutterMaterialTextStyleRole, FlutterThemeTextStyleOverride> textTheme = null;
+        Map<FlutterThemeComponentColorRole, FlutterThemeColorValue> componentColors = null;
         while (next(json, budget) != JsonToken.END_OBJECT) {
             requireToken(json.currentToken(), JsonToken.FIELD_NAME, "theme field");
             String field = json.currentName();
@@ -233,6 +237,7 @@ public final class FlutterProjectThemeCodec {
                         requireString(json, value, field), field);
                 case "colorScheme" -> colorScheme = readColorScheme(json, value, budget);
                 case "textTheme" -> textTheme = readTextTheme(json, value, budget);
+                case "components" -> componentColors = readComponentColors(json, value, budget);
                 default -> throw invalid("Unknown theme field: " + field, null);
             }
         }
@@ -241,14 +246,17 @@ public final class FlutterProjectThemeCodec {
         requirePresent(brightness, "themes[].brightness");
         requirePresent(seedArgb, "themes[].seedArgb");
         return new ParsedTheme(
-                id, displayName, brightness, seedArgb, enabled, colorScheme, textTheme);
+                id, displayName, brightness, seedArgb, enabled, colorScheme, textTheme,
+                componentColors);
     }
 
     private static List<FlutterProjectThemeDefinition> materializeThemes(
             List<ParsedTheme> parsedThemes, int schemaVersion) throws IOException {
         boolean itemEnabledSupported = schemaVersion
                 >= FlutterProjectThemePaths.PER_THEME_ENABLED_SCHEMA_VERSION;
-        boolean overridesSupported = schemaVersion == FlutterProjectThemePaths.SCHEMA_VERSION;
+        boolean overridesSupported = schemaVersion
+                >= FlutterProjectThemePaths.OVERRIDES_SCHEMA_VERSION;
+        boolean componentsSupported = schemaVersion == FlutterProjectThemePaths.SCHEMA_VERSION;
         List<FlutterProjectThemeDefinition> result = new ArrayList<>(parsedThemes.size());
         for (ParsedTheme parsed : parsedThemes) {
             if (!itemEnabledSupported && parsed.enabled() != null) {
@@ -259,7 +267,8 @@ public final class FlutterProjectThemeCodec {
                 throw invalid("Missing required field: themes[].enabled", null);
             }
             if (!overridesSupported
-                    && (parsed.colorScheme() != null || parsed.textTheme() != null)) {
+                    && (parsed.colorScheme() != null || parsed.textTheme() != null
+                    || parsed.componentColors() != null)) {
                 throw invalid("themes[].colorScheme and themes[].textTheme are not part of "
                         + "schemaVersion " + schemaVersion, null);
             }
@@ -268,6 +277,13 @@ public final class FlutterProjectThemeCodec {
             }
             if (overridesSupported && parsed.textTheme() == null) {
                 throw invalid("Missing required field: themes[].textTheme", null);
+            }
+            if (!componentsSupported && parsed.componentColors() != null) {
+                throw invalid("themes[].components is not part of schemaVersion "
+                        + schemaVersion, null);
+            }
+            if (componentsSupported && parsed.componentColors() == null) {
+                throw invalid("Missing required field: themes[].components", null);
             }
             try {
                 result.add(new FlutterProjectThemeDefinition(
@@ -278,7 +294,10 @@ public final class FlutterProjectThemeCodec {
                         itemEnabledSupported ? parsed.enabled() : true,
                         overridesSupported
                                 ? new FlutterThemeOverrides(
-                                        parsed.colorScheme(), parsed.textTheme())
+                                        parsed.colorScheme(), parsed.textTheme(),
+                                        componentsSupported
+                                                ? parsed.componentColors()
+                                                : Map.of())
                                 : FlutterThemeOverrides.EMPTY));
             } catch (IllegalArgumentException ex) {
                 throw invalid(ex.getMessage(), ex);
@@ -414,7 +433,8 @@ public final class FlutterProjectThemeCodec {
             int seedArgb,
             Boolean enabled,
             Map<FlutterMaterialColorRole, Integer> colorScheme,
-            Map<FlutterMaterialTextStyleRole, FlutterThemeTextStyleOverride> textTheme) {
+            Map<FlutterMaterialTextStyleRole, FlutterThemeTextStyleOverride> textTheme,
+            Map<FlutterThemeComponentColorRole, FlutterThemeColorValue> componentColors) {
     }
 
     private static void writeColorScheme(
@@ -477,6 +497,21 @@ public final class FlutterProjectThemeCodec {
             }
             writeDouble(json, "decorationThickness", style.decorationThickness());
             json.writeEndObject();
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeComponentColors(
+            JsonGenerator json,
+            Map<FlutterThemeComponentColorRole, FlutterThemeColorValue> overrides)
+            throws IOException {
+        json.writeObjectFieldStart("components");
+        for (FlutterThemeComponentColorRole role
+                : FlutterThemeComponentColorRole.values()) {
+            FlutterThemeColorValue value = overrides.get(role);
+            if (value != null) {
+                writeThemeColor(json, role.wireName(), Optional.of(value));
+            }
         }
         json.writeEndObject();
     }
@@ -550,6 +585,32 @@ public final class FlutterProjectThemeCodec {
                 throw invalid("textTheme." + wireName + " must contain at least one override", null);
             }
             result.put(role, style);
+        }
+        return Map.copyOf(result);
+    }
+
+    private static Map<FlutterThemeComponentColorRole, FlutterThemeColorValue>
+            readComponentColors(JsonParser json, JsonToken token, TokenBudget budget)
+            throws IOException {
+        requireToken(token, JsonToken.START_OBJECT, "components object");
+        EnumMap<FlutterThemeComponentColorRole, FlutterThemeColorValue> result =
+                new EnumMap<>(FlutterThemeComponentColorRole.class);
+        while (next(json, budget) != JsonToken.END_OBJECT) {
+            requireToken(json.currentToken(), JsonToken.FIELD_NAME,
+                    "component color role");
+            String wireName = json.currentName();
+            FlutterThemeComponentColorRole role;
+            try {
+                role = FlutterThemeComponentColorRole.fromWireName(wireName);
+            } catch (IllegalArgumentException failure) {
+                throw invalid(failure.getMessage(), failure);
+            }
+            FlutterThemeColorValue value = readThemeColor(
+                    json, next(json, budget), budget,
+                    "components." + wireName);
+            if (result.put(role, value) != null) {
+                throw invalid("Duplicate component color role: " + wireName, null);
+            }
         }
         return Map.copyOf(result);
     }

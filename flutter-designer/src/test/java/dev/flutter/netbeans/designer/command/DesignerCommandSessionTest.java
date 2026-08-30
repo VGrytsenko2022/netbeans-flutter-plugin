@@ -293,6 +293,240 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void occupiedSingleSlotReplacementIsOnePersistentByteExactUndoRedoEdit()
+            throws Exception {
+        WidgetNode center = singleChild(
+                WRAPPER_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                text(FIRST_ID, "obsolete"));
+        Fixture fixture = fixture(center, text(SECOND_ID, "replacement"));
+        DesignerCommandSession initial = session(fixture);
+        ReplaceSlotChild command = new ReplaceSlotChild(
+                WRAPPER_ID,
+                CHILD,
+                FIRST_ID,
+                new ReplaceSlotChild.ExistingWidget(SECOND_ID));
+
+        DesignerCommandSessionResult result = initial.apply(command);
+
+        assertEquals(DesignerCommandStatus.APPLIED, result.status(),
+                () -> result.diagnostics().toString());
+        DesignerCommandSession changed = result.session();
+        assertEquals(1, changed.cursor(), "replacement must publish one edit");
+        assertSame(command, result.edit().orElseThrow().forward());
+        assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                changed.current().persistenceKind());
+        assertTrue(changed.current().preparedPair().isPresent());
+        assertEquals(List.of(WRAPPER_ID), rootChildIds(changed),
+                "the moved source must be removed from its former list slot");
+        assertEquals(SECOND_ID, singleChild(
+                find(changed.current().document().root(), WRAPPER_ID), CHILD).id());
+        assertTrue(findOrNull(changed.current().document().root(), FIRST_ID) == null,
+                "the exact old single-slot subtree must be removed");
+        String dart = new String(
+                changed.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("'replacement'"), dart);
+        assertFalse(dart.contains("'obsolete'"), dart);
+
+        DesignerCommandSession undone = changed.undo().session();
+        assertArrayEquals(fixture.fd().copyBytes(), undone.current().fdBytes());
+        assertArrayEquals(fixture.dart(), undone.current().dartCandidateBytes());
+        assertEquals(initial.current().document(), undone.current().document());
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(changed.current().fdBytes(), redone.current().fdBytes());
+        assertArrayEquals(changed.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+        assertEquals(changed.current().document(), redone.current().document());
+    }
+
+    @Test
+    void freshSingleSlotReplacementAndListClearAreEachOneAtomicEdit()
+            throws Exception {
+        WidgetNode center = singleChild(
+                WRAPPER_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                text(FIRST_ID, "old"));
+        DesignerCommandSession replaceInitial = session(fixture(center));
+        DesignerCommandSessionResult replacedResult = replaceInitial.apply(
+                new ReplaceSlotChild(
+                        WRAPPER_ID,
+                        CHILD,
+                        FIRST_ID,
+                        new ReplaceSlotChild.NewSubtree(
+                                text(THIRD_ID, "fresh"))));
+        assertEquals(DesignerCommandStatus.APPLIED, replacedResult.status(),
+                () -> replacedResult.diagnostics().toString());
+        DesignerCommandSession replaced = replacedResult.session();
+        assertEquals(1, replaced.cursor());
+        assertEquals(THIRD_ID, singleChild(
+                find(replaced.current().document().root(), WRAPPER_ID), CHILD).id());
+        assertEquals(replaceInitial.current().document(),
+                replaced.undo().session().current().document());
+
+        Fixture clearFixture = fixture(
+                text(FIRST_ID, "first"), text(SECOND_ID, "second"));
+        DesignerCommandSession clearInitial = session(clearFixture);
+        ClearSlotChildren clear = new ClearSlotChildren(
+                ROOT_ID, CHILDREN, List.of(FIRST_ID, SECOND_ID));
+        DesignerCommandSessionResult clearedResult = clearInitial.apply(clear);
+        assertEquals(DesignerCommandStatus.APPLIED, clearedResult.status(),
+                () -> clearedResult.diagnostics().toString());
+        DesignerCommandSession cleared = clearedResult.session();
+        assertEquals(1, cleared.cursor(), "clear-all must publish one edit");
+        assertSame(clear, clearedResult.edit().orElseThrow().forward());
+        assertFalse(cleared.current().document().root().slots().containsKey(CHILDREN));
+        assertEquals(DesignerRevisionPersistenceKind.PAIRED,
+                cleared.current().persistenceKind());
+        assertTrue(cleared.current().preparedPair().isPresent());
+
+        DesignerCommandSession clearUndone = cleared.undo().session();
+        assertArrayEquals(clearFixture.fd().copyBytes(),
+                clearUndone.current().fdBytes());
+        assertArrayEquals(clearFixture.dart(),
+                clearUndone.current().dartCandidateBytes());
+        DesignerCommandSession clearRedone = clearUndone.redo().session();
+        assertArrayEquals(cleared.current().fdBytes(),
+                clearRedone.current().fdBytes());
+        assertArrayEquals(cleared.current().dartCandidateBytes(),
+                clearRedone.current().dartCandidateBytes());
+    }
+
+    @Test
+    void compoundSlotCommandsRejectStaleRootCycleAndIdConflictsWithoutPartialMutation()
+            throws Exception {
+        WidgetNode center = singleChild(
+                WRAPPER_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                text(FIRST_ID, "old"));
+        Fixture fixture = fixture(center, text(SECOND_ID, "source"));
+        DesignerCommandSession initial = session(fixture);
+
+        assertRejectedUnchanged(initial, new ReplaceSlotChild(
+                WRAPPER_ID,
+                CHILD,
+                THIRD_ID,
+                new ReplaceSlotChild.ExistingWidget(SECOND_ID)),
+                DesignerCommandDiagnosticCode.STALE_SLOT_CONTENT);
+        assertRejectedUnchanged(initial, new ReplaceSlotChild(
+                WRAPPER_ID,
+                CHILD,
+                FIRST_ID,
+                new ReplaceSlotChild.ExistingWidget(ROOT_ID)),
+                DesignerCommandDiagnosticCode.ROOT_MUTATION_FORBIDDEN);
+        assertRejectedUnchanged(initial, new ReplaceSlotChild(
+                WRAPPER_ID,
+                CHILD,
+                FIRST_ID,
+                new ReplaceSlotChild.ExistingWidget(THIRD_ID)),
+                DesignerCommandDiagnosticCode.TARGET_NOT_FOUND);
+        assertRejectedUnchanged(initial, new ReplaceSlotChild(
+                WRAPPER_ID,
+                CHILD,
+                FIRST_ID,
+                new ReplaceSlotChild.NewSubtree(text(SECOND_ID, "duplicate"))),
+                DesignerCommandDiagnosticCode.WIDGET_ID_CONFLICT);
+        assertRejectedUnchanged(initial, new ClearSlotChildren(
+                ROOT_ID, CHILDREN, List.of(WRAPPER_ID, THIRD_ID)),
+                DesignerCommandDiagnosticCode.STALE_SLOT_CONTENT);
+
+        WidgetNode nestedOwner = singleChild(
+                THIRD_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                text(FIRST_ID, "nested"));
+        WidgetNode sourceAncestor = singleChild(
+                WRAPPER_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                nestedOwner);
+        DesignerCommandSession cyclic = session(fixture(sourceAncestor));
+        assertRejectedUnchanged(cyclic, new ReplaceSlotChild(
+                THIRD_ID,
+                CHILD,
+                FIRST_ID,
+                new ReplaceSlotChild.ExistingWidget(WRAPPER_ID)),
+                DesignerCommandDiagnosticCode.DESTINATION_INSIDE_SUBTREE);
+    }
+
+    @Test
+    void compoundSlotCommandsUseCatalogAcceptanceAndMinimumInvariants() {
+        WidgetDefinition constrainedOwner = new WidgetDefinition(
+                type("test.ConstrainedOwner"),
+                "ConstrainedOwner",
+                Optional.empty(),
+                true,
+                "package:test/widgets.dart",
+                List.of("package:test/widgets.dart"),
+                Set.of(),
+                new PaletteMetadata("test", 900, 0, "Constrained Owner"),
+                List.of(),
+                List.of(
+                        new SlotDefinition(
+                                CHILD,
+                                DartParameter.named(0, false),
+                                SlotCardinality.SINGLE,
+                                0,
+                                1,
+                                new SlotAcceptance.ExactTypes(List.of(
+                                        type("flutter.widgets.Center")))),
+                        new SlotDefinition(
+                                CHILDREN,
+                                DartParameter.named(1, true),
+                                SlotCardinality.LIST,
+                                1,
+                                10,
+                                new SlotAcceptance.AnyWidget())));
+        WidgetDefinition centerDefinition = CATALOG.find(
+                type("flutter.widgets.Center")).orElseThrow();
+        WidgetDefinition textDefinition = CATALOG.find(
+                type("flutter.widgets.Text")).orElseThrow();
+        WidgetCatalog catalog = WidgetCatalog.strict(List.of(
+                constrainedOwner, centerDefinition, textDefinition));
+        WidgetNode root = new WidgetNode(
+                ROOT_ID,
+                constrainedOwner.typeId(),
+                Map.of(),
+                Map.of(
+                        CHILD, WidgetSlot.SingleSlot.of(WidgetNode.empty(
+                                WRAPPER_ID, centerDefinition.typeId())),
+                        CHILDREN, new WidgetSlot.ListSlot(List.of(
+                                text(FIRST_ID, "required")))),
+                Extensions.empty());
+        DesignerDocument document = new DesignerDocument(
+                DOCUMENT_ID,
+                descriptor("0".repeat(64), "0".repeat(64)),
+                root);
+        DesignerCommandTransformer transformer = new DesignerCommandTransformer(
+                catalog,
+                DesignerCommandLimits.defaults().validationLimits());
+
+        DesignerCommandTransformer.SemanticResult incompatible = transformer.apply(
+                document,
+                new ReplaceSlotChild(
+                        ROOT_ID,
+                        CHILD,
+                        WRAPPER_ID,
+                        new ReplaceSlotChild.NewSubtree(
+                                text(SECOND_ID, "rejected"))));
+        assertEquals(DesignerCommandStatus.REJECTED, incompatible.status());
+        assertEquals(DesignerCommandDiagnosticCode.SLOT_REJECTS_WIDGET,
+                incompatible.diagnostic().orElseThrow().code());
+        assertTrue(incompatible.document().isEmpty());
+
+        DesignerCommandTransformer.SemanticResult required = transformer.apply(
+                document,
+                new ClearSlotChildren(
+                        ROOT_ID, CHILDREN, List.of(FIRST_ID)));
+        assertEquals(DesignerCommandStatus.REJECTED, required.status());
+        assertEquals(DesignerCommandDiagnosticCode.SLOT_REQUIRED,
+                required.diagnostic().orElseThrow().code());
+        assertTrue(required.document().isEmpty());
+    }
+
+    @Test
     void moveIntoOwnDescendantIsRejected() throws Exception {
         WidgetNode nested = new WidgetNode(
                 WRAPPER_ID,
@@ -1413,6 +1647,30 @@ class DesignerCommandSessionTest {
         assertEquals(code, result.diagnostics().getFirst().code());
     }
 
+    private static void assertRejectedUnchanged(
+            DesignerCommandSession session,
+            DesignerCommand command,
+            DesignerCommandDiagnosticCode code) {
+        byte[] fd = session.current().fdBytes();
+        byte[] dart = session.current().dartCandidateBytes();
+        DesignerDocument document = session.current().document();
+        int cursor = session.cursor();
+        boolean canUndo = session.canUndo();
+        boolean canRedo = session.canRedo();
+
+        DesignerCommandSessionResult result = session.apply(command);
+
+        assertFalse(result.changed());
+        assertSame(session, result.session());
+        assertEquals(code, result.diagnostics().getFirst().code());
+        assertEquals(cursor, result.session().cursor());
+        assertEquals(canUndo, result.session().canUndo());
+        assertEquals(canRedo, result.session().canRedo());
+        assertSame(document, result.session().current().document());
+        assertArrayEquals(fd, result.session().current().fdBytes());
+        assertArrayEquals(dart, result.session().current().dartCandidateBytes());
+    }
+
     private static void assertEvidenceMismatch(
             DesignerCommandSessionOpenResult result) {
         assertEquals(DesignerCommandStatus.CONFLICT, result.status());
@@ -1667,6 +1925,24 @@ class DesignerCommandSessionTest {
                 Map.of(DATA, new PropertyValue.StringValue(value)),
                 Map.of(),
                 Extensions.empty());
+    }
+
+    private static WidgetNode singleChild(
+            StableId id,
+            String type,
+            SlotName slot,
+            WidgetNode child) {
+        return new WidgetNode(
+                id,
+                type(type),
+                Map.of(),
+                Map.of(slot, WidgetSlot.SingleSlot.of(child)),
+                Extensions.empty());
+    }
+
+    private static WidgetNode singleChild(WidgetNode owner, SlotName slot) {
+        return ((WidgetSlot.SingleSlot) owner.slots().get(slot))
+                .child().orElseThrow();
     }
 
     private static StableId id(String value) {

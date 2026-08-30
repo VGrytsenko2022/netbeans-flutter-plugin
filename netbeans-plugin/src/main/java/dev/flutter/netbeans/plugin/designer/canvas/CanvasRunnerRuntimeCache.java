@@ -1,5 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasRunnerContract;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,7 +20,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Integrity boundary for a cached, built Windows Flutter Canvas runtime.
+ * Integrity boundary for a cached, provider-contracted Flutter Canvas runtime.
  *
  * <p>The generated manifest is deliberately limited to the executable runtime
  * allowlist. Debug symbols are not needed to launch the runner and therefore
@@ -49,17 +50,6 @@ final class CanvasRunnerRuntimeCache {
     private static final int MAX_PATH_CHARACTERS = 1_024;
     private static final long MAX_RUNTIME_FILE_BYTES = 512L * 1024 * 1024;
     private static final long MAX_RUNTIME_TOTAL_BYTES = 1024L * 1024 * 1024;
-    private static final String ASSET_PREFIX = "data/flutter_assets/";
-    private static final Set<String> REQUIRED_FILES = Set.of(
-            CanvasRunnerBuildService.EXPECTED_EXECUTABLE,
-            "flutter_windows.dll",
-            "data/icudtl.dat",
-            "data/app.so",
-            "data/flutter_assets/AssetManifest.bin",
-            "data/flutter_assets/FontManifest.json",
-            "data/flutter_assets/NativeAssetsManifest.json",
-            "data/flutter_assets/NOTICES.Z");
-
     private CanvasRunnerRuntimeCache() {
     }
 
@@ -67,11 +57,15 @@ final class CanvasRunnerRuntimeCache {
     static Path commit(
             Path sourceDirectory,
             Path executable,
-            String cacheIdentity) throws IOException {
+            String cacheIdentity,
+            NativeCanvasRunnerContract runnerContract) throws IOException {
+        Objects.requireNonNull(runnerContract, "runnerContract");
+        NativeCanvasRunnerContract.RuntimeLayout runtimeLayout =
+                runnerContract.runtimeLayout();
         Path sourceRoot = requireSafeDirectory(sourceDirectory, "Canvas runner source cache");
         Path normalizedExecutable = requireInside(
                 sourceRoot, executable, "Canvas runner executable");
-        if (!CanvasRunnerBuildService.EXPECTED_EXECUTABLE.equals(
+        if (!runnerContract.buildTarget().executableName().equals(
                 normalizedExecutable.getFileName().toString())) {
             throw new IOException("unexpected Canvas runner executable name: "
                     + normalizedExecutable.getFileName());
@@ -82,12 +76,13 @@ final class CanvasRunnerRuntimeCache {
                 sourceRoot, builtRuntimeRoot, "Canvas runner runtime directory");
         RuntimeSnapshot snapshot;
         try {
-            snapshot = snapshot(builtRuntimeRoot);
+            snapshot = snapshot(builtRuntimeRoot, runtimeLayout);
         } catch (InvalidCacheException ex) {
             throw new IOException("Flutter created an incomplete Canvas runner runtime: "
                     + ex.getMessage(), ex);
         }
-        Path runtimeRoot = publishGeneration(sourceRoot, builtRuntimeRoot, snapshot);
+        Path runtimeRoot = publishGeneration(
+                sourceRoot, builtRuntimeRoot, snapshot, runtimeLayout);
         String runtimeRelative = portableRelative(sourceRoot, runtimeRoot);
         StringBuilder manifest = new StringBuilder();
         manifest.append(FORMAT_LINE).append('\n');
@@ -104,7 +99,7 @@ final class CanvasRunnerRuntimeCache {
         }
         writeAtomically(sourceRoot.resolve(MANIFEST_NAME), bytes,
                 "Canvas runner runtime manifest");
-        return runtimeRoot.resolve(CanvasRunnerBuildService.EXPECTED_EXECUTABLE)
+        return runtimeRoot.resolve(runnerContract.buildTarget().executableName())
                 .toAbsolutePath().normalize();
     }
 
@@ -196,7 +191,8 @@ final class CanvasRunnerRuntimeCache {
     private static Path publishGeneration(
             Path sourceRoot,
             Path builtRuntimeRoot,
-            RuntimeSnapshot expected) throws IOException {
+            RuntimeSnapshot expected,
+            NativeCanvasRunnerContract.RuntimeLayout runtimeLayout) throws IOException {
         Path generations = sourceRoot.resolve(GENERATIONS_DIRECTORY);
         if (!Files.exists(generations, LinkOption.NOFOLLOW_LINKS)) {
             Files.createDirectory(generations);
@@ -224,7 +220,7 @@ final class CanvasRunnerRuntimeCache {
             }
             RuntimeSnapshot copied;
             try {
-                copied = snapshot(runtime);
+                copied = snapshot(runtime, runtimeLayout);
             } catch (InvalidCacheException exception) {
                 throw new IOException("published Canvas runtime failed verification: "
                         + exception.getMessage(), exception);
@@ -277,7 +273,13 @@ final class CanvasRunnerRuntimeCache {
      * truncation/corruption requires a clean rebuild. Unsafe links and paths are
      * rejected rather than followed.
      */
-    static Path validate(Path sourceDirectory, String cacheIdentity) throws IOException {
+    static Path validate(
+            Path sourceDirectory,
+            String cacheIdentity,
+            NativeCanvasRunnerContract runnerContract) throws IOException {
+        Objects.requireNonNull(runnerContract, "runnerContract");
+        NativeCanvasRunnerContract.RuntimeLayout runtimeLayout =
+                runnerContract.runtimeLayout();
         Path sourceRoot = requireSafeDirectory(sourceDirectory, "Canvas runner source cache");
         Path manifestPath = sourceRoot.resolve(MANIFEST_NAME);
         rejectSymlink(manifestPath, "Canvas runner runtime manifest");
@@ -289,7 +291,8 @@ final class CanvasRunnerRuntimeCache {
         }
         RuntimeManifest manifest;
         try {
-            manifest = parseManifest(readBounded(manifestPath), cacheIdentity);
+            manifest = parseManifest(
+                    readBounded(manifestPath), cacheIdentity, runtimeLayout);
         } catch (InvalidCacheException ex) {
             return null;
         }
@@ -308,14 +311,15 @@ final class CanvasRunnerRuntimeCache {
         }
         RuntimeSnapshot actual;
         try {
-            actual = snapshot(runtimeRoot);
+            actual = snapshot(runtimeRoot, runtimeLayout);
         } catch (InvalidCacheException ex) {
             return null;
         }
         if (!manifest.files().equals(actual.files())) {
             return null;
         }
-        Path executable = runtimeRoot.resolve(CanvasRunnerBuildService.EXPECTED_EXECUTABLE)
+        Path executable = runtimeRoot.resolve(
+                runnerContract.buildTarget().executableName())
                 .toAbsolutePath().normalize();
         try {
             requireSafeRegularFile(runtimeRoot, executable, "Canvas runner executable");
@@ -344,23 +348,27 @@ final class CanvasRunnerRuntimeCache {
         return Files.isRegularFile(leaseFile, LinkOption.NOFOLLOW_LINKS);
     }
 
-    /** Removes only generated Windows build state after ordinary cache damage. */
-    static void discardIncompleteBuild(Path sourceDirectory, String buildMarkerName)
+    /** Removes only provider-contracted generated build state after cache damage. */
+    static void discardIncompleteBuild(
+            Path sourceDirectory,
+            String buildMarkerName,
+            NativeCanvasRunnerContract runnerContract)
             throws IOException {
+        Objects.requireNonNull(runnerContract, "runnerContract");
         Path sourceRoot = requireSafeDirectory(sourceDirectory, "Canvas runner source cache");
         deleteSafeFile(sourceRoot.resolve(buildMarkerName), "Canvas runner build marker");
         deleteSafeFile(sourceRoot.resolve(MANIFEST_NAME), "Canvas runner runtime manifest");
-        Path windowsBuild = sourceRoot.resolve("build").resolve("windows");
-        requireNoSymlinkComponents(sourceRoot, windowsBuild,
-                "Canvas runner Windows build directory");
-        if (!Files.exists(windowsBuild, LinkOption.NOFOLLOW_LINKS)) {
+        Path buildOutput = runnerContract.buildTarget().outputRoot(sourceRoot);
+        requireNoSymlinkComponents(sourceRoot, buildOutput,
+                "Canvas runner build output directory");
+        if (!Files.exists(buildOutput, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
-        if (!Files.isDirectory(windowsBuild, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("Canvas runner Windows build path is not a directory: "
-                    + windowsBuild);
+        if (!Files.isDirectory(buildOutput, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Canvas runner build output path is not a directory: "
+                    + buildOutput);
         }
-        Files.walkFileTree(windowsBuild, new SimpleFileVisitor<>() {
+        Files.walkFileTree(buildOutput, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
                     throws IOException {
@@ -429,8 +437,11 @@ final class CanvasRunnerRuntimeCache {
         }
     }
 
-    private static RuntimeSnapshot snapshot(Path runtimeRoot)
+    private static RuntimeSnapshot snapshot(
+            Path runtimeRoot,
+            NativeCanvasRunnerContract.RuntimeLayout runtimeLayout)
             throws IOException, InvalidCacheException {
+        Objects.requireNonNull(runtimeLayout, "runtimeLayout");
         Path safeRoot = requireSafeDirectory(runtimeRoot, "Canvas runner runtime directory");
         Map<String, RuntimeFile> files = new TreeMap<>();
         long[] totalBytes = {0L};
@@ -447,7 +458,7 @@ final class CanvasRunnerRuntimeCache {
                     throw new InvalidCacheException("non-directory runtime path: " + directory);
                 }
                 String relative = portableRelative(safeRoot, directory);
-                if (!allowedDirectory(relative)) {
+                if (!runtimeLayout.allowsDirectory(relative)) {
                     throw new InvalidCacheException("unexpected runtime directory: " + relative);
                 }
                 if (++visited[0] > MAX_RUNTIME_FILES) {
@@ -470,17 +481,17 @@ final class CanvasRunnerRuntimeCache {
                     throw new InvalidCacheException("runtime contains too many paths");
                 }
                 String relative = portableRelative(safeRoot, file);
-                if (ignoredDebugFile(relative)) {
+                if (runtimeLayout.ignoresFile(relative)) {
                     return FileVisitResult.CONTINUE;
                 }
-                if (!allowedRuntimeFile(relative)) {
+                if (!runtimeLayout.allowsFile(relative)) {
                     throw new InvalidCacheException("unexpected runtime file: " + relative);
                 }
                 long size = attributes.size();
                 if (size < 0 || size > MAX_RUNTIME_FILE_BYTES) {
                     throw new InvalidCacheException("runtime file has unsafe size: " + relative);
                 }
-                if (size == 0 && REQUIRED_FILES.contains(relative)) {
+                if (size == 0 && runtimeLayout.requiredFiles().contains(relative)) {
                     throw new InvalidCacheException(
                             "required runtime file is empty: " + relative);
                 }
@@ -501,16 +512,21 @@ final class CanvasRunnerRuntimeCache {
                 throw new IOException("cannot inspect Canvas runner runtime file: " + file, failure);
             }
         });
-        if (!files.keySet().containsAll(REQUIRED_FILES)) {
-            Set<String> missing = new HashSet<>(REQUIRED_FILES);
+        if (!files.keySet().containsAll(runtimeLayout.requiredFiles())) {
+            Set<String> missing = new java.util.HashSet<>(
+                    runtimeLayout.requiredFiles());
             missing.removeAll(files.keySet());
             throw new InvalidCacheException("missing required runtime files: " + missing);
         }
         return new RuntimeSnapshot(Map.copyOf(files));
     }
 
-    private static RuntimeManifest parseManifest(byte[] bytes, String expectedIdentity)
+    private static RuntimeManifest parseManifest(
+            byte[] bytes,
+            String expectedIdentity,
+            NativeCanvasRunnerContract.RuntimeLayout runtimeLayout)
             throws InvalidCacheException {
+        Objects.requireNonNull(runtimeLayout, "runtimeLayout");
         String text = new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
         String[] lines = text.split("\\n", -1);
         if (lines.length < 5 || !lines[lines.length - 1].isEmpty()) {
@@ -537,7 +553,7 @@ final class CanvasRunnerRuntimeCache {
                 throw new InvalidCacheException("runtime manifest contains too many files");
             }
             String relative = validatePortableRelative(fields[1]);
-            if (!allowedRuntimeFile(relative)) {
+            if (!runtimeLayout.allowsFile(relative)) {
                 throw new InvalidCacheException("runtime manifest contains a non-runtime path");
             }
             long size;
@@ -549,7 +565,7 @@ final class CanvasRunnerRuntimeCache {
             if (size < 0 || size > MAX_RUNTIME_FILE_BYTES) {
                 throw new InvalidCacheException("runtime manifest file exceeds its size limit");
             }
-            if (size == 0 && REQUIRED_FILES.contains(relative)) {
+            if (size == 0 && runtimeLayout.requiredFiles().contains(relative)) {
                 throw new InvalidCacheException(
                         "runtime manifest contains an empty required file: " + relative);
             }
@@ -569,7 +585,7 @@ final class CanvasRunnerRuntimeCache {
                 throw new InvalidCacheException("duplicate runtime manifest file: " + relative);
             }
         }
-        if (!files.keySet().containsAll(REQUIRED_FILES)) {
+        if (!files.keySet().containsAll(runtimeLayout.requiredFiles())) {
             throw new InvalidCacheException("runtime manifest omits required files");
         }
         return new RuntimeManifest(runtimeRelative, Map.copyOf(files));
@@ -628,25 +644,6 @@ final class CanvasRunnerRuntimeCache {
             throw new InvalidCacheException("runtime file changed while hashing: " + file);
         }
         return HexFormat.of().formatHex(digest.digest());
-    }
-
-    private static boolean allowedDirectory(String relative) {
-        return relative.isEmpty()
-                || "data".equals(relative)
-                || "data/flutter_assets".equals(relative)
-                || relative.startsWith(ASSET_PREFIX);
-    }
-
-    private static boolean allowedRuntimeFile(String relative) {
-        return CanvasRunnerBuildService.EXPECTED_EXECUTABLE.equals(relative)
-                || "flutter_windows.dll".equals(relative)
-                || "data/icudtl.dat".equals(relative)
-                || "data/app.so".equals(relative)
-                || relative.startsWith(ASSET_PREFIX);
-    }
-
-    private static boolean ignoredDebugFile(String relative) {
-        return "netbeans_flutter_canvas_runner.pdb".equals(relative);
     }
 
     private static String portableRelative(Path parent, Path child) throws IOException {

@@ -63,6 +63,10 @@ final class DesignerCommandTransformer {
             case AddWidget add -> add(current, index, add);
             case RemoveWidget remove -> remove(current, index, remove);
             case MoveWidget move -> move(current, index, move);
+            case ReplaceSlotChild replace -> replaceSlotChild(
+                    current, index, replace);
+            case ClearSlotChildren clear -> clearSlotChildren(
+                    current, index, clear);
             case WrapWidget wrap -> wrap(current, index, wrap);
             case SetProperty set -> setProperty(current, index, set);
             case ResetProperty reset -> resetProperty(current, index, reset);
@@ -177,6 +181,169 @@ final class DesignerCommandTransformer {
             return failure(insertion.diagnostic().orElseThrow());
         }
         return applied(withRoot(current, insertion.root().orElseThrow()));
+    }
+
+    private SemanticResult replaceSlotChild(
+            DesignerDocument current,
+            TreeIndex index,
+            ReplaceSlotChild command) {
+        SlotLookup lookup = lookupSlot(
+                index,
+                command.ownerId(),
+                command.slotName(),
+                SlotCardinality.SINGLE);
+        if (lookup.diagnostic().isPresent()) {
+            return failure(lookup.diagnostic().orElseThrow());
+        }
+        SlotContext slot = lookup.context().orElseThrow();
+        if (!(slot.value() instanceof WidgetSlot.SingleSlot single)
+                || single.child().isEmpty()
+                || !single.child().orElseThrow().id().equals(
+                        command.expectedChildId())) {
+            return staleSlot(
+                    slot,
+                    List.of(command.expectedChildId()),
+                    directChildIds(slot.value()));
+        }
+
+        WidgetNode replacement;
+        WidgetNode root = current.root();
+        if (command.replacement() instanceof ReplaceSlotChild.NewSubtree fresh) {
+            Optional<DesignerCommandDiagnostic> subtree = validateInsertedSubtree(
+                    fresh.widget(), index.ids(), "/command/replacement/widget");
+            if (subtree.isPresent()) {
+                return failure(subtree.orElseThrow());
+            }
+            replacement = fresh.widget();
+        } else {
+            StableId sourceId = ((ReplaceSlotChild.ExistingWidget)
+                    command.replacement()).widgetId();
+            NodeRef source = index.nodes().get(sourceId);
+            if (source == null) {
+                return failure(
+                        DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.TARGET_NOT_FOUND,
+                        "/command/replacement/widgetId",
+                        Optional.of(sourceId),
+                        "Replacement widget '" + sourceId
+                        + "' does not exist in the current revision.");
+            }
+            if (source.parentId().isEmpty()) {
+                return failure(
+                        DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.ROOT_MUTATION_FORBIDDEN,
+                        "/root",
+                        Optional.of(sourceId),
+                        "The required designer root cannot be moved into a slot.");
+            }
+            if (sourceId.equals(command.expectedChildId())) {
+                return noChange("The requested replacement is already the slot child.");
+            }
+            Set<StableId> sourceIds = collectIds(
+                    source.node(), limits.maxNodes()).ids();
+            if (sourceIds.contains(command.ownerId())) {
+                return failure(
+                        DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.DESTINATION_INSIDE_SUBTREE,
+                        source.path(),
+                        Optional.of(sourceId),
+                        "Widget '" + sourceId
+                        + "' cannot replace a child of a widget in its own subtree.");
+            }
+            replacement = source.node();
+        }
+
+        Optional<DesignerCommandDiagnostic> acceptance = accepts(
+                slot, replacement, "/command/replacement");
+        if (acceptance.isPresent()) {
+            return failure(acceptance.orElseThrow());
+        }
+
+        if (command.replacement() instanceof ReplaceSlotChild.ExistingWidget existing) {
+            NodeRef source = index.nodes().get(existing.widgetId());
+            Removal removal = remove(root, index, source);
+            if (removal.diagnostic().isPresent()) {
+                return failure(removal.diagnostic().orElseThrow());
+            }
+            root = removal.root().orElseThrow();
+            TreeIndex reduced = TreeIndex.create(root, limits.maxNodes());
+            SlotLookup refreshed = lookupSlot(
+                    reduced,
+                    command.ownerId(),
+                    command.slotName(),
+                    SlotCardinality.SINGLE);
+            if (refreshed.diagnostic().isPresent()) {
+                return failure(refreshed.diagnostic().orElseThrow());
+            }
+            slot = refreshed.context().orElseThrow();
+            if (!(slot.value() instanceof WidgetSlot.SingleSlot refreshedSingle)
+                    || refreshedSingle.child().isEmpty()
+                    || !refreshedSingle.child().orElseThrow().id().equals(
+                            command.expectedChildId())) {
+                return staleSlot(
+                        slot,
+                        List.of(command.expectedChildId()),
+                        directChildIds(slot.value()));
+            }
+        }
+
+        WidgetNode changedOwner = withSlot(
+                slot.owner().node(),
+                command.slotName(),
+                WidgetSlot.SingleSlot.of(replacement));
+        return applied(withRoot(
+                current,
+                replace(root, command.ownerId(), changedOwner)));
+    }
+
+    private SemanticResult clearSlotChildren(
+            DesignerDocument current,
+            TreeIndex index,
+            ClearSlotChildren command) {
+        SlotLookup lookup = lookupSlot(
+                index,
+                command.ownerId(),
+                command.slotName(),
+                SlotCardinality.LIST);
+        if (lookup.diagnostic().isPresent()) {
+            return failure(lookup.diagnostic().orElseThrow());
+        }
+        SlotContext slot = lookup.context().orElseThrow();
+        List<StableId> actual = directChildIds(slot.value());
+        if (!actual.equals(command.expectedChildIds())) {
+            return staleSlot(slot, command.expectedChildIds(), actual);
+        }
+        if (actual.isEmpty()) {
+            return noChange("List slot '" + command.slotName().value()
+                    + "' is already empty.");
+        }
+        if (slot.definition().minChildren() > 0) {
+            return failure(
+                    DesignerCommandStatus.REJECTED,
+                    DesignerCommandDiagnosticCode.SLOT_REQUIRED,
+                    slot.path(),
+                    Optional.of(command.ownerId()),
+                    "Clearing slot '" + command.slotName().value()
+                    + "' would leave it below its minimum of "
+                    + slot.definition().minChildren() + " children.");
+        }
+
+        LinkedHashMap<SlotName, WidgetSlot> slots =
+                new LinkedHashMap<>(slot.owner().node().slots());
+        if (slot.definition().parameter().required()) {
+            slots.put(command.slotName(), new WidgetSlot.ListSlot(List.of()));
+        } else {
+            slots.remove(command.slotName());
+        }
+        WidgetNode changedOwner = new WidgetNode(
+                slot.owner().node().id(),
+                slot.owner().node().type(),
+                slot.owner().node().properties(),
+                slots,
+                slot.owner().node().extensions());
+        return applied(withRoot(
+                current,
+                replace(current.root(), command.ownerId(), changedOwner)));
     }
 
     private SemanticResult wrap(
@@ -331,6 +498,104 @@ final class DesignerCommandTransformer {
                 target.node().extensions());
         return applied(withRoot(
                 current, replace(current.root(), command.widgetId(), replacement)));
+    }
+
+    private SlotLookup lookupSlot(
+            TreeIndex index,
+            StableId ownerId,
+            SlotName slotName,
+            SlotCardinality expectedCardinality) {
+        NodeRef owner = index.nodes().get(ownerId);
+        if (owner == null) {
+            return SlotLookup.failure(diagnostic(
+                    DesignerCommandDiagnosticCode.PARENT_NOT_FOUND,
+                    "/command/ownerId",
+                    Optional.of(ownerId),
+                    "Slot owner '" + ownerId
+                    + "' does not exist in the current revision."));
+        }
+        WidgetDefinition ownerDefinition = catalog.find(
+                owner.node().type()).orElseThrow();
+        Optional<SlotDefinition> declared = ownerDefinition.slot(slotName);
+        String path = owner.path() + "/slots/" + pointer(slotName.value());
+        if (declared.isEmpty()) {
+            return SlotLookup.failure(diagnostic(
+                    DesignerCommandDiagnosticCode.SLOT_UNKNOWN,
+                    path,
+                    Optional.of(ownerId),
+                    "Widget type '" + owner.node().type().value()
+                    + "' has no slot '" + slotName.value() + "'."));
+        }
+        SlotDefinition definition = declared.orElseThrow();
+        WidgetSlot value = owner.node().slots().get(slotName);
+        if (definition.cardinality() != expectedCardinality
+                || value != null && value.cardinality() != expectedCardinality) {
+            return SlotLookup.failure(cardinalityDiagnostic(owner, path));
+        }
+        return SlotLookup.success(new SlotContext(
+                owner, definition, value, path));
+    }
+
+    private Optional<DesignerCommandDiagnostic> accepts(
+            SlotContext slot,
+            WidgetNode child,
+            String childPath) {
+        Optional<WidgetDefinition> childDefinition = catalog.find(child.type());
+        if (childDefinition.isEmpty()) {
+            return Optional.of(diagnostic(
+                    DesignerCommandDiagnosticCode.WIDGET_TYPE_UNKNOWN,
+                    childPath + "/type",
+                    Optional.of(child.id()),
+                    "Widget type '" + child.type().value()
+                    + "' is not present in the bound catalog."));
+        }
+        if (!slot.definition().acceptance().accepts(
+                childDefinition.orElseThrow())) {
+            return Optional.of(diagnostic(
+                    DesignerCommandDiagnosticCode.SLOT_REJECTS_WIDGET,
+                    slot.path(),
+                    Optional.of(child.id()),
+                    "Slot '" + slot.definition().name().value()
+                    + "' does not accept widget type '"
+                    + child.type().value() + "'."));
+        }
+        return Optional.empty();
+    }
+
+    private SemanticResult staleSlot(
+            SlotContext slot,
+            List<StableId> expected,
+            List<StableId> actual) {
+        return failure(
+                DesignerCommandStatus.REJECTED,
+                DesignerCommandDiagnosticCode.STALE_SLOT_CONTENT,
+                slot.path(),
+                Optional.of(slot.owner().node().id()),
+                "Slot '" + slot.definition().name().value()
+                + "' changed after the command was planned; expected direct child ids "
+                + expected + " but found " + actual + ".");
+    }
+
+    private static List<StableId> directChildIds(WidgetSlot slot) {
+        if (slot == null) {
+            return List.of();
+        }
+        return children(slot).stream().map(WidgetNode::id).toList();
+    }
+
+    private static WidgetNode withSlot(
+            WidgetNode owner,
+            SlotName slotName,
+            WidgetSlot value) {
+        LinkedHashMap<SlotName, WidgetSlot> slots =
+                new LinkedHashMap<>(owner.slots());
+        slots.put(slotName, value);
+        return new WidgetNode(
+                owner.id(),
+                owner.type(),
+                owner.properties(),
+                slots,
+                owner.extensions());
     }
 
     private Insertion insert(
@@ -795,6 +1060,25 @@ final class DesignerCommandTransformer {
         static Removal failure(DesignerCommandDiagnostic diagnostic) {
             return new Removal(Optional.empty(), Optional.of(diagnostic));
         }
+    }
+
+    private record SlotLookup(
+            Optional<SlotContext> context,
+            Optional<DesignerCommandDiagnostic> diagnostic) {
+        static SlotLookup success(SlotContext context) {
+            return new SlotLookup(Optional.of(context), Optional.empty());
+        }
+
+        static SlotLookup failure(DesignerCommandDiagnostic diagnostic) {
+            return new SlotLookup(Optional.empty(), Optional.of(diagnostic));
+        }
+    }
+
+    private record SlotContext(
+            NodeRef owner,
+            SlotDefinition definition,
+            WidgetSlot value,
+            String path) {
     }
 
     private record CollectedIds(

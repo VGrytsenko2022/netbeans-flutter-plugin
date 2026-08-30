@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -120,5 +121,45 @@ class FlutterProjectThemeStoreTest {
 
         assertEquals(FlutterProjectThemeLoadStatus.VALID, result.status());
         assertEquals(disabled, result.theme().orElseThrow());
+    }
+
+    @Test
+    void validatesSchemaV5ComponentThemeAndItsGeneratedDartPair()
+            throws Exception {
+        Path root = Files.createDirectory(temporaryDirectory.resolve("components"));
+        Path descriptor = root.resolve(FlutterProjectThemePaths.DESCRIPTOR_PATH);
+        Path dartFile = root.resolve(FlutterProjectThemePaths.GENERATED_DART_PATH);
+        Files.createDirectories(descriptor.getParent());
+        Files.createDirectories(dartFile.getParent());
+
+        FlutterProjectTheme defaults = FlutterProjectTheme.defaultTheme("0".repeat(64));
+        FlutterProjectThemeDefinition light = defaults.lightTheme();
+        FlutterProjectTheme provisional = new FlutterProjectTheme(
+                defaults.enabled(), defaults.defaultMode(), defaults.lightThemeId(),
+                defaults.darkThemeId(), List.of(
+                        new FlutterProjectThemeDefinition(
+                                light.id(), light.displayName(), light.brightness(),
+                                light.seedArgb(), light.enabled(),
+                                new FlutterThemeOverrides(
+                                        Map.of(), Map.of(), Map.of(
+                                                FlutterThemeComponentColorRole
+                                                        .APP_BAR_FOREGROUND,
+                                                new FlutterThemeColorValue.ColorRole(
+                                                        FlutterMaterialColorRole.ON_PRIMARY)))),
+                        defaults.darkTheme()), defaults.generated());
+        byte[] dart = FlutterProjectThemeDartGenerator.generate(provisional);
+        FlutterProjectTheme persisted = new FlutterProjectTheme(
+                provisional.enabled(), provisional.defaultMode(),
+                provisional.lightThemeId(), provisional.darkThemeId(),
+                provisional.themes(), new FlutterGeneratedThemeArtifact(
+                        FlutterProjectThemePaths.GENERATED_DART_WIRE_PATH,
+                        FlutterProjectThemeDigests.sha256(dart)));
+        Files.write(descriptor, new FlutterProjectThemeCodec().encode(persisted));
+        Files.write(dartFile, dart);
+
+        FlutterProjectThemeLoadResult result = store.load(root);
+
+        assertEquals(FlutterProjectThemeLoadStatus.VALID, result.status());
+        assertEquals(persisted, result.theme().orElseThrow());
     }
 }

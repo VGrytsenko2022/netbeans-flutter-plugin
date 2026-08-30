@@ -14,6 +14,103 @@ void main() {
     );
   });
 
+  test('decodes every reviewed Scaffold scalar with exact closed types', () {
+    final json = _modelJson();
+    final root = json['root']! as Map<String, Object?>;
+    root['properties'] = <String, Object?>{
+      'floatingActionButtonLocation': {
+        'kind': 'string',
+        'value': 'miniCenterDocked',
+      },
+      'floatingActionButtonAnimator': {
+        'kind': 'string',
+        'value': 'noAnimation',
+      },
+      'persistentFooterAlignment': {'kind': 'string', 'value': 'bottomStart'},
+      'onDrawerChanged': {'kind': 'callbackPresence'},
+      'onEndDrawerChanged': {'kind': 'callbackPresence'},
+      'backgroundColor': {
+        'kind': 'themeToken',
+        'token': 'material.colorScheme.surface',
+      },
+      'resizeToAvoidBottomInset': {'kind': 'boolean', 'value': false},
+      'primary': {'kind': 'boolean', 'value': false},
+      'drawerDragStartBehavior': {
+        'kind': 'enum',
+        'type': 'DragStartBehavior',
+        'value': 'down',
+      },
+      'extendBody': {'kind': 'boolean', 'value': true},
+      'drawerBarrierDismissible': {'kind': 'boolean', 'value': false},
+      'extendBodyBehindAppBar': {'kind': 'boolean', 'value': true},
+      'drawerScrimColor': {'kind': 'color', 'argb': '0x80112233'},
+      'drawerEdgeDragWidth': {'kind': 'double', 'value': 24.5},
+      'drawerEnableOpenDragGesture': {'kind': 'boolean', 'value': false},
+      'endDrawerEnableOpenDragGesture': {'kind': 'boolean', 'value': false},
+      'restorationId': {'kind': 'string', 'value': 'home-scaffold'},
+    };
+
+    final scaffold = _decode(json).root;
+
+    expect(scaffold.properties, hasLength(17));
+    expect(
+      scaffold.properties['floatingActionButtonLocation']!.value,
+      'miniCenterDocked',
+    );
+    expect(
+      scaffold.properties['floatingActionButtonAnimator']!.value,
+      'noAnimation',
+    );
+    expect(
+      scaffold.properties['persistentFooterAlignment']!.value,
+      'bottomStart',
+    );
+    expect(scaffold.properties['onDrawerChanged']!.kind, 'callbackPresence');
+    expect(scaffold.properties['onEndDrawerChanged']!.value, isTrue);
+    expect(
+      (scaffold.properties['backgroundColor']!.value as CanvasThemeToken)
+          .wireId,
+      'material.colorScheme.surface',
+    );
+    final drag =
+        scaffold.properties['drawerDragStartBehavior']!.value
+            as CanvasEnumValue;
+    expect(drag.type, 'DragStartBehavior');
+    expect(drag.value, 'down');
+    expect(scaffold.properties['drawerEdgeDragWidth']!.value, 24.5);
+    expect(scaffold.properties['restorationId']!.value, 'home-scaffold');
+  });
+
+  test('rejects Scaffold values outside reviewed presets and bounds', () {
+    Map<String, Object?> invalid(String name, Map<String, Object?> value) {
+      final json = _modelJson();
+      final root = json['root']! as Map<String, Object?>;
+      root['properties'] = <String, Object?>{name: value};
+      return json;
+    }
+
+    for (final json in <Map<String, Object?>>[
+      invalid('floatingActionButtonLocation', {
+        'kind': 'string',
+        'value': 'custom',
+      }),
+      invalid('floatingActionButtonAnimator', {
+        'kind': 'string',
+        'value': 'custom',
+      }),
+      invalid('persistentFooterAlignment', {'kind': 'string', 'value': 'left'}),
+      invalid('drawerDragStartBehavior', {
+        'kind': 'enum',
+        'type': 'DragStartBehavior',
+        'value': 'move',
+      }),
+      invalid('drawerEdgeDragWidth', {'kind': 'integer', 'value': -1}),
+      invalid('restorationId', {'kind': 'string', 'value': ''}),
+    ]) {
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
   test('AppBar reviewed below-type contract matches Java fingerprint', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.AppBar\n');
@@ -555,6 +652,34 @@ void main() {
       expect(section, contains('S|child|single|1|0|1|any\n'));
     },
   );
+
+  test('Scaffold reviewed contract is exact and closed at 17 leaves', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.material.Scaffold\n');
+    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final section = contract.substring(start, end);
+    expect(
+      section.split('\n').where((line) => line.startsWith('P|')),
+      hasLength(17),
+    );
+    expect(
+      section,
+      contains(
+        'P|drawerDragStartBehavior|enum|0|-|-|enum:enum:'
+        'cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:'
+        'DragStartBehavior:down,start\n',
+      ),
+    );
+    expect(
+      section,
+      contains('P|onDrawerChanged|callback|0|-|-|callback:callbackReference\n'),
+    );
+    expect(section, contains('S|appBar|single|0|0|1|trait:'));
+    expect(section, contains('S|body|single|0|0|1|any\n'));
+    expect(section, contains('S|floatingActionButton|single|0|0|1|any\n'));
+  });
 
   test('decodes callbacks as presence only and requires the child slot', () {
     final decoded = CanvasModel.decode(elevatedButtonModelBytesForViewTest());
@@ -1314,6 +1439,53 @@ void main() {
     final emptyStyle = _modelJson();
     _theme(emptyStyle)['textTheme'] = {'bodyMedium': <String, Object?>{}};
     expect(() => _decode(emptyStyle), throwsFormatException);
+  });
+
+  test('decodes the exact typed project component color vocabulary', () {
+    final json = _modelJson();
+    _theme(json)['components'] = {
+      'scaffold.backgroundColor': {'kind': 'argb', 'argb': '0xFF123456'},
+      'appBar.foregroundColor': {'kind': 'colorScheme', 'role': 'onPrimary'},
+      'elevatedButton.overlayColor.pressed': {
+        'kind': 'argb',
+        'argb': '0x66112233',
+      },
+    };
+
+    final components = _decode(json).profile.theme.components;
+    expect(components, hasLength(3));
+    expect(
+      (components['scaffold.backgroundColor']! as CanvasThemeLiteralColor).argb,
+      0xff123456,
+    );
+    expect(
+      (components['appBar.foregroundColor']! as CanvasThemeRoleColor).role,
+      'onPrimary',
+    );
+    expect(
+      (components['elevatedButton.overlayColor.pressed']!
+              as CanvasThemeLiteralColor)
+          .argb,
+      0x66112233,
+    );
+
+    expect(canvasThemeComponentColorRoles, hasLength(36));
+
+    final unknown = _modelJson();
+    _theme(unknown)['components'] = {
+      'futureWidget.color': {'kind': 'argb', 'argb': '0xFF000000'},
+    };
+    expect(() => _decode(unknown), throwsFormatException);
+
+    final malformed = _modelJson();
+    _theme(malformed)['components'] = {
+      'icon.color': {'kind': 'literal', 'argb': '0xFF000000'},
+    };
+    expect(() => _decode(malformed), throwsFormatException);
+
+    final missing = _modelJson();
+    _theme(missing).remove('components');
+    expect(() => _decode(missing), throwsFormatException);
   });
 
   test('decodes exact light and dark project theme variants', () {
@@ -2333,7 +2505,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 8,
+  'protocolVersion': 9,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
@@ -2351,6 +2523,7 @@ Map<String, Object?> _modelJson() => {
       'digestIdentity': 'A' * 64,
       'colorScheme': <String, Object?>{},
       'textTheme': <String, Object?>{},
+      'components': <String, Object?>{},
     },
     'locale': 'en-US',
     'textScaleFactor': 1,

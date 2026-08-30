@@ -23,6 +23,8 @@ const _paletteDropSourceAwareCapability = 'palette.drop.sourceAware.v1';
 const _deleteSelectedWidgetCapability = 'widget.deleteSelection.v1';
 const _widgetMovePreviewCapability = 'widget.movePreview.v1';
 const _viewportPresentationCapability = 'viewport.presentation.v1';
+const _surfacePresentationCapability = 'surface.presentation.v1';
+const _maximumDevicePixelRatioMicros = 2147483647;
 const minimumCanvasZoomMicros = 250000;
 const maximumCanvasZoomMicros = 2000000;
 const canvasViewportMicros = 1000000;
@@ -355,6 +357,11 @@ class CanvasRuntimeController extends ChangeNotifier
   _HandshakeLimits _limits = _HandshakeLimits.safe;
   int _runnerWireSequence = 1;
   int _intentSequence = 0;
+  int _interactionFenceSequence = 0;
+  int _interactionFenceApplicationTicket = 0;
+  bool _interactionInputSynchronized = false;
+  String? _appliedInteractionFenceIdentity;
+  int? _appliedInteractionFenceLayoutSequence;
   int _layoutSequence = 0;
   int? _pendingLayoutSequence;
   int _layoutPublicationTicket = 0;
@@ -375,6 +382,7 @@ class CanvasRuntimeController extends ChangeNotifier
   bool _deleteSelectedWidgetNegotiated = false;
   bool _widgetMovePreviewNegotiated = false;
   bool _viewportPresentationNegotiated = false;
+  bool _surfacePresentationNegotiated = false;
   CanvasViewportPresentation? _viewportPresentation;
   CanvasViewportMetrics? _viewportMetrics;
   String? _lastViewportPublication;
@@ -408,6 +416,26 @@ class CanvasRuntimeController extends ChangeNotifier
 
   @visibleForTesting
   int? get pendingLayoutSequence => _pendingLayoutSequence;
+
+  @visibleForTesting
+  int get interactionFenceSequence => _interactionFenceSequence;
+
+  bool get interactionInputSynchronized =>
+      _interactionInputEnabledForCurrentLayout();
+
+  bool _interactionInputEnabledForCurrentLayout() {
+    final current = _model;
+    if (_closed ||
+        !_interactionInputSynchronized ||
+        current == null ||
+        _pendingLayoutSequence != null) {
+      return false;
+    }
+    final identity = _identity(current);
+    return _lastPresentedIdentity == identity &&
+        _appliedInteractionFenceIdentity == identity &&
+        _appliedInteractionFenceLayoutSequence == _layoutSequence;
+  }
 
   /// Completes the currently reserved post-layout publication in protocol
   /// tests that do not own a live Flutter render surface.
@@ -486,6 +514,9 @@ class CanvasRuntimeController extends ChangeNotifier
       _viewportPresentationNegotiated = hello.capabilities.contains(
         _viewportPresentationCapability,
       );
+      _surfacePresentationNegotiated = hello.capabilities.contains(
+        _surfacePresentationCapability,
+      );
       await _writeControl(
         _runnerHello(hello, paletteDropAvailable: _paletteDropNegotiated),
       );
@@ -497,6 +528,7 @@ class CanvasRuntimeController extends ChangeNotifier
         if (frame == null) {
           _closed = true;
           _lastPresentedIdentity = null;
+          _invalidateInteractionFenceApplication(notify: false);
           _pendingLayoutSequence = null;
           _layoutPublicationTicket++;
           _preparedNativeDrop = null;
@@ -539,13 +571,17 @@ class CanvasRuntimeController extends ChangeNotifier
     if (nextLayoutSequence > maxCanvasSequence) {
       _lastPresentedIdentity = null;
       unawaited(
-        _failClosed(StateError('Canvas layout sequence is exhausted.')),
+        _failClosed(
+          StateError('Canvas layout sequence is exhausted.'),
+          cancelReader: false,
+        ),
       );
       return;
     }
     // Interaction is invalid immediately; a new exact layout identity is
     // published only after Flutter has completed the resized frame.
     _lastPresentedIdentity = null;
+    _invalidateInteractionFenceApplication();
     _preparedNativeDrop = null;
     _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
@@ -581,6 +617,7 @@ class CanvasRuntimeController extends ChangeNotifier
     final current = _model;
     if (_closed ||
         current == null ||
+        !_interactionInputEnabledForCurrentLayout() ||
         _lastPresentedIdentity != _identity(current) ||
         !current.widgetIds.contains(widgetId)) {
       return;
@@ -599,6 +636,28 @@ class CanvasRuntimeController extends ChangeNotifier
     unawaited(_writeRuntime('runner.selection', body));
   }
 
+  /// Publishes one physical pointer-down for the exact admitted Canvas layout.
+  ///
+  /// This carries no model-mutation authority. Java may treat it as bounded
+  /// focus intent only after admitting the exact current
+  /// session/revision/frame/layout and host interaction fence.
+  void interactFromCanvas() {
+    final current = _model;
+    if (_closed ||
+        current == null ||
+        !_interactionInputEnabledForCurrentLayout()) {
+      return;
+    }
+    final body = _identityBody(current)
+      ..addAll({
+        'frameSequence': 0,
+        'layoutSequence': _layoutSequence,
+        'intentSequence': _intentSequence++,
+        'interactionFenceSequence': _interactionFenceSequence,
+      });
+    unawaited(_writeRuntime('runner.interaction', body));
+  }
+
   /// Applies wheel or scrollbar interaction produced by the Flutter Canvas.
   /// The immutable model identity must remain exact; only view presentation is
   /// allowed to change locally.
@@ -607,6 +666,7 @@ class CanvasRuntimeController extends ChangeNotifier
     if (_closed ||
         !_viewportPresentationNegotiated ||
         current == null ||
+        !_interactionInputEnabledForCurrentLayout() ||
         !next.matchesModel(current)) {
       return;
     }
@@ -670,11 +730,15 @@ class CanvasRuntimeController extends ChangeNotifier
     if (nextLayoutSequence > maxCanvasSequence) {
       _lastPresentedIdentity = null;
       unawaited(
-        _failClosed(StateError('Canvas layout sequence is exhausted.')),
+        _failClosed(
+          StateError('Canvas layout sequence is exhausted.'),
+          cancelReader: false,
+        ),
       );
       return;
     }
     _lastPresentedIdentity = null;
+    _invalidateInteractionFenceApplication();
     _preparedNativeDrop = null;
     _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
@@ -709,6 +773,7 @@ class CanvasRuntimeController extends ChangeNotifier
         current == null ||
         widgetId == null ||
         widgetId == current.root.id ||
+        !_interactionInputEnabledForCurrentLayout() ||
         _lastPresentedIdentity != _identity(current) ||
         !current.widgetIds.contains(widgetId)) {
       return false;
@@ -742,7 +807,9 @@ class CanvasRuntimeController extends ChangeNotifier
   /// publish a visible target.
   @visibleForTesting
   Future<bool> receiveNativePaletteHover(Object? arguments) async {
-    if (_closed || !_paletteDropNegotiated) {
+    if (_closed ||
+        !_paletteDropNegotiated ||
+        !_interactionInputEnabledForCurrentLayout()) {
       return false;
     }
     final object = _tryNativeObject(arguments, r'$/nativePaletteHover', const {
@@ -852,7 +919,9 @@ class CanvasRuntimeController extends ChangeNotifier
   /// late `runner.paletteDrop` side effect.
   @visibleForTesting
   Future<bool> receiveNativePaletteDropPrepare(Object? arguments) async {
-    if (_closed || !_paletteDropNegotiated) {
+    if (_closed ||
+        !_paletteDropNegotiated ||
+        !_interactionInputEnabledForCurrentLayout()) {
       return false;
     }
     final closeGeneration = _tryNativeGeneration(
@@ -916,7 +985,9 @@ class CanvasRuntimeController extends ChangeNotifier
   /// only then publishes the unchanged Java-facing runner intent.
   @visibleForTesting
   Future<bool> receiveNativePaletteDropCommit(Object? arguments) async {
-    if (_closed || !_paletteDropNegotiated) {
+    if (_closed ||
+        !_paletteDropNegotiated ||
+        !_interactionInputEnabledForCurrentLayout()) {
       return false;
     }
     try {
@@ -1095,6 +1166,8 @@ class CanvasRuntimeController extends ChangeNotifier
       await _handleRender(_object(object['body'], r'$/body'));
     } else if (type == 'host.selection') {
       _handleHostSelection(_object(object['body'], r'$/body'));
+    } else if (type == 'host.interactionFence') {
+      await _handleHostInteractionFence(_object(object['body'], r'$/body'));
     } else if (type == 'host.paletteDragSource') {
       _handleHostPaletteDragSource(_object(object['body'], r'$/body'));
     } else if (type == 'host.widgetMovePreview') {
@@ -1175,6 +1248,7 @@ class CanvasRuntimeController extends ChangeNotifier
     _layoutSequence = 0;
     _pendingLayoutSequence = null;
     _lastPresentedIdentity = null;
+    _invalidateInteractionFenceApplication(notify: false);
     _preparedNativeDrop = null;
     _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
@@ -1205,6 +1279,18 @@ class CanvasRuntimeController extends ChangeNotifier
         _pendingLayoutSequence != layoutSequence) {
       return;
     }
+    final Map<String, Object?> surfacePresentation;
+    try {
+      surfacePresentation = _surfacePresentationNegotiated
+          ? _readSurfacePresentation()
+          : const <String, Object?>{};
+    } on Object catch (error) {
+      // This callback may run while the protocol loop is blocked in read().
+      // Let the host close the pipe after runner.failure rather than racing a
+      // StreamIterator cancellation against that active read.
+      unawaited(_failClosed(error, cancelReader: false));
+      return;
+    }
     final identity = _identity(model);
     _layoutSequence = layoutSequence;
     _pendingLayoutSequence = null;
@@ -1213,10 +1299,66 @@ class CanvasRuntimeController extends ChangeNotifier
     unawaited(
       _writeRuntime(
         'runner.presented',
-        _identityBody(model)
-          ..addAll({'frameSequence': 0, 'layoutSequence': layoutSequence}),
+        _identityBody(model)..addAll({
+          'frameSequence': 0,
+          'layoutSequence': layoutSequence,
+          ...surfacePresentation,
+        }),
       ),
     );
+  }
+
+  Map<String, Object?> _readSurfacePresentation() {
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) {
+      throw const FormatException(
+        'Canvas surface presentation requires one implicit FlutterView.',
+      );
+    }
+    final physicalSize = view.physicalSize;
+    final physicalWidth = _exactPhysicalDimension(
+      physicalSize.width,
+      'physicalWidth',
+    );
+    final physicalHeight = _exactPhysicalDimension(
+      physicalSize.height,
+      'physicalHeight',
+    );
+    if (physicalWidth * physicalHeight > _limits.maxPhysicalPixels) {
+      throw const FormatException(
+        'Canvas surface presentation exceeds the negotiated pixel bound.',
+      );
+    }
+    final scaledDevicePixelRatio = view.devicePixelRatio * 1000000;
+    if (!scaledDevicePixelRatio.isFinite) {
+      throw const FormatException(
+        'Canvas surface device-pixel ratio is not finite.',
+      );
+    }
+    final devicePixelRatioMicros = scaledDevicePixelRatio.round();
+    if (devicePixelRatioMicros <= 0 ||
+        devicePixelRatioMicros > _maximumDevicePixelRatioMicros) {
+      throw const FormatException(
+        'Canvas surface device-pixel ratio is outside the protocol bound.',
+      );
+    }
+    return {
+      'physicalWidth': physicalWidth,
+      'physicalHeight': physicalHeight,
+      'devicePixelRatioMicros': devicePixelRatioMicros,
+    };
+  }
+
+  int _exactPhysicalDimension(double value, String name) {
+    if (!value.isFinite ||
+        value <= 0 ||
+        value != value.roundToDouble() ||
+        value > _limits.maxPhysicalDimension) {
+      throw FormatException(
+        'Canvas surface $name is outside the negotiated physical bound.',
+      );
+    }
+    return value.toInt();
   }
 
   void _handleHostSelection(Map<String, Object?> body) {
@@ -1251,6 +1393,74 @@ class CanvasRuntimeController extends ChangeNotifier
     }
     if (_selectedWidgetId != widgetId) {
       _selectedWidgetId = widgetId;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _handleHostInteractionFence(Map<String, Object?> body) async {
+    _exactKeys(body, r'$/body', const {
+      'presentationSequence',
+      'documentId',
+      'logicalRevisionId',
+      'frameSequence',
+      'layoutSequence',
+      'interactionFenceSequence',
+    });
+    final next = _sequence(
+      body['interactionFenceSequence'],
+      r'$/body/interactionFenceSequence',
+    );
+    final current = _model;
+    if (current == null || !_matchesCurrentLayout(body, current)) {
+      return;
+    }
+    if (next < _interactionFenceSequence) {
+      return;
+    }
+    final identity = _identity(current);
+    final layoutSequence = _layoutSequence;
+    final applicationTicket = ++_interactionFenceApplicationTicket;
+    _interactionFenceSequence = next;
+    _interactionInputSynchronized = false;
+    _appliedInteractionFenceIdentity = null;
+    _appliedInteractionFenceLayoutSequence = null;
+    _preparedNativeDrop = null;
+    _paletteDragSourceAuthority = null;
+    _setDropHoverTarget(null);
+    _invalidateNativeHoverApproval();
+    notifyListeners();
+    await _writeRuntime(
+      'runner.interactionFenceApplied',
+      _identityBody(current)..addAll({
+        'frameSequence': 0,
+        'layoutSequence': layoutSequence,
+        'interactionFenceSequence': next,
+      }),
+    );
+    if (_closed ||
+        applicationTicket != _interactionFenceApplicationTicket ||
+        !identical(current, _model) ||
+        _lastPresentedIdentity != identity ||
+        _layoutSequence != layoutSequence ||
+        _interactionFenceSequence != next) {
+      return;
+    }
+    _interactionInputSynchronized = true;
+    _appliedInteractionFenceIdentity = identity;
+    _appliedInteractionFenceLayoutSequence = layoutSequence;
+    notifyListeners();
+  }
+
+  void _invalidateInteractionFenceApplication({bool notify = true}) {
+    _interactionFenceApplicationTicket++;
+    final changed =
+        _interactionInputSynchronized ||
+        _appliedInteractionFenceIdentity != null ||
+        _appliedInteractionFenceLayoutSequence != null;
+    _interactionInputSynchronized = false;
+    _appliedInteractionFenceIdentity = null;
+    _appliedInteractionFenceLayoutSequence = null;
+    if (notify && changed) {
       notifyListeners();
     }
   }
@@ -1539,6 +1749,7 @@ class CanvasRuntimeController extends ChangeNotifier
     });
     _closed = true;
     _lastPresentedIdentity = null;
+    _invalidateInteractionFenceApplication(notify: false);
     _pendingLayoutSequence = null;
     _viewportMetrics = null;
     _lastViewportPublication = null;
@@ -1581,12 +1792,13 @@ class CanvasRuntimeController extends ChangeNotifier
     return _writeChain;
   }
 
-  Future<void> _failClosed(Object error) async {
+  Future<void> _failClosed(Object error, {bool cancelReader = true}) async {
     if (_closed) {
       return;
     }
     _closed = true;
     _lastPresentedIdentity = null;
+    _invalidateInteractionFenceApplication(notify: false);
     _pendingLayoutSequence = null;
     _viewportMetrics = null;
     _lastViewportPublication = null;
@@ -1595,7 +1807,6 @@ class CanvasRuntimeController extends ChangeNotifier
     _paletteDragSourceAuthority = null;
     _setDropHoverTarget(null);
     _setWidgetMovePreviewTarget(null);
-    await _reader.cancel();
     final message = _boundedFailureMessage(error);
     _errorMessage = message;
     _diagnostic('Flutter Canvas protocol failure: $message');
@@ -1615,6 +1826,9 @@ class CanvasRuntimeController extends ChangeNotifier
           'Flutter Canvas could not report protocol failure: $writeError',
         );
       }
+    }
+    if (cancelReader) {
+      await _reader.cancel();
     }
   }
 
@@ -1662,7 +1876,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 8) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 9) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -1674,6 +1888,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
     _deleteSelectedWidgetCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
+    _surfacePresentationCapability,
   };
   final capabilities = <String>{};
   for (final value in rawCapabilities) {
@@ -1716,6 +1931,7 @@ Map<String, Object?> _runnerHello(
     _deleteSelectedWidgetCapability,
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
+    _surfacePresentationCapability,
   ];
   final limits = hello.limits.tightenedToSafe();
   return {

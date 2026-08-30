@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
+import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -51,6 +52,7 @@ public final class DartRegionGenerator {
     public static final String PROFILE_ID = "fd-dart-regions-v1";
 
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
+    private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final int INLINE_CONSTRUCTOR_LIMIT = 100;
@@ -221,6 +223,7 @@ public final class DartRegionGenerator {
         TreeMap<String, WidgetDefinition> usedDefinitions = new TreeMap<>();
         boolean requiresMaterialTheme = false;
         boolean requiresServices = false;
+        boolean requiresGestures = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
         while (!pending.isEmpty()) {
@@ -241,6 +244,14 @@ public final class DartRegionGenerator {
                     && current.node().properties().keySet().stream()
                             .map(PropertyName::value)
                             .anyMatch(name -> name.startsWith("systemOverlayStyle"));
+            requiresGestures |= current.node().properties().keySet().stream()
+                    .map(definition::property)
+                    .flatMap(Optional::stream)
+                    .flatMap(property -> property.constraints().stream())
+                    .filter(PropertyValueConstraint.EnumValues.class::isInstance)
+                    .map(PropertyValueConstraint.EnumValues.class::cast)
+                    .anyMatch(constraint -> constraint.dartType().libraryUri()
+                            .equals(GESTURES_IMPORT));
 
             ArrayList<WidgetAtPath> children = new ArrayList<>();
             for (Map.Entry<SlotName, WidgetSlot> entry : current.node().slots().entrySet()) {
@@ -263,7 +274,7 @@ public final class DartRegionGenerator {
 
         ImportPlanner planner = ImportPlanner.create(
                 usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
-                requiresServices);
+                requiresServices, requiresGestures);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
     }
 
@@ -283,6 +294,10 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE)
+                    && ScaffoldWidgetPropertySchema.isStaticPreset(property.name())) {
+                continue;
+            }
             if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)
                     && TextWidgetPropertySchema.isCompound(property.name())) {
                 continue;
@@ -319,6 +334,10 @@ public final class DartRegionGenerator {
         if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)) {
             appendTextCompoundArguments(
                     node, definition, path, baseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE)) {
+            appendScaffoldStaticPresetArguments(
+                    node, definition, path, context, arguments);
         }
         if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)) {
             appendAppBarCompoundArguments(
@@ -408,6 +427,55 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(baseIndent) + ')');
         return lines.build(constant);
+    }
+
+    private void appendScaffoldStaticPresetArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        for (PropertyDefinition property : definition.properties()) {
+            ScaffoldWidgetPropertySchema.Definition binding =
+                    ScaffoldWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Scaffold catalog property has no schema binding: "
+                                    + property.name().value()));
+            if (binding.target() == ScaffoldWidgetPropertySchema.Target.DIRECT) {
+                continue;
+            }
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) {
+                continue;
+            }
+            String propertyPath = path + "/properties/" + pointer(property.name().value());
+            if (!(value instanceof PropertyValue.StringValue preset)
+                    || !binding.presets().contains(preset.value())) {
+                throw catalogInconsistency(
+                        propertyPath, node.id(),
+                        "Scaffold static preset is not part of the reviewed closed set.");
+            }
+            RenderedSymbol type = context.planner().renderedSymbol(
+                    MATERIAL_IMPORT, binding.dartType());
+            arguments.add(new ConstructorArgument(
+                    property.parameter(),
+                    property.name().value(),
+                    false,
+                    scalar(
+                            type.text() + "." + preset.value(),
+                            true,
+                            propertyPath,
+                            node.id(),
+                            context,
+                            List.of(occurrence(
+                                    "widget:" + node.id() + ":scaffold-preset:"
+                                    + property.name().value(),
+                                    type.nameOffset(),
+                                    type.name(),
+                                    type.libraryUri(),
+                                    propertyPath,
+                                    Optional.of(node.id()))))));
+        }
     }
 
     private void appendElevatedButtonCompoundArguments(
@@ -4419,7 +4487,8 @@ public final class DartRegionGenerator {
                 Iterable<WidgetDefinition> definitions,
                 int maximumImports,
                 boolean requiresMaterialTheme,
-                boolean requiresServices) {
+                boolean requiresServices,
+                boolean requiresGestures) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
             if (requiresServices) {
@@ -4427,6 +4496,9 @@ public final class DartRegionGenerator {
             }
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
+                    if (uri.equals(GESTURES_IMPORT) && !requiresGestures) {
+                        continue;
+                    }
                     if (uri.equals(MATERIAL_IMPORT)) {
                         uris.remove(WIDGETS_IMPORT);
                         uris.add(MATERIAL_IMPORT);

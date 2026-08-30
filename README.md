@@ -155,19 +155,25 @@ duplicate, edit, enable, disable or remove custom definitions. A disabled
 definition remains in the descriptor catalog but is omitted from the generated
 Dart map. `Enable project themes` can make `MaterialApp` use Flutter's defaults
 without deleting the catalog; enabling it again restores the selected project
-definitions. The editor's `General`, `Colors` and `Typography` tabs expose all
+definitions. The editor's `General`, `Colors`, `Typography` and `Components`
+tabs expose all
 46 supported non-deprecated Material `ColorScheme` roles and all 15 Material 3
 `TextTheme` roles. Each text role has 13 typed optional fields for colors,
 font metrics/family, weight/style and decoration; omission means inherit the
 seed-derived Material value, while text colors may use either an exact ARGB
-literal or another semantic `ColorScheme` role.
+literal or another semantic `ColorScheme` role. The compact Components editor
+adds exactly 36 typed color leaves for Scaffold, AppBar, Icon and
+ElevatedButton states with the same literal/semantic/inherit modes.
 
 Schema v2 adds the portable project-wide switch, schema v3 adds per-definition
-switches, and the current schema v4 adds the typed color and typography role
-overrides. Schema v1-v3 descriptors remain readable and acquire empty override
-tables in memory; an explicit Save writes canonical v4. Generated Dart applies
+switches, schema v4 adds typed color and typography role overrides, and the
+current schema v5 adds the closed component-color table. Schema v1-v3
+descriptors remain readable and acquire empty override tables; schema v4
+acquires empty components in memory. An explicit Save writes canonical v5.
+Generated Dart applies
 the same ordered `ColorScheme.copyWith` and `TextTheme.copyWith` construction as
-the native Canvas. The generated Dart file is marked as generated and guarded
+the native Canvas, then applies component themes before local widget values.
+The generated Dart file is marked as generated and guarded
 by the SHA-256 stored in the descriptor; if it was edited outside the theme
 editor, Save reports the conflict and leaves those bytes untouched.
 
@@ -177,10 +183,11 @@ existing `lib/main.dart` matches the safely recognized Flutter application
 template; unsupported or occupied paths fail without partial writes. The file
 formats are documented by the frozen
 [`project-theme-v1.schema.json`](docs/flutter-designer/project-theme-v1.schema.json),
-[`project-theme-v2.schema.json`](docs/flutter-designer/project-theme-v2.schema.json)
-and [`project-theme-v3.schema.json`](docs/flutter-designer/project-theme-v3.schema.json)
+[`project-theme-v2.schema.json`](docs/flutter-designer/project-theme-v2.schema.json),
+[`project-theme-v3.schema.json`](docs/flutter-designer/project-theme-v3.schema.json)
+and [`project-theme-v4.schema.json`](docs/flutter-designer/project-theme-v4.schema.json)
 contracts, plus the current
-[`project-theme-v4.schema.json`](docs/flutter-designer/project-theme-v4.schema.json).
+[`project-theme-v5.schema.json`](docs/flutter-designer/project-theme-v5.schema.json).
 
 ## Run and debug a Flutter application
 
@@ -236,7 +243,7 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated protocol-v8 model restricted by the exact built-in capability
+bounded validated protocol-v9 model restricted by the exact built-in capability
 gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`,
 `Center`, `SizedBox` and `ElevatedButton`.
 The toolbar now preserves exact Android Phone,

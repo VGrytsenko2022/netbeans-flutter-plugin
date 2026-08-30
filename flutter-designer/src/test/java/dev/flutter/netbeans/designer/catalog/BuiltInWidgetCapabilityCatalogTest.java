@@ -34,6 +34,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Icon");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
+            "flutter.material.Scaffold",
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
             "flutter.widgets.Column",
@@ -88,6 +89,32 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
                 projection.propertyContracts().size());
         assertEquals(Set.of(new SlotName("child")), projection.slots());
+    }
+
+    @Test
+    void scaffoldIsFullyReviewedAndProjectedWithoutExpandingSlots() {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE).orElseThrow();
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ScaffoldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(
+                        new SlotName("appBar"), new SlotName("body"),
+                        new SlotName("floatingActionButton")),
+                projection.slots());
+        assertEquals("callbackReference", projection.propertyContracts()
+                .get(new PropertyName("onDrawerChanged"))
+                .constraintFingerprints().get(PropertyValueKind.CALLBACK));
+        assertEquals("0:1:*:1", projection.propertyContracts()
+                .get(new PropertyName("drawerEdgeDragWidth"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint());
     }
 
     @Test

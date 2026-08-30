@@ -13,18 +13,23 @@ import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostClose;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostHello;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerClosed;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerHello;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCloseReason;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCodec;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireDecodeResult;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireNegotiation;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessDirection;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrame;
 import dev.flutter.netbeans.designer.canvas.transport.CanvasProcessFrameCodec;
@@ -48,6 +53,11 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildResult;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerCacheIdentity;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
+import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasPlatformProvider;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasHost;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasParentHandle;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatform;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasSurfaceMetrics;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,9 +81,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
 import org.junit.jupiter.api.Test;
 
 class FlutterDesignerNativeCanvasSessionProtocolTest {
@@ -86,7 +100,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
-            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1);
+            CanvasWireCapability.WIDGET_MOVE_PREVIEW_V1,
+            CanvasWireCapability.SURFACE_PRESENTATION_V1);
     private static final List<CanvasWireCapability> VIEWPORT_CAPABILITIES = List.of(
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
@@ -94,7 +109,391 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
-            CanvasWireCapability.VIEWPORT_PRESENTATION_V1);
+            CanvasWireCapability.VIEWPORT_PRESENTATION_V1,
+            CanvasWireCapability.SURFACE_PRESENTATION_V1);
+
+    @Test
+    void gracefulCloseRequiresAuthenticatedAckAndPhysicalExit() throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        harness.host.closeObserver = harness::runnerCloseAcknowledged;
+
+        Thread runner = new Thread(() -> {
+            try {
+                CanvasHostClose close = harness.process.readClose();
+                assertEquals(CanvasWireCloseReason.FORM_CLOSED, close.reason());
+                harness.process.sendClosed(close.sequence());
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+        }, "protocol-close-ack");
+        runner.start();
+        onEdt(harness.session::close);
+        runner.join(TimeUnit.SECONDS.toMillis(2));
+        assertFalse(runner.isAlive(), "the close-ack probe did not finish");
+        assertTrue(harness.host.closeObservedAfterRequestWritten,
+                "the native parent was released before authenticated runner.closed");
+        harness.process.exit(0);
+
+        awaitEdtCondition(
+                () -> !harness.statuses.isEmpty()
+                        && harness.statuses.getLast().stage()
+                                == FlutterDesignerNativeCanvasStatus.Stage.STOPPED
+                        && harness.statuses.getLast().detail().contains(
+                                "acknowledged host.close"),
+                "graceful close did not publish its authenticated acknowledgement");
+        FlutterDesignerNativeCanvasStatus stopped = harness.statuses.getLast();
+        assertFalse(stopped.detail().contains("escalation"));
+        assertFalse(harness.process.isAlive());
+    }
+
+    @Test
+    void peerRemovalAuthenticatesBeforeTeardownAndCarriesIntoFinalClose()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        Thread runner = new Thread(() -> {
+            try {
+                CanvasHostClose close = harness.process.readClose();
+                assertEquals(CanvasWireCloseReason.BACKEND_REPLACED, close.reason());
+                harness.process.sendClosed(close.sequence());
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+        }, "protocol-peer-loss-close-ack");
+        runner.start();
+
+        onEdt(() -> {
+            harness.host.firePeerWillBeLost();
+            assertTrue(harness.runnerCloseAcknowledged(),
+                    "the parent peer was allowed to disappear before runner.closed");
+            harness.host.firePeerLost();
+            harness.session.close();
+        });
+        runner.join(TimeUnit.SECONDS.toMillis(2));
+
+        assertFalse(runner.isAlive(), "the peer-loss close-ack probe did not finish");
+        assertTrue(harness.process.isAlive(),
+                "authenticated peer loss must preserve the natural-exit grace");
+        assertEquals(0, harness.terminationCalls.get(),
+                "bounded termination ran before the natural-exit deadline");
+        harness.process.exit(0);
+        awaitEdtCondition(
+                () -> !harness.statuses.isEmpty()
+                        && harness.statuses.getLast().stage()
+                                == FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                "natural peer-loss exit did not drain the retained process claim");
+        assertEquals(FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                harness.statuses.getLast().stage());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "acknowledged host.close"));
+        assertTrue(harness.statuses.getLast().detail().contains("exited naturally"));
+        assertFalse(harness.statuses.getLast().detail().contains("escalation"));
+    }
+
+    @Test
+    void authenticatedPeerRemovalEscalatesOnlyAfterNaturalExitGrace()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        Thread runner = new Thread(() -> {
+            try {
+                CanvasHostClose close = harness.process.readClose();
+                assertEquals(CanvasWireCloseReason.BACKEND_REPLACED, close.reason());
+                harness.process.sendClosed(close.sequence());
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+        }, "protocol-peer-loss-hung-after-ack");
+        runner.start();
+
+        onEdt(() -> {
+            harness.host.firePeerWillBeLost();
+            harness.host.firePeerLost();
+            harness.session.close();
+        });
+        runner.join(TimeUnit.SECONDS.toMillis(2));
+
+        assertFalse(runner.isAlive(), "the peer-loss close-ack probe did not finish");
+        assertTrue(harness.process.isAlive());
+        assertEquals(0, harness.terminationCalls.get(),
+                "componentClosed must not shorten authenticated natural-exit grace");
+
+        harness.nanoTime.set(TimeUnit.SECONDS.toNanos(3));
+        onEdt(harness.polls::runActivePoll);
+
+        awaitEdtCondition(
+                () -> !harness.statuses.isEmpty()
+                        && harness.statuses.getLast().stage()
+                                == FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                "bounded peer-loss retirement did not finish");
+        assertEquals(1, harness.terminationCalls.get());
+        assertFalse(harness.process.isAlive());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "bounded termination was required"));
+        assertTrue(harness.statuses.getLast().detail().contains("escalation"));
+    }
+
+    @Test
+    void unauthenticatedPeerRemovalTerminatesImmediatelyAndCannotClaimGrace()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+
+        onEdt(() -> {
+            harness.host.firePeerWillBeLost();
+            harness.host.firePeerLost();
+            harness.session.close();
+        });
+
+        awaitEdtCondition(
+                () -> !harness.statuses.isEmpty()
+                        && harness.statuses.getLast().stage()
+                                == FlutterDesignerNativeCanvasStatus.Stage.STOPPED,
+                "unauthenticated peer-loss cleanup did not finish");
+        assertEquals(1, harness.terminationCalls.get());
+        assertFalse(harness.process.isAlive());
+        assertTrue(harness.statuses.getLast().detail().contains(
+                "did not complete an authenticated peer-loss close"));
+        assertFalse(harness.statuses.getLast().detail().contains(
+                "exited naturally without bounded termination"));
+    }
+
+    @Test
+    void surfaceMetricsBurstRequiresExactPostFrameConfirmationBeforeInput()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        try {
+            CanvasLayoutKey initialLayout = renderAndPresent(harness);
+            awaitEdtCondition(
+                    () -> !harness.statuses.isEmpty()
+                            && "Native Flutter Canvas rendered.".equals(
+                                    harness.statuses.getLast().summary()),
+                    "runner.presented did not publish rendered confirmation");
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_440, 900, 1_500_000)));
+
+            FlutterDesignerNativeCanvasStatus awaiting =
+                    harness.statuses.getLast();
+            assertEquals("Native Flutter Canvas is running.", awaiting.summary());
+            assertTrue(awaiting.detail().contains("1440×900"));
+            assertTrue(awaiting.detail().contains("1.5× native scale"));
+            assertTrue(awaiting.detail().contains(
+                    "awaiting the matching post-frame confirmation"));
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+
+            CanvasLayoutKey intermediateLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+            harness.process.sendPresented(
+                    intermediateLayout,
+                    new CanvasSurfaceMetrics(1_600, 900, 2_000_000));
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+
+            CanvasLayoutKey finalLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    intermediateLayout.layoutSequence() + 1);
+            harness.process.sendPresented(
+                    finalLayout,
+                    new CanvasSurfaceMetrics(1_440, 900, 1_500_000));
+            HostInteractionFence finalFence =
+                    harness.process.readInteractionFence();
+            assertEquals(finalLayout, finalFence.layout());
+            assertEquals(2, finalFence.interactionFenceSequence());
+            harness.process.sendInteractionFenceApplied(
+                    finalFence.layout(), finalFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+
+            FlutterDesignerNativeCanvasStatus refreshed =
+                    harness.statuses.getLast();
+            assertEquals("Native Flutter Canvas rendered.", refreshed.summary());
+            assertTrue(refreshed.detail().contains("1440×900"));
+            assertTrue(refreshed.detail().contains("1.5× native scale"));
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void returningToAnOldSurfaceSizeStillRequiresANewerLayoutSequence()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        try {
+            CanvasLayoutKey initialLayout = renderAndPresent(harness);
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_024, 768, 1_000_000)));
+
+            assertEquals(
+                    "Native Flutter Canvas is running.",
+                    harness.statuses.getLast().summary());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+
+            CanvasLayoutKey replacementLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+            harness.process.sendPresented(
+                    replacementLayout,
+                    new CanvasSurfaceMetrics(1_024, 768, 1_000_000));
+            HostInteractionFence replacementFence =
+                    harness.process.readInteractionFence();
+            assertEquals(replacementLayout, replacementFence.layout());
+            assertEquals(2, replacementFence.interactionFenceSequence());
+            harness.process.sendInteractionFenceApplied(
+                    replacementFence.layout(),
+                    replacementFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+            assertEquals(
+                    "Native Flutter Canvas rendered.",
+                    harness.statuses.getLast().summary());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void focusFenceCannotReopenInputBeforeExactSurfaceConfirmation()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        try {
+            CanvasLayoutKey initialLayout = renderAndPresent(harness);
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+            onEdt(harness.session::clearFocusRequest);
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+
+            harness.ui.hold();
+            harness.process.sendInteractionFenceApplied(initialLayout, 2);
+            harness.process.sendInteraction(initialLayout, 1, 2);
+            harness.awaitUiTasks(2);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(0, harness.runnerInteractions.get());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+
+            CanvasLayoutKey resizedLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+            harness.process.sendPresented(
+                    resizedLayout,
+                    new CanvasSurfaceMetrics(1_600, 900, 2_000_000));
+            HostInteractionFence resizedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(resizedLayout, resizedFence.layout());
+            assertEquals(2, resizedFence.interactionFenceSequence());
+            harness.process.sendInteractionFenceApplied(
+                    resizedFence.layout(), resizedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void presentedBeforeHostMetricsConfirmsWithoutANonexistentExtraFrame()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        try {
+            CanvasLayoutKey initialLayout = renderAndPresent(harness);
+            CanvasLayoutKey resizedLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+
+            harness.process.sendPresented(
+                    resizedLayout,
+                    new CanvasSurfaceMetrics(1_600, 900, 2_000_000));
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING);
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+
+            HostInteractionFence resizedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(resizedLayout, resizedFence.layout());
+            assertEquals(1, resizedFence.interactionFenceSequence());
+            harness.process.sendInteractionFenceApplied(
+                    resizedFence.layout(), resizedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+            assertEquals(
+                    "Native Flutter Canvas rendered.",
+                    harness.statuses.getLast().summary());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void surfaceTransitionFailsClosedWhenLayoutSequenceIsExhausted()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, null));
+        try {
+            CanvasLayoutKey initialLayout = renderAndPresent(harness);
+            onEdt(() -> harness.forceSurfaceLayoutSequence(
+                    initialLayout, CanvasWireProtocol.MAX_SEQUENCE));
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+
+            awaitEdtCondition(
+                    () -> !harness.statuses.isEmpty()
+                            && harness.statuses.getLast().stage()
+                                    == FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                    "layout-sequence exhaustion did not fail closed");
+            assertTrue(harness.statuses.getLast().detail().contains(
+                    "exhausted the bounded layout sequence"));
+            assertFalse(harness.process.isAlive());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void freshProtocolSessionResetsAnExhaustedInteractionEpoch()
+            throws Exception {
+        Harness harness = onEdt((Callable<Harness>) Harness::new);
+        onEdt(harness::forceExhaustedInteractionEpoch);
+        Harness.start(
+                harness,
+                document(DOCUMENT_A, ROOT, null),
+                CAPABILITIES);
+        try {
+            RenderPublication publication = harness.nextRender();
+            CanvasLayoutKey layout = layout(publication.revision());
+            harness.process.sendPresented(layout);
+            HostInteractionFence fence = harness.process.readInteractionFence();
+            assertEquals(layout, fence.layout());
+            assertEquals(0, fence.interactionFenceSequence());
+            harness.process.readSelection();
+            harness.process.sendInteractionFenceApplied(
+                    fence.layout(), fence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+        } finally {
+            harness.close();
+        }
+    }
+
     private static final StableId DOCUMENT_A = StableId.parse(
             "83ed3c05-88e7-4220-8377-29fa1f21a99e");
     private static final StableId DOCUMENT_B = StableId.parse(
@@ -223,6 +622,18 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(1, initial.commandSequence());
             assertEquals(CanvasViewportPresentation.fit(), initial.presentation());
 
+            CanvasLayoutKey layout = layout(publication.revision());
+            harness.process.sendPresented(layout);
+            HostInteractionFence fence = harness.process.readInteractionFence();
+            assertEquals(layout, fence.layout());
+            HostSelection selection = harness.process.readSelection();
+            assertEquals(layout, selection.layout());
+            harness.process.sendInteractionFenceApplied(
+                    fence.layout(), fence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+
             harness.process.sendViewportMetrics(
                     initial, initial.presentation(), 750_000, false, false);
             harness.awaitViewportMetrics(1);
@@ -267,6 +678,141 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     @Test
+    void viewportAckObservedDuringResizeIsReplayedAfterExactSurfaceConfirmation()
+            throws Exception {
+        Harness harness = Harness.startViewport(document(DOCUMENT_A, ROOT, null));
+        try {
+            RenderPublication publication = harness.nextRender();
+            HostViewport initial = harness.process.readViewport();
+            CanvasLayoutKey initialLayout = layout(publication.revision());
+            harness.process.sendPresented(initialLayout);
+            HostInteractionFence initialFence =
+                    harness.process.readInteractionFence();
+            harness.process.readSelection();
+            harness.process.sendInteractionFenceApplied(
+                    initialFence.layout(),
+                    initialFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+            harness.ui.hold();
+            harness.process.sendViewportMetrics(
+                    initial, initial.presentation(), 750_000, false, false);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertTrue(harness.runnerViewportMetrics.isEmpty());
+
+            CanvasLayoutKey resizedLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+            harness.process.sendPresented(
+                    resizedLayout,
+                    new CanvasSurfaceMetrics(1_600, 900, 2_000_000));
+            HostInteractionFence resizedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(resizedLayout, resizedFence.layout());
+            HostViewport replay = harness.process.readViewport();
+            assertEquals(initial.revision(), replay.revision());
+            assertEquals(initial.commandSequence() + 1, replay.commandSequence());
+            assertEquals(initial.presentation(), replay.presentation());
+
+            harness.process.sendInteractionFenceApplied(
+                    resizedFence.layout(), resizedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+            harness.process.sendViewportMetrics(
+                    replay, replay.presentation(), 750_000, false, false);
+            harness.awaitViewportMetrics(1);
+            assertEquals(
+                    replay.commandSequence(),
+                    harness.runnerViewportMetrics.getLast().commandSequence());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void deferredViewportReplayRetriesAfterOutboundQueueBackpressure()
+            throws Exception {
+        Harness harness = Harness.startViewport(
+                document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            RenderPublication publication = harness.nextRender();
+            HostViewport initial = harness.process.readViewport();
+            CanvasLayoutKey initialLayout = layout(publication.revision());
+            harness.process.sendPresented(initialLayout);
+            HostInteractionFence initialFence =
+                    harness.process.readInteractionFence();
+            harness.process.readSelection();
+            harness.process.sendInteractionFenceApplied(
+                    initialFence.layout(),
+                    initialFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+
+            onEdt(() -> harness.host.fireSurfaceMetrics(
+                    new NativeCanvasSurfaceMetrics(1_600, 900, 2_000_000)));
+            harness.ui.hold();
+            harness.process.sendViewportMetrics(
+                    initial, initial.presentation(), 750_000, false, false);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertTrue(harness.runnerViewportMetrics.isEmpty());
+
+            harness.process.blockNextHostWrite();
+            onEdt(() -> harness.session.selectWidget(CHILD));
+            harness.process.awaitHostWriteBlocked();
+            onEdt(() -> {
+                for (int index = 0; index < 64; index++) {
+                    harness.session.selectWidget(
+                            (index & 1) == 0 ? ROOT : CHILD);
+                }
+            });
+
+            CanvasLayoutKey resizedLayout = new CanvasLayoutKey(
+                    initialLayout.frameKey(),
+                    initialLayout.layoutSequence() + 1);
+            harness.ui.hold();
+            harness.process.sendPresented(
+                    resizedLayout,
+                    new CanvasSurfaceMetrics(1_600, 900, 2_000_000));
+            harness.awaitUiTasks(1);
+            onEdt(() -> {
+                harness.ui.releaseAll();
+                harness.stopViewportRetryTimer();
+                harness.stopInteractionFenceRetryTimer();
+            });
+
+            harness.process.releaseHostWrite();
+            for (int index = 0; index < 65; index++) {
+                harness.process.readSelection();
+            }
+
+            onEdt(harness::retryViewportPresentationNow);
+            harness.process.awaitHostOutput();
+            HostViewport replay = harness.process.readViewport();
+            assertEquals(initial.revision(), replay.revision());
+            assertEquals(initial.commandSequence() + 1, replay.commandSequence());
+            assertEquals(initial.presentation(), replay.presentation());
+
+            harness.process.sendViewportMetrics(
+                    replay, replay.presentation(), 750_000, false, false);
+            harness.awaitViewportMetrics(1);
+            assertEquals(
+                    replay.commandSequence(),
+                    harness.runnerViewportMetrics.getLast().commandSequence());
+        } finally {
+            harness.process.releaseHostWrite();
+            harness.close();
+        }
+    }
+
+    @Test
     void rejectedNewViewportDoesNotLeaveTheAcknowledgedPreviousCommandPending()
             throws Exception {
         Harness harness = Harness.startViewport(document(DOCUMENT_A, ROOT, CHILD));
@@ -275,7 +821,17 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             HostViewport acceptedA = harness.process.readViewport();
             CanvasLayoutKey layout = layout(publication.revision());
             harness.process.sendPresented(layout);
+            HostInteractionFence initialFence =
+                    harness.process.readInteractionFence();
+            assertEquals(layout, initialFence.layout());
+            assertEquals(0, initialFence.interactionFenceSequence());
             harness.process.readSelection();
+            harness.process.sendInteractionFenceApplied(
+                    initialFence.layout(),
+                    initialFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
 
             harness.process.blockNextHostWrite();
             onEdt(() -> harness.session.selectWidget(CHILD));
@@ -330,9 +886,18 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             RenderPublication first = harness.nextRender();
             CanvasLayoutKey firstLayout = layout(first.revision());
             harness.process.sendPresented(firstLayout);
+            HostInteractionFence firstFence =
+                    harness.process.readInteractionFence();
+            assertEquals(firstLayout, firstFence.layout());
+            assertEquals(0, firstFence.interactionFenceSequence());
             HostSelection initialSelection = harness.process.readSelection();
             assertEquals(ROOT, initialSelection.widgetId());
             assertEquals(firstLayout, initialSelection.layout());
+            harness.process.sendInteractionFenceApplied(
+                    firstFence.layout(), firstFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
 
             onEdt(() -> harness.session.selectWidget(CHILD));
             HostSelection explicitSelection = harness.process.readSelection();
@@ -352,9 +917,19 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertTrue(harness.runnerSelections.isEmpty());
 
             harness.process.sendPresented(secondLayout);
+            HostInteractionFence restoredFence =
+                    harness.process.readInteractionFence();
+            assertEquals(secondLayout, restoredFence.layout());
+            assertEquals(0, restoredFence.interactionFenceSequence());
             HostSelection restoredSelection = harness.process.readSelection();
             assertEquals(CHILD, restoredSelection.widgetId());
             assertEquals(secondLayout, restoredSelection.layout());
+            harness.process.sendInteractionFenceApplied(
+                    restoredFence.layout(),
+                    restoredFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
 
             harness.process.sendSelection(secondLayout, 1, CHILD);
             awaitEdtCondition(
@@ -392,6 +967,256 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(new SlotName("children"), delivered.slotName());
             assertEquals(0, delivered.insertionIndex());
             assertEquals(List.of(PADDING), harness.runnerPaletteDropTypes);
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void interactionRequiresExactCurrentVisibleLayoutAndOneShotIntent()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey currentLayout = renderAndPresent(harness);
+            CanvasLayoutKey staleLayout = new CanvasLayoutKey(
+                    currentLayout.frameKey(), currentLayout.layoutSequence() + 1);
+
+            harness.ui.hold();
+            harness.process.sendInteraction(staleLayout, 0, 0);
+            harness.process.sendInteraction(currentLayout, 1, 0);
+            harness.process.sendInteraction(currentLayout, 1, 0);
+            harness.awaitUiTasks(3);
+            onEdt(harness.ui::releaseAll);
+
+            assertEquals(1, harness.runnerInteractions.get());
+
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence advancedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(currentLayout, advancedFence.layout());
+            assertEquals(1, advancedFence.interactionFenceSequence());
+
+            harness.ui.hold();
+            harness.process.sendInteraction(currentLayout, 2, 0);
+            harness.process.sendInteraction(currentLayout, 3, 1);
+            harness.awaitUiTasks(2);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(1, harness.runnerInteractions.get(),
+                    "interaction must remain closed before the exact fence ACK");
+
+            harness.process.sendInteractionFenceApplied(
+                    advancedFence.layout(),
+                    advancedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+            harness.ui.hold();
+            harness.process.sendInteraction(currentLayout, 4, 1);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(2, harness.runnerInteractions.get());
+
+            onEdt(harness.session::hide);
+            HostInteractionFence hiddenFence =
+                    harness.process.readInteractionFence();
+            assertEquals(currentLayout, hiddenFence.layout());
+            assertEquals(2, hiddenFence.interactionFenceSequence());
+            harness.ui.hold();
+            harness.process.sendInteraction(currentLayout, 5, 1);
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(2, harness.runnerInteractions.get());
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void queuedPreAckInteractionCannotCrossTheAppliedFence() throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey layout = renderAndPresent(harness);
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence fence = harness.process.readInteractionFence();
+            assertEquals(1, fence.interactionFenceSequence());
+
+            harness.ui.hold();
+            harness.process.sendInteraction(layout, 0, 0);
+            harness.process.sendInteractionFenceApplied(
+                    fence.layout(), fence.interactionFenceSequence());
+            harness.process.sendInteraction(layout, 1, 1);
+            harness.awaitUiTasks(3);
+            onEdt(harness.ui::releaseAll);
+
+            assertEquals(1, harness.runnerInteractions.get(),
+                    "only the physical interaction ordered after the exact ACK "
+                    + "may be delivered");
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED,
+                    onEdt(() -> harness.session.interactionBarrierState().phase()));
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void timedOutBarrierRejectsMismatchButAcceptsLateExactAck()
+            throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            CanvasLayoutKey layout = renderAndPresent(harness);
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence fence = harness.process.readInteractionFence();
+
+            onEdt(harness::timeOutInteractionBarrierNow);
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .TIMED_OUT,
+                    onEdt(() -> harness.session.interactionBarrierState().phase()));
+
+            CanvasLayoutKey mismatchedLayout = new CanvasLayoutKey(
+                    layout.frameKey(), layout.layoutSequence() + 1);
+            harness.ui.hold();
+            harness.process.sendInteractionFenceApplied(
+                    mismatchedLayout, fence.interactionFenceSequence());
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .TIMED_OUT,
+                    onEdt(() -> harness.session.interactionBarrierState().phase()),
+                    "a mismatched ACK must not reopen Canvas input");
+
+            harness.process.sendInteractionFenceApplied(
+                    fence.layout(), fence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+            harness.process.sendInteraction(
+                    layout, 0, fence.interactionFenceSequence());
+            awaitEdtCondition(
+                    () -> harness.runnerInteractions.get() == 1,
+                    "late exact ACK did not restore physical Canvas input");
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void replacementLayoutRejectsOldAckAndAcceptsItsExactAck()
+            throws Exception {
+        DesignerDocument document = document(DOCUMENT_A, ROOT, CHILD);
+        Harness harness = Harness.start(document);
+        try {
+            CanvasLayoutKey oldLayout = renderAndPresent(harness);
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence oldFence = harness.process.readInteractionFence();
+
+            onEdt(() -> harness.session.present(
+                    document,
+                    BuiltInWidgetCatalog.getDefault(),
+                    CanvasPreviewMode.DESKTOP,
+                    CanvasTargetPlatform.WINDOWS));
+            RenderPublication replacement = harness.nextRender();
+            CanvasLayoutKey replacementLayout = layout(replacement.revision());
+            harness.process.sendPresented(replacementLayout);
+            HostInteractionFence replacementFence =
+                    harness.process.readInteractionFence();
+            assertEquals(replacementLayout, replacementFence.layout());
+            assertEquals(oldFence.interactionFenceSequence(),
+                    replacementFence.interactionFenceSequence());
+            assertEquals(replacementLayout,
+                    harness.process.readSelection().layout());
+
+            harness.ui.hold();
+            harness.process.sendInteractionFenceApplied(
+                    oldLayout, oldFence.interactionFenceSequence());
+            harness.awaitUiTasks(1);
+            onEdt(harness.ui::releaseAll);
+            FlutterDesignerNativeCanvasSession.InteractionBarrierState pending =
+                    onEdt(harness.session::interactionBarrierState);
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZING,
+                    pending.phase());
+            assertEquals(Optional.of(replacementLayout), pending.layoutKey(),
+                    "old-layout ACK must not authorize the replacement layout");
+
+            harness.process.sendInteractionFenceApplied(
+                    replacementFence.layout(),
+                    replacementFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void queuedAckCannotReactivateWithdrawnPresentation() throws Exception {
+        Harness harness = Harness.start(document(DOCUMENT_A, ROOT, CHILD));
+        try {
+            renderAndPresent(harness);
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence fence = harness.process.readInteractionFence();
+
+            harness.ui.hold();
+            harness.process.sendInteractionFenceApplied(
+                    fence.layout(), fence.interactionFenceSequence());
+            harness.awaitUiTasks(1);
+            onEdt(harness.session::withdraw);
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .INACTIVE,
+                    onEdt(() -> harness.session.interactionBarrierState().phase()));
+
+            onEdt(harness.ui::releaseAll);
+            assertEquals(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .INACTIVE,
+                    onEdt(() -> harness.session.interactionBarrierState().phase()),
+                    "queued ACK must stay stale after presentation teardown");
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Test
+    void currentInteractionFenceIsReplayedForAReplacementPresentation()
+            throws Exception {
+        DesignerDocument document = document(DOCUMENT_A, ROOT, CHILD);
+        Harness harness = Harness.start(document);
+        try {
+            CanvasLayoutKey firstLayout = renderAndPresent(harness);
+            onEdt(harness.session::clearFocusRequest);
+            HostInteractionFence advancedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(firstLayout, advancedFence.layout());
+            assertEquals(1, advancedFence.interactionFenceSequence());
+
+            onEdt(() -> harness.session.present(
+                    document,
+                    BuiltInWidgetCatalog.getDefault(),
+                    CanvasPreviewMode.DESKTOP,
+                    CanvasTargetPlatform.WINDOWS));
+            RenderPublication replacement = harness.nextRender();
+            CanvasLayoutKey replacementLayout = layout(replacement.revision());
+            harness.process.sendPresented(replacementLayout);
+            HostInteractionFence replayedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(replacementLayout, replayedFence.layout());
+            assertEquals(1, replayedFence.interactionFenceSequence());
+            assertEquals(
+                    replacementLayout,
+                    harness.process.readSelection().layout());
+            harness.process.sendInteractionFenceApplied(
+                    replayedFence.layout(),
+                    replayedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
         } finally {
             harness.close();
         }
@@ -528,6 +1353,15 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             harness.process.sendPresented(resizedLayout);
             harness.awaitUiTasks(1);
             onEdt(harness.ui::releaseAll);
+            HostInteractionFence resizedFence =
+                    harness.process.readInteractionFence();
+            assertEquals(resizedLayout, resizedFence.layout());
+            assertEquals(0, resizedFence.interactionFenceSequence());
+            harness.process.sendInteractionFenceApplied(
+                    resizedFence.layout(), resizedFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
 
             harness.ui.hold();
             harness.process.sendPaletteDrop(
@@ -554,6 +1388,10 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         try {
             CanvasLayoutKey currentLayout = renderAndPresent(harness);
             onEdt(harness.session::hide);
+            HostInteractionFence hiddenFence =
+                    harness.process.readInteractionFence();
+            assertEquals(currentLayout, hiddenFence.layout());
+            assertEquals(1, hiddenFence.interactionFenceSequence());
 
             harness.ui.hold();
             harness.process.sendPaletteDrop(
@@ -563,6 +1401,11 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertTrue(harness.runnerPaletteDrops.isEmpty());
 
             onEdt(harness.session::show);
+            harness.process.sendInteractionFenceApplied(
+                    hiddenFence.layout(), hiddenFence.interactionFenceSequence());
+            harness.awaitInteractionBarrier(
+                    FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                            .SYNCHRONIZED);
             harness.ui.hold();
             harness.process.sendPaletteDrop(
                     currentLayout, 1, DROP_TOKEN_B, ROOT, 0);
@@ -684,7 +1527,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     harness.process.readWidgetMovePreview().previewSequence());
             onEdt(harness.session::hide);
             HostWidgetMovePreviewClear hideClear =
-                    harness.process.readWidgetMovePreviewClear();
+                    harness.process.readWidgetMovePreviewClearAfterHide();
             assertEquals(currentLayout, hideClear.layout());
             assertEquals(4, hideClear.previewSequence());
         } finally {
@@ -766,8 +1609,16 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         RenderPublication publication = harness.nextRender();
         CanvasLayoutKey layout = layout(publication.revision());
         harness.process.sendPresented(layout);
+        HostInteractionFence fence = harness.process.readInteractionFence();
+        assertEquals(layout, fence.layout());
+        assertEquals(0, fence.interactionFenceSequence());
         HostSelection selection = harness.process.readSelection();
         assertEquals(layout, selection.layout());
+        harness.process.sendInteractionFenceApplied(
+                fence.layout(), fence.interactionFenceSequence());
+        harness.awaitInteractionBarrier(
+                FlutterDesignerNativeCanvasSession.InteractionBarrierPhase
+                        .SYNCHRONIZED);
         return layout;
     }
 
@@ -878,6 +1729,9 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         private final ManualExecutor launches = new ManualExecutor();
         private final ManualPollScheduler polls = new ManualPollScheduler();
         private final ControllableUiExecutor ui = new ControllableUiExecutor();
+        private final AtomicInteger terminationCalls = new AtomicInteger();
+        private final AtomicInteger runnerInteractions = new AtomicInteger();
+        private final AtomicLong nanoTime = new AtomicLong();
         private final List<StableId> runnerSelections = new ArrayList<>();
         private final List<CanvasRunnerRuntimeEvent.PaletteDrop> runnerPaletteDrops =
                 new ArrayList<>();
@@ -885,6 +1739,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         private final List<CanvasRunnerRuntimeEvent.DeleteSelection>
                 runnerDeletions = new ArrayList<>();
         private final List<CanvasViewportMetrics> runnerViewportMetrics =
+                new ArrayList<>();
+        private final List<FlutterDesignerNativeCanvasStatus> statuses =
                 new ArrayList<>();
         private final CanvasRunnerBuildResult runner;
         private final FlutterDesignerNativeCanvasSession session;
@@ -900,11 +1756,16 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             Path sdkHome = root.resolve("flutter-sdk");
             FlutterSdk sdk = new FlutterSdk(
                     sdkHome, sdkHome.resolve("bin").resolve("flutter.bat"));
+            var provider = new WindowsNativeCanvasPlatformProvider();
+            var contract = provider.runnerContract().orElseThrow();
             runner = new CanvasRunnerBuildResult(
-                    root.resolve("runner.exe"),
+                    root.resolve(contract.buildTarget().executableName()),
                     root,
                     new CanvasRunnerCacheIdentity(
-                            "a".repeat(64), "test-engine", "b".repeat(64)),
+                            "a".repeat(64),
+                            "test-engine",
+                            contract.fingerprint(),
+                            "b".repeat(64)),
                     false,
                     "");
             FlutterDesignerNativeCanvasSession.RuntimeServices runtime =
@@ -916,11 +1777,17 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             launches,
                             ui,
                             polls,
-                            Process::destroy);
+                            process -> {
+                                terminationCalls.incrementAndGet();
+                                process.destroy();
+                                return CompletableFuture.completedFuture(null);
+                            },
+                            nanoTime::get);
             session = new FlutterDesignerNativeCanvasSession(
+                    provider,
                     host,
                     runtime,
-                    ignored -> { },
+                    statuses::add,
                     runnerSelections::add,
                     paletteDropTokenResolver,
                     admitted -> {
@@ -929,6 +1796,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     },
                     runnerDeletions::add);
             session.setViewportMetricsListener(runnerViewportMetrics::add);
+            session.setInteractionListener(runnerInteractions::incrementAndGet);
         }
 
         static Harness start(DesignerDocument document) throws Exception {
@@ -983,6 +1851,14 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     "runtime event was not queued for UI delivery");
         }
 
+        void awaitInteractionBarrier(
+                FlutterDesignerNativeCanvasSession.InteractionBarrierPhase phase)
+                throws Exception {
+            awaitEdtCondition(
+                    () -> session.interactionBarrierState().phase() == phase,
+                    "interaction barrier did not reach " + phase);
+        }
+
         void awaitViewportMetrics(int expectedMinimum) throws Exception {
             awaitEdtCondition(
                     () -> runnerViewportMetrics.size() >= expectedMinimum,
@@ -993,6 +1869,28 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             try {
                 var field = FlutterDesignerNativeCanvasSession.class
                         .getDeclaredField("viewportCommandRetryTimer");
+                field.setAccessible(true);
+                ((javax.swing.Timer) field.get(session)).stop();
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void retryViewportPresentationNow() {
+            try {
+                var method = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredMethod("retryViewportPresentation");
+                method.setAccessible(true);
+                method.invoke(session);
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void stopInteractionFenceRetryTimer() {
+            try {
+                var field = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("interactionFenceRetryTimer");
                 field.setAccessible(true);
                 ((javax.swing.Timer) field.get(session)).stop();
             } catch (ReflectiveOperationException failure) {
@@ -1022,35 +1920,118 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             }
         }
 
+        void timeOutInteractionBarrierNow() {
+            try {
+                var method = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredMethod("interactionFenceAckTimedOut");
+                method.setAccessible(true);
+                method.invoke(session);
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void forceSurfaceLayoutSequence(
+                CanvasLayoutKey current,
+                long layoutSequence) {
+            try {
+                var field = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("currentLayout");
+                field.setAccessible(true);
+                field.set(session, new CanvasLayoutKey(
+                        current.frameKey(), layoutSequence));
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        void forceExhaustedInteractionEpoch() {
+            try {
+                var sequence = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("interactionFenceSequence");
+                sequence.setAccessible(true);
+                sequence.setLong(session, CanvasWireProtocol.MAX_SEQUENCE);
+                var accepting = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("interactionFenceAccepting");
+                accepting.setAccessible(true);
+                accepting.setBoolean(session, false);
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
+        boolean runnerCloseAcknowledged() {
+            try {
+                var field = FlutterDesignerNativeCanvasSession.class
+                        .getDeclaredField("runnerCloseAcknowledged");
+                field.setAccessible(true);
+                return field.getBoolean(session);
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(failure);
+            }
+        }
+
         @Override
         public void close() throws Exception {
             onEdt(session::close);
         }
     }
 
-    private static final class FakeHost
-            implements FlutterDesignerNativeCanvasSession.NativeCanvasHost {
+    private static final class FakeHost implements NativeCanvasHost {
+        private NativeCanvasSurfaceMetrics surfaceMetrics =
+                new NativeCanvasSurfaceMetrics(1024, 768, 1_000_000);
+
+        private final JPanel component = new JPanel();
         private boolean attached;
+        private BooleanSupplier closeObserver = () -> true;
+        private boolean closeObservedAfterRequestWritten;
+        private Consumer<NativeCanvasSurfaceMetrics> surfaceMetricsChanged =
+                ignored -> { };
+        private Runnable peerWillBeLost = () -> { };
+        private Runnable peerLost = () -> { };
+        private boolean peerReady = true;
 
         @Override
-        public long parentWindowHandle() {
-            return 0x771L;
+        public JComponent component() {
+            return component;
         }
 
         @Override
-        public boolean tryAttach(long runnerProcessId) {
+        public NativeCanvasParentHandle parentHandle() {
+            return new NativeCanvasParentHandle(
+                    NativeCanvasPlatform.WINDOWS,
+                    "0x0000000000000771");
+        }
+
+        @Override
+        public boolean attachRunner(long runnerProcessId) {
             attached = true;
             return true;
         }
 
         @Override
-        public boolean isAttached() {
+        public void detachRunner() {
+            attached = false;
+        }
+
+        @Override
+        public boolean isRunnerAttached() {
+            return attached;
+        }
+
+        @Override
+        public boolean isRunnerSurfaceLive() {
             return attached;
         }
 
         @Override
         public boolean isNativePeerReady() {
-            return true;
+            return peerReady;
+        }
+
+        @Override
+        public Optional<NativeCanvasSurfaceMetrics> surfaceMetrics() {
+            return attached ? Optional.of(surfaceMetrics) : Optional.empty();
         }
 
         @Override
@@ -1058,11 +2039,22 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         }
 
         @Override
+        public boolean requestRunnerFocus() {
+            return attached;
+        }
+
+        @Override
         public void onPeerReady(Runnable listener) {
         }
 
         @Override
+        public void onPeerWillBeLost(Runnable listener) {
+            peerWillBeLost = listener;
+        }
+
+        @Override
         public void onPeerLost(Runnable listener) {
+            peerLost = listener;
         }
 
         @Override
@@ -1070,8 +2062,30 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         }
 
         @Override
+        public void onSurfaceMetricsChanged(
+                Consumer<NativeCanvasSurfaceMetrics> listener) {
+            surfaceMetricsChanged = listener;
+        }
+
+        @Override
         public void close() {
+            closeObservedAfterRequestWritten = closeObserver.getAsBoolean();
             attached = false;
+        }
+
+        void fireSurfaceMetrics(NativeCanvasSurfaceMetrics metrics) {
+            surfaceMetrics = metrics;
+            surfaceMetricsChanged.accept(metrics);
+        }
+
+        void firePeerWillBeLost() {
+            peerWillBeLost.run();
+        }
+
+        void firePeerLost() {
+            peerReady = false;
+            attached = false;
+            peerLost.run();
         }
     }
 
@@ -1098,19 +2112,30 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
 
     private static final class ManualPollScheduler
             implements FlutterDesignerNativeCanvasSession.PollScheduler {
-        private Runnable active;
+        private final List<ScheduledPoll> polls = new ArrayList<>();
 
         @Override
         public FlutterDesignerNativeCanvasSession.Cancellable schedule(Runnable poll) {
-            active = poll;
-            return () -> active = null;
+            ScheduledPoll scheduled = new ScheduledPoll(poll);
+            polls.add(scheduled);
+            return () -> scheduled.active = false;
         }
 
         void runActivePoll() {
-            if (active == null) {
-                throw new AssertionError("No active attachment poll");
+            ScheduledPoll scheduled = polls.reversed().stream()
+                    .filter(poll -> poll.active)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("No active Canvas poll"));
+            scheduled.action.run();
+        }
+
+        private static final class ScheduledPoll {
+            private final Runnable action;
+            private boolean active = true;
+
+            private ScheduledPoll(Runnable action) {
+                this.action = action;
             }
-            active.run();
         }
     }
 
@@ -1163,6 +2188,11 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     private record HostSelection(CanvasLayoutKey layout, StableId widgetId) {
+    }
+
+    private record HostInteractionFence(
+            CanvasLayoutKey layout,
+            long interactionFenceSequence) {
     }
 
     private record HostViewport(
@@ -1345,6 +2375,13 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     layout, StableId.parse(body.path("widgetId").asText()));
         }
 
+        HostInteractionFence readInteractionFence() throws Exception {
+            JsonNode body = readHostControl("host.interactionFence");
+            return new HostInteractionFence(
+                    layout(body),
+                    body.path("interactionFenceSequence").longValue());
+        }
+
         HostWidgetMovePreview readWidgetMovePreview() throws Exception {
             JsonNode body = readHostControl("host.widgetMovePreview");
             return new HostWidgetMovePreview(
@@ -1364,6 +2401,30 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     layout(body), body.path("previewSequence").longValue());
         }
 
+        HostWidgetMovePreviewClear readWidgetMovePreviewClearAfterHide()
+                throws Exception {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
+                        CanvasProcessDirection.HOST_TO_RUNNER,
+                        negotiatedCapabilities)).orElseThrow();
+                JsonNode root = json.readTree(frame.copyPayload());
+                JsonNode body = root.path("body");
+                String type = root.path("type").asText();
+                if ("host.widgetMovePreviewClear".equals(type)) {
+                    return new HostWidgetMovePreviewClear(
+                            layout(body),
+                            body.path("previewSequence").longValue());
+                }
+                assertEquals("host.interactionFence", type);
+                CanvasLayoutKey fenceLayout = layout(body);
+                sendInteractionFenceApplied(
+                        fenceLayout,
+                        body.path("interactionFenceSequence").longValue());
+            }
+            throw new AssertionError(
+                    "hide did not deliver the pending widget move preview clear");
+        }
+
         private JsonNode readHostControl(String expectedType) throws Exception {
             CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
                     CanvasProcessDirection.HOST_TO_RUNNER,
@@ -1371,6 +2432,25 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             JsonNode root = json.readTree(frame.copyPayload());
             assertEquals(expectedType, root.path("type").asText());
             return root.path("body");
+        }
+
+        CanvasHostClose readClose() throws Exception {
+            CanvasProcessFrame frame = hostFrames.read(negotiatedPolicy(
+                    CanvasProcessDirection.HOST_TO_RUNNER,
+                    negotiatedCapabilities)).orElseThrow();
+            CanvasWireDecodeResult decoded = new CanvasWireCodec().decode(
+                    frame.copyPayload());
+            return (CanvasHostClose)
+                    ((CanvasWireDecodeResult.Decoded) decoded).message();
+        }
+
+        void sendClosed(long repliedTo) throws Exception {
+            runnerFrames.write(
+                    negotiatedPolicy(
+                            CanvasProcessDirection.RUNNER_TO_HOST,
+                            negotiatedCapabilities).closing(),
+                    control(new CanvasWireCodec().encode(
+                            new CanvasRunnerClosed(sessionId, 1, repliedTo))));
         }
 
         private CanvasLayoutKey layout(JsonNode body) {
@@ -1404,11 +2484,34 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         }
 
         void sendPresented(CanvasLayoutKey layout) throws Exception {
+            sendPresented(layout, new CanvasSurfaceMetrics(
+                    1024, 768, CanvasSurfaceMetrics.MICROS_PER_UNIT));
+        }
+
+        void sendPresented(
+                CanvasLayoutKey layout,
+                CanvasSurfaceMetrics metrics) throws Exception {
             sendRuntime(runtimeEnvelope(
                     layout.frameKey().revisionKey(),
                     "runner.presented",
                     "\"frameSequence\":" + layout.frameKey().frameSequence()
-                            + ",\"layoutSequence\":" + layout.layoutSequence()));
+                            + ",\"layoutSequence\":" + layout.layoutSequence()
+                            + ",\"physicalWidth\":" + metrics.physicalWidth()
+                            + ",\"physicalHeight\":" + metrics.physicalHeight()
+                            + ",\"devicePixelRatioMicros\":"
+                            + metrics.devicePixelRatioMicros()));
+        }
+
+        void sendInteractionFenceApplied(
+                CanvasLayoutKey layout,
+                long interactionFenceSequence) throws Exception {
+            sendRuntime(runtimeEnvelope(
+                    layout.frameKey().revisionKey(),
+                    "runner.interactionFenceApplied",
+                    "\"frameSequence\":" + layout.frameKey().frameSequence()
+                            + ",\"layoutSequence\":" + layout.layoutSequence()
+                            + ",\"interactionFenceSequence\":"
+                            + interactionFenceSequence));
         }
 
         void sendSelection(
@@ -1422,6 +2525,20 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                             + ",\"layoutSequence\":" + layout.layoutSequence()
                             + ",\"intentSequence\":" + intentSequence
                             + ",\"widgetId\":\"" + widgetId + "\""));
+        }
+
+        void sendInteraction(
+                CanvasLayoutKey layout,
+                long intentSequence,
+                long interactionFenceSequence) throws Exception {
+            sendRuntime(runtimeEnvelope(
+                    layout.frameKey().revisionKey(),
+                    "runner.interaction",
+                    "\"frameSequence\":" + layout.frameKey().frameSequence()
+                            + ",\"layoutSequence\":" + layout.layoutSequence()
+                            + ",\"intentSequence\":" + intentSequence
+                            + ",\"interactionFenceSequence\":"
+                            + interactionFenceSequence));
         }
 
         void sendPaletteDrop(
@@ -1492,6 +2609,15 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
                     2, TimeUnit.SECONDS), "host protocol write did not block");
         }
 
+        void awaitHostOutput() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (System.nanoTime() < deadline && runnerStdin.available() == 0) {
+                Thread.sleep(5);
+            }
+            assertTrue(runnerStdin.available() > 0,
+                    "host protocol output was not written");
+        }
+
         void releaseHostWrite() {
             gatedHostStdin.releaseWrite();
         }
@@ -1559,12 +2685,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
 
         @Override
         public void destroy() {
-            if (!alive) {
-                return;
-            }
-            alive = false;
-            exitCode = 143;
-            onExit.complete(this);
+            exit(143);
         }
 
         @Override
@@ -1586,6 +2707,15 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
         @Override
         public CompletableFuture<Process> onExit() {
             return onExit;
+        }
+
+        void exit(int code) {
+            if (!alive) {
+                return;
+            }
+            alive = false;
+            exitCode = code;
+            onExit.complete(this);
         }
     }
 

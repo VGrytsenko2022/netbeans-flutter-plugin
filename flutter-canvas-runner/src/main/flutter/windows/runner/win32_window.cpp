@@ -16,6 +16,10 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
+#ifndef WM_DPICHANGED_AFTERPARENT
+#define WM_DPICHANGED_AFTERPARENT 0x02E3
+#endif
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 /// Registry key for app theme preference.
@@ -138,14 +142,20 @@ bool Win32Window::Create(const std::wstring& title,
   const DWORD style = parent == nullptr
                           ? WS_OVERLAPPEDWINDOW
                           : WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-  const int x = parent == nullptr ? Scale(origin.x, scale_factor) : 0;
-  const int y = parent == nullptr ? Scale(origin.y, scale_factor) : 0;
+  RECT parent_client{};
+  if (parent != nullptr && !GetClientRect(parent, &parent_client)) {
+    return false;
+  }
+  const int x = parent == nullptr ? Scale(origin.x, scale_factor)
+                                  : parent_client.left;
+  const int y = parent == nullptr ? Scale(origin.y, scale_factor)
+                                  : parent_client.top;
   const int width = parent == nullptr
                         ? Scale(size.width, scale_factor)
-                        : static_cast<int>(size.width);
+                        : parent_client.right - parent_client.left;
   const int height = parent == nullptr
                          ? Scale(size.height, scale_factor)
-                         : static_cast<int>(size.height);
+                         : parent_client.bottom - parent_client.top;
 
   HWND window = CreateWindowEx(
       0, window_class, title.c_str(), style, x, y, width, height, parent,
@@ -206,7 +216,17 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
 
     case WM_DPICHANGED: {
+      if (GetParent(hwnd) != nullptr) {
+        // A hosted WS_CHILD is expressed in parent-client coordinates. The
+        // suggested rectangle is in screen coordinates and would detach the
+        // surface from the trusted NetBeans host geometry.
+        FitToParentClientArea();
+        return 0;
+      }
       auto newRectSize = reinterpret_cast<RECT*>(lparam);
+      if (newRectSize == nullptr) {
+        return DefWindowProc(window_handle_, message, wparam, lparam);
+      }
       LONG newWidth = newRectSize->right - newRectSize->left;
       LONG newHeight = newRectSize->bottom - newRectSize->top;
 
@@ -215,13 +235,17 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
-    case WM_SIZE: {
-      RECT rect = GetClientArea();
-      if (child_content_ != nullptr) {
-        // Size and position the child window.
-        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-                   rect.bottom - rect.top, TRUE);
+    case WM_DPICHANGED_AFTERPARENT:
+      if (GetParent(hwnd) != nullptr) {
+        // Per-monitor V2 sends this after the native parent has adopted its
+        // new DPI. Re-read the final parent client bounds rather than scaling
+        // stale child geometry, then resize the embedded Flutter content too.
+        FitToParentClientArea();
+        return 0;
       }
+      break;
+    case WM_SIZE: {
+      ResizeChildContentToClientArea();
       return 0;
     }
 
@@ -253,11 +277,32 @@ Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
+  ResizeChildContentToClientArea();
+}
+
+void Win32Window::ResizeChildContentToClientArea() {
+  if (child_content_ == nullptr) {
+    return;
+  }
   RECT frame = GetClientArea();
-
-  MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
+  MoveWindow(child_content_, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
+}
 
+void Win32Window::FitToParentClientArea() {
+  HWND parent = GetParent(window_handle_);
+  if (parent == nullptr) {
+    return;
+  }
+  RECT parent_client{};
+  if (!GetClientRect(parent, &parent_client)) {
+    return;
+  }
+  SetWindowPos(window_handle_, nullptr, parent_client.left, parent_client.top,
+               parent_client.right - parent_client.left,
+               parent_client.bottom - parent_client.top,
+               SWP_NOZORDER | SWP_NOACTIVATE);
+  ResizeChildContentToClientArea();
 }
 
 RECT Win32Window::GetClientArea() {

@@ -1,14 +1,22 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import java.awt.BorderLayout;
+import java.awt.AWTEvent;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.KeyboardFocusManager;
+import java.awt.Point;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.AWTEventListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
@@ -33,15 +43,20 @@ import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
+import javax.swing.MenuElement;
+import javax.swing.MenuSelectionManager;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.event.ChangeListener;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
+import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
@@ -50,8 +65,10 @@ import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.codec.FdCodecDiagnostic;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.AddWidget;
+import dev.flutter.netbeans.designer.command.ClearSlotChildren;
 import dev.flutter.netbeans.designer.command.MoveWidget;
 import dev.flutter.netbeans.designer.command.RemoveWidget;
+import dev.flutter.netbeans.designer.command.ReplaceSlotChild;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
@@ -67,8 +84,10 @@ import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityDiagnostic;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
-import dev.flutter.netbeans.plugin.designer.canvas.WindowsNativeCanvasHost;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
+import dev.flutter.netbeans.plugin.designer.canvas.NativeCanvasPlatformProviders;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasHost;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatformProvider;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPreviewPlatforms.PreviewTarget;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPalette;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragLifecycle;
@@ -106,7 +125,11 @@ import org.openide.windows.TopComponent;
         position = 100)
 public final class FlutterDesignerMultiViewDesign
         implements MultiViewElement, PropertyChangeListener, ExplorerManager.Provider {
+    private static final Logger LOGGER = Logger.getLogger(
+            FlutterDesignerMultiViewDesign.class.getName());
     static final String DELETE_WIDGET_ACTION_KEY = "delete";
+    private static final int SWING_FOCUS_REPAIR_DELAY_MILLIS = 50;
+    static final int MAX_SWING_FOCUS_REPAIR_ATTEMPTS = 8;
     private final Lookup context;
     private final Lookup effectiveLookup;
     private final BooleanSupplier mutationUiEnabled;
@@ -121,6 +144,8 @@ public final class FlutterDesignerMultiViewDesign
     private final JLabel modelLabel;
     private final JLabel detailLabel;
     private final JLabel canvasStatusLabel;
+    private final JLabel canvasInteractionStatusLabel;
+    private final JButton canvasRetryButton;
     private final JButton canvasDetailsButton;
     private final JProgressBar progress;
     private final JProgressBar canvasProgress;
@@ -146,8 +171,14 @@ public final class FlutterDesignerMultiViewDesign
             new FlutterDesignerProjectThemeResolver();
     private final ChangeListener projectPlatformListener =
             event -> projectPlatformsChanged();
-    private final WindowsNativeCanvasHost nativeCanvasHost;
+    private final NativeCanvasHost nativeCanvasHost;
+    private final JComponent nativeCanvasHostComponent;
+    private final Component nativeCanvasFocusSurface;
     private final FlutterDesignerNativeCanvasSession nativeCanvasSession;
+    private final PropertyChangeListener permanentFocusOwnerListener =
+            this::permanentFocusOwnerChanged;
+    private final AWTEventListener swingInputFocusListener =
+            this::swingInputEventDispatched;
     private final String modelName;
     private final String sourceName;
     private final Map<StableId, Node> widgetNodes = new LinkedHashMap<>();
@@ -184,6 +215,20 @@ public final class FlutterDesignerMultiViewDesign
     private long mutationViewEpoch;
     private boolean platformListening;
     private boolean designVisible;
+    private KeyboardFocusManager permanentFocusOwnerManager;
+    private Toolkit swingInputFocusToolkit;
+    private long swingFocusRepairEpoch;
+    private long nativeCanvasFocusBootstrapEpoch;
+    private boolean swingFocusClaimedForActivation;
+    private JComponent retainedSwingFocusTarget;
+    private SwingFocusRepairNativeReleaseMarker swingFocusRepairNativeRelease;
+    private SwingFocusRepairReleasedJvmAuthority swingFocusRepairReleasedJvmAuthority;
+    private boolean canvasFrameRendered;
+    private boolean interactionBarrierPending;
+    private long interactionBarrierTransitionEpoch;
+    private final SwingFocusRepairRetryFence swingFocusRepairRetryFence =
+            new SwingFocusRepairRetryFence(MAX_SWING_FOCUS_REPAIR_ATTEMPTS);
+    private Timer swingFocusRepairTimer;
     private CanvasViewportPresentation pendingViewportPresentation;
 
     public FlutterDesignerMultiViewDesign(Lookup context) {
@@ -284,6 +329,15 @@ public final class FlutterDesignerMultiViewDesign
         modelLabel.setVisible(false);
         detailLabel.setVisible(false);
         canvasStatusLabel = centeredLabel("Native Canvas: waiting for the Design view.");
+        canvasInteractionStatusLabel = centeredLabel("");
+        canvasInteractionStatusLabel.setVisible(false);
+        canvasInteractionStatusLabel.getAccessibleContext().setAccessibleName(
+                "Native Canvas input synchronization status");
+        canvasRetryButton = new JButton();
+        Mnemonics.setLocalizedText(canvasRetryButton, "&Retry");
+        canvasRetryButton.setVisible(false);
+        canvasRetryButton.setEnabled(false);
+        canvasRetryButton.addActionListener(event -> retryNativeCanvas());
         canvasDetailsButton = new JButton();
         Mnemonics.setLocalizedText(canvasDetailsButton, "&Details...");
         canvasDetailsButton.setVisible(false);
@@ -304,7 +358,9 @@ public final class FlutterDesignerMultiViewDesign
         modelStatusRow.add(progress);
         JPanel canvasStatusRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         canvasStatusRow.add(canvasStatusLabel);
+        canvasStatusRow.add(canvasInteractionStatusLabel);
         canvasStatusRow.add(canvasProgress);
+        canvasStatusRow.add(canvasRetryButton);
         canvasStatusRow.add(canvasDetailsButton);
         JPanel hiddenStatusDetails = new JPanel();
         hiddenStatusDetails.add(modelLabel);
@@ -317,12 +373,23 @@ public final class FlutterDesignerMultiViewDesign
                 this::viewportPresentationChanged);
         viewportCommandTimer = new Timer(24, event -> flushViewportPresentation());
         viewportCommandTimer.setRepeats(false);
-        WindowsNativeCanvasHost canvasHost = null;
+        NativeCanvasHost canvasHost = null;
         FlutterDesignerNativeCanvasSession canvasSession = null;
-        if (isWindows()) {
-            try {
-                canvasHost = new WindowsNativeCanvasHost();
+        JComponent canvasHostComponent = null;
+        NativeCanvasPlatformProvider canvasProvider = null;
+        try {
+            canvasProvider = Objects.requireNonNull(
+                    NativeCanvasPlatformProviders.current(),
+                    "Native Canvas provider selector returned no provider");
+            if (canvasProvider.isSupported()) {
+                canvasHost = Objects.requireNonNull(
+                        canvasProvider.createHost(),
+                        "Native Canvas provider returned no host");
+                canvasHostComponent = Objects.requireNonNull(
+                        canvasHost.component(),
+                        "Native Canvas host returned no component");
                 canvasSession = FlutterDesignerNativeCanvasSession.createDefault(
+                        canvasProvider,
                         canvasHost,
                         this::renderNativeCanvasStatus,
                         this::selectWidgetFromCanvas,
@@ -330,24 +397,43 @@ public final class FlutterDesignerMultiViewDesign
                         this::applyAdmittedPaletteDrop,
                         deletion -> deleteSelectedWidgetFromCanvas(
                                 deletion.widgetId()));
-            } catch (IOException | RuntimeException | LinkageError failure) {
-                canvasHost = null;
-                canvasSession = null;
+            } else {
                 renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                         FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                         "Native Flutter Canvas is unavailable.",
-                        "Target: embedded Windows FlutterView. Reason: "
-                        + failureReason(failure)));
+                        "Target: " + safeNativeCanvasTarget(canvasProvider)
+                        + ". Reason: " + canvasProvider.availabilityReason()));
             }
-        } else {
+        } catch (IOException | RuntimeException | LinkageError failure) {
+            String reason = failureReason(failure);
+            if (canvasSession != null) {
+                try {
+                    canvasSession.close();
+                } catch (RuntimeException | LinkageError cleanupFailure) {
+                    reason += "; session cleanup failed: "
+                            + failureReason(cleanupFailure);
+                }
+            } else if (canvasHost != null) {
+                try {
+                    canvasHost.close();
+                } catch (RuntimeException | LinkageError cleanupFailure) {
+                    reason += "; host cleanup failed: "
+                            + failureReason(cleanupFailure);
+                }
+            }
+            canvasHost = null;
+            canvasHostComponent = null;
+            canvasSession = null;
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
                     "Native Flutter Canvas is unavailable.",
-                    "Target: embedded FlutterView. Reason: the current implementation "
-                    + "is Windows-first; the platform host for this operating system "
-                    + "is not available yet."));
+                    "Target: " + safeNativeCanvasTarget(canvasProvider)
+                    + ". Reason: " + reason));
         }
         nativeCanvasHost = canvasHost;
+        nativeCanvasHostComponent = canvasHostComponent;
+        nativeCanvasFocusSurface = findUniqueNativeCanvasSurface(
+                canvasHostComponent);
         nativeCanvasSession = canvasSession;
         // Enabled only after the current bundled runner confirms the negotiated
         // viewport capability with exact metrics for this presentation.
@@ -355,6 +441,10 @@ public final class FlutterDesignerMultiViewDesign
         if (nativeCanvasSession != null) {
             nativeCanvasSession.setViewportMetricsListener(
                     this::renderViewportMetrics);
+            nativeCanvasSession.setInteractionListener(
+                    this::nativeCanvasInteractionFromRunner);
+            nativeCanvasSession.setInteractionBarrierListener(
+                    this::renderInteractionBarrierState);
         }
         JPanel canvasPanel = new JPanel(new BorderLayout());
         // Status copy is deliberately complete for accessibility and diagnostics,
@@ -362,8 +452,8 @@ public final class FlutterDesignerMultiViewDesign
         // Otherwise JSplitPane clamps its minimum and maximum divider locations
         // to the same value as soon as the validated-model detail is rendered.
         canvasPanel.setMinimumSize(new Dimension(320, 120));
-        if (nativeCanvasHost != null) {
-            canvasPanel.add(nativeCanvasHost, BorderLayout.CENTER);
+        if (canvasHostComponent != null) {
+            canvasPanel.add(canvasHostComponent, BorderLayout.CENTER);
         }
         canvasPanel.add(statusPanel, BorderLayout.SOUTH);
         JSplitPane split = new JSplitPane(
@@ -379,6 +469,10 @@ public final class FlutterDesignerMultiViewDesign
         JLabel previewLabel = new JLabel("Preview:");
         previewModes = new JComboBox<>(availablePreviewChoices()
                 .toArray(PreviewTarget[]::new));
+        // A lightweight Swing popup is painted below the embedded native
+        // Flutter child HWND. Keep this policy local to the Designer control;
+        // changing PopupFactory globally would affect unrelated NetBeans UI.
+        previewModes.setLightWeightPopupEnabled(false);
         previewModes.setEnabled(previewModes.getItemCount() > 0);
         int widestPreviewLabel = FlutterDesignerPreviewPlatforms.allTargets().stream()
                 .mapToInt(target -> previewModes.getFontMetrics(previewModes.getFont())
@@ -466,6 +560,10 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentOpened() {
         componentLifecycleOpen = true;
+        if (nativeCanvasSession != null && nativeCanvasHost != null) {
+            installPermanentFocusOwnerListener();
+            installSwingInputFocusListener();
+        }
         installWidgetTreeDropSupport();
         deleteWidgetSubmitting = false;
         moveWidgetSubmitting = false;
@@ -531,6 +629,10 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentClosed() {
         componentLifecycleOpen = false;
+        nativeCanvasFocusBootstrapEpoch++;
+        clearSwingFocusClaim();
+        uninstallSwingInputFocusListener();
+        uninstallPermanentFocusOwnerListener();
         uninstallWidgetTreeDropSupport();
         designVisible = false;
         viewportCommandTimer.stop();
@@ -613,6 +715,10 @@ public final class FlutterDesignerMultiViewDesign
         designVisible = true;
         invalidatePaletteDragAuthority();
         if (nativeCanvasSession != null) {
+            if (nativeCanvasHost != null) {
+                installPermanentFocusOwnerListener();
+                installSwingInputFocusListener();
+            }
             nativeCanvasSession.show();
         }
     }
@@ -620,6 +726,10 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentHidden() {
         designVisible = false;
+        nativeCanvasFocusBootstrapEpoch++;
+        clearSwingFocusClaim();
+        uninstallSwingInputFocusListener();
+        uninstallPermanentFocusOwnerListener();
         invalidatePaletteDragAuthority();
         if (nativeCanvasSession != null) {
             nativeCanvasSession.hide();
@@ -629,10 +739,966 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentActivated() {
         FlutterDesignerAuxiliaryWindows.openDefaultOnce();
+        if (nativeCanvasSession != null && !swingFocusClaimedForActivation) {
+            nativeCanvasSession.requestFocus();
+        }
     }
 
     @Override
     public void componentDeactivated() {
+        nativeCanvasFocusBootstrapEpoch++;
+        clearSwingFocusClaim();
+        if (nativeCanvasSession != null) {
+            nativeCanvasSession.clearFocusRequest();
+        }
+    }
+
+    private void installPermanentFocusOwnerListener() {
+        if (permanentFocusOwnerManager != null) {
+            return;
+        }
+        KeyboardFocusManager manager =
+                KeyboardFocusManager.getCurrentKeyboardFocusManager();
+        manager.addPropertyChangeListener(
+                "permanentFocusOwner",
+                permanentFocusOwnerListener);
+        permanentFocusOwnerManager = manager;
+    }
+
+    private void uninstallPermanentFocusOwnerListener() {
+        KeyboardFocusManager manager = permanentFocusOwnerManager;
+        permanentFocusOwnerManager = null;
+        if (manager != null) {
+            manager.removePropertyChangeListener(
+                        "permanentFocusOwner",
+                        permanentFocusOwnerListener);
+        }
+    }
+
+    private void installSwingInputFocusListener() {
+        if (swingInputFocusToolkit != null) {
+            return;
+        }
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+        toolkit.addAWTEventListener(
+                swingInputFocusListener,
+                AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK);
+        swingInputFocusToolkit = toolkit;
+    }
+
+    private void uninstallSwingInputFocusListener() {
+        swingFocusRepairEpoch++;
+        Toolkit toolkit = swingInputFocusToolkit;
+        swingInputFocusToolkit = null;
+        if (toolkit != null) {
+            toolkit.removeAWTEventListener(swingInputFocusListener);
+        }
+    }
+
+    private void permanentFocusOwnerChanged(PropertyChangeEvent event) {
+        Object candidate = event.getNewValue();
+        if (!(candidate instanceof Component focusOwner)) {
+            return;
+        }
+        KeyboardFocusManager manager = permanentFocusOwnerManager;
+        if (manager == null || event.getSource() != manager) {
+            return;
+        }
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            java.awt.EventQueue.invokeLater(
+                    () -> {
+                        if (manager == permanentFocusOwnerManager
+                                && manager.getPermanentFocusOwner() == focusOwner) {
+                            permanentFocusOwnerChangedOnEdt(focusOwner);
+                        }
+                    });
+            return;
+        }
+        permanentFocusOwnerChangedOnEdt(focusOwner);
+    }
+
+    private void permanentFocusOwnerChangedOnEdt(Component focusOwner) {
+        SwingFocusRepairNativeReleaseMarker releaseMarker =
+                swingFocusRepairNativeRelease;
+        if (canPreserveSwingClaimForIntermediateNativeRelease(
+                releaseMarker,
+                focusOwner,
+                nativeCanvasFocusSurface,
+                swingFocusRepairEpoch,
+                nativeCanvasFocusBootstrapEpoch,
+                swingFocusClaimedForActivation,
+                retainedSwingFocusTarget)) {
+            return;
+        }
+        if (releaseMarker != null) {
+            swingFocusRepairNativeRelease = null;
+        }
+        if (nativeCanvasHostComponent != null
+                && sameOrDescendant(focusOwner, nativeCanvasHostComponent)) {
+            clearSwingFocusClaim();
+            return;
+        }
+        if (swingFocusClaimedForActivation
+                && !insideAnyRoot(focusOwner, visual, toolbar)) {
+            clearSwingFocusClaim();
+            if (nativeCanvasSession != null) {
+                nativeCanvasSession.clearFocusRequest();
+            }
+            return;
+        }
+        cancelDeferredCanvasFocusFor(focusOwner);
+    }
+
+    private void cancelDeferredCanvasFocusFor(Component focusOwner) {
+        if (nativeCanvasSession != null
+                && swingFocusClaimedForActivation
+                && isDesignInteractionActive()
+                && shouldCancelDeferredCanvasFocus(
+                        focusOwner,
+                        visual,
+                        toolbar,
+                        nativeCanvasHostComponent)) {
+            retainedSwingFocusTarget = nearestFocusableSwingComponent(
+                    focusOwner, visual, toolbar);
+            nativeCanvasSession.clearFocusRequest();
+        }
+    }
+
+    private void swingInputEventDispatched(AWTEvent event) {
+        Component source;
+        boolean physicalPointerDown;
+        Point physicalPointerScreenPoint;
+        if (event instanceof MouseEvent mouseEvent
+                && mouseEvent.getID() == MouseEvent.MOUSE_PRESSED
+                && mouseEvent.getSource() instanceof Component mouseSource) {
+            source = mouseSource;
+            physicalPointerDown = true;
+            physicalPointerScreenPoint = new Point(
+                    mouseEvent.getXOnScreen(), mouseEvent.getYOnScreen());
+        } else if (event instanceof KeyEvent keyEvent
+                && keyEvent.getID() == KeyEvent.KEY_PRESSED
+                && keyEvent.getSource() instanceof Component keySource) {
+            source = keySource;
+            physicalPointerDown = false;
+            physicalPointerScreenPoint = null;
+        } else {
+            return;
+        }
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            java.awt.EventQueue.invokeLater(
+                    () -> returnFocusToSwingControl(
+                            source,
+                            physicalPointerDown,
+                            physicalPointerScreenPoint));
+            return;
+        }
+        returnFocusToSwingControl(
+                source, physicalPointerDown, physicalPointerScreenPoint);
+    }
+
+    private void returnFocusToSwingControl(
+            Component source,
+            boolean physicalPointerDown,
+            Point physicalPointerScreenPoint) {
+        if (swingFocusRepairNativeRelease != null
+                || swingFocusRepairReleasedJvmAuthority != null) {
+            clearSwingFocusClaim();
+        }
+        long bootstrapEpoch = ++nativeCanvasFocusBootstrapEpoch;
+        if (nativeCanvasSession == null
+                || nativeCanvasHost == null
+                || !isDesignInteractionActive()) {
+            return;
+        }
+        boolean exactNativeCanvasPress = isNativeCanvasFocusBootstrapPress(
+                physicalPointerDown,
+                source,
+                nativeCanvasFocusSurface,
+                pointInsideShowingComponent(
+                        physicalPointerScreenPoint, nativeCanvasFocusSurface));
+        FlutterDesignerNativeCanvasSession.InteractionBarrierState barrier =
+                nativeCanvasSession.interactionBarrierState();
+        boolean hostShowing = nativeCanvasHostComponent != null
+                && nativeCanvasHostComponent.isShowing();
+        boolean exactSurfaceShowing = nativeCanvasFocusSurface != null
+                && nativeCanvasFocusSurface.isShowing();
+        boolean bootstrapAllowed = canScheduleNativeCanvasFocusBootstrap(
+                exactNativeCanvasPress,
+                isDesignInteractionActive(),
+                hostShowing,
+                source.isShowing(),
+                exactSurfaceShowing,
+                canvasFrameRendered,
+                barrier.inputEnabled(),
+                bootstrapEpoch,
+                nativeCanvasFocusBootstrapEpoch);
+        if (bootstrapAllowed) {
+            clearSwingFocusClaim();
+            java.awt.EventQueue.invokeLater(() ->
+                    completeNativeCanvasFocusBootstrap(
+                            bootstrapEpoch,
+                            source,
+                            physicalPointerScreenPoint));
+            return;
+        }
+        switch (classifySwingInput(
+                source, visual, toolbar, nativeCanvasHostComponent)) {
+            case NATIVE_CANVAS -> {
+                clearSwingFocusClaim();
+                return;
+            }
+            case OTHER_AWT -> {
+                // A real input event in another NetBeans control is newer than
+                // a retained target from this Design view. It must fence both
+                // late Swing repair and deferred native activation.
+                clearSwingFocusClaim();
+                nativeCanvasSession.clearFocusRequest();
+                if (isStandardSwingMenuInteraction(source)) {
+                    releaseRunnerFocusSafely(
+                            nativeCanvasHost::releaseRunnerFocus);
+                }
+                return;
+            }
+            case DESIGN_SWING -> {
+                // Continue with an exact retained Swing target below.
+            }
+        }
+        long repairEpoch = ++swingFocusRepairEpoch;
+        swingFocusClaimedForActivation = true;
+        retainedSwingFocusTarget = nearestFocusableSwingComponent(
+                source, visual, toolbar);
+        cancelSwingFocusRepairTimer();
+        nativeCanvasSession.clearFocusRequest();
+        repairClaimedSwingFocusIfRunnerFocused(repairEpoch);
+    }
+
+    private void completeNativeCanvasFocusBootstrap(
+            long bootstrapEpoch,
+            Component source,
+            Point physicalPointerScreenPoint) {
+        if (nativeCanvasSession == null || nativeCanvasHost == null) {
+            return;
+        }
+        FlutterDesignerNativeCanvasSession.InteractionBarrierState barrier =
+                nativeCanvasSession.interactionBarrierState();
+        boolean exactNativeCanvasPress = isNativeCanvasFocusBootstrapPress(
+                true,
+                source,
+                nativeCanvasFocusSurface,
+                pointInsideShowingComponent(
+                        physicalPointerScreenPoint, nativeCanvasFocusSurface));
+        boolean hostShowing = nativeCanvasHostComponent != null
+                && nativeCanvasHostComponent.isShowing();
+        boolean exactSurfaceShowing = nativeCanvasFocusSurface != null
+                && nativeCanvasFocusSurface.isShowing();
+        boolean menuPathEmpty = MenuSelectionManager.defaultManager()
+                .getSelectedPath().length == 0;
+        boolean bootstrapAllowed = canCompleteNativeCanvasFocusBootstrap(
+                exactNativeCanvasPress,
+                isDesignInteractionActive(),
+                hostShowing,
+                source.isShowing(),
+                exactSurfaceShowing,
+                canvasFrameRendered,
+                barrier.inputEnabled(),
+                menuPathEmpty,
+                bootstrapEpoch,
+                nativeCanvasFocusBootstrapEpoch);
+        if (!bootstrapAllowed) {
+            return;
+        }
+        // A lightweight ancestor can receive the first physical press after a
+        // cross-process menu focus transfer even though its screen point is
+        // inside the exact AWT Canvas. Wait until that AWT press is completely
+        // dispatched before restoring the verified Flutter child. This owns
+        // no model-mutation authority and is fenced to the synchronized frame.
+        nativeCanvasSession.requestFocus();
+    }
+
+    private void repairClaimedSwingFocusIfRunnerFocused() {
+        repairClaimedSwingFocusIfRunnerFocused(swingFocusRepairEpoch);
+    }
+
+    private void repairClaimedSwingFocusIfRunnerFocused(long repairEpoch) {
+        JComponent focusTarget = retainedSwingFocusTarget;
+        if (!swingFocusClaimedForActivation
+                || focusTarget == null
+                || repairEpoch != swingFocusRepairEpoch
+                || nativeCanvasSession == null
+                || nativeCanvasHost == null
+                || !isDesignInteractionActive()
+                || !canvasFrameRendered) {
+            return;
+        }
+        if (!isUsableSwingFocusTarget(
+                focusTarget, visual, toolbar, nativeCanvasHostComponent)) {
+            clearSwingFocusClaim();
+            return;
+        }
+        Component currentOwner = KeyboardFocusManager
+                .getCurrentKeyboardFocusManager()
+                .getPermanentFocusOwner();
+        if (currentOwner != null
+                && currentOwner != focusTarget
+                && !sameOrDescendant(currentOwner, focusTarget)) {
+            // Do not steal focus from a newer AWT owner if its property event
+            // has not reached this listener yet.
+            clearSwingFocusClaim();
+            nativeCanvasSession.clearFocusRequest();
+            return;
+        }
+        final boolean runnerFocused;
+        try {
+            runnerFocused = nativeCanvasHost.isRunnerFocused();
+        } catch (RuntimeException | LinkageError ignored) {
+            // Focus repair is intentionally non-terminal. The host/session
+            // remain the authorities for reporting attachment failures.
+            scheduleSwingFocusRepair(repairEpoch, focusTarget);
+            return;
+        }
+        if (!runnerFocused) {
+            boolean canReuseRelease = canReuseVerifiedRunnerRelease(
+                    swingFocusRepairReleasedJvmAuthority,
+                    repairEpoch,
+                    focusTarget,
+                    swingFocusClaimedForActivation,
+                    retainedSwingFocusTarget,
+                    isDesignInteractionActive(),
+                    canvasFrameRendered);
+            if (canReuseRelease) {
+                requestRetainedSwingFocusDeferred(
+                        repairEpoch, focusTarget, null);
+                return;
+            }
+            scheduleSwingFocusRepair(repairEpoch, focusTarget);
+            return;
+        }
+        // Native focus returned to this runner after any earlier release, so
+        // that JVM-authority proof is no longer current. A new proof is issued
+        // only after the exact host completes another verified release.
+        swingFocusRepairReleasedJvmAuthority = null;
+        SwingFocusRepairNativeReleaseMarker releaseMarker =
+                new SwingFocusRepairNativeReleaseMarker(
+                        repairEpoch,
+                        nativeCanvasFocusBootstrapEpoch,
+                        focusTarget);
+        swingFocusRepairNativeRelease = releaseMarker;
+        if (!beginSwingFocusRepairFromRunner(
+                nativeCanvasHost::releaseRunnerFocus,
+                () -> clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                        () -> KeyboardFocusManager
+                                .getCurrentKeyboardFocusManager()
+                                .getPermanentFocusOwner(),
+                        focusTarget,
+                        () -> KeyboardFocusManager
+                                .getCurrentKeyboardFocusManager()
+                                .clearGlobalFocusOwner()))) {
+            if (swingFocusRepairNativeRelease == releaseMarker) {
+                swingFocusRepairNativeRelease = null;
+            }
+            scheduleSwingFocusRepair(repairEpoch, focusTarget);
+            return;
+        }
+        swingFocusRepairReleasedJvmAuthority =
+                new SwingFocusRepairReleasedJvmAuthority(
+                        repairEpoch, focusTarget);
+        requestRetainedSwingFocusDeferred(
+                repairEpoch, focusTarget, releaseMarker);
+    }
+
+    private void requestRetainedSwingFocusDeferred(
+            long repairEpoch,
+            JComponent focusTarget,
+            SwingFocusRepairNativeReleaseMarker releaseMarker) {
+        stopSwingFocusRepairTimerPreservingAttempts();
+        long barrierTransitionEpoch = interactionBarrierTransitionEpoch;
+        java.awt.EventQueue.invokeLater(() -> {
+            try {
+                Component owner = KeyboardFocusManager
+                        .getCurrentKeyboardFocusManager()
+                        .getPermanentFocusOwner();
+                boolean continuationCurrent = canApplySwingFocusRepairContinuation(
+                        repairEpoch,
+                        swingFocusRepairEpoch,
+                        focusTarget,
+                        retainedSwingFocusTarget,
+                        barrierTransitionEpoch,
+                        interactionBarrierTransitionEpoch,
+                        swingFocusClaimedForActivation,
+                        isDesignInteractionActive(),
+                        canvasFrameRendered);
+                if (continuationCurrent
+                        && isUsableSwingFocusTarget(
+                                focusTarget,
+                                visual,
+                                toolbar,
+                                nativeCanvasHostComponent)
+                        && currentOwnerAllowsSwingFocusRepair(owner, focusTarget)) {
+                    try {
+                        boolean accepted = focusTarget.requestFocusInWindow();
+                        if (accepted
+                                && repairEpoch == swingFocusRepairEpoch
+                                && retainedSwingFocusTarget == focusTarget) {
+                            // Swing accepted the request, but Windows can still
+                            // transfer native focus to the child FlutterView while
+                            // attach or first-frame delivery completes. Retain the
+                            // exact target for the bounded typed-rendered window.
+                            scheduleSwingFocusRepair(repairEpoch, focusTarget);
+                        } else {
+                            scheduleSwingFocusRepair(repairEpoch, focusTarget);
+                        }
+                    } catch (RuntimeException | LinkageError ignored) {
+                        scheduleSwingFocusRepair(repairEpoch, focusTarget);
+                    }
+                } else if (continuationCurrent
+                        && owner != null
+                        && !currentOwnerAllowsSwingFocusRepair(owner, focusTarget)) {
+                    clearSwingFocusClaim();
+                    nativeCanvasSession.clearFocusRequest();
+                }
+            } finally {
+                if (swingFocusRepairNativeRelease == releaseMarker) {
+                    swingFocusRepairNativeRelease = null;
+                }
+            }
+        });
+    }
+
+    private void scheduleSwingFocusRepair(
+            long repairEpoch,
+            JComponent focusTarget) {
+        if (!canScheduleSwingFocusRepair(
+                canvasFrameRendered,
+                swingFocusClaimedForActivation,
+                repairEpoch,
+                swingFocusRepairEpoch,
+                focusTarget,
+                retainedSwingFocusTarget,
+                isDesignInteractionActive(),
+                swingFocusRepairTimer != null)) {
+            return;
+        }
+        Optional<SwingFocusRepairTicket> reserved =
+                swingFocusRepairRetryFence.reserve(repairEpoch, focusTarget);
+        if (reserved.isEmpty()) {
+            return;
+        }
+        SwingFocusRepairTicket ticket = reserved.orElseThrow();
+        Timer timer = new Timer(SWING_FOCUS_REPAIR_DELAY_MILLIS, null);
+        timer.setRepeats(false);
+        timer.addActionListener(event -> retryClaimedSwingFocus(timer, ticket));
+        swingFocusRepairTimer = timer;
+        timer.start();
+    }
+
+    private void retryClaimedSwingFocus(
+            Timer timer,
+            SwingFocusRepairTicket ticket) {
+        if (timer != swingFocusRepairTimer
+                || !swingFocusRepairRetryFence.isActive(ticket)) {
+            return;
+        }
+        timer.stop();
+        swingFocusRepairTimer = null;
+        swingFocusRepairRetryFence.consume(ticket);
+        repairClaimedSwingFocusIfRunnerFocused(ticket.repairEpoch());
+    }
+
+    private void stopSwingFocusRepairTimerPreservingAttempts() {
+        Timer timer = swingFocusRepairTimer;
+        swingFocusRepairTimer = null;
+        if (timer != null) {
+            timer.stop();
+        }
+        swingFocusRepairRetryFence.clearActive();
+    }
+
+    private void cancelSwingFocusRepairTimer() {
+        Timer timer = swingFocusRepairTimer;
+        swingFocusRepairTimer = null;
+        if (timer != null) {
+            timer.stop();
+        }
+        swingFocusRepairRetryFence.reset();
+    }
+
+    private void clearSwingFocusClaim() {
+        swingFocusRepairEpoch++;
+        swingFocusClaimedForActivation = false;
+        retainedSwingFocusTarget = null;
+        swingFocusRepairNativeRelease = null;
+        swingFocusRepairReleasedJvmAuthority = null;
+        cancelSwingFocusRepairTimer();
+    }
+
+    private boolean isDesignInteractionActive() {
+        return designVisible || visual.isShowing();
+    }
+
+    static JComponent nearestFocusableSwingComponent(
+            Component source,
+            Component... allowedRoots) {
+        if (source == null || !insideAnyRoot(source, allowedRoots)) {
+            return null;
+        }
+        Component candidate = source;
+        while (candidate != null && insideAnyRoot(candidate, allowedRoots)) {
+            if (candidate instanceof JComponent swing
+                    && swing.isEnabled()
+                    && swing.isFocusable()
+                    && swing.isRequestFocusEnabled()) {
+                return swing;
+            }
+            candidate = candidate.getParent();
+        }
+        return null;
+    }
+
+    static boolean isUsableSwingFocusTarget(
+            JComponent target,
+            Component designRoot,
+            Component toolbarRoot,
+            Component nativeCanvasRoot) {
+        return target != null
+                && target.isShowing()
+                && target.isEnabled()
+                && target.isFocusable()
+                && target.isRequestFocusEnabled()
+                && shouldCancelDeferredCanvasFocus(
+                        target, designRoot, toolbarRoot, nativeCanvasRoot);
+    }
+
+    static boolean currentOwnerAllowsSwingFocusRepair(
+            Component currentOwner,
+            JComponent retainedTarget) {
+        return currentOwner == null
+                || currentOwner == retainedTarget
+                || sameOrDescendant(currentOwner, retainedTarget);
+    }
+
+    static boolean canScheduleSwingFocusRepair(
+            boolean rendered,
+            boolean claimed,
+            long expectedEpoch,
+            long currentEpoch,
+            JComponent expectedTarget,
+            JComponent retainedTarget,
+            boolean interactionActive,
+            boolean timerScheduled) {
+        return rendered
+                && claimed
+                && expectedEpoch == currentEpoch
+                && expectedTarget != null
+                && expectedTarget == retainedTarget
+                && interactionActive
+                && !timerScheduled;
+    }
+
+    static boolean canApplySwingFocusRepairContinuation(
+            long expectedRepairEpoch,
+            long currentRepairEpoch,
+            JComponent expectedTarget,
+            JComponent retainedTarget,
+            long expectedBarrierTransitionEpoch,
+            long currentBarrierTransitionEpoch,
+            boolean claimed,
+            boolean interactionActive,
+            boolean rendered) {
+        return expectedRepairEpoch == currentRepairEpoch
+                && expectedTarget != null
+                && expectedTarget == retainedTarget
+                && expectedBarrierTransitionEpoch == currentBarrierTransitionEpoch
+                && claimed
+                && interactionActive
+                && rendered;
+    }
+
+    static boolean shouldRearmSwingFocusRepairOnRenderedTransition(
+            boolean wasFrameRendered,
+            boolean frameRendered,
+            boolean swingFocusClaimed,
+            JComponent retainedTarget) {
+        return !wasFrameRendered
+                && frameRendered
+                && swingFocusClaimed
+                && retainedTarget != null;
+    }
+
+    static boolean beginSwingFocusRepairFromRunner(
+            BooleanSupplier releaseRunnerFocus,
+            Runnable clearGlobalFocusOwner) {
+        BooleanSupplier release = Objects.requireNonNull(
+                releaseRunnerFocus, "releaseRunnerFocus");
+        Runnable clear = Objects.requireNonNull(
+                clearGlobalFocusOwner, "clearGlobalFocusOwner");
+        final boolean released;
+        try {
+            released = release.getAsBoolean();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            // Provider code runs on the NetBeans EDT. An ordinary extension
+            // failure cannot escape; the bounded repair loop may retry while
+            // host-owned identity/detach failures remain fail-closed there.
+            LOGGER.log(
+                    Level.FINE,
+                    "Native Canvas provider could not release runner focus "
+                    + "for a retained Swing interaction",
+                    failure);
+            return false;
+        }
+        if (!released) {
+            return false;
+        }
+        try {
+            clear.run();
+            return true;
+        } catch (RuntimeException | LinkageError failure) {
+            return false;
+        }
+    }
+
+    static void clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+            java.util.function.Supplier<Component> currentOwner,
+            JComponent retainedTarget,
+            Runnable clearGlobalFocusOwner) {
+        java.util.function.Supplier<Component> ownerSupplier =
+                Objects.requireNonNull(currentOwner, "currentOwner");
+        JComponent target = Objects.requireNonNull(
+                retainedTarget, "retainedTarget");
+        Runnable clear = Objects.requireNonNull(
+                clearGlobalFocusOwner, "clearGlobalFocusOwner");
+        Component owner = ownerSupplier.get();
+        if (owner != null && currentOwnerAllowsSwingFocusRepair(owner, target)) {
+            // The user's exact Swing target still owns AWT focus. The native
+            // release has already returned Win32 authority to the JVM parent;
+            // clearing this owner would introduce an observable transient gap.
+            return;
+        }
+        clear.run();
+    }
+
+    static boolean canPreserveSwingClaimForIntermediateNativeRelease(
+            SwingFocusRepairNativeReleaseMarker marker,
+            Component focusOwner,
+            Component exactHostCanvas,
+            long currentRepairEpoch,
+            long currentInputEpoch,
+            boolean swingFocusClaimed,
+            JComponent retainedTarget) {
+        return marker != null
+                && focusOwner != null
+                && exactHostCanvas != null
+                && marker.repairEpoch() == currentRepairEpoch
+                && marker.inputEpoch() == currentInputEpoch
+                && swingFocusClaimed
+                && marker.retainedTarget() == retainedTarget
+                && sameOrDescendant(focusOwner, exactHostCanvas);
+    }
+
+    static boolean canReuseVerifiedRunnerRelease(
+            SwingFocusRepairReleasedJvmAuthority authority,
+            long currentRepairEpoch,
+            JComponent expectedTarget,
+            boolean swingFocusClaimed,
+            JComponent retainedTarget,
+            boolean interactionActive,
+            boolean rendered) {
+        return authority != null
+                && authority.repairEpoch() == currentRepairEpoch
+                && authority.retainedTarget() == expectedTarget
+                && expectedTarget == retainedTarget
+                && swingFocusClaimed
+                && interactionActive
+                && rendered;
+    }
+
+    record SwingFocusRepairNativeReleaseMarker(
+            long repairEpoch,
+            long inputEpoch,
+            JComponent retainedTarget) {
+        SwingFocusRepairNativeReleaseMarker {
+            if (repairEpoch < 0 || inputEpoch < 0) {
+                throw new IllegalArgumentException(
+                        "focus release marker epochs must not be negative");
+            }
+            Objects.requireNonNull(retainedTarget, "retainedTarget");
+        }
+    }
+
+    record SwingFocusRepairReleasedJvmAuthority(
+            long repairEpoch,
+            JComponent retainedTarget) {
+        SwingFocusRepairReleasedJvmAuthority {
+            if (repairEpoch < 0) {
+                throw new IllegalArgumentException(
+                        "released focus authority epoch must not be negative");
+            }
+            Objects.requireNonNull(retainedTarget, "retainedTarget");
+        }
+    }
+
+    record SwingFocusRepairTicket(
+            long ticketId,
+            long repairEpoch,
+            JComponent focusTarget) {
+        SwingFocusRepairTicket {
+            if (ticketId <= 0 || repairEpoch < 0) {
+                throw new IllegalArgumentException(
+                        "Swing focus repair ticket identity is invalid");
+            }
+            Objects.requireNonNull(focusTarget, "focusTarget");
+        }
+    }
+
+    static final class SwingFocusRepairRetryFence {
+        private final int maximumAttempts;
+        private long nextTicketId;
+        private long repairEpoch = -1;
+        private JComponent focusTarget;
+        private int attempts;
+        private SwingFocusRepairTicket activeTicket;
+
+        SwingFocusRepairRetryFence(int maximumAttempts) {
+            if (maximumAttempts <= 0) {
+                throw new IllegalArgumentException(
+                        "maximumAttempts must be positive");
+            }
+            this.maximumAttempts = maximumAttempts;
+        }
+
+        Optional<SwingFocusRepairTicket> reserve(
+                long candidateEpoch,
+                JComponent candidateTarget) {
+            Objects.requireNonNull(candidateTarget, "candidateTarget");
+            if (candidateEpoch < 0) {
+                throw new IllegalArgumentException(
+                        "candidateEpoch must not be negative");
+            }
+            if (activeTicket != null) {
+                return Optional.empty();
+            }
+            if (repairEpoch != candidateEpoch || focusTarget != candidateTarget) {
+                repairEpoch = candidateEpoch;
+                focusTarget = candidateTarget;
+                attempts = 0;
+            }
+            if (attempts >= maximumAttempts) {
+                return Optional.empty();
+            }
+            attempts++;
+            activeTicket = new SwingFocusRepairTicket(
+                    ++nextTicketId, candidateEpoch, candidateTarget);
+            return Optional.of(activeTicket);
+        }
+
+        boolean isActive(SwingFocusRepairTicket ticket) {
+            return activeTicket == ticket;
+        }
+
+        void consume(SwingFocusRepairTicket ticket) {
+            if (activeTicket == ticket) {
+                activeTicket = null;
+            }
+        }
+
+        void clearActive() {
+            activeTicket = null;
+        }
+
+        void reset() {
+            activeTicket = null;
+            repairEpoch = -1;
+            focusTarget = null;
+            attempts = 0;
+        }
+
+        int attempts() {
+            return attempts;
+        }
+    }
+
+    private static boolean insideAnyRoot(
+            Component candidate,
+            Component... allowedRoots) {
+        if (candidate == null || allowedRoots == null) {
+            return false;
+        }
+        for (Component root : allowedRoots) {
+            if (root != null && sameOrDescendant(candidate, root)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean shouldCancelDeferredCanvasFocus(
+            Component focusOwner,
+            Component designRoot,
+            Component toolbarRoot,
+            Component nativeCanvasRoot) {
+        if (!(focusOwner instanceof JComponent)
+                || (designRoot == null && toolbarRoot == null)
+                || (!sameOrDescendant(focusOwner, designRoot)
+                        && !sameOrDescendant(focusOwner, toolbarRoot))) {
+            return false;
+        }
+        return nativeCanvasRoot == null
+                || !sameOrDescendant(focusOwner, nativeCanvasRoot);
+    }
+
+    static SwingInputDisposition classifySwingInput(
+            Component source,
+            Component designRoot,
+            Component toolbarRoot,
+            Component nativeCanvasRoot) {
+        if (nativeCanvasRoot != null
+                && sameOrDescendant(source, nativeCanvasRoot)) {
+            return SwingInputDisposition.NATIVE_CANVAS;
+        }
+        return shouldCancelDeferredCanvasFocus(
+                source, designRoot, toolbarRoot, nativeCanvasRoot)
+                ? SwingInputDisposition.DESIGN_SWING
+                : SwingInputDisposition.OTHER_AWT;
+    }
+
+    static boolean isStandardSwingMenuInteraction(Component source) {
+        Component candidate = source;
+        while (candidate != null) {
+            if (candidate instanceof MenuElement) {
+                return true;
+            }
+            candidate = candidate.getParent();
+        }
+        return false;
+    }
+
+    static boolean isNativeCanvasFocusBootstrapPress(
+            boolean physicalPointerDown,
+            Component source,
+            Component exactHostCanvas,
+            boolean pointerInsideExactHostCanvas) {
+        return physicalPointerDown
+                && source != null
+                && exactHostCanvas != null
+                && sameOrDescendant(exactHostCanvas, source)
+                && pointerInsideExactHostCanvas;
+    }
+
+    static boolean canScheduleNativeCanvasFocusBootstrap(
+            boolean exactNativeCanvasPress,
+            boolean designActive,
+            boolean hostShowing,
+            boolean sourceShowing,
+            boolean exactHostCanvasShowing,
+            boolean frameRendered,
+            boolean interactionInputSynchronized,
+            long expectedEpoch,
+            long currentEpoch) {
+        return exactNativeCanvasPress
+                && designActive
+                && hostShowing
+                && sourceShowing
+                && exactHostCanvasShowing
+                && frameRendered
+                && interactionInputSynchronized
+                && expectedEpoch == currentEpoch;
+    }
+
+    static boolean canCompleteNativeCanvasFocusBootstrap(
+            boolean exactNativeCanvasPress,
+            boolean designActive,
+            boolean hostShowing,
+            boolean sourceShowing,
+            boolean exactHostCanvasShowing,
+            boolean frameRendered,
+            boolean interactionInputSynchronized,
+            boolean menuSelectionPathEmpty,
+            long expectedEpoch,
+            long currentEpoch) {
+        return menuSelectionPathEmpty
+                && canScheduleNativeCanvasFocusBootstrap(
+                        exactNativeCanvasPress,
+                        designActive,
+                        hostShowing,
+                        sourceShowing,
+                        exactHostCanvasShowing,
+                        frameRendered,
+                        interactionInputSynchronized,
+                        expectedEpoch,
+                        currentEpoch);
+    }
+
+    private static boolean pointInsideShowingComponent(
+            Point screenPoint,
+            Component component) {
+        if (screenPoint == null
+                || component == null
+                || !component.isShowing()
+                || component.getWidth() <= 0
+                || component.getHeight() <= 0) {
+            return false;
+        }
+        try {
+            Point location = component.getLocationOnScreen();
+            return screenPoint.x >= location.x
+                    && screenPoint.y >= location.y
+                    && screenPoint.x < location.x + component.getWidth()
+                    && screenPoint.y < location.y + component.getHeight();
+        } catch (java.awt.IllegalComponentStateException unavailable) {
+            return false;
+        }
+    }
+
+    private static Component findUniqueNativeCanvasSurface(Component root) {
+        if (root == null) {
+            return null;
+        }
+        List<Component> candidates = new ArrayList<>(1);
+        collectNativeCanvasSurfaces(root, candidates);
+        return candidates.size() == 1 ? candidates.getFirst() : null;
+    }
+
+    private static void collectNativeCanvasSurfaces(
+            Component candidate,
+            List<Component> surfaces) {
+        if (candidate instanceof java.awt.Canvas) {
+            surfaces.add(candidate);
+        }
+        if (candidate instanceof java.awt.Container container) {
+            for (Component child : container.getComponents()) {
+                collectNativeCanvasSurfaces(child, surfaces);
+            }
+        }
+    }
+
+    static void releaseRunnerFocusSafely(Runnable release) {
+        Objects.requireNonNull(release, "release");
+        try {
+            release.run();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            // This callback runs inside the global AWT listener. Ordinary
+            // provider failures, including extension AssertionError, must not
+            // escape onto the NetBeans EDT; native focus release remains
+            // best-effort and the host owns attachment-invalid reporting.
+            LOGGER.log(
+                    Level.FINE,
+                    "Native Canvas provider could not release runner focus",
+                    failure);
+        }
+    }
+
+    enum SwingInputDisposition {
+        DESIGN_SWING,
+        NATIVE_CANVAS,
+        OTHER_AWT
+    }
+
+    private static boolean sameOrDescendant(Component child, Component root) {
+        return root != null
+                && (child == root || SwingUtilities.isDescendingFrom(child, root));
     }
 
     @Override
@@ -1111,8 +2177,8 @@ public final class FlutterDesignerMultiViewDesign
                     .collect(java.util.stream.Collectors.joining(", "));
             description = "Available previews match the configured Flutter project "
                     + "platforms: " + available + ". Android, iOS, macOS and Linux "
-                    + "choices use Flutter adaptive appearance on the embedded Windows "
-                    + "engine. Web uses a responsive browser-sized viewport on the same "
+                    + "choices use Flutter adaptive appearance on the active embedded "
+                    + "native engine. Web uses a responsive browser-sized viewport on the same "
                     + "native engine; browser-only runtime behavior is not emulated.";
         }
         previewModes.setToolTipText(description);
@@ -1444,7 +2510,172 @@ public final class FlutterDesignerMultiViewDesign
                         + " from " + exactSlot,
                         remove.ownerId());
             }
+            case FlutterWidgetSlotMutation.Replace replace -> {
+                RevisionSlot slot = revisionSlot(
+                        document, catalog, replace.ownerId(), replace.slotName());
+                WidgetNode current = exactSingleChild(
+                        slot, replace.expectedChildId(), exactSlot);
+                ReplaceSlotChild.Replacement replacement;
+                StableId selection;
+                String replacementLabel;
+                if (replace.replacement()
+                        instanceof FlutterWidgetSlotMutation.Replace.NewWidget fresh) {
+                    WidgetDefinition definition = catalog.find(fresh.widgetType())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                            "Catalog has no definition for replacement widget type '"
+                            + fresh.widgetType().value() + "'."));
+                    if (!slot.definition().acceptance().accepts(definition)) {
+                        throw new IllegalArgumentException(
+                                "Slot '" + exactSlot + "' does not accept widget type '"
+                                + fresh.widgetType().value() + "'.");
+                    }
+                    WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                            definition, StableId.random());
+                    replacement = new ReplaceSlotChild.NewSubtree(prototype);
+                    selection = prototype.id();
+                    replacementLabel = "new " + definition.palette().displayName()
+                            + " widget " + prototype.id();
+                } else {
+                    StableId sourceId = ((FlutterWidgetSlotMutation.Replace.ExistingWidget)
+                            replace.replacement()).sourceId();
+                    WidgetNode source = findWidget(document.root(), sourceId)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                            "Replacement widget '" + sourceId
+                            + "' does not exist in the current Designer revision."));
+                    if (source.id().equals(document.root().id())) {
+                        throw new IllegalArgumentException(
+                                "The required Designer root cannot replace a slot child.");
+                    }
+                    if (source.id().equals(current.id())) {
+                        throw new IllegalArgumentException(
+                                "Widget '" + sourceId
+                                + "' is already the exact child of slot '"
+                                + exactSlot + "'.");
+                    }
+                    WidgetDefinition definition = catalog.find(source.type())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                            "Catalog has no definition for replacement widget type '"
+                            + source.type().value() + "'."));
+                    if (!slot.definition().acceptance().accepts(definition)) {
+                        throw new IllegalArgumentException(
+                                "Slot '" + exactSlot + "' does not accept widget type '"
+                                + source.type().value() + "'.");
+                    }
+                    if (containsWidget(source, replace.ownerId())) {
+                        throw new IllegalArgumentException(
+                                "Widget '" + sourceId
+                                + "' cannot replace a child of a widget in its own subtree.");
+                    }
+                    replacement = new ReplaceSlotChild.ExistingWidget(sourceId);
+                    selection = sourceId;
+                    replacementLabel = "existing "
+                            + definition.palette().displayName() + " widget " + sourceId;
+                }
+                yield new SlotMutationPlan(
+                        new ReplaceSlotChild(
+                                replace.ownerId(),
+                                replace.slotName(),
+                                replace.expectedChildId(),
+                                replacement),
+                        "Replace Flutter single-slot child",
+                        modelName + " — replace widget " + current.id() + " in "
+                        + exactSlot + " with " + replacementLabel,
+                        selection);
+            }
+            case FlutterWidgetSlotMutation.ClearAll clear -> {
+                RevisionSlot slot = revisionSlot(
+                        document, catalog, clear.ownerId(), clear.slotName());
+                if (slot.definition().cardinality()
+                                != dev.flutter.netbeans.designer.model.SlotCardinality.LIST
+                        || slot.value() == null
+                        || slot.value().cardinality()
+                                != dev.flutter.netbeans.designer.model.SlotCardinality.LIST) {
+                    throw new IllegalArgumentException(
+                            "Slot '" + exactSlot + "' is not a valid list slot.");
+                }
+                List<StableId> actual = slot.children().stream()
+                        .map(WidgetNode::id)
+                        .toList();
+                if (!actual.equals(clear.expectedChildIds())) {
+                    throw new IllegalArgumentException(
+                            "Slot '" + exactSlot
+                            + "' changed after the editor opened; expected direct child ids "
+                            + clear.expectedChildIds() + " but found " + actual + ".");
+                }
+                if (actual.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Slot '" + exactSlot + "' is already empty.");
+                }
+                if (slot.definition().minChildren() > 0) {
+                    throw new IllegalArgumentException(
+                            "Clearing slot '" + exactSlot
+                            + "' would leave it below its minimum of "
+                            + slot.definition().minChildren() + " children.");
+                }
+                yield new SlotMutationPlan(
+                        new ClearSlotChildren(
+                                clear.ownerId(),
+                                clear.slotName(),
+                                clear.expectedChildIds()),
+                        "Clear all Flutter slot widgets",
+                        modelName + " — clear all " + actual.size()
+                        + " widgets from " + exactSlot,
+                        clear.ownerId());
+            }
         };
+    }
+
+    private static RevisionSlot revisionSlot(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            StableId ownerId,
+            SlotName slotName) {
+        WidgetNode owner = findWidget(document.root(), ownerId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                "Slot owner '" + ownerId
+                + "' does not exist in the current Designer revision."));
+        WidgetDefinition ownerDefinition = catalog.find(owner.type())
+                .orElseThrow(() -> new IllegalArgumentException(
+                "Catalog has no definition for slot owner type '"
+                + owner.type().value() + "'."));
+        SlotDefinition definition = ownerDefinition.slot(slotName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                "Catalog definition '" + owner.type().value()
+                + "' has no slot '" + slotName.value() + "'."));
+        WidgetSlot value = owner.slots().get(slotName);
+        return new RevisionSlot(
+                definition,
+                value,
+                value == null ? List.of() : directSlotChildren(value));
+    }
+
+    private static WidgetNode exactSingleChild(
+            RevisionSlot slot,
+            StableId expectedChildId,
+            String exactSlot) {
+        if (slot.definition().cardinality()
+                        != dev.flutter.netbeans.designer.model.SlotCardinality.SINGLE
+                || !(slot.value() instanceof WidgetSlot.SingleSlot single)
+                || single.child().isEmpty()
+                || !single.child().orElseThrow().id().equals(expectedChildId)) {
+            List<StableId> actual = slot.children().stream()
+                    .map(WidgetNode::id)
+                    .toList();
+            throw new IllegalArgumentException(
+                    "Slot '" + exactSlot
+                    + "' changed after the editor opened; expected single child '"
+                    + expectedChildId + "' but found " + actual + ".");
+        }
+        return single.child().orElseThrow();
+    }
+
+    private static boolean containsWidget(WidgetNode root, StableId id) {
+        if (root.id().equals(id)) {
+            return true;
+        }
+        return root.slots().values().stream()
+                .flatMap(slot -> directSlotChildren(slot).stream())
+                .anyMatch(child -> containsWidget(child, id));
     }
 
     private void slotMutationCompleted(
@@ -1497,6 +2728,16 @@ public final class FlutterDesignerMultiViewDesign
             case WidgetSlot.SingleSlot single -> single.child().stream().toList();
             case WidgetSlot.ListSlot list -> list.children();
         };
+    }
+
+    private record RevisionSlot(
+            SlotDefinition definition,
+            WidgetSlot value,
+            List<WidgetNode> children) {
+        private RevisionSlot {
+            Objects.requireNonNull(definition, "definition");
+            children = List.copyOf(children);
+        }
     }
 
     private record SlotMutationPlan(
@@ -1987,6 +3228,117 @@ public final class FlutterDesignerMultiViewDesign
             return commitWidgetTreePaletteDrop(
                     prepared, transferable, action, targetId);
         }
+    }
+
+    private void nativeCanvasInteractionFromRunner() {
+        // A strict runner.interaction event is admitted only for the current
+        // session/revision/frame/layout and the latest host interaction fence.
+        // It therefore supersedes only an older Swing claim, including clicks
+        // in the margins outside the modeled viewport. Selection delivery is
+        // not model-mutation authority; the admitted physical pointer-down is
+        // bounded focus intent for this exact native presentation only.
+        applyAdmittedNativeInteractionFocus(
+                this::clearSwingFocusClaim,
+                nativeCanvasSession::requestFocus);
+    }
+
+    static void applyAdmittedNativeInteractionFocus(
+            Runnable clearSwingClaim,
+            Runnable requestNativeFocus) {
+        Runnable clear = Objects.requireNonNull(
+                clearSwingClaim, "clearSwingClaim");
+        Runnable request = Objects.requireNonNull(
+                requestNativeFocus, "requestNativeFocus");
+        clear.run();
+        request.run();
+    }
+
+    void renderInteractionBarrierState(
+            FlutterDesignerNativeCanvasSession.InteractionBarrierState state) {
+        Objects.requireNonNull(state, "state");
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            java.awt.EventQueue.invokeLater(
+                    () -> renderInteractionBarrierState(state));
+            return;
+        }
+        interactionBarrierTransitionEpoch++;
+        nativeCanvasFocusBootstrapEpoch++;
+        swingFocusRepairNativeRelease = null;
+        boolean wasPending = interactionBarrierPending;
+        switch (state.phase()) {
+            case SYNCHRONIZING -> {
+                interactionBarrierPending = true;
+                // Canvas input is fail-closed on both sides of the protocol
+                // while this acknowledgement is pending. Keep the bounded
+                // Swing repair active so late native child activation cannot
+                // steal an explicit Swing claim. The transition epoch fences an
+                // already queued continuation when ACK or timeout arrives.
+                String target = state.layoutKey()
+                        .map(layout -> "layout " + layout)
+                        .orElse("the current Canvas layout");
+                renderCanvasInteractionStatus(
+                        "Input sync…",
+                        "Synchronizing Canvas input fence "
+                        + state.fenceSequence() + " for " + target + ".");
+                // A replacement layout can enter this phase without a new
+                // Swing input event. Ensure its retained claim receives the
+                // same bounded repair opportunity as the initial presentation.
+                scheduleRetainedSwingFocusRepair();
+            }
+            case SYNCHRONIZED -> {
+                interactionBarrierPending = false;
+                // Fence every pending-era timer before opening a fresh delayed
+                // ticket. A serial ACK-following Canvas interaction can then
+                // cancel the retained claim before that ticket is delivered.
+                // This also covers a late exact ACK after TIMED_OUT.
+                stopSwingFocusRepairTimerPreservingAttempts();
+                clearCanvasInteractionStatus();
+                scheduleRetainedSwingFocusRepair();
+            }
+            case TIMED_OUT -> {
+                interactionBarrierPending = false;
+                String target = state.layoutKey()
+                        .map(layout -> "layout " + layout)
+                        .orElse("the current Canvas layout");
+                renderCanvasInteractionStatus(
+                        "Input sync timed out",
+                        "Canvas input fence " + state.fenceSequence()
+                        + " for " + target
+                        + " was not acknowledged; Canvas input remains gated "
+                        + "and Swing focus was retained.");
+                if (wasPending) {
+                    scheduleRetainedSwingFocusRepair();
+                }
+            }
+            case INACTIVE -> {
+                interactionBarrierPending = false;
+                clearCanvasInteractionStatus();
+            }
+        }
+    }
+
+    private void scheduleRetainedSwingFocusRepair() {
+        JComponent target = retainedSwingFocusTarget;
+        if (swingFocusClaimedForActivation && target != null) {
+            scheduleSwingFocusRepair(swingFocusRepairEpoch, target);
+        }
+    }
+
+    private void renderCanvasInteractionStatus(String summary, String detail) {
+        canvasInteractionStatusLabel.setText(summary);
+        canvasInteractionStatusLabel.setToolTipText(detail);
+        canvasInteractionStatusLabel.getAccessibleContext()
+                .setAccessibleDescription(summary + " " + detail);
+        canvasInteractionStatusLabel.setVisible(true);
+    }
+
+    private void clearCanvasInteractionStatus() {
+        canvasInteractionStatusLabel.setText("");
+        canvasInteractionStatusLabel.setToolTipText(null);
+        canvasInteractionStatusLabel.getAccessibleContext()
+                .setAccessibleDescription(
+                        "Native Canvas input synchronization is idle.");
+        canvasInteractionStatusLabel.setVisible(false);
     }
 
     private Optional<WidgetMoveSnapshot> widgetMoveSnapshot(StableId sourceId) {
@@ -2504,6 +3856,10 @@ public final class FlutterDesignerMultiViewDesign
                 "Native Flutter Canvas status");
         canvasProgress.getAccessibleContext().setAccessibleName(
                 "Native Flutter Canvas preparation progress");
+        canvasRetryButton.getAccessibleContext().setAccessibleName(
+                "Retry Native Flutter Canvas");
+        canvasRetryButton.getAccessibleContext().setAccessibleDescription(
+                "Starts one explicit fresh Canvas runner generation after a terminal failure.");
         canvasDetailsButton.getAccessibleContext().setAccessibleName(
                 "Show Native Flutter Canvas details");
         canvasDetailsButton.getAccessibleContext().setAccessibleDescription(
@@ -2522,7 +3878,8 @@ public final class FlutterDesignerMultiViewDesign
                 "Flutter Canvas preview target");
         previewModes.getAccessibleContext().setAccessibleDescription(
                 "Select an exact responsive viewport and adaptive platform target. "
-                + "The concrete native Canvas engine remains Windows. Web is rendered "
+                + "The concrete Canvas engine is supplied by the active native provider. "
+                + "Web is rendered "
                 + "as a responsive browser-sized layout preview; browser-only runtime "
                 + "behavior is not emulated.");
         canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
@@ -2548,6 +3905,25 @@ public final class FlutterDesignerMultiViewDesign
 
     void renderNativeCanvasStatus(FlutterDesignerNativeCanvasStatus state) {
         lastCanvasStatus = Objects.requireNonNull(state, "state");
+        boolean wasFrameRendered = canvasFrameRendered;
+        canvasFrameRendered = state.rendered();
+        if (shouldRearmSwingFocusRepairOnRenderedTransition(
+                wasFrameRendered,
+                canvasFrameRendered,
+                swingFocusClaimedForActivation,
+                retainedSwingFocusTarget)) {
+            // A pre-render Swing interaction owns a fresh typed-rendered retry
+            // window. Fence earlier continuations and reset the bounded budget
+            // exactly once for this false-to-true transition.
+            swingFocusRepairEpoch++;
+            swingFocusRepairReleasedJvmAuthority = null;
+            cancelSwingFocusRepairTimer();
+        } else if (!canvasFrameRendered) {
+            // A new presentation or terminal status invalidates the prior
+            // frame's late-focus window. Keep the explicit Swing claim so the
+            // next typed rendered confirmation can reconcile it afresh.
+            cancelSwingFocusRepairTimer();
+        }
         // Every status transition can replace or re-layout the native surface.
         // Tokens issued for the preceding pixels must never survive it.
         invalidatePaletteDragAuthority();
@@ -2566,6 +3942,19 @@ public final class FlutterDesignerMultiViewDesign
         boolean detailsAvailable = state.stage()
                 == FlutterDesignerNativeCanvasStatus.Stage.FAILED
                 || state.stage() == FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE;
+        boolean retryAvailable = state.stage()
+                == FlutterDesignerNativeCanvasStatus.Stage.FAILED
+                && nativeCanvasSession != null
+                && nativeCanvasSession.canRestart();
+        canvasRetryButton.setVisible(retryAvailable);
+        canvasRetryButton.setEnabled(retryAvailable);
+        canvasRetryButton.setToolTipText(retryAvailable
+                ? "Start one fresh isolated Canvas runner after this failure."
+                : null);
+        canvasRetryButton.getAccessibleContext().setAccessibleDescription(
+                retryAvailable
+                        ? "Retry " + state.summary()
+                        : "The current Canvas state has no explicit process retry available.");
         canvasDetailsButton.setVisible(detailsAvailable);
         canvasDetailsButton.setEnabled(detailsAvailable);
         canvasDetailsButton.setToolTipText(detailsAvailable
@@ -2577,6 +3966,23 @@ public final class FlutterDesignerMultiViewDesign
                         : "No additional Native Flutter Canvas failure details are available.");
         canvasProgress.setVisible(state.busy());
         canvasProgress.getAccessibleContext().setAccessibleDescription(state.detail());
+        if (state.rendered()) {
+            // The child FLUTTERVIEW HWND can receive native focus only after
+            // attach or first-frame delivery. Reconcile that late native event
+            // with the most recent explicit Swing interaction.
+            repairClaimedSwingFocusIfRunnerFocused();
+        }
+    }
+
+    private void retryNativeCanvas() {
+        FlutterDesignerNativeCanvasSession session = nativeCanvasSession;
+        if (session == null || !session.canRestart()) {
+            return;
+        }
+        canvasRetryButton.setEnabled(false);
+        if (!session.restart()) {
+            canvasRetryButton.setEnabled(session.canRestart());
+        }
     }
 
     private void showNativeCanvasDetails() {
@@ -2672,17 +4078,26 @@ public final class FlutterDesignerMultiViewDesign
         return scroll;
     }
 
-    private static boolean isWindows() {
-        return System.getProperty("os.name", "")
-                .toLowerCase(java.util.Locale.ROOT)
-                .startsWith("windows");
-    }
-
     private static String failureReason(Throwable failure) {
         String message = failure.getMessage();
         return message == null || message.isBlank()
                 ? failure.getClass().getSimpleName()
                 : message;
+    }
+
+    private static String safeNativeCanvasTarget(
+            NativeCanvasPlatformProvider provider) {
+        if (provider != null) {
+            try {
+                String description = provider.targetDescription();
+                if (description != null && !description.isBlank()) {
+                    return description;
+                }
+            } catch (RuntimeException | LinkageError ignored) {
+                // Provider diagnostics must never break Design-view assembly.
+            }
+        }
+        return "provider-owned native Flutter surface";
     }
 
     private void clearPresentedCanvasIdentity() {

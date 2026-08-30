@@ -35,6 +35,7 @@ class CanvasWireCodecContractTest {
                                 CanvasWireCapability.READ_ONLY_SELECTION,
                                 CanvasWireCapability.READ_ONLY_RENDER,
                                 CanvasWireCapability.READ_ONLY_LAYOUT,
+                                CanvasWireCapability.SURFACE_PRESENTATION_V1,
                                 CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
                                 CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1),
                         HANDSHAKE_LIMITS),

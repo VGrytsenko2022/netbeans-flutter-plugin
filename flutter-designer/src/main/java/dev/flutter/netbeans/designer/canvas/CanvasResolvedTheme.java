@@ -11,9 +11,9 @@ import java.util.regex.Pattern;
  * <p>The definition id is the stable user-facing identity from the project
  * theme document. {@code digestIdentity} binds the complete canonical project
  * theme revision. Both are required because a stable definition may change
- * while retaining its id. The seed, brightness, ColorScheme overrides and
- * TextTheme overrides are the complete version 4 Canvas theme input; the
- * isolated runner never reads or executes project Dart code.</p>
+ * while retaining its id. The seed, brightness, ColorScheme, TextTheme and
+ * component-color overrides are the complete protocol-v9 Canvas theme input;
+ * the isolated runner never reads or executes project Dart code.</p>
  */
 public record CanvasResolvedTheme(
         String definitionId,
@@ -21,7 +21,8 @@ public record CanvasResolvedTheme(
         CanvasThemeBrightness brightness,
         String digestIdentity,
         Map<String, Integer> colorSchemeOverrides,
-        Map<String, CanvasThemeTextStyleOverride> textThemeOverrides) {
+        Map<String, CanvasThemeTextStyleOverride> textThemeOverrides,
+        Map<CanvasThemeComponentColorRole, CanvasThemeColorValue> componentColors) {
     private static final int MAX_DEFINITION_ID_CODE_POINTS = 64;
     private static final Pattern DEFINITION_ID = Pattern.compile(
             "(?:[a-z][a-z0-9_]*|material\\.default\\.(?:light|dark))");
@@ -33,6 +34,7 @@ public record CanvasResolvedTheme(
         Objects.requireNonNull(digestIdentity, "digestIdentity");
         Objects.requireNonNull(colorSchemeOverrides, "colorSchemeOverrides");
         Objects.requireNonNull(textThemeOverrides, "textThemeOverrides");
+        Objects.requireNonNull(componentColors, "componentColors");
         if (!definitionId.equals(definitionId.strip())) {
             throw new IllegalArgumentException(
                     "definitionId must not contain leading or trailing whitespace");
@@ -58,6 +60,7 @@ public record CanvasResolvedTheme(
         }
         colorSchemeOverrides = Map.copyOf(colorSchemeOverrides);
         textThemeOverrides = Map.copyOf(textThemeOverrides);
+        componentColors = Map.copyOf(componentColors);
         for (Map.Entry<String, Integer> entry : colorSchemeOverrides.entrySet()) {
             if (!dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog
                     .colorRoles().containsValue(entry.getKey())) {
@@ -75,6 +78,10 @@ public record CanvasResolvedTheme(
             }
             Objects.requireNonNull(entry.getValue(), "TextTheme override");
         }
+        componentColors.forEach((role, value) -> {
+            Objects.requireNonNull(role, "component color role");
+            Objects.requireNonNull(value, "component color value");
+        });
     }
 
     /** Source-compatible seed-only Canvas theme. */
@@ -84,6 +91,18 @@ public record CanvasResolvedTheme(
             CanvasThemeBrightness brightness,
             String digestIdentity) {
         this(definitionId, seedArgb, brightness, digestIdentity, Map.of(), Map.of());
+    }
+
+    /** Source-compatible protocol-v8 Canvas theme without component colors. */
+    public CanvasResolvedTheme(
+            String definitionId,
+            int seedArgb,
+            CanvasThemeBrightness brightness,
+            String digestIdentity,
+            Map<String, Integer> colorSchemeOverrides,
+            Map<String, CanvasThemeTextStyleOverride> textThemeOverrides) {
+        this(definitionId, seedArgb, brightness, digestIdentity,
+                colorSchemeOverrides, textThemeOverrides, Map.of());
     }
 
     /** Canonical unsigned ARGB literal used by the cross-language payload. */

@@ -1,9 +1,11 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,12 +13,17 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnostic;
 import dev.flutter.netbeans.designer.catalog.CatalogDiagnosticCode;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
+import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
+import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
+import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.generation.DartGenerationDiagnostic;
 import dev.flutter.netbeans.designer.generation.DartGenerationDiagnosticCode;
 import dev.flutter.netbeans.designer.generation.DartGenerationResult;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
+import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
@@ -43,6 +50,8 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
@@ -67,6 +76,625 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void distinguishesSwingControlsFromTheNativeCanvasFocusSubtree() {
+        JPanel designRoot = new JPanel();
+        JPanel toolbar = new JPanel();
+        JButton swingControl = new JButton("Preview");
+        JButton toolbarControl = new JButton("Mode");
+        JButton treeControl = new JButton("Widget tree");
+        JPanel nativeCanvasRoot = new JPanel();
+        JPanel nativeSurface = new JPanel();
+        JButton nativeSwingProxy = new JButton("Canvas proxy");
+        java.awt.Canvas heavyweightCanvas = new java.awt.Canvas();
+        JPanel unrelatedWindow = new JPanel();
+        toolbar.add(swingControl);
+        toolbar.add(toolbarControl);
+        designRoot.add(treeControl);
+        designRoot.add(heavyweightCanvas);
+        designRoot.add(nativeCanvasRoot);
+        nativeCanvasRoot.add(nativeSurface);
+        nativeCanvasRoot.add(nativeSwingProxy);
+
+        assertTrue(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                swingControl, designRoot, toolbar, nativeCanvasRoot));
+        assertTrue(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                toolbarControl, null, toolbar, nativeCanvasRoot));
+        assertTrue(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                treeControl, designRoot, toolbar, nativeCanvasRoot));
+        assertFalse(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                nativeSurface, designRoot, toolbar, nativeCanvasRoot));
+        assertFalse(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                nativeSwingProxy, designRoot, toolbar, nativeCanvasRoot));
+        assertFalse(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                heavyweightCanvas, designRoot, toolbar, nativeCanvasRoot));
+        assertFalse(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                unrelatedWindow, designRoot, toolbar, nativeCanvasRoot));
+        assertFalse(FlutterDesignerMultiViewDesign.shouldCancelDeferredCanvasFocus(
+                null, designRoot, toolbar, nativeCanvasRoot));
+    }
+
+    @Test
+    void resolvesTheActualFocusableSwingTargetForMouseFocusRepair() {
+        JPanel nonFocusableCell = new JPanel();
+        nonFocusableCell.setFocusable(false);
+        JButton focusableControl = new JButton("Widget tree");
+        focusableControl.add(nonFocusableCell);
+
+        assertSame(
+                focusableControl,
+                FlutterDesignerMultiViewDesign.nearestFocusableSwingComponent(
+                        nonFocusableCell, focusableControl));
+        assertSame(
+                focusableControl,
+                FlutterDesignerMultiViewDesign.nearestFocusableSwingComponent(
+                        focusableControl, focusableControl));
+        assertEquals(
+                null,
+                FlutterDesignerMultiViewDesign.nearestFocusableSwingComponent(
+                        new java.awt.Canvas(), focusableControl));
+
+        JButton disabledRequestTarget = new JButton("No focus request");
+        disabledRequestTarget.setRequestFocusEnabled(false);
+        JPanel disabledChild = new JPanel();
+        disabledChild.setFocusable(false);
+        disabledRequestTarget.add(disabledChild);
+        assertEquals(
+                null,
+                FlutterDesignerMultiViewDesign.nearestFocusableSwingComponent(
+                        disabledChild, disabledRequestTarget));
+    }
+
+    @Test
+    void classifiesNewerInputOutsideDesignAsASupersedingAwtInteraction() {
+        JPanel designRoot = new JPanel();
+        JPanel toolbar = new JPanel();
+        JPanel nativeRoot = new JPanel();
+        JButton tree = new JButton("Widget tree");
+        JButton globalSearch = new JButton("Global search");
+        java.awt.Canvas nativeSurface = new java.awt.Canvas();
+        designRoot.add(tree);
+        designRoot.add(nativeRoot);
+        nativeRoot.add(nativeSurface);
+
+        assertEquals(
+                FlutterDesignerMultiViewDesign.SwingInputDisposition.DESIGN_SWING,
+                FlutterDesignerMultiViewDesign.classifySwingInput(
+                        tree, designRoot, toolbar, nativeRoot));
+        assertEquals(
+                FlutterDesignerMultiViewDesign.SwingInputDisposition.NATIVE_CANVAS,
+                FlutterDesignerMultiViewDesign.classifySwingInput(
+                        nativeSurface, designRoot, toolbar, nativeRoot));
+        assertEquals(
+                FlutterDesignerMultiViewDesign.SwingInputDisposition.OTHER_AWT,
+                FlutterDesignerMultiViewDesign.classifySwingInput(
+                        globalSearch, designRoot, toolbar, nativeRoot));
+    }
+
+    @Test
+    void limitsExternalNativeFocusReleaseToStandardSwingMenus() {
+        JPanel content = new JPanel();
+        JMenu menu = new JMenu("Window");
+        JMenuItem item = new JMenuItem("Projects");
+        menu.add(item);
+        content.add(menu);
+        JButton unrelated = new JButton("Global search");
+        content.add(unrelated);
+
+        assertTrue(FlutterDesignerMultiViewDesign
+                .isStandardSwingMenuInteraction(menu));
+        assertTrue(FlutterDesignerMultiViewDesign
+                .isStandardSwingMenuInteraction(item));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .isStandardSwingMenuInteraction(unrelated));
+    }
+
+    @Test
+    void providerAssertionCannotEscapeTheGlobalAwtInputListenerBoundary() {
+        assertDoesNotThrow(() -> FlutterDesignerMultiViewDesign
+                .releaseRunnerFocusSafely(() -> {
+                    throw new AssertionError("synthetic provider assertion");
+                }));
+    }
+
+    @Test
+    void releasesExactRunnerFocusBeforeStartingSwingFocusRepair() {
+        java.util.List<String> actions = new java.util.ArrayList<>();
+
+        assertTrue(FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                () -> {
+                    actions.add("release-runner");
+                    return true;
+                },
+                () -> actions.add("clear-global-owner")));
+        assertEquals(java.util.List.of(
+                "release-runner", "clear-global-owner"), actions);
+
+        actions.clear();
+        assertFalse(FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                () -> {
+                    actions.add("release-refused");
+                    return false;
+                },
+                () -> actions.add("must-not-clear")));
+        assertEquals(java.util.List.of("release-refused"), actions);
+
+        actions.clear();
+        assertDoesNotThrow(() -> assertFalse(
+                FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                        () -> {
+                            actions.add("release-threw");
+                            throw new AssertionError("synthetic provider assertion");
+                        },
+                        () -> actions.add("must-not-clear"))));
+        assertEquals(java.util.List.of("release-threw"), actions);
+
+        actions.clear();
+        assertFalse(FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                () -> {
+                    actions.add("release-runner");
+                    return true;
+                },
+                () -> {
+                    actions.add("clear-threw");
+                    throw new UnsatisfiedLinkError("synthetic AWT linkage failure");
+                }));
+        assertEquals(java.util.List.of(
+                "release-runner", "clear-threw"), actions);
+    }
+
+    @Test
+    void preservesExactRetainedAwtOwnerAcrossVerifiedNativeRelease() {
+        JButton retained = new JButton("Widget tree");
+        JButton descendant = new JButton("Tree cell editor");
+        retained.add(descendant);
+        JButton wrongOwner = new JButton("Global search");
+        java.util.List<String> actions = new java.util.ArrayList<>();
+
+        FlutterDesignerMultiViewDesign
+                .clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                        () -> retained,
+                        retained,
+                        () -> actions.add("clear-exact"));
+        FlutterDesignerMultiViewDesign
+                .clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                        () -> descendant,
+                        retained,
+                        () -> actions.add("clear-descendant"));
+        assertTrue(actions.isEmpty(),
+                "an exact retained owner/descendant must not be cleared");
+
+        FlutterDesignerMultiViewDesign
+                .clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                        () -> null,
+                        retained,
+                        () -> actions.add("clear-absent"));
+        FlutterDesignerMultiViewDesign
+                .clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                        () -> wrongOwner,
+                        retained,
+                        () -> actions.add("clear-wrong"));
+        assertEquals(java.util.List.of(
+                "clear-absent", "clear-wrong"), actions);
+
+        actions.clear();
+        assertFalse(FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                () -> {
+                    actions.add("release-runner");
+                    return true;
+                },
+                () -> FlutterDesignerMultiViewDesign
+                        .clearGlobalFocusOwnerUnlessRetainedTargetCurrent(
+                                () -> {
+                                    throw new IllegalStateException(
+                                            "synthetic owner lookup failure");
+                                },
+                                retained,
+                                () -> actions.add("must-not-clear"))));
+        assertEquals(java.util.List.of("release-runner"), actions,
+                "owner revalidation failure must stop the repair fail-closed");
+    }
+
+    @Test
+    void preservesSwingClaimOnlyForCurrentIntermediateHostFocus() {
+        JButton retained = new JButton("Widget tree");
+        JButton replacement = new JButton("Properties");
+        JPanel exactHost = new JPanel();
+        JButton exactDescendant = new JButton("Native surface");
+        JPanel wrongOwner = new JPanel();
+        exactHost.add(exactDescendant);
+        FlutterDesignerMultiViewDesign.SwingFocusRepairNativeReleaseMarker marker =
+                new FlutterDesignerMultiViewDesign
+                        .SwingFocusRepairNativeReleaseMarker(
+                                7L, 11L, retained);
+
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactHost, exactHost,
+                        7L, 11L, true, retained));
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactDescendant, exactHost,
+                        7L, 11L, true, retained));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, wrongOwner, exactHost,
+                        7L, 11L, true, retained),
+                "an unrelated focus owner cannot inherit repair authority");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactHost, exactHost,
+                        8L, 11L, true, retained),
+                "a stale repair epoch must clear the intermediate marker");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactHost, exactHost,
+                        7L, 12L, true, retained),
+                "a newer AWT input or barrier epoch must fence the marker");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactHost, exactHost,
+                        7L, 11L, false, retained));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canPreserveSwingClaimForIntermediateNativeRelease(
+                        marker, exactHost, exactHost,
+                        7L, 11L, true, replacement),
+                "a different retained Swing target must not reuse the marker");
+    }
+
+    @Test
+    void reusesOneVerifiedRunnerReleaseForBoundedSwingTargetRetries() {
+        JButton retained = new JButton("Widget tree");
+        JButton replacement = new JButton("Properties");
+        java.util.List<String> actions = new java.util.ArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean runnerFocused =
+                new java.util.concurrent.atomic.AtomicBoolean(true);
+
+        assertTrue(FlutterDesignerMultiViewDesign.beginSwingFocusRepairFromRunner(
+                () -> {
+                    actions.add("release-runner");
+                    runnerFocused.set(false);
+                    return true;
+                },
+                () -> actions.add("clear-global-owner")));
+        FlutterDesignerMultiViewDesign.SwingFocusRepairReleasedJvmAuthority
+                authority = new FlutterDesignerMultiViewDesign
+                        .SwingFocusRepairReleasedJvmAuthority(7L, retained);
+
+        assertFalse(runnerFocused.get());
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, retained,
+                        true, retained, true, true));
+        actions.add("request-target-refused");
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, retained,
+                        true, retained, true, true),
+                "a refused first Swing request must retain the bounded JVM authority");
+        actions.add("request-target-accepted");
+
+        assertEquals(java.util.List.of(
+                "release-runner",
+                "clear-global-owner",
+                "request-target-refused",
+                "request-target-accepted"), actions,
+                "a retry must not release or clear native focus a second time");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 8L, retained,
+                        true, retained, true, true),
+                "a newer input/claim epoch must reject stale release authority");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, replacement,
+                        true, replacement, true, true),
+                "a different target cannot inherit release authority");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, retained,
+                        false, retained, true, true));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, retained,
+                        true, retained, false, true));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canReuseVerifiedRunnerRelease(
+                        authority, 7L, retained,
+                        true, retained, true, false));
+    }
+
+    @Test
+    void admittedRunnerInteractionClearsSwingClaimBeforeRequestingNativeFocus() {
+        java.util.List<String> actions = new java.util.ArrayList<>();
+
+        FlutterDesignerMultiViewDesign.applyAdmittedNativeInteractionFocus(
+                () -> actions.add("clear-swing-claim"),
+                () -> actions.add("request-native-focus"));
+
+        assertEquals(
+                java.util.List.of("clear-swing-claim", "request-native-focus"),
+                actions);
+    }
+
+    @Test
+    void admitsOnlyPhysicalPressInsideTheExactCanvasOrItsAwtAncestor() {
+        java.awt.Canvas exactHostCanvas = new java.awt.Canvas();
+        JPanel owningAncestor = new JPanel();
+        JPanel sibling = new JPanel();
+        owningAncestor.add(exactHostCanvas);
+
+        assertTrue(FlutterDesignerMultiViewDesign
+                .isNativeCanvasFocusBootstrapPress(
+                        true, exactHostCanvas, exactHostCanvas, true));
+        assertTrue(FlutterDesignerMultiViewDesign
+                .isNativeCanvasFocusBootstrapPress(
+                        true, owningAncestor, exactHostCanvas, true),
+                "AWT may initially source the physical press from an owning ancestor");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .isNativeCanvasFocusBootstrapPress(
+                        false, exactHostCanvas, exactHostCanvas, true),
+                "a key event must not bootstrap Canvas focus");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .isNativeCanvasFocusBootstrapPress(
+                        true, sibling, exactHostCanvas, true),
+                "a sibling source must not bootstrap Canvas focus");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .isNativeCanvasFocusBootstrapPress(
+                        true, exactHostCanvas, exactHostCanvas, false),
+                "a press outside the exact Canvas bounds must remain fail-closed");
+    }
+
+    @Test
+    void completesCanvasFocusBootstrapOnlyForCurrentSynchronizedMenuFreeFrame() {
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canScheduleNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        true, true, 7L, 7L),
+                "a lingering menu path is evaluated after the physical press dispatch");
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        true, true, true, 7L, 7L));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        false, true, true, 7L, 7L),
+                "an unrendered frame must remain fail-closed");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        true, false, true, 7L, 7L),
+                "a pending interaction barrier must remain fail-closed");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, false, true, true, true,
+                        true, true, true, 7L, 7L),
+                "an inactive Design view must not request native focus");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, false, true, true,
+                        true, true, true, 7L, 7L),
+                "a hidden host must not request native focus");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, false,
+                        true, true, true, 7L, 7L),
+                "a hidden exact Canvas must not request native focus");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        true, true, false, 7L, 7L),
+                "an active Swing menu path must own the interaction");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canCompleteNativeCanvasFocusBootstrap(
+                        true, true, true, true, true,
+                        true, true, true, 7L, 8L),
+                "a newer AWT interaction must cancel a stale bootstrap ticket");
+    }
+
+    @Test
+    void keepsThePreviewSelectorPopupHeavyweightAboveTheNativeCanvas()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JComboBox<?> previewSelector = findByType(
+                    design.getToolbarRepresentation(), JComboBox.class);
+
+            assertFalse(previewSelector.isLightWeightPopupEnabled(),
+                    "The Preview popup must not be painted below the native Flutter child");
+        });
+    }
+
+    @Test
+    void rejectsDisabledOrNonFocusableRetainedSwingTargets() {
+        JPanel designRoot = new JPanel();
+        JPanel toolbar = new JPanel();
+        JPanel nativeRoot = new JPanel();
+        designRoot.add(nativeRoot);
+        JButton target = new JButton("Widget tree") {
+            @Override
+            public boolean isShowing() {
+                return true;
+            }
+        };
+        designRoot.add(target);
+
+        assertTrue(FlutterDesignerMultiViewDesign.isUsableSwingFocusTarget(
+                target, designRoot, toolbar, nativeRoot));
+        target.setEnabled(false);
+        assertFalse(FlutterDesignerMultiViewDesign.isUsableSwingFocusTarget(
+                target, designRoot, toolbar, nativeRoot));
+        target.setEnabled(true);
+        target.setFocusable(false);
+        assertFalse(FlutterDesignerMultiViewDesign.isUsableSwingFocusTarget(
+                target, designRoot, toolbar, nativeRoot));
+        target.setFocusable(true);
+        target.setRequestFocusEnabled(false);
+        assertFalse(FlutterDesignerMultiViewDesign.isUsableSwingFocusTarget(
+                target, designRoot, toolbar, nativeRoot));
+        target.setRequestFocusEnabled(true);
+        nativeRoot.add(target);
+        assertFalse(FlutterDesignerMultiViewDesign.isUsableSwingFocusTarget(
+                target, designRoot, toolbar, nativeRoot));
+    }
+
+    @Test
+    void fencesBoundedSwingFocusRetriesByTypedRenderEpochTargetAndLifecycle() {
+        JButton retained = new JButton("Widget tree");
+        JButton replacement = new JButton("Properties");
+
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                false, true, 7, 7, retained, retained, true, false));
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, false, 7, 7, retained, retained, true, false));
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, true, 6, 7, retained, retained, true, false));
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, true, 7, 7, retained, replacement, true, false));
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, true, 7, 7, retained, retained, false, false));
+        assertFalse(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, true, 7, 7, retained, retained, true, true));
+        assertTrue(FlutterDesignerMultiViewDesign.canScheduleSwingFocusRepair(
+                true, true, 7, 7, retained, retained, true, false));
+
+        FlutterDesignerMultiViewDesign.SwingFocusRepairRetryFence fence =
+                new FlutterDesignerMultiViewDesign.SwingFocusRepairRetryFence(
+                        FlutterDesignerMultiViewDesign.MAX_SWING_FOCUS_REPAIR_ATTEMPTS);
+        FlutterDesignerMultiViewDesign.SwingFocusRepairTicket stale =
+                fence.reserve(7, retained).orElseThrow();
+        assertTrue(fence.isActive(stale));
+        assertTrue(fence.reserve(7, retained).isEmpty(),
+                "one exact timer ticket must remain the sole active retry");
+        fence.clearActive();
+        assertEquals(1, fence.attempts(),
+                "fencing a pending ticket must preserve the consumed retry budget");
+        FlutterDesignerMultiViewDesign.SwingFocusRepairTicket postAck =
+                fence.reserve(7, retained).orElseThrow();
+        assertFalse(fence.isActive(stale),
+                "an ACK must fence the pending-era timer ticket");
+        assertTrue(fence.isActive(postAck),
+                "an ACK must issue one fresh delayed timer ticket");
+        assertEquals(2, fence.attempts(),
+                "ACK re-arm must preserve the bounded retry budget");
+        fence.reset();
+        assertFalse(fence.isActive(stale),
+                "teardown must fence an already queued timer callback");
+        assertFalse(fence.isActive(postAck),
+                "teardown must also fence the fresh post-ACK timer callback");
+
+        for (int attempt = 1;
+                attempt <= FlutterDesignerMultiViewDesign.MAX_SWING_FOCUS_REPAIR_ATTEMPTS;
+                attempt++) {
+            FlutterDesignerMultiViewDesign.SwingFocusRepairTicket ticket =
+                    fence.reserve(8, replacement).orElseThrow();
+            assertEquals(attempt, fence.attempts());
+            fence.consume(ticket);
+        }
+        assertTrue(fence.reserve(8, replacement).isEmpty(),
+                "the late-focus polling window must be bounded");
+
+        fence.reset();
+        FlutterDesignerMultiViewDesign.SwingFocusRepairTicket current =
+                fence.reserve(9, retained).orElseThrow();
+        assertFalse(fence.isActive(stale));
+        assertTrue(fence.isActive(current));
+        assertEquals(1, fence.attempts(),
+                "a new exact claim receives a fresh bounded retry window");
+    }
+
+    @Test
+    void rearmsSwingFocusRepairOnceOnTheTypedRenderedTransition() {
+        JButton retained = new JButton("Widget tree");
+        FlutterDesignerMultiViewDesign.SwingFocusRepairRetryFence fence =
+                new FlutterDesignerMultiViewDesign.SwingFocusRepairRetryFence(
+                        FlutterDesignerMultiViewDesign
+                                .MAX_SWING_FOCUS_REPAIR_ATTEMPTS);
+
+        for (int attempt = 0;
+                attempt < FlutterDesignerMultiViewDesign
+                        .MAX_SWING_FOCUS_REPAIR_ATTEMPTS;
+                attempt++) {
+            FlutterDesignerMultiViewDesign.SwingFocusRepairTicket ticket =
+                    fence.reserve(7L, retained).orElseThrow();
+            fence.consume(ticket);
+        }
+        assertTrue(fence.reserve(7L, retained).isEmpty());
+        assertTrue(FlutterDesignerMultiViewDesign
+                .shouldRearmSwingFocusRepairOnRenderedTransition(
+                        false, true, true, retained));
+        fence.reset();
+        FlutterDesignerMultiViewDesign.SwingFocusRepairTicket rearmed =
+                fence.reserve(8L, retained).orElseThrow();
+        fence.consume(rearmed);
+        assertEquals(1, fence.attempts(),
+                "the typed rendered transition starts one fresh bounded window");
+
+        assertFalse(FlutterDesignerMultiViewDesign
+                .shouldRearmSwingFocusRepairOnRenderedTransition(
+                        true, true, true, retained),
+                "repeated rendered statuses must not re-arm the retry budget");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .shouldRearmSwingFocusRepairOnRenderedTransition(
+                        false, true, false, retained));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .shouldRearmSwingFocusRepairOnRenderedTransition(
+                        false, true, true, null));
+        for (int attempt = 1;
+                attempt < FlutterDesignerMultiViewDesign
+                        .MAX_SWING_FOCUS_REPAIR_ATTEMPTS;
+                attempt++) {
+            FlutterDesignerMultiViewDesign.SwingFocusRepairTicket ticket =
+                    fence.reserve(8L, retained).orElseThrow();
+            fence.consume(ticket);
+        }
+        assertTrue(fence.reserve(8L, retained).isEmpty(),
+                "a repeated rendered status cannot create unbounded retries");
+    }
+
+    @Test
+    void fencesQueuedSwingFocusContinuationByBarrierTransitionEpoch() {
+        JButton retained = new JButton("Widget tree");
+        JButton replacement = new JButton("Properties");
+
+        assertTrue(FlutterDesignerMultiViewDesign
+                .canApplySwingFocusRepairContinuation(
+                        7, 7, retained, retained, 11, 11, true, true, true),
+                "a bounded repair remains valid inside one synchronizing epoch");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canApplySwingFocusRepairContinuation(
+                        7, 7, retained, retained, 11, 12, true, true, true),
+                "ACK, timeout or teardown must fence a queued pre-transition repair");
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canApplySwingFocusRepairContinuation(
+                        7, 8, retained, retained, 11, 11, true, true, true));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canApplySwingFocusRepairContinuation(
+                        7, 7, retained, replacement, 11, 11, true, true, true));
+        assertFalse(FlutterDesignerMultiViewDesign
+                .canApplySwingFocusRepairContinuation(
+                        7, 7, retained, retained, 11, 11, false, true, true));
+    }
+
+    @Test
+    void permitsRepairOnlyForTheRetainedCurrentAwtOwner() {
+        JButton retained = new JButton("Widget tree");
+        JPanel retainedChild = new JPanel();
+        retained.add(retainedChild);
+        JButton newerOwner = new JButton("Global search");
+
+        assertTrue(FlutterDesignerMultiViewDesign.currentOwnerAllowsSwingFocusRepair(
+                null, retained));
+        assertTrue(FlutterDesignerMultiViewDesign.currentOwnerAllowsSwingFocusRepair(
+                retained, retained));
+        assertTrue(FlutterDesignerMultiViewDesign.currentOwnerAllowsSwingFocusRepair(
+                retainedChild, retained));
+        assertFalse(FlutterDesignerMultiViewDesign.currentOwnerAllowsSwingFocusRepair(
+                newerOwner, retained));
+    }
 
     @Test
     void registersStandardDeleteActionAndTreeKeyWithoutSelectionAuthority()
@@ -223,6 +851,101 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
+    void identifiesOnlyTheConfirmedFirstFrameAsRendered() {
+        FlutterDesignerNativeCanvasStatus confirmed =
+                new FlutterDesignerNativeCanvasStatus(
+                        FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                        "Confirmed first frame.",
+                        "Validated revision 7 is visible in the embedded FlutterView.",
+                        true);
+        FlutterDesignerNativeCanvasStatus merelyRunning =
+                new FlutterDesignerNativeCanvasStatus(
+                        FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                        "Native Flutter Canvas rendered.",
+                        "The runner exists, but no confirmed frame is visible yet.");
+
+        assertTrue(confirmed.rendered());
+        assertFalse(merelyRunning.rendered());
+    }
+
+    @Test
+    void rendersInputSynchronizationBesideWithoutReplacingCanvasStatus()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JComponent visual = design.getVisualRepresentation();
+            JLabel primary = findNamed(
+                    visual, JLabel.class, "Native Flutter Canvas status");
+            JLabel input = findNamed(
+                    visual,
+                    JLabel.class,
+                    "Native Canvas input synchronization status");
+            FlutterDesignerNativeCanvasStatus failed =
+                    new FlutterDesignerNativeCanvasStatus(
+                            FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                            "Native Canvas launch failed.",
+                            "Target: test runner. Reason: deliberate status fixture.");
+            design.renderNativeCanvasStatus(failed);
+            String primaryFailure = primary.getText();
+            CanvasLayoutKey synchronizedLayout = new CanvasLayoutKey(
+                    new CanvasFrameKey(
+                            new CanvasRevisionKey(
+                                    CanvasSessionId.parse(
+                                            "6a7bab32-9507-4f6d-b986-39f183742017"),
+                                    3,
+                                    StableId.parse(
+                                            "f83e4ad8-e66f-43ae-a5b3-cb057809f17e"),
+                                    5),
+                            7),
+                    11);
+
+            design.renderInteractionBarrierState(
+                    new FlutterDesignerNativeCanvasSession.InteractionBarrierState(
+                            FlutterDesignerNativeCanvasSession
+                                    .InteractionBarrierPhase.SYNCHRONIZING,
+                            7,
+                            Optional.empty()));
+            assertEquals(primaryFailure, primary.getText());
+            assertTrue(input.isVisible());
+            assertEquals("Input sync…", input.getText());
+            assertTrue(input.getToolTipText().contains("fence 7"));
+
+            design.renderInteractionBarrierState(
+                    new FlutterDesignerNativeCanvasSession.InteractionBarrierState(
+                            FlutterDesignerNativeCanvasSession
+                                    .InteractionBarrierPhase.TIMED_OUT,
+                            7,
+                            Optional.empty()));
+            assertEquals(primaryFailure, primary.getText());
+            assertTrue(input.isVisible());
+            assertEquals("Input sync timed out", input.getText());
+            assertTrue(input.getAccessibleContext().getAccessibleDescription()
+                    .contains("Swing focus was retained"));
+
+            design.renderInteractionBarrierState(
+                    new FlutterDesignerNativeCanvasSession.InteractionBarrierState(
+                            FlutterDesignerNativeCanvasSession
+                                    .InteractionBarrierPhase.SYNCHRONIZED,
+                            7,
+                            Optional.of(synchronizedLayout)));
+            assertEquals(primaryFailure, primary.getText());
+            assertFalse(input.isVisible());
+            assertEquals("", input.getText());
+            assertNull(input.getToolTipText());
+
+            design.renderInteractionBarrierState(
+                    new FlutterDesignerNativeCanvasSession.InteractionBarrierState(
+                            FlutterDesignerNativeCanvasSession
+                                    .InteractionBarrierPhase.INACTIVE,
+                            7,
+                            Optional.empty()));
+            assertEquals(primaryFailure, primary.getText());
+            assertFalse(input.isVisible());
+        });
+    }
+
+    @Test
     void keepsCanvasFailureInlineConciseAndExposesFullDetailsAction() throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -232,6 +955,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     visual, JLabel.class, "Native Flutter Canvas status");
             JButton details = findNamed(
                     visual, JButton.class, "Show Native Flutter Canvas details");
+            JButton retry = findNamed(
+                    visual, JButton.class, "Retry Native Flutter Canvas");
             String summary = "Prepare native Flutter Canvas launch failed.";
             String detail = "Target: embedded Windows FlutterView. Reason: "
                     + "the generated runner command produced a deliberately long "
@@ -252,6 +977,9 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             assertTrue(details.isFocusable());
             assertTrue(details.getAccessibleContext().getAccessibleDescription()
                     .contains(summary));
+            assertFalse(retry.isVisible(),
+                    "a nonterminal status publication must not expose process retry");
+            assertFalse(retry.isEnabled());
 
             design.renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.RUNNING,

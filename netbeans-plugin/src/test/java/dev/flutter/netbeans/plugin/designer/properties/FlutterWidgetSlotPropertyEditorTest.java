@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlutterWidgetSlotPropertyEditorTest {
@@ -401,7 +402,7 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
-    void occupiedSingleSlotDoesNotOfferImplicitReplacement() throws Exception {
+    void occupiedSingleSlotOffersExplicitAtomicFreshReplacement() throws Exception {
         WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");
         WidgetNode center = new WidgetNode(
                 id("e3a3ed63-209c-49fc-9bb7-d61a967522bd"),
@@ -427,12 +428,207 @@ class FlutterWidgetSlotPropertyEditorTest {
         editor.attachEnv(environment);
 
         onEdt(() -> {
+            Component custom = editor.getCustomEditor();
             JComboBox<?> action = component(
-                    editor.getCustomEditor(),
+                    custom,
                     FlutterWidgetSlotPropertyEditor.ACTION_NAME,
                     JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> moveSource = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
             assertFalse(labels(action).contains("Add new widget"));
-            assertTrue(labels(action).contains("Clear slot"));
+            assertTrue(labels(action).contains("Replace with new widget"));
+            assertTrue(labels(action).contains("Clear single child"));
+            selectLabel(action, "Replace with new widget");
+            selectLabel(addType, "Text");
+            assertTrue(addType.isEnabled());
+            assertFalse(moveSource.isEnabled());
+            assertFalse(position.isEnabled());
+            assertFalse(current.isEnabled());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Replace replace = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(scaffold.id(), replace.ownerId());
+            assertEquals(BODY, replace.slotName());
+            assertEquals(center.id(), replace.expectedChildId());
+            FlutterWidgetSlotMutation.Replace.NewWidget fresh = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.NewWidget.class,
+                    replace.replacement());
+            assertEquals(type("flutter.widgets.Text"), fresh.widgetType());
+            return null;
+        });
+    }
+
+    @Test
+    void occupiedSingleSlotOffersCompatibleExistingReplacementAndRejectsStaleDraft()
+            throws Exception {
+        WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetNode center = new WidgetNode(
+                id("347a80eb-b14c-4fa7-b4cc-bdc7565931ca"),
+                type("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        WidgetNode scaffold = new WidgetNode(
+                id("419485a8-40fc-4ef7-a5da-f4c5c651beaf"),
+                scaffoldDefinition.typeId(),
+                Map.of(),
+                Map.of(BODY, WidgetSlot.SingleSlot.of(center)),
+                Extensions.empty());
+        WidgetNode source = text(
+                id("a0c87acf-63bd-485d-b3ec-e91e21fca137"), "source");
+        WidgetNode column = new WidgetNode(
+                id("265c7fa8-d436-4fba-a87c-d93431507c20"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(scaffold, source))),
+                Extensions.empty());
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                scaffold,
+                scaffoldDefinition,
+                scaffoldDefinition.slot(BODY).orElseThrow(),
+                new FlutterWidgetSlotEditorContext(
+                        document(column),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))));
+        PropertyEnv environment = PropertyEnv.create(descriptor("Body"));
+        editor.attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> moveSource = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            assertTrue(labels(action).contains("Replace with existing widget"));
+            selectLabel(action, "Replace with existing widget");
+            assertEquals(1, moveSource.getItemCount(),
+                    "root, current child and cyclic/incompatible sources stay unavailable");
+            selectContains(moveSource, source.id().toString());
+            assertTrue(moveSource.isEnabled());
+            assertFalse(position.isEnabled());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            FlutterWidgetSlotMutation.Replace replace = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(center.id(), replace.expectedChildId());
+            FlutterWidgetSlotMutation.Replace.ExistingWidget existing =
+                    assertInstanceOf(
+                            FlutterWidgetSlotMutation.Replace.ExistingWidget.class,
+                            replace.replacement());
+            assertEquals(source.id(), existing.sourceId());
+            return null;
+        });
+
+        FlutterWidgetSlotCellValue stale = FlutterWidgetSlotCellValue.staged(
+                "stale replacement",
+                new FlutterWidgetSlotMutation.Replace(
+                        scaffold.id(),
+                        BODY,
+                        source.id(),
+                        new FlutterWidgetSlotMutation.Replace.NewWidget(
+                                type("flutter.widgets.Text"))));
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(stale));
+    }
+
+    @Test
+    void listClearAllStagesExactOrderedIdsAndConsumesPropertyLeaseOnce()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetNode first = text(
+                id("9c773413-b75c-4808-94a3-f23233bc6e8f"), "first");
+        WidgetNode second = text(
+                id("2ea510e8-9ba0-43ba-821b-c50e3c312229"), "second");
+        WidgetNode column = new WidgetNode(
+                id("42f4a4e3-714c-41bf-b16c-4c5a2ca7e788"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first, second))),
+                Extensions.empty());
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                column,
+                columnDefinition,
+                ignored -> { },
+                new FlutterWidgetSlotEditorContext(
+                        document(column),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))),
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> moveSource = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME,
+                    JComboBox.class);
+            assertTrue(labels(action).contains("Clear all widgets"));
+            selectLabel(action, "Clear all widgets");
+            assertFalse(current.isEnabled());
+            assertFalse(addType.isEnabled());
+            assertFalse(moveSource.isEnabled());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.ClearAll clear = assertInstanceOf(
+                    FlutterWidgetSlotMutation.ClearAll.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(column.id(), clear.ownerId());
+            assertEquals(CHILDREN, clear.slotName());
+            assertEquals(List.of(first.id(), second.id()), clear.expectedChildIds());
+            assertTrue(staged.summary().contains("Clear all 2 widgets"));
+
+            children.setValue(staged);
+            children.setValue(staged);
+            assertEquals(List.of(clear), submitted,
+                    "Clear All must consume one Properties revision lease once");
             return null;
         });
     }

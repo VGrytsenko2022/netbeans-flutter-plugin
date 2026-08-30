@@ -43,6 +43,10 @@ function New-ReleaseFixture {
         [string]$Root,
         [string]$Category = 'Flutter',
         [switch]$OptionalSdkSkip,
+        [switch]$OptionalPlatformSkip,
+        [switch]$UnexpectedSkip,
+        [switch]$UnexpectedSdkMethodSkip,
+        [switch]$PassingCanvasSdkGates,
         [switch]$InstalledUserdir,
         [switch]$CriticalLog,
         [switch]$AuxiliaryOrderingLog,
@@ -110,6 +114,97 @@ function New-ReleaseFixture {
            tests="1" failures="0" errors="0" skipped="1">
   <testcase classname="dev.flutter.netbeans.runtime.DartEditorEndToEndIT" name="editorSmoke">
     <skipped message="Dart SDK was not configured"/>
+  </testcase>
+</testsuite>
+"@
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested">
+    <skipped message="canvas.runner.flutter.sdk was not configured"/>
+  </testcase>
+</testsuite>
+"@
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
+            'package dev.flutter.netbeans.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
+<testsuite name="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime">
+    <skipped message="canvas.runner.acceptance.flutter.sdk was not configured"/>
+  </testcase>
+</testsuite>
+"@
+    }
+    if ($OptionalPlatformSkip) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\FlutterDesignerPairCopyTest.java') `
+            'package dev.flutter.netbeans.plugin.designer; class FlutterDesignerPairCopyTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest"
+           tests="2" failures="0" errors="0" skipped="2">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable">
+    <skipped message="filesystem does not expose a read-only file"/>
+  </testcase>
+  <testcase classname="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem">
+    <skipped message="filesystem does not expose a read-only folder"/>
+  </testcase>
+</testsuite>
+"@
+    }
+    if ($PassingCanvasSdkGates) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+           tests="1" failures="0" errors="0" skipped="0">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested"/>
+</testsuite>
+"@
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
+            'package dev.flutter.netbeans.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
+<testsuite name="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT"
+           tests="1" failures="0" errors="0" skipped="0">
+  <testcase classname="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime"/>
+</testsuite>
+"@
+    }
+    if ($UnexpectedSkip) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\example\UnknownOptionalTest.java') `
+            'package example; class UnknownOptionalTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-example.UnknownOptionalTest.xml') @"
+<testsuite name="example.UnknownOptionalTest"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="example.UnknownOptionalTest" name="unknown">
+    <skipped message="unknown reason"/>
+  </testcase>
+</testsuite>
+"@
+    }
+    if ($UnexpectedSdkMethodSkip) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="someUnrelatedTest">
+    <skipped message="unrelated reason"/>
   </testcase>
 </testsuite>
 "@
@@ -258,7 +353,8 @@ function Invoke-ReleaseVerifier {
     param(
         [pscustomobject]$Fixture,
         [switch]$InstalledUserdir,
-        [switch]$RequireOptionalSdkTests
+        [switch]$RequireOptionalSdkTests,
+        [switch]$RequireOptionalPlatformTests
     )
     $arguments = @(
         '-NoProfile',
@@ -273,6 +369,9 @@ function Invoke-ReleaseVerifier {
     }
     if ($RequireOptionalSdkTests) {
         $arguments += '-RequireOptionalSdkTests'
+    }
+    if ($RequireOptionalPlatformTests) {
+        $arguments += '-RequireOptionalPlatformTests'
     }
     $output = @(& $PowerShellExecutable @arguments 2>&1)
     return [pscustomobject]@{
@@ -407,8 +506,71 @@ Describe 'verify-release.ps1' {
 
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional SDK skips'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT'
         $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.DartEditorEndToEndIT'
         $required.ExitCode | Should Be 1
-        $required.Text | Should Match 'RequireOptionalSdkTests was set'
+        $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+    }
+
+    It 'classifies Pair Copy read-only probes as platform-dependent rather than SDK-backed' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'optional-platform') `
+            -OptionalPlatformSkip -PassingCanvasSdkGates
+
+        $allowed = Invoke-ReleaseVerifier $fixture
+        $sdkRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
+        $platformRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalPlatformTests
+
+        $allowed.ExitCode | Should Be 0
+        $allowed.Text | Should Match 'Allowed optional platform-dependent filesystem skips'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest'
+        $sdkRequired.ExitCode | Should Be 0
+        $sdkRequired.Text | Should Match 'All optional SDK-backed tests ran without skips'
+        $platformRequired.ExitCode | Should Be 1
+        $platformRequired.Text | Should Match 'Optional platform-dependent test\(s\) were skipped while -RequireOptionalPlatformTests was set'
+        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
+        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
+    }
+
+    It 'rejects skipped classes outside both explicit optional policies' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'unexpected-skip') `
+            -UnexpectedSkip
+
+        $result = Invoke-ReleaseVerifier $fixture
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match "Unexpected skipped test class 'example\.UnknownOptionalTest' \(test 'unknown'\)"
+    }
+
+    It 'does not allow an unrelated skip inside the Canvas runner build test class' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'unexpected-sdk-method') `
+            -UnexpectedSdkMethodSkip
+
+        $result = Invoke-ReleaseVerifier $fixture
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match "Unexpected skipped test class 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest' \(test 'someUnrelatedTest'\)"
+    }
+
+    It 'requires both exact Canvas SDK gate cases in strict SDK mode' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'missing-canvas-sdk-gates')
+
+        $result = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+    }
+
+    It 'requires both exact Pair Copy filesystem cases in strict platform mode' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'missing-platform-gates')
+
+        $result = Invoke-ReleaseVerifier $fixture -RequireOptionalPlatformTests
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match 'Required optional platform test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
+        $result.Text | Should Match 'Required optional platform test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
     }
 }

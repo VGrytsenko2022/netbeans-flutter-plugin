@@ -1,6 +1,6 @@
 {
   "format" : "netbeans-flutter-project-theme",
-  "schemaVersion" : 4,
+  "schemaVersion" : 5,
   "enabled" : true,
   "defaultMode" : "system",
   "lightThemeId" : "light",
@@ -12,7 +12,8 @@
     "brightness" : "light",
     "seedArgb" : "0xFF6750A4",
     "colorScheme" : { },
-    "textTheme" : { }
+    "textTheme" : { },
+    "components" : { }
   }, {
     "id" : "dark",
     "enabled" : true,
@@ -20,7 +21,8 @@
     "brightness" : "dark",
     "seedArgb" : "0xFF6750A4",
     "colorScheme" : { },
-    "textTheme" : { }
+    "textTheme" : { },
+    "components" : { }
   } ],
   "generated" : {
     "dartFile" : "lib/theme/app_theme.dart",

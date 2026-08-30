@@ -22,6 +22,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
 import dev.flutter.netbeans.designer.canvas.CanvasSessionId;
+import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
 import dev.flutter.netbeans.designer.canvas.CanvasTextScaleFactor;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeBrightness;
@@ -32,10 +33,14 @@ import dev.flutter.netbeans.designer.canvas.CanvasZoomMode;
 import dev.flutter.netbeans.designer.canvas.ValidatedCanvasRevisionSnapshot;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostClose;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasHostHello;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerClosed;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerFailure;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasRunnerHello;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCapability;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCloseReason;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireCodec;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireDecodeResult;
+import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireFailureCode;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireHandshakeLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireLimits;
 import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireNegotiation;
@@ -67,6 +72,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,6 +87,7 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
+            CanvasWireCapability.SURFACE_PRESENTATION_V1,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
             CanvasWireCapability.DELETE_SELECTED_WIDGET_V1,
@@ -165,6 +172,7 @@ class CanvasRunnerProcessChannelTest {
                 CanvasWireCapability.READ_ONLY_RENDER,
                 CanvasWireCapability.READ_ONLY_LAYOUT,
                 CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.SURFACE_PRESENTATION_V1,
                 CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1));
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         CanvasRenderRequest request = renderRequest(harness.sessionId);
@@ -244,6 +252,24 @@ class CanvasRunnerProcessChannelTest {
 
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         assertTrue(harness.channel.isReady());
+    }
+
+    @Test
+    void rejectsHandshakeWithoutRequiredSurfacePresentationCapability()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.awaitHostFrames(1);
+
+        harness.sendHello(List.of(
+                CanvasWireCapability.READ_ONLY_RENDER,
+                CanvasWireCapability.READ_ONLY_LAYOUT,
+                CanvasWireCapability.READ_ONLY_SELECTION));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains(
+                "surface-presentation"));
+        assertFalse(harness.channel.isReady());
     }
 
     @Test
@@ -474,7 +500,8 @@ class CanvasRunnerProcessChannelTest {
         harness.sendHello(List.of(
                 CanvasWireCapability.READ_ONLY_RENDER,
                 CanvasWireCapability.READ_ONLY_LAYOUT,
-                CanvasWireCapability.READ_ONLY_SELECTION));
+                CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.SURFACE_PRESENTATION_V1));
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         CanvasRenderRequest request = renderRequest(harness.sessionId);
         harness.channel.expectPresentation(request.revisionKey());
@@ -519,7 +546,7 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
-    void dispatchesPresentedSelectionPaletteDropAndDeleteForTheExactSession()
+    void dispatchesPresentedFenceSelectionInteractionPaletteDropAndDeleteForExactSession()
             throws Exception {
         harness = Harness.ready();
         CanvasRenderRequest request = renderRequest(harness.sessionId);
@@ -528,19 +555,34 @@ class CanvasRunnerProcessChannelTest {
         String token = "nbfdnd:v1:opaque-token";
 
         harness.sendRuntime(presented(revision, 3, 5));
+        harness.sendRuntime(interactionFenceApplied(revision, 3, 5, 17));
         harness.sendRuntime(selection(revision, 3, 5, 9, widgetId));
+        harness.sendRuntime(interaction(revision, 3, 5, 10, 17));
         harness.sendRuntime(paletteDrop(
                 revision, 3, 5, 10, token, widgetId, 2));
         harness.sendRuntime(deleteSelection(revision, 3, 5, 11, widgetId));
 
         assertTrue(harness.listener.presented.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.interactionFenceApplied.await(
+                2, TimeUnit.SECONDS));
         assertTrue(harness.listener.selection.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.interaction.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.paletteDrop.await(2, TimeUnit.SECONDS));
         assertTrue(harness.listener.deleteSelection.await(2, TimeUnit.SECONDS));
         CanvasLayoutKey layout = harness.listener.layout;
         assertEquals(new CanvasLayoutKey(new CanvasFrameKey(revision, 3), 5), layout);
+        assertEquals(new CanvasSurfaceMetrics(1_600, 900, 1_500_000),
+                harness.listener.presentedEvent.metrics());
+        assertEquals(layout, harness.listener.appliedFence.layoutKey());
+        assertEquals(17, harness.listener.appliedFence.interactionFenceSequence());
         assertEquals(widgetId, harness.listener.widgetId);
         assertEquals(9, harness.listener.intent.intentId().intentSequence());
+        assertEquals(new CanvasIntentKey(
+                new CanvasIntentId(harness.sessionId, 10), layout),
+                harness.listener.pointerInteraction.intentKey());
+        assertEquals(17,
+                harness.listener.pointerInteraction.interactionFenceSequence());
+        assertEquals(1, harness.listener.interactionCalls.get());
         CanvasRunnerRuntimeEvent.PaletteDrop drop = harness.listener.drop;
         assertEquals(new CanvasIntentKey(
                 new CanvasIntentId(harness.sessionId, 10),
@@ -556,6 +598,52 @@ class CanvasRunnerProcessChannelTest {
         assertEquals(widgetId, harness.listener.deletion.widgetId());
         assertEquals(1, harness.listener.deleteSelectionCalls.get());
         assertTrue(harness.listener.failureReason == null);
+    }
+
+    @Test
+    void presentedCodecRequiresExactBoundedSurfaceMetrics() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        String valid = presented(request.revisionKey(), 3, 5);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+
+        CanvasRunnerRuntimeEvent.Presented decoded = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.Presented.class,
+                assertDoesNotThrow(() -> codec.decode(
+                        valid.getBytes(StandardCharsets.UTF_8))));
+        assertEquals(new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 3), 5),
+                decoded.layoutKey());
+        assertEquals(new CanvasSurfaceMetrics(1_600, 900, 1_500_000),
+                decoded.metrics());
+
+        List<String> malformed = List.of(
+                valid.replace(",\"physicalWidth\":1600", ""),
+                valid.replace(
+                        "\"physicalWidth\":1600",
+                        "\"unexpected\":true,\"physicalWidth\":1600"),
+                valid.replace(
+                        "\"physicalWidth\":1600",
+                        "\"physicalWidth\":0"),
+                valid.replace(
+                        "\"physicalHeight\":900",
+                        "\"physicalHeight\":4097"),
+                valid.replace(
+                        "\"physicalWidth\":1600,\"physicalHeight\":900",
+                        "\"physicalWidth\":4096,\"physicalHeight\":4096"),
+                valid.replace(
+                        "\"devicePixelRatioMicros\":1500000",
+                        "\"devicePixelRatioMicros\":0"),
+                valid.replace(
+                        "\"devicePixelRatioMicros\":1500000",
+                        "\"devicePixelRatioMicros\":10000001"),
+                valid.replace(
+                        "\"devicePixelRatioMicros\":1500000",
+                        "\"devicePixelRatioMicros\":1.5"));
+        for (String payload : malformed) {
+            assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(payload.getBytes(StandardCharsets.UTF_8)));
+        }
     }
 
     @Test
@@ -577,6 +665,80 @@ class CanvasRunnerProcessChannelTest {
                 valid.replace(widgetId.toString(), "not-a-stable-id"),
                 valid.replace("\"layoutSequence\":5", "\"layoutSequence\":-1"),
                 valid.replace("\"intentSequence\":10", "\"intentSequence\":2.5"));
+        for (String payload : malformed) {
+            assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(payload.getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    @Test
+    void interactionCodecRequiresExactBoundedIntentIdentity() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        String valid = interaction(request.revisionKey(), 3, 5, 10, 17);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+
+        CanvasRunnerRuntimeEvent.Interaction decoded = assertInstanceOf(
+                CanvasRunnerRuntimeEvent.Interaction.class,
+                assertDoesNotThrow(() -> codec.decode(
+                        valid.getBytes(StandardCharsets.UTF_8))));
+        assertEquals(new CanvasIntentKey(
+                new CanvasIntentId(request.revisionKey().sessionId(), 10),
+                new CanvasLayoutKey(
+                        new CanvasFrameKey(request.revisionKey(), 3), 5)),
+                decoded.intentKey());
+        assertEquals(17, decoded.interactionFenceSequence());
+        List<String> malformed = List.of(
+                valid.replace(
+                        "\"interactionFenceSequence\":17}",
+                        "\"interactionFenceSequence\":17,\"unexpected\":true}"),
+                valid.replace(",\"intentSequence\":10", ""),
+                valid.replace(",\"interactionFenceSequence\":17", ""),
+                valid.replace("\"layoutSequence\":5", "\"layoutSequence\":-1"),
+                valid.replace("\"intentSequence\":10", "\"intentSequence\":2.5"),
+                valid.replace(
+                        "\"interactionFenceSequence\":17",
+                        "\"interactionFenceSequence\":-1"),
+                valid.replace(
+                        "\"interactionFenceSequence\":17",
+                        "\"interactionFenceSequence\":2.5"));
+        for (String payload : malformed) {
+            assertThrows(
+                    CanvasRunnerControlException.class,
+                    () -> codec.decode(payload.getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    @Test
+    void interactionFenceAppliedCodecRequiresExactBoundedLayoutIdentity() {
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+        String valid = interactionFenceApplied(
+                request.revisionKey(), 3, 5, 17);
+        CanvasRunnerControlCodec codec = new CanvasRunnerControlCodec();
+
+        CanvasRunnerRuntimeEvent.InteractionFenceApplied decoded =
+                assertInstanceOf(
+                        CanvasRunnerRuntimeEvent.InteractionFenceApplied.class,
+                        assertDoesNotThrow(() -> codec.decode(
+                                valid.getBytes(StandardCharsets.UTF_8))));
+        assertEquals(new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 3), 5),
+                decoded.layoutKey());
+        assertEquals(17, decoded.interactionFenceSequence());
+        List<String> malformed = List.of(
+                valid.replace(
+                        "\"interactionFenceSequence\":17}",
+                        "\"interactionFenceSequence\":17,\"unexpected\":true}"),
+                valid.replace(",\"layoutSequence\":5", ""),
+                valid.replace(",\"interactionFenceSequence\":17", ""),
+                valid.replace("\"frameSequence\":3", "\"frameSequence\":-1"),
+                valid.replace("\"layoutSequence\":5", "\"layoutSequence\":2.5"),
+                valid.replace(
+                        "\"interactionFenceSequence\":17",
+                        "\"interactionFenceSequence\":-1"),
+                valid.replace(
+                        "\"interactionFenceSequence\":17",
+                        "\"interactionFenceSequence\":2.5"));
         for (String payload : malformed) {
             assertThrows(
                     CanvasRunnerControlException.class,
@@ -719,6 +881,20 @@ class CanvasRunnerProcessChannelTest {
     }
 
     @Test
+    void rejectsAnInteractionFromAnotherSessionWithoutDispatchingIt()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(CanvasSessionId.random());
+
+        harness.sendRuntime(interaction(request.revisionKey(), 0, 0, 0, 0));
+
+        assertTrue(harness.listener.failed.await(2, TimeUnit.SECONDS));
+        assertTrue(harness.listener.failureReason.contains("stale or foreign"));
+        assertEquals(0, harness.listener.interactionCalls.get());
+        assertFalse(harness.channel.isReady());
+    }
+
+    @Test
     void keepsReadOnlyCanvasReadyWhenOptionalPaletteDropIsUnavailable()
             throws Exception {
         harness = new Harness();
@@ -727,7 +903,8 @@ class CanvasRunnerProcessChannelTest {
         harness.sendHello(List.of(
                 CanvasWireCapability.READ_ONLY_RENDER,
                 CanvasWireCapability.READ_ONLY_LAYOUT,
-                CanvasWireCapability.READ_ONLY_SELECTION));
+                CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.SURFACE_PRESENTATION_V1));
 
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         assertTrue(harness.channel.isReady());
@@ -754,7 +931,8 @@ class CanvasRunnerProcessChannelTest {
         harness.sendHello(List.of(
                 CanvasWireCapability.READ_ONLY_RENDER,
                 CanvasWireCapability.READ_ONLY_LAYOUT,
-                CanvasWireCapability.READ_ONLY_SELECTION));
+                CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.SURFACE_PRESENTATION_V1));
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
 
         CanvasRenderRequest request = renderRequest(harness.sessionId);
@@ -787,6 +965,115 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(selection.contains("\"widgetId\":\"" + widgetId + "\""));
         assertTrue(selection.contains("\"frameSequence\":4"));
         assertTrue(selection.contains("\"layoutSequence\":6"));
+    }
+
+    @Test
+    void sendsHostInteractionFenceForTheExactPresentedLayout() throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 4), 6);
+
+        harness.channel.expectPresentation(request.revisionKey());
+        assertTrue(harness.channel.interactionFence(layout, 17));
+
+        List<CanvasProcessFrame> frames = harness.awaitHostFrames(2);
+        assertEquals(2, frames.size());
+        String fence = new String(
+                frames.get(1).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(fence.contains("\"type\":\"host.interactionFence\""));
+        assertTrue(fence.contains("\"frameSequence\":4"));
+        assertTrue(fence.contains("\"layoutSequence\":6"));
+        assertTrue(fence.contains("\"interactionFenceSequence\":17"));
+    }
+
+    @Test
+    void closeWinningAdmissionRejectsLaterFenceAndWritesNoFenceAheadOfClose()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest request = renderRequest(harness.sessionId);
+        CanvasLayoutKey layout = new CanvasLayoutKey(
+                new CanvasFrameKey(request.revisionKey(), 4), 6);
+        harness.channel.expectPresentation(request.revisionKey());
+
+        harness.channel.requestClose(CanvasWireCloseReason.BACKEND_REPLACED);
+        assertFalse(harness.channel.interactionFence(layout, 17));
+        assertTrue(harness.channel.awaitCloseRequestWritten(
+                Duration.ofSeconds(2)));
+
+        List<CanvasProcessFrame> frames = harness.awaitHostFrames(2);
+        assertEquals(2, frames.size());
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class, lifecycle(frames.getLast()));
+        assertEquals(CanvasWireCloseReason.BACKEND_REPLACED, close.reason());
+        String wire = new String(
+                harness.hostStdin.toByteArray(), StandardCharsets.UTF_8);
+        assertFalse(wire.contains("\"type\":\"host.interactionFence\""));
+    }
+
+    @Test
+    void newestInteractionFencePreemptsQueuedControlsButNotStartedFrame()
+            throws Exception {
+        BlockingPipe stdout = new BlockingPipe();
+        GateOutputStream stdin = new GateOutputStream();
+        RecordingListener listener = new RecordingListener();
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input, stdin, sessionId, Runnable::run, listener);
+        CanvasProcessFrameWriter runner = new CanvasProcessFrameCodec().writer(
+                stdout.output);
+        try {
+            channel.start();
+            awaitBytesContaining(stdin, "host.hello");
+            runner.write(
+                    handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                    control(new CanvasWireCodec().encode(runnerHello(
+                            sessionId, ALL_CAPABILITIES))));
+            assertTrue(listener.ready.await(2, TimeUnit.SECONDS));
+
+            CanvasRenderRequest request = renderRequest(sessionId);
+            CanvasLayoutKey layout = new CanvasLayoutKey(
+                    new CanvasFrameKey(request.revisionKey(), 4), 6);
+            channel.expectPresentation(request.revisionKey());
+            StableId started = StableId.random();
+            StableId queuedFirst = StableId.random();
+            StableId queuedLast = StableId.random();
+
+            stdin.blockNextWrite();
+            assertTrue(channel.select(layout, started));
+            assertTrue(stdin.writeBlocked.await(2, TimeUnit.SECONDS));
+            assertTrue(channel.select(layout, queuedFirst));
+            assertTrue(channel.interactionFence(layout, 17));
+            assertTrue(channel.select(layout, queuedLast));
+            assertTrue(channel.interactionFence(layout, 18));
+
+            stdin.releaseWrite();
+            awaitBytesContaining(stdin, queuedLast.toString());
+            List<CanvasProcessFrame> frames = readHostFrames(
+                    stdin.toByteArray());
+            assertEquals(5, frames.size());
+            String first = new String(
+                    frames.get(1).copyPayload(), StandardCharsets.UTF_8);
+            String fence = new String(
+                    frames.get(2).copyPayload(), StandardCharsets.UTF_8);
+            String second = new String(
+                    frames.get(3).copyPayload(), StandardCharsets.UTF_8);
+            String third = new String(
+                    frames.get(4).copyPayload(), StandardCharsets.UTF_8);
+            assertTrue(first.contains(started.toString()));
+            assertTrue(fence.contains("\"type\":\"host.interactionFence\""));
+            assertTrue(fence.contains("\"interactionFenceSequence\":18"));
+            assertFalse(fence.contains("\"interactionFenceSequence\":17"));
+            assertTrue(second.contains(queuedFirst.toString()));
+            assertTrue(third.contains(queuedLast.toString()));
+            String wire = new String(
+                    stdin.toByteArray(), StandardCharsets.UTF_8);
+            assertEquals(1, occurrences(
+                    wire, "\"type\":\"host.interactionFence\""));
+        } finally {
+            stdin.releaseWrite();
+            channel.close();
+        }
     }
 
     @Test
@@ -839,7 +1126,8 @@ class CanvasRunnerProcessChannelTest {
         harness.sendHello(List.of(
                 CanvasWireCapability.READ_ONLY_RENDER,
                 CanvasWireCapability.READ_ONLY_LAYOUT,
-                CanvasWireCapability.READ_ONLY_SELECTION));
+                CanvasWireCapability.READ_ONLY_SELECTION,
+                CanvasWireCapability.SURFACE_PRESENTATION_V1));
         assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
         CanvasRenderRequest request = renderRequest(harness.sessionId);
         CanvasLayoutKey layout = new CanvasLayoutKey(
@@ -891,11 +1179,231 @@ class CanvasRunnerProcessChannelTest {
         assertTrue(listener.ready.await(2, TimeUnit.SECONDS));
 
         channel.close();
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
 
         List<CanvasProcessFrame> frames = awaitHostFrames(stdin, 2);
         assertEquals(2, frames.size());
-        assertInstanceOf(CanvasHostClose.class, lifecycle(frames.get(1)));
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class, lifecycle(frames.get(1)));
+        assertEquals(CanvasWireCloseReason.FORM_CLOSED, close.reason());
+        assertFalse(listener.closed.await(100, TimeUnit.MILLISECONDS));
+        assertFalse(channel.awaitAuthenticatedClose(Duration.ofMillis(20)));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(
+                        new CanvasRunnerClosed(sessionId, 1, close.sequence()))));
+        assertTrue(channel.awaitAuthenticatedClose(Duration.ofSeconds(2)));
+        assertTrue(listener.closed.await(2, TimeUnit.SECONDS));
         assertEquals(0, process.destroyCalls.get());
+    }
+
+    @Test
+    void firstCloseReasonSurvivesRepeatedLifecycleCloseRequests() throws Exception {
+        harness = Harness.ready();
+
+        harness.channel.requestClose(CanvasWireCloseReason.BACKEND_REPLACED);
+        harness.channel.close();
+        assertTrue(harness.channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class,
+                lifecycle(harness.awaitHostFrames(2).getLast()));
+        assertEquals(CanvasWireCloseReason.BACKEND_REPLACED, close.reason());
+    }
+
+    @Test
+    void foreignCloseAcknowledgementCannotReleaseTheAuthenticatedBarrier()
+            throws Exception {
+        BlockingPipe stdout = new BlockingPipe();
+        ByteArrayOutputStream stdin = new ByteArrayOutputStream();
+        RecordingListener listener = new RecordingListener();
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input, stdin, sessionId, Runnable::run, listener);
+        CanvasProcessFrameWriter runner = new CanvasProcessFrameCodec().writer(
+                stdout.output);
+        channel.start();
+        awaitHostFrames(stdin, 1);
+        runner.write(
+                handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(runnerHello(
+                        sessionId, ALL_CAPABILITIES))));
+        assertTrue(listener.ready.await(2, TimeUnit.SECONDS));
+
+        channel.close();
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class,
+                lifecycle(awaitHostFrames(stdin, 2).getLast()));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(new CanvasRunnerClosed(
+                        CanvasSessionId.random(), 1, close.sequence()))));
+
+        assertTimeoutPreemptively(
+                Duration.ofMillis(250),
+                () -> assertFalse(channel.awaitAuthenticatedClose(
+                        Duration.ofSeconds(2))));
+        assertFalse(listener.failed.await(100, TimeUnit.MILLISECONDS));
+        assertFalse(listener.closed.await(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void exactCloseAcknowledgementCannotPassBeforeCloseFrameIsWritten()
+            throws Exception {
+        BlockingPipe stdout = new BlockingPipe();
+        GateOutputStream stdin = new GateOutputStream();
+        RecordingListener listener = new RecordingListener();
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input, stdin, sessionId, Runnable::run, listener);
+        CanvasProcessFrameWriter runner = new CanvasProcessFrameCodec().writer(
+                stdout.output);
+        channel.start();
+        awaitBytesContaining(stdin, "host.hello");
+        runner.write(
+                handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(runnerHello(
+                        sessionId, ALL_CAPABILITIES))));
+        assertTrue(listener.ready.await(2, TimeUnit.SECONDS));
+
+        stdin.blockNextWrite();
+        channel.close();
+        assertTrue(stdin.writeBlocked.await(2, TimeUnit.SECONDS));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(
+                        new CanvasRunnerClosed(sessionId, 1, 1))));
+
+        assertFalse(channel.awaitAuthenticatedClose(Duration.ofMillis(20)));
+        channel.close();
+        assertFalse(channel.awaitAuthenticatedClose(Duration.ofMillis(20)),
+                "an idempotent close must not reject a valid early acknowledgement");
+        assertFalse(listener.closed.await(100, TimeUnit.MILLISECONDS));
+        stdin.releaseWrite();
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+        assertTrue(channel.awaitAuthenticatedClose(Duration.ofSeconds(2)));
+        assertTrue(listener.closed.await(2, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void nonFatalFailureDuringCloseDoesNotConsumeTheClosedAcknowledgement()
+            throws Exception {
+        BlockingPipe stdout = new BlockingPipe();
+        ByteArrayOutputStream stdin = new ByteArrayOutputStream();
+        RecordingListener listener = new RecordingListener();
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input, stdin, sessionId, Runnable::run, listener);
+        CanvasProcessFrameWriter runner = new CanvasProcessFrameCodec().writer(
+                stdout.output);
+        channel.start();
+        awaitHostFrames(stdin, 1);
+        runner.write(
+                handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(runnerHello(
+                        sessionId, ALL_CAPABILITIES))));
+        assertTrue(listener.ready.await(2, TimeUnit.SECONDS));
+
+        channel.close();
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class,
+                lifecycle(awaitHostFrames(stdin, 2).getLast()));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST).closing(),
+                control(new CanvasWireCodec().encode(new CanvasRunnerFailure(
+                        sessionId,
+                        1,
+                        OptionalLong.empty(),
+                        CanvasWireFailureCode.INVALID_REQUEST,
+                        false,
+                        "Queued render request was rejected."))));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST).closing(),
+                control(new CanvasWireCodec().encode(
+                        new CanvasRunnerClosed(sessionId, 2, close.sequence()))));
+
+        assertTrue(listener.warning.await(2, TimeUnit.SECONDS));
+        assertTrue(channel.awaitAuthenticatedClose(Duration.ofSeconds(2)));
+        assertTrue(listener.closed.await(2, TimeUnit.SECONDS));
+        assertFalse(listener.failed.await(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void abortCompletesTheAuthenticatedCloseBarrierAsRejected() {
+        BlockingPipe stdout = new BlockingPipe();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input,
+                new ByteArrayOutputStream(),
+                CanvasSessionId.random(),
+                Runnable::run,
+                new RecordingListener());
+
+        channel.abort();
+
+        assertTimeoutPreemptively(
+                Duration.ofMillis(250),
+                () -> assertFalse(channel.awaitAuthenticatedClose(
+                        Duration.ofSeconds(2))));
+    }
+
+    @Test
+    void eofDuringCloseCompletesTheAuthenticatedCloseBarrierAsRejected()
+            throws Exception {
+        harness = Harness.ready();
+        harness.channel.close();
+        assertTrue(harness.channel.awaitCloseRequestWritten(
+                Duration.ofSeconds(2)));
+
+        harness.closeRunnerStdout();
+
+        assertTimeoutPreemptively(
+                Duration.ofMillis(250),
+                () -> assertFalse(harness.channel.awaitAuthenticatedClose(
+                        Duration.ofSeconds(2))));
+        assertFalse(harness.listener.closed.await(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void closeDuringHandshakePreservesHelloAndAdmitsAuthenticatedClosedAck()
+            throws Exception {
+        BlockingPipe stdout = new BlockingPipe();
+        GateOutputStream stdin = new GateOutputStream();
+        RecordingListener listener = new RecordingListener();
+        CanvasSessionId sessionId = CanvasSessionId.random();
+        CanvasRunnerProcessChannel channel = new CanvasRunnerProcessChannel(
+                stdout.input, stdin, sessionId, Runnable::run, listener);
+        CanvasProcessFrameWriter runner = new CanvasProcessFrameCodec().writer(
+                stdout.output);
+
+        stdin.blockNextWrite();
+        channel.start();
+        assertTrue(stdin.writeBlocked.await(2, TimeUnit.SECONDS));
+        assertTimeoutPreemptively(Duration.ofMillis(250), channel::close);
+        assertFalse(channel.awaitCloseRequestWritten(Duration.ofMillis(20)));
+        stdin.releaseWrite();
+
+        awaitBytesContaining(stdin, "host.close");
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+        List<CanvasProcessFrame> frames = readHostFrames(stdin.toByteArray());
+        assertEquals(2, frames.size());
+        assertInstanceOf(CanvasHostHello.class, lifecycle(frames.get(0)));
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class, lifecycle(frames.get(1)));
+
+        runner.write(
+                handshakePolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(runnerHello(
+                        sessionId, ALL_CAPABILITIES))));
+        assertFalse(listener.ready.await(100, TimeUnit.MILLISECONDS));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST).closing(),
+                control(new CanvasWireCodec().encode(
+                        new CanvasRunnerClosed(sessionId, 1, close.sequence()))));
+
+        assertTrue(listener.closed.await(2, TimeUnit.SECONDS));
+        assertFalse(listener.failed.await(100, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -979,9 +1487,20 @@ class CanvasRunnerProcessChannelTest {
                 channel.select(layout, request.snapshot().document().root().id())));
         assertTrue(stdin.writeBlocked.await(2, TimeUnit.SECONDS));
         assertTimeoutPreemptively(Duration.ofMillis(250), channel::close);
+        assertFalse(channel.awaitCloseRequestWritten(Duration.ofMillis(20)));
         assertFalse(stdin.closed.await(100, TimeUnit.MILLISECONDS));
 
         stdin.releaseWrite();
+        awaitBytesContaining(stdin, "host.close");
+        assertTrue(channel.awaitCloseRequestWritten(Duration.ofSeconds(2)));
+        List<CanvasProcessFrame> frames = readHostFrames(stdin.toByteArray());
+        CanvasHostClose close = assertInstanceOf(
+                CanvasHostClose.class, lifecycle(frames.getLast()));
+        runner.write(
+                negotiatedPolicy(CanvasProcessDirection.RUNNER_TO_HOST),
+                control(new CanvasWireCodec().encode(
+                        new CanvasRunnerClosed(sessionId, 1, close.sequence()))));
+        assertTrue(listener.closed.await(2, TimeUnit.SECONDS));
         assertTrue(stdin.closed.await(2, TimeUnit.SECONDS));
         assertTrue(stdout.closed.await(2, TimeUnit.SECONDS));
         assertTrue(stdin.closeThread.get().getName().startsWith(
@@ -1050,7 +1569,10 @@ class CanvasRunnerProcessChannelTest {
                 revision,
                 "runner.presented",
                 "\"frameSequence\":" + frame
-                        + ",\"layoutSequence\":" + layout);
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"physicalWidth\":1600"
+                        + ",\"physicalHeight\":900"
+                        + ",\"devicePixelRatioMicros\":1500000");
     }
 
     private static String selection(
@@ -1066,6 +1588,36 @@ class CanvasRunnerProcessChannelTest {
                         + ",\"layoutSequence\":" + layout
                         + ",\"intentSequence\":" + intent
                         + ",\"widgetId\":\"" + widgetId + "\"");
+    }
+
+    private static String interaction(
+            CanvasRevisionKey revision,
+            long frame,
+            long layout,
+            long intent,
+            long interactionFenceSequence) {
+        return runtimeEnvelope(
+                revision,
+                "runner.interaction",
+                "\"frameSequence\":" + frame
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"intentSequence\":" + intent
+                        + ",\"interactionFenceSequence\":"
+                        + interactionFenceSequence);
+    }
+
+    private static String interactionFenceApplied(
+            CanvasRevisionKey revision,
+            long frame,
+            long layout,
+            long interactionFenceSequence) {
+        return runtimeEnvelope(
+                revision,
+                "runner.interactionFenceApplied",
+                "\"frameSequence\":" + frame
+                        + ",\"layoutSequence\":" + layout
+                        + ",\"interactionFenceSequence\":"
+                        + interactionFenceSequence);
     }
 
     private static String paletteDrop(
@@ -1364,16 +1916,26 @@ class CanvasRunnerProcessChannelTest {
         private final CountDownLatch ready = new CountDownLatch(1);
         private final CountDownLatch presented = new CountDownLatch(1);
         private final CountDownLatch selection = new CountDownLatch(1);
+        private final CountDownLatch interaction = new CountDownLatch(1);
+        private final CountDownLatch interactionFenceApplied =
+                new CountDownLatch(1);
         private final CountDownLatch paletteDrop = new CountDownLatch(1);
         private final CountDownLatch deleteSelection = new CountDownLatch(1);
         private final CountDownLatch viewportMetrics = new CountDownLatch(1);
+        private final CountDownLatch closed = new CountDownLatch(1);
+        private final CountDownLatch warning = new CountDownLatch(1);
         private final CountDownLatch failed = new CountDownLatch(1);
         private final AtomicInteger paletteDropCalls = new AtomicInteger();
+        private final AtomicInteger interactionCalls = new AtomicInteger();
         private final AtomicInteger deleteSelectionCalls = new AtomicInteger();
         private final AtomicInteger viewportMetricsCalls = new AtomicInteger();
         private volatile CanvasEngineIdentity engine;
         private volatile CanvasLayoutKey layout;
+        private volatile CanvasRunnerRuntimeEvent.Presented presentedEvent;
         private volatile CanvasIntentKey intent;
+        private volatile CanvasRunnerRuntimeEvent.Interaction pointerInteraction;
+        private volatile CanvasRunnerRuntimeEvent.InteractionFenceApplied
+                appliedFence;
         private volatile StableId widgetId;
         private volatile CanvasRunnerRuntimeEvent.PaletteDrop drop;
         private volatile CanvasRunnerRuntimeEvent.DeleteSelection deletion;
@@ -1387,8 +1949,9 @@ class CanvasRunnerProcessChannelTest {
         }
 
         @Override
-        public void presented(CanvasLayoutKey value) {
-            layout = value;
+        public void presented(CanvasRunnerRuntimeEvent.Presented value) {
+            presentedEvent = value;
+            layout = value.layoutKey();
             presented.countDown();
         }
 
@@ -1397,6 +1960,20 @@ class CanvasRunnerProcessChannelTest {
             intent = value;
             widgetId = selectedWidgetId;
             selection.countDown();
+        }
+
+        @Override
+        public void interaction(CanvasRunnerRuntimeEvent.Interaction value) {
+            pointerInteraction = value;
+            interactionCalls.incrementAndGet();
+            interaction.countDown();
+        }
+
+        @Override
+        public void interactionFenceApplied(
+                CanvasRunnerRuntimeEvent.InteractionFenceApplied value) {
+            appliedFence = value;
+            interactionFenceApplied.countDown();
         }
 
         @Override
@@ -1419,6 +1996,16 @@ class CanvasRunnerProcessChannelTest {
             metrics = value;
             viewportMetricsCalls.incrementAndGet();
             viewportMetrics.countDown();
+        }
+
+        @Override
+        public void closed() {
+            closed.countDown();
+        }
+
+        @Override
+        public void warning(String reason) {
+            warning.countDown();
         }
 
         @Override

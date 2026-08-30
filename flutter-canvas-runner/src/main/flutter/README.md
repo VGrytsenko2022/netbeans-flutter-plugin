@@ -12,11 +12,12 @@ reviewed decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
 `Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`, with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v8 carries the resolved project-theme id, seed, brightness,
-46-role ColorScheme override table and 15-role TextTheme override table. The
+Model protocol v9 carries the resolved project-theme id, seed, brightness,
+46-role ColorScheme override table, 15-role TextTheme override table and the
+closed 36-leaf component-color table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
-`TextTheme.copyWith` order as generated Dart before applying form-local Text
-properties. It preserves physical `EdgeInsets` versus text-direction-aware
+`TextTheme.copyWith` → component-theme order as generated Dart before applying
+form-local widget properties. It preserves physical `EdgeInsets` versus text-direction-aware
 `EdgeInsetsDirectional` for exact Padding preview parity and adds a strict
 typed nullable `IconData` value. The runner constructs the real Flutter
 `Icon` with the same 13 positional/named constructor arguments as generated
@@ -37,7 +38,7 @@ projections into real Flutter objects. AppBar also carries the reviewed
 `PreferredSizeWidget` trait used by `Scaffold.appBar` and `AppBar.bottom`.
 
 `ElevatedButton` adds the same 286 typed leaves and optional-single
-required-named-nullable child slot as the Java catalog. Protocol v8 carries
+required-named-nullable child slot as the Java catalog. Protocol v9 carries
 callback presence only, never callback identifiers, and the runner installs
 inert typed closures. It constructs direct sparse default/disabled/pressed/
 hovered/focused `ButtonStyle` values. Scalar leaves use disabled, pressed,
@@ -76,6 +77,27 @@ outer bounds to the resolved inner bounds. Outline widths, dash lengths and
 guide caps compensate for the current viewport scale, so their on-screen weight
 remains stable across Fit and manual zoom.
 
+Every physical pointer-down anywhere on the native Canvas surface—including
+the surrounding field outside the logical Flutter viewport and the runner-owned
+scrollbars—emits one strict `runner.interaction` event. The event binds the exact
+session, presentation, document, logical revision, frame, layout and monotonic
+intent identity. Java advances a host-owned unsigned monotonic interaction fence
+whenever a pending native-focus request is cleared, projects the exact fence to
+the current presentation as `host.interactionFence`, and the runner first emits
+the strict six-field `runner.interactionFenceApplied` acknowledgement. Until
+that exact acknowledgement has been flushed, the runner shows a concise
+`Synchronizing input…` overlay and gates pointer selection, scrolling, Delete
+and native Palette drop admission. It echoes the applied epoch in every later
+interaction. Java first authenticates the process session and then admits the
+one-shot intent only when its exact visible layout and echoed fence are both
+current; stale-fence, foreign, out-of-order and replayed events are consumed
+without focus or model authority. The current fence is priority-coalesced and
+replayed after a replacement presentation or runner becomes authoritative,
+without overtaking a frame already being written. A bounded missing-ACK timeout
+keeps input fail-closed and publishes typed synchronization state to the host;
+a late exact current ACK may recover, while replacement and teardown ACKs stay
+inert.
+
 The logical viewport never follows the native child-window size. The optional
 `viewport.presentation.v1` control keeps `MediaQuery` fixed while applying a
 view-only `Fit` or 25–200% manual paint transform. When manual zoom overflows,
@@ -83,6 +105,16 @@ Flutter draws and owns both scrollbars and handles wheel, Shift+wheel and
 Ctrl+wheel interaction in the same geometry used for hit testing and native
 Palette drops. Runner metrics echo the exact host command sequence; presentation
 state is per Design tab and is not persisted in the model.
+
+The negotiated `surface.presentation.v1` edge makes each post-frame
+`runner.presented` acknowledgement carry the exact implicit `FlutterView`
+physical width, physical height and device-pixel ratio in millionths. The
+runner reads these only after the replacement frame, validates them against the
+negotiated physical-dimension and pixel budgets, and coalesces a rapid native
+resize burst into one contiguous layout sequence. On Windows an embedded
+`WS_CHILD` always refits to its parent client bounds; per-monitor DPI messages
+never apply a top-level suggested screen rectangle to that child, while a
+standalone runner retains the normal suggested-rectangle behavior.
 
 An empty Row or Column keeps its real Flutter layout (including a zero
 cross-axis extent) but receives a non-layout-affecting 36-pixel-minimum

@@ -54,6 +54,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.EDGE_INSETS));
     private static final String WIDGETS_LIBRARY = "package:flutter/widgets.dart";
     private static final String MATERIAL_LIBRARY = "package:flutter/material.dart";
+    private static final String GESTURES_LIBRARY = "package:flutter/gestures.dart";
     private static final List<String> REVIEWED_COLOR_THEME_TOKENS = List.of(
             "material.colorScheme.primary",
             "material.colorScheme.onPrimary",
@@ -129,7 +130,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             WidgetCapability.DND);
 
     private static final Map<String, Set<WidgetCapability>> CAPABILITIES = Map.ofEntries(
-            Map.entry("flutter.material.Scaffold", STATIC_STRUCTURAL),
+            Map.entry("flutter.material.Scaffold", STATIC_EDITABLE),
             Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
             Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
@@ -205,15 +206,7 @@ public final class BuiltInWidgetCapabilityCatalog {
      * reviewed together.
      */
     private static final Map<String, CanvasProjection> CANVAS_PROJECTIONS = Map.ofEntries(
-            Map.entry("flutter.material.Scaffold", projection(Map.of(
-                    "backgroundColor", propertySchema(PropertyValueKind.COLOR),
-                    "resizeToAvoidBottomInset", propertySchema(PropertyValueKind.BOOLEAN)),
-                    Map.of(
-                            "appBar", traitSingleSlotSchema(
-                                    false, 0,
-                                    BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT),
-                            "body", singleSlotSchema(false, 0),
-                            "floatingActionButton", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.material.Scaffold", scaffoldProjection()),
             Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
@@ -415,6 +408,42 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "spacing", NON_NEGATIVE_DOUBLE_BOUNDS,
                         PropertyValueKind.DOUBLE)),
                 Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection scaffoldProjection() {
+        LinkedHashMap<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        put(properties, stringPatternProperty(
+                "floatingActionButtonLocation",
+                "(?:startTop|miniStartTop|centerTop|miniCenterTop|endTop|miniEndTop|startFloat|miniStartFloat|centerFloat|miniCenterFloat|endFloat|miniEndFloat|startDocked|miniStartDocked|centerDocked|miniCenterDocked|endDocked|miniEndDocked|endContained)"));
+        put(properties, stringPatternProperty(
+                "floatingActionButtonAnimator", "(?:scaling|noAnimation)"));
+        put(properties, stringPatternProperty(
+                "persistentFooterAlignment",
+                "(?:topStart|topCenter|topEnd|centerStart|center|centerEnd|bottomStart|bottomCenter|bottomEnd)"));
+        put(properties, callbackProperty("onDrawerChanged"));
+        put(properties, callbackProperty("onEndDrawerChanged"));
+        put(properties, colorOrThemeProperty("backgroundColor"));
+        put(properties, property("resizeToAvoidBottomInset", PropertyValueKind.BOOLEAN));
+        put(properties, property("primary", PropertyValueKind.BOOLEAN));
+        put(properties, enumPropertyForLibrary(
+                "drawerDragStartBehavior", GESTURES_LIBRARY,
+                "DragStartBehavior", "down", "start"));
+        put(properties, property("extendBody", PropertyValueKind.BOOLEAN));
+        put(properties, property("drawerBarrierDismissible", PropertyValueKind.BOOLEAN));
+        put(properties, property("extendBodyBehindAppBar", PropertyValueKind.BOOLEAN));
+        put(properties, colorOrThemeProperty("drawerScrimColor"));
+        put(properties, numericProperty(
+                "drawerEdgeDragWidth", NON_NEGATIVE_NUMBER_BOUNDS,
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE));
+        put(properties, property("drawerEnableOpenDragGesture", PropertyValueKind.BOOLEAN));
+        put(properties, property(
+                "endDrawerEnableOpenDragGesture", PropertyValueKind.BOOLEAN));
+        put(properties, stringLengthProperty("restorationId", 1, 256));
+        return projection(properties, Map.of(
+                "appBar", traitSingleSlotSchema(
+                        false, 0, BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT),
+                "body", singleSlotSchema(false, 0),
+                "floatingActionButton", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection appBarProjection() {

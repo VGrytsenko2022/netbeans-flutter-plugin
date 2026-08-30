@@ -6383,14 +6383,8 @@ final class PairSaveCoordinator implements Node.Cookie,
     private static String forwardPresentation(
             DesignerCommandSessionOrchestrator.PendingCommandLease
                     commandLease) {
-        return switch (commandLease.edit().forward().kind()) {
-            case ADD_WIDGET -> "Add Flutter Widget";
-            case REMOVE_WIDGET -> "Remove Flutter Widget";
-            case MOVE_WIDGET -> "Move Flutter Widget";
-            case WRAP_WIDGET -> "Wrap Flutter Widget";
-            case SET_PROPERTY -> "Set Flutter Property";
-            case RESET_PROPERTY -> "Reset Flutter Property";
-        };
+        return DesignerCommandPresentation.title(
+                commandLease.edit().forward().kind());
     }
 
     private ArmedForwardAdmission armForwardAdmissionLocked(

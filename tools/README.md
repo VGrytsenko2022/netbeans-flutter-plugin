@@ -22,9 +22,9 @@ The checks cover:
   Apache 2.0 license;
 - the module configuration and module JAR entries inside the NBM;
 - every Maven `*Test.java`/`*IT.java` source having a corresponding
-  Surefire/Failsafe XML report, zero recorded failures/errors, only the five
-  known optional real-SDK tests being skipped, and a passing
-  `PluginPackageMetadataIT` report;
+  Surefire/Failsafe XML report, zero recorded failures/errors, only explicitly
+  classified SDK-backed or platform-filesystem probes being skipped, and a
+  passing `PluginPackageMetadataIT` report;
 - the SHA-256, optionally against a previously recorded expected value;
 - optionally, an isolated installed NetBeans userdir: enabled module config,
   update tracking and its files, installed JAR versions, a NetBeans 30 log,
@@ -40,11 +40,39 @@ pwsh -NoProfile -File tools/verify-release.ps1 `
 ```
 
 Require the optional real Flutter, Dart, and Android SDK tests to have run
-instead of being skipped. This also requires the assembled-NetBeans Dart
-editor E2E test, which uses the configured `dart.executable`:
+instead of being skipped. This includes the packaged Canvas runner build smoke
+(`CanvasRunnerBuildServiceTest`, configured with
+`-Dcanvas.runner.flutter.sdk=<Flutter SDK root>`), the assembled-NetBeans Dart
+editor E2E test (configured with `dart.executable`), and the physical Windows
+Canvas acceptance (`FlutterDesignerNativeCanvasWindowsIT`, configured with
+`-Dcanvas.runner.acceptance.flutter.sdk=<Flutter SDK root>`). The physical gate
+also requires a Windows desktop host; without either prerequisite its report is
+skipped and strict SDK verification fails:
 
 ```powershell
+mvn clean install `
+  "-Dcanvas.runner.flutter.sdk=<Flutter SDK root>" `
+  "-Dcanvas.runner.acceptance.flutter.sdk=<Flutter SDK root>" `
+  "-Dnetbeans.runtime.it.fork.timeout.seconds=900"
+
 pwsh -NoProfile -File tools/verify-release.ps1 -RequireOptionalSdkTests
+```
+
+The SDK properties belong to the Maven run that produces the XML reports. The
+verifier is read-only and validates both that the two Canvas gate cases are
+present in those reports and that no SDK-gated case skipped.
+
+`FlutterDesignerPairCopyTest` has two read-only filesystem probes whose native
+permission behavior is not an SDK prerequisite. They are reported separately
+as optional platform-dependent skips. Require those probes too when producing
+platform-specific release evidence; strict platform mode requires both exact
+test cases to be present in the Maven XML reports and to have run without a
+skip:
+
+```powershell
+pwsh -NoProfile -File tools/verify-release.ps1 `
+  -RequireOptionalSdkTests `
+  -RequireOptionalPlatformTests
 ```
 
 Pin the artifact to a separately recorded checksum:

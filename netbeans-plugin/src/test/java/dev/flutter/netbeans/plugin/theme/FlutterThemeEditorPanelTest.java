@@ -10,6 +10,7 @@ import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
 import dev.flutter.netbeans.project.theme.FlutterMaterialTextStyleRole;
 import dev.flutter.netbeans.project.theme.FlutterProjectTheme;
 import dev.flutter.netbeans.project.theme.FlutterThemeColorValue;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import dev.flutter.netbeans.project.theme.FlutterThemeFontStyle;
 import dev.flutter.netbeans.project.theme.FlutterThemeFontWeight;
 import dev.flutter.netbeans.project.theme.FlutterThemeTextDecorationLine;
@@ -95,13 +96,23 @@ class FlutterThemeEditorPanelTest {
         onEdt(() -> {
             FlutterThemeEditorPanel panel = panel((parent, initial) -> null);
 
-            assertEquals(3, panel.tabsForTest().getTabCount());
+            assertEquals(4, panel.tabsForTest().getTabCount());
             assertEquals("General", panel.tabsForTest().getTitleAt(0));
             assertEquals("Colors", panel.tabsForTest().getTitleAt(1));
             assertEquals("Typography", panel.tabsForTest().getTitleAt(2));
+            assertEquals("Components", panel.tabsForTest().getTitleAt(3));
             assertEquals(46, panel.colorRoleListForTest().getModel().getSize());
             assertEquals(15,
                     panel.typographyRoleListForTest().getModel().getSize());
+            assertEquals(FlutterThemeComponentColorRole.LEAF_COUNT,
+                    panel.componentColorRoleListForTest().getModel().getSize());
+            for (int index = 0;
+                    index < FlutterThemeComponentColorRole.values().length;
+                    index++) {
+                assertEquals(FlutterThemeComponentColorRole.values()[index],
+                        panel.componentColorRoleListForTest().getModel()
+                                .getElementAt(index));
+            }
             assertAccessible(panel.tabsForTest());
             assertAccessible(panel.colorRoleListForTest());
             assertAccessible(panel.colorOverrideButtonForTest());
@@ -111,6 +122,104 @@ class FlutterThemeEditorPanelTest {
             assertAccessible(panel.typographyFontSizeForTest().override);
             assertAccessible(panel.typographyFontSizeForTest().value);
             assertAccessible(panel.typographyDecorationForTest().override);
+            assertAccessible(panel.componentColorRoleListForTest());
+            assertAccessible(panel.componentColorControlForTest().mode);
+            assertAccessible(panel.componentColorControlForTest().role);
+            assertAccessible(panel.componentColorControlForTest().literal);
+        });
+    }
+
+    @Test
+    void componentColorsPersistLiteralSemanticAndInheritedValuesAcrossThemes()
+            throws Exception {
+        onEdt(() -> {
+            Color literal = new Color(0x12, 0x34, 0x56, 0x78);
+            FlutterThemeEditorPanel panel = panel(
+                    (parent, initial) -> literal);
+            panel.tabsForTest().setSelectedIndex(3);
+            var roles = panel.componentColorRoleListForTest();
+            var color = panel.componentColorControlForTest();
+            FlutterThemeEditorDraft.ThemeRow light =
+                    panel.themeListForTest().getSelectedValue();
+
+            roles.setSelectedValue(
+                    FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND, true);
+            color.literal.doClick();
+            assertEquals(new FlutterThemeColorValue.Literal(literal.getRGB()),
+                    light.overrides().componentColors().get(
+                            FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND));
+
+            roles.setSelectedValue(
+                    FlutterThemeComponentColorRole.APP_BAR_FOREGROUND, true);
+            color.role.setSelectedItem(FlutterMaterialColorRole.ON_PRIMARY);
+            color.mode.setSelectedItem(
+                    FlutterThemeEditorPanel.ColorValueMode.COLOR_ROLE);
+            assertEquals(new FlutterThemeColorValue.ColorRole(
+                            FlutterMaterialColorRole.ON_PRIMARY),
+                    light.overrides().componentColors().get(
+                            FlutterThemeComponentColorRole.APP_BAR_FOREGROUND));
+
+            panel.themeListForTest().setSelectedIndex(1);
+            assertEquals(FlutterThemeEditorPanel.ColorValueMode.INHERIT,
+                    color.mode.getSelectedItem(),
+                    "component leaves are scoped to one selected theme");
+            panel.themeListForTest().setSelectedIndex(0);
+            assertEquals(FlutterThemeEditorPanel.ColorValueMode.COLOR_ROLE,
+                    color.mode.getSelectedItem());
+            assertEquals(FlutterMaterialColorRole.ON_PRIMARY,
+                    color.role.getSelectedItem());
+
+            roles.setSelectedValue(
+                    FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND, true);
+            assertEquals(FlutterThemeEditorPanel.ColorValueMode.LITERAL,
+                    color.mode.getSelectedItem());
+            color.mode.setSelectedItem(
+                    FlutterThemeEditorPanel.ColorValueMode.INHERIT);
+            assertFalse(light.overrides().componentColors().containsKey(
+                    FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND));
+
+            FlutterProjectTheme saved = panel.buildTheme();
+            assertEquals(new FlutterThemeColorValue.ColorRole(
+                            FlutterMaterialColorRole.ON_PRIMARY),
+                    saved.lightTheme().overrides().componentColors().get(
+                            FlutterThemeComponentColorRole.APP_BAR_FOREGROUND));
+            assertFalse(saved.lightTheme().overrides().componentColors()
+                    .containsKey(
+                            FlutterThemeComponentColorRole.SCAFFOLD_BACKGROUND));
+        });
+    }
+
+    @Test
+    void generalValidationRetainsConfirmedComponentOverrides()
+            throws Exception {
+        onEdt(() -> {
+            FlutterThemeEditorPanel panel = panel((parent, initial) -> null);
+            panel.tabsForTest().setSelectedIndex(3);
+            panel.componentColorRoleListForTest().setSelectedValue(
+                    FlutterThemeComponentColorRole.ICON_COLOR, true);
+            panel.componentColorControlForTest().role.setSelectedItem(
+                    FlutterMaterialColorRole.TERTIARY);
+            panel.componentColorControlForTest().mode.setSelectedItem(
+                    FlutterThemeEditorPanel.ColorValueMode.COLOR_ROLE);
+            FlutterThemeEditorDraft.ThemeRow light =
+                    panel.themeListForTest().getSelectedValue();
+            FlutterThemeColorValue expected = new FlutterThemeColorValue.ColorRole(
+                    FlutterMaterialColorRole.TERTIARY);
+            assertEquals(expected, light.overrides().componentColors().get(
+                    FlutterThemeComponentColorRole.ICON_COLOR));
+
+            panel.tabsForTest().setSelectedIndex(0);
+            panel.displayNameFieldForTest().setText(" ");
+            assertFalse(panel.isEditorValid());
+            assertEquals(expected, light.overrides().componentColors().get(
+                    FlutterThemeComponentColorRole.ICON_COLOR),
+                    "validation must use and retain the full selected overrides object");
+
+            panel.displayNameFieldForTest().setText("Light");
+            assertTrue(panel.isEditorValid());
+            assertEquals(expected, panel.buildTheme().lightTheme().overrides()
+                    .componentColors().get(
+                            FlutterThemeComponentColorRole.ICON_COLOR));
         });
     }
 

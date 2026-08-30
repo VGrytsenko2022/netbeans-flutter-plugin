@@ -291,6 +291,7 @@
                     <publicPackages>
                         <publicPackage>dev.flutter.netbeans.designer.catalog</publicPackage>
                         <publicPackage>dev.flutter.netbeans.designer.model</publicPackage>
+                        <publicPackage>dev.flutter.netbeans.plugin.designer.canvas.spi</publicPackage>
                     </publicPackages>
                 </configuration>
             </plugin>

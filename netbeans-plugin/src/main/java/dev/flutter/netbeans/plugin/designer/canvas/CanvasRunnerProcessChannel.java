@@ -40,15 +40,19 @@ import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Duration;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Owns the bounded binary protocol on one isolated Flutter Canvas process'
@@ -68,7 +72,8 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     private static final Set<CanvasWireCapability> REQUIRED_CAPABILITIES = Set.of(
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
-            CanvasWireCapability.READ_ONLY_SELECTION);
+            CanvasWireCapability.READ_ONLY_SELECTION,
+            CanvasWireCapability.SURFACE_PRESENTATION_V1);
 
     private final CanvasSessionId sessionId;
     private final InputStream stdout;
@@ -85,7 +90,12 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     private final CanvasProcessFrameWriter writer;
     private final CanvasWireSessionGate sessionGate;
     private final Object stateLock = new Object();
+    private final LinkedBlockingDeque<Runnable> outboundQueue;
     private final ThreadPoolExecutor outboundExecutor;
+    private final CompletableFuture<Boolean> closeWriteCompletion =
+            new CompletableFuture<>();
+    private final CompletableFuture<Boolean> authenticatedCloseCompletion =
+            new CompletableFuture<>();
 
     private State state = State.NEW;
     private CanvasProcessFramingPolicy readPolicy;
@@ -95,6 +105,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     private Thread readerThread;
     private boolean failureDelivered;
     private boolean transportCloseQueued;
+    private boolean authenticatedCloseReceived;
 
     /**
      * Creates a channel over one already-started process. The process itself is
@@ -133,12 +144,14 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 HOST_VERSION,
                 REQUESTED_CAPABILITIES,
                 offeredLimits);
+        outboundQueue = new LinkedBlockingDeque<>(
+                MAX_PENDING_OUTBOUND_OPERATIONS);
         outboundExecutor = new ThreadPoolExecutor(
                 1,
                 1,
                 0,
                 TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(MAX_PENDING_OUTBOUND_OPERATIONS),
+                outboundQueue,
                 task -> {
                     Thread thread = new Thread(
                             task,
@@ -159,7 +172,6 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
 
     /** Starts the one-shot handshake and reader loop. */
     public void start() {
-        final CanvasProcessFrame helloFrame;
         synchronized (stateLock) {
             if (state != State.NEW) {
                 throw new IllegalStateException(
@@ -168,9 +180,19 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             state = State.HANDSHAKING;
             try {
                 CanvasWireMessage hostHello = sessionGate.start();
-                helloFrame = new CanvasProcessFrame(
+                CanvasProcessFrame helloFrame = new CanvasProcessFrame(
                         CanvasProcessFrameKind.CONTROL_JSON,
                         wireCodec.encode(hostHello));
+                // Queue the mandatory first frame before HANDSHAKING becomes
+                // observable outside this lock. A concurrent close can now
+                // only enqueue host.close behind host.hello.
+                if (!enqueueOutbound(() -> writeHostHello(helloFrame))) {
+                    state = State.FAILED;
+                    failureDelivered = true;
+                    dispatch(() -> listener.failed(
+                            "Canvas host handshake could not be queued."));
+                    queueTransportClose();
+                }
             } catch (CanvasWireEncodeException | RuntimeException failure) {
                 state = State.FAILED;
                 failureDelivered = true;
@@ -180,7 +202,6 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 return;
             }
         }
-        enqueueOutbound(() -> writeHostHello(helloFrame));
     }
 
     /** Returns whether the exact completed handshake admitted one capability. */
@@ -241,6 +262,28 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             }
         }
         return enqueueOutbound(() -> writeSelection(layoutKey, widgetId));
+    }
+
+    /** Sends the host-owned focus/interaction epoch for the exact layout. */
+    public boolean interactionFence(
+            CanvasLayoutKey layoutKey,
+            long interactionFenceSequence) {
+        Objects.requireNonNull(layoutKey, "layoutKey");
+        requireExactSession(layoutKey.sessionId(), "interaction fence");
+        requireInteractionFenceSequence(interactionFenceSequence);
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return false;
+            }
+            // Keep admission and priority insertion atomic against close.
+            // A close that wins first makes this return false; a close that
+            // follows clears this queued fence before appending host.close.
+            return enqueuePriorityInteractionFence(new InteractionFenceWrite(
+                    layoutKey, interactionFenceSequence));
+        }
     }
 
     /**
@@ -370,17 +413,36 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
 
     @Override
     public void close() {
+        requestClose(CanvasWireCloseReason.FORM_CLOSED);
+    }
+
+    /**
+     * Requests shutdown of this exact runner session for the first lifecycle
+     * reason observed by the channel.
+     *
+     * <p>Repeated requests are idempotent and cannot rewrite the reason of an
+     * already queued {@code host.close} frame. This matters when AWT peer loss
+     * precedes the later NetBeans form-close callback.</p>
+     */
+    public void requestClose(CanvasWireCloseReason reason) {
+        Objects.requireNonNull(reason, "reason");
         CanvasHostClose close = null;
         CanvasProcessFramingPolicy closingPolicy = null;
+        boolean closeDuringHandshake = false;
         synchronized (stateLock) {
             if (state == State.CLOSED || state == State.CLOSING
                     || state == State.FAILED) {
+                if (state == State.FAILED
+                        || (state == State.CLOSED
+                                && !authenticatedCloseReceived)) {
+                    authenticatedCloseCompletion.complete(false);
+                }
                 return;
             }
             if (state == State.HANDSHAKING || state == State.READY) {
+                closeDuringHandshake = state == State.HANDSHAKING;
                 try {
-                    close = sessionGate.beginClose(
-                            CanvasWireCloseReason.FORM_CLOSED);
+                    close = sessionGate.beginClose(reason);
                     closingPolicy = writePolicy.closing();
                 } catch (IllegalStateException ignored) {
                     // A concurrent terminal protocol event already owns shutdown.
@@ -391,11 +453,85 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         }
         final CanvasHostClose outboundClose = close;
         final CanvasProcessFramingPolicy outboundPolicy = closingPolicy;
-        outboundExecutor.getQueue().clear();
-        if (!enqueueOutbound(() -> writeCloseAndCloseTransport(
-                outboundClose, outboundPolicy))) {
-            queueTransportClose();
+        // During startup, host.hello may still be queued or in flight. It is
+        // the mandatory first frame and must remain ahead of host.close. READY
+        // channels have no pending handshake, so stale render/intent writes can
+        // be discarded before their close request.
+        if (!closeDuringHandshake) {
+            outboundExecutor.getQueue().clear();
         }
+        if (!enqueueOutbound(() -> writeClose(outboundClose, outboundPolicy))) {
+            closeWriteCompletion.complete(false);
+            authenticatedCloseCompletion.complete(false);
+        }
+    }
+
+    /**
+     * Waits only for the already-requested {@code host.close} frame to leave
+     * the host-side writer. It does not wait for {@code runner.closed} or for
+     * process exit.
+     *
+     * <p>This is a diagnostic write fence, not proof that the runner processed
+     * the request. Native-peer teardown is guarded by
+     * {@link #awaitAuthenticatedClose(Duration)}. The wait remains bounded so
+     * an unresponsive pipe cannot wedge the AWT event-dispatch thread.</p>
+     */
+    public boolean awaitCloseRequestWritten(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout");
+        if (timeout.isNegative()) {
+            throw new IllegalArgumentException("Close-write timeout cannot be negative");
+        }
+        try {
+            return closeWriteCompletion.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException | ExecutionException ignored) {
+            return false;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
+     * Waits for a {@code runner.closed} message that passed the session gate.
+     * Completion happens on the protocol reader thread before the listener is
+     * marshalled to the EDT, allowing a bounded close callback to preserve the
+     * native parent peer until authentication succeeds.
+     */
+    public boolean awaitAuthenticatedClose(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout");
+        if (timeout.isNegative()) {
+            throw new IllegalArgumentException("Close-ack timeout cannot be negative");
+        }
+        try {
+            return authenticatedCloseCompletion.get(
+                    timeout.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException | ExecutionException ignored) {
+            return false;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
+     * Abandons the protocol transport without asking the runner to shut down.
+     *
+     * <p>The owning session uses this only after the process has exited, after
+     * a terminal protocol failure, or when its bounded graceful-close deadline
+     * has expired. Normal form close must use {@link #close()} so stdout remains
+     * available for the authenticated {@code runner.closed} acknowledgement.</p>
+     */
+    public void abort() {
+        synchronized (stateLock) {
+            if (state == State.CLOSED && transportCloseQueued) {
+                return;
+            }
+            state = State.CLOSED;
+            acceptedCapabilities = Set.of();
+            latestExpectedRevision = null;
+        }
+        authenticatedCloseCompletion.complete(false);
+        queueTransportClose();
     }
 
     private void writeHostHello(CanvasProcessFrame helloFrame) {
@@ -411,14 +547,16 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             return;
         }
         synchronized (stateLock) {
-            if (state != State.HANDSHAKING) {
+            if (state != State.HANDSHAKING && state != State.CLOSING) {
                 return;
             }
-            readerThread = new Thread(
-                    this::readLoop,
-                    "flutter-canvas-protocol-" + sessionId);
-            readerThread.setDaemon(true);
-            readerThread.start();
+            if (readerThread == null) {
+                readerThread = new Thread(
+                        this::readLoop,
+                        "flutter-canvas-protocol-" + sessionId);
+                readerThread.setDaemon(true);
+                readerThread.start();
+            }
         }
     }
 
@@ -479,6 +617,33 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             fail("Canvas selection request could not be encoded.");
         } catch (IOException failure) {
             fail("Canvas selection request could not be written to runner stdin.");
+        }
+    }
+
+    private void writeInteractionFence(
+            CanvasLayoutKey layoutKey,
+            long interactionFenceSequence) {
+        final CanvasProcessFramingPolicy activePolicy;
+        synchronized (stateLock) {
+            if (state != State.READY
+                    || latestExpectedRevision == null
+                    || !layoutKey.frameKey().revisionKey().equals(
+                            latestExpectedRevision)) {
+                return;
+            }
+            activePolicy = writePolicy;
+        }
+        try {
+            byte[] control = runtimeCodec.encodeInteractionFence(
+                    layoutKey, interactionFenceSequence);
+            writer.write(
+                    activePolicy,
+                    new CanvasProcessFrame(
+                            CanvasProcessFrameKind.CONTROL_JSON, control));
+        } catch (CanvasRunnerControlException | RuntimeException failure) {
+            fail("Canvas interaction fence could not be encoded.");
+        } catch (IOException failure) {
+            fail("Canvas interaction fence could not be written to runner stdin.");
         }
     }
 
@@ -618,9 +783,10 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         }
     }
 
-    private void writeCloseAndCloseTransport(
+    private void writeClose(
             CanvasHostClose close,
             CanvasProcessFramingPolicy closingPolicy) {
+        boolean written = false;
         if (close != null && closingPolicy != null) {
             try {
                 writer.write(
@@ -628,11 +794,18 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                         new CanvasProcessFrame(
                                 CanvasProcessFrameKind.CONTROL_JSON,
                                 wireCodec.encode(close)));
+                written = true;
             } catch (Exception ignored) {
                 // Explicit close remains best-effort and is never a user failure.
             }
         }
-        closeTransportOnOutboundWorker();
+        closeWriteCompletion.complete(written);
+        if (written) {
+            completeAuthenticatedCloseIfReady();
+        } else {
+            authenticatedCloseCompletion.complete(false);
+            queueTransportClose();
+        }
     }
 
     private void readLoop() {
@@ -649,12 +822,14 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 next = reader.read(activePolicy);
             } catch (CanvasProcessFramingException failure) {
                 if (terminalOrClosing()) {
+                    authenticatedCloseCompletion.complete(false);
                     return;
                 }
                 fail(framingFailureReason(failure));
                 return;
             } catch (IOException failure) {
                 if (terminalOrClosing()) {
+                    authenticatedCloseCompletion.complete(false);
                     return;
                 }
                 fail("Canvas runner stdout could not be read ("
@@ -662,6 +837,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 return;
             } catch (RuntimeException failure) {
                 if (terminalOrClosing()) {
+                    authenticatedCloseCompletion.complete(false);
                     return;
                 }
                 fail("Canvas runner stdout decoder failed internally ("
@@ -670,6 +846,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             }
             if (next.isEmpty()) {
                 if (terminalOrClosing()) {
+                    authenticatedCloseCompletion.complete(false);
                     return;
                 }
                 fail("Canvas runner stdout ended before the Canvas session closed.");
@@ -709,18 +886,27 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             return acceptHello(hello);
         }
         if (message instanceof CanvasRunnerFailure failure) {
-            fail("Canvas runner reported "
+            String reason = "Canvas runner reported "
                     + failure.code().name().toLowerCase(java.util.Locale.ROOT)
-                    + ": " + failure.message());
-            return false;
+                    + ": " + failure.message();
+            if (failure.fatal()) {
+                fail(reason);
+                return false;
+            }
+            // A non-fatal failure consumes its authenticated sequence but does
+            // not end the wire session. In particular, one queued request may
+            // be rejected while CLOSING before runner.closed is emitted.
+            dispatch(() -> listener.warning(reason));
+            return true;
         }
         if (message instanceof CanvasRunnerClosed) {
             synchronized (stateLock) {
                 state = State.CLOSED;
                 acceptedCapabilities = Set.of();
                 latestExpectedRevision = null;
+                authenticatedCloseReceived = true;
             }
-            queueTransportClose();
+            completeAuthenticatedCloseIfReady();
             return false;
         }
         fail("Canvas runner sent a host-only lifecycle message.");
@@ -733,25 +919,40 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         if (!Set.copyOf(negotiation.acceptedCapabilities())
                 .containsAll(REQUIRED_CAPABILITIES)) {
             fail("Canvas runner did not negotiate the required read-only render, "
-                    + "layout and selection capabilities.");
+                    + "layout, selection and surface-presentation capabilities.");
             return false;
         }
+        boolean closingDuringHandshake;
         synchronized (stateLock) {
-            if (state != State.HANDSHAKING) {
+            if (state != State.HANDSHAKING && state != State.CLOSING) {
                 return false;
             }
-            readPolicy = CanvasProcessFramingPolicy.negotiated(
+            closingDuringHandshake = state == State.CLOSING;
+            CanvasProcessFramingPolicy negotiatedRead =
+                    CanvasProcessFramingPolicy.negotiated(
                     wireLimits,
                     negotiation,
                     CanvasProcessDirection.RUNNER_TO_HOST);
-            writePolicy = CanvasProcessFramingPolicy.negotiated(
+            CanvasProcessFramingPolicy negotiatedWrite =
+                    CanvasProcessFramingPolicy.negotiated(
                     wireLimits,
                     negotiation,
                     CanvasProcessDirection.HOST_TO_RUNNER);
-            acceptedCapabilities = Set.copyOf(negotiation.acceptedCapabilities());
-            state = State.READY;
+            readPolicy = closingDuringHandshake
+                    ? negotiatedRead.closing()
+                    : negotiatedRead;
+            writePolicy = closingDuringHandshake
+                    ? negotiatedWrite.closing()
+                    : negotiatedWrite;
+            if (!closingDuringHandshake) {
+                acceptedCapabilities = Set.copyOf(
+                        negotiation.acceptedCapabilities());
+                state = State.READY;
+            }
         }
-        dispatch(() -> listener.ready(hello.engineIdentity()));
+        if (!closingDuringHandshake) {
+            dispatch(() -> listener.ready(hello.engineIdentity()));
+        }
         return true;
     }
 
@@ -765,11 +966,21 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             return false;
         }
         if (event instanceof CanvasRunnerRuntimeEvent.Presented presented) {
+            final boolean surfacePresentationNegotiated;
+            synchronized (stateLock) {
+                surfacePresentationNegotiated = acceptedCapabilities.contains(
+                        CanvasWireCapability.SURFACE_PRESENTATION_V1);
+            }
+            if (!surfacePresentationNegotiated) {
+                fail("Canvas runner presented a surface without negotiating "
+                        + "its capability.");
+                return false;
+            }
             if (!exactSession(presented.layoutKey().sessionId())) {
                 fail("Canvas runner presented a stale or foreign Canvas session.");
                 return false;
             }
-            dispatch(() -> listener.presented(presented.layoutKey()));
+            dispatch(() -> listener.presented(presented));
             return true;
         }
         if (event instanceof CanvasRunnerRuntimeEvent.Selection selection) {
@@ -780,6 +991,26 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             }
             dispatch(() -> listener.selection(
                     selection.intentKey(), selection.widgetId()));
+            return true;
+        }
+        if (event instanceof CanvasRunnerRuntimeEvent.Interaction interaction) {
+            if (!exactSession(interaction.intentKey().intentId().sessionId())
+                    || !exactSession(
+                            interaction.intentKey().layoutKey().sessionId())) {
+                fail("Canvas runner sent a pointer interaction for a stale or "
+                        + "foreign Canvas session.");
+                return false;
+            }
+            dispatch(() -> listener.interaction(interaction));
+            return true;
+        }
+        if (event instanceof CanvasRunnerRuntimeEvent.InteractionFenceApplied applied) {
+            if (!exactSession(applied.layoutKey().sessionId())) {
+                fail("Canvas runner acknowledged an interaction fence for a "
+                        + "stale or foreign Canvas session.");
+                return false;
+            }
+            dispatch(() -> listener.interactionFenceApplied(applied));
             return true;
         }
         if (event instanceof CanvasRunnerRuntimeEvent.ViewportMetrics viewport) {
@@ -895,6 +1126,14 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         }
     }
 
+    private static void requireInteractionFenceSequence(long sequence) {
+        if (sequence < 0 || sequence > CanvasWireProtocol.MAX_SEQUENCE) {
+            throw new IllegalArgumentException(
+                    "Canvas interaction fence sequence must be between 0 and "
+                    + CanvasWireProtocol.MAX_SEQUENCE + '.');
+        }
+    }
+
     private static void requireInsertionIndex(int insertionIndex) {
         if (insertionIndex < 0
                 || insertionIndex > WidgetSlot.MAX_LIST_CHILDREN) {
@@ -908,11 +1147,31 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         return sessionId.equals(candidate);
     }
 
+    /**
+     * Releases the successful close barrier only after both independent facts
+     * are true: the exact host.close frame left the writer and the exact-session
+     * runner.closed reply passed the lifecycle gate. A guessed early reply can
+     * therefore never authorize native-peer teardown or clear the pending close
+     * frame from the serial outbound queue.
+     */
+    private void completeAuthenticatedCloseIfReady() {
+        boolean ready;
+        synchronized (stateLock) {
+            ready = authenticatedCloseReceived
+                    && Boolean.TRUE.equals(closeWriteCompletion.getNow(false));
+        }
+        if (ready && authenticatedCloseCompletion.complete(true)) {
+            dispatch(listener::closed);
+            queueTransportClose();
+        }
+    }
+
     private void fail(String reason) {
         boolean notify;
         synchronized (stateLock) {
             if (state == State.CLOSED || state == State.CLOSING
                     || state == State.FAILED) {
+                authenticatedCloseCompletion.complete(false);
                 return;
             }
             state = State.FAILED;
@@ -920,6 +1179,7 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             notify = !failureDelivered;
             failureDelivered = true;
         }
+        authenticatedCloseCompletion.complete(false);
         if (notify) {
             dispatch(() -> listener.failed(reason));
         }
@@ -933,6 +1193,20 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         } catch (RejectedExecutionException ignored) {
             return false;
         }
+    }
+
+    /**
+     * Places the newest input fence ahead of controls that have not started
+     * writing yet. The serial writer remains the sole frame writer, so this
+     * never interleaves with or overtakes an already-started frame.
+     */
+    private boolean enqueuePriorityInteractionFence(
+            InteractionFenceWrite task) {
+        if (outboundExecutor.isShutdown()) {
+            return false;
+        }
+        outboundQueue.removeIf(InteractionFenceWrite.class::isInstance);
+        return outboundQueue.offerFirst(task);
     }
 
     private void queueTransportClose() {
@@ -999,9 +1273,18 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
     public interface Listener {
         void ready(CanvasEngineIdentity engineIdentity);
 
-        void presented(CanvasLayoutKey layoutKey);
+        void presented(CanvasRunnerRuntimeEvent.Presented presented);
 
         void selection(CanvasIntentKey intentKey, StableId widgetId);
+
+        /** Optional authenticated physical interaction on the native surface. */
+        default void interaction(CanvasRunnerRuntimeEvent.Interaction interaction) {
+        }
+
+        /** Exact-layout acknowledgement that the runner applied an input fence. */
+        default void interactionFenceApplied(
+                CanvasRunnerRuntimeEvent.InteractionFenceApplied applied) {
+        }
 
         /** Optional until the owning Designer session wires the mutation slice. */
         default void paletteDrop(CanvasRunnerRuntimeEvent.PaletteDrop drop) {
@@ -1016,6 +1299,14 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         default void viewportMetrics(CanvasViewportMetrics metrics) {
         }
 
+        /** Authenticated acknowledgement of a host-initiated graceful close. */
+        default void closed() {
+        }
+
+        /** Authenticated non-fatal runner diagnostic; the channel remains live. */
+        default void warning(String reason) {
+        }
+
         void failed(String reason);
     }
 
@@ -1026,5 +1317,22 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         CLOSING,
         CLOSED,
         FAILED
+    }
+
+    private final class InteractionFenceWrite implements Runnable {
+        private final CanvasLayoutKey layoutKey;
+        private final long interactionFenceSequence;
+
+        private InteractionFenceWrite(
+                CanvasLayoutKey layoutKey,
+                long interactionFenceSequence) {
+            this.layoutKey = layoutKey;
+            this.interactionFenceSequence = interactionFenceSequence;
+        }
+
+        @Override
+        public void run() {
+            writeInteractionFence(layoutKey, interactionFenceSequence);
+        }
     }
 }

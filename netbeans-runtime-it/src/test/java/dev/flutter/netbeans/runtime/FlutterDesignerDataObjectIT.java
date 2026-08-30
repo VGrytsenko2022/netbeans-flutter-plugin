@@ -183,6 +183,19 @@ final class FlutterDesignerDataObjectIT {
             assertPairDeleteFromEitherNode(root, designerType, modelType);
             assertPairCopyFromEitherNode(root, designerType, modelType);
             assertPairMoveFromEitherNode(root, designerType, modelType);
+
+            Pair semanticPair = createElevatedButtonPair(
+                    root, "semantic_elevated_button");
+            DataObject semanticOwner = DataObject.find(semanticPair.dart());
+            assertTrue("The semantic gate fixture is not owned by the packaged Designer",
+                    designerType.isInstance(semanticOwner));
+            assertDesignerSemanticMutationLifecycle(semanticOwner, semanticPair);
+
+            Pair scaffoldPair = createScaffoldPair(root, "semantic_scaffold");
+            DataObject scaffoldOwner = DataObject.find(scaffoldPair.dart());
+            assertTrue("The Scaffold gate fixture is not owned by the packaged Designer",
+                    designerType.isInstance(scaffoldOwner));
+            assertPackagedScaffoldPropertyLifecycle(scaffoldOwner, scaffoldPair);
         }
 
         private void assertPairRenameFromEitherNode(
@@ -1041,6 +1054,767 @@ final class FlutterDesignerDataObjectIT {
             }
         }
 
+        /**
+         * Crosses the packaged module boundary through the actual Design Node.
+         * The property write must reach the DataObject-owned mutation controller,
+         * its command-session orchestrator and the pair-save coordinator; a
+         * detached PropertyMutationHandler recorder would not satisfy any of the
+         * byte, dirty, Undo/Redo or Save assertions below.
+         */
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private void assertDesignerSemanticMutationLifecycle(
+                DataObject dataObject,
+                Pair pair) throws Exception {
+            byte[] baselineDart = pair.dart().asBytes();
+            byte[] baselineFd = pair.fd().asBytes();
+            CloneableEditorSupport editor = dataObject.getLookup()
+                    .lookup(CloneableEditorSupport.class);
+            assertNotNull("The semantic gate has no paired editor support", editor);
+            editor.openDocument();
+            assertArrayEquals("The semantic fixture did not open exact Dart disk bytes",
+                    baselineDart, liveDartBytes(editor));
+
+            AtomicReference<CloneableTopComponent> opened = new AtomicReference<>();
+            try {
+                SwingUtilities.invokeAndWait(() -> {
+                    CloneableTopComponent multiView = MultiViews.createCloneableMultiView(
+                            DESIGNER_MIME, dataObject);
+                    opened.set(multiView);
+                    multiView.open();
+                    requestVisible(
+                            multiView, "Design", "flutter.designer.design");
+                    multiView.requestActive();
+                    assertNotSame("The semantic gate received no shared Undo/Redo owner",
+                            UndoRedo.NONE, multiView.getUndoRedo());
+                });
+                assertCurrentDesignerModelLoaded(dataObject, pair);
+
+                Object mutations = packagedMutationController(dataObject);
+                Object baselineSnapshot = awaitReadyMutationSnapshot(
+                        mutations, null, null);
+                Object baselineToken = snapshotToken(baselineSnapshot);
+                CloneableTopComponent multiView = opened.get();
+                Node.Property<?> elevationProperty = awaitSelectedProperty(
+                        multiView, "Elevated Button", "styleElevation");
+                assertTrue("The real selected ElevatedButton.styleElevation is not writable",
+                        elevationProperty.canWrite());
+
+                java.math.BigDecimal elevation = new java.math.BigDecimal("3.25");
+                ClassLoader loader = flutterModule().getClassLoader();
+                Class<?> propertyValueType = Class.forName(
+                        "dev.flutter.netbeans.designer.model.PropertyValue",
+                        true,
+                        loader);
+                Class<?> doubleValueType = Class.forName(
+                        "dev.flutter.netbeans.designer.model.PropertyValue$DoubleValue",
+                        true,
+                        loader);
+                Object doubleValue = doubleValueType
+                        .getConstructor(java.math.BigDecimal.class)
+                        .newInstance(elevation);
+                Class<?> cellValueType = Class.forName(
+                        "dev.flutter.netbeans.plugin.designer.properties."
+                        + "FlutterPropertyCellValue",
+                        true,
+                        loader);
+                Object cellValue = cellValueType
+                        .getMethod("explicit", propertyValueType)
+                        .invoke(null, doubleValue);
+
+                SwingUtilities.invokeAndWait(() -> {
+                    try {
+                        ((Node.Property) elevationProperty).setValue(cellValue);
+                    } catch (ReflectiveOperationException failure) {
+                        throw new AssertionError(
+                                "The real packaged ElevatedButton property rejected its value",
+                                failure);
+                    }
+                });
+
+                awaitReadyMutationSnapshot(mutations, baselineToken, elevation);
+                RevisionBytes applied = currentDesignerRevisionBytes(mutations);
+                assertProductionOrchestratorBound(mutations);
+                assertEquals("A real semantic mutation did not stage a paired revision",
+                        "STAGED_PAIR", pairSaveStatus(mutations));
+                assertTrue("The semantic mutation did not mark the paired DataObject dirty",
+                        dataObject.isModified());
+                assertTrue("The semantic mutation did not mark the paired Dart editor dirty",
+                        editor.isModified());
+                assertFalse("The semantic mutation did not change the exact .fd candidate",
+                        java.util.Arrays.equals(baselineFd, applied.fd()));
+                assertFalse("The semantic mutation did not change the exact Dart candidate",
+                        java.util.Arrays.equals(baselineDart, applied.dart()));
+                assertArrayEquals("The live source differs from the orchestrated Dart revision",
+                        applied.dart(), liveDartBytes(editor));
+                assertArrayEquals("The semantic mutation wrote Dart before Pair Save",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("The semantic mutation wrote .fd before Pair Save",
+                        baselineFd, pair.fd().asBytes());
+
+                SaveCookie stableSave = dataObject.getLookup().lookup(SaveCookie.class);
+                assertNotNull("The staged semantic pair published no SaveCookie", stableSave);
+                assertSame("Repeated lookup replaced the staged pair SaveCookie",
+                        stableSave, dataObject.getLookup().lookup(SaveCookie.class));
+
+                stableSave.save();
+
+                awaitPairSaveStatus(mutations, "CLEAN");
+                Object savedSnapshot = awaitReadyMutationSnapshot(
+                        mutations, null, elevation);
+                Object savedToken = snapshotToken(savedSnapshot);
+                RevisionBytes saved = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Pair Save changed the exact model revision",
+                        applied.fd(), saved.fd());
+                assertArrayEquals("Pair Save changed the exact source revision",
+                        applied.dart(), saved.dart());
+                assertFalse("Pair Save left the paired DataObject dirty",
+                        dataObject.isModified());
+                assertFalse("Pair Save left the paired editor dirty",
+                        editor.isModified());
+                assertNull("Pair Save left a SaveCookie at the durable savepoint",
+                        dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Pair Save persisted different Dart bytes",
+                        applied.dart(), pair.dart().asBytes());
+                assertArrayEquals("Pair Save persisted different .fd bytes",
+                        applied.fd(), pair.fd().asBytes());
+                assertArrayEquals("Pair Save changed the exact live source",
+                        applied.dart(), liveDartBytes(editor));
+
+                UndoRedo sharedUndo = multiView.getUndoRedo();
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The shared history cannot undo the saved semantic mutation",
+                            sharedUndo.canUndo());
+                    sharedUndo.undo();
+                });
+
+                Object undoneSnapshot = awaitReadyMutationSnapshot(
+                        mutations, savedToken, null);
+                Object undoneToken = snapshotToken(undoneSnapshot);
+                awaitPairSaveStatus(mutations, "STAGED_PAIR");
+                RevisionBytes undone = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Saved semantic Undo did not restore exact model bytes",
+                        baselineFd, undone.fd());
+                assertArrayEquals("Saved semantic Undo did not restore exact source bytes",
+                        baselineDart, undone.dart());
+                assertArrayEquals("Saved semantic Undo did not restore exact live source",
+                        baselineDart, liveDartBytes(editor));
+                assertTrue("Saved semantic Undo did not dirty the paired DataObject",
+                        dataObject.isModified());
+                assertTrue("Saved semantic Undo did not dirty the paired editor",
+                        editor.isModified());
+                assertSame("Saved semantic Undo published a different pair SaveCookie",
+                        stableSave, dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Saved semantic Undo unexpectedly changed durable Dart",
+                        applied.dart(), pair.dart().asBytes());
+                assertArrayEquals("Saved semantic Undo unexpectedly changed durable .fd",
+                        applied.fd(), pair.fd().asBytes());
+
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The shared history cannot redo the saved semantic mutation",
+                            sharedUndo.canRedo());
+                    sharedUndo.redo();
+                });
+
+                Object redoneSnapshot = awaitReadyMutationSnapshot(
+                        mutations, undoneToken, elevation);
+                Object redoneToken = snapshotToken(redoneSnapshot);
+                awaitPairSaveStatus(mutations, "CLEAN");
+                RevisionBytes redone = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Saved semantic Redo changed exact model bytes",
+                        applied.fd(), redone.fd());
+                assertArrayEquals("Saved semantic Redo changed exact source bytes",
+                        applied.dart(), redone.dart());
+                assertArrayEquals("Saved semantic Redo changed exact live source",
+                        applied.dart(), liveDartBytes(editor));
+                assertFalse("Saved semantic Redo left the paired DataObject dirty",
+                        dataObject.isModified());
+                assertFalse("Saved semantic Redo left the paired editor dirty",
+                        editor.isModified());
+                assertNull("Saved semantic Redo left a SaveCookie at the savepoint",
+                        dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Saved semantic Redo changed durable Dart",
+                        applied.dart(), pair.dart().asBytes());
+                assertArrayEquals("Saved semantic Redo changed durable .fd",
+                        applied.fd(), pair.fd().asBytes());
+
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The shared history cannot undo before the final Pair Save",
+                            sharedUndo.canUndo());
+                    sharedUndo.undo();
+                });
+
+                awaitReadyMutationSnapshot(mutations, redoneToken, null);
+                awaitPairSaveStatus(mutations, "STAGED_PAIR");
+                RevisionBytes finalUndo = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Final semantic Undo changed exact model bytes",
+                        baselineFd, finalUndo.fd());
+                assertArrayEquals("Final semantic Undo changed exact source bytes",
+                        baselineDart, finalUndo.dart());
+                assertArrayEquals("Final semantic Undo changed exact live source",
+                        baselineDart, liveDartBytes(editor));
+                assertTrue("Final semantic Undo did not dirty the paired DataObject",
+                        dataObject.isModified());
+                assertTrue("Final semantic Undo did not dirty the paired editor",
+                        editor.isModified());
+                assertSame("Final semantic Undo replaced the stable pair SaveCookie",
+                        stableSave, dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Final semantic Undo changed durable Dart before Save",
+                        applied.dart(), pair.dart().asBytes());
+                assertArrayEquals("Final semantic Undo changed durable .fd before Save",
+                        applied.fd(), pair.fd().asBytes());
+
+                stableSave.save();
+
+                awaitPairSaveStatus(mutations, "CLEAN");
+                Object finalSavedSnapshot = awaitReadyMutationSnapshot(
+                        mutations, null, null);
+                Object finalSavedToken = snapshotToken(finalSavedSnapshot);
+                assertFalse("Final Pair Save left the paired DataObject dirty",
+                        dataObject.isModified());
+                assertFalse("Final Pair Save left the paired editor dirty",
+                        editor.isModified());
+                assertNull("Final Pair Save left a SaveCookie",
+                        dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Final Pair Save persisted different Dart bytes",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("Final Pair Save persisted different .fd bytes",
+                        baselineFd, pair.fd().asBytes());
+                assertArrayEquals("Final Pair Save changed exact live source",
+                        baselineDart, liveDartBytes(editor));
+
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The final Pair Save discarded the retained Redo branch",
+                            sharedUndo.canRedo());
+                    sharedUndo.redo();
+                });
+
+                Object finalSaveRedoneSnapshot = awaitReadyMutationSnapshot(
+                        mutations, finalSavedToken, elevation);
+                Object finalSaveRedoneToken = snapshotToken(
+                        finalSaveRedoneSnapshot);
+                awaitPairSaveStatus(mutations, "STAGED_PAIR");
+                RevisionBytes finalSaveRedone = currentDesignerRevisionBytes(
+                        mutations);
+                assertArrayEquals("Post-Save Redo changed exact model bytes",
+                        applied.fd(), finalSaveRedone.fd());
+                assertArrayEquals("Post-Save Redo changed exact source bytes",
+                        applied.dart(), finalSaveRedone.dart());
+                assertArrayEquals("Post-Save Redo changed exact live source",
+                        applied.dart(), liveDartBytes(editor));
+                assertTrue("Post-Save Redo did not dirty the paired DataObject",
+                        dataObject.isModified());
+                assertTrue("Post-Save Redo did not dirty the paired editor",
+                        editor.isModified());
+                assertSame("Post-Save Redo replaced the stable pair SaveCookie",
+                        stableSave, dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Post-Save Redo unexpectedly changed durable Dart",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("Post-Save Redo unexpectedly changed durable .fd",
+                        baselineFd, pair.fd().asBytes());
+
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The retained post-Save Redo has no matching Undo",
+                            sharedUndo.canUndo());
+                    sharedUndo.undo();
+                });
+
+                awaitReadyMutationSnapshot(mutations, finalSaveRedoneToken, null);
+                awaitPairSaveStatus(mutations, "CLEAN");
+                RevisionBytes finalSaveReundone = currentDesignerRevisionBytes(
+                        mutations);
+                assertArrayEquals("Post-Save Undo changed exact model bytes",
+                        baselineFd, finalSaveReundone.fd());
+                assertArrayEquals("Post-Save Undo changed exact source bytes",
+                        baselineDart, finalSaveReundone.dart());
+                assertArrayEquals("Post-Save Undo changed exact live source",
+                        baselineDart, liveDartBytes(editor));
+                assertFalse("Post-Save Undo left the paired DataObject dirty",
+                        dataObject.isModified());
+                assertFalse("Post-Save Undo left the paired editor dirty",
+                        editor.isModified());
+                assertNull("Post-Save Undo left a SaveCookie at the final savepoint",
+                        dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Post-Save Undo changed durable Dart",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("Post-Save Undo changed durable .fd",
+                        baselineFd, pair.fd().asBytes());
+            } finally {
+                if (dataObject.isModified()) {
+                    SaveCookie recoverySave = dataObject.getLookup().lookup(
+                            SaveCookie.class);
+                    if (recoverySave != null) {
+                        recoverySave.save();
+                    }
+                }
+                CloneableTopComponent multiView = opened.get();
+                if (multiView != null) {
+                    SwingUtilities.invokeAndWait(() ->
+                            assertTrue("The semantic Designer MultiView did not close",
+                                    multiView.close()));
+                }
+                assertTrue("The semantic gate editor did not close", editor.close());
+            }
+        }
+
+        /**
+         * Proves the writable Scaffold projection through the assembled NetBeans
+         * module, the real selected Properties Node, paired persistence, and the
+         * shared command history. Unit-only catalog or generator coverage cannot
+         * satisfy this gate.
+         */
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private void assertPackagedScaffoldPropertyLifecycle(
+                DataObject dataObject,
+                Pair pair) throws Exception {
+            byte[] baselineDart = pair.dart().asBytes();
+            byte[] baselineFd = pair.fd().asBytes();
+            CloneableEditorSupport editor = dataObject.getLookup()
+                    .lookup(CloneableEditorSupport.class);
+            assertNotNull("The Scaffold gate has no paired editor support", editor);
+            editor.openDocument();
+            assertArrayEquals("The Scaffold fixture did not open exact Dart disk bytes",
+                    baselineDart, liveDartBytes(editor));
+
+            AtomicReference<CloneableTopComponent> opened = new AtomicReference<>();
+            try {
+                SwingUtilities.invokeAndWait(() -> {
+                    CloneableTopComponent multiView = MultiViews.createCloneableMultiView(
+                            DESIGNER_MIME, dataObject);
+                    opened.set(multiView);
+                    multiView.open();
+                    requestVisible(multiView, "Design", "flutter.designer.design");
+                    multiView.requestActive();
+                    assertNotSame("The Scaffold gate received no shared Undo/Redo owner",
+                            UndoRedo.NONE, multiView.getUndoRedo());
+                });
+                assertCurrentDesignerModelLoaded(dataObject, pair);
+
+                Object mutations = packagedMutationController(dataObject);
+                Object baselineSnapshot = awaitReadyBooleanPropertySnapshot(
+                        mutations, null, "primary", null);
+                Object baselineToken = snapshotToken(baselineSnapshot);
+                CloneableTopComponent multiView = opened.get();
+                Node.Property<?> primaryProperty = awaitSelectedProperty(
+                        multiView, "Scaffold", "primary");
+                assertTrue("The real selected Scaffold.primary is not writable",
+                        primaryProperty.canWrite());
+
+                ClassLoader loader = flutterModule().getClassLoader();
+                Class<?> propertyValueType = Class.forName(
+                        "dev.flutter.netbeans.designer.model.PropertyValue",
+                        true,
+                        loader);
+                Class<?> booleanValueType = Class.forName(
+                        "dev.flutter.netbeans.designer.model.PropertyValue$BooleanValue",
+                        true,
+                        loader);
+                Object explicitFalse = booleanValueType
+                        .getConstructor(boolean.class)
+                        .newInstance(false);
+                Class<?> cellValueType = Class.forName(
+                        "dev.flutter.netbeans.plugin.designer.properties."
+                        + "FlutterPropertyCellValue",
+                        true,
+                        loader);
+                Object explicitCell = cellValueType
+                        .getMethod("explicit", propertyValueType)
+                        .invoke(null, explicitFalse);
+                Object unsetCell = cellValueType.getMethod("unset").invoke(null);
+
+                SwingUtilities.invokeAndWait(() -> {
+                    try {
+                        ((Node.Property) primaryProperty).setValue(explicitCell);
+                    } catch (ReflectiveOperationException failure) {
+                        throw new AssertionError(
+                                "The real packaged Scaffold.primary rejected false",
+                                failure);
+                    }
+                });
+
+                Object setSnapshot = awaitReadyBooleanPropertySnapshot(
+                        mutations, baselineToken, "primary", false);
+                RevisionBytes setRevision = currentDesignerRevisionBytes(mutations);
+                assertProductionOrchestratorBound(mutations);
+                assertEquals("The packaged Scaffold Set did not stage a paired revision",
+                        "STAGED_PAIR", pairSaveStatus(mutations));
+                assertTrue("The packaged Scaffold Set did not dirty the DataObject",
+                        dataObject.isModified());
+                assertTrue("The packaged Scaffold Set did not dirty the Dart editor",
+                        editor.isModified());
+                assertTrue("The packaged Scaffold Set did not generate primary: false",
+                        new String(setRevision.dart(), StandardCharsets.UTF_8)
+                                .contains("primary: false"));
+                assertArrayEquals("The packaged Scaffold Set wrote Dart before Pair Save",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("The packaged Scaffold Set wrote .fd before Pair Save",
+                        baselineFd, pair.fd().asBytes());
+
+                SaveCookie stableSave = dataObject.getLookup().lookup(SaveCookie.class);
+                assertNotNull("The packaged Scaffold Set published no SaveCookie", stableSave);
+                stableSave.save();
+                awaitPairSaveStatus(mutations, "CLEAN");
+                Object savedSetSnapshot = awaitReadyBooleanPropertySnapshot(
+                        mutations, null, "primary", false);
+                Object savedSetToken = snapshotToken(savedSetSnapshot);
+                assertFalse("Pair Save left the packaged Scaffold dirty",
+                        dataObject.isModified());
+                assertArrayEquals("Pair Save persisted different Scaffold Dart bytes",
+                        setRevision.dart(), pair.dart().asBytes());
+                assertArrayEquals("Pair Save persisted different Scaffold .fd bytes",
+                        setRevision.fd(), pair.fd().asBytes());
+
+                UndoRedo sharedUndo = multiView.getUndoRedo();
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The packaged Scaffold Set cannot be undone",
+                            sharedUndo.canUndo());
+                    sharedUndo.undo();
+                });
+                Object undoneSnapshot = awaitReadyBooleanPropertySnapshot(
+                        mutations, savedSetToken, "primary", null);
+                Object undoneToken = snapshotToken(undoneSnapshot);
+                awaitPairSaveStatus(mutations, "STAGED_PAIR");
+                RevisionBytes undone = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Packaged Scaffold Undo did not restore exact model bytes",
+                        baselineFd, undone.fd());
+                assertArrayEquals("Packaged Scaffold Undo did not restore exact source bytes",
+                        baselineDart, undone.dart());
+
+                SwingUtilities.invokeAndWait(() -> {
+                    assertTrue("The packaged Scaffold Set cannot be redone",
+                            sharedUndo.canRedo());
+                    sharedUndo.redo();
+                });
+                Object redoneSnapshot = awaitReadyBooleanPropertySnapshot(
+                        mutations, undoneToken, "primary", false);
+                Object redoneToken = snapshotToken(redoneSnapshot);
+                awaitPairSaveStatus(mutations, "CLEAN");
+                RevisionBytes redone = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Packaged Scaffold Redo changed exact model bytes",
+                        setRevision.fd(), redone.fd());
+                assertArrayEquals("Packaged Scaffold Redo changed exact source bytes",
+                        setRevision.dart(), redone.dart());
+
+                Node.Property<?> resetProperty = awaitSelectedProperty(
+                        multiView, "Scaffold", "primary");
+                SwingUtilities.invokeAndWait(() -> {
+                    try {
+                        ((Node.Property) resetProperty).setValue(unsetCell);
+                    } catch (ReflectiveOperationException failure) {
+                        throw new AssertionError(
+                                "The real packaged Scaffold.primary rejected Reset",
+                                failure);
+                    }
+                });
+                awaitReadyBooleanPropertySnapshot(
+                        mutations, redoneToken, "primary", null);
+                awaitPairSaveStatus(mutations, "STAGED_PAIR");
+                RevisionBytes reset = currentDesignerRevisionBytes(mutations);
+                assertArrayEquals("Packaged Scaffold Reset did not restore exact model bytes",
+                        baselineFd, reset.fd());
+                assertArrayEquals("Packaged Scaffold Reset did not restore exact source bytes",
+                        baselineDart, reset.dart());
+                assertArrayEquals("Packaged Scaffold Reset changed durable Dart before Save",
+                        setRevision.dart(), pair.dart().asBytes());
+                assertArrayEquals("Packaged Scaffold Reset changed durable .fd before Save",
+                        setRevision.fd(), pair.fd().asBytes());
+
+                SaveCookie resetSave = dataObject.getLookup().lookup(SaveCookie.class);
+                assertSame("Packaged Scaffold Reset replaced the stable SaveCookie",
+                        stableSave, resetSave);
+                resetSave.save();
+                awaitPairSaveStatus(mutations, "CLEAN");
+                awaitReadyBooleanPropertySnapshot(mutations, null, "primary", null);
+                assertFalse("Final Scaffold Reset Save left the DataObject dirty",
+                        dataObject.isModified());
+                assertFalse("Final Scaffold Reset Save left the Dart editor dirty",
+                        editor.isModified());
+                assertNull("Final Scaffold Reset Save left a SaveCookie",
+                        dataObject.getLookup().lookup(SaveCookie.class));
+                assertArrayEquals("Final Scaffold Reset Save persisted different Dart bytes",
+                        baselineDart, pair.dart().asBytes());
+                assertArrayEquals("Final Scaffold Reset Save persisted different .fd bytes",
+                        baselineFd, pair.fd().asBytes());
+            } finally {
+                if (dataObject.isModified()) {
+                    SaveCookie recoverySave = dataObject.getLookup().lookup(
+                            SaveCookie.class);
+                    if (recoverySave != null) {
+                        recoverySave.save();
+                    }
+                }
+                CloneableTopComponent multiView = opened.get();
+                if (multiView != null) {
+                    SwingUtilities.invokeAndWait(() ->
+                            assertTrue("The Scaffold Designer MultiView did not close",
+                                    multiView.close()));
+                }
+                assertTrue("The Scaffold gate editor did not close", editor.close());
+            }
+        }
+
+        private Object packagedMutationController(DataObject dataObject)
+                throws Exception {
+            java.lang.reflect.Method method = dataObject.getClass()
+                    .getDeclaredMethod("mutationController");
+            method.setAccessible(true);
+            Object controller = method.invoke(dataObject);
+            assertNotNull("The packaged DataObject returned no mutation controller",
+                    controller);
+            assertEquals("The packaged DataObject returned the wrong mutation boundary",
+                    "FlutterDesignerMutationController",
+                    controller.getClass().getSimpleName());
+            return controller;
+        }
+
+        private Node.Property<?> awaitSelectedProperty(
+                CloneableTopComponent multiView,
+                String widgetDisplayName,
+                String propertyName) throws Exception {
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(20);
+            AtomicReference<Node.Property<?>> found = new AtomicReference<>();
+            AtomicReference<String> last = new AtomicReference<>("no selected Node");
+            do {
+                SwingUtilities.invokeAndWait(() -> {
+                    Collection<? extends Node> nodes =
+                            multiView.getLookup().lookupAll(Node.class);
+                    last.set(nodes.stream()
+                            .map(node -> node.getDisplayName() + " "
+                            + java.util.Arrays.stream(node.getPropertySets())
+                                    .flatMap(set -> java.util.Arrays.stream(
+                                            set.getProperties()))
+                                    .map(Node.Property::getName)
+                                    .toList())
+                            .collect(Collectors.joining(", ")));
+                    nodes.stream()
+                            .filter(node -> widgetDisplayName.equals(
+                                    node.getDisplayName()))
+                            .flatMap(node -> java.util.Arrays.stream(
+                                    node.getPropertySets()))
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> propertyName.equals(
+                                    property.getName()))
+                            .filter(Node.Property::canWrite)
+                            .findFirst()
+                            .ifPresent(found::set);
+                });
+                if (found.get() != null) {
+                    return found.get();
+                }
+                Thread.sleep(25);
+            } while (System.nanoTime() < deadline);
+            throw new AssertionError("Timed out waiting for writable "
+                    + widgetDisplayName + "." + propertyName
+                    + " from the real Design lookup; last selection: " + last.get());
+        }
+
+        private Object awaitReadyMutationSnapshot(
+                Object controller,
+                Object previousToken,
+                java.math.BigDecimal expectedElevation) throws Exception {
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+            Object last = null;
+            do {
+                Object snapshot = invokeNoArgs(controller, "snapshot");
+                last = snapshot;
+                String status = invokeNoArgs(snapshot, "status").toString();
+                if ("READY".equals(status)
+                        && snapshotElevationMatches(snapshot, expectedElevation)) {
+                    Object token = snapshotToken(snapshot);
+                    if (previousToken == null || token != previousToken) {
+                        return snapshot;
+                    }
+                }
+                if (Set.of("BLOCKED", "CLOSED").contains(status)) {
+                    fail("The production mutation controller became " + status
+                            + ": operation=" + invokeNoArgs(snapshot, "operation")
+                            + ", target=" + invokeNoArgs(snapshot, "target")
+                            + ", reason=" + invokeNoArgs(snapshot, "message"));
+                }
+                Thread.sleep(25);
+            } while (System.nanoTime() < deadline);
+            fail("Timed out waiting for the exact READY Designer mutation revision; last="
+                    + last);
+            return null;
+        }
+
+        private boolean snapshotElevationMatches(
+                Object snapshot,
+                java.math.BigDecimal expected) throws Exception {
+            java.util.Optional<?> document = (java.util.Optional<?>) invokeNoArgs(
+                    snapshot, "document");
+            if (document.isEmpty()) {
+                return false;
+            }
+            Object root = invokeNoArgs(document.orElseThrow(), "root");
+            java.util.Map<?, ?> properties = (java.util.Map<?, ?>) invokeNoArgs(
+                    root, "properties");
+            Object value = properties.entrySet().stream()
+                    .filter(entry -> "styleElevation".equals(
+                            entry.getKey().toString()))
+                    .map(java.util.Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(null);
+            if (expected == null) {
+                return value == null;
+            }
+            if (value == null || !"DoubleValue".equals(
+                    value.getClass().getSimpleName())) {
+                return false;
+            }
+            return expected.equals(invokeNoArgs(value, "value"));
+        }
+
+        private Object awaitReadyBooleanPropertySnapshot(
+                Object controller,
+                Object previousToken,
+                String propertyName,
+                Boolean expected) throws Exception {
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
+            Object last = null;
+            do {
+                Object snapshot = invokeNoArgs(controller, "snapshot");
+                last = snapshot;
+                String status = invokeNoArgs(snapshot, "status").toString();
+                if ("READY".equals(status)
+                        && snapshotBooleanPropertyMatches(
+                                snapshot, propertyName, expected)) {
+                    Object token = snapshotToken(snapshot);
+                    if (previousToken == null || token != previousToken) {
+                        return snapshot;
+                    }
+                }
+                if (Set.of("BLOCKED", "CLOSED").contains(status)) {
+                    fail("The Scaffold mutation controller became " + status
+                            + ": operation=" + invokeNoArgs(snapshot, "operation")
+                            + ", target=" + invokeNoArgs(snapshot, "target")
+                            + ", reason=" + invokeNoArgs(snapshot, "message"));
+                }
+                Thread.sleep(25);
+            } while (System.nanoTime() < deadline);
+            fail("Timed out waiting for READY Scaffold." + propertyName
+                    + "=" + expected + "; last=" + last);
+            return null;
+        }
+
+        private boolean snapshotBooleanPropertyMatches(
+                Object snapshot,
+                String propertyName,
+                Boolean expected) throws Exception {
+            java.util.Optional<?> document = (java.util.Optional<?>) invokeNoArgs(
+                    snapshot, "document");
+            if (document.isEmpty()) {
+                return false;
+            }
+            Object root = invokeNoArgs(document.orElseThrow(), "root");
+            java.util.Map<?, ?> properties = (java.util.Map<?, ?>) invokeNoArgs(
+                    root, "properties");
+            Object value = properties.entrySet().stream()
+                    .filter(entry -> propertyName.equals(entry.getKey().toString()))
+                    .map(java.util.Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(null);
+            if (expected == null) {
+                return value == null;
+            }
+            return value != null
+                    && "BooleanValue".equals(value.getClass().getSimpleName())
+                    && expected.equals(invokeNoArgs(value, "value"));
+        }
+
+        private Object snapshotToken(Object snapshot) throws Exception {
+            java.util.Optional<?> token = (java.util.Optional<?>) invokeNoArgs(
+                    snapshot, "token");
+            return token.orElseThrow(() -> new AssertionError(
+                    "A READY mutation snapshot has no revision token"));
+        }
+
+        private RevisionBytes currentDesignerRevisionBytes(Object controller)
+                throws Exception {
+            Object revision = readField(controller, "boundRevision");
+            assertNotNull("The production controller has no bound command revision",
+                    revision);
+            return new RevisionBytes(
+                    (byte[]) invokeNoArgs(revision, "fdBytes"),
+                    (byte[]) invokeNoArgs(revision, "dartCandidateBytes"));
+        }
+
+        private void assertProductionOrchestratorBound(Object controller)
+                throws Exception {
+            Object owner = readField(controller, "sessionOwner");
+            assertNotNull("The semantic mutation did not bind a command-session owner",
+                    owner);
+            assertEquals("The semantic mutation bypassed the production orchestrator",
+                    "DesignerCommandSessionOrchestrator",
+                    owner.getClass().getSimpleName());
+        }
+
+        private String pairSaveStatus(Object controller) throws Exception {
+            Object coordinator = readField(controller, "pairCoordinator");
+            Object state = invokeNoArgs(coordinator, "state");
+            return invokeNoArgs(state, "status").toString();
+        }
+
+        private void awaitPairSaveStatus(Object controller, String expected)
+                throws Exception {
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(20);
+            String actual;
+            do {
+                actual = pairSaveStatus(controller);
+                if (expected.equals(actual)) {
+                    return;
+                }
+                Thread.sleep(25);
+            } while (System.nanoTime() < deadline);
+            fail("Timed out waiting for pair-save authority " + expected
+                    + "; last=" + actual);
+        }
+
+        private Object invokeNoArgs(Object target, String methodName)
+                throws Exception {
+            Class<?> type = target.getClass();
+            while (type != null) {
+                try {
+                    java.lang.reflect.Method method = type.getDeclaredMethod(
+                            methodName);
+                    method.setAccessible(true);
+                    return method.invoke(target);
+                } catch (NoSuchMethodException missing) {
+                    type = type.getSuperclass();
+                }
+            }
+            throw new NoSuchMethodException(
+                    target.getClass().getName() + "." + methodName + "()");
+        }
+
+        private Object readField(Object target, String fieldName) throws Exception {
+            Class<?> type = target.getClass();
+            while (type != null) {
+                try {
+                    java.lang.reflect.Field field = type.getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field.get(target);
+                } catch (NoSuchFieldException missing) {
+                    type = type.getSuperclass();
+                }
+            }
+            throw new NoSuchFieldException(
+                    target.getClass().getName() + "." + fieldName);
+        }
+
+        private byte[] liveDartBytes(CloneableEditorSupport editor)
+                throws Exception {
+            java.lang.reflect.Method snapshotMethod = editor.getClass()
+                    .getDeclaredMethod("liveSnapshot");
+            snapshotMethod.setAccessible(true);
+            Object snapshot = snapshotMethod.invoke(editor);
+            return (byte[]) invokeNoArgs(snapshot, "markerBearingUtf8");
+        }
+
         private void assertSourceSavepointLifecycle(
                 DataObject dataObject,
                 Pair pair,
@@ -1354,194 +2128,6 @@ final class FlutterDesignerDataObjectIT {
                         pairedEditor,
                         multiView.getLookup().lookup(CloneableEditorSupport.class));
             });
-            SwingUtilities.invokeAndWait(() -> {
-                try {
-                    assertPackagedIconPropertiesContract(
-                            loader, widgetNodeType, mutationHandlerType);
-                } catch (ReflectiveOperationException exception) {
-                    throw new AssertionError(
-                            "The packaged Icon Properties contract could not be inspected",
-                            exception);
-                }
-            });
-        }
-
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        private void assertPackagedIconPropertiesContract(
-                ClassLoader loader,
-                Class<?> widgetNodeType,
-                Class<?> mutationHandlerType) throws ReflectiveOperationException {
-            Class<?> catalogType = Class.forName(
-                    "dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog",
-                    true,
-                    loader);
-            Class<?> widgetTypeIdType = Class.forName(
-                    "dev.flutter.netbeans.designer.model.WidgetTypeId",
-                    true,
-                    loader);
-            Object widgetTypeId = widgetTypeIdType.getConstructor(String.class)
-                    .newInstance("flutter.widgets.Icon");
-            Object catalog = catalogType.getMethod("getDefault").invoke(null);
-            java.util.Optional<?> definitionResult = (java.util.Optional<?>) catalog.getClass()
-                    .getMethod("find", widgetTypeIdType)
-                    .invoke(catalog, widgetTypeId);
-            Object definition = definitionResult.orElseThrow(() ->
-                    new AssertionError("The packaged catalog has no Icon definition"));
-
-            Class<?> definitionType = Class.forName(
-                    "dev.flutter.netbeans.designer.catalog.WidgetDefinition",
-                    true,
-                    loader);
-            Class<?> stableIdType = Class.forName(
-                    "dev.flutter.netbeans.designer.model.StableId",
-                    true,
-                    loader);
-            Object stableId = stableIdType.getMethod("parse", String.class).invoke(
-                    null, "8fa803b7-e387-4667-93e3-70fdd29c95e8");
-            Class<?> prototypeFactoryType = Class.forName(
-                    "dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory",
-                    true,
-                    loader);
-            Object widget = prototypeFactoryType
-                    .getMethod("create", definitionType, stableIdType)
-                    .invoke(null, definition, stableId);
-            Class<?> widgetModelType = Class.forName(
-                    "dev.flutter.netbeans.designer.model.WidgetNode",
-                    true,
-                    loader);
-
-            List<Object> commands = new ArrayList<>();
-            Object mutationHandler = java.lang.reflect.Proxy.newProxyInstance(
-                    mutationHandlerType.getClassLoader(),
-                    new Class<?>[]{mutationHandlerType},
-                    (proxy, method, arguments) -> {
-                        if ("submit".equals(method.getName())) {
-                            commands.add(arguments[0]);
-                            return null;
-                        }
-                        if ("toString".equals(method.getName())) {
-                            return "runtime Icon mutation recorder";
-                        }
-                        return null;
-                    });
-            Node iconNode = (Node) widgetNodeType.getConstructor(
-                    org.openide.nodes.Children.class,
-                    widgetModelType,
-                    definitionType,
-                    mutationHandlerType).newInstance(
-                            org.openide.nodes.Children.LEAF,
-                            widget,
-                            definition,
-                            mutationHandler);
-
-            assertEquals("The packaged Icon node has the wrong property groups",
-                    List.of(
-                            "identity",
-                            "iconData",
-                            "iconAppearance",
-                            "iconVariableFont",
-                            "iconAccessibility"),
-                    java.util.Arrays.stream(iconNode.getPropertySets())
-                            .map(Node.PropertySet::getName)
-                            .toList());
-            Node.Property<?> iconProperty = java.util.Arrays.stream(
-                            iconNode.getPropertySets())
-                    .flatMap(set -> java.util.Arrays.stream(set.getProperties()))
-                    .filter(property -> "icon".equals(property.getName()))
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError(
-                            "The packaged Icon node has no icon property"));
-            assertTrue("The reviewed Icon.icon property is not writable",
-                    iconProperty.canWrite());
-            java.beans.PropertyEditor editor = iconProperty.getPropertyEditor();
-            editor.setValue(iconProperty.getValue());
-            assertEquals("The packaged Icon default was not the reviewed star glyph",
-                    "Icons.star (U+E5F9)", editor.getAsText());
-            assertTrue("The packaged Icon.icon property has no registry editor",
-                    editor.supportsCustomEditor());
-
-            Class<?> propertyEnvType = Class.forName(
-                    "org.openide.explorer.propertysheet.PropertyEnv",
-                    true,
-                    loader);
-            Object environment = propertyEnvType
-                    .getMethod(
-                            "create",
-                            java.beans.FeatureDescriptor.class,
-                            Object[].class)
-                    .invoke(
-                            null,
-                            new java.beans.FeatureDescriptor(),
-                            new Object[0]);
-            Class<?> exPropertyEditorType = Class.forName(
-                    "org.openide.explorer.propertysheet.ExPropertyEditor",
-                    true,
-                    loader);
-            exPropertyEditorType.getMethod("attachEnv", propertyEnvType)
-                    .invoke(editor, environment);
-            Component custom = editor.getCustomEditor();
-            javax.swing.JTextField search = findComponentByNameOrNull(
-                    custom,
-                    javax.swing.JTextField.class,
-                    "flutter.materialIcon.search");
-            javax.swing.JList<?> results = findComponentByNameOrNull(
-                    custom,
-                    javax.swing.JList.class,
-                    "flutter.materialIcon.results");
-            javax.swing.JLabel status = findComponentByNameOrNull(
-                    custom,
-                    javax.swing.JLabel.class,
-                    "flutter.materialIcon.status");
-            javax.swing.JLabel requirement = findComponentByNameOrNull(
-                    custom,
-                    javax.swing.JLabel.class,
-                    "flutter.materialIcon.requirement");
-            assertNotNull("The packaged Material selector has no search field", search);
-            assertNotNull("The packaged Material selector has no result list", results);
-            assertNotNull("The packaged Material selector has no status", status);
-            assertNotNull("The packaged Material selector has no project requirement",
-                    requirement);
-            assertEquals("The packaged Material selector did not select star",
-                    "star", search.getText());
-            assertEquals("The packaged Material selector has the wrong compact status",
-                    results.getModel().getSize()
-                    + " results · 8,825 total · Flutter 3.44.8",
-                    status.getText());
-            assertEquals("The packaged Material selector hides the pubspec requirement",
-                    "Requires flutter.uses-material-design: true",
-                    requirement.getText());
-            assertNull("The packaged built-in Icon editor exposed arbitrary code points",
-                    findComponentByNameOrNull(
-                            custom,
-                            javax.swing.JTextField.class,
-                            "flutter.iconData.codePoint"));
-
-            Class<?> propertyValueType = Class.forName(
-                    "dev.flutter.netbeans.designer.model.PropertyValue",
-                    true,
-                    loader);
-            Class<?> iconDataValueType = Class.forName(
-                    "dev.flutter.netbeans.designer.model.PropertyValue$IconDataValue",
-                    true,
-                    loader);
-            Object none = iconDataValueType.getMethod("none").invoke(null);
-            Class<?> cellValueType = Class.forName(
-                    "dev.flutter.netbeans.plugin.designer.properties."
-                    + "FlutterPropertyCellValue",
-                    true,
-                    loader);
-            Object cell = cellValueType.getMethod("explicit", propertyValueType)
-                    .invoke(null, none);
-            ((Node.Property) iconProperty).setValue(cell);
-            assertEquals("Changing Icon.icon emitted more than one Designer command",
-                    1, commands.size());
-            Object command = commands.get(0);
-            assertEquals("Changing Icon.icon emitted the wrong command kind",
-                    "SetProperty", command.getClass().getSimpleName());
-            Object propertyName = command.getClass().getMethod("propertyName")
-                    .invoke(command);
-            assertEquals("The Material selector must never invent a semanticLabel",
-                    "icon", propertyName.toString());
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
@@ -1817,6 +2403,127 @@ final class FlutterDesignerDataObjectIT {
             return new Pair(dart, fd);
         }
 
+        private Pair createElevatedButtonPair(Path directory, String baseName)
+                throws Exception {
+            FileObject dart = createFile(directory.resolve("lib/" + baseName + ".dart"), """
+                    // <netbeans-flutter-designer region="imports">
+                    import 'package:flutter/material.dart';
+                    // </netbeans-flutter-designer>
+
+                    class RuntimeElevatedView extends StatelessWidget {
+                      const RuntimeElevatedView({super.key});
+
+                      // <netbeans-flutter-designer region="build">
+                      @override
+                      Widget build(BuildContext context) {
+                        return ElevatedButton(
+                          onPressed: () {},
+                          child: null,
+                        );
+                      }
+                      // </netbeans-flutter-designer>
+                    }
+                    """);
+            FileObject fd = createFile(directory.resolve(
+                    ".fd_templates/" + baseName + ".fd"), """
+                    {
+                      "format": "netbeans-flutter-designer",
+                      "schemaVersion": 4,
+                      "documentId": "5d5c0562-e7ad-4d32-bdbc-998bd05a11e6",
+                      "source": {
+                        "dartFile": "%s.dart",
+                        "className": "RuntimeElevatedView",
+                        "widgetKind": "stateless",
+                        "managedRegions": {
+                          "imports": {
+                            "sha256": "7D7414B55709E54DEA29770C4D6F8D6F48A1DFC02505F62D192A4DE0333556B7"
+                          },
+                          "build": {
+                            "sha256": "F3A4C4F5297759A448C9FACBF39E8242D39312D4C0067E78582E969273B1F9D9"
+                          }
+                        }
+                      },
+                      "root": {
+                        "id": "8fa803b7-e387-4667-93e3-70fdd29c95e8",
+                        "type": "flutter.material.ElevatedButton",
+                        "properties": {},
+                        "slots": {
+                          "child": {
+                            "kind": "single",
+                            "child": null
+                          }
+                        }
+                      }
+                    }
+                    """.formatted(baseName));
+            return new Pair(dart, fd);
+        }
+
+        private Pair createScaffoldPair(Path directory, String baseName)
+                throws Exception {
+            FileObject dart = createFile(directory.resolve("lib/" + baseName + ".dart"), """
+                    // <netbeans-flutter-designer region="imports">
+                    import 'package:flutter/material.dart';
+                    // </netbeans-flutter-designer>
+
+                    class RuntimeScaffoldView extends StatelessWidget {
+                      const RuntimeScaffoldView({super.key});
+
+                      // <netbeans-flutter-designer region="build">
+                      @override
+                      Widget build(BuildContext context) {
+                        return const Scaffold(
+                          appBar: null,
+                          body: null,
+                          floatingActionButton: null,
+                        );
+                      }
+                      // </netbeans-flutter-designer>
+                    }
+                    """);
+            FileObject fd = createFile(directory.resolve(
+                    ".fd_templates/" + baseName + ".fd"), """
+                    {
+                      "format": "netbeans-flutter-designer",
+                      "schemaVersion": 4,
+                      "documentId": "6a277643-991f-47cc-88d3-1ad0044bb4c0",
+                      "source": {
+                        "dartFile": "%s.dart",
+                        "className": "RuntimeScaffoldView",
+                        "widgetKind": "stateless",
+                        "managedRegions": {
+                          "imports": {
+                            "sha256": "7D7414B55709E54DEA29770C4D6F8D6F48A1DFC02505F62D192A4DE0333556B7"
+                          },
+                          "build": {
+                            "sha256": "450C9E48B3C74AE113926D2F7AD07505EF19172A00A740D2F0A89A9FD7389BF3"
+                          }
+                        }
+                      },
+                      "root": {
+                        "id": "7c6dc27b-c908-431e-8b70-bfd94007d958",
+                        "type": "flutter.material.Scaffold",
+                        "properties": {},
+                        "slots": {
+                          "appBar": {
+                            "kind": "single",
+                            "child": null
+                          },
+                          "body": {
+                            "kind": "single",
+                            "child": null
+                          },
+                          "floatingActionButton": {
+                            "kind": "single",
+                            "child": null
+                          }
+                        }
+                      }
+                    }
+                    """.formatted(baseName));
+            return new Pair(dart, fd);
+        }
+
         private FileObject createFile(Path path, String content) throws Exception {
             Files.createDirectories(path.getParent());
             Files.writeString(path, content, StandardCharsets.UTF_8);
@@ -1833,29 +2540,52 @@ final class FlutterDesignerDataObjectIT {
             Files.createDirectories(root.resolve("windows"));
             Files.writeString(root.resolve("pubspec.yaml"), """
                     name: designer_runtime_app
+                    environment:
+                      sdk: '>=3.0.0 <4.0.0'
                     dependencies:
                       flutter:
                         sdk: flutter
                     """, StandardCharsets.UTF_8);
-            Files.writeString(root.resolve(".dart_tool/package_config.json"), """
-                    {
-                      "configVersion": 2,
-                      "packages": [
-                        {
-                          "name": "designer_runtime_app",
-                          "rootUri": "../",
-                          "packageUri": "lib/",
-                          "languageVersion": "3.0"
-                        }
-                      ]
-                    }
-                    """, StandardCharsets.UTF_8);
+            resolveFlutterPackages(root);
             FileUtil.refreshFor(root.toFile());
             FileObject projectDirectory = FileUtil.toFileObject(root.toFile());
             assertNotNull("No FileObject for Flutter project " + root, projectDirectory);
             assertNotNull("Runtime fixture was not recognized as a Flutter project",
                     ProjectManager.getDefault().findProject(projectDirectory));
             return root;
+        }
+
+        private void resolveFlutterPackages(Path projectRoot) throws Exception {
+            ClassLoader loader = flutterModule().getClassLoader();
+            Class<?> serviceType = Class.forName(
+                    "dev.flutter.netbeans.plugin.settings.FlutterToolchainService",
+                    true,
+                    loader);
+            Object status = serviceType.getMethod("resolve").invoke(
+                    serviceType.getConstructor().newInstance());
+            java.util.Optional<?> resolvedSdk = (java.util.Optional<?>) invokeNoArgs(
+                    status, "flutterSdk");
+            Object sdk = resolvedSdk.orElseThrow(() -> new AssertionError(
+                    "The assembled runtime did not resolve Flutter for the semantic gate: "
+                    + status));
+            Class<?> sdkType = Class.forName(
+                    "dev.flutter.netbeans.api.FlutterSdk", true, loader);
+            Class<?> cliType = Class.forName(
+                    "dev.flutter.netbeans.sdk.FlutterCli", true, loader);
+            Object cli = cliType.getConstructor(sdkType).newInstance(sdk);
+            Object result = cliType.getMethod(
+                    "execute",
+                    Path.class,
+                    java.time.Duration.class,
+                    String[].class).invoke(
+                            cli,
+                            projectRoot,
+                            java.time.Duration.ofSeconds(60),
+                            (Object) new String[]{"pub", "get", "--offline"});
+            assertEquals("The assembled Flutter SDK could not resolve the runtime "
+                    + "fixture offline; stdout=" + invokeNoArgs(result, "stdout")
+                    + ", stderr=" + invokeNoArgs(result, "stderr"),
+                    0, invokeNoArgs(result, "exitCode"));
         }
 
         private ModuleInfo flutterModule() {
@@ -1872,6 +2602,48 @@ final class FlutterDesignerDataObjectIT {
                             .collect(Collectors.joining(", ")), module);
             assertTrue("Flutter module must be enabled", module.isEnabled());
             return module;
+        }
+
+        private void assertArrayEquals(
+                String message,
+                byte[] expected,
+                byte[] actual) {
+            if (java.util.Arrays.equals(expected, actual)) {
+                return;
+            }
+            int common = Math.min(expected.length, actual.length);
+            int mismatch = 0;
+            while (mismatch < common && expected[mismatch] == actual[mismatch]) {
+                mismatch++;
+            }
+            String expectedByte = mismatch < expected.length
+                    ? Integer.toHexString(Byte.toUnsignedInt(expected[mismatch]))
+                    : "EOF";
+            String actualByte = mismatch < actual.length
+                    ? Integer.toHexString(Byte.toUnsignedInt(actual[mismatch]))
+                    : "EOF";
+            fail(message + " (expected " + expected.length
+                    + " bytes, actual " + actual.length + " bytes, first mismatch "
+                    + mismatch + ": expected 0x" + expectedByte
+                    + ", actual 0x" + actualByte + ")");
+        }
+
+        private record RevisionBytes(byte[] fd, byte[] dart) {
+
+            private RevisionBytes {
+                fd = fd.clone();
+                dart = dart.clone();
+            }
+
+            @Override
+            public byte[] fd() {
+                return fd.clone();
+            }
+
+            @Override
+            public byte[] dart() {
+                return dart.clone();
+            }
         }
 
         private record Pair(FileObject dart, FileObject fd) {

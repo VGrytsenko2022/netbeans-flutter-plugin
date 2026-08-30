@@ -1273,14 +1273,8 @@ final class DesignerCommandSessionOrchestrator
         if (selected.isEmpty()) {
             return operation;
         }
-        String action = switch (selected.orElseThrow().forward().kind()) {
-            case ADD_WIDGET -> "Add Flutter Widget";
-            case REMOVE_WIDGET -> "Remove Flutter Widget";
-            case MOVE_WIDGET -> "Move Flutter Widget";
-            case WRAP_WIDGET -> "Wrap Flutter Widget";
-            case SET_PROPERTY -> "Set Flutter Property";
-            case RESET_PROPERTY -> "Reset Flutter Property";
-        };
+        String action = DesignerCommandPresentation.title(
+                selected.orElseThrow().forward().kind());
         return operation + ' ' + action;
     }
 

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.api.FlutterSdk;
+import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasRunnerContract;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -48,9 +49,9 @@ class CanvasRunnerBuildServiceTest {
         Path expected = userTemp.resolve("nb-fcr").toAbsolutePath().normalize();
 
         Path windows = CanvasRunnerBuildService.resolveDefaultCacheRoot(
-                "Windows 11", netBeansCache, userTemp);
+                windowsContract(), netBeansCache, userTemp);
         Path windowsCaseInsensitive = CanvasRunnerBuildService.resolveDefaultCacheRoot(
-                "wInDoWs Server 2025", netBeansCache, userTemp);
+                windowsContract(), netBeansCache, userTemp);
 
         assertEquals(expected, windows);
         assertEquals(expected, windowsCaseInsensitive);
@@ -60,15 +61,16 @@ class CanvasRunnerBuildServiceTest {
     }
 
     @Test
-    void defaultCacheRootKeepsNetBeansPlacesCacheOutsideWindows() {
+    void providerCachePolicyCanKeepTheNetBeansPlacesCache() {
         Path netBeansCache = temporary.resolve("netbeans-cache");
         Path userTemp = temporary.resolve("user-temp");
         Path expected = netBeansCache.toAbsolutePath().normalize();
 
         assertEquals(expected, CanvasRunnerBuildService.resolveDefaultCacheRoot(
-                "Linux", netBeansCache, userTemp));
-        assertEquals(expected, CanvasRunnerBuildService.resolveDefaultCacheRoot(
-                "Mac OS X", netBeansCache, userTemp));
+                contractWithCacheRoot(
+                        NativeCanvasRunnerContract.CacheRoot.NETBEANS_CACHE),
+                netBeansCache,
+                userTemp));
     }
 
     @Test
@@ -395,9 +397,9 @@ class CanvasRunnerBuildServiceTest {
     void moreThanOneExpectedExecutableIsRejected() throws Exception {
         CanvasRunnerBuildService service = service(bundle(), (_command, workingDirectory) -> {
             Path first = workingDirectory.resolve("build/windows/a/")
-                    .resolve(CanvasRunnerBuildService.EXPECTED_EXECUTABLE);
+                    .resolve(executableName());
             Path second = workingDirectory.resolve("build/windows/b/")
-                    .resolve(CanvasRunnerBuildService.EXPECTED_EXECUTABLE);
+                    .resolve(executableName());
             Files.createDirectories(first.getParent());
             Files.createDirectories(second.getParent());
             Files.writeString(first, "one");
@@ -421,6 +423,7 @@ class CanvasRunnerBuildServiceTest {
                         ? "flutter.bat"
                         : "flutter");
         CanvasRunnerBuildService service = new CanvasRunnerBuildService(
+                windowsContract(),
                 temporary.resolve("real-cache"),
                 CanvasRunnerSourceBundle.packaged(),
                 CanvasRunnerBuildService.CanvasRunnerProcessStarter.system(),
@@ -430,7 +433,7 @@ class CanvasRunnerBuildServiceTest {
         CanvasRunnerBuildResult result = service.build(new FlutterSdk(sdkHome, flutter));
         try (result) {
             assertTrue(Files.isRegularFile(result.executable()));
-            assertEquals(CanvasRunnerBuildService.EXPECTED_EXECUTABLE,
+            assertEquals(executableName(),
                     result.executable().getFileName().toString());
         }
     }
@@ -440,7 +443,8 @@ class CanvasRunnerBuildServiceTest {
             CanvasRunnerBuildService.CanvasRunnerProcessStarter starter,
             Duration timeout) {
         return new CanvasRunnerBuildService(
-                temporary.resolve("cache"), bundle, starter, timeout, Runnable::run);
+                windowsContract(), temporary.resolve("cache"), bundle, starter,
+                timeout, Runnable::run);
     }
 
     private FlutterSdk sdk() throws IOException {
@@ -491,7 +495,7 @@ class CanvasRunnerBuildServiceTest {
     private static Path writeRuntime(Path workingDirectory) throws IOException {
         Path runtime = workingDirectory.resolve("build/windows/x64/runner/Release");
         Map<String, String> files = Map.ofEntries(
-                Map.entry(CanvasRunnerBuildService.EXPECTED_EXECUTABLE, "exe"),
+                Map.entry(executableName(), "exe"),
                 Map.entry("flutter_windows.dll", "engine"),
                 Map.entry("data/icudtl.dat", "icu"),
                 Map.entry("data/app.so", "application"),
@@ -507,7 +511,28 @@ class CanvasRunnerBuildServiceTest {
             Files.writeString(target, entry.getValue());
         }
         Files.writeString(runtime.resolve("netbeans_flutter_canvas_runner.pdb"), "debug-symbols");
-        return runtime.resolve(CanvasRunnerBuildService.EXPECTED_EXECUTABLE);
+        return runtime.resolve(executableName());
+    }
+
+    private static NativeCanvasRunnerContract windowsContract() {
+        return new WindowsNativeCanvasPlatformProvider().runnerContract().orElseThrow();
+    }
+
+    private static NativeCanvasRunnerContract contractWithCacheRoot(
+            NativeCanvasRunnerContract.CacheRoot cacheRoot) {
+        NativeCanvasRunnerContract windows = windowsContract();
+        return new NativeCanvasRunnerContract(
+                windows.platform(),
+                windows.buildTarget(),
+                windows.runtimeLayout(),
+                new NativeCanvasRunnerContract.CachePolicy(
+                        cacheRoot,
+                        windows.cachePolicy().directoryName(),
+                        windows.cachePolicy().identity()));
+    }
+
+    private static String executableName() {
+        return windowsContract().buildTarget().executableName();
     }
 
     private static final class TestProcess extends Process {

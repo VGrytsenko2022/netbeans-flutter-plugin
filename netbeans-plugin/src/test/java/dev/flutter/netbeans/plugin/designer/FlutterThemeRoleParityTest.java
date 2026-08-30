@@ -3,9 +3,11 @@ package dev.flutter.netbeans.plugin.designer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.flutter.netbeans.canvas.runner.CanvasRunnerBundle;
+import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.project.theme.FlutterMaterialColorRole;
 import dev.flutter.netbeans.project.theme.FlutterMaterialTextStyleRole;
+import dev.flutter.netbeans.project.theme.FlutterThemeComponentColorRole;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -48,7 +50,26 @@ class FlutterThemeRoleParityTest {
         assertEquals(projectTokens, quotedValues(constBlock(
                 dart, "canvasTextThemeTokens", "canvasColorSchemeRoles")));
         assertEquals(projectRoles, quotedValues(constBlock(
-                dart, "canvasTextThemeRoles", "final _stableIdPattern")));
+                dart, "canvasTextThemeRoles", "canvasThemeComponentColorRoles")));
+    }
+
+    @Test
+    void componentColorRolesMatchProjectDesignerAndDartAllowlists()
+            throws Exception {
+        Set<String> projectRoles = Arrays.stream(
+                        FlutterThemeComponentColorRole.values())
+                .map(FlutterThemeComponentColorRole::wireName)
+                .collect(Collectors.toUnmodifiableSet());
+        Set<String> canvasRoles = Arrays.stream(
+                        CanvasThemeComponentColorRole.values())
+                .map(CanvasThemeComponentColorRole::wireName)
+                .collect(Collectors.toUnmodifiableSet());
+
+        assertEquals(36, projectRoles.size());
+        assertEquals(projectRoles, canvasRoles);
+        assertEquals(projectRoles, quotedValues(constBlock(
+                runnerModelSource(), "canvasThemeComponentColorRoles",
+                "final _stableIdPattern")));
     }
 
     private static String runnerModelSource() throws IOException {

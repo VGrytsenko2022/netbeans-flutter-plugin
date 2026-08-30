@@ -40,7 +40,15 @@ void main() {
     input.add(
       encodeNbfcFrame(
         nbfcControlJson,
-        utf8.encode(jsonEncode(_hello(viewport: true))),
+        utf8.encode(
+          jsonEncode(
+            _hello(
+              viewport: true,
+              widgetMovePreview: true,
+              surfacePresentation: true,
+            ),
+          ),
+        ),
       ),
     );
     input.add(
@@ -76,7 +84,9 @@ void main() {
         'palette.drop.catalogInsert.v1',
         'palette.drop.sourceAware.v1',
         'widget.deleteSelection.v1',
+        'widget.movePreview.v1',
         'viewport.presentation.v1',
+        'surface.presentation.v1',
       ],
     );
     expect(closedJson['type'], 'runner.closed');
@@ -406,7 +416,7 @@ void main() {
 
     expect(runtime.closed, isTrue);
     expect(diagnostics.single, contains('zoomMicros'));
-    final messages = await _decodeControlMessages(output);
+    final messages = _decodeControlMessages(output);
     expect(messages.last['type'], 'runner.failure');
   });
 
@@ -444,7 +454,7 @@ void main() {
 
     expect(runtime.closed, isTrue);
     expect(diagnostics.single, contains(r'$/body'));
-    final messages = await _decodeControlMessages(output);
+    final messages = _decodeControlMessages(output);
     expect(messages.last['type'], 'runner.failure');
   });
 
@@ -463,6 +473,155 @@ void main() {
       9,
       reason: 'the next completed frame advances by exactly one again',
     );
+  });
+
+  testWidgets(
+    'publishes exact post-frame surface metrics and coalesces rapid resize',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.25;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(surfacePresentation: true))),
+        ),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 &&
+            _decodeControlMessages(
+              output,
+            ).where((message) => message['type'] == 'runner.presented').isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      var presented = _decodeControlMessages(
+        output,
+      ).where((message) => message['type'] == 'runner.presented').toList();
+      expect(presented, hasLength(1));
+      expect(presented.single['body'], {
+        'presentationSequence': 4,
+        'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',
+        'logicalRevisionId': 2,
+        'frameSequence': 0,
+        'layoutSequence': 0,
+        'physicalWidth': 800,
+        'physicalHeight': 600,
+        'devicePixelRatioMicros': 1250000,
+      });
+
+      tester.view.physicalSize = const Size(1000, 700);
+      tester.view.devicePixelRatio = 1.5;
+      runtime.didChangeMetrics();
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 2.0;
+      for (var notification = 0; notification < 50; notification++) {
+        runtime.didChangeMetrics();
+      }
+      expect(
+        runtime.pendingLayoutSequence,
+        1,
+        reason: 'one resize burst must reserve one contiguous replacement',
+      );
+
+      for (
+        var attempt = 0;
+        attempt < 20 &&
+            _decodeControlMessages(output)
+                    .where((message) => message['type'] == 'runner.presented')
+                    .length <
+                2;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      presented = _decodeControlMessages(
+        output,
+      ).where((message) => message['type'] == 'runner.presented').toList();
+      expect(
+        presented.map(
+          (message) =>
+              (message['body'] as Map<String, Object?>)['layoutSequence'],
+        ),
+        [0, 1],
+      );
+      expect(presented.last['body'], containsPair('physicalWidth', 1200));
+      expect(presented.last['body'], containsPair('physicalHeight', 800));
+      expect(
+        presented.last['body'],
+        containsPair('devicePixelRatioMicros', 2000000),
+      );
+
+      await input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets('fails closed on a surface outside negotiated bounds', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(4097, 1);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final diagnostics = <String>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: diagnostics.add,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(jsonEncode(_hello(surfacePresentation: true))),
+      ),
+    );
+    _addRender(input, fixture.modelBytesForViewTest());
+    await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+    for (var attempt = 0; attempt < 20 && diagnostics.isEmpty; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    final closing = input.close();
+    await running;
+    await closing;
+
+    expect(runtime.closed, isTrue);
+    expect(runtime.presentedLayoutSequence, isNull);
+    expect(diagnostics.single, contains('physicalWidth'));
+    final messages = _decodeControlMessages(output);
+    expect(messages.last['type'], 'runner.failure');
+    expect(
+      messages.where((message) => message['type'] == 'runner.presented'),
+      isEmpty,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   test(
@@ -553,9 +712,246 @@ void main() {
     expect(runtime.model!.logicalRevisionId, 2);
   });
 
-  testWidgets(
+  test('publishes exact authenticated Canvas interactions', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: fail,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+    );
+    final modelBytes = fixture.modelBytesForViewTest();
+    _addRender(input, modelBytes);
+    await _waitUntil(() => runtime.model != null);
+    runtime.completePendingLayoutForTesting();
+    expect(runtime.presentedLayoutSequence, 0);
+    expect(runtime.interactionInputSynchronized, isFalse);
+    runtime.interactFromCanvas();
+
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(
+          jsonEncode(
+            _interactionFence(modelBytes, interactionFenceSequence: 7),
+          ),
+        ),
+      ),
+    );
+    await _waitUntil(() => runtime.interactionInputSynchronized);
+    expect(runtime.interactionFenceSequence, 7);
+
+    runtime.interactFromCanvas();
+    runtime.interactFromCanvas();
+
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+    );
+    await input.close();
+    await running;
+
+    final model = runtime.model!;
+    final messages = output
+        .map(
+          (frame) =>
+              jsonDecode(utf8.decode(frame.sublist(44)))
+                  as Map<String, Object?>,
+        )
+        .toList();
+    final interactions = messages
+        .where((message) => message['type'] == 'runner.interaction')
+        .toList();
+    expect(interactions, hasLength(2));
+    final applied = messages.singleWhere(
+      (message) => message['type'] == 'runner.interactionFenceApplied',
+    );
+    expect(applied['body'], {
+      'presentationSequence': model.presentationSequence,
+      'documentId': model.documentId,
+      'logicalRevisionId': model.logicalRevisionId,
+      'frameSequence': 0,
+      'layoutSequence': 0,
+      'interactionFenceSequence': 7,
+    });
+    expect(
+      messages.indexOf(applied),
+      lessThan(messages.indexOf(interactions.first)),
+    );
+    expect(interactions.map((message) => message['sessionId']).toSet(), {
+      _hello()['sessionId'],
+    });
+    expect(interactions.map((message) => message['body']).toList(), [
+      {
+        'presentationSequence': model.presentationSequence,
+        'documentId': model.documentId,
+        'logicalRevisionId': model.logicalRevisionId,
+        'frameSequence': 0,
+        'layoutSequence': 0,
+        'intentSequence': 0,
+        'interactionFenceSequence': 7,
+      },
+      {
+        'presentationSequence': model.presentationSequence,
+        'documentId': model.documentId,
+        'logicalRevisionId': model.logicalRevisionId,
+        'frameSequence': 0,
+        'layoutSequence': 0,
+        'intentSequence': 1,
+        'interactionFenceSequence': 7,
+      },
+    ]);
+  });
+
+  test('keeps input closed until the exact fence ack is flushed', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    Completer<void>? delayedAckFlush;
+    var delayNextAck = true;
+    String? lastOutputType;
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) {
+        output.add(List<int>.from(bytes));
+        final message =
+            jsonDecode(utf8.decode(bytes.sublist(44))) as Map<String, Object?>;
+        lastOutputType = message['type'] as String?;
+      },
+      flush: () {
+        if (delayNextAck &&
+            lastOutputType == 'runner.interactionFenceApplied') {
+          delayNextAck = false;
+          delayedAckFlush = Completer<void>();
+          return delayedAckFlush!.future;
+        }
+        return Future<void>.value();
+      },
+      diagnostic: fail,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+    );
+    final modelBytes = fixture.modelBytesForViewTest();
+    _addRender(input, modelBytes);
+    await _waitUntil(() => runtime.model != null);
+    runtime.completePendingLayoutForTesting();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(
+          jsonEncode(
+            _interactionFence(modelBytes, interactionFenceSequence: 7),
+          ),
+        ),
+      ),
+    );
+    await _waitUntil(() => delayedAckFlush != null);
+
+    final model = runtime.model!;
+    final selected = model.widgetIds.firstWhere((id) => id != model.root.id);
+    runtime.selectFromCanvas(selected);
+    runtime.interactFromCanvas();
+    expect(runtime.interactionInputSynchronized, isFalse);
+    expect(runtime.selectedWidgetId, isNull);
+
+    runtime.didChangeMetrics();
+    expect(runtime.interactionInputSynchronized, isFalse);
+    delayedAckFlush!.complete();
+    await _waitUntil(() => runtime.pendingLayoutSequence == 1);
+    runtime.completePendingLayoutForTesting();
+    input.add(
+      encodeNbfcFrame(
+        nbfcControlJson,
+        utf8.encode(
+          jsonEncode(
+            _interactionFence(
+              modelBytes,
+              interactionFenceSequence: 8,
+              layoutSequence: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitUntil(() => runtime.interactionInputSynchronized);
+    runtime.selectFromCanvas(selected);
+    runtime.interactFromCanvas();
+
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+    );
+    await input.close();
+    await running;
+
+    final messages = _decodeControlMessages(output);
+    final applied = messages
+        .where((message) => message['type'] == 'runner.interactionFenceApplied')
+        .toList();
+    expect(
+      applied.map(
+        (message) =>
+            (message['body'] as Map<String, Object?>)['layoutSequence'],
+      ),
+      [0, 1],
+    );
+    final selections = messages
+        .where((message) => message['type'] == 'runner.selection')
+        .toList();
+    final interactions = messages
+        .where((message) => message['type'] == 'runner.interaction')
+        .toList();
+    expect(selections, hasLength(1));
+    expect(interactions, hasLength(1));
+    expect(
+      (selections.single['body'] as Map<String, Object?>)['layoutSequence'],
+      1,
+    );
+    expect(
+      (interactions.single['body'] as Map<String, Object?>)['layoutSequence'],
+      1,
+    );
+    expect(
+      messages.indexOf(applied.last),
+      lessThan(messages.indexOf(interactions.single)),
+    );
+  });
+
+  test('strictly rejects an interaction fence with missing identity', () async {
+    final input = StreamController<List<int>>();
+    final output = <List<int>>[];
+    final diagnostics = <String>[];
+    final runtime = CanvasRuntimeController(
+      input: input.stream,
+      output: (bytes) => output.add(List<int>.from(bytes)),
+      flush: () async {},
+      diagnostic: diagnostics.add,
+    );
+    final running = runtime.start();
+    input.add(
+      encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+    );
+    final modelBytes = fixture.modelBytesForViewTest();
+    _addRender(input, modelBytes);
+    final fence = _interactionFence(modelBytes, interactionFenceSequence: 7);
+    (fence['body']! as Map<String, Object?>).remove('layoutSequence');
+    input.add(encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(fence))));
+    await input.close();
+    await running;
+
+    expect(runtime.closed, isTrue);
+    expect(diagnostics.single, contains(r'$/body'));
+    final messages = _decodeControlMessages(output);
+    expect(messages.last['type'], 'runner.failure');
+  });
+
+  test(
     'publishes exact delete intent without mutating the selected model',
-    (tester) async {
+    () async {
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
       final runtime = CanvasRuntimeController(
@@ -569,11 +965,10 @@ void main() {
         encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
       );
       _addRender(input, fixture.modelBytesForViewTest());
-      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
-      for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
-        await tester.pump(const Duration(milliseconds: 10));
-      }
-      await tester.pump();
+      await _waitUntil(() => runtime.model != null);
+      runtime.completePendingLayoutForTesting();
+
+      await _synchronizeInteractionFence(runtime, input);
 
       final model = runtime.model!;
       final selected = model.widgetIds.firstWhere((id) => id != model.root.id);
@@ -588,15 +983,13 @@ void main() {
         isFalse,
         reason: 'the immutable document root cannot be deleted',
       );
-
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
       await input.close();
-      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
-        await tester.pump(const Duration(milliseconds: 10));
-      }
       await running;
-      await tester.pumpWidget(const SizedBox.shrink());
 
-      final messages = await _decodeControlMessages(output);
+      final messages = _decodeControlMessages(output);
       final deletions = messages
           .where((message) => message['type'] == 'runner.deleteSelection')
           .toList();
@@ -999,7 +1392,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(1));
@@ -1109,7 +1502,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(1));
@@ -1316,7 +1709,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(3));
@@ -1399,7 +1792,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(1));
@@ -1755,7 +2148,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(1));
@@ -1807,7 +2200,7 @@ void main() {
         isTrue,
       );
       expect(
-        (await _decodeControlMessages(
+        (_decodeControlMessages(
           output,
         )).where((message) => message['type'] == 'runner.paletteDrop'),
         isEmpty,
@@ -1823,7 +2216,7 @@ void main() {
         reason: 'a cancelled prepared intent cannot commit later',
       );
       expect(
-        (await _decodeControlMessages(
+        (_decodeControlMessages(
           output,
         )).where((message) => message['type'] == 'runner.paletteDrop'),
         isEmpty,
@@ -1843,7 +2236,7 @@ void main() {
         isTrue,
       );
       expect(
-        (await _decodeControlMessages(
+        (_decodeControlMessages(
           output,
         )).where((message) => message['type'] == 'runner.paletteDrop'),
         isEmpty,
@@ -1865,7 +2258,7 @@ void main() {
       await running;
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final drops = (await _decodeControlMessages(
+      final drops = (_decodeControlMessages(
         output,
       )).where((message) => message['type'] == 'runner.paletteDrop').toList();
       expect(drops, hasLength(1));
@@ -1999,26 +2392,12 @@ void _addRender(StreamController<List<int>> input, Uint8List model) {
   input.add(encodeNbfcFrame(nbfcModelJson, model));
 }
 
-Future<List<Map<String, Object?>>> _decodeControlMessages(
-  List<List<int>> output,
-) async {
-  final reader = NbfcFrameReader(
-    Stream<List<int>>.fromIterable(
-      output.map((bytes) => List<int>.from(bytes)),
-    ),
-  );
-  final messages = <Map<String, Object?>>[];
-  while (true) {
-    final frame = await reader.read(maxPayloadBytes: 262144);
-    if (frame == null) {
-      return messages;
-    }
-    if (frame.kind == nbfcControlJson) {
-      messages.add(
-        jsonDecode(utf8.decode(frame.payload)) as Map<String, Object?>,
-      );
-    }
-  }
+List<Map<String, Object?>> _decodeControlMessages(List<List<int>> output) {
+  return [
+    for (final frame in output)
+      if (frame.length >= 44 && frame[5] == nbfcControlJson)
+        jsonDecode(utf8.decode(frame.sublist(44))) as Map<String, Object?>,
+  ];
 }
 
 Future<void> _waitUntil(bool Function() predicate) async {
@@ -2032,6 +2411,7 @@ Map<String, Object?> _hello({
   bool deleteSelected = true,
   bool viewport = false,
   bool widgetMovePreview = false,
+  bool surfacePresentation = false,
   bool sourceAwarePaletteDrop = true,
 }) => {
   'format': 'netbeans-flutter-canvas-wire',
@@ -2050,6 +2430,7 @@ Map<String, Object?> _hello({
       if (deleteSelected) 'widget.deleteSelection.v1',
       if (widgetMovePreview) 'widget.movePreview.v1',
       if (viewport) 'viewport.presentation.v1',
+      if (surfacePresentation) 'surface.presentation.v1',
     ],
     'offeredLimits': {
       'maxControlMessageBytes': 262144,
@@ -2070,6 +2451,9 @@ Future<bool> _sourceAwareHover(
   String widgetType = 'flutter.widgets.Text',
   Set<String> traits = const {},
 }) async {
+  if (!runtime.interactionInputSynchronized) {
+    await _synchronizeInteractionFence(runtime, input);
+  }
   if (arguments is Map && arguments['token'] is String) {
     final token = arguments['token']! as String;
     if (RegExp(
@@ -2095,6 +2479,7 @@ Future<void> _bindPaletteSource(
   String widgetType = 'flutter.widgets.Text',
   Set<String> traits = const {},
 }) async {
+  await _synchronizeInteractionFence(runtime, input);
   final model = runtime.model;
   final layoutSequence = runtime.presentedLayoutSequence;
   if (model == null || layoutSequence == null) {
@@ -2125,6 +2510,58 @@ Future<void> _bindPaletteSource(
     await Future<void>.microtask(() {});
   }
   expect(runtime.paletteDragSourceToken, token);
+}
+
+Future<void> _synchronizeInteractionFence(
+  CanvasRuntimeController runtime,
+  StreamController<List<int>> input,
+) async {
+  if (runtime.interactionInputSynchronized) {
+    return;
+  }
+  final model = runtime.model;
+  final layoutSequence = runtime.presentedLayoutSequence;
+  expect(model, isNotNull, reason: 'a fence requires a presented model');
+  expect(
+    layoutSequence,
+    isNotNull,
+    reason: 'a fence requires exact published layout identity',
+  );
+  final nextSequence = runtime.interactionFenceSequence + 1;
+  final body = {
+    'presentationSequence': model!.presentationSequence,
+    'documentId': model.documentId,
+    'logicalRevisionId': model.logicalRevisionId,
+    'frameSequence': 0,
+    'layoutSequence': layoutSequence,
+    'interactionFenceSequence': nextSequence,
+  };
+  input.add(
+    encodeNbfcFrame(
+      nbfcControlJson,
+      utf8.encode(
+        jsonEncode({
+          'format': 'netbeans-flutter-canvas-runtime',
+          'protocolVersion': 1,
+          'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+          'type': 'host.interactionFence',
+          'body': body,
+        }),
+      ),
+    ),
+  );
+  for (
+    var attempt = 0;
+    attempt < 200 && !runtime.interactionInputSynchronized;
+    attempt++
+  ) {
+    await Future<void>.microtask(() {});
+  }
+  expect(
+    runtime.interactionInputSynchronized,
+    isTrue,
+    reason: 'the exact test interaction fence was not applied',
+  );
 }
 
 Map<String, Object?> _widgetMovePreview(
@@ -2200,6 +2637,28 @@ Map<String, Object?> _viewport(
       'zoomMicros': zoomMicros,
       'horizontalScrollMicros': horizontalScrollMicros,
       'verticalScrollMicros': verticalScrollMicros,
+    },
+  };
+}
+
+Map<String, Object?> _interactionFence(
+  Uint8List model, {
+  required int interactionFenceSequence,
+  int layoutSequence = 0,
+}) {
+  final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
+  return {
+    'format': 'netbeans-flutter-canvas-runtime',
+    'protocolVersion': 1,
+    'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
+    'type': 'host.interactionFence',
+    'body': {
+      'presentationSequence': json['presentationSequence'],
+      'documentId': json['documentId'],
+      'logicalRevisionId': json['logicalRevisionId'],
+      'frameSequence': 0,
+      'layoutSequence': layoutSequence,
+      'interactionFenceSequence': interactionFenceSequence,
     },
   };
 }

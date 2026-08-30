@@ -10,6 +10,8 @@ public final class CanvasRunnerLeaseTestSupport {
     }
 
     public static CanvasRunnerBuildResult createResult(Path root) throws IOException {
+        var contract = new WindowsNativeCanvasPlatformProvider()
+                .runnerContract().orElseThrow();
         Path source = root.toAbsolutePath().normalize();
         Path generation = source.resolve("runtime-test-generation");
         Path runtime = generation.resolve("runtime");
@@ -19,10 +21,13 @@ public final class CanvasRunnerLeaseTestSupport {
                 new byte[] {1});
         CanvasRunnerRuntimeLease lease = CanvasRunnerRuntimeLease.acquire(runtime);
         return new CanvasRunnerBuildResult(
-                runtime.resolve("runner.exe"),
+                runtime.resolve(contract.buildTarget().executableName()),
                 source,
                 new CanvasRunnerCacheIdentity(
-                        "a".repeat(64), "test-engine", "b".repeat(64)),
+                        "a".repeat(64),
+                        "test-engine",
+                        contract.fingerprint(),
+                        "b".repeat(64)),
                 false,
                 "",
                 lease);

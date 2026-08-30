@@ -11,7 +11,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   across nine non-`Scaffold` widgets. Its 286 typed leaves comprise seven direct
   fields, five 54-leaf default/disabled/pressed/hovered/focused style groups and
   nine common layout/feedback fields. Strict callback identifiers are never
-  arbitrary Dart expressions; Canvas payload protocol v8 transmits only
+  arbitrary Dart expressions; Canvas payload protocol v9 transmits only
   `callbackPresence` and cannot execute a project handler. Deterministic Dart
   uses direct sparse `ButtonStyle` state maps so omitted values fall through
   from the local button to `ElevatedButtonTheme` and Flutter defaults.
@@ -81,12 +81,13 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   type. The custom-theme editor is a singleton `Themes` tab beside `Palette`,
   with Save/Reload, default mode, active light/dark references,
   Add/Duplicate/Remove, stable id, display name, brightness and a seed color
-  chooser. Its compact `General`, `Colors` and `Typography` tabs expose all 46
+  chooser. Its compact `General`, `Colors`, `Typography` and `Components` tabs expose all 46
   supported non-deprecated Material `ColorScheme` roles and all 15 Material 3
-  `TextTheme` roles, with 13 typed optional `TextStyle` fields per role. Schema
+  `TextTheme` roles, with 13 typed optional `TextStyle` fields per role, plus
+  the closed 36-leaf Scaffold/AppBar/Icon/ElevatedButton color contract. Schema
   v2 adds `Enable project themes`; schema v3 adds an enable switch to every
-  definition; schema v4 adds the typed role overrides. Schema v1-v3 remains
-  readable with empty overrides and explicit Save emits canonical v4. Disabled
+  definition; schema v4 adds the typed role overrides; schema v5 adds component
+  colors. Schema v1-v4 remains readable and explicit Save emits canonical v5. Disabled
   definitions remain in the descriptor and are omitted from generated Dart.
   Disabling project themes preserves the complete catalog while runtime and
   Canvas use Flutter defaults. Descriptor and generated Dart saves are
@@ -96,8 +97,8 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   the recognized Flutter template shape.
 - Native Canvas theme synchronization now resolves the verified project theme
   shared by every Designer form, carries its exact id/ARGB seed/brightness,
-  complete ColorScheme/TextTheme override tables and semantic digest over the
-  isolated model protocol-v4 boundary, and assembles them in the same order as
+  complete ColorScheme/TextTheme/component override tables and semantic digest over the
+  isolated model protocol-v9 boundary, and assembles them in the same order as
   generated Dart: seed scheme, `ColorScheme.copyWith`, `ThemeData.from`, then
   `TextTheme.copyWith`. Form-local Text properties are applied last and remain
   intentional overrides. Open Canvas tabs coalesce theme file changes and

@@ -48,20 +48,23 @@ project action and a singleton `Themes` TopComponent registered in NetBeans'
 `commonpalette` mode. Its paired persistence compares the exact opened baseline
 before publishing a new descriptor/generated-Dart pair. Schema v2 adds a
 project-portable `enabled` switch. Schema v3 adds an `enabled` state to every
-catalog entry. Current schema v4 adds typed override tables for all 46 supported
+catalog entry. Schema v4 adds typed override tables for all 46 supported
 nondeprecated Material `ColorScheme` roles and all 15 Material 3 `TextTheme`
 roles. Each text role admits 13 optional typed `TextStyle` fields; omitted
-fields inherit from the seed-derived Material theme. Schema v1-v3 descriptors
-remain readable, materialize empty override tables in memory, and are written
-as canonical v4 only by an explicit save. Disabled entries remain in the
+fields inherit from the seed-derived Material theme. Current schema v5 adds
+exactly 36 typed component-color leaves for Scaffold, AppBar, Icon and the
+default/disabled/pressed/hovered/focused ElevatedButton states. Schema v1-v3
+descriptors remain readable and materialize empty override tables; schema v4
+materializes empty components. An explicit save writes canonical v5. Disabled entries remain in the
 descriptor but are omitted from the generated Dart map. When the global switch
 is enabled, the selected light/dark references must resolve to enabled entries.
 Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith`. Canvas model protocol v8 carries the same resolved role
-tables and applies that order before form-local Text overrides. Theme
+`TextTheme.copyWith` and the component themes. Canvas model protocol v9 carries
+the same resolved role and component tables and applies that order before
+form-local widget overrides. Theme
 definitions remain independent of every form `.fd` model.
 
 ## Dart analysis
@@ -130,7 +133,7 @@ Rename and Delete close a clean editor, stage both paths under deterministic loc
 
 Pair-aware Cut/Move uses a private one-shot `NodeTransfer.CLIPBOARD_CUT` paste. It keeps the basename and exact pair bytes, stays within one Flutter project, and accepts only an already existing writable destination with an already existing mirrored counterpart folder owned by that exact project. A bounded, strict `pubspec.yaml`/`package_config.json`-bound project Dart inventory blocks outgoing relative directives, incoming references to the old location, references that could acquire the destination, unsafe URI/package aliases, nested packages and conservative case/Unicode collisions. At the final boundary, exact proof-file locks and the actual NetBeans 30 MasterFS child-cache mutexes cover every proof/source/target directory and its physical ancestor chain; inventory verification and commit share one EDT admission, and an unavailable/different MasterFS shape fails closed. Move closes a clean source editor, publishes `.fd` before Dart, locks both targets, retires the source identities through reversible `.nbmove` tombstones, then creates fresh target DataObjects. Rollback restores both exact sources before removing owned targets; if safe recreation cannot be proved, verified targets are retained for recovery. Once exact targets and both source tombstones establish commit, late cleanup/provider failures are recovery warnings rather than a false uncommitted result. This is an in-process guarantee with no durable crash journal, and an external non-NetBeans writer remains a residual race.
 
-Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, including migration of schema v1-v3 to v4. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, ten-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable only for the 497 catalog-backed fields of `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. ElevatedButton contributes 286 typed leaves and one optional-single required-named-nullable child slot; AppBar contributes 120 grouped typed leaves and five exact slots; Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; Icon contributes its typed nullable positional `IconData` plus all 12 supported named constructor properties. ElevatedButton generation uses direct sparse state maps and preserves local → `ElevatedButtonTheme` → framework fallback; Canvas receives callback presence only and never a callback identifier. Semantic Material `ColorScheme`, `TextTheme` and the theme-backed subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` inheritance are preserved identically by generated Dart and native Canvas; explicit local values remain local overrides. The bundled searchable Material Icons registry contains 8,825 entries locked to Flutter 3.44.8 and requires `flutter.uses-material-design: true` in generated applications. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix; the historical SizedBox, Icon and AppBar expansions followed. The current contract admits ten exact capability-gated Palette sources across twelve any-widget and two `PreferredSizeWidget` destination slots: 140 candidates, of which 122 are accepted and 18 rejected. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner; cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
+Only complete mirrored Dart entries are claimed; ordinary Dart files remain on the normal language path. `File > New File > Flutter Designer > Flutter Designer Form` creates both files atomically and accepts targets only in `lib` or its subfolders. `flutter-designer` owns the implemented NetBeans-independent schema, model, validation, generation, preparation, pair-rename, pair-copy and Dart Move-dependency planners, bounded undoable command session and canonical Canvas model projection, including migration of schema v1-v3 to v4. `netbeans-plugin` owns the paired UI, pair operation transactions, native Canvas/tree selection edge, ten-item context Palette, selected-node Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence edge. Properties are writable for exactly 514 catalog-backed fields across `Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. Scaffold contributes a closed 17-field scalar slice grouped as Layout, Floating action button, Appearance, Drawer behavior and State restoration; its existing `appBar`, `body` and `floatingActionButton` slots remain unchanged. ElevatedButton contributes 286 typed leaves and one optional-single required-named-nullable child slot; AppBar contributes 120 grouped typed leaves and five exact slots; Text contributes 59 independently editable typed leaves across Text, Accessibility, Locale and scaling, Text style, Paint and effects, Advanced typography and Strut style sets; Icon contributes its typed nullable positional `IconData` plus all 12 supported named constructor properties. ElevatedButton generation uses direct sparse state maps and preserves local → `ElevatedButtonTheme` → framework fallback; Canvas receives callback presence only and never a callback identifier. Semantic Material `ColorScheme`, `TextTheme` and the theme-backed subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` inheritance are preserved identically by generated Dart and native Canvas; explicit local values remain local overrides. The bundled searchable Material Icons registry contains 8,825 entries locked to Flutter 3.44.8 and requires `flutter.uses-material-design: true` in generated applications. ADR-025 was first accepted as a historical Text-only terminal-append vertical slice and then as a six-source matrix; the historical SizedBox, Icon, AppBar and ElevatedButton expansions followed. The current contract admits ten exact capability-gated Palette sources across twelve any-widget and two `PreferredSizeWidget` destination slots: 140 candidates, of which 122 are accepted and 18 rejected. Same-tree existing-widget move/reorder is enabled through the shared compatibility planner. The Slots editor exposes explicit atomic replacement for an occupied single slot and atomic clear for a single or list slot, with exact revision/child fences and one chronological Undo step; these commands do not change the Palette compatibility matrix. Cross-form/native-surface moves, definitions without the exact reviewed capability and unreviewed slots remain disabled. No designer-specific model is allowed to leak into the basic Dart/Flutter language stack, and disabling designer UI must not affect ordinary editing, analysis, project or execution support.
 
 The paired DataObject also owns one read-only document controller shared by
 all Design clones. It reads and decodes the bounded `.fd` snapshot outside the
@@ -276,11 +279,23 @@ The Canvas boundary follows ADR-021. NetBeans owns the Swing Palette,
 Explorer/Nodes widget tree, Properties window and MultiView chrome. The Canvas
 inside that chrome is a real embedded native `FlutterView`, not a Swing-painted
 projection or a PNG/JPEG/raw-pixel stream. The Flutter engine owns painting,
-designer overlays and widget hit testing. A planned platform SPI isolates
-native attach/detach, resize/DPR, focus, visibility, liveness and destruction;
-the Windows native child surface is the first implementation target, followed
-by Linux and macOS providers. An isolated runner process is preferred wherever
-the platform can safely host and supervise its child surface.
+designer overlays and widget hit testing. The platform SPI isolates
+native attach/detach, resize/DPR, focus, visibility, peer lifecycle, liveness
+and destruction. That narrow provider-neutral SPI is now exported; Windows has
+the concrete provider and host. The same provider now owns one strict immutable
+runner contract covering the Flutter build target/options, output and executable
+boundary, required/allowed runtime files and directories, cache policy/identity
+and exact process launch. Shared build, runtime-cache and session orchestration
+consume that contract and contain no Windows provisioning literals. The current
+Windows provider publishes the exact existing Windows build, runtime artifact,
+cache-manifest and opaque HWND launch behavior. The deterministic selector
+activates exactly one complete supported provider whose contract matches the
+detected platform and fails closed on ambiguity, missing contracts or platform
+mismatch. Linux and macOS still expose explicit fail-closed unavailable
+placeholders with no runner contract; support requires separate real providers
+and assembled physical acceptance rather than placeholders or emulation. An
+isolated runner process is preferred wherever the platform can safely host and
+supervise its child surface.
 
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
@@ -334,7 +349,7 @@ fail-stop bounded process framing. After the handshake, bounded runtime control
 publishes one exact validated revision, acknowledges its layout, synchronizes
 selection and capability-gates the narrowly typed `runner.paletteDrop` intent.
 Protocol negotiation and decoding do not authorize mutation. The canonical
-protocol-v8 model payload admits only exact reviewed built-in definitions with
+protocol-v9 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
 `Padding`, `Center`, `SizedBox` and `ElevatedButton`. Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
@@ -353,28 +368,158 @@ layout preview, using Windows adaptive controls because Flutter has no
 `TargetPlatform.web`. It does not claim browser-runtime fidelity.
 Platform-folder changes reconcile open Design views on the Swing event thread;
 an empty configured set leaves the selector empty and Canvas unavailable.
+
+Windows live resize is a latest-only transaction over parent-owned geometry.
+The verified heavyweight AWT parent client bounds and its DPI are authoritative;
+only one asynchronous child resize may be in flight, and an AWT resize burst
+retains only its newest target until both the runner window and its
+`FLUTTERVIEW` have settled. An embedded runner is a `WS_CHILD`: it always
+refits the parent client bounds, ignores the screen-coordinate suggested rect
+from `WM_DPICHANGED`, and refits again on `WM_DPICHANGED_AFTERPARENT` while
+resizing Flutter content. The suggested rect remains valid only for a
+standalone top-level runner.
+
+The Java handshake requires `surface.presentation.v1`. With that capability,
+every `runner.presented` is emitted after Flutter's post-frame callback and
+carries the exact implicit `FlutterView` `physicalWidth`, `physicalHeight` and
+`devicePixelRatioMicros`. Both dimensions are strictly positive, remain within
+the negotiated per-dimension and total-pixel limits, and the DPR is a strictly
+positive integer no greater than 2,147,483,647. A changed host surface
+immediately invalidates the old confirmation. Intermediate frames may advance
+the monotonic layout sequence, but the host keeps Canvas input and viewport
+publication fenced until a newer post-frame presentation exactly matches the
+latest host width, height and DPR; only that final layout can receive and
+acknowledge the current interaction fence. Deterministic host/session/runner
+tests cover rapid latest-only bursts, a size B → A return that still requires a
+newer layout, and rejection of stale callbacks and intermediate metrics. The
+assembled Windows physical-divider runtime gate drives a production divider
+burst and requires the same live runner generation, exact
+parent/runner/`FLUTTERVIEW` bounds, exact post-frame metrics and restored input
+synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
 Design lookup supplies a Palette filtered to the exact ten widgets carrying
-the Create capability. `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`,
-`Center`, `SizedBox`, `Text` and `Icon` admit the reviewed 497-property Set/Reset slice
-through an exact revision token and analyzed pair-save. The 120 AppBar and 59
+the Create capability. All ten built-ins, including `Scaffold`, admit the
+reviewed 514-property Set/Reset slice through an exact revision token and
+analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then
 reach generated Dart and the runner through one shared composite mapping. The
 286 ElevatedButton leaves use strict callback identifiers and direct sparse
 state-aware `ButtonStyle` projections; Canvas receives callback presence only.
-`Scaffold` remains read-only.
-A standalone
-automated Win32 smoke proves the three-window hierarchy and resize path; its
-`JFrame` is only a test harness and is not part of the plugin UI. There is no
-image or pixel-transfer channel. The narrow ADR-025 path is publicly enabled
-after live assembled NetBeans 30 acceptance of drop → Save → Undo → Redo →
-Save. That statement is limited to this exact sequence; it does not claim an
-additional saved-history Undo → Save cycle. Full NetBeans focus/DPI/IME/crash
-acceptance, a platform-neutral SPI, Linux/macOS providers, every broader
-drag-and-drop operation, unreviewed shader/filter graphs and the broader
+The 17 Scaffold leaves use closed static presets, literal/theme colors,
+optional booleans, a non-negative numeric editor, strict callback identifiers
+and a bounded restoration ID. Widget-valued Scaffold constructor parameters,
+`persistentFooterDecoration` and `bottomSheetScrimBuilder` remain outside this
+scalar slice.
+A standalone automated Win32 smoke proves the three-window hierarchy and resize
+path; its `JFrame` is only a test harness and is not part of the plugin UI. The
+assembled Windows gate additionally opens production Designer DataObjects and
+MultiViews and proves distinct runner/child HWND and PID ownership, exact DPR
+from the current verified `FLUTTERVIEW`, one tab peer-loss recreation, forced
+crash → explicit Retry with a fresh PID, authenticated close followed by
+natural process exit, and final runner/child-HWND cleanup after every captured
+runner generation physically exits. Through NetBeans' production Split Document
+Horizontally and Clear Split actions, the same gate runs two simultaneous Design
+surfaces with independent runner PID, AWT-parent/runner/`FLUTTERVIEW` HWND,
+exact metrics, rendering and focus. Clear Split must destroy the removed runner,
+`FLUTTERVIEW` and AWT-parent HWND while the retained surface stays rendered and
+interactive; a second split/clear cycle rejects retired PID reuse and proves the
+bounded tab-and-split heavyweight-peer recreation matrix. Peer loss uses the first immutable
+`BACKEND_REPLACED` close reason;
+teardown authority requires both physical `host.close` write completion and an
+exact-session `runner.closed`. Acknowledged runners receive a bounded
+natural-exit grace before truthful termination escalation; their runtime lease
+is retained until physical exit. Design activation is retained while the runner
+builds and attaches, then transferred only to the current revalidated
+`FLUTTERVIEW`; deactivation, hiding, closing or a real Swing interaction cancels
+that intent. A normal foreground-policy refusal receives at most eight
+generation-, process- and timer-ticket-fenced retries at 50 ms intervals. The
+foreground GUI thread is queried for the current focus HWND; the runner thread's
+remembered queue-local focus is not accepted as foreground focus. The Win32 edge
+distinguishes policy refusal from target-identity drift and from an unresolved
+`AttachThreadInput` detachment, retiring the generation for either unsafe case.
+The exact parent/PID/class/style and target thread are revalidated again after
+the input queues join and before `SetFocus`, then once more after focus.
+Because AWT may retain a stale Java focus owner after a physical native click, a
+filtered Swing mouse/key bridge records only explicit user input, clears that
+bookkeeping and requests focus only for the clicked or typed-into enabled
+component inside the current Design or toolbar roots; newer input elsewhere in
+NetBeans fences the old Design claim. Programmatic AWT focus changes never
+establish a user claim. Every pointer-down across the complete Flutter surface,
+including margins outside the modeled viewport, emits a strict
+`runner.interaction` event bound to the exact current session/revision/layout.
+Clearing native-focus intent advances a host-owned monotonic interaction fence;
+the exact current presentation receives a priority/coalesced
+`host.interactionFence`. The runner gates pointer, wheel and keyboard input,
+renders a concise synchronization overlay, and publishes the strict exact-layout
+`runner.interactionFenceApplied` acknowledgement before it re-enables input.
+Only a later runner interaction echoing that acknowledged current fence may
+supersede the Swing claim. Older cross-queue events are consumed without focus
+authority, the acknowledgement wait is bounded and fail-closed to Swing, and
+the fence is replayed for replacement presentations. The IDE shows this barrier
+as a separate compact status without replacing the primary render or failure
+state. Windows shows the embedded child with
+`SW_SHOWNOACTIVATE`, and the runner's root Focus never uses implicit autofocus.
+If Windows still transfers native focus to the child FlutterView during attach
+or first-frame delivery after an explicit Swing interaction, a typed
+confirmed-render state starts an eight-attempt, 50 ms identity-, target-,
+owner-, barrier- and lifecycle-fenced reconciliation window for the retained
+Swing target. An exact fence
+acknowledgement resumes that window through the next normal delayed ticket, so a
+following authenticated Canvas interaction can cancel the retained Swing claim
+before any focus repair executes.
+The assembled Windows gate accepts the physical Canvas → Swing → Canvas → Swing
+round-trip, verifies the foreground focus HWND is owned by the NetBeans JVM, and
+holds that state beyond the complete bounded retry window.
+When the runner already owns Win32 focus, a verified Swing interaction first
+revalidates the exact parent/runner/`FLUTTERVIEW` identities and transfers focus
+to the JVM-owned AWT parent through a bounded, detach-safe input-queue join.
+An already exact retained Swing owner is preserved across that native release;
+an absent or different AWT owner is cleared before the epoch-, target-, barrier-
+and lifecycle-fenced deferred request. Only a release verified for that exact
+repair epoch can be reused by a later bounded target retry. A physical Canvas
+press received from the exact heavyweight host or its AWT ancestor can restore
+the current `FLUTTERVIEW` only when its screen point is inside that showing host,
+the Design is active and rendered, the interaction barrier is synchronized, no
+menu path remains, and the deferred input epoch is still current.
+
+The Preview selector is an intentionally local heavyweight-popup exception:
+its `JComboBox` disables lightweight popups without changing the global Swing
+`PopupFactory` policy. The assembled Windows gate physically opens the actual
+popup `Window`/`JList` over the `FLUTTERVIEW`, selects another available platform
+profile, waits for exact rendered/idle convergence, and restores Canvas focus.
+The runner PID and AWT-parent/runner/`FLUTTERVIEW` HWND remain unchanged and no
+Retry state appears.
+
+The same physical gate separately accepts the standard NetBeans
+**Window → Services** menu over the embedded child. Its popup remains the
+platform's existing lightweight Swing popup in the owning `JFrame`; no global
+`PopupFactory` override is introduced. Opening the menu actively releases the
+verified runner focus to the JVM, the armed menu item receives interaction over
+the overlapping Canvas, Escape closes it without executing the command, and an
+exact Canvas click restores the same `FLUTTERVIEW`. The runner PID, all three
+AWT-parent/runner/`FLUTTERVIEW` HWNDs, exact surface metrics and rendered/idle
+state remain unchanged, with no Retry.
+
+There is no image or pixel-transfer channel. The narrow ADR-025 path is publicly
+enabled after live assembled NetBeans 30 acceptance of drop → Save → Undo →
+Redo → Save. The transport-independent packaged DataObject gate additionally
+accepts the complete retained-history matrix: stage C1, Save C1, Undo B,
+Redo C1, Undo B, Save B, then Redo C1 as dirty `STAGED_PAIR` without changing
+durable B and Undo B back to a clean savepoint with no `SaveCookie`. This
+Properties-driven persistence proof does not claim a second physical Palette
+drop path. A real per-monitor DPI transition
+between two physical monitors with different scaling remains unaccepted because
+the current gate has no second mixed-DPI monitor and does not synthesize
+`WM_DPICHANGED`. IME composition and broader menu/popup paths beyond the
+accepted local Preview selector and standard **Window → Services** menu remain
+unaccepted. IME also lacks both an editable
+Flutter text-input client in the reviewed Canvas catalog and a
+composition-capable input method on the current physical gate.
+Linux/macOS providers, every
+broader drag-and-drop operation, unreviewed shader/filter graphs and the broader
 Designer mutation surface remain outstanding. The deprecated
 `Text.textScaleFactor` argument, `key` and raw-Dart
 substitutes are not exposed. `PUBLIC_MUTATION_UI_ENABLED`

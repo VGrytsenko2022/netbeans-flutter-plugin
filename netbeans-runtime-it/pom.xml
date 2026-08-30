@@ -18,6 +18,9 @@
   <properties>
     <netbeans.branding.token>flutterruntimeit</netbeans.branding.token>
     <netbeans.runtime.directory>${project.build.directory}/${netbeans.branding.token}</netbeans.runtime.directory>
+    <!-- The opt-in real Windows Canvas gate may override this to cover a cold
+         Flutter release build without weakening the normal CI timeout. -->
+    <netbeans.runtime.it.fork.timeout.seconds>120</netbeans.runtime.it.fork.timeout.seconds>
   </properties>
 
   <dependencies>
@@ -184,7 +187,7 @@
                opening the real MultiView schedules LSP work that must not leak
                into the next suite after its modules have been disabled. -->
           <reuseForks>false</reuseForks>
-          <forkedProcessTimeoutInSeconds>120</forkedProcessTimeoutInSeconds>
+          <forkedProcessTimeoutInSeconds>${netbeans.runtime.it.fork.timeout.seconds}</forkedProcessTimeoutInSeconds>
           <forkedProcessExitTimeoutInSeconds>30</forkedProcessExitTimeoutInSeconds>
           <classpathDependencyExcludes>
             <classpathDependencyExclude>dev.flutter.netbeans:netbeans-plugin</classpathDependencyExclude>

@@ -48,6 +48,7 @@ class WebView2NativeBundleTest {
             "nbwv2_destroy",
             "nbwv2_get_abi_version",
             "nbwv2_get_runtime_version",
+            "nbwv2_prepare_parent_release",
             "nbwv2_post_web_message_json",
             "nbwv2_request_focus",
             "nbwv2_set_bounds",
@@ -120,7 +121,7 @@ class WebView2NativeBundleTest {
                 "Windows 11", "amd64", "64", bundle::extract);
 
         assertEquals(163_680, Files.size(extracted.loader()));
-        assertEquals(368_128, Files.size(extracted.adapter()));
+        assertEquals(384_000, Files.size(extracted.adapter()));
     }
 
     @Test

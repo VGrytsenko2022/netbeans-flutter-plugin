@@ -375,8 +375,9 @@ same bounded runner from `main_web.dart` as a static Flutter Web release bundle.
 It embeds Flutter directly into one browser-managed DOM host through multi-view;
 it does not introduce an iframe, transferred image or second model protocol. A
 narrow native Win32 adapter now creates a windowed Microsoft Edge WebView2
-controller as a child of the heavyweight AWT peer and owns the COM STA, message
-pump, focus, bounds, visibility and teardown edges. The adapter and Microsoft's
+controller under a private parking HWND, then attaches it to the verified
+heavyweight AWT peer and owns the COM STA, message pump, focus, bounds,
+visibility and teardown edges. The adapter and Microsoft's
 architecture-matched loader are packaged with an exact size/SHA-256 manifest,
 license and notice; Java extracts and revalidates that closed x64 bundle before
 JNA loads it. JavaFX WebView is not an alternative backend, and Java never owns
@@ -406,7 +407,7 @@ Before hosting, the validated mutable `build/web` evidence is copied file by
 file into a private leased per-generation publication. Every source and
 published file is rechecked by size and SHA-256; links, reparse points, hard
 links, traversal, case aliases and source mutation fail closed, while
-`.last_build_id` is verified but never served. ABI v2 passes the sorted
+`.last_build_id` is verified but never served. ABI v3 passes the sorted
 path/size/SHA-256 manifest to native code, which rehashes every file and freezes
 the complete bounded resource set in memory before returning from session
 creation. Browser requests therefore never reread executable files and no
@@ -427,16 +428,27 @@ The standalone native smoke has physically accepted installed-Runtime probing,
 exact release-page/authenticated bridge readiness, an authenticated NBFC
 `host.hello` → digest-verified `runner.hello` round trip, read-back-verified
 bounds and visibility changes, the focus API, and deadline-bounded closed
-teardown. That proof is deliberately not product routing or the assembled
-NetBeans browser acceptance matrix. No Web provider build/cache/session route,
-Web `CanvasEngineIdentity`, production Retry lifecycle, or product model/layout/
-selection and mixed-DPI gate is enabled. Product routing additionally requires
-the AWT parent HWND to outlive confirmed native teardown, a terminal poisoned
-host state after an unconfirmed native destroy, browser-process-exit
-synchronization before user-data-folder deletion, and retry-safe partial UDF
-cleanup that preserves ownership evidence. Until those separate gates pass,
-selecting Web still uses only the native-engine responsive layout preview above
-and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform channels.
+teardown. ABI v3 now also proves the exact environment UDF identity, creates the
+controller under a private parking HWND, exposes an asynchronous pre-peer-loss
+barrier, retains the exact native handle across bounded destroy retry, and
+authorizes UDF deletion only after a matching-PID `BrowserProcessExited`
+resource-release event, whether shutdown was normal or failed.
+If native startup itself fails, a non-null ABI handle transfers the exact
+partially started host back to Java for the same bounded destroy path; only a
+null handle proves that startup created no ownership or completed `S_OK`
+teardown. Java therefore never drops a live callback or deletes an unproven UDF.
+An unconfirmed destroy poisons the host, while an external per-session marker
+keeps partial UDF cleanup retry-safe and is deleted last. On Windows, stable
+FileId handles pin the sessions parent, UDF root and marker without delete
+sharing across verification and traversal; the root and marker are deleted by
+handle, preventing a concurrent rename/replacement race. That proof is
+deliberately not product routing or the assembled NetBeans browser acceptance
+matrix: no Web provider build/cache/session route, Web `CanvasEngineIdentity`,
+production owner awaiting the peer-loss barrier, Retry UI, or product model/
+layout/selection and mixed-DPI gate is enabled. Until those separate gates
+pass, selecting Web still uses only the native-engine responsive layout preview
+above and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform
+channels.
 Web input acceptance is English-only; physical CJK IME and other language-
 specific input remain deferred to the final internationalization phase.
 

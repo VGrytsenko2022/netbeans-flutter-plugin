@@ -41,6 +41,7 @@ final class WebView2NativeBundle {
             "nbwv2_destroy",
             "nbwv2_get_abi_version",
             "nbwv2_get_runtime_version",
+            "nbwv2_prepare_parent_release",
             "nbwv2_post_web_message_json",
             "nbwv2_request_focus",
             "nbwv2_set_bounds",

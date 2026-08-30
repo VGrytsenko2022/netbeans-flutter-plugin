@@ -1,7 +1,7 @@
 # Windows WebView2 adapter build
 
 The packaged adapter is a reproducible Windows x64 Release build. Its source
-ABI is declared in `nb_webview2_host.h`; Java verifies that ABI after loading.
+ABI v3 is declared in `nb_webview2_host.h`; Java verifies that ABI after loading.
 
 Pinned inputs:
 
@@ -37,8 +37,12 @@ also validates PE32+ AMD64 structure, required exports and the expected
 The opt-in native smoke accepts a validated Flutter Web artifact and a fresh
 user-data directory. It requires the exact authenticated bridge-ready envelope,
 performs a real NBFC hello round trip with frame-digest verification, validates
-controller bounds/visibility through native read-back, invokes focus and proves
-deadline-bounded close:
+controller bounds/visibility through native read-back, invokes focus, fences
+and reparents away from the AWT parent before peer destruction, attempts a
+one-millisecond bounded destroy and verifies exact-handle retention if that
+deadline expires, verifies a matching-PID browser resource-release
+event for both normal and failed exit kinds, and exercises close-during-start
+before proving deadline-bounded close:
 
 ```powershell
 netbeans-plugin/target/webview2-native-build/Release/nb_flutter_webview2_smoke.exe `

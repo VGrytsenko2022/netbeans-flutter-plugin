@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,6 +50,7 @@ class WindowsWebCanvasHostTest {
         assertEdtFailure(fixture.host::runnerStdout);
         assertEdtFailure(fixture.host::runnerStdin);
         assertEdtFailure(fixture.host::isBridgeReady);
+        assertEdtFailure(fixture.host::preparePeerRemovalAsync);
         assertEdtFailure(() -> {
             fixture.host.requestControllerFocus();
             return null;
@@ -124,7 +126,8 @@ class WindowsWebCanvasHostTest {
     @Test
     void startupFailureReportsFailureBeforeTerminalAndClose() throws Exception {
         Fixture fixture = fixture("startup-failure");
-        fixture.api.createFailure = new IOException("create failed");
+        fixture.api.createFailure = new WindowsWebView2NativeApi.CreateException(
+                "create failed", null, true);
         start(fixture);
 
         fixture.executor.runNext();
@@ -141,6 +144,59 @@ class WindowsWebCanvasHostTest {
         flushEdt();
         assertEquals("closed", fixture.listener.events.getLast());
         assertFalse(Files.exists(fixture.userDataFolder));
+    }
+
+    @Test
+    void failedCreateRetainedSessionIsAdoptedAndDestroyedBeforeOwnedCleanup()
+            throws Exception {
+        Fixture fixture = fixture("failed-create-retained-session");
+        FakeSession retained = new FakeSession(
+                fixture.userDataFolder, fixture.artifact.root());
+        fixture.api.sessions.add(retained);
+        fixture.api.createFailure = new WindowsWebView2NativeApi.CreateException(
+                "create failed with retained session", retained, false);
+
+        start(fixture);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(Files.isDirectory(fixture.userDataFolder));
+        assertEquals(1, fixture.executor.pendingCount());
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertEquals(1, retained.parentReleaseCalls);
+        assertEquals(1, retained.destroyCalls);
+        assertTrue(retained.userDataExistedDuringDestroy);
+        assertFalse(retained.destroyCalledOnEdt);
+        assertFalse(Files.exists(fixture.userDataFolder));
+        assertEquals("closed", fixture.listener.events.getLast());
+    }
+
+    @Test
+    void unknownCreateFailurePoisonsHostAndNeverDeletesOwnedUserData()
+            throws Exception {
+        Fixture fixture = fixture("failed-create-unknown-release");
+        fixture.api.createFailure = new IOException(
+                "create failed without ownership evidence");
+
+        start(fixture);
+        fixture.executor.runNext();
+        flushEdt();
+        fixture.executor.runNext();
+        flushEdt();
+
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+        assertTrue(Files.isDirectory(fixture.userDataFolder));
+        assertTrue(Files.isRegularFile(marker));
+        assertEquals("failed:Release Web Canvas resources",
+                fixture.listener.events.getLast());
+        IllegalStateException restart = onEdt(() -> assertThrows(
+                IllegalStateException.class,
+                () -> fixture.host.start(
+                        fixture.request, new RecordingListener())));
+        assertTrue(restart.getMessage().contains("cleanup is incomplete"));
     }
 
     @Test
@@ -284,23 +340,83 @@ class WindowsWebCanvasHostTest {
     }
 
     @Test
-    void heavyweightPeerLossFencesAndSchedulesNativeTeardown()
+    void peerRemovalBarrierCompletesBeforeHeavyweightPeerLoss()
             throws Exception {
         Fixture fixture = fixture("peer-loss");
         startAndFinish(fixture);
 
+        CompletableFuture<Void> barrier = onEdt(
+                fixture.host::preparePeerRemovalAsync);
+        flushEdt();
+        assertEquals(1, fixture.executor.pendingCount());
+        assertTrue(fixture.listener.events.contains("bridgeTerminal:LOCAL_CLOSE"));
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(barrier.isDone());
+        assertFalse(barrier.isCompletedExceptionally());
         onEdt(() -> {
             carrier(fixture.host).removeNotify();
             return null;
         });
         flushEdt();
 
+        assertEquals(1, fixture.api.sessions.getFirst().destroyCalls);
+        assertEquals(1, fixture.api.sessions.getFirst().parentReleaseCalls);
+        assertFalse(fixture.api.sessions.getFirst().parentReleaseCalledOnEdt);
+        assertEquals(1, fixture.listener.closedCount);
+    }
+
+    @Test
+    void peerRemovalBarrierWaitsForInFlightNativeCreation() throws Exception {
+        Fixture fixture = fixture("peer-loss-during-start");
+        start(fixture);
+
+        CompletableFuture<Void> barrier = onEdt(
+                fixture.host::preparePeerRemovalAsync);
+        assertFalse(barrier.isDone());
         assertEquals(1, fixture.executor.pendingCount());
-        assertTrue(fixture.listener.events.contains("bridgeTerminal:LOCAL_CLOSE"));
+
         fixture.executor.runNext();
         flushEdt();
-        assertEquals(1, fixture.api.sessions.getFirst().destroyCalls);
-        assertEquals(1, fixture.listener.closedCount);
+        assertFalse(barrier.isDone());
+        assertEquals(1, fixture.executor.pendingCount());
+
+        fixture.executor.runNext();
+        flushEdt();
+        assertTrue(barrier.isDone());
+        assertFalse(barrier.isCompletedExceptionally());
+        FakeSession session = fixture.api.sessions.getFirst();
+        assertEquals(1, session.parentReleaseCalls);
+        assertEquals(1, session.destroyCalls);
+        assertFalse(session.parentReleaseCalledOnEdt);
+    }
+
+    @Test
+    void unexpectedPeerLossNeverBlocksEdtAndFailsClosed() throws Exception {
+        Fixture fixture = fixture("unexpected-peer-loss");
+        startAndFinish(fixture);
+        FakeSession session = fixture.api.sessions.getFirst();
+
+        onEdt(() -> {
+            carrier(fixture.host).removeNotify();
+            assertEquals(0, session.parentReleaseCalls);
+            assertEquals(0, session.destroyCalls);
+            return null;
+        });
+        flushEdt();
+
+        assertEquals("Release Web Canvas before AWT peer loss",
+                fixture.listener.failureOperation);
+        assertTrue(fixture.listener.failureReason.contains(
+                "before its asynchronous WebView2 teardown barrier completed"));
+        assertEquals(1, fixture.executor.pendingCount());
+        fixture.executor.runNext();
+        flushEdt();
+        assertEquals(1, session.parentReleaseCalls);
+        assertEquals(1, session.destroyCalls);
+        assertFalse(session.parentReleaseCalledOnEdt);
+        assertFalse(session.destroyCalledOnEdt);
     }
 
     @Test
@@ -482,8 +598,8 @@ class WindowsWebCanvasHostTest {
         Fixture fixture = fixture("artifact-lease");
         startAndFinish(fixture);
         Path artifactRoot = fixture.artifact.root();
-        Path marker = fixture.userDataFolder.resolve(
-                WindowsWebCanvasHost.USER_DATA_MARKER);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
         assertTrue(Files.isRegularFile(marker));
 
         fixture.artifact.close();
@@ -520,6 +636,57 @@ class WindowsWebCanvasHostTest {
         assertTrue(Files.isDirectory(fixture.userDataFolder));
         assertTrue(Files.isDirectory(artifactRoot));
         assertTrue(fixture.cleanupRetries.failedAttempts.isEmpty());
+
+        IllegalStateException restart = onEdt(() -> assertThrows(
+                IllegalStateException.class,
+                () -> fixture.host.start(fixture.request, new RecordingListener())));
+        assertTrue(restart.getMessage().contains("cleanup is incomplete"));
+
+        session.destroyFailure = null;
+        CompletableFuture<Void> retried = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(retried.isDone());
+        assertFalse(retried.isCompletedExceptionally());
+        assertEquals(2, session.destroyCalls);
+        assertEquals(1, session.parentReleaseCalls);
+        assertFalse(Files.exists(fixture.userDataFolder));
+        assertFalse(Files.exists(artifactRoot));
+    }
+
+    @Test
+    void unconfirmedBrowserExitNeverDeletesOwnedUserData() throws Exception {
+        Fixture fixture = fixture("unconfirmed-browser-exit");
+        startAndFinish(fixture);
+        FakeSession session = fixture.api.sessions.getFirst();
+        int flags = WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED
+                | WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED
+                | WindowsWebView2NativeApi.DestroyResult.CONTROLLER_CLOSED
+                | WindowsWebView2NativeApi.DestroyResult.THREAD_JOINED
+                | WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED;
+        session.destroyResult = new WindowsWebView2NativeApi.DestroyResult(
+                flags, 4242, 0, 1, 0);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+
+        CompletableFuture<Void> closed = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(closed.isCompletedExceptionally());
+        assertTrue(Files.isDirectory(fixture.userDataFolder));
+        assertTrue(Files.isRegularFile(marker));
+        assertTrue(fixture.listener.failureReason.contains(
+                "did not confirm browser-process/UDF release"));
+
+        CompletableFuture<Void> retried = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+        assertTrue(retried.isCompletedExceptionally());
+        assertEquals(1, session.destroyCalls);
+        assertTrue(Files.isDirectory(fixture.userDataFolder));
+        assertTrue(Files.isRegularFile(marker));
     }
 
     @Test
@@ -540,6 +707,29 @@ class WindowsWebCanvasHostTest {
         flushEdt();
         assertEquals("keep", Files.readString(sentinel, StandardCharsets.UTF_8));
         assertTrue(Files.isDirectory(fixture.userDataFolder));
+    }
+
+    @Test
+    void preExistingOwnershipSidecarIsNeverClaimedOrDeleted() throws Exception {
+        Fixture fixture = fixture("preexisting-user-data-sidecar");
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+        Files.writeString(marker, "foreign-owner", StandardCharsets.UTF_8);
+
+        start(fixture);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertEquals(0, fixture.api.requests.size());
+        assertTrue(fixture.listener.failureReason.contains(
+                "ownership marker already exists"));
+        assertEquals("foreign-owner",
+                Files.readString(marker, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(fixture.userDataFolder));
+        fixture.executor.runNext();
+        flushEdt();
+        assertEquals("foreign-owner",
+                Files.readString(marker, StandardCharsets.UTF_8));
     }
 
     @Test
@@ -570,8 +760,8 @@ class WindowsWebCanvasHostTest {
             throws Exception {
         Fixture fixture = fixture("changed-marker");
         startAndFinish(fixture);
-        Path marker = fixture.userDataFolder.resolve(
-                WindowsWebCanvasHost.USER_DATA_MARKER);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
         Files.writeString(marker, "not-owned", StandardCharsets.UTF_8);
 
         CompletableFuture<Void> closed = onEdt(fixture.host::closeAsync);
@@ -582,7 +772,64 @@ class WindowsWebCanvasHostTest {
         assertTrue(closed.isCompletedExceptionally());
         assertTrue(Files.isDirectory(fixture.userDataFolder));
         assertEquals(List.of(1, 2, 3), fixture.cleanupRetries.failedAttempts);
-        assertTrue(fixture.listener.events.getLast().equals("closed"));
+        assertTrue(fixture.listener.events.getLast().equals(
+                "failed:Release Web Canvas resources"));
+    }
+
+    @Test
+    void replacedUserDataDirectoryIsNeverDeletedEvenWhenSidecarStillMatches()
+            throws Exception {
+        Fixture fixture = fixture("replaced-user-data-directory");
+        startAndFinish(fixture);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+        byte[] originalMarker = Files.readAllBytes(marker);
+
+        Files.delete(fixture.userDataFolder);
+        Files.createDirectory(fixture.userDataFolder);
+        Path foreignSentinel = fixture.userDataFolder.resolve("foreign-data.txt");
+        Files.writeString(foreignSentinel, "must survive", StandardCharsets.UTF_8);
+
+        CompletableFuture<Void> closed = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(closed.isCompletedExceptionally());
+        assertEquals("must survive",
+                Files.readString(foreignSentinel, StandardCharsets.UTF_8));
+        assertArrayEquals(originalMarker, Files.readAllBytes(marker));
+        assertEquals(List.of(1, 2, 3), fixture.cleanupRetries.failedAttempts);
+        assertTrue(fixture.listener.failureReason.contains("identity changed"));
+    }
+
+    @Test
+    void windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement()
+            throws Exception {
+        Assumptions.assumeTrue(
+                System.getProperty("os.name", "").startsWith("Windows"),
+                "Win32 share-mode test");
+        Path root = Files.createDirectory(temporary.resolve("locked-owned-root"));
+        Path marker = Files.writeString(
+                temporary.resolve("locked-owned-marker"),
+                "owned",
+                StandardCharsets.UTF_8);
+        Path movedRoot = temporary.resolve("replacement-root");
+        Path movedMarker = temporary.resolve("replacement-marker");
+
+        try (AutoCloseable rootLock = invokeWindowsPathLock(
+                "lockOwnedDirectory", root);
+                AutoCloseable markerLock = invokeWindowsPathLock(
+                        "lockOwnedMarker", marker)) {
+            assertThrows(IOException.class, () -> Files.move(root, movedRoot));
+            assertThrows(IOException.class, () -> Files.move(marker, movedMarker));
+            assertTrue(Files.isDirectory(root));
+            assertTrue(Files.isRegularFile(marker));
+        }
+
+        Files.move(root, movedRoot);
+        Files.move(marker, movedMarker);
+        assertTrue(Files.isDirectory(movedRoot));
+        assertTrue(Files.isRegularFile(movedMarker));
     }
 
     @Test
@@ -590,8 +837,8 @@ class WindowsWebCanvasHostTest {
             throws Exception {
         Fixture fixture = fixture("cleanup-retry");
         startAndFinish(fixture);
-        Path marker = fixture.userDataFolder.resolve(
-                WindowsWebCanvasHost.USER_DATA_MARKER);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
         byte[] ownedMarker = Files.readAllBytes(marker);
         Files.writeString(marker, "temporarily-locked", StandardCharsets.UTF_8);
         fixture.cleanupRetries.retryAction = (attempt, failure) -> {
@@ -608,6 +855,76 @@ class WindowsWebCanvasHostTest {
         assertTrue(closed.isDone());
         assertFalse(closed.isCompletedExceptionally());
         assertFalse(Files.exists(fixture.userDataFolder));
+    }
+
+    @Test
+    void cleanupLinkageFailurePoisonsHostWithoutWedgingClose() throws Exception {
+        Fixture fixture = fixture("cleanup-linkage-failure");
+        startAndFinish(fixture);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+        byte[] ownedMarker = Files.readAllBytes(marker);
+        Files.writeString(marker, "temporarily-unverifiable",
+                StandardCharsets.UTF_8);
+        fixture.cleanupRetries.retryAction = (attempt, failure) -> {
+            throw new UnsatisfiedLinkError("Kernel32 binding unavailable");
+        };
+
+        CompletableFuture<Void> closed = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(closed.isDone());
+        assertTrue(closed.isCompletedExceptionally());
+        assertTrue(Files.isDirectory(fixture.userDataFolder));
+        assertTrue(Files.isRegularFile(marker));
+        assertEquals("failed:Release Web Canvas resources",
+                fixture.listener.events.getLast());
+        assertTrue(fixture.listener.failureReason.contains(
+                "Kernel32 binding unavailable"));
+
+        Files.write(marker, ownedMarker);
+        fixture.cleanupRetries.retryAction = (attempt, failure) -> { };
+        CompletableFuture<Void> retried = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertTrue(retried.isDone());
+        assertFalse(retried.isCompletedExceptionally());
+        assertFalse(Files.exists(fixture.userDataFolder));
+    }
+
+    @Test
+    void partialUserDataCleanupKeepsExternalOwnershipProofForRetry()
+            throws Exception {
+        Fixture fixture = fixture("partial-cleanup-retry");
+        startAndFinish(fixture);
+        Path marker = WindowsWebCanvasHost.userDataMarkerPath(
+                fixture.userDataFolder);
+        byte[] ownedMarker = Files.readAllBytes(marker);
+        Path alreadyDeleted = fixture.userDataFolder.resolve("first.bin");
+        Path retainedSibling = fixture.userDataFolder.resolve("second.bin");
+        Files.writeString(alreadyDeleted, "first", StandardCharsets.UTF_8);
+        Files.writeString(retainedSibling, "second", StandardCharsets.UTF_8);
+        Files.writeString(marker, "temporarily-unverifiable", StandardCharsets.UTF_8);
+        fixture.cleanupRetries.retryAction = (attempt, failure) -> {
+            if (attempt == 1) {
+                Files.delete(alreadyDeleted);
+                assertTrue(Files.isRegularFile(marker));
+                assertTrue(Files.isRegularFile(retainedSibling));
+                Files.write(marker, ownedMarker);
+            }
+        };
+
+        CompletableFuture<Void> closed = onEdt(fixture.host::closeAsync);
+        fixture.executor.runNext();
+        flushEdt();
+
+        assertEquals(List.of(1), fixture.cleanupRetries.failedAttempts);
+        assertTrue(closed.isDone());
+        assertFalse(closed.isCompletedExceptionally());
+        assertFalse(Files.exists(fixture.userDataFolder));
+        assertFalse(Files.exists(marker));
     }
 
     @Test
@@ -811,6 +1128,26 @@ class WindowsWebCanvasHostTest {
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class, operation::call);
         assertTrue(failure.getMessage().contains("EDT"));
+    }
+
+    private static AutoCloseable invokeWindowsPathLock(
+            String methodName, Path path) throws Exception {
+        Class<?> identity = Class.forName(
+                WindowsWebCanvasHost.class.getName()
+                + "$WindowsStableFileIdentity");
+        var method = identity.getDeclaredMethod(
+                methodName, Path.class, String.class);
+        method.setAccessible(true);
+        try {
+            return (AutoCloseable) method.invoke(
+                    null, path, "Test WebView2 owned path");
+        } catch (InvocationTargetException failure) {
+            Throwable cause = failure.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            throw failure;
+        }
     }
 
     private static void flushEdt() throws Exception {
@@ -1020,12 +1357,17 @@ class WindowsWebCanvasHostTest {
         private boolean boundsCalledOnEdt;
         private boolean visibilityCalledOnEdt;
         private boolean focusCalledOnEdt;
+        private boolean parentReleaseCalledOnEdt;
         private boolean destroyCalledOnEdt;
         private int focusCalls;
+        private int parentReleaseCalls;
         private int destroyCalls;
         private boolean userDataExistedDuringDestroy;
         private boolean artifactExistedDuringDestroy;
         private IOException destroyFailure;
+        private IOException parentReleaseFailure;
+        private WindowsWebView2NativeApi.DestroyResult destroyResult =
+                confirmedDestroyResult();
 
         private FakeSession(Path userDataFolder, Path artifactRoot) {
             this.userDataFolder = userDataFolder;
@@ -1056,8 +1398,23 @@ class WindowsWebCanvasHostTest {
         }
 
         @Override
-        public void destroy() throws IOException {
+        public void prepareParentRelease(
+                long expectedParentWindow, java.time.Duration timeout)
+                throws IOException {
+            parentReleaseCalledOnEdt = EventQueue.isDispatchThread();
+            parentReleaseCalls++;
+            assertEquals(HWND, expectedParentWindow);
+            assertEquals(WindowsWebCanvasHost.PARENT_RELEASE_TIMEOUT, timeout);
+            if (parentReleaseFailure != null) {
+                throw parentReleaseFailure;
+            }
+        }
+
+        @Override
+        public WindowsWebView2NativeApi.DestroyResult destroy(
+                java.time.Duration timeout) throws IOException {
             destroyCalledOnEdt = EventQueue.isDispatchThread();
+            assertEquals(WindowsWebCanvasHost.DESTROY_TIMEOUT, timeout);
             userDataExistedDuringDestroy = Files.isDirectory(
                     userDataFolder, java.nio.file.LinkOption.NOFOLLOW_LINKS);
             artifactExistedDuringDestroy = Files.isDirectory(
@@ -1066,6 +1423,21 @@ class WindowsWebCanvasHostTest {
             if (destroyFailure != null) {
                 throw destroyFailure;
             }
+            return destroyResult;
+        }
+
+        private static WindowsWebView2NativeApi.DestroyResult
+                confirmedDestroyResult() {
+            int flags = WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED
+                    | WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED
+                    | WindowsWebView2NativeApi.DestroyResult.CONTROLLER_CLOSED
+                    | WindowsWebView2NativeApi.DestroyResult.BROWSER_EXIT_OBSERVED
+                    | WindowsWebView2NativeApi.DestroyResult.PID_MATCHED
+                    | WindowsWebView2NativeApi.DestroyResult.UDF_RELEASE_CONFIRMED
+                    | WindowsWebView2NativeApi.DestroyResult.THREAD_JOINED
+                    | WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED;
+            return new WindowsWebView2NativeApi.DestroyResult(
+                    flags, 4242, 4242, 0, 0);
         }
     }
 

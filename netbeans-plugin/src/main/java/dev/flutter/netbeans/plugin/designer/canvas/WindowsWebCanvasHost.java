@@ -2,6 +2,11 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinDef.DWORD;
+import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.platform.win32.WinNT.HANDLE;
 import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -23,6 +28,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -41,8 +47,10 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             8L * 1024 * 1024;
     private static final int MAXIMUM_USER_DATA_DELETE_ATTEMPTS = 4;
     static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(30);
+    static final Duration PARENT_RELEASE_TIMEOUT = Duration.ofSeconds(5);
+    static final Duration DESTROY_TIMEOUT = Duration.ofSeconds(30);
     static final String USER_DATA_MARKER =
-            ".netbeans-flutter-webview2-owned";
+            ".netbeans-flutter-webview2-owned-";
     static final String USER_DATA_SESSIONS_ROOT_MARKER =
             ".netbeans-flutter-webview2-sessions-root";
     private static final String USER_DATA_MARKER_FORMAT =
@@ -66,8 +74,13 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     private volatile Phase phase = Phase.NEW;
     private boolean initializationInFlight;
     private boolean teardownInFlight;
+    private boolean parentReleaseAttempted;
+    private boolean parentReleaseConfirmed;
+    private boolean browserProcessReleaseConfirmed;
+    private boolean peerRemovalBarrierComplete;
     private boolean documentReady;
     private boolean bridgeAuthenticated;
+    private boolean transportFailureTerminalPending;
     private volatile WindowsWebView2NativeApi.NativeSession nativeSession;
     private OwnedUserDataFolder ownedUserDataFolder;
     private WebCanvasArtifactPublisher.PublishedArtifact.Lease artifactLease;
@@ -173,7 +186,9 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         requireEdt();
         Objects.requireNonNull(request, "request");
         if (phase != Phase.NEW && phase != Phase.CLOSED) {
-            throw new IllegalStateException("Web Canvas host is already active");
+            throw new IllegalStateException(phase == Phase.POISONED
+                    ? "Web Canvas host cleanup is incomplete; restart is forbidden"
+                    : "Web Canvas host is already active");
         }
         long parent = parentHandleResolver.resolve(canvas);
         if (parent == 0) {
@@ -227,8 +242,13 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         phase = Phase.STARTING;
         initializationInFlight = true;
         teardownInFlight = false;
+        parentReleaseAttempted = false;
+        parentReleaseConfirmed = false;
+        browserProcessReleaseConfirmed = false;
+        peerRemovalBarrierComplete = false;
         documentReady = false;
         bridgeAuthenticated = false;
+        transportFailureTerminalPending = false;
         nativeSession = null;
         ownedUserDataFolder = null;
         artifactLease = retainedArtifact;
@@ -300,6 +320,17 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         return closeCompletion;
     }
 
+    /**
+     * Begins the bounded off-EDT native parent-release and full teardown
+     * barrier. The component owner must await this future before removing the
+     * heavyweight Canvas from its displayable AWT hierarchy.
+     */
+    CompletableFuture<Void> preparePeerRemovalAsync() {
+        requireEdt();
+        beginClose(generation);
+        return closeCompletion;
+    }
+
     @Override
     public void close() {
         if (EventQueue.isDispatchThread()) {
@@ -319,6 +350,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         OwnedUserDataFolder createdUserData = null;
         String runtime = "";
         Throwable failure = null;
+        boolean failedCreateReleaseConfirmed = true;
         try {
             requireSafeArtifactDirectory(request.contentRoot());
             createdUserData = OwnedUserDataFolder.create(
@@ -326,9 +358,14 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                     request.contentRoot(), request.sessionNonce());
             runtime = nativeApi.runtimeVersion();
             createdUserData.verify();
+            failedCreateReleaseConfirmed = false;
             created = nativeApi.create(
                     request,
                     event -> acceptNativeEvent(expectedGeneration, event));
+        } catch (WindowsWebView2NativeApi.CreateException problem) {
+            created = problem.retainedSession().orElse(null);
+            failedCreateReleaseConfirmed = problem.releaseConfirmed();
+            failure = problem;
         } catch (IOException | RuntimeException | LinkageError problem) {
             failure = problem;
         }
@@ -336,9 +373,11 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         OwnedUserDataFolder resultUserData = createdUserData;
         String detectedRuntime = runtime;
         Throwable detectedFailure = failure;
+        boolean releaseConfirmed = failedCreateReleaseConfirmed;
         EventQueue.invokeLater(() -> finishInitialization(
                 expectedGeneration, result, resultUserData, retainedArtifact,
-                detectedRuntime, originPolicy.indexUri(), detectedFailure));
+                detectedRuntime, originPolicy.indexUri(), detectedFailure,
+                releaseConfirmed));
     }
 
     private void finishInitialization(
@@ -348,18 +387,25 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact,
             String runtime,
             String documentUri,
-            Throwable failure) {
+            Throwable failure,
+            boolean failedCreateReleaseConfirmed) {
         requireEdt();
         initializationInFlight = false;
         if (expectedGeneration != generation) {
-            destroyDetachedOffEdt(created, createdUserData, retainedArtifact);
+            destroyDetachedOffEdt(
+                    created, createdUserData, retainedArtifact,
+                    failedCreateReleaseConfirmed);
             return;
         }
+        if (created == null && failedCreateReleaseConfirmed) {
+            browserProcessReleaseConfirmed = true;
+            parentReleaseConfirmed = true;
+        }
         ownedUserDataFolder = createdUserData;
+        nativeSession = created;
         if (phase == Phase.CLOSING || phase == Phase.CLOSED) {
             pendingNativeEvents.clear();
             pendingNativeEventCharacters = 0;
-            nativeSession = created;
             startTeardownIfReady(expectedGeneration);
             return;
         }
@@ -368,7 +414,6 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                     ? new IOException("native WebView2 session was not created") : failure);
             return;
         }
-        nativeSession = created;
         try {
             listener.nativeStarted(runtime, documentUri);
         } catch (RuntimeException ignored) {
@@ -383,16 +428,15 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             long expectedGeneration,
             WindowsWebView2NativeApi.Event event) {
         Objects.requireNonNull(event, "event");
-        if (expectedGeneration != generation || phase == Phase.CLOSED
-                || phase == Phase.CLOSING) {
+        if (expectedGeneration != generation || !acceptsNativeEvents()) {
             return;
         }
         long characters = eventCharacters(event);
         boolean scheduleDrain = false;
         long drainEpoch = 0;
         synchronized (nativeEventLock) {
-            if (expectedGeneration != generation || phase == Phase.CLOSED
-                    || phase == Phase.CLOSING || nativeEventOverflow) {
+            if (expectedGeneration != generation || !acceptsNativeEvents()
+                    || nativeEventOverflow) {
                 return;
             }
             if (nativeEventInbox.size() >= MAXIMUM_PENDING_NATIVE_EVENTS
@@ -463,8 +507,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             WindowsWebView2NativeApi.Event event,
             long characters) {
         requireEdt();
-        if (expectedGeneration != generation || phase == Phase.CLOSED
-                || phase == Phase.CLOSING) {
+        if (expectedGeneration != generation || !acceptsNativeEvents()) {
             return;
         }
         if (initializationInFlight || nativeSession == null) {
@@ -491,14 +534,13 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     private void drainPendingNativeEvents(long expectedGeneration) {
         requireEdt();
         while (expectedGeneration == generation
-                && phase != Phase.CLOSING
-                && phase != Phase.CLOSED
+                && acceptsNativeEvents()
                 && !pendingNativeEvents.isEmpty()) {
             WindowsWebView2NativeApi.Event event = pendingNativeEvents.removeFirst();
             pendingNativeEventCharacters -= eventCharacters(event);
             dispatchNativeEvent(expectedGeneration, event);
         }
-        if (phase == Phase.CLOSING || phase == Phase.CLOSED) {
+        if (!acceptsNativeEvents()) {
             pendingNativeEvents.clear();
             pendingNativeEventCharacters = 0;
         }
@@ -603,7 +645,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             EventQueue.invokeLater(() -> acceptDiagnostic(expectedGeneration, message));
             return;
         }
-        if (expectedGeneration == generation && phase != Phase.CLOSED) {
+        if (expectedGeneration == generation && acceptsNativeEvents()) {
             safeListener(() -> listener.diagnostic(message));
         }
     }
@@ -615,9 +657,19 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                     expectedGeneration, terminal));
             return;
         }
-        if (expectedGeneration != generation || phase == Phase.CLOSED) {
+        boolean localCloseDuringTeardown = phase == Phase.CLOSING
+                && terminal.kind() == WebCanvasHostBridge.TerminalKind.LOCAL_CLOSE;
+        boolean expectedFailureDuringTeardown = phase == Phase.CLOSING
+                && transportFailureTerminalPending
+                && terminal.kind()
+                == WebCanvasHostBridge.TerminalKind.TRANSPORT_FAILURE;
+        if (expectedGeneration != generation
+                || (!acceptsNativeEvents()
+                && !localCloseDuringTeardown
+                && !expectedFailureDuringTeardown)) {
             return;
         }
+        transportFailureTerminalPending = false;
         safeListener(() -> listener.bridgeTerminal(terminal));
         if (terminal.kind() != WebCanvasHostBridge.TerminalKind.LOCAL_CLOSE) {
             beginClose(expectedGeneration);
@@ -638,6 +690,11 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         } catch (IOException | RuntimeException failure) {
             failOnEdt(generation, "Resize Web Canvas", failure);
         }
+    }
+
+    private boolean acceptsNativeEvents() {
+        Phase current = phase;
+        return current == Phase.STARTING || current == Phase.RUNNING;
     }
 
     private NativeCanvasWindowBounds physicalClientBounds(long window) {
@@ -715,13 +772,14 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     private void failOnEdt(long expectedGeneration, String operation, Throwable failure) {
         requireEdt();
         if (expectedGeneration != generation || phase == Phase.CLOSING
-                || phase == Phase.CLOSED) {
+                || phase == Phase.POISONED || phase == Phase.CLOSED) {
             return;
         }
         phase = Phase.FAILED;
         String reason = boundedReason(failure);
         safeListener(() -> listener.failed(operation, reason));
         if (bridge != null) {
+            transportFailureTerminalPending = true;
             bridge.failTransport(operation + " failed: " + reason);
         }
         beginClose(expectedGeneration);
@@ -732,6 +790,9 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         if (expectedGeneration != generation || phase == Phase.CLOSED
                 || phase == Phase.CLOSING) {
             return;
+        }
+        if (phase == Phase.POISONED) {
+            closeCompletion = new CompletableFuture<>();
         }
         phase = Phase.CLOSING;
         cancelStartupDeadline();
@@ -752,66 +813,146 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         OwnedUserDataFolder userData = ownedUserDataFolder;
         WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact =
                 artifactLease;
-        nativeSession = null;
-        ownedUserDataFolder = null;
-        artifactLease = null;
+        long expectedParent = parentWindow;
+        boolean attemptParentRelease = session != null && !parentReleaseAttempted;
+        boolean parentAlreadyReleased = parentReleaseConfirmed;
+        boolean browserAlreadyReleased = browserProcessReleaseConfirmed;
         if (session == null && userData == null && retainedArtifact == null) {
-            completeClose(expectedGeneration, null);
+            completeClose(expectedGeneration, CleanupResult.empty());
             return;
         }
         teardownInFlight = true;
         executeOffEdt("flutter-webview2-native-destroy", () -> {
-            Throwable result = cleanupResources(
-                    session, userData, retainedArtifact);
+            CleanupResult result = cleanupResources(
+                    session, userData, retainedArtifact,
+                    expectedParent, attemptParentRelease,
+                    parentAlreadyReleased, browserAlreadyReleased);
             EventQueue.invokeLater(() -> completeClose(expectedGeneration, result));
-        }, failure -> completeClose(expectedGeneration, failure));
+        }, failure -> completeClose(
+                expectedGeneration,
+                CleanupResult.notStarted(
+                        failure, session, userData, retainedArtifact,
+                        parentReleaseAttempted, parentReleaseConfirmed,
+                        browserProcessReleaseConfirmed)));
     }
 
     private void destroyDetachedOffEdt(
             WindowsWebView2NativeApi.NativeSession session,
             OwnedUserDataFolder userData,
-            WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact) {
+            WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact,
+            boolean browserReleaseConfirmed) {
         if (session == null && userData == null && retainedArtifact == null) {
             return;
         }
         executeOffEdt("flutter-webview2-native-detached-destroy", () ->
-                cleanupResources(session, userData, retainedArtifact),
+                cleanupResources(
+                        session, userData, retainedArtifact,
+                        0, false, session == null,
+                        browserReleaseConfirmed),
                 ignored -> { });
     }
 
-    private Throwable cleanupResources(
+    private CleanupResult cleanupResources(
             WindowsWebView2NativeApi.NativeSession session,
             OwnedUserDataFolder userData,
-            WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact) {
+            WebCanvasArtifactPublisher.PublishedArtifact.Lease retainedArtifact,
+            long expectedParent,
+            boolean attemptParentRelease,
+            boolean parentAlreadyReleased,
+            boolean browserAlreadyReleased) {
         Throwable failure = null;
-        boolean nativeReleased = true;
+        boolean nativeReleased = session == null;
+        boolean parentAttempted = !attemptParentRelease;
+        boolean parentReleased = parentAlreadyReleased || session == null;
+        boolean browserReleased = browserAlreadyReleased;
+        boolean userDataReleased = userData == null;
+        boolean artifactReleased = retainedArtifact == null;
         if (session != null) {
+            Throwable parentReleaseFailure = null;
+            if (attemptParentRelease) {
+                parentAttempted = true;
+                try {
+                    session.prepareParentRelease(
+                            expectedParent, PARENT_RELEASE_TIMEOUT);
+                    parentReleased = true;
+                } catch (IOException | RuntimeException | LinkageError problem) {
+                    parentReleaseFailure = problem;
+                }
+            }
             try {
-                session.destroy();
+                WindowsWebView2NativeApi.DestroyResult destroyed =
+                        session.destroy(DESTROY_TIMEOUT);
+                nativeReleased = true;
+                parentReleased |= hasDestroyFlag(
+                        destroyed,
+                        WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED);
+                browserReleased |= destroyed.udfReleaseConfirmed();
+                if (!parentReleased) {
+                    IOException missingParentProof = new IOException(
+                            "Native WebView2 teardown did not confirm parent release");
+                    if (parentReleaseFailure != null) {
+                        missingParentProof.addSuppressed(parentReleaseFailure);
+                    }
+                    failure = appendFailure(failure, missingParentProof);
+                }
+                if (!browserReleased) {
+                    failure = appendFailure(failure,
+                            unconfirmedBrowserRelease(destroyed));
+                }
             } catch (IOException | RuntimeException | LinkageError problem) {
                 failure = appendFailure(failure, problem);
                 nativeReleased = false;
+                if (parentReleaseFailure != null) {
+                    failure = appendFailure(failure, parentReleaseFailure);
+                }
             }
         }
-        // A failed destroy cannot prove that the browser stopped using either
-        // tree. Leaking the owned UDF and publication lease is deliberate:
-        // deleting them under a possibly live WebView2 process would be a
-        // use-after-delete and origin-integrity failure.
-        if (nativeReleased && userData != null) {
+        // Native host retirement and BrowserProcessExited are deliberately
+        // separate facts. The UDF remains owned and intact until the exact
+        // browser PID is observed exiting (or native proves no browser began).
+        if (browserReleased && userData != null) {
             try {
                 deleteOwnedUserDataWithRetry(userData);
-            } catch (IOException | RuntimeException problem) {
+                userDataReleased = true;
+            } catch (IOException | RuntimeException | LinkageError problem) {
                 failure = appendFailure(failure, problem);
             }
         }
         if (nativeReleased && retainedArtifact != null) {
             try {
                 retainedArtifact.close();
-            } catch (IOException | RuntimeException problem) {
+                artifactReleased = true;
+            } catch (IOException | RuntimeException | LinkageError problem) {
                 failure = appendFailure(failure, problem);
             }
         }
-        return failure;
+        return new CleanupResult(
+                failure,
+                session == null || nativeReleased,
+                parentAttempted,
+                parentReleased,
+                browserReleased,
+                userDataReleased,
+                artifactReleased);
+    }
+
+    private static boolean hasDestroyFlag(
+            WindowsWebView2NativeApi.DestroyResult result, int flag) {
+        return (result.flags() & flag) != 0;
+    }
+
+    private static IOException unconfirmedBrowserRelease(
+            WindowsWebView2NativeApi.DestroyResult result) {
+        return new IOException(
+                "Native WebView2 teardown released the host but did not confirm "
+                + "browser-process/UDF release (expected PID "
+                + Long.toUnsignedString(result.expectedBrowserProcessId())
+                + ", observed PID "
+                + Long.toUnsignedString(result.observedBrowserProcessId())
+                + ", exit kind " + result.browserExitKind()
+                + ", terminal HRESULT 0x"
+                + String.format(java.util.Locale.ROOT, "%08X",
+                        result.terminalHresult()) + ")");
     }
 
     private void deleteOwnedUserDataWithRetry(OwnedUserDataFolder userData)
@@ -859,36 +1000,65 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         return (long) event.source().length() + event.payload().length();
     }
 
-    private void completeClose(long expectedGeneration, Throwable failure) {
+    private void completeClose(long expectedGeneration, CleanupResult result) {
         requireEdt();
         if (expectedGeneration != generation || phase == Phase.CLOSED) {
             return;
         }
-        phase = Phase.CLOSED;
+        CleanupResult completed = Objects.requireNonNull(result, "result");
+        if (completed.nativeReleased()) {
+            nativeSession = null;
+            parentWindow = 0;
+        }
+        parentReleaseAttempted |= completed.parentReleaseAttempted();
+        parentReleaseConfirmed |= completed.parentReleaseConfirmed();
+        browserProcessReleaseConfirmed |=
+                completed.browserProcessReleaseConfirmed();
+        if (completed.userDataReleased()) {
+            ownedUserDataFolder = null;
+        }
+        if (completed.artifactReleased()) {
+            artifactLease = null;
+        }
+        boolean fullyReleased = nativeSession == null
+                && ownedUserDataFolder == null
+                && artifactLease == null;
+        phase = fullyReleased ? Phase.CLOSED : Phase.POISONED;
+        peerRemovalBarrierComplete = fullyReleased;
         cancelStartupDeadline();
         initializationInFlight = false;
         teardownInFlight = false;
         documentReady = false;
         bridgeAuthenticated = false;
-        parentWindow = 0;
-        nativeSession = null;
-        ownedUserDataFolder = null;
-        artifactLease = null;
+        transportFailureTerminalPending = false;
         bridge = null;
         clearNativeEventQueues();
         CompletableFuture<Void> completedFuture = closeCompletion;
         Listener completedListener = listener;
-        safeListener(() -> completedListener.closed(
-                failure == null ? "" : boundedReason(failure)));
+        Throwable failure = completed.failure();
+        if (!fullyReleased && failure == null) {
+            failure = new IOException(
+                    "Web Canvas cleanup cannot release the remaining resources "
+                    + "without browser-process/UDF release proof");
+        }
+        Throwable terminalFailure = failure;
+        if (fullyReleased) {
+            safeListener(() -> completedListener.closed(
+                    terminalFailure == null ? "" : boundedReason(terminalFailure)));
+        } else {
+            String reason = boundedReason(terminalFailure);
+            safeListener(() -> completedListener.failed(
+                    "Release Web Canvas resources", reason));
+        }
         if (expectedGeneration == generation
                 && phase == Phase.CLOSED
                 && listener == completedListener) {
             listener = Listener.NOOP;
         }
-        if (failure == null) {
+        if (terminalFailure == null && fullyReleased) {
             completedFuture.complete(null);
         } else {
-            completedFuture.completeExceptionally(failure);
+            completedFuture.completeExceptionally(terminalFailure);
         }
     }
 
@@ -904,17 +1074,26 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             Consumer<Throwable> schedulingFailure) {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(schedulingFailure, "schedulingFailure");
+        Runnable failureReportingCommand = () -> {
+            try {
+                command.run();
+            } catch (RuntimeException | LinkageError failure) {
+                EventQueue.invokeLater(() -> schedulingFailure.accept(failure));
+            }
+        };
         Runnable guarded = () -> {
             if (EventQueue.isDispatchThread()) {
-                startFallbackThread(threadName, command, schedulingFailure);
+                startFallbackThread(
+                        threadName, failureReportingCommand, schedulingFailure);
             } else {
-                command.run();
+                failureReportingCommand.run();
             }
         };
         try {
             nativeExecutor.execute(guarded);
-        } catch (RuntimeException rejected) {
-            startFallbackThread(threadName, command, schedulingFailure);
+        } catch (RuntimeException | LinkageError rejected) {
+            startFallbackThread(
+                    threadName, failureReportingCommand, schedulingFailure);
         }
     }
 
@@ -1004,9 +1183,29 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         }
     }
 
-    private static void requireSameFileKey(
-            Object expected, BasicFileAttributes actual, String label) throws IOException {
-        if (expected != null && !expected.equals(actual.fileKey())) {
+    private static StableFileIdentity requireStableIdentity(Path path, String label)
+            throws IOException {
+        if (usesWindowsStableIdentity()) {
+            return WindowsStableFileIdentity.read(path, label);
+        }
+        BasicFileAttributes attributes = Files.readAttributes(
+                path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        Object key = attributes.fileKey();
+        if (key == null) {
+            throw new IOException(label
+                    + " filesystem does not expose a stable file identity");
+        }
+        return new StableFileIdentity("nio", 0, new byte[0], key);
+    }
+
+    private static boolean usesWindowsStableIdentity() {
+        return System.getProperty("os.name", "").startsWith("Windows");
+    }
+
+    private static void requireSameIdentity(
+            StableFileIdentity expected, Path path, String label) throws IOException {
+        StableFileIdentity actual = requireStableIdentity(path, label);
+        if (!Objects.requireNonNull(expected, "expected identity").equals(actual)) {
             throw new IOException(label + " identity changed during its lifetime");
         }
     }
@@ -1042,7 +1241,38 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     }
 
     private static void deleteSafeOwnedTree(
-            Path root, Object expectedRootKey, String label) throws IOException {
+            Path root, StableFileIdentity expectedRootIdentity, String label)
+            throws IOException {
+        if (usesWindowsStableIdentity()) {
+            Path parent = root.getParent();
+            if (parent == null) {
+                throw new IOException(label + " has no lockable parent");
+            }
+            try (WindowsStableFileIdentity.LockedPath parentLock =
+                    WindowsStableFileIdentity.lockParent(
+                            parent, label + " parent");
+                    WindowsStableFileIdentity.LockedPath rootLock =
+                            WindowsStableFileIdentity.lockOwnedDirectory(root, label)) {
+                rootLock.requireIdentity(expectedRootIdentity);
+                deleteSafeOwnedTree(
+                        root, expectedRootIdentity, label, false);
+                rootLock.markForDeletion();
+            }
+            if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException(label
+                        + " remained after handle-based cleanup");
+            }
+            return;
+        }
+        deleteSafeOwnedTree(root, expectedRootIdentity, label, true);
+    }
+
+    private static void deleteSafeOwnedTree(
+            Path root,
+            StableFileIdentity expectedRootIdentity,
+            String label,
+            boolean deleteRootByPath)
+            throws IOException {
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(
@@ -1053,7 +1283,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                             + directory);
                 }
                 if (directory.equals(root)) {
-                    requireSameFileKey(expectedRootKey, attributes, label);
+                    requireSameIdentity(expectedRootIdentity, directory, label);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -1075,10 +1305,222 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                 if (failure != null) {
                     throw failure;
                 }
-                Files.delete(directory);
+                if (deleteRootByPath || !directory.equals(root)) {
+                    Files.delete(directory);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private record StableFileIdentity(
+            String provider,
+            long volumeSerialNumber,
+            byte[] fileId,
+            Object portableKey) {
+        private StableFileIdentity {
+            provider = Objects.requireNonNull(provider, "provider");
+            fileId = Objects.requireNonNull(fileId, "fileId").clone();
+        }
+
+        @Override
+        public byte[] fileId() {
+            return fileId.clone();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof StableFileIdentity identity
+                    && provider.equals(identity.provider)
+                    && volumeSerialNumber == identity.volumeSerialNumber
+                    && Arrays.equals(fileId, identity.fileId)
+                    && Objects.equals(portableKey, identity.portableKey);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(provider, volumeSerialNumber, portableKey);
+            return 31 * result + Arrays.hashCode(fileId);
+        }
+    }
+
+    private static final class WindowsStableFileIdentity {
+        private static StableFileIdentity read(Path path, String label)
+                throws IOException {
+            try (LockedPath locked = open(
+                    path,
+                    label,
+                    WinNT.FILE_READ_ATTRIBUTES,
+                    WinNT.FILE_SHARE_READ | WinNT.FILE_SHARE_WRITE
+                            | WinNT.FILE_SHARE_DELETE)) {
+                return locked.identity();
+            }
+        }
+
+        private static LockedPath lockParent(Path path, String label)
+                throws IOException {
+            return open(
+                    path,
+                    label,
+                    WinNT.FILE_READ_ATTRIBUTES,
+                    WinNT.FILE_SHARE_READ | WinNT.FILE_SHARE_WRITE);
+        }
+
+        private static LockedPath lockOwnedDirectory(Path path, String label)
+                throws IOException {
+            return open(
+                    path,
+                    label,
+                    WinNT.DELETE | WinNT.FILE_READ_ATTRIBUTES,
+                    WinNT.FILE_SHARE_READ | WinNT.FILE_SHARE_WRITE);
+        }
+
+        private static LockedPath lockOwnedMarker(Path path, String label)
+                throws IOException {
+            return open(
+                    path,
+                    label,
+                    WinNT.DELETE | WinNT.FILE_READ_ATTRIBUTES,
+                    WinNT.FILE_SHARE_READ);
+        }
+
+        private static LockedPath open(
+                Path path,
+                String label,
+                int desiredAccess,
+                int shareMode)
+                throws IOException {
+            HANDLE handle = Kernel32.INSTANCE.CreateFile(
+                    path.toString(),
+                    desiredAccess,
+                    shareMode,
+                    null,
+                    WinNT.OPEN_EXISTING,
+                    WinNT.FILE_FLAG_BACKUP_SEMANTICS
+                            | WinNT.FILE_FLAG_OPEN_REPARSE_POINT,
+                    null);
+            if (handle == null || handle.getPointer() == null
+                    || Pointer.nativeValue(handle.getPointer()) == -1L) {
+                throw windowsIdentityFailure(label, "CreateFile", Native.getLastError());
+            }
+            Throwable failure = null;
+            try {
+                return new LockedPath(
+                        handle, queryIdentity(handle, path, label), path, label);
+            } catch (IOException | RuntimeException | Error problem) {
+                failure = problem;
+                throw problem;
+            } finally {
+                if (failure != null && !Kernel32.INSTANCE.CloseHandle(handle)) {
+                    IOException closeFailure = windowsIdentityFailure(
+                            label, "CloseHandle", Native.getLastError());
+                    failure.addSuppressed(closeFailure);
+                }
+            }
+        }
+
+        private static StableFileIdentity queryIdentity(
+                HANDLE handle, Path path, String label) throws IOException {
+            WinBase.FILE_ATTRIBUTE_TAG_INFO tag =
+                    new WinBase.FILE_ATTRIBUTE_TAG_INFO();
+            if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(
+                    handle, WinBase.FileAttributeTagInfo,
+                    tag.getPointer(), new DWORD(tag.size()))) {
+                throw windowsIdentityFailure(
+                        label, "GetFileInformationByHandleEx(FileAttributeTagInfo)",
+                        Native.getLastError());
+            }
+            tag.read();
+            if ((tag.FileAttributes & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+                throw new IOException(label
+                        + " must not be a Windows reparse point: " + path);
+            }
+            WinBase.FILE_ID_INFO information = new WinBase.FILE_ID_INFO();
+            if (!Kernel32.INSTANCE.GetFileInformationByHandleEx(
+                    handle, WinBase.FileIdInfo,
+                    information.getPointer(), new DWORD(information.size()))) {
+                throw windowsIdentityFailure(
+                        label, "GetFileInformationByHandleEx(FileIdInfo)",
+                        Native.getLastError());
+            }
+            information.read();
+            byte[] fileId = new byte[information.FileId.Identifier.length];
+            for (int index = 0; index < fileId.length; index++) {
+                fileId[index] = information.FileId.Identifier[index].byteValue();
+            }
+            return new StableFileIdentity(
+                    "win32-file-id-128",
+                    information.VolumeSerialNumber,
+                    fileId,
+                    null);
+        }
+
+        private static final class LockedPath implements AutoCloseable {
+            private HANDLE handle;
+            private final StableFileIdentity identity;
+            private final Path path;
+            private final String label;
+
+            private LockedPath(
+                    HANDLE handle,
+                    StableFileIdentity identity,
+                    Path path,
+                    String label) {
+                this.handle = handle;
+                this.identity = identity;
+                this.path = path;
+                this.label = label;
+            }
+
+            private StableFileIdentity identity() {
+                return identity;
+            }
+
+            private void requireIdentity(StableFileIdentity expected)
+                    throws IOException {
+                if (!Objects.requireNonNull(expected, "expected identity")
+                        .equals(identity)) {
+                    throw new IOException(label + " identity changed during its lifetime");
+                }
+            }
+
+            private void markForDeletion() throws IOException {
+                HANDLE current = handle;
+                if (current == null) {
+                    throw new IOException(label + " handle is already closed");
+                }
+                WinBase.FILE_DISPOSITION_INFO disposition =
+                        new WinBase.FILE_DISPOSITION_INFO(true);
+                disposition.write();
+                if (!Kernel32.INSTANCE.SetFileInformationByHandle(
+                        current,
+                        WinBase.FileDispositionInfo,
+                        disposition.getPointer(),
+                        new DWORD(disposition.size()))) {
+                    throw windowsIdentityFailure(
+                            label, "SetFileInformationByHandle(FileDispositionInfo)",
+                            Native.getLastError());
+                }
+            }
+
+            @Override
+            public void close() throws IOException {
+                HANDLE current = handle;
+                handle = null;
+                if (current != null && !Kernel32.INSTANCE.CloseHandle(current)) {
+                    throw windowsIdentityFailure(
+                            label + " (" + path + ")",
+                            "CloseHandle",
+                            Native.getLastError());
+                }
+            }
+        }
+
+        private static IOException windowsIdentityFailure(
+                String label, String operation, int error) {
+            return new IOException(label + " stable identity query " + operation
+                    + " failed with Win32 error " + Integer.toUnsignedString(error));
+        }
     }
 
     private static void requireDisjoint(Path first, Path second, String label)
@@ -1090,29 +1532,42 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         }
     }
 
+    static Path userDataMarkerPath(Path userDataFolder) {
+        Path root = Objects.requireNonNull(userDataFolder, "userDataFolder")
+                .toAbsolutePath().normalize();
+        Path parent = root.getParent();
+        Path name = root.getFileName();
+        if (parent == null || name == null
+                || !name.toString().matches("[a-z0-9][a-z0-9-]{0,63}")) {
+            throw new IllegalArgumentException(
+                    "invalid WebView2 user-data session path");
+        }
+        return parent.resolve(USER_DATA_MARKER + name);
+    }
+
     static final class UserDataSessionsRoot {
         private final Path parent;
         private final Path root;
         private final Path marker;
-        private final Object parentFileKey;
-        private final Object rootFileKey;
-        private final Object markerFileKey;
+        private final StableFileIdentity parentIdentity;
+        private final StableFileIdentity rootIdentity;
+        private final StableFileIdentity markerIdentity;
         private final byte[] markerBytes;
 
         private UserDataSessionsRoot(
                 Path parent,
                 Path root,
                 Path marker,
-                Object parentFileKey,
-                Object rootFileKey,
-                Object markerFileKey,
+                StableFileIdentity parentIdentity,
+                StableFileIdentity rootIdentity,
+                StableFileIdentity markerIdentity,
                 byte[] markerBytes) {
             this.parent = parent;
             this.root = root;
             this.marker = marker;
-            this.parentFileKey = parentFileKey;
-            this.rootFileKey = rootFileKey;
-            this.markerFileKey = markerFileKey;
+            this.parentIdentity = parentIdentity;
+            this.rootIdentity = rootIdentity;
+            this.markerIdentity = markerIdentity;
             this.markerBytes = markerBytes;
         }
 
@@ -1125,7 +1580,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             }
             Path safeParent = requireSafeDirectoryComponents(
                     parent, "WebView2 sessions-root parent");
-            BasicFileAttributes parentAttributes = requireSafeDirectory(
+            requireSafeDirectory(safeParent, "WebView2 sessions-root parent");
+            StableFileIdentity parentIdentity = requireStableIdentity(
                     safeParent, "WebView2 sessions-root parent");
             rejectLinkOrReparse(root, "WebView2 sessions root");
             boolean created = false;
@@ -1133,9 +1589,10 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                 Files.createDirectory(root);
                 created = true;
             }
-            BasicFileAttributes rootAttributes = null;
+            StableFileIdentity rootIdentity = null;
             try {
-                rootAttributes = requireSafeDirectory(
+                requireSafeDirectory(root, "WebView2 sessions root");
+                rootIdentity = requireStableIdentity(
                         root, "WebView2 sessions root");
                 Path marker = root.resolve(USER_DATA_SESSIONS_ROOT_MARKER);
                 byte[] markerBytes;
@@ -1155,21 +1612,21 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                                 "Existing WebView2 sessions root is not plugin-owned");
                     }
                 }
-                BasicFileAttributes markerAttributes = requireRegularFile(
+                requireRegularFile(marker, "WebView2 sessions-root ownership marker");
+                StableFileIdentity markerIdentity = requireStableIdentity(
                         marker, "WebView2 sessions-root ownership marker");
                 return new UserDataSessionsRoot(
                         safeParent,
                         root,
                         marker,
-                        parentAttributes.fileKey(),
-                        rootAttributes.fileKey(),
-                        markerAttributes.fileKey(),
+                        parentIdentity,
+                        rootIdentity,
+                        markerIdentity,
                         markerBytes);
             } catch (IOException | RuntimeException | Error failure) {
-                if (created) {
+                if (created && rootIdentity != null) {
                     try {
-                        deleteSafeOwnedTree(root,
-                                rootAttributes == null ? null : rootAttributes.fileKey(),
+                        deleteSafeOwnedTree(root, rootIdentity,
                                 "Incomplete WebView2 sessions root");
                     } catch (IOException cleanupFailure) {
                         failure.addSuppressed(cleanupFailure);
@@ -1198,18 +1655,14 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             if (!currentParent.equals(root.getParent())) {
                 throw new IOException("WebView2 sessions root is no longer a direct child");
             }
-            requireSameFileKey(
-                    parentFileKey,
-                    requireSafeDirectory(parent, "WebView2 sessions-root parent"),
-                    "WebView2 sessions-root parent");
-            requireSameFileKey(
-                    rootFileKey,
-                    requireSafeDirectory(root, "WebView2 sessions root"),
-                    "WebView2 sessions root");
+            requireSafeDirectory(parent, "WebView2 sessions-root parent");
+            requireSameIdentity(
+                    parentIdentity, parent, "WebView2 sessions-root parent");
+            requireSafeDirectory(root, "WebView2 sessions root");
+            requireSameIdentity(rootIdentity, root, "WebView2 sessions root");
             BasicFileAttributes markerAttributes = requireRegularFile(
                     marker, "WebView2 sessions-root ownership marker");
-            requireSameFileKey(
-                    markerFileKey, markerAttributes,
+            requireSameIdentity(markerIdentity, marker,
                     "WebView2 sessions-root ownership marker");
             if (markerAttributes.size() != markerBytes.length
                     || !java.util.Arrays.equals(
@@ -1228,9 +1681,9 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         private final Path parent;
         private final Path root;
         private final Path marker;
-        private final Object parentFileKey;
-        private final Object rootFileKey;
-        private final Object markerFileKey;
+        private final StableFileIdentity parentIdentity;
+        private final StableFileIdentity rootIdentity;
+        private final StableFileIdentity markerIdentity;
         private final byte[] markerBytes;
 
         private OwnedUserDataFolder(
@@ -1238,17 +1691,17 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                 Path parent,
                 Path root,
                 Path marker,
-                Object parentFileKey,
-                Object rootFileKey,
-                Object markerFileKey,
+                StableFileIdentity parentIdentity,
+                StableFileIdentity rootIdentity,
+                StableFileIdentity markerIdentity,
                 byte[] markerBytes) {
             this.sessionsRoot = sessionsRoot;
             this.parent = parent;
             this.root = root;
             this.marker = marker;
-            this.parentFileKey = parentFileKey;
-            this.rootFileKey = rootFileKey;
-            this.markerFileKey = markerFileKey;
+            this.parentIdentity = parentIdentity;
+            this.rootIdentity = rootIdentity;
+            this.markerIdentity = markerIdentity;
             this.markerBytes = markerBytes;
         }
 
@@ -1277,7 +1730,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             requireDisjoint(
                     root, safeArtifact,
                     "WebView2 user-data folder and Web Canvas publication");
-            BasicFileAttributes parentAttributes = requireSafeDirectory(
+            requireSafeDirectory(safeParent, "WebView2 user-data parent");
+            StableFileIdentity parentIdentity = requireStableIdentity(
                     safeParent, "WebView2 user-data parent");
             rejectLinkOrReparse(root, "WebView2 user-data folder");
             if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
@@ -1286,47 +1740,191 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             }
 
             Files.createDirectory(root);
-            BasicFileAttributes rootAttributes = null;
+            StableFileIdentity rootIdentity = null;
+            Path createdMarker = null;
+            StableFileIdentity createdMarkerIdentity = null;
+            byte[] createdMarkerBytes = null;
             try {
-                rootAttributes = requireSafeDirectory(
+                requireSafeDirectory(root, "WebView2 owned user-data folder");
+                rootIdentity = requireStableIdentity(
                         root, "WebView2 owned user-data folder");
-                Path marker = root.resolve(USER_DATA_MARKER);
+                Path marker = userDataMarkerPath(root);
+                rejectLinkOrReparse(marker, "WebView2 user-data ownership marker");
+                if (Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException(
+                            "WebView2 user-data ownership marker already exists: " + marker);
+                }
                 byte[] markerBytes = (USER_DATA_MARKER_FORMAT + sessionNonce + "|"
                         + UUID.randomUUID().toString().replace("-", "") + "\n")
                         .getBytes(StandardCharsets.UTF_8);
                 writeMarker(marker, markerBytes);
-                BasicFileAttributes markerAttributes = requireRegularFile(
+                createdMarker = marker;
+                createdMarkerBytes = markerBytes;
+                requireRegularFile(marker, "WebView2 user-data ownership marker");
+                createdMarkerIdentity = requireStableIdentity(
                         marker, "WebView2 user-data ownership marker");
                 OwnedUserDataFolder owned = new OwnedUserDataFolder(
                         sessionsRoot,
                         safeParent,
                         root,
                         marker,
-                        parentAttributes.fileKey(),
-                        rootAttributes.fileKey(),
-                        markerAttributes.fileKey(),
+                        parentIdentity,
+                        rootIdentity,
+                        createdMarkerIdentity,
                         markerBytes);
                 owned.verify();
                 return owned;
             } catch (IOException | RuntimeException | Error failure) {
-                try {
-                    deleteSafeOwnedTree(root,
-                            rootAttributes == null ? null : rootAttributes.fileKey(),
-                            "Incomplete WebView2 user-data folder");
-                } catch (IOException cleanupFailure) {
-                    failure.addSuppressed(cleanupFailure);
+                if (rootIdentity != null) {
+                    try {
+                        deleteSafeOwnedTree(root, rootIdentity,
+                                "Incomplete WebView2 user-data folder");
+                    } catch (IOException cleanupFailure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+                if (createdMarker != null) {
+                    try {
+                        deleteMarkerIfExactlyOwned(
+                                createdMarker,
+                                createdMarkerIdentity,
+                                createdMarkerBytes);
+                    } catch (IOException cleanupFailure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
                 }
                 throw failure;
             }
         }
 
+        private static void deleteMarkerIfExactlyOwned(
+                Path marker,
+                StableFileIdentity expectedIdentity,
+                byte[] expectedBytes)
+                throws IOException {
+            if (!Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                return;
+            }
+            if (expectedIdentity == null) {
+                throw new IOException(
+                        "Incomplete WebView2 ownership marker has no stable identity");
+            }
+            if (usesWindowsStableIdentity()) {
+                Path parent = marker.getParent();
+                if (parent == null) {
+                    throw new IOException(
+                            "Incomplete WebView2 ownership marker has no parent");
+                }
+                try (WindowsStableFileIdentity.LockedPath parentLock =
+                        WindowsStableFileIdentity.lockParent(
+                                parent,
+                                "Incomplete WebView2 ownership-marker parent");
+                        WindowsStableFileIdentity.LockedPath markerLock =
+                                WindowsStableFileIdentity.lockOwnedMarker(
+                                        marker,
+                                        "Incomplete WebView2 ownership marker")) {
+                    markerLock.requireIdentity(expectedIdentity);
+                    requireExactMarkerBytes(marker, expectedBytes);
+                    markerLock.markForDeletion();
+                }
+                if (Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException(
+                            "Incomplete WebView2 ownership marker remained after "
+                            + "handle-based cleanup");
+                }
+                return;
+            }
+            BasicFileAttributes attributes = requireRegularFile(
+                    marker, "Incomplete WebView2 ownership marker");
+            requireSameIdentity(expectedIdentity, marker,
+                    "Incomplete WebView2 ownership marker");
+            if (expectedBytes == null || attributes.size() != expectedBytes.length) {
+                throw new IOException(
+                        "Incomplete WebView2 ownership marker changed");
+            }
+            requireExactMarkerBytes(marker, expectedBytes);
+            Files.delete(marker);
+        }
+
+        private static void requireExactMarkerBytes(
+                Path marker, byte[] expectedBytes) throws IOException {
+            if (expectedBytes == null
+                    || !java.util.Arrays.equals(
+                            expectedBytes,
+                            readBoundedFile(
+                                    marker,
+                                    expectedBytes.length + 1,
+                                    "Incomplete WebView2 ownership marker"))) {
+                throw new IOException(
+                        "Incomplete WebView2 ownership marker changed");
+            }
+        }
+
         void delete() throws IOException {
+            if (usesWindowsStableIdentity()) {
+                deleteOnWindowsWithLockedIdentity();
+                return;
+            }
             if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                verifyMarkerOnly();
+                Files.delete(marker);
                 return;
             }
             verify();
             deleteSafeOwnedTree(
-                    root, rootFileKey, "WebView2 owned user-data folder");
+                    root, rootIdentity, "WebView2 owned user-data folder");
+            if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException(
+                        "WebView2 owned user-data folder reappeared during cleanup");
+            }
+            verifyMarkerOnly();
+            Files.delete(marker);
+        }
+
+        private void deleteOnWindowsWithLockedIdentity() throws IOException {
+            if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                return;
+            }
+            try (WindowsStableFileIdentity.LockedPath parentLock =
+                    WindowsStableFileIdentity.lockParent(
+                            parent, "WebView2 user-data parent")) {
+                parentLock.requireIdentity(parentIdentity);
+                try (WindowsStableFileIdentity.LockedPath markerLock =
+                        WindowsStableFileIdentity.lockOwnedMarker(
+                                marker, "WebView2 user-data ownership marker")) {
+                    markerLock.requireIdentity(markerIdentity);
+                    if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                        try (WindowsStableFileIdentity.LockedPath rootLock =
+                                WindowsStableFileIdentity.lockOwnedDirectory(
+                                        root, "WebView2 owned user-data folder")) {
+                            rootLock.requireIdentity(rootIdentity);
+                            verify();
+                            deleteSafeOwnedTree(
+                                    root,
+                                    rootIdentity,
+                                    "WebView2 owned user-data folder",
+                                    false);
+                            rootLock.markForDeletion();
+                        }
+                        if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                            throw new IOException(
+                                    "WebView2 owned user-data folder remained after "
+                                    + "handle-based cleanup");
+                        }
+                    }
+                    if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                        throw new IOException(
+                                "WebView2 owned user-data folder reappeared during cleanup");
+                    }
+                    verifyMarkerOnly();
+                    markerLock.markForDeletion();
+                }
+            }
+            if (Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException(
+                        "WebView2 ownership marker remained after handle-based cleanup");
+            }
         }
 
         void verify() throws IOException {
@@ -1337,18 +1935,23 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                 throw new IOException(
                         "WebView2 user-data folder is no longer a direct child");
             }
-            requireSameFileKey(
-                    parentFileKey,
-                    requireSafeDirectory(parent, "WebView2 user-data parent"),
-                    "WebView2 user-data parent");
-            requireSameFileKey(
-                    rootFileKey,
-                    requireSafeDirectory(root, "WebView2 owned user-data folder"),
-                    "WebView2 owned user-data folder");
+            requireSafeDirectory(parent, "WebView2 user-data parent");
+            requireSameIdentity(
+                    parentIdentity, parent, "WebView2 user-data parent");
+            requireSafeDirectory(root, "WebView2 owned user-data folder");
+            requireSameIdentity(
+                    rootIdentity, root, "WebView2 owned user-data folder");
+            verifyMarkerOnly();
+        }
+
+        private void verifyMarkerOnly() throws IOException {
+            sessionsRoot.verify();
+            requireSafeDirectory(parent, "WebView2 user-data parent");
+            requireSameIdentity(
+                    parentIdentity, parent, "WebView2 user-data parent");
             BasicFileAttributes markerAttributes = requireRegularFile(
                     marker, "WebView2 user-data ownership marker");
-            requireSameFileKey(
-                    markerFileKey, markerAttributes,
+            requireSameIdentity(markerIdentity, marker,
                     "WebView2 user-data ownership marker");
             if (markerAttributes.size() != markerBytes.length
                     || !java.util.Arrays.equals(
@@ -1394,7 +1997,39 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         RUNNING,
         FAILED,
         CLOSING,
+        POISONED,
         CLOSED
+    }
+
+    private record CleanupResult(
+            Throwable failure,
+            boolean nativeReleased,
+            boolean parentReleaseAttempted,
+            boolean parentReleaseConfirmed,
+            boolean browserProcessReleaseConfirmed,
+            boolean userDataReleased,
+            boolean artifactReleased) {
+        private static CleanupResult empty() {
+            return new CleanupResult(null, true, true, true, true, true, true);
+        }
+
+        private static CleanupResult notStarted(
+                Throwable failure,
+                WindowsWebView2NativeApi.NativeSession session,
+                OwnedUserDataFolder userData,
+                WebCanvasArtifactPublisher.PublishedArtifact.Lease artifact,
+                boolean parentReleaseAttempted,
+                boolean parentReleaseConfirmed,
+                boolean browserProcessReleaseConfirmed) {
+            return new CleanupResult(
+                    Objects.requireNonNull(failure, "failure"),
+                    session == null,
+                    parentReleaseAttempted,
+                    parentReleaseConfirmed,
+                    browserProcessReleaseConfirmed,
+                    userData == null,
+                    artifact == null);
+        }
     }
 
     private record QueuedNativeEvent(
@@ -1548,15 +2183,27 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
 
         @Override
         public void removeNotify() {
-            // Fence the generation before AWT destroys the heavyweight parent.
-            // Native destroy remains off-EDT; late callbacks are rejected by
-            // the CLOSING phase even if the OS tears down the parent first.
-            if (EventQueue.isDispatchThread()) {
-                beginClose(generation);
-            } else {
-                WindowsWebCanvasHost.this.close();
+            // Never block the EDT/tree lock on the WebView2 STA: reparenting
+            // can synchronously send Win32 messages back to AWT. Product code
+            // must await preparePeerRemovalAsync() before reaching this guard.
+            boolean unexpectedPeerLoss = phase != Phase.NEW
+                    && phase != Phase.CLOSED
+                    && !peerRemovalBarrierComplete;
+            try {
+                if (unexpectedPeerLoss) {
+                    if (EventQueue.isDispatchThread()) {
+                        safeListener(() -> listener.failed(
+                                "Release Web Canvas before AWT peer loss",
+                                "The heavyweight AWT peer was removed before its "
+                                + "asynchronous WebView2 teardown barrier completed"));
+                        beginClose(generation);
+                    } else {
+                        WindowsWebCanvasHost.this.close();
+                    }
+                }
+            } finally {
+                super.removeNotify();
             }
-            super.removeNotify();
         }
     }
 }

@@ -2,8 +2,10 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Narrow Java side of the versioned native WebView2 C ABI. */
 interface WindowsWebView2NativeApi {
@@ -93,8 +95,93 @@ interface WindowsWebView2NativeApi {
 
         void requestFocus() throws IOException;
 
-        /** Blocking native teardown. Never call this method on the Swing EDT. */
-        void destroy() throws IOException;
+        /**
+         * Synchronously reparents the controller away from the AWT carrier.
+         * This bounded call is the native part of the pre-peer-loss barrier.
+         * It must run off the Swing EDT; an owner must await the host-level
+         * asynchronous barrier before allowing AWT to destroy the parent HWND.
+         */
+        void prepareParentRelease(long expectedParentWindow, Duration timeout)
+                throws IOException;
+
+        /**
+         * Blocking native teardown. Never call this method on the Swing EDT.
+         * A failed call retains native ownership and may be retried; success is
+         * the only proof that the handle and its browser process were released.
+         */
+        DestroyResult destroy(Duration timeout) throws IOException;
+    }
+
+    /**
+     * Failed native creation with explicit ownership evidence. A retained
+     * session must be torn down exactly like a successfully returned session;
+     * when neither a session nor release proof exists, callers must quarantine
+     * all path-owned resources rather than infer release from a null handle.
+     */
+    final class CreateException extends IOException {
+        private final NativeSession retainedSession;
+        private final boolean releaseConfirmed;
+
+        CreateException(
+                String message,
+                NativeSession retainedSession,
+                boolean releaseConfirmed) {
+            this(message, retainedSession, releaseConfirmed, null);
+        }
+
+        CreateException(
+                String message,
+                NativeSession retainedSession,
+                boolean releaseConfirmed,
+                Throwable cause) {
+            super(message, cause);
+            if (retainedSession != null && releaseConfirmed) {
+                throw new IllegalArgumentException(
+                        "retained WebView2 session contradicts release confirmation");
+            }
+            this.retainedSession = retainedSession;
+            this.releaseConfirmed = releaseConfirmed;
+        }
+
+        Optional<NativeSession> retainedSession() {
+            return Optional.ofNullable(retainedSession);
+        }
+
+        boolean releaseConfirmed() {
+            return releaseConfirmed;
+        }
+    }
+
+    record DestroyResult(
+            int flags,
+            long expectedBrowserProcessId,
+            long observedBrowserProcessId,
+            int browserExitKind,
+            int terminalHresult) {
+        static final int PARENT_RELEASED = 1 << 0;
+        static final int UDF_IDENTITY_VERIFIED = 1 << 1;
+        static final int CONTROLLER_CLOSED = 1 << 2;
+        static final int BROWSER_EXIT_OBSERVED = 1 << 3;
+        static final int PID_MATCHED = 1 << 4;
+        static final int UDF_RELEASE_CONFIRMED = 1 << 5;
+        static final int THREAD_JOINED = 1 << 6;
+        static final int CALLBACK_RETIRED = 1 << 7;
+        static final int NO_BROWSER_STARTED = 1 << 8;
+        static final int ALL_FLAGS = (1 << 9) - 1;
+
+        public DestroyResult {
+            if ((flags & ~ALL_FLAGS) != 0
+                    || expectedBrowserProcessId < 0
+                    || expectedBrowserProcessId > 0xffff_ffffL
+                    || observedBrowserProcessId < 0
+                    || observedBrowserProcessId > 0xffff_ffffL) {
+                throw new IllegalArgumentException("invalid native WebView2 destroy result");
+            }
+        }
+
+        boolean udfReleaseConfirmed() {
+            return (flags & (UDF_RELEASE_CONFIRMED | NO_BROWSER_STARTED)) != 0;
+        }
     }
 
     interface Listener {

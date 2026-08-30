@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.canvas;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,6 +14,7 @@ import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -22,7 +24,9 @@ import org.junit.jupiter.api.Test;
 
 class JnaWindowsWebView2NativeApiTest {
     private static final int S_OK = 0;
+    private static final int S_FALSE = 1;
     private static final int E_FAIL = 0x80004005;
+    private static final int ERROR_TIMEOUT_HRESULT = 0x800705B4;
     private static final int ERROR_FILE_NOT_FOUND_HRESULT = 0x80070002;
     private static final int ERROR_INSUFFICIENT_BUFFER_HRESULT = 0x8007007A;
     private static final String NONCE =
@@ -105,7 +109,7 @@ class JnaWindowsWebView2NativeApiTest {
         assertNotNull(binding.createdOptions);
         assertEquals(binding.createdOptions.size(),
                 binding.createdOptions.struct_size);
-        assertEquals(2, binding.createdOptions.abi_version);
+        assertEquals(3, binding.createdOptions.abi_version);
         assertEquals(HWND,
                 Pointer.nativeValue(binding.createdOptions.parent_window));
         assertEquals(-12, binding.createdOptions.x);
@@ -128,22 +132,47 @@ class JnaWindowsWebView2NativeApiTest {
     }
 
     @Test
-    void createRejectsNativeFailureAndMissingSessionHandle() {
-        FakeBinding failed = new FakeBinding();
-        failed.createStatus = E_FAIL;
-        IOException nativeFailure = assertThrows(IOException.class,
-                () -> new JnaWindowsWebView2NativeApi(failed)
+    void createFailureCarriesExactReleaseOrRetainedSessionEvidence()
+            throws Exception {
+        FakeBinding released = new FakeBinding();
+        released.createStatus = E_FAIL;
+        released.createdHandle = Pointer.NULL;
+        WindowsWebView2NativeApi.CreateException nativeFailure = assertThrows(
+                WindowsWebView2NativeApi.CreateException.class,
+                () -> new JnaWindowsWebView2NativeApi(released)
                         .create(request(), event -> { }));
         assertTrue(nativeFailure.getMessage().contains(
                 "create WebView2 environment/controller"));
         assertTrue(nativeFailure.getMessage().contains("HRESULT 0x80004005"));
+        assertTrue(nativeFailure.releaseConfirmed());
+        assertTrue(nativeFailure.retainedSession().isEmpty());
+
+        FakeBinding retained = new FakeBinding();
+        retained.createStatus = E_FAIL;
+        WindowsWebView2NativeApi.CreateException retainedFailure = assertThrows(
+                WindowsWebView2NativeApi.CreateException.class,
+                () -> new JnaWindowsWebView2NativeApi(retained)
+                        .create(request(), event -> { }));
+        assertFalse(retainedFailure.releaseConfirmed());
+        WindowsWebView2NativeApi.NativeSession retainedSession =
+                retainedFailure.retainedSession().orElseThrow();
+
+        WindowsWebView2NativeApi.DestroyResult result = retainedSession.destroy(
+                Duration.ofSeconds(1));
+        assertTrue(result.udfReleaseConfirmed());
+        assertEquals(1, retained.destroyCalls);
+        assertEquals(List.of(HANDLE), retained.destroyInputHandles);
 
         FakeBinding missing = new FakeBinding();
         missing.createdHandle = Pointer.NULL;
-        IOException missingHandle = assertThrows(IOException.class,
+        WindowsWebView2NativeApi.CreateException missingHandle = assertThrows(
+                WindowsWebView2NativeApi.CreateException.class,
                 () -> new JnaWindowsWebView2NativeApi(missing)
                         .create(request(), event -> { }));
-        assertTrue(missingHandle.getMessage().contains("no session handle"));
+        assertTrue(missingHandle.getMessage().contains(
+                "success without a session handle"));
+        assertFalse(missingHandle.releaseConfirmed());
+        assertTrue(missingHandle.retainedSession().isEmpty());
     }
 
     @Test
@@ -156,6 +185,12 @@ class JnaWindowsWebView2NativeApiTest {
                 () -> requestWithBounds(valid, 0, Integer.MAX_VALUE, 1, 1));
         assertThrows(IllegalArgumentException.class,
                 () -> requestWithBounds(valid, 0, 0, 32_768, 1));
+    }
+
+    @Test
+    void destroyResultHasExactAbiV3Size() {
+        assertEquals(32,
+                new JnaWindowsWebView2NativeApi.NativeDestroyResult().size());
     }
 
     @Test
@@ -283,9 +318,55 @@ class JnaWindowsWebView2NativeApiTest {
     }
 
     @Test
-    void destroyIsIdempotentReleasesCallbackAndRejectsLateOperations()
+    void parentReleaseUsesExpectedHwndAndBoundedTimeout() throws Exception {
+        FakeBinding binding = new FakeBinding();
+        WindowsWebView2NativeApi.NativeSession session =
+                new JnaWindowsWebView2NativeApi(binding)
+                        .create(request(), event -> { });
+
+        session.prepareParentRelease(HWND, Duration.ofMillis(321));
+
+        assertEquals(1, binding.parentReleaseCalls);
+        assertEquals(HANDLE, binding.parentReleaseHandle);
+        assertEquals(HWND, Pointer.nativeValue(binding.expectedParentWindow));
+        assertEquals(321, binding.parentReleaseTimeoutMilliseconds);
+
+        binding.parentReleaseStatus = E_FAIL;
+        assertStatusFailure(
+                () -> session.prepareParentRelease(HWND, Duration.ofSeconds(1)),
+                "prepare WebView2 controller for AWT parent release");
+    }
+
+    @Test
+    void nativeTimeoutsAndExpectedParentAreValidatedBeforeCrossingAbi()
             throws Exception {
         FakeBinding binding = new FakeBinding();
+        WindowsWebView2NativeApi.NativeSession session =
+                new JnaWindowsWebView2NativeApi(binding)
+                        .create(request(), event -> { });
+
+        assertTrue(assertThrows(IOException.class,
+                () -> session.prepareParentRelease(0, Duration.ofSeconds(1)))
+                .getMessage().contains("HWND must be non-zero"));
+        assertInvalidTimeout(() -> session.prepareParentRelease(HWND, null));
+        assertInvalidTimeout(() -> session.prepareParentRelease(HWND, Duration.ZERO));
+        assertInvalidTimeout(() -> session.prepareParentRelease(
+                HWND, Duration.ofNanos(1)));
+        assertInvalidTimeout(() -> session.prepareParentRelease(
+                HWND, Duration.ofMillis((long) Integer.MAX_VALUE + 1)));
+        assertInvalidTimeout(() -> session.destroy(Duration.ofMillis(-1)));
+
+        assertEquals(0, binding.parentReleaseCalls);
+        assertEquals(0, binding.destroyCalls);
+    }
+
+    @Test
+    void destroyTimeoutRetainsSameHandleForRetryThenReleasesExactlyOnce()
+            throws Exception {
+        FakeBinding binding = new FakeBinding();
+        binding.destroyResponses = List.of(
+                DestroyResponse.failure(ERROR_TIMEOUT_HRESULT, HANDLE),
+                DestroyResponse.confirmed());
         List<WindowsWebView2NativeApi.Event> events = new ArrayList<>();
         WindowsWebView2NativeApi.NativeSession session =
                 new JnaWindowsWebView2NativeApi(binding)
@@ -293,14 +374,16 @@ class JnaWindowsWebView2NativeApiTest {
         JnaWindowsWebView2NativeApi.NativeEventCallback retainedCallback =
                 binding.createdCallback;
 
-        session.destroy();
-        session.destroy();
+        IOException timeout = assertThrows(IOException.class,
+                () -> session.destroy(Duration.ofMillis(250)));
+        assertTrue(timeout.getMessage().contains("HRESULT 0x800705B4"));
         retainedCallback.invoke(
-                Pointer.NULL, 2, S_OK, wide("late"), wide("ignored"));
+                Pointer.NULL, 2, S_OK, wide("late"), wide("retained"));
+        retainedCallback.invoke(
+                Pointer.NULL, 6, S_OK, Pointer.NULL, Pointer.NULL);
+        retainedCallback.invoke(
+                Pointer.NULL, 2, S_OK, wide("after-closed"), wide("still-retained"));
 
-        assertEquals(1, binding.destroyCalls);
-        assertEquals(HANDLE, binding.destroyedHandle);
-        assertTrue(events.isEmpty());
         assertTrue(assertThrows(IOException.class,
                 () -> session.postWebMessageJson("{}"))
                 .getMessage().contains("already closed"));
@@ -312,13 +395,68 @@ class JnaWindowsWebView2NativeApiTest {
                 .getMessage().contains("already closed"));
         assertTrue(assertThrows(IOException.class, session::requestFocus)
                 .getMessage().contains("already closed"));
+
+        WindowsWebView2NativeApi.DestroyResult result =
+                session.destroy(Duration.ofSeconds(2));
+        WindowsWebView2NativeApi.DestroyResult cached =
+                session.destroy(Duration.ofSeconds(3));
+        retainedCallback.invoke(
+                Pointer.NULL, 2, S_OK, wide("late"), wide("ignored"));
+
+        assertEquals(2, binding.destroyCalls);
+        assertEquals(List.of(HANDLE, HANDLE), binding.destroyInputHandles);
+        assertEquals(List.of(250, 2_000), binding.destroyTimeouts);
+        assertEquals(result, cached);
+        assertTrue(result.udfReleaseConfirmed());
+        assertEquals(4_242L, result.expectedBrowserProcessId());
+        assertEquals(4_242L, result.observedBrowserProcessId());
+        assertEquals(0, result.browserExitKind());
+        assertEquals(S_OK, result.terminalHresult());
+        assertEquals(List.of(
+                new WindowsWebView2NativeApi.Event(
+                        WindowsWebView2NativeApi.Kind.WEB_MESSAGE,
+                        S_OK, "late", "retained"),
+                new WindowsWebView2NativeApi.Event(
+                        WindowsWebView2NativeApi.Kind.CLOSED,
+                        S_OK, "", ""),
+                new WindowsWebView2NativeApi.Event(
+                        WindowsWebView2NativeApi.Kind.WEB_MESSAGE,
+                        S_OK, "after-closed", "still-retained")), events);
     }
 
     @Test
-    void failedDestroyRetainsCallbackUntilLateNativeCloseAndRemainsIdempotent()
+    void indeterminateDestroyInvocationIsTerminalAndNeverRetriesStaleHandle()
             throws Exception {
         FakeBinding binding = new FakeBinding();
-        binding.destroyStatus = E_FAIL;
+        binding.destroyInvocationFailure = new IllegalStateException(
+                "simulated JNA result-read failure");
+        List<WindowsWebView2NativeApi.Event> events = new ArrayList<>();
+        WindowsWebView2NativeApi.NativeSession session =
+                new JnaWindowsWebView2NativeApi(binding)
+                        .create(request(), events::add);
+
+        IOException first = assertThrows(IOException.class,
+                () -> session.destroy(Duration.ofSeconds(1)));
+        assertTrue(first.getMessage().contains("indeterminate ownership"));
+        assertTrue(first.getCause() instanceof IllegalStateException);
+        binding.destroyInvocationFailure = null;
+        IOException cached = assertThrows(IOException.class,
+                () -> session.destroy(Duration.ofSeconds(1)));
+        binding.createdCallback.invoke(
+                Pointer.NULL, 2, S_OK, wide("late"), wide("retained"));
+
+        assertEquals(first.getMessage(), cached.getMessage());
+        assertEquals(1, binding.destroyCalls);
+        assertEquals(List.of(new WindowsWebView2NativeApi.Event(
+                WindowsWebView2NativeApi.Kind.WEB_MESSAGE,
+                S_OK, "late", "retained")), events);
+    }
+
+    @Test
+    void sFalseReleasesNativeOwnershipButMapsUnconfirmedUserDataFolder()
+            throws Exception {
+        FakeBinding binding = new FakeBinding();
+        binding.destroyResponses = List.of(DestroyResponse.unconfirmed());
         List<WindowsWebView2NativeApi.Event> events = new ArrayList<>();
         WindowsWebView2NativeApi.NativeSession session =
                 new JnaWindowsWebView2NativeApi(binding)
@@ -326,23 +464,106 @@ class JnaWindowsWebView2NativeApiTest {
         JnaWindowsWebView2NativeApi.NativeEventCallback retainedCallback =
                 binding.createdCallback;
 
-        assertStatusFailure(session::destroy, "destroy WebView2 controller");
-        session.destroy();
-        retainedCallback.invoke(
-                Pointer.NULL, 2, S_OK, wide("late"), wide("retained"));
-        retainedCallback.invoke(
-                Pointer.NULL, 6, S_OK, Pointer.NULL, Pointer.NULL);
+        WindowsWebView2NativeApi.DestroyResult result =
+                session.destroy(Duration.ofSeconds(1));
         retainedCallback.invoke(
                 Pointer.NULL, 2, S_OK, wide("after-close"), wide("ignored"));
 
         assertEquals(1, binding.destroyCalls);
-        assertEquals(List.of(
-                new WindowsWebView2NativeApi.Event(
-                        WindowsWebView2NativeApi.Kind.WEB_MESSAGE,
-                        S_OK, "late", "retained"),
-                new WindowsWebView2NativeApi.Event(
-                        WindowsWebView2NativeApi.Kind.CLOSED,
-                        S_OK, "", "")), events);
+        assertTrue(!result.udfReleaseConfirmed());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void sOkAcceptsProofThatNoBrowserProcessStarted() throws Exception {
+        FakeBinding binding = new FakeBinding();
+        binding.destroyResponses = List.of(DestroyResponse.noBrowserStarted());
+        WindowsWebView2NativeApi.NativeSession session =
+                new JnaWindowsWebView2NativeApi(binding)
+                        .create(request(), event -> { });
+
+        WindowsWebView2NativeApi.DestroyResult result =
+                session.destroy(Duration.ofSeconds(1));
+
+        assertTrue((result.flags()
+                & WindowsWebView2NativeApi.DestroyResult.NO_BROWSER_STARTED) != 0);
+        assertEquals(0L, result.expectedBrowserProcessId());
+        assertEquals(0L, result.observedBrowserProcessId());
+    }
+
+    @Test
+    void malformedSuccessfulDestroyFailsClosedWithoutReusingHandle()
+            throws Exception {
+        FakeBinding retainedHandle = new FakeBinding();
+        retainedHandle.destroyResponses = List.of(
+                DestroyResponse.confirmed().withReturnedHandle(HANDLE));
+        WindowsWebView2NativeApi.NativeSession retainedSession =
+                new JnaWindowsWebView2NativeApi(retainedHandle)
+                        .create(request(), event -> { });
+
+        IOException retainedFailure = assertThrows(IOException.class,
+                () -> retainedSession.destroy(Duration.ofSeconds(1)));
+        assertTrue(retainedFailure.getMessage().contains(
+                "reported success but retained its native handle"));
+        assertThrows(IOException.class,
+                () -> retainedSession.destroy(Duration.ofSeconds(1)));
+        assertEquals(1, retainedHandle.destroyCalls);
+
+        FakeBinding missingProof = new FakeBinding();
+        missingProof.destroyResponses = List.of(
+                DestroyResponse.confirmed().withoutCallbackRetired());
+        WindowsWebView2NativeApi.NativeSession missingProofSession =
+                new JnaWindowsWebView2NativeApi(missingProof)
+                        .create(request(), event -> { });
+
+        IOException proofFailure = assertThrows(IOException.class,
+                () -> missingProofSession.destroy(Duration.ofSeconds(1)));
+        assertTrue(proofFailure.getMessage().contains(
+                "did not prove parent, native thread, and callback release"));
+        assertThrows(IOException.class,
+                () -> missingProofSession.destroy(Duration.ofSeconds(1)));
+        assertEquals(1, missingProof.destroyCalls);
+    }
+
+    @Test
+    void malformedDestroyEvidenceIsRejectedBeforeItCanAuthorizeUserDataDeletion()
+            throws Exception {
+        List<DestroyResponse> malformed = List.of(
+                DestroyResponse.confirmed().withTerminalHresult(S_FALSE),
+                DestroyResponse.confirmed().withObservedBrowserProcessId(7_777),
+                DestroyResponse.confirmed().withoutUdfIdentity(),
+                DestroyResponse.noBrowserStarted().withExpectedBrowserProcessId(4_242),
+                DestroyResponse.noBrowserStarted().withUdfIdentity());
+
+        for (DestroyResponse response : malformed) {
+            FakeBinding binding = new FakeBinding();
+            binding.destroyResponses = List.of(response);
+            WindowsWebView2NativeApi.NativeSession session =
+                    new JnaWindowsWebView2NativeApi(binding)
+                            .create(request(), event -> { });
+
+            assertThrows(IOException.class,
+                    () -> session.destroy(Duration.ofSeconds(1)));
+            assertThrows(IOException.class,
+                    () -> session.destroy(Duration.ofSeconds(1)));
+            assertEquals(1, binding.destroyCalls);
+        }
+    }
+
+    @Test
+    void matchingFailedBrowserExitStillProvesUserDataRelease() throws Exception {
+        FakeBinding binding = new FakeBinding();
+        binding.destroyResponses = List.of(
+                DestroyResponse.confirmed().withBrowserExitKind(1));
+        WindowsWebView2NativeApi.NativeSession session =
+                new JnaWindowsWebView2NativeApi(binding)
+                        .create(request(), event -> { });
+
+        WindowsWebView2NativeApi.DestroyResult result =
+                session.destroy(Duration.ofSeconds(1));
+
+        assertTrue(result.udfReleaseConfirmed());
+        assertEquals(1, result.browserExitKind());
     }
 
     private static WindowsWebView2NativeApi.CreateRequest request() {
@@ -404,9 +625,148 @@ class JnaWindowsWebView2NativeApiTest {
         assertTrue(failure.getMessage().contains("HRESULT 0x80004005"));
     }
 
+    private static void assertInvalidTimeout(IoOperation operation) {
+        IOException failure = assertThrows(IOException.class, operation::run);
+        assertTrue(failure.getMessage().contains("timeout"));
+    }
+
     @FunctionalInterface
     private interface IoOperation {
         void run() throws IOException;
+    }
+
+    private record DestroyResponse(
+            int status,
+            Pointer returnedHandle,
+            int structSizeOverride,
+            int flags,
+            int expectedBrowserProcessId,
+            int observedBrowserProcessId,
+            int browserExitKind,
+            int terminalHresult,
+            int reserved0,
+            int reserved1) {
+        private static DestroyResponse failure(int status, Pointer handle) {
+            return new DestroyResponse(
+                    status, handle, -1, 0, 0, 0, 0, status, 0, 0);
+        }
+
+        private static DestroyResponse confirmed() {
+            return new DestroyResponse(
+                    S_OK,
+                    Pointer.NULL,
+                    -1,
+                    WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED
+                    | WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED
+                    | WindowsWebView2NativeApi.DestroyResult.CONTROLLER_CLOSED
+                    | WindowsWebView2NativeApi.DestroyResult.BROWSER_EXIT_OBSERVED
+                    | WindowsWebView2NativeApi.DestroyResult.PID_MATCHED
+                    | WindowsWebView2NativeApi.DestroyResult.UDF_RELEASE_CONFIRMED
+                    | WindowsWebView2NativeApi.DestroyResult.THREAD_JOINED
+                    | WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED,
+                    4_242,
+                    4_242,
+                    0,
+                    S_OK,
+                    0,
+                    0);
+        }
+
+        private static DestroyResponse unconfirmed() {
+            return new DestroyResponse(
+                    S_FALSE,
+                    Pointer.NULL,
+                    -1,
+                    WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED
+                    | WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED
+                    | WindowsWebView2NativeApi.DestroyResult.CONTROLLER_CLOSED
+                    | WindowsWebView2NativeApi.DestroyResult.BROWSER_EXIT_OBSERVED
+                    | WindowsWebView2NativeApi.DestroyResult.PID_MATCHED
+                    | WindowsWebView2NativeApi.DestroyResult.THREAD_JOINED
+                    | WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED,
+                    4_242,
+                    4_242,
+                    0,
+                    S_FALSE,
+                    0,
+                    0);
+        }
+
+        private static DestroyResponse noBrowserStarted() {
+            return new DestroyResponse(
+                    S_OK,
+                    Pointer.NULL,
+                    -1,
+                    WindowsWebView2NativeApi.DestroyResult.PARENT_RELEASED
+                    | WindowsWebView2NativeApi.DestroyResult.THREAD_JOINED
+                    | WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED
+                    | WindowsWebView2NativeApi.DestroyResult.NO_BROWSER_STARTED,
+                    0,
+                    0,
+                    0,
+                    S_OK,
+                    0,
+                    0);
+        }
+
+        private DestroyResponse withReturnedHandle(Pointer value) {
+            return new DestroyResponse(
+                    status, value, structSizeOverride, flags,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withoutCallbackRetired() {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride,
+                    flags & ~WindowsWebView2NativeApi.DestroyResult.CALLBACK_RETIRED,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withTerminalHresult(int value) {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride, flags,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    browserExitKind, value, reserved0, reserved1);
+        }
+
+        private DestroyResponse withExpectedBrowserProcessId(int value) {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride, flags,
+                    value, observedBrowserProcessId,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withObservedBrowserProcessId(int value) {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride, flags,
+                    expectedBrowserProcessId, value,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withBrowserExitKind(int value) {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride, flags,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    value, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withoutUdfIdentity() {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride,
+                    flags & ~WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
+
+        private DestroyResponse withUdfIdentity() {
+            return new DestroyResponse(
+                    status, returnedHandle, structSizeOverride,
+                    flags | WindowsWebView2NativeApi.DestroyResult.UDF_IDENTITY_VERIFIED,
+                    expectedBrowserProcessId, observedBrowserProcessId,
+                    browserExitKind, terminalHresult, reserved0, reserved1);
+        }
     }
 
     private static final class FakeBinding
@@ -443,13 +803,22 @@ class JnaWindowsWebView2NativeApiTest {
         private int focusStatus = S_OK;
         private Pointer lastFocusHandle;
 
-        private int destroyStatus = S_OK;
+        private int parentReleaseStatus = S_OK;
+        private int parentReleaseCalls;
+        private Pointer parentReleaseHandle;
+        private Pointer expectedParentWindow;
+        private int parentReleaseTimeoutMilliseconds;
+
+        private List<DestroyResponse> destroyResponses =
+                List.of(DestroyResponse.confirmed());
+        private RuntimeException destroyInvocationFailure;
         private int destroyCalls;
-        private Pointer destroyedHandle;
+        private final List<Pointer> destroyInputHandles = new ArrayList<>();
+        private final List<Integer> destroyTimeouts = new ArrayList<>();
 
         @Override
         public int nbwv2_get_abi_version() {
-            return 2;
+            return 3;
         }
 
         @Override
@@ -524,10 +893,42 @@ class JnaWindowsWebView2NativeApiTest {
         }
 
         @Override
-        public int nbwv2_destroy(Pointer hostHandle) {
+        public int nbwv2_prepare_parent_release(
+                Pointer hostHandle,
+                Pointer expectedParent,
+                int timeoutMilliseconds) {
+            parentReleaseCalls++;
+            parentReleaseHandle = hostHandle;
+            expectedParentWindow = expectedParent;
+            parentReleaseTimeoutMilliseconds = timeoutMilliseconds;
+            return parentReleaseStatus;
+        }
+
+        @Override
+        public int nbwv2_destroy(
+                PointerByReference hostHandle,
+                int timeoutMilliseconds,
+                JnaWindowsWebView2NativeApi.NativeDestroyResult result) {
+            int responseIndex = Math.min(destroyCalls, destroyResponses.size() - 1);
+            DestroyResponse response = destroyResponses.get(responseIndex);
             destroyCalls++;
-            destroyedHandle = hostHandle;
-            return destroyStatus;
+            destroyInputHandles.add(hostHandle.getValue());
+            destroyTimeouts.add(timeoutMilliseconds);
+            hostHandle.setValue(response.returnedHandle());
+            if (destroyInvocationFailure != null) {
+                throw destroyInvocationFailure;
+            }
+            result.struct_size = response.structSizeOverride() >= 0
+                    ? response.structSizeOverride() : result.size();
+            result.flags = response.flags();
+            result.expected_browser_pid = response.expectedBrowserProcessId();
+            result.observed_browser_pid = response.observedBrowserProcessId();
+            result.browser_exit_kind = response.browserExitKind();
+            result.terminal_hresult = response.terminalHresult();
+            result.reserved[0] = response.reserved0();
+            result.reserved[1] = response.reserved1();
+            result.write();
+            return response.status();
         }
     }
 }

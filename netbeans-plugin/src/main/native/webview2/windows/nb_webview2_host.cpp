@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
@@ -31,15 +32,18 @@ using Microsoft::WRL::ComPtr;
 namespace {
 
 constexpr UINT kDispatchMessage = WM_APP + 0x4E42;
+constexpr UINT kShutdownMessage = WM_APP + 0x4E43;
 constexpr size_t kMaximumQueuedCommands = 64;
 constexpr size_t kMaximumJsonCharacters = 1'500'000;
 constexpr size_t kMaximumDiagnosticCharacters = 2'048;
 constexpr size_t kMaximumPathCharacters = 32'000;
 constexpr size_t kMaximumResources = 128;
-constexpr DWORD kDestroyTimeoutMilliseconds = 10'000;
+constexpr uint32_t kMaximumSynchronousTimeoutMilliseconds = 120'000;
 constexpr uintmax_t kMaximumResourceBytes = 64ull * 1024ull * 1024ull;
 constexpr uintmax_t kMaximumSnapshotBytes = 128ull * 1024ull * 1024ull;
 constexpr wchar_t kMinimumCompatibleRuntime[] = L"100.0.1185.39";
+constexpr wchar_t kParkingWindowClass[] =
+        L"NetBeansFlutterWebView2ParkingWindowV3";
 constexpr wchar_t kCsp[] =
         L"default-src 'none'; "
         L"base-uri 'none'; "
@@ -54,6 +58,52 @@ constexpr wchar_t kCsp[] =
         L"script-src 'self' 'wasm-unsafe-eval'; "
         L"style-src 'self' 'unsafe-inline'; "
         L"worker-src 'none'";
+
+LRESULT CALLBACK parking_window_proc(
+        HWND window, UINT message, WPARAM wparam, LPARAM lparam) noexcept {
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+
+HRESULT create_parking_window(HWND* result) noexcept {
+    if (result == nullptr) {
+        return E_POINTER;
+    }
+    *result = nullptr;
+    const HINSTANCE instance = GetModuleHandleW(nullptr);
+    WNDCLASSW window_class = {};
+    window_class.lpfnWndProc = parking_window_proc;
+    window_class.hInstance = instance;
+    window_class.lpszClassName = kParkingWindowClass;
+    if (RegisterClassW(&window_class) == 0) {
+        const DWORD error = GetLastError();
+        if (error != ERROR_CLASS_ALREADY_EXISTS) {
+            return HRESULT_FROM_WIN32(error);
+        }
+    }
+    HWND window = CreateWindowExW(
+            WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            kParkingWindowClass,
+            L"",
+            WS_POPUP,
+            0,
+            0,
+            1,
+            1,
+            nullptr,
+            nullptr,
+            instance,
+            nullptr);
+    if (window == nullptr) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+    if (GetParent(window) != nullptr || IsWindowVisible(window) ||
+            (GetWindowLongPtrW(window, GWL_STYLE) & WS_CHILD) != 0) {
+        DestroyWindow(window);
+        return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+    }
+    *result = window;
+    return S_OK;
+}
 
 std::wstring bounded(const wchar_t* value, size_t maximum) {
     if (value == nullptr) {
@@ -422,6 +472,88 @@ HRESULT stream_from_bytes(const std::vector<uint8_t>& bytes, IStream** result) {
     return S_OK;
 }
 
+class SynchronousOperation final {
+public:
+    SynchronousOperation() noexcept {
+        event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (event_ == nullptr) {
+            event_status_ = HRESULT_FROM_WIN32(GetLastError());
+        }
+    }
+
+    ~SynchronousOperation() noexcept {
+        if (event_ != nullptr) {
+            CloseHandle(event_);
+        }
+    }
+
+    SynchronousOperation(const SynchronousOperation&) = delete;
+    SynchronousOperation& operator=(const SynchronousOperation&) = delete;
+
+    void complete(HRESULT status) noexcept {
+        {
+            std::lock_guard lock(mutex_);
+            if (completed_) {
+                return;
+            }
+            status_ = status;
+            completed_ = true;
+        }
+        if (event_ != nullptr) {
+            SetEvent(event_);
+        }
+    }
+
+    HRESULT wait(uint32_t timeout_milliseconds) noexcept {
+        if (event_ == nullptr) {
+            return event_status_;
+        }
+        const ULONGLONG deadline =
+                GetTickCount64() + timeout_milliseconds;
+        for (;;) {
+            {
+                std::lock_guard lock(mutex_);
+                if (completed_) {
+                    return status_;
+                }
+            }
+            const ULONGLONG now = GetTickCount64();
+            if (now >= deadline) {
+                return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+            }
+            const DWORD remaining = static_cast<DWORD>(deadline - now);
+            const DWORD wait = MsgWaitForMultipleObjectsEx(
+                    1,
+                    &event_,
+                    remaining,
+                    QS_SENDMESSAGE,
+                    MWMO_INPUTAVAILABLE);
+            if (wait == WAIT_OBJECT_0) {
+                continue;
+            }
+            if (wait == WAIT_OBJECT_0 + 1) {
+                // PeekMessage dispatches cross-thread sent messages before it
+                // inspects the queue. PM_NOREMOVE deliberately avoids pumping
+                // posted/input messages and limits nested UI reentrancy.
+                MSG message = {};
+                PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE);
+                continue;
+            }
+            if (wait == WAIT_TIMEOUT) {
+                return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+            }
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+    }
+
+private:
+    HANDLE event_ = nullptr;
+    HRESULT event_status_ = S_OK;
+    std::mutex mutex_;
+    bool completed_ = false;
+    HRESULT status_ = E_UNEXPECTED;
+};
+
 class Host final {
 public:
     Host(
@@ -526,12 +658,16 @@ public:
         return post([this, visible] {
             desired_visible_ = visible;
             if (controller_) {
-                HRESULT status = controller_->put_IsVisible(visible ? TRUE : FALSE);
+                const bool can_show =
+                        !parent_release_fenced_.load(std::memory_order_acquire);
+                HRESULT status = controller_->put_IsVisible(
+                        can_show && visible ? TRUE : FALSE);
                 BOOL applied = FALSE;
                 if (SUCCEEDED(status)) {
                     status = controller_->get_IsVisible(&applied);
                 }
-                if (SUCCEEDED(status) && ((applied != FALSE) != visible)) {
+                if (SUCCEEDED(status)
+                        && ((applied != FALSE) != (can_show && visible))) {
                     status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
                 }
                 if (FAILED(status)) {
@@ -543,7 +679,8 @@ public:
 
     HRESULT request_focus() {
         return post([this] {
-            if (!controller_) {
+            if (!controller_ ||
+                    parent_release_fenced_.load(std::memory_order_acquire)) {
                 return;
             }
             const HRESULT status = controller_->MoveFocus(
@@ -554,31 +691,98 @@ public:
         });
     }
 
-    HRESULT destroy() {
-        DWORD id = 0;
-        {
-            std::lock_guard lock(queue_mutex_);
-            if (!closing_) {
-                closing_ = true;
-                commands_.clear();
-            }
-            id = thread_id_;
+    HRESULT prepare_parent_release(
+            HWND expected_parent,
+            uint32_t timeout_milliseconds) {
+        if (expected_parent == nullptr || expected_parent != parent_ ||
+                timeout_milliseconds == 0 ||
+                timeout_milliseconds > kMaximumSynchronousTimeoutMilliseconds) {
+            return E_INVALIDARG;
         }
-        if (id != 0) {
-            PostThreadMessageW(id, WM_QUIT, 0, 0);
+        parent_release_fenced_.store(true, std::memory_order_release);
+        if ((shutdown_flags_.load() & NBWV2_DESTROY_PARENT_RELEASED) != 0) {
+            return S_OK;
+        }
+        auto operation = std::make_shared<SynchronousOperation>();
+        const HRESULT queued = post_control(
+                [this, expected_parent, operation] {
+                    operation->complete(release_parent_on_thread(expected_parent));
+                }, false);
+        if (FAILED(queued)) {
+            if ((shutdown_flags_.load() &
+                 NBWV2_DESTROY_PARENT_RELEASED) != 0) {
+                return S_OK;
+            }
+            return queued;
+        }
+        const HRESULT waited = operation->wait(timeout_milliseconds);
+        if (FAILED(waited) &&
+                (shutdown_flags_.load() &
+                 NBWV2_DESTROY_PARENT_RELEASED) != 0) {
+            return S_OK;
+        }
+        return waited;
+    }
+
+    HRESULT destroy(
+            uint32_t timeout_milliseconds,
+            nbwv2_destroy_result* result) noexcept {
+        if (result == nullptr ||
+                timeout_milliseconds == 0 ||
+                timeout_milliseconds > kMaximumSynchronousTimeoutMilliseconds) {
+            return E_INVALIDARG;
+        }
+        const HRESULT requested = request_shutdown();
+        if (FAILED(requested)) {
+            terminal_hresult_.store(requested);
+            fill_destroy_result(result);
+            return requested;
         }
         if (thread_.joinable()) {
             const DWORD wait = WaitForSingleObject(
-                    thread_.native_handle(), kDestroyTimeoutMilliseconds);
+                    thread_.native_handle(), timeout_milliseconds);
             if (wait == WAIT_TIMEOUT) {
-                return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+                const HRESULT timeout = HRESULT_FROM_WIN32(ERROR_TIMEOUT);
+                terminal_hresult_.store(timeout);
+                fill_destroy_result(result);
+                return timeout;
             }
             if (wait != WAIT_OBJECT_0) {
-                return HRESULT_FROM_WIN32(GetLastError());
+                const HRESULT failure = HRESULT_FROM_WIN32(GetLastError());
+                terminal_hresult_.store(failure);
+                fill_destroy_result(result);
+                return failure;
             }
-            thread_.join();
+            try {
+                thread_.join();
+            } catch (...) {
+                const HRESULT failure = E_FAIL;
+                terminal_hresult_.store(failure);
+                fill_destroy_result(result);
+                return failure;
+            }
         }
-        return S_OK;
+        shutdown_flags_.fetch_or(NBWV2_DESTROY_THREAD_JOINED);
+        const HRESULT shutdown_failure = shutdown_failure_.load();
+        if (FAILED(shutdown_failure)) {
+            // The native thread and callback are already retired, so no live
+            // handle remains to retry. Release native ownership conservatively
+            // as S_FALSE and withhold every UDF-release claim.
+            shutdown_flags_.fetch_and(
+                    ~(NBWV2_DESTROY_UDF_RELEASE_CONFIRMED |
+                      NBWV2_DESTROY_NO_BROWSER_STARTED));
+            terminal_hresult_.store(S_FALSE);
+            fill_destroy_result(result);
+            return S_FALSE;
+        }
+        const uint32_t flags = shutdown_flags_.load();
+        const HRESULT terminal =
+                (flags & (NBWV2_DESTROY_UDF_RELEASE_CONFIRMED |
+                          NBWV2_DESTROY_NO_BROWSER_STARTED)) != 0
+                ? S_OK : S_FALSE;
+        terminal_hresult_.store(terminal);
+        fill_destroy_result(result);
+        return terminal;
     }
 
 private:
@@ -616,30 +820,414 @@ private:
             thread_started_ = true;
         }
         start_condition_.notify_all();
-        if (SUCCEEDED(status) && !closing_) {
-            drain_commands();
-            if (!closing_ && !failed_) {
-                begin_environment();
+        if (SUCCEEDED(status)) {
+            status = create_parking_window(&parking_window_);
+            if (FAILED(status)) {
+                emit_failure(status, L"Create private WebView2 parking window");
+            }
+            if (closing_) {
+                begin_shutdown_on_thread();
+            } else {
+                drain_commands();
+                if (!closing_ && !failed_) {
+                    begin_environment();
+                }
             }
             MSG message = {};
-            while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+            BOOL message_status = TRUE;
+            while ((message_status = GetMessageW(&message, nullptr, 0, 0)) > 0) {
                 if (message.message == kDispatchMessage) {
                     drain_commands();
+                } else if (message.message == kShutdownMessage) {
+                    begin_shutdown_on_thread();
                 } else {
                     TranslateMessage(&message);
                     DispatchMessageW(&message);
                 }
             }
+            if (message_status == -1) {
+                terminal_hresult_.store(HRESULT_FROM_WIN32(GetLastError()));
+            }
+        } else {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_NO_BROWSER_STARTED);
         }
-        cleanup();
+        cleanup_final();
         if (com_initialized) {
             CoUninitialize();
         }
         emit_closed();
+        shutdown_flags_.fetch_or(NBWV2_DESTROY_CALLBACK_RETIRED);
+        {
+            std::lock_guard lock(queue_mutex_);
+            thread_id_ = 0;
+        }
+    }
+
+    HRESULT post_control(
+            std::function<void()> command,
+            bool reject_when_failed) {
+        if (!command) {
+            return E_INVALIDARG;
+        }
+        std::lock_guard lock(queue_mutex_);
+        if ((reject_when_failed && failed_) ||
+                control_commands_.size() >= kMaximumQueuedCommands) {
+            return failed_ ? E_FAIL : HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA);
+        }
+        if ((shutdown_flags_.load() & NBWV2_DESTROY_CALLBACK_RETIRED) != 0) {
+            return RO_E_CLOSED;
+        }
+        control_commands_.push_back(std::move(command));
+        if (thread_id_ == 0) {
+            return S_OK;
+        }
+        if (!PostThreadMessageW(thread_id_, kDispatchMessage, 0, 0)) {
+            const DWORD error = GetLastError();
+            control_commands_.pop_back();
+            return HRESULT_FROM_WIN32(error);
+        }
+        return S_OK;
+    }
+
+    HRESULT request_shutdown() noexcept {
+        // A prior bounded attempt may have failed while reparenting or closing
+        // the controller. Keep the exact live Host and retry the operation on
+        // its COM thread instead of permanently wedging the handle.
+        shutdown_failure_.store(S_OK);
+        parent_release_fenced_.store(true, std::memory_order_release);
+        DWORD id = 0;
+        {
+            std::lock_guard lock(queue_mutex_);
+            closing_.store(true);
+            commands_.clear();
+            id = thread_id_;
+        }
+        if (id == 0) {
+            return S_OK;
+        }
+        if (PostThreadMessageW(id, kShutdownMessage, 0, 0)) {
+            return S_OK;
+        }
+        const DWORD error = GetLastError();
+        if (thread_.joinable() &&
+                WaitForSingleObject(thread_.native_handle(), 0) == WAIT_OBJECT_0) {
+            return S_OK;
+        }
+        return HRESULT_FROM_WIN32(error);
+    }
+
+    void fill_destroy_result(nbwv2_destroy_result* result) const noexcept {
+        if (result == nullptr) {
+            return;
+        }
+        result->struct_size = sizeof(nbwv2_destroy_result);
+        result->flags = shutdown_flags_.load();
+        result->expected_browser_pid = expected_browser_pid_.load();
+        result->observed_browser_pid = observed_browser_pid_.load();
+        result->browser_exit_kind = browser_exit_kind_.load();
+        result->terminal_hresult = terminal_hresult_.load();
+        result->reserved[0] = 0;
+        result->reserved[1] = 0;
+    }
+
+    HRESULT verify_environment_user_data_folder() noexcept {
+        ComPtr<ICoreWebView2Environment7> environment7;
+        HRESULT status = environment_.As(&environment7);
+        if (FAILED(status) || !environment7) {
+            return FAILED(status) ? status : E_NOINTERFACE;
+        }
+        LPWSTR actual = nullptr;
+        status = environment7->get_UserDataFolder(&actual);
+        if (FAILED(status) || actual == nullptr) {
+            if (actual != nullptr) {
+                CoTaskMemFree(actual);
+            }
+            return FAILED(status) ? status : E_POINTER;
+        }
+        const bool exact = user_data_ == actual;
+        CoTaskMemFree(actual);
+        if (!exact) {
+            return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+        shutdown_flags_.fetch_or(NBWV2_DESTROY_UDF_IDENTITY_VERIFIED);
+        return S_OK;
+    }
+
+    HRESULT register_browser_process_exit() noexcept {
+        HRESULT status = environment_.As(&environment5_);
+        if (FAILED(status) || !environment5_) {
+            browser_exit_resolved_ = true;
+            return FAILED(status) ? status : E_NOINTERFACE;
+        }
+        status = environment5_->add_BrowserProcessExited(
+                Callback<ICoreWebView2BrowserProcessExitedEventHandler>(
+                    [this](ICoreWebView2Environment*,
+                           ICoreWebView2BrowserProcessExitedEventArgs* args) noexcept -> HRESULT {
+                        return guarded_callback(
+                                L"WebView2 browser-process-exited callback",
+                                [&]() -> HRESULT {
+                                    return browser_process_exited(args);
+                                });
+                    }).Get(),
+                &browser_process_exit_token_);
+        if (FAILED(status)) {
+            environment5_.Reset();
+            browser_exit_resolved_ = true;
+            return status;
+        }
+        browser_process_exit_registered_ = true;
+        return S_OK;
+    }
+
+    HRESULT browser_process_exited(
+            ICoreWebView2BrowserProcessExitedEventArgs* args) noexcept {
+        if (args == nullptr) {
+            browser_exit_resolved_ = true;
+            unregister_browser_process_exit();
+            maybe_finish_shutdown();
+            return S_OK;
+        }
+        COREWEBVIEW2_BROWSER_PROCESS_EXIT_KIND kind =
+                COREWEBVIEW2_BROWSER_PROCESS_EXIT_KIND_FAILED;
+        UINT32 observed_pid = 0;
+        HRESULT status = args->get_BrowserProcessExitKind(&kind);
+        if (SUCCEEDED(status)) {
+            status = args->get_BrowserProcessId(&observed_pid);
+        }
+        if (FAILED(status) || observed_pid == 0) {
+            browser_exit_resolved_ = true;
+            unregister_browser_process_exit();
+            maybe_finish_shutdown();
+            return S_OK;
+        }
+        observed_browser_pid_.store(observed_pid);
+        browser_exit_kind_.store(static_cast<uint32_t>(kind));
+        shutdown_flags_.fetch_or(NBWV2_DESTROY_BROWSER_EXIT_OBSERVED);
+        const UINT32 expected_pid = expected_browser_pid_.load();
+        if (expected_pid != 0 && observed_pid == expected_pid) {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PID_MATCHED);
+            // BrowserProcessExited is delivered for both normal shutdown and
+            // browser failure only after the environment has released all
+            // associated resources, including its UDF.
+            if ((shutdown_flags_.load() &
+                 NBWV2_DESTROY_UDF_IDENTITY_VERIFIED) != 0) {
+                shutdown_flags_.fetch_or(NBWV2_DESTROY_UDF_RELEASE_CONFIRMED);
+            }
+        }
+        browser_exit_resolved_ = true;
+        unregister_browser_process_exit();
+        maybe_finish_shutdown();
+        return S_OK;
+    }
+
+    void unregister_browser_process_exit() noexcept {
+        if (browser_process_exit_registered_ && environment5_) {
+            environment5_->remove_BrowserProcessExited(
+                    browser_process_exit_token_);
+        }
+        browser_process_exit_registered_ = false;
+    }
+
+    HRESULT attach_to_parent_if_allowed() noexcept {
+        std::lock_guard lock(parent_mutex_);
+        if (!controller_) {
+            return E_UNEXPECTED;
+        }
+        const bool fenced =
+                parent_release_fenced_.load(std::memory_order_acquire);
+        const HWND target = fenced ? parking_window_ : parent_;
+        if (target == nullptr || !IsWindow(target)) {
+            return HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE);
+        }
+        HRESULT status = controller_->put_ParentWindow(target);
+        HWND applied = nullptr;
+        if (SUCCEEDED(status)) {
+            status = controller_->get_ParentWindow(&applied);
+        }
+        if (SUCCEEDED(status) && applied != target) {
+            status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+        if (SUCCEEDED(status) && fenced) {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
+        }
+        return status;
+    }
+
+    HRESULT release_parent_on_thread(HWND expected_parent) noexcept {
+        if (expected_parent == nullptr || expected_parent != parent_) {
+            return E_INVALIDARG;
+        }
+        parent_release_fenced_.store(true, std::memory_order_release);
+        std::lock_guard lock(parent_mutex_);
+        if (!controller_) {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
+            return S_OK;
+        }
+        if (parking_window_ == nullptr || !IsWindow(parking_window_)) {
+            return HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE);
+        }
+        HRESULT status = controller_->put_IsVisible(FALSE);
+        HWND current = nullptr;
+        if (SUCCEEDED(status)) {
+            status = controller_->get_ParentWindow(&current);
+        }
+        if (SUCCEEDED(status) && current == expected_parent) {
+            status = controller_->put_ParentWindow(parking_window_);
+        } else if (SUCCEEDED(status) && current != parking_window_) {
+            status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+        HWND applied = nullptr;
+        if (SUCCEEDED(status)) {
+            status = controller_->get_ParentWindow(&applied);
+        }
+        if (SUCCEEDED(status) && applied != parking_window_) {
+            status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+        if (SUCCEEDED(status)) {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
+        }
+        return status;
+    }
+
+    void async_callback_completed() noexcept {
+        if (pending_async_callbacks_ > 0) {
+            --pending_async_callbacks_;
+        }
+        if (closing_) {
+            maybe_finish_shutdown();
+        }
+    }
+
+    void remove_webview_handlers() noexcept {
+        if (!webview_) {
+            return;
+        }
+        if (navigation_registered_) {
+            webview_->remove_NavigationStarting(navigation_token_);
+            navigation_registered_ = false;
+        }
+        if (navigation_completed_registered_) {
+            webview_->remove_NavigationCompleted(navigation_completed_token_);
+            navigation_completed_registered_ = false;
+        }
+        if (new_window_registered_) {
+            webview_->remove_NewWindowRequested(new_window_token_);
+            new_window_registered_ = false;
+        }
+        if (permission_registered_) {
+            webview_->remove_PermissionRequested(permission_token_);
+            permission_registered_ = false;
+        }
+        if (web_message_registered_) {
+            webview_->remove_WebMessageReceived(web_message_token_);
+            web_message_registered_ = false;
+        }
+        if (resource_registered_) {
+            webview_->remove_WebResourceRequested(resource_token_);
+            resource_registered_ = false;
+        }
+        if (process_failed_registered_) {
+            webview_->remove_ProcessFailed(process_failed_token_);
+            process_failed_registered_ = false;
+        }
+        if (download_registered_) {
+            ComPtr<ICoreWebView2_4> webview4;
+            if (SUCCEEDED(webview_.As(&webview4))) {
+                webview4->remove_DownloadStarting(download_token_);
+            }
+            download_registered_ = false;
+        }
+        if (resource_filter_installed_) {
+            webview_->RemoveWebResourceRequestedFilter(
+                    L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+            resource_filter_installed_ = false;
+        }
+    }
+
+    void begin_shutdown_on_thread() noexcept {
+        if (!closing_) {
+            return;
+        }
+        drain_control_commands();
+        if (FAILED(shutdown_failure_.load())) {
+            return;
+        }
+        const HRESULT parent_status = release_parent_on_thread(parent_);
+        if (FAILED(parent_status)) {
+            if ((shutdown_flags_.load() &
+                 NBWV2_DESTROY_UDF_RELEASE_CONFIRMED) != 0) {
+                // BrowserProcessExited means the Runtime already released all
+                // resources, including the child window and UDF. A stale COM
+                // controller can no longer keep the AWT parent alive.
+                shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
+            } else {
+                shutdown_failure_.store(parent_status);
+                terminal_hresult_.store(parent_status);
+                return;
+            }
+        }
+        remove_webview_handlers();
+        if (controller_) {
+            if (!controller_close_attempted_) {
+                HRESULT status = controller_->put_IsVisible(FALSE);
+                if (SUCCEEDED(status)) {
+                    status = controller_->Close();
+                }
+                if (FAILED(status)) {
+                    if ((shutdown_flags_.load() &
+                         NBWV2_DESTROY_UDF_RELEASE_CONFIRMED) == 0) {
+                        shutdown_failure_.store(status);
+                        terminal_hresult_.store(status);
+                        return;
+                    }
+                    // A matching BrowserProcessExited event is stronger than
+                    // a late Close HRESULT: the Runtime and UDF are already
+                    // released. Drop the stale COM wrappers below.
+                } else {
+                    controller_close_attempted_ = true;
+                    shutdown_flags_.fetch_or(NBWV2_DESTROY_CONTROLLER_CLOSED);
+                }
+            }
+            webview_.Reset();
+            controller_.Reset();
+        }
+        maybe_finish_shutdown();
+    }
+
+    void maybe_finish_shutdown() noexcept {
+        if (!closing_ || quit_posted_ || FAILED(shutdown_failure_.load())) {
+            return;
+        }
+        if (controller_ || pending_async_callbacks_ != 0) {
+            return;
+        }
+        if (browser_process_exit_registered_ && !browser_exit_resolved_) {
+            if (expected_browser_pid_.load() != 0) {
+                return;
+            }
+            // An environment was created, but no controller completed and no
+            // exact browser PID was captured. Waiting for an unmatchable event
+            // can keep this environment alive indefinitely. Retire tracking,
+            // release all native ownership, and report S_FALSE rather than
+            // claiming UDF release or timing out the caller.
+            browser_exit_resolved_ = true;
+            unregister_browser_process_exit();
+        }
+        if (!environment_created_ && !environment_creation_attempted_) {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_NO_BROWSER_STARTED);
+        }
+        quit_posted_ = true;
+        PostQuitMessage(0);
     }
 
     void begin_environment() {
-        if (closing_) {
+        if (closing_ || parking_window_ == nullptr || !IsWindow(parking_window_)) {
+            if (closing_) {
+                begin_shutdown_on_thread();
+            } else {
+                emit_failure(HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE),
+                             L"Validate private WebView2 parking window");
+            }
             return;
         }
         auto environment_options =
@@ -659,6 +1247,8 @@ private:
             emit_failure(status, L"Require exclusive WebView2 user-data ownership");
             return;
         }
+        environment_creation_attempted_ = true;
+        ++pending_async_callbacks_;
         status = CreateCoreWebView2EnvironmentWithOptions(
                 nullptr,
                 user_data_.c_str(),
@@ -666,56 +1256,107 @@ private:
                 Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
                     [this](HRESULT result,
                            ICoreWebView2Environment* environment) noexcept -> HRESULT {
-                        return guarded_callback(
+                        const HRESULT callback_status = guarded_callback(
                                 L"WebView2 environment completion callback",
                                 [&]() -> HRESULT {
-                        if (closing_ || failed_) {
-                            return S_OK;
-                        }
-                        if (FAILED(result) || environment == nullptr) {
-                            emit_failure(FAILED(result) ? result : E_POINTER,
-                                         L"CreateCoreWebView2EnvironmentWithOptions completion");
-                            return S_OK;
-                        }
-                        environment_ = environment;
-                        const HRESULT controller_status = environment_->CreateCoreWebView2Controller(
-                                parent_,
-                                Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                                    [this](HRESULT controller_result,
-                                           ICoreWebView2Controller* controller) noexcept -> HRESULT {
-                                        return guarded_callback(
-                                                L"WebView2 controller completion callback",
-                                                [&]() -> HRESULT {
-                                            return controller_created(
-                                                    controller_result, controller);
-                                        });
-                                    }).Get());
-                        if (FAILED(controller_status)) {
-                            emit_failure(controller_status,
-                                         L"CreateCoreWebView2Controller");
-                        }
-                        return S_OK;
+                                    return environment_created(result, environment);
                         });
+                        async_callback_completed();
+                        return callback_status;
                     }).Get());
         if (FAILED(status)) {
+            async_callback_completed();
             emit_failure(status, L"CreateCoreWebView2EnvironmentWithOptions");
         }
     }
 
-    HRESULT controller_created(HRESULT result, ICoreWebView2Controller* controller) {
-        if (closing_ || failed_) {
+    HRESULT environment_created(
+            HRESULT result,
+            ICoreWebView2Environment* environment) {
+        if (FAILED(result) || environment == nullptr) {
+            emit_failure(FAILED(result) ? result : E_POINTER,
+                         L"CreateCoreWebView2EnvironmentWithOptions completion");
             return S_OK;
         }
+        environment_ = environment;
+        environment_created_ = true;
+        const HRESULT identity_status =
+                verify_environment_user_data_folder();
+        if (FAILED(identity_status)) {
+            emit_failure(identity_status,
+                         L"Verify exact WebView2 user-data folder identity");
+        }
+        const HRESULT tracking_status = register_browser_process_exit();
+        if (FAILED(tracking_status)) {
+            emit_failure(tracking_status,
+                         L"Register WebView2 BrowserProcessExited");
+        }
+        if (closing_ || failed_) {
+            begin_shutdown_on_thread();
+            return S_OK;
+        }
+        ++pending_async_callbacks_;
+        const HRESULT controller_status = environment_->CreateCoreWebView2Controller(
+                parking_window_,
+                Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                    [this](HRESULT controller_result,
+                           ICoreWebView2Controller* controller) noexcept -> HRESULT {
+                        const HRESULT callback_status = guarded_callback(
+                                L"WebView2 controller completion callback",
+                                [&]() -> HRESULT {
+                                    return controller_created(
+                                            controller_result, controller);
+                                });
+                        async_callback_completed();
+                        return callback_status;
+                    }).Get());
+        if (FAILED(controller_status)) {
+            async_callback_completed();
+            emit_failure(controller_status, L"CreateCoreWebView2Controller");
+        }
+        return S_OK;
+    }
+
+    HRESULT controller_created(HRESULT result, ICoreWebView2Controller* controller) {
         if (FAILED(result) || controller == nullptr) {
-            emit_failure(FAILED(result) ? result : E_POINTER,
-                         L"CreateCoreWebView2Controller completion");
+            if (!closing_) {
+                emit_failure(FAILED(result) ? result : E_POINTER,
+                             L"CreateCoreWebView2Controller completion");
+            }
             return S_OK;
         }
         controller_ = controller;
-        HRESULT status = controller_->get_CoreWebView2(&webview_);
+        HWND created_parent = nullptr;
+        HRESULT status = controller_->get_ParentWindow(&created_parent);
+        if (SUCCEEDED(status) && created_parent != parking_window_) {
+            status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+        if (FAILED(status)) {
+            emit_failure(status, L"Verify initial WebView2 parking parent");
+            return S_OK;
+        }
+        status = controller_->get_CoreWebView2(&webview_);
         if (FAILED(status) || !webview_) {
             emit_failure(FAILED(status) ? status : E_NOINTERFACE,
                          L"ICoreWebView2Controller::get_CoreWebView2");
+            return S_OK;
+        }
+        UINT32 browser_pid = 0;
+        status = webview_->get_BrowserProcessId(&browser_pid);
+        if (FAILED(status) || browser_pid == 0) {
+            emit_failure(FAILED(status) ? status : E_UNEXPECTED,
+                         L"Capture WebView2 browser process ID");
+            return S_OK;
+        }
+        expected_browser_pid_.store(browser_pid);
+        if (closing_) {
+            begin_shutdown_on_thread();
+            return S_OK;
+        }
+        if (failed_) {
+            std::lock_guard lock(parent_mutex_);
+            parent_release_fenced_ = true;
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
             return S_OK;
         }
         ComPtr<ICoreWebView2Controller4> controller4;
@@ -739,7 +1380,10 @@ private:
             emit_failure(status, L"Install WebView2 policy");
             return S_OK;
         }
-        status = controller_->put_Bounds(initial_bounds_);
+        status = controller_->put_IsVisible(FALSE);
+        if (SUCCEEDED(status)) {
+            status = controller_->put_Bounds(initial_bounds_);
+        }
         RECT applied_bounds = {};
         if (SUCCEEDED(status)) {
             status = controller_->get_Bounds(&applied_bounds);
@@ -748,14 +1392,24 @@ private:
             status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
         }
         if (SUCCEEDED(status)) {
-            status = controller_->put_IsVisible(desired_visible_ ? TRUE : FALSE);
+            status = attach_to_parent_if_allowed();
+        }
+        HWND applied_parent = nullptr;
+        if (SUCCEEDED(status)) {
+            status = controller_->get_ParentWindow(&applied_parent);
+        }
+        const bool attached_to_awt = SUCCEEDED(status) && applied_parent == parent_;
+        if (SUCCEEDED(status)) {
+            status = controller_->put_IsVisible(
+                    attached_to_awt && desired_visible_ ? TRUE : FALSE);
         }
         BOOL applied_visibility = FALSE;
         if (SUCCEEDED(status)) {
             status = controller_->get_IsVisible(&applied_visibility);
         }
         if (SUCCEEDED(status)
-                && ((applied_visibility != FALSE) != desired_visible_)) {
+                && ((applied_visibility != FALSE) !=
+                    (attached_to_awt && desired_visible_))) {
             status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
         }
         if (FAILED(status)) {
@@ -767,11 +1421,12 @@ private:
                 L"'&&location.pathname==='/index.html'){Object.defineProperty(globalThis,"
                 L"'__netBeansCanvasBootstrap',{value:Object.freeze({sessionNonce:'" + nonce_ +
                 L"'}),configurable:false,enumerable:false,writable:false});}";
+        ++pending_async_callbacks_;
         status = webview_->AddScriptToExecuteOnDocumentCreated(
                 script.c_str(),
                 Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
                     [this](HRESULT script_result, LPCWSTR) noexcept -> HRESULT {
-                        return guarded_callback(
+                        const HRESULT callback_status = guarded_callback(
                                 L"WebView2 bootstrap-script completion callback",
                                 [&]() -> HRESULT {
                         if (closing_ || failed_) {
@@ -788,8 +1443,11 @@ private:
                         }
                         return S_OK;
                         });
+                        async_callback_completed();
+                        return callback_status;
                     }).Get());
         if (FAILED(status)) {
+            async_callback_completed();
             emit_failure(status, L"AddScriptToExecuteOnDocumentCreated");
         }
         return S_OK;
@@ -1077,16 +1735,41 @@ private:
             std::function<void()> command;
             {
                 std::lock_guard lock(queue_mutex_);
-                if (commands_.empty() || closing_) {
+                if (!control_commands_.empty()) {
+                    command = std::move(control_commands_.front());
+                    control_commands_.pop_front();
+                } else if (commands_.empty() || closing_) {
                     return;
+                } else {
+                    command = std::move(commands_.front());
+                    commands_.pop_front();
                 }
-                command = std::move(commands_.front());
-                commands_.pop_front();
             }
             try {
                 command();
             } catch (...) {
                 emit_failure(E_FAIL, L"Native WebView2 command");
+                return;
+            }
+        }
+    }
+
+    void drain_control_commands() noexcept {
+        for (;;) {
+            std::function<void()> command;
+            {
+                std::lock_guard lock(queue_mutex_);
+                if (control_commands_.empty()) {
+                    return;
+                }
+                command = std::move(control_commands_.front());
+                control_commands_.pop_front();
+            }
+            try {
+                command();
+            } catch (...) {
+                shutdown_failure_.store(E_FAIL);
+                terminal_hresult_.store(E_FAIL);
                 return;
             }
         }
@@ -1128,33 +1811,36 @@ private:
         }
     }
 
-    void cleanup() noexcept {
-        if (webview_) {
-            if (navigation_registered_) webview_->remove_NavigationStarting(navigation_token_);
-            if (navigation_completed_registered_) webview_->remove_NavigationCompleted(navigation_completed_token_);
-            if (new_window_registered_) webview_->remove_NewWindowRequested(new_window_token_);
-            if (permission_registered_) webview_->remove_PermissionRequested(permission_token_);
-            if (web_message_registered_) webview_->remove_WebMessageReceived(web_message_token_);
-            if (resource_registered_) webview_->remove_WebResourceRequested(resource_token_);
-            if (process_failed_registered_) webview_->remove_ProcessFailed(process_failed_token_);
-            if (download_registered_) {
-                ComPtr<ICoreWebView2_4> webview4;
-                if (SUCCEEDED(webview_.As(&webview4))) {
-                    webview4->remove_DownloadStarting(download_token_);
-                }
-            }
-            if (resource_filter_installed_) {
-                webview_->RemoveWebResourceRequestedFilter(
-                        L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
-            }
-        }
+    void cleanup_final() noexcept {
+        parent_release_fenced_.store(true, std::memory_order_release);
         if (controller_) {
-            controller_->put_IsVisible(FALSE);
-            controller_->Close();
+            release_parent_on_thread(parent_);
+        } else {
+            shutdown_flags_.fetch_or(NBWV2_DESTROY_PARENT_RELEASED);
+        }
+        remove_webview_handlers();
+        if (controller_ && !controller_close_attempted_) {
+            controller_close_attempted_ = true;
+            HRESULT status = controller_->put_IsVisible(FALSE);
+            if (SUCCEEDED(status)) {
+                status = controller_->Close();
+            }
+            if (SUCCEEDED(status)) {
+                shutdown_flags_.fetch_or(NBWV2_DESTROY_CONTROLLER_CLOSED);
+            } else {
+                shutdown_failure_.store(status);
+                terminal_hresult_.store(status);
+            }
         }
         webview_.Reset();
         controller_.Reset();
+        unregister_browser_process_exit();
+        environment5_.Reset();
         environment_.Reset();
+        if (parking_window_ != nullptr) {
+            DestroyWindow(parking_window_);
+            parking_window_ = nullptr;
+        }
     }
 
     HWND parent_;
@@ -1176,11 +1862,17 @@ private:
     DWORD thread_id_ = 0;
     std::mutex queue_mutex_;
     std::deque<std::function<void()>> commands_;
+    std::deque<std::function<void()>> control_commands_;
     std::atomic<bool> closing_ = false;
     std::atomic<bool> failed_ = false;
     std::atomic<bool> closed_emitted_ = false;
 
+    HWND parking_window_ = nullptr;
+    std::mutex parent_mutex_;
+    std::atomic<bool> parent_release_fenced_ = false;
+
     ComPtr<ICoreWebView2Environment> environment_;
+    ComPtr<ICoreWebView2Environment5> environment5_;
     ComPtr<ICoreWebView2Controller> controller_;
     ComPtr<ICoreWebView2> webview_;
 
@@ -1192,6 +1884,7 @@ private:
     EventRegistrationToken resource_token_ = {};
     EventRegistrationToken process_failed_token_ = {};
     EventRegistrationToken download_token_ = {};
+    EventRegistrationToken browser_process_exit_token_ = {};
     bool navigation_registered_ = false;
     bool navigation_completed_registered_ = false;
     bool new_window_registered_ = false;
@@ -1203,6 +1896,20 @@ private:
     bool resource_filter_installed_ = false;
     bool navigation_started_ = false;
     bool desired_visible_ = true;
+    bool environment_creation_attempted_ = false;
+    bool environment_created_ = false;
+    bool browser_process_exit_registered_ = false;
+    bool browser_exit_resolved_ = false;
+    bool controller_close_attempted_ = false;
+    bool quit_posted_ = false;
+    size_t pending_async_callbacks_ = 0;
+
+    std::atomic<uint32_t> shutdown_flags_ = 0;
+    std::atomic<uint32_t> expected_browser_pid_ = 0;
+    std::atomic<uint32_t> observed_browser_pid_ = 0;
+    std::atomic<uint32_t> browser_exit_kind_ = 0;
+    std::atomic<HRESULT> terminal_hresult_ = E_PENDING;
+    std::atomic<HRESULT> shutdown_failure_ = S_OK;
 };
 
 Host* require_host(void* handle) {
@@ -1292,7 +1999,19 @@ int32_t __stdcall nbwv2_create(
     }
     const HRESULT status = native->start();
     if (FAILED(status)) {
-        native->destroy();
+        nbwv2_destroy_result teardown = {};
+        teardown.struct_size = sizeof(teardown);
+        const HRESULT teardown_status = native->destroy(
+                10'000, &teardown);
+        if (teardown_status != S_OK) {
+            // A failed create must not orphan native ownership. Return the
+            // exact Host even though the HRESULT reports the original startup
+            // failure whenever teardown either remains live (failure/timeout)
+            // or retired conservatively without UDF-release proof (S_FALSE).
+            // Java adopts this handle and drives the normal retryable destroy
+            // path while retaining the callback and ownership evidence.
+            *host_handle = native.release();
+        }
         return status;
     }
     *host_handle = native.release();
@@ -1372,20 +2091,65 @@ int32_t __stdcall nbwv2_request_focus(void* host_handle) noexcept {
     }
 }
 
-int32_t __stdcall nbwv2_destroy(void* host_handle) noexcept {
-    Host* host = require_host(host_handle);
+int32_t __stdcall nbwv2_prepare_parent_release(
+        void* host_handle,
+        HWND expected_parent,
+        uint32_t timeout_milliseconds) noexcept {
+    try {
+        Host* host = require_host(host_handle);
+        if (host == nullptr) {
+            return E_INVALIDARG;
+        }
+        return host->prepare_parent_release(
+                expected_parent, timeout_milliseconds);
+    } catch (const std::bad_alloc&) {
+        return E_OUTOFMEMORY;
+    } catch (...) {
+        return E_FAIL;
+    }
+}
+
+int32_t __stdcall nbwv2_destroy(
+        void** host_handle,
+        uint32_t timeout_milliseconds,
+        nbwv2_destroy_result* result) noexcept {
+    if (result == nullptr) {
+        return E_POINTER;
+    }
+    if (result->struct_size != sizeof(nbwv2_destroy_result)) {
+        return E_INVALIDARG;
+    }
+    *result = {};
+    result->struct_size = sizeof(nbwv2_destroy_result);
+    if (host_handle == nullptr) {
+        result->terminal_hresult = E_POINTER;
+        return E_POINTER;
+    }
+    if (timeout_milliseconds == 0 ||
+            timeout_milliseconds >
+                    kMaximumSynchronousTimeoutMilliseconds) {
+        result->terminal_hresult = E_INVALIDARG;
+        return E_INVALIDARG;
+    }
+    Host* host = require_host(*host_handle);
     if (host == nullptr) {
+        result->terminal_hresult = E_INVALIDARG;
         return E_INVALIDARG;
     }
     try {
-        const HRESULT status = host->destroy();
+        const HRESULT status = host->destroy(timeout_milliseconds, result);
         if (SUCCEEDED(status)) {
             delete host;
+            *host_handle = nullptr;
         }
         return status;
+    } catch (const std::bad_alloc&) {
+        result->terminal_hresult = E_OUTOFMEMORY;
+        return E_OUTOFMEMORY;
     } catch (...) {
         // Do not delete a host whose thread teardown could not be proven.
         // Leaking the fenced native object is safer than a use-after-free.
+        result->terminal_hresult = E_FAIL;
         return E_FAIL;
     }
 }

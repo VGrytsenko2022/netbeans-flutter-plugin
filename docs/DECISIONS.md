@@ -297,7 +297,7 @@ The internal host foundation is implemented but is not product-routed.
 creates browser-managed Flutter views, and refuses to start without the WebView2
 page bridge. The Java/native host detects the installed Runtime, extracts and
 verifies the pinned bundle, owns the child controller lifecycle, leases one
-private publication generation and passes an ABI-v2 path/size/SHA-256 manifest
+private publication generation and passes an ABI-v3 path/size/SHA-256 manifest
 to native code. Native creation rehashes and freezes every resource in memory;
 the isolated `.invalid` HTTPS origin has no disk-folder fallback. It admits exact
 snapshot paths under a frozen CSP, requires an exclusive owned user-data folder,
@@ -313,15 +313,25 @@ dependency cache with local CanvasKit and registered local Roboto plus its
 Apache-2.0 license. A standalone physical Windows x64 smoke accepts installed-
 Runtime detection, exact page/bridge authentication, an authenticated NBFC
 `host.hello` → digest-verified `runner.hello` round trip, read-back-verified
-bounds and visibility, the focus API and deadline-bounded teardown.
+bounds and visibility, the focus API, private parking-parent handoff,
+parent-HWND release, matching-PID browser resource release, exact-handle destroy
+retry, close-during-start and deadline-bounded teardown.
 That smoke does not authorize provider/product selection, build/cache/session
 routing, Web `CanvasEngineIdentity`, production Retry/crash recovery, or the
 assembled NetBeans model/layout/selection, DPI and isolation matrix. The backend
 therefore remains unavailable in the product until those independent gates pass.
-Before routing, the assembled lifecycle must keep the AWT parent HWND alive
-through confirmed native close, reject restart after an unconfirmed native
-destroy, wait for the matching browser process to release the UDF, and make
-partial UDF deletion retry-safe without losing ownership evidence.
+The host foundation now supplies an asynchronous pre-peer-loss barrier, a
+poisoned state with exact-handle teardown retry, matching-PID
+`BrowserProcessExited` proof and retry-safe partial UDF deletion backed by an
+external per-session ownership marker. Failed native startup also returns any
+retained exact handle to Java; a null failed-create handle is release proof,
+while an unconfirmed/malformed result quarantines its callback and UDF.
+Windows cleanup holds stable FileId handles that deny delete sharing for the
+parent/root/marker, denies marker writes, and deletes the verified root and
+marker by handle with the marker last.
+Product routing remains disabled until
+the NetBeans owner awaits that barrier and the assembled acceptance matrix
+passes.
 Current Web input acceptance is English-only; physical CJK IME and other
 language-specific input remain deferred to the final internationalization phase.
 The platform-neutral SPI, completed broader Windows acceptance matrix,

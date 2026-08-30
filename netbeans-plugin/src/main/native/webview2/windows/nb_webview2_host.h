@@ -9,7 +9,7 @@
 #define NBWV2_API extern "C" __declspec(dllimport)
 #endif
 
-#define NBWV2_ABI_VERSION 2u
+#define NBWV2_ABI_VERSION 3u
 
 enum nbwv2_event_kind : uint32_t {
     NBWV2_EVENT_CONTROLLER_READY = 1u,
@@ -52,6 +52,35 @@ struct nbwv2_create_options {
     const wchar_t* resource_manifest;
 };
 
+enum nbwv2_destroy_flag : uint32_t {
+    NBWV2_DESTROY_PARENT_RELEASED = 1u << 0,
+    NBWV2_DESTROY_UDF_IDENTITY_VERIFIED = 1u << 1,
+    NBWV2_DESTROY_CONTROLLER_CLOSED = 1u << 2,
+    NBWV2_DESTROY_BROWSER_EXIT_OBSERVED = 1u << 3,
+    NBWV2_DESTROY_PID_MATCHED = 1u << 4,
+    NBWV2_DESTROY_UDF_RELEASE_CONFIRMED = 1u << 5,
+    NBWV2_DESTROY_THREAD_JOINED = 1u << 6,
+    NBWV2_DESTROY_CALLBACK_RETIRED = 1u << 7,
+    NBWV2_DESTROY_NO_BROWSER_STARTED = 1u << 8
+};
+
+/*
+ * Fixed ABI-v3 teardown evidence. Callers set struct_size before each call.
+ * reserved fields must be zero and are reserved for a future ABI revision.
+ */
+struct nbwv2_destroy_result {
+    uint32_t struct_size;
+    uint32_t flags;
+    uint32_t expected_browser_pid;
+    uint32_t observed_browser_pid;
+    uint32_t browser_exit_kind;
+    int32_t terminal_hresult;
+    uint32_t reserved[2];
+};
+
+static_assert(sizeof(nbwv2_destroy_result) == 32,
+              "nbwv2_destroy_result must remain a 32-byte ABI structure");
+
 NBWV2_API uint32_t __stdcall nbwv2_get_abi_version(void) noexcept;
 
 /*
@@ -64,7 +93,12 @@ NBWV2_API int32_t __stdcall nbwv2_get_runtime_version(
         uint32_t buffer_characters,
         uint32_t* required_characters) noexcept;
 
-/* Creates an asynchronous host. Completion is reported through callback. */
+/*
+ * Creates an asynchronous host. Completion is reported through callback.
+ * On a failed HRESULT, a null *host_handle proves native/browser/UDF release;
+ * a non-null *host_handle transfers the exact retained Host to the caller and
+ * must be retired with retryable nbwv2_destroy before any UDF deletion.
+ */
 NBWV2_API int32_t __stdcall nbwv2_create(
         const nbwv2_create_options* options,
         nbwv2_event_callback callback,
@@ -89,7 +123,24 @@ NBWV2_API int32_t __stdcall nbwv2_set_visible(
 NBWV2_API int32_t __stdcall nbwv2_request_focus(void* host_handle) noexcept;
 
 /*
- * Synchronously drains and destroys the native host. This is idempotent only
- * for a still-live handle; callers must clear their handle after the call.
+ * Atomically fences any future attach to expected_parent and synchronously
+ * verifies that an existing controller is reparented to the host's private
+ * parking window. A timeout leaves the fence in force and the handle live.
  */
-NBWV2_API int32_t __stdcall nbwv2_destroy(void* host_handle) noexcept;
+NBWV2_API int32_t __stdcall nbwv2_prepare_parent_release(
+        void* host_handle,
+        HWND expected_parent,
+        uint32_t timeout_milliseconds) noexcept;
+
+/*
+ * Retryable bounded teardown. On timeout or failure, *host_handle retains the
+ * exact live handle. On S_OK or S_FALSE, the native thread is joined, callback
+ * ownership is retired, the Host is deleted, and *host_handle is set to null.
+ * S_OK proves a matching-PID BrowserProcessExited resource-release event or
+ * that environment creation was never attempted;
+ * S_FALSE proves native ownership release but not UDF release confirmation.
+ */
+NBWV2_API int32_t __stdcall nbwv2_destroy(
+        void** host_handle,
+        uint32_t timeout_milliseconds,
+        nbwv2_destroy_result* result) noexcept;

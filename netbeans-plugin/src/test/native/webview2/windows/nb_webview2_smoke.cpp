@@ -434,7 +434,7 @@ int wmain(int argc, wchar_t** argv) {
     options.session_nonce = kSessionNonce;
     options.resource_manifest = resources.c_str();
 
-    void* handle = nullptr;
+    void* handle = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
     nbwv2_create_options invalid_options = options;
     invalid_options.width = 32768;
     status = nbwv2_create(&invalid_options, accept_event, &state, &handle);
@@ -443,6 +443,7 @@ int wmain(int argc, wchar_t** argv) {
         DestroyWindow(window);
         return 7;
     }
+    handle = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
     invalid_options = options;
     invalid_options.x = std::numeric_limits<int32_t>::max();
     status = nbwv2_create(&invalid_options, accept_event, &state, &handle);
@@ -472,15 +473,55 @@ int wmain(int argc, wchar_t** argv) {
     const HRESULT show = nbwv2_set_visible(handle, 1);
     const HRESULT focus = nbwv2_request_focus(handle);
     pump_until([] { return false; }, std::chrono::milliseconds(250));
+    const HRESULT parent_release = nbwv2_prepare_parent_release(
+            handle, window, 5'000);
+    const bool parent_was_destroyed = SUCCEEDED(parent_release);
+    if (parent_was_destroyed) {
+        DestroyWindow(window);
+        window = nullptr;
+    }
     std::atomic<bool> destroy_complete = false;
     HRESULT destroyed = E_PENDING;
+    HRESULT first_destroy = E_PENDING;
+    bool invalid_destroy_retained_exact_handle = false;
+    bool timeout_retained_exact_handle = false;
+    nbwv2_destroy_result destroy_result = {};
+    destroy_result.struct_size = sizeof(destroy_result);
     std::thread destroyer([&] {
-        destroyed = nbwv2_destroy(handle);
+        void* const exact_handle = handle;
+        nbwv2_destroy_result invalid_result = {};
+        invalid_result.struct_size = sizeof(invalid_result);
+        const HRESULT invalid_destroy = nbwv2_destroy(
+                &handle, 0, &invalid_result);
+        invalid_destroy_retained_exact_handle =
+                invalid_destroy == E_INVALIDARG &&
+                handle == exact_handle &&
+                invalid_result.struct_size == sizeof(invalid_result) &&
+                invalid_result.terminal_hresult == E_INVALIDARG &&
+                invalid_result.reserved[0] == 0 &&
+                invalid_result.reserved[1] == 0;
+        nbwv2_destroy_result timeout_result = {};
+        timeout_result.struct_size = sizeof(timeout_result);
+        first_destroy = nbwv2_destroy(&handle, 1, &timeout_result);
+        if (first_destroy == HRESULT_FROM_WIN32(ERROR_TIMEOUT)) {
+            timeout_retained_exact_handle = handle == exact_handle &&
+                    timeout_result.struct_size == sizeof(timeout_result) &&
+                    timeout_result.terminal_hresult ==
+                            HRESULT_FROM_WIN32(ERROR_TIMEOUT) &&
+                    timeout_result.reserved[0] == 0 &&
+                    timeout_result.reserved[1] == 0;
+            destroy_result = {};
+            destroy_result.struct_size = sizeof(destroy_result);
+            destroyed = nbwv2_destroy(&handle, 30'000, &destroy_result);
+        } else {
+            destroyed = first_destroy;
+            destroy_result = timeout_result;
+        }
         destroy_complete = true;
     });
     const bool destroy_returned = pump_until(
             [&] { return destroy_complete.load(); },
-            std::chrono::seconds(12));
+            std::chrono::seconds(35));
     if (!destroy_returned) {
         std::wcerr << L"Native destroy exceeded its hard smoke deadline."
                    << std::endl;
@@ -489,15 +530,145 @@ int wmain(int argc, wchar_t** argv) {
     }
     destroyer.join();
     const bool closed = state.closed.load();
-    DestroyWindow(window);
+    if (window != nullptr) {
+        DestroyWindow(window);
+        window = nullptr;
+    }
+    constexpr uint32_t required_destroy_flags =
+            NBWV2_DESTROY_PARENT_RELEASED |
+            NBWV2_DESTROY_UDF_IDENTITY_VERIFIED |
+            NBWV2_DESTROY_CONTROLLER_CLOSED |
+            NBWV2_DESTROY_BROWSER_EXIT_OBSERVED |
+            NBWV2_DESTROY_PID_MATCHED |
+            NBWV2_DESTROY_UDF_RELEASE_CONFIRMED |
+            NBWV2_DESTROY_THREAD_JOINED |
+            NBWV2_DESTROY_CALLBACK_RETIRED;
+    const bool exact_destroy_evidence =
+            destroyed == S_OK && handle == nullptr &&
+            destroy_result.struct_size == sizeof(destroy_result) &&
+            (destroy_result.flags & required_destroy_flags) ==
+                    required_destroy_flags &&
+            (destroy_result.flags & NBWV2_DESTROY_NO_BROWSER_STARTED) == 0 &&
+            destroy_result.expected_browser_pid != 0 &&
+            destroy_result.observed_browser_pid ==
+                    destroy_result.expected_browser_pid &&
+            // COREWEBVIEW2_BROWSER_PROCESS_EXIT_KIND_NORMAL is zero.
+            destroy_result.browser_exit_kind == 0 &&
+            destroy_result.terminal_hresult == S_OK &&
+            destroy_result.reserved[0] == 0 &&
+            destroy_result.reserved[1] == 0;
+    const bool retry_contract =
+            (first_destroy == HRESULT_FROM_WIN32(ERROR_TIMEOUT) &&
+             timeout_retained_exact_handle) || first_destroy == S_OK;
     if (!ready || !round_trip || state.failed || !state.document_ready
             || !state.bridge_ready || !state.protocol_round_trip ||
             FAILED(round_trip_post) ||
             FAILED(hide_before_ready) || FAILED(resize) || FAILED(show) ||
-            FAILED(focus) ||
-            FAILED(destroyed) || !closed) {
+            FAILED(focus) || FAILED(parent_release) ||
+            !parent_was_destroyed || !invalid_destroy_retained_exact_handle ||
+            !retry_contract ||
+            !exact_destroy_evidence || !closed) {
+        std::wcerr << L"destroy=0x" << std::hex << destroyed
+                   << L" first-destroy=0x" << first_destroy
+                   << L" parent-release=0x" << parent_release
+                   << L" flags=0x" << destroy_result.flags
+                   << L" expected-pid=" << std::dec
+                   << destroy_result.expected_browser_pid
+                   << L" observed-pid=" << destroy_result.observed_browser_pid
+                   << L" exit-kind=" << destroy_result.browser_exit_kind
+                   << L" terminal=0x" << std::hex
+                   << destroy_result.terminal_hresult << std::endl;
         std::wcerr << L"Physical WebView2 smoke failed." << std::endl;
         return 8;
+    }
+
+    HWND early_window = CreateWindowExW(
+            0, window_class.lpszClassName, L"WebView2 early-close smoke",
+            WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 320, 240,
+            nullptr, nullptr, window_class.hInstance, nullptr);
+    if (early_window == nullptr) {
+        std::wcerr << L"Could not create early-close parent window."
+                   << std::endl;
+        return 10;
+    }
+    const std::filesystem::path early_user_data =
+            user_data / L"close-during-start";
+    std::filesystem::create_directories(early_user_data);
+    SmokeState early_state;
+    nbwv2_create_options early_options = options;
+    early_options.parent_window = early_window;
+    early_options.width = 300;
+    early_options.height = 200;
+    const std::wstring early_user_data_text = early_user_data.wstring();
+    early_options.user_data_folder = early_user_data_text.c_str();
+    void* early_handle = nullptr;
+    const HRESULT early_create = nbwv2_create(
+            &early_options, accept_event, &early_state, &early_handle);
+    const HRESULT early_parent_release = SUCCEEDED(early_create) &&
+            early_handle != nullptr
+            ? nbwv2_prepare_parent_release(
+                    early_handle, early_window, 5'000)
+            : E_UNEXPECTED;
+    if (SUCCEEDED(early_parent_release)) {
+        DestroyWindow(early_window);
+        early_window = nullptr;
+    }
+    std::atomic<bool> early_destroy_complete = false;
+    HRESULT early_destroy = E_PENDING;
+    nbwv2_destroy_result early_result = {};
+    early_result.struct_size = sizeof(early_result);
+    std::thread early_destroyer([&] {
+        if (early_handle != nullptr) {
+            early_destroy = nbwv2_destroy(
+                    &early_handle, 30'000, &early_result);
+        }
+        early_destroy_complete = true;
+    });
+    const bool early_destroy_returned = pump_until(
+            [&] { return early_destroy_complete.load(); },
+            std::chrono::seconds(35));
+    if (!early_destroy_returned) {
+        std::wcerr << L"Early-close destroy exceeded its hard deadline."
+                   << std::endl;
+        TerminateProcess(GetCurrentProcess(), 11);
+        return 11;
+    }
+    early_destroyer.join();
+    if (early_window != nullptr) {
+        DestroyWindow(early_window);
+        early_window = nullptr;
+    }
+    constexpr uint32_t early_ownership_flags =
+            NBWV2_DESTROY_PARENT_RELEASED |
+            NBWV2_DESTROY_THREAD_JOINED |
+            NBWV2_DESTROY_CALLBACK_RETIRED;
+    const bool early_terminal_evidence =
+            (early_destroy == S_OK &&
+             (early_result.flags &
+              (NBWV2_DESTROY_UDF_RELEASE_CONFIRMED |
+               NBWV2_DESTROY_NO_BROWSER_STARTED)) != 0) ||
+            (early_destroy == S_FALSE &&
+             (early_result.flags &
+              (NBWV2_DESTROY_UDF_RELEASE_CONFIRMED |
+               NBWV2_DESTROY_NO_BROWSER_STARTED)) == 0);
+    const bool early_close_contract =
+            early_create == S_OK && early_parent_release == S_OK &&
+            early_handle == nullptr && early_state.closed &&
+            !early_state.failed &&
+            (early_result.flags & early_ownership_flags) ==
+                    early_ownership_flags &&
+            early_result.terminal_hresult == early_destroy &&
+            early_result.reserved[0] == 0 &&
+            early_result.reserved[1] == 0 && early_terminal_evidence;
+    if (!early_close_contract) {
+        std::wcerr << L"early-create=0x" << std::hex << early_create
+                   << L" early-parent-release=0x" << early_parent_release
+                   << L" early-destroy=0x" << early_destroy
+                   << L" early-flags=0x" << early_result.flags
+                   << L" early-terminal=0x"
+                   << early_result.terminal_hresult << std::endl;
+        std::wcerr << L"Close-during-start smoke failed." << std::endl;
+        return 12;
     }
     std::wcout << L"physical-smoke=PASS" << std::endl;
     return 0;

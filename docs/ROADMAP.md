@@ -352,7 +352,7 @@ accepted architecture is documented in
     message pump, a windowed child-HWND controller, read-back-verified bounds/
     visibility and focus-command routing,
     exclusive owned user-data admission, leased private artifact publication,
-    ABI-v2 native rehash plus immutable in-memory resource snapshots, one
+    ABI-v3 native rehash plus immutable in-memory resource snapshots, one
     nonce/generation-derived `.invalid` HTTPS origin without a disk fallback,
     frozen CSP/navigation/resource policy, authenticated bootstrap and Java NBFC
     bridge, process-failure reporting and bounded teardown.
@@ -360,22 +360,31 @@ accepted architecture is documented in
     admitted WebView2 Runtime `100.0.1185.39+`: exact release-page and
     authenticated bridge readiness, an authenticated NBFC `host.hello` →
     digest-verified `runner.hello` round trip, read-back-verified bounds and
-    visibility, the focus API and deadline-bounded closed native teardown all
-    complete.
+    visibility, the focus API, private parking-parent handoff, parent-HWND
+    release before peer destruction, matching-PID browser resource release,
+    one-millisecond bounded destroy with exact-handle retry when it expires,
+    close-during-start and deadline-bounded native
+    teardown all complete.
     This is an internal host gate, not the assembled NetBeans product route or
     its model/layout/selection, DPI, Retry/crash and cleanup acceptance matrix.
   - [ ] Route the WebView2 backend through the provider/product selection,
     build/cache/session lifecycle and exact Web `CanvasEngineIdentity`. Until
     this passes, the existing native-engine Web responsive preview remains the
     only product-routed Web choice and still does not claim `kIsWeb`.
-    - [ ] Keep the heavyweight AWT parent HWND valid until native controller
-      teardown is confirmed; do not let asynchronous close race peer removal.
-    - [ ] Treat an unconfirmed or failed native destroy as terminal/poisoned and
-      reject restart until native ownership is proven released.
-    - [ ] Synchronize UDF deletion with the matching WebView2 browser-process
-      exit rather than relying on short blind filesystem retries.
-    - [ ] Make partial UDF cleanup retry-safe while retaining independently
-      verifiable ownership evidence after any intermediate deletion failure.
+    - [x] Provide an asynchronous pre-peer-loss barrier that fences future AWT
+      attachment and reparents the controller to a private parking HWND before
+      the heavyweight parent may be removed. The future product owner must
+      await this contract before the route can be enabled.
+    - [x] Treat an unconfirmed or failed native destroy as terminal/poisoned,
+      retain the exact live handle for bounded retry and reject restart until
+      native ownership is proven released.
+    - [x] Synchronize UDF deletion with the exact WebView2 environment identity
+      and matching-PID `BrowserProcessExited` result; missing proof
+      releases native ownership as `S_FALSE` but preserves the UDF.
+    - [x] Make partial UDF cleanup retry-safe with a per-session ownership marker
+      outside the incrementally deleted UDF tree, stable Win32 FileId handles
+      that block concurrent root/marker replacement, and handle-based deletion
+      of that evidence last.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of

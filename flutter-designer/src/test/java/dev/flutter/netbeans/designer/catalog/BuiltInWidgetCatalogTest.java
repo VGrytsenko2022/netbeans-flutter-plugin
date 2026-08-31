@@ -29,11 +29,12 @@ class BuiltInWidgetCatalogTest {
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
 
     @Test
-    void containsExactlyTheReviewedTenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedElevenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.material.Scaffold",
+                "flutter.widgets.AspectRatio",
                 "flutter.widgets.Center",
                 "flutter.widgets.Column",
                 "flutter.widgets.Icon",
@@ -45,8 +46,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(10, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(8, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(11, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(9, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -60,17 +61,18 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesExactOwningLibrariesAndKeepsEachOwnerImported() {
-        Map<String, String> expected = Map.of(
-                "flutter.material.AppBar", MATERIAL_IMPORT,
-                "flutter.material.ElevatedButton", MATERIAL_IMPORT,
-                "flutter.material.Scaffold", MATERIAL_IMPORT,
-                "flutter.widgets.Center", WIDGETS_IMPORT,
-                "flutter.widgets.Column", WIDGETS_IMPORT,
-                "flutter.widgets.Icon", WIDGETS_IMPORT,
-                "flutter.widgets.Padding", WIDGETS_IMPORT,
-                "flutter.widgets.Row", WIDGETS_IMPORT,
-                "flutter.widgets.SizedBox", WIDGETS_IMPORT,
-                "flutter.widgets.Text", WIDGETS_IMPORT);
+        Map<String, String> expected = Map.ofEntries(
+                Map.entry("flutter.material.AppBar", MATERIAL_IMPORT),
+                Map.entry("flutter.material.ElevatedButton", MATERIAL_IMPORT),
+                Map.entry("flutter.material.Scaffold", MATERIAL_IMPORT),
+                Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Text", WIDGETS_IMPORT));
 
         Map<String, String> actual = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -132,6 +134,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.AspectRatio",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
     }
@@ -157,6 +160,9 @@ class BuiltInWidgetCatalogTest {
                 property(catalog, "flutter.widgets.Icon", "icon").creationDefault().orElseThrow());
         assertEquals(new PropertyValue.BooleanValue(true),
                 property(catalog, "flutter.material.ElevatedButton", "enabled")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                property(catalog, "flutter.widgets.AspectRatio", "aspectRatio")
                         .creationDefault().orElseThrow());
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
                 .creationDefault().isEmpty());
@@ -495,6 +501,49 @@ class BuiltInWidgetCatalogTest {
                 WidgetSlot.SingleSlot.class,
                 prototype.slots().get(new SlotName("child")));
         assertTrue(prototypeChild.child().isEmpty());
+    }
+
+    @Test
+    void aspectRatioExposesRequiredPositiveDoubleAndOptionalAnyWidgetChild() {
+        WidgetDefinition aspectRatio = definition("flutter.widgets.AspectRatio");
+
+        assertEquals("AspectRatio", aspectRatio.dartClassName());
+        assertTrue(aspectRatio.constConstructor());
+        assertEquals(WIDGETS_IMPORT, aspectRatio.dartLibraryUri());
+        assertEquals(List.of("aspectRatio"), aspectRatio.properties().stream()
+                .map(value -> value.name().value())
+                .toList());
+
+        PropertyDefinition ratio = aspectRatio
+                .property(new PropertyName("aspectRatio"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, true), ratio.parameter());
+        assertEquals(List.of(PropertyValueKind.DOUBLE),
+                ratio.acceptedKinds().stream().toList());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                ratio.creationDefault().orElseThrow());
+        PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                ratio.constraints().getFirst());
+        assertEquals(BigDecimal.ZERO, range.minimum());
+        assertFalse(range.minimumInclusive());
+        assertNull(range.maximum());
+        assertTrue(range.maximumInclusive());
+        assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ONE)));
+        assertFalse(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertFalse(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ONE.negate())));
+
+        assertEquals(List.of(new SlotName("child")), aspectRatio.slots().stream()
+                .map(SlotDefinition::name)
+                .toList());
+        SlotDefinition child = aspectRatio.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(1, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(aspectRatio));
     }
 
     @Test

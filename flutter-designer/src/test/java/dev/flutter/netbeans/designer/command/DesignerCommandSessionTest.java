@@ -70,6 +70,7 @@ class DesignerCommandSessionTest {
     private static final PropertyName MAX_LINES = property("maxLines");
     private static final PropertyName WIDTH = property("width");
     private static final PropertyName HEIGHT = property("height");
+    private static final PropertyName ASPECT_RATIO = property("aspectRatio");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
 
@@ -239,6 +240,58 @@ class DesignerCommandSessionTest {
         assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
         DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
         assertFalse(reopened.dirty());
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void aspectRatioPrototypeEditChildAndReopenLifecycleIsByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.AspectRatio")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                prototype.properties().get(ASPECT_RATIO));
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        DesignerCommandSession edited = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                ASPECT_RATIO,
+                new PropertyValue.DoubleValue(new BigDecimal("1.5"))));
+
+        assertRejected(edited, new SetProperty(
+                WRAPPER_ID,
+                ASPECT_RATIO,
+                new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        WidgetNode finalAspectRatio = find(
+                edited.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("1.5")),
+                finalAspectRatio.properties().get(ASPECT_RATIO));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalAspectRatio.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                edited.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const AspectRatio("), dart);
+        assertTrue(dart.contains("aspectRatio: 1.5"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession saved = edited.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
         assertEquals(saved.current().document(), reopened.current().document());
         assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
         assertArrayEquals(saved.current().dartCandidateBytes(),

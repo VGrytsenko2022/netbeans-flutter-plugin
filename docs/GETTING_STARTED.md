@@ -50,10 +50,11 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly ten
+The current capability-gated Palette and native Canvas admit exactly eleven
 widgets: `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`,
-`Text`, `Icon` and `ElevatedButton`. Their `General` Properties expose exactly
-514 typed writable rows: 497 across the nine non-`Scaffold` definitions and 17
+`AspectRatio`, `Text`, `Icon` and `ElevatedButton`. Their `General` Properties
+expose exactly 515 typed writable rows: 498 across the ten non-`Scaffold`
+definitions and 17
 closed scalar `Scaffold` fields. `Icon` is a leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
 bundled Material Icons locked to Flutter 3.44.8. Keep
@@ -61,6 +62,11 @@ bundled Material Icons locked to Flutter 3.44.8. Keep
 glyphs. Omitted theme-backed properties inherit the active `IconTheme`, while
 `blendMode` and `fontWeight` remain local; the native Canvas previews the same
 typed values emitted by generated Dart.
+
+`AspectRatio` exposes its complete scalar constructor contract: a required,
+finite `aspectRatio > 0` value and one optional `child` slot. A newly inserted
+instance starts at `1.0`; the value is local layout data and does not inherit
+from the project theme.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and

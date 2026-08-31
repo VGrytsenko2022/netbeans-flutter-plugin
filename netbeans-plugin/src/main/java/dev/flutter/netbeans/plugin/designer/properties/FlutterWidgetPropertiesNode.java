@@ -19,6 +19,7 @@ import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.beans.PropertyEditor;
 import java.lang.reflect.InvocationTargetException;
@@ -48,6 +49,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     public static final String STABLE_ID_PROPERTY_NAME = "stableId";
     public static final String TYPE_PROPERTY_NAME = "type";
     public static final String NOT_SET = FlutterPropertyCellValue.NOT_SET_TEXT;
+    private static final WidgetTypeId ASPECT_RATIO_TYPE =
+            new WidgetTypeId("flutter.widgets.AspectRatio");
+    private static final PropertyName ASPECT_RATIO_PROPERTY =
+            new PropertyName("aspectRatio");
+    private static final SlotName CHILD_SLOT = new SlotName("child");
 
     private final WidgetNode widget;
     private final WidgetDefinition definition;
@@ -295,7 +301,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return separator < 0 ? type : type.substring(separator + 1);
     }
 
-    private static String slotDescription(
+    private String slotDescription(
             SlotDefinition slot,
             WidgetSlot value) {
         int count = value == null ? 0 : switch (value) {
@@ -305,6 +311,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (ASPECT_RATIO_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out to fill the box resolved from Aspect ratio. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         return "Exact '" + slot.name().value() + "' " + cardinality
                 + " slot. Occupancy: " + count + "/" + maximum
                 + "; minimum: " + slot.minChildren()
@@ -312,12 +326,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private Sheet.Set createGenericPropertySet() {
+        boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
-                "Explicit property values stored on the selected widget; catalog creation defaults are not applied.");
+                aspectRatio
+                        ? "Sizing contract for the selected AspectRatio widget."
+                        : "Explicit property values stored on the selected widget; "
+                                + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
-            properties.put(projectProperty(property, Optional.empty()));
+            if (aspectRatio && ASPECT_RATIO_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Aspect ratio",
+                        "Finite width-to-height ratio used to size this widget; "
+                                + "for example, use 1.7778 for a 16:9 surface."));
+            } else {
+                properties.put(projectProperty(property, Optional.empty()));
+            }
         }
         return properties;
     }

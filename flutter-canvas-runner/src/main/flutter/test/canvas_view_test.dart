@@ -80,6 +80,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.AspectRatio'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(
       canvasDropSlotsForWidgetType('flutter.material.ElevatedButton'),
       const [canvasEmptyChildDropSlot],
@@ -94,11 +97,12 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 10-source by 14-destination compatibility matrix', () {
+  test('closes the 11-source by 15-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
       'flutter.material.ElevatedButton',
+      'flutter.widgets.AspectRatio',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Padding',
@@ -111,8 +115,8 @@ void main() {
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(10));
-    expect(destinations, hasLength(14));
+    expect(sourceTypes, hasLength(11));
+    expect(destinations, hasLength(15));
 
     var accepted = 0;
     var rejected = 0;
@@ -130,8 +134,8 @@ void main() {
         }
       }
     }
-    expect(accepted, 122);
-    expect(rejected, 18);
+    expect(accepted, 145);
+    expect(rejected, 20);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -1632,6 +1636,107 @@ void main() {
     expect(omitted.height, isNull);
     expect(omitted.child, isNull);
   });
+
+  testWidgets(
+    'renders AspectRatio with an optional child, outlines it, and exposes only its empty slot',
+    (tester) async {
+      const aspectRatioId = '4a07880d-54a7-44c6-97e4-a88df4e44e67';
+      CanvasDropResolver? resolver;
+
+      Future<void> pump({
+        required Map<String, Object?>? child,
+        String? selectedWidgetId,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredAspectRatio(aspectRatio: 2.0, child: child),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (_) {},
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+      }
+
+      Finder nodeFinder() =>
+          find.byKey(const ValueKey('canvas-widget-$aspectRatioId'));
+      Finder ratioFinder() => find
+          .descendant(of: nodeFinder(), matching: find.byType(AspectRatio))
+          .first;
+
+      await pump(child: null);
+
+      final emptyRatio = tester.widget<AspectRatio>(ratioFinder());
+      expect(emptyRatio.aspectRatio, 2.0);
+      expect(emptyRatio.child, isNull);
+      final emptySize = tester.getSize(nodeFinder());
+      expect(emptySize.width, greaterThan(0));
+      expect(emptySize.height, greaterThan(0));
+      expect(emptySize.width / emptySize.height, closeTo(2.0, 0.001));
+      expect(
+        find.byKey(const ValueKey('canvas-widget-outline-$aspectRatioId')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$aspectRatioId')),
+        findsNothing,
+      );
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final rect = tester.getRect(nodeFinder());
+      final point = rect.center;
+      final target = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(target?.parentWidgetId, aspectRatioId);
+      expect(target?.slotName, 'child');
+      expect(target?.insertionIndex, 0);
+      expect(target?.zone?.isEmpty, isFalse);
+
+      await pump(child: null, selectedWidgetId: aspectRatioId);
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$aspectRatioId')),
+        findsOneWidget,
+      );
+      expect(tester.widget<AspectRatio>(ratioFinder()).child, isNull);
+
+      final source = _modelJsonForView();
+      final sourceRoot = source['root']! as Map<String, Object?>;
+      final text = _findNode(sourceRoot, 'flutter.widgets.Text');
+      await pump(child: text);
+      expect(tester.widget<AspectRatio>(ratioFinder()).child, isNotNull);
+      expect(find.text('Hello'), findsOneWidget);
+
+      final occupiedSurface = tester.getRect(find.byType(CanvasDocumentView));
+      final occupiedRect = tester.getRect(nodeFinder());
+      final occupiedPoint = occupiedRect.center;
+      expect(
+        resolver!(
+          ((occupiedPoint.dx - occupiedSurface.left) /
+                  occupiedSurface.width *
+                  1000000)
+              .round(),
+          ((occupiedPoint.dy - occupiedSurface.top) /
+                  occupiedSurface.height *
+                  1000000)
+              .round(),
+        ),
+        isNull,
+      );
+    },
+  );
 
   testWidgets(
     'keeps an empty zero-size SizedBox at zero layout while exposing a selectable target',
@@ -3164,6 +3269,37 @@ Map<String, Object?> _modelWithCenteredSizedBox({
           'id': '38f49912-8e51-4e62-bd4c-2517ecad4962',
           'type': 'flutter.widgets.SizedBox',
           'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredAspectRatio({
+  required double aspectRatio,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '4a07880d-54a7-44c6-97e4-a88df4e44e67',
+          'type': 'flutter.widgets.AspectRatio',
+          'properties': <String, Object?>{
+            'aspectRatio': {'kind': 'double', 'value': aspectRatio},
+          },
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},
           },

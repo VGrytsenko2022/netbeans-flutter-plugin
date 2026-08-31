@@ -19,6 +19,7 @@ import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DnDConstants;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,11 +44,15 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX =
             type("flutter.widgets.SizedBox");
+    private static final WidgetTypeId ASPECT_RATIO =
+            type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
     private static final SlotName BODY = new SlotName("body");
     private static final PropertyName DATA = new PropertyName("data");
+    private static final PropertyName ASPECT_RATIO_VALUE =
+            new PropertyName("aspectRatio");
     private static final StableId DOCUMENT_ID =
             id("f56a6bbb-fe08-4977-9597-a8273aa143eb");
     private static final StableId ROOT_ID =
@@ -188,6 +193,52 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit must consume the palette authority exactly once"));
+    }
+
+    @Test
+    void aspectRatioTokenPreviewsAndCommitsRequiredDefaultAndEmptyChild() {
+        Fixture fixture = fixture(ASPECT_RATIO);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ASPECT_RATIO, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(ASPECT_RATIO, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(ASPECT_RATIO_VALUE,
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the AspectRatio palette authority once"));
     }
 
     @Test

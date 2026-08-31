@@ -44,7 +44,8 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Icon",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
-            "flutter.widgets.SizedBox");
+            "flutter.widgets.SizedBox",
+            "flutter.widgets.AspectRatio");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -59,7 +60,9 @@ class FlutterDesignerPaletteTest {
                 List.of("Material", "Layout", "Basic"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"), itemLabels(categories[0]));
-        assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"), itemLabels(categories[1]));
+        assertEquals(List.of(
+                "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio"),
+                itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
@@ -79,7 +82,8 @@ class FlutterDesignerPaletteTest {
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"),
                 itemLabels(categories[0]));
-        assertEquals(List.of("Column", "Row", "Padding", "Center", "SizedBox"),
+        assertEquals(List.of(
+                "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
@@ -109,6 +113,31 @@ class FlutterDesignerPaletteTest {
         assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
         assertEquals(definition.typeId().value(), itemNode.getName());
         assertEquals(definition.palette().displayName(), itemNode.getDisplayName());
+    }
+
+    @Test
+    void aspectRatioPaletteSelectionExposesReviewedMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.AspectRatio";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        60,
+                        "AspectRatio"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("AspectRatio", node.getDisplayName());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
     }
 
     @Test
@@ -383,7 +412,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void tenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void elevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -402,7 +431,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(10, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(11, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

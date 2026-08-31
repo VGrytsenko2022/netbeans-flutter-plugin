@@ -1699,6 +1699,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
+      'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
@@ -2606,6 +2607,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _padding(EdgeInsetsGeometry insets) =>
       Padding(padding: insets, child: _single('child'));
+
+  Widget _aspectRatio() => AspectRatio(
+    aspectRatio: _number('aspectRatio')!,
+    child: _single('child'),
+  );
 
   Widget _center() => Center(
     widthFactor: _number('widthFactor'),

@@ -49,6 +49,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId PADDING = type("flutter.widgets.Padding");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
+    private static final WidgetTypeId ASPECT_RATIO =
+            type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
@@ -65,6 +67,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final PropertyName PADDING_VALUE = new PropertyName("padding");
     private static final PropertyName ICON_VALUE = new PropertyName("icon");
     private static final PropertyName ENABLED = new PropertyName("enabled");
+    private static final PropertyName ASPECT_RATIO_VALUE =
+            new PropertyName("aspectRatio");
     private static final StableId DOCUMENT_ID = id("14f6c16f-893b-44d0-b809-edbd51bbcdaa");
     private static final StableId ROOT_ID = id("0209809f-351a-4ce7-8c07-1ec625b1e109");
     private static final StableId FIRST_ID = id("710c4ad9-c3cf-434e-af1e-5217ac38aa92");
@@ -112,6 +116,16 @@ class FlutterDesignerPaletteDropPlannerTest {
                         CHILD,
                         0),
                 new AcceptedCase(
+                        "absent optional AspectRatio child",
+                        document(prototype(ASPECT_RATIO)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
+                        "explicitly empty AspectRatio child",
+                        document(singleParent(ASPECT_RATIO, null)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
                         "absent optional ElevatedButton child",
                         document(WidgetNodePrototypeFactory.create(
                                 definition(ELEVATED_BUTTON), ROOT_ID)),
@@ -151,7 +165,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void plansAllOneHundredTwentyAnyWidgetCompatibilityCellsWithExactPrototypes() {
+    void plansAllOneHundredFortyThreeAnyWidgetCompatibilityCellsWithExactPrototypes() {
         List<CoreSourceCase> sources = coreSources();
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
@@ -162,14 +176,15 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Padding.child", PADDING, CHILD),
                 target("Center.child", CENTER, CHILD),
                 target("SizedBox.child", SIZED_BOX, CHILD),
+                target("AspectRatio.child", ASPECT_RATIO, CHILD),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
                 target("AppBar.title", APP_BAR, TITLE),
                 target("AppBar.actions", APP_BAR, ACTIONS),
                 target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE));
 
-        assertEquals(10, sources.size());
-        assertEquals(12, targets.size());
+        assertEquals(11, sources.size());
+        assertEquals(13, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
                     AtomicInteger allocations = new AtomicInteger();
@@ -199,11 +214,18 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact140CellMatrix() {
+    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact165CellMatrix() {
         AtomicInteger allocations = new AtomicInteger();
         List<MatrixTargetCase> traitTargets = List.of(
                 target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
                 target("AppBar.bottom", APP_BAR, BOTTOM));
+        assertAll(
+                () -> assertEquals(165, 11 * (13 + traitTargets.size()),
+                        "exact compatibility-matrix candidates"),
+                () -> assertEquals(145, 11 * 13 + traitTargets.size(),
+                        "143 any-widget cells plus two AppBar trait cells"),
+                () -> assertEquals(20, traitTargets.size() * (11 - 1),
+                        "all non-AppBar trait cells are rejected"));
 
         assertAll(traitTargets.stream().map(target -> (Executable) () -> {
             FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
@@ -233,7 +255,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                             rejected.code(), source.name());
                 })));
         assertEquals(0, allocations.get(),
-                "all 18 rejected trait cells must fail before stable-id allocation");
+                "all 20 rejected trait cells must fail before stable-id allocation");
     }
 
     @Test
@@ -245,6 +267,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("Padding.child", PADDING, CHILD),
                 new SingleTargetCase("Center.child", CENTER, CHILD),
                 new SingleTargetCase("SizedBox.child", SIZED_BOX, CHILD),
+                new SingleTargetCase("AspectRatio.child", ASPECT_RATIO, CHILD),
                 new SingleTargetCase(
                         "ElevatedButton.child", ELEVATED_BUTTON, CHILD));
         AtomicInteger allocations = new AtomicInteger();
@@ -721,6 +744,12 @@ class FlutterDesignerPaletteDropPlannerTest {
                         "SizedBox",
                         SIZED_BOX,
                         Map.of(),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Aspect Ratio",
+                        ASPECT_RATIO,
+                        Map.of(ASPECT_RATIO_VALUE,
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
                         Map.of(CHILD, SlotCardinality.SINGLE)),
                 new CoreSourceCase(
                         "Text",

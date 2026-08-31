@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.MoveWidget;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
@@ -41,6 +42,8 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
+    private static final WidgetTypeId ASPECT_RATIO =
+            type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -241,6 +244,31 @@ class FlutterDesignerWidgetMovePlannerTest {
                 BUILT_INS,
                 source,
                 result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyAspectRatioChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into AspectRatio");
+        WidgetNode emptyAspectRatio = WidgetNodePrototypeFactory.create(
+                definition(ASPECT_RATIO), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyAspectRatio)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyAspectRatio.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyAspectRatio.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }
 
     @Test

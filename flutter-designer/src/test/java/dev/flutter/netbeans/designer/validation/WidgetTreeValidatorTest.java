@@ -385,6 +385,45 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void aspectRatioRequiresAnExplicitFinitePositiveDoubleInLoadedDocuments() {
+        WidgetNode omitted = node(
+                "omitted", "flutter.widgets.AspectRatio", Map.of(), Map.of());
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(omitted), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/aspectRatio", missing.path());
+
+        for (BigDecimal rejected : List.of(BigDecimal.ZERO, BigDecimal.ONE.negate())) {
+            WidgetNode invalid = node(
+                    "ratio-" + rejected,
+                    "flutter.widgets.AspectRatio",
+                    Map.of(name("aspectRatio"),
+                            new PropertyValue.DoubleValue(rejected)),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/aspectRatio", issue.path());
+            assertTrue(issue.message().contains("double range"));
+        }
+
+        WidgetNode child = node(
+                "child", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Inside")),
+                Map.of());
+        WidgetNode valid = node(
+                "valid", "flutter.widgets.AspectRatio",
+                Map.of(name("aspectRatio"),
+                        new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+        ValidationResult result = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+    }
+
+    @Test
     void distinguishesOmittedRequiredSlotFromPresentExplicitNull() {
         Map<PropertyName, PropertyValue> properties = Map.of(
                 name("enabled"), new PropertyValue.BooleanValue(false));

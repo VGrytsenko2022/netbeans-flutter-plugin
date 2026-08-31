@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -275,7 +276,10 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.IconDataValue(
                                 java.util.Optional.of(0xE5F9),
                                 java.util.Optional.of("MaterialIcons"),
-                                java.util.Optional.empty(), false, List.of())));
+                                java.util.Optional.empty(), false, List.of())),
+                "flutter.widgets.AspectRatio", Map.of(
+                        new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -285,6 +289,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.AspectRatio",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -316,9 +321,9 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(514, writableCount,
+        assertEquals(515, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
-                + "ElevatedButton, Text, and Icon leaves");
+                + "ElevatedButton, Text, Icon, and AspectRatio leaves");
     }
 
     @Test
@@ -488,6 +493,64 @@ class FlutterWidgetPropertiesNodeTest {
         assertFalse(data.isDefaultValue());
         assertThrows(IllegalArgumentException.class,
                 () -> data.setValue(FlutterPropertyCellValue.unset()));
+    }
+
+    @Test
+    void aspectRatioProjectsProfessionalRequiredPositiveDoubleAndChildSlot()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.AspectRatio");
+        StableId id = StableId.parse("7ba9d19a-2a79-43b0-b594-cb5c0613c96f");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+        Node.Property<FlutterPropertyCellValue> ratio = cellProperty(
+                property(node, "aspectRatio"));
+
+        assertAll(
+                () -> assertEquals("Aspect ratio", ratio.getDisplayName()),
+                () -> assertTrue(ratio.getShortDescription()
+                        .contains("Finite width-to-height ratio")),
+                () -> assertTrue(ratio.getShortDescription()
+                        .contains("cannot be unset")),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        ratio.getValue()),
+                () -> assertFalse(ratio.supportsDefaultValue()),
+                () -> assertFalse(ratio.isDefaultValue()));
+
+        ratio.restoreDefaultValue();
+        assertEquals(List.of(), commands,
+                "the required creation default must not expose Reset");
+        assertThrows(IllegalArgumentException.class,
+                () -> ratio.setValue(FlutterPropertyCellValue.unset()));
+
+        PropertyEditor editor = ratio.getPropertyEditor();
+        editor.setAsText("1.7778");
+        FlutterPropertyCellValue widescreen = cell(editor);
+        assertEquals(
+                new PropertyValue.DoubleValue(new BigDecimal("1.7778")),
+                widescreen.explicitValue().orElseThrow());
+        ratio.setValue(widescreen);
+        assertEquals(List.of(new SetProperty(
+                        id,
+                        new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(new BigDecimal("1.7778")))),
+                commands);
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("0"));
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("NaN"));
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("fill the box resolved from Aspect ratio")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
     }
 
     @Test
@@ -1148,7 +1211,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void tenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void elevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1159,6 +1222,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.AspectRatio",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1178,7 +1242,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(10, iconPaths.size(),
+        assertEquals(11, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

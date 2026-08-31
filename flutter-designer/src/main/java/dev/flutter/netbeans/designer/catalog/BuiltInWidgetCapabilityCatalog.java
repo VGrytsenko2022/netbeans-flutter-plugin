@@ -139,7 +139,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Center", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Text", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Icon", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.SizedBox", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.SizedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.AspectRatio", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -231,6 +232,13 @@ public final class BuiltInWidgetCapabilityCatalog {
                     "height", numericSchema(
                             NON_NEGATIVE_NUMBER_BOUNDS,
                             PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.AspectRatio", projection(Map.ofEntries(
+                    requiredDefaultNumericProperty(
+                            "aspectRatio",
+                            "double:1",
+                            POSITIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
@@ -1144,6 +1152,20 @@ public final class BuiltInWidgetCapabilityCatalog {
         return Map.entry(name, numericSchema(numericBounds, kinds));
     }
 
+    private static Map.Entry<String, CanvasPropertyContract>
+            requiredDefaultNumericProperty(
+                    String name,
+                    String creationDefaultFingerprint,
+                    Map<PropertyValueKind, CanvasNumericBounds> numericBounds,
+                    PropertyValueKind... kinds) {
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(kinds),
+                true,
+                Optional.of(creationDefaultFingerprint),
+                numericBounds,
+                rangeConstraintFingerprints(numericBounds)));
+    }
+
     private static Map.Entry<String, CanvasPropertyContract> requiredDefaultProperty(
             String name,
             String creationDefaultFingerprint,
@@ -1370,6 +1392,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         if (value instanceof PropertyValue.BooleanValue bool) {
             return "boolean:" + bool.value();
+        }
+        if (value instanceof PropertyValue.DoubleValue decimal) {
+            return "double:" + decimalText(decimal.value());
         }
         if (value instanceof PropertyValue.EdgeInsetsValue insets) {
             return "edgeInsets:" + decimalText(insets.left()) + ','

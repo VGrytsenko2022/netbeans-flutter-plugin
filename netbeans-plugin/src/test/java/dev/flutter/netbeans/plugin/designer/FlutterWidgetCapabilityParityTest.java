@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.canvas.runner.CanvasRunnerBundle;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
@@ -24,6 +25,9 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
+        assertEquals(11, javaTypes.size(),
+                "the reviewed Canvas source set includes AspectRatio");
+        assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),
@@ -56,6 +60,8 @@ class FlutterWidgetCapabilityParityTest {
                         .map(definition -> definition.typeId().value())
                         .collect(Collectors.toUnmodifiableSet());
         String drop = runnerSource("lib/src/canvas_drop.dart");
+        assertTrue(javaContainers.contains("flutter.widgets.AspectRatio"),
+                "AspectRatio.child must remain a Java-admitted DnD target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

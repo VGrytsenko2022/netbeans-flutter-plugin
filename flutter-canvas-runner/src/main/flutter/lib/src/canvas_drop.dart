@@ -242,8 +242,9 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       ],
       'flutter.widgets.Column' ||
       'flutter.widgets.Row' => const [canvasChildrenAppendDropSlot],
-      'flutter.widgets.Padding' ||
+      'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Center' ||
+      'flutter.widgets.Padding' ||
       'flutter.widgets.SizedBox' ||
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],
       _ => const [],

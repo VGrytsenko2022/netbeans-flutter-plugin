@@ -746,6 +746,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Padding",
                     "flutter.widgets.Center",
                     "flutter.widgets.SizedBox",
+                    "flutter.widgets.AspectRatio",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))

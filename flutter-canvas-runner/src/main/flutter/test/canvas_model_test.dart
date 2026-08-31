@@ -407,6 +407,120 @@ void main() {
     }
   });
 
+  test('decodes the exact AspectRatio contract and optional child slot', () {
+    Map<String, Object?> model({
+      required Map<String, Object?> properties,
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '59b8460c-29e5-4922-813d-9412a977ed9c',
+        'flutter.widgets.AspectRatio',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final text = _node(
+      'fd4a62c3-99f4-4e38-b55a-90b97d187b5c',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Ratio child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'aspectRatio': {'kind': 'double', 'value': 16 / 9},
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.AspectRatio');
+    expect(decoded.properties.keys, const ['aspectRatio']);
+    expect(decoded.properties['aspectRatio']!.kind, 'double');
+    expect(decoded.properties['aspectRatio']!.value, closeTo(16 / 9, 1e-12));
+    expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final explicitEmpty = _decode(
+      model(
+        properties: const {
+          'aspectRatio': {'kind': 'double', 'value': 1.0},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    expect(explicitEmpty.slot('child')!.child, isNull);
+
+    final omittedSlot = _decode(
+      model(
+        properties: const {
+          'aspectRatio': {'kind': 'double', 'value': 1.0},
+        },
+      ),
+    ).root;
+    expect(omittedSlot.slot('child'), isNull);
+
+    expect(
+      () => _decode(model(properties: const {})),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('flutter.widgets.AspectRatio.aspectRatio'),
+        ),
+      ),
+    );
+    for (final candidate in const <Map<String, Object?>>[
+      {'kind': 'double', 'value': 0.0},
+      {'kind': 'double', 'value': -0.01},
+      {'kind': 'integer', 'value': 1},
+      {'kind': 'boolean', 'value': true},
+    ]) {
+      expect(
+        () => _decode(model(properties: {'aspectRatio': candidate})),
+        throwsFormatException,
+        reason: '${candidate['kind']}:${candidate['value']}',
+      );
+    }
+
+    final finiteJson = jsonEncode(
+      model(
+        properties: const {
+          'aspectRatio': {'kind': 'double', 'value': 987654321.125},
+        },
+      ),
+    );
+    final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+    expect(
+      () => CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('must be finite'),
+        ),
+      ),
+    );
+  });
+
+  test('AspectRatio reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.AspectRatio\n');
+    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.AspectRatio\n'
+      'P|aspectRatio|double|1|double:1|double:0:0:*:1|'
+      'double:range:0:0:*:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes strict nullable SizedBox dimensions and its single child', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},
@@ -656,7 +770,7 @@ void main() {
   test('Scaffold reviewed contract is exact and closed at 17 leaves', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.Scaffold\n');
-    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    final end = contract.indexOf('W|flutter.widgets.AspectRatio\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final section = contract.substring(start, end);

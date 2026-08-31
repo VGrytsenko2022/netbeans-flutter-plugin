@@ -8,15 +8,17 @@ six-source insertion milestones; ADR-030 records the subsequent seven-widget
 ADR-032 records the nine-widget `AppBar` milestone, and ADR-033 records the
 ten-widget `ElevatedButton` milestone and its 140 candidate Palette/DnD cells,
 122 accepted and 18 rejected. ADR-034 extends exact named-slot management with
-atomic replacement and clear-all commands. ADR-035 governs the current writable
-surface: 514 typed rows across the same ten widgets, including 17 closed scalar
+atomic replacement and clear-all commands. ADR-035 governs the writable
+`Scaffold` slice. ADR-037 supersedes the current catalog surface with 515 typed
+rows across eleven widgets and 165 Palette/DnD candidates, including 145
+accepted and 20 rejected cells. The total still includes the 17 closed scalar
 `Scaffold` fields. ADR-036 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
 is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or additional Palette/DnD types.
+unreviewed slots or Palette/DnD types outside the ADR-037 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -234,22 +236,24 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032 and ADR-033 make 497 catalog-backed
+framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033 and ADR-037 make 498 catalog-backed
 non-`Scaffold` Properties fields writable, including the 59-leaf Text
-projection, two `SizedBox` dimensions, 13 typed Icon constructor properties and
-120 grouped AppBar leaves plus 286 ElevatedButton leaves.
+projection, two `SizedBox` dimensions, 13 typed Icon constructor properties,
+120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
+`AspectRatio.aspectRatio` value.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
 nine-source, 117-candidate capability matrix (101 accepted and 16 rejected),
-and ADR-033 supersedes it with ten sources and 140 candidates (122 accepted and
-18 rejected). Same-tree
+and ADR-033 superseded it with ten sources and 140 candidates (122 accepted and
+18 rejected), and ADR-037 supersedes that stage with eleven sources and 165
+candidates (145 accepted and 20 rejected). Same-tree
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
 protocol-v9 model payload accepts only exact reviewed Canvas-capable built-ins:
-`Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center` and
-`SizedBox`, plus `ElevatedButton`; the
+`Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center`,
+`SizedBox`, `AspectRatio` and `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract.
@@ -260,12 +264,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated ten-widget model for Mobile, Tablet, Desktop
+Canvas now renders the validated eleven-widget model for Mobile, Tablet, Desktop
 and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those ten Create-capable definitions, and the DnD-capable set uses the reviewed
-140-cell candidate matrix across twelve any-widget and two trait-bound
-destination slots; 122 cells are accepted and 18 rejected. No image or
+those eleven Create-capable definitions, and the DnD-capable set uses the reviewed
+165-cell candidate matrix across thirteen any-widget and two trait-bound
+destination slots; 145 cells are accepted and 20 rejected. No image or
 pixel-transfer frame kind exists.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
@@ -1087,7 +1091,7 @@ Palette definition or DnD compatibility cell.
 
 ## ADR-035 — Scaffold has a closed writable scalar contract
 
-Accepted for the current ten-widget Properties surface. `Scaffold` exposes
+Accepted for the then-current ten-widget Properties surface. `Scaffold` exposes
 exactly 17 independently resettable closed scalar fields in `General`:
 `floatingActionButtonLocation`, `floatingActionButtonAnimator`,
 `persistentFooterAlignment`, `onDrawerChanged`, `onEndDrawerChanged`,
@@ -1110,8 +1114,9 @@ require separately reviewed persistence or named-slot contracts and are not
 smuggled through scalar strings or executable expressions.
 
 Together with ADR-033's historical 497 writable rows across the nine
-non-`Scaffold` definitions, these 17 fields make the current exact total 514
-writable rows across ten widgets. This slice changes no Palette publication,
+non-`Scaffold` definitions, these 17 fields made that exact total 514 writable
+rows across ten widgets. ADR-037 later supersedes the aggregate count. This
+slice changes no Palette publication,
 Create capability, DnD source/destination, compatibility matrix, slot
 cardinality, `.fd` schema or Canvas protocol.
 
@@ -1164,3 +1169,31 @@ current assembled Windows gate host has no composition-capable CJK input
 method, so physical CJK composition remains `OPEN` and deferred. This decision
 does not claim Linux, macOS or runtime-faithful Web inline editing, and it does not mark
 broad Canvas IME/menu/popup acceptance complete.
+
+## ADR-037 — AspectRatio is a complete single-child vertical slice
+
+Accepted for the next 0.1.3 Palette stage. `AspectRatio` is admitted as one
+exact canonical `flutter.widgets.AspectRatio` definition across Properties,
+Create, native Canvas, Palette/tree DnD, deterministic Dart generation,
+Save/reopen and chronological Undo/Redo. Its complete writable scalar contract
+is the required named `aspectRatio` double. The model admits only a finite value
+greater than zero, matching both the Flutter widget assertion and render-object
+constraint; the canonical empty prototype persists `1.0`. There is no theme or
+Directionality dependency and no synthetic expression escape hatch.
+
+`AspectRatio.child` is an optional single any-widget slot. Eleven reviewed
+sources across thirteen any-widget and two `PreferredSizeWidget` destinations
+form 165 candidate cells. Exactly 145 are admitted and 20 rejected: only
+`AppBar` carries the trait required by `Scaffold.appBar` and `AppBar.bottom`.
+The exact writable surface is now 515 fields across eleven widgets, including
+498 fields across the ten non-`Scaffold` definitions and the existing 17-field
+Scaffold slice.
+
+The `.fd` schema remains v4, Canvas payload remains v9 and no wire value kind is
+added. Java and the isolated Dart runner duplicate the exact required/default,
+numeric-bound and slot contracts as an explicit parity gate. The Properties
+editor is a required exact-decimal editor; Restore Default is unavailable.
+Canvas renders the real Flutter `AspectRatio`, preserves the standard
+IDE-owned selection outline for an empty child and exposes the same optional
+single-child drop semantics used by the compatibility planner. Unique reviewed
+SVG assets identify the widget in both Palette and tree at light/dark 16/32 px.

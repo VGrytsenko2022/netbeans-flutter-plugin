@@ -2342,6 +2342,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.AspectRatio': _WidgetSpec(
+    {
+      'aspectRatio': _PropertySpec(
+        {'double'},
+        required: true,
+        creationDefaultFingerprint: 'double:1',
+        numericBounds: _positiveDoubleBounds,
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Column': _WidgetSpec(
     {
       'mainAxisAlignment': _PropertySpec(
@@ -3098,6 +3109,9 @@ P|restorationId|string|0|-|-|string:length:1:256
 S|appBar|single|0|0|1|trait:Zmx1dHRlci53aWRnZXRzLlByZWZlcnJlZFNpemVXaWRnZXQ
 S|body|single|0|0|1|any
 S|floatingActionButton|single|0|0|1|any
+W|flutter.widgets.AspectRatio
+P|aspectRatio|double|1|double:1|double:0:0:*:1|double:range:0:0:*:1
+S|child|single|0|0|1|any
 W|flutter.widgets.Center
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1

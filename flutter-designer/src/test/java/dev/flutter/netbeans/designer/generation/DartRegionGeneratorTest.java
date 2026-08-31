@@ -592,6 +592,40 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsAspectRatioWithRequiredDoubleAndOptionalChild() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.AspectRatio"),
+                Map.of(
+                        property("aspectRatio"),
+                        new PropertyValue.DoubleValue(new BigDecimal("1.7777777777777777"))),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const AspectRatio(
+                      aspectRatio: 1.7777777777777777,
+                      child: const Text('Inside'),
+                    );
+                  }
+                """, generated.build().payload());
+        assertEquals(List.of("Widget", "BuildContext", "AspectRatio", "Text"),
+                generated.symbolOccurrences().stream()
+                        .map(GeneratedDartSymbolOccurrence::symbolName)
+                        .toList());
+    }
+
+    @Test
     void constructorArgumentsUseGlobalPositionalThenNamedOrder() {
         WidgetDefinition definition = orderedDefinition();
         WidgetNode child = leaf("child");

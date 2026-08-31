@@ -76,6 +76,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.AspectRatio",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -85,7 +86,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactTenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactElevenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -110,10 +111,12 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Padding\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Center\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.SizedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.AspectRatio\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
         assertTrue(json.contains("\"height\":{\"kind\":\"double\",\"value\":48.5}"));
+        assertTrue(json.contains("\"aspectRatio\":{\"kind\":\"double\",\"value\":1.7777777777777777}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -395,6 +398,13 @@ class CanvasModelPayloadCodecTest {
                 Map.of(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
                         "4508c721-215c-4059-be29-3e38fd02b411", "World"))));
+        WidgetNode aspectRatio = new WidgetNode(
+                id("ad9476e2-bef0-4c4b-afcf-2e184cb7f622"),
+                type("flutter.widgets.AspectRatio"),
+                Map.of(new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(
+                                new BigDecimal("1.7777777777777777"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
         WidgetNode sizedBox = new WidgetNode(
                 id("0cc7c095-7908-461b-b5b2-fe085343b6b2"),
                 type("flutter.widgets.SizedBox"),
@@ -403,7 +413,7 @@ class CanvasModelPayloadCodecTest {
                         new PropertyValue.IntegerValue(BigInteger.valueOf(120)),
                         new PropertyName("height"),
                         new PropertyValue.DoubleValue(BigDecimal.valueOf(48.5))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(aspectRatio)));
         WidgetNode row = new WidgetNode(
                 id("1efdd73a-0602-4200-aa1e-28982f5a22ca"),
                 type("flutter.widgets.Row"),

@@ -471,7 +471,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v9 projection for the ten exact built-ins carrying the
+  canonical protocol-v9 projection for the eleven exact built-ins carrying the
   Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control, model and catalog JSON channels.
@@ -1020,11 +1020,12 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop and the broader unreviewed Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 514 reviewed fields of
+  read/write Properties are enabled only for the 515 reviewed fields of
   `Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-  `SizedBox`, `Text` and `Icon`; 17 are Scaffold leaves, 286 are ElevatedButton
-  leaves, 120 are grouped AppBar leaves, 59 are typed Text leaves and 13 are
-  typed Icon constructor properties described below.
+  `SizedBox`, `AspectRatio`, `Text` and `Icon`; 17 are Scaffold leaves, 286 are ElevatedButton
+  leaves, 120 are grouped AppBar leaves, 59 are typed Text leaves, 13 are
+  typed Icon constructor properties and one is `AspectRatio.aspectRatio` as
+  described below.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1032,16 +1033,16 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. All ten current definitions publish typed read/write catalog
+property sheet. All eleven current definitions publish typed read/write catalog
 properties. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the ten
+context-sensitive standard NetBeans Palette containing exactly the eleven
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative ten-source, 140-candidate insertion matrix with 122
-accepted and 18 rejected cells. Palette, Explorer/Nodes,
+host-authoritative eleven-source, 165-candidate insertion matrix with 145
+accepted and 20 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (514 fields)
+### Writable Properties API contract (515 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 unreviewed constructor graphs. Scaffold contributes exactly 17 independently
@@ -1226,7 +1227,16 @@ Each admitted value generates the same `IconData` and `Icon` arguments used by
 the native Canvas. Material glyphs require
 `flutter.uses-material-design: true` in the application `pubspec.yaml`.
 
-These 514 fields use catalog constraints for editor selection, value admission,
+[`AspectRatio`](https://api.flutter.dev/flutter/widgets/AspectRatio-class.html)
+adds its complete scalar contract as one required `aspectRatio` double and an
+optional single `child` slot. New instances use `1.0`; the editor and both
+Java/Dart validation boundaries require a finite value greater than zero.
+Restore Default is unavailable because Flutter has no constructor default.
+AspectRatio reads neither Theme nor Directionality, so its value remains local
+layout data. The native Canvas renders the real widget and retains an IDE-owned
+outline/drop target when the child slot is empty.
+
+These 515 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
 font fallbacks use a dedicated multiline one-family-per-line editor; optional
 booleans use an accessible `<not set>`/checked/unchecked checkbox; integer and
@@ -1237,7 +1247,7 @@ Shadow/OpenType editors with Add/Remove/Up/Down controls. ElevatedButton adds
 strict callback-ID fields and the same typed state-aware color, numeric, enum,
 insets, typography and shape editors. Built-in Icon data uses
 the searchable reviewed Material registry plus an explicit **None** choice.
-In particular, `maxLines > 0`, `textScalerFactor >= 0`, `styleFontSize >= 0`,
+In particular, `aspectRatio > 0`, `maxLines > 0`, `textScalerFactor >= 0`, `styleFontSize >= 0`,
 `strutFontSize > 0` and `strutLeading >= 0`; the remaining admitted Text
 style/strut doubles are finite without inventing undocumented constructor
 ranges. Locale subtags must be
@@ -1488,15 +1498,15 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the ten exact DnD-capable Palette definitions: `Scaffold`, `AppBar`, `Column`,
-`Row`, `Padding`, `Center`, `SizedBox`, `Text`, `Icon` and `ElevatedButton`.
-Twelve any-widget slots admit all ten sources: `Scaffold.body`, `Scaffold.floatingActionButton`,
+the eleven exact DnD-capable Palette definitions: `Scaffold`, `AppBar`, `Column`,
+`Row`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Text`, `Icon` and `ElevatedButton`.
+Thirteen any-widget slots admit all eleven sources: `Scaffold.body`, `Scaffold.floatingActionButton`,
 `Column.children`, `Row.children`, `Padding.child`, `Center.child`,
-`SizedBox.child`, `ElevatedButton.child`, `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
+`SizedBox.child`, `AspectRatio.child`, `ElevatedButton.child`, `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
 `AppBar.flexibleSpace`. The two trait-bound slots, `Scaffold.appBar` and
 `AppBar.bottom`, admit only AppBar through its canonical
-`PreferredSizeWidget` trait. This yields 140 candidate cells: exactly 122
-admitted and 18 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
+`PreferredSizeWidget` trait. This yields 165 candidate cells: exactly 145
+admitted and 20 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
 its complete bounded visible design-time rectangle resolves insertion index
 zero; after the first child, only the terminal append zone is exposed.
 The slice does not support an arbitrary list index, a definition without the
@@ -1587,8 +1597,8 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current ten-definition,
-140-candidate matrix with 122 accepted and 18 rejected cells described above,
+`Center.child[0]`. It is superseded by the current eleven-definition,
+165-candidate matrix with 145 accepted and 20 rejected cells described above,
 whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
@@ -1744,16 +1754,16 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v9 projection intentionally contains exactly the ten
+The current protocol-v9 projection intentionally contains exactly the eleven
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`. It proves native hosting, bounded model publication,
+`Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio` and `ElevatedButton`. It proves native hosting, bounded model publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the ten widget types and 514
+Host-side property mutation is admitted only for the eleven widget types and 515
 properties listed above, including the 17-leaf Scaffold, 286-leaf
 ElevatedButton, 120-leaf AppBar, 59-leaf Text and 13-property Icon projections;
 the runner still receives no persistence authority.
 
-This ten-widget slice is complete across create, open, edit, save, reopen,
+This eleven-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
 same-tree move and exact-slot management. Unreviewed widget definitions remain
 fail-closed until each receives an equally complete independently reviewed
@@ -1770,7 +1780,7 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current Windows ten-widget slice complete] Embed the isolated Flutter runner,
+4. [Current Windows eleven-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. The separately compiled browser runner
@@ -1778,21 +1788,21 @@ Implementation proceeds through explicit gates:
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact ten-item Palette and
-   expose selected-node Properties. Enable catalog-driven Set/Reset for the 514
+   with the Explorer/Nodes widget tree, publish the exact eleven-item Palette and
+   expose selected-node Properties. Enable catalog-driven Set/Reset for the 515
    reviewed fields, including all 17 Scaffold leaves, all 286 ElevatedButton leaves,
    all 120 reviewed AppBar leaves,
    all 59 reviewed Text leaves, both
-   nullable non-negative `SizedBox` dimensions and all 13 typed Icon constructor
-   properties,
+   nullable non-negative `SizedBox` dimensions, the required positive
+   `AspectRatio.aspectRatio` value and all 13 typed Icon constructor properties,
    through one-shot revision-bound pair-save.
 6. [Complete; historical Text-only slice superseded] Implement the Windows
    native OLE Palette drag → Flutter hit-test and two-phase prepare/commit →
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the ten-source, 140-candidate
-   compatibility matrix with 122 accepted and 18 rejected cells. Its live
+   `Center.child[0]`; the current contract is the eleven-source, 165-candidate
+   compatibility matrix with 145 accepted and 20 rejected cells. Its live
    assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
    Undo → Save cycle.
@@ -1848,7 +1858,7 @@ infrastructure.
 2. Structured property-editor/model contracts for contributed widgets and the
    remaining unreviewed Flutter graphs/callback shapes, plus localized
    presentation. Strict callback identifiers are implemented for Scaffold and
-   ElevatedButton. The catalog-driven provider for the current ten-widget
+   ElevatedButton. The catalog-driven provider for the current eleven-widget
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
    state composites, AppBar composites, Text
    composites, a closed Paint subset,

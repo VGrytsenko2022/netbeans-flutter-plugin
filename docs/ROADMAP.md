@@ -697,7 +697,7 @@ accepted architecture is documented in
   splash presets and deliberately omits ineffective `TextStyle.color` plus
   runtime-only keys/controllers/builders. Its optional-single,
   required-named-nullable `child` slot emits `child: null` when empty. The
-  current surface is ten Create/Canvas/DnD sources, 497 writable rows across
+  that milestone surface was ten Create/Canvas/DnD sources, 497 writable rows across
   nine non-`Scaffold` widgets and 140 compatibility candidates across twelve
   any-widget plus two trait-bound destinations: exactly 122 accepted and 18
   rejected. The `.fd` schema remains v4.
@@ -710,7 +710,7 @@ accepted architecture is documented in
   `floatingActionButton` slots remain unchanged. Widget-valued
   `persistentFooterButtons`, `drawer`, `endDrawer`, `bottomNavigationBar` and
   `bottomSheet`, plus `persistentFooterDecoration`, `bottomSheetScrimBuilder`
-  and `key`, remain deliberately excluded. The current total is 514 writable
+  and `key`, remain deliberately excluded. That milestone total was 514 writable
   rows across all ten built-ins; Canvas, deterministic Dart, Pair Save,
   reopen and one-step Undo/Redo use the same closed mapping.
 - [x] Extend exact named-slot management with true atomic compound commands.
@@ -722,6 +722,15 @@ accepted architecture is documented in
   implicit replacement and no sequence of partial remove commands is allowed;
   each accepted mutation has one Pair Save and one chronological Undo/Redo
   step. This does not change the Palette compatibility matrix.
+- [x] Add `AspectRatio` as the first resumed complete Palette vertical slice.
+  Its required finite positive `aspectRatio` double starts at `1.0`, its
+  optional `child` slot accepts any reviewed source, and its generated Dart,
+  native Canvas, Properties, Slots, Palette/tree DnD, persistence and Undo/Redo
+  paths share one exact catalog contract. The active surface is eleven
+  Create/Canvas/DnD sources, 515 writable rows across all widgets and 165
+  compatibility candidates across thirteen any-widget plus two trait-bound
+  destinations: exactly 145 accepted and 20 rejected. `.fd` remains v4 and the
+  Canvas payload remains v9.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -741,7 +750,7 @@ accepted architecture is documented in
   current pair-save/editor-operation regression is green and Palette-expansion
   work is resumed. The dormant dedicated-shell/exact-Web product gates above
   remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all ten admitted built-ins and does not
+  current typed Properties slice spans all eleven admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

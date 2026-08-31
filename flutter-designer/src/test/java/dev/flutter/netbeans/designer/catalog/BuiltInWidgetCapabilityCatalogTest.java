@@ -30,6 +30,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
+            "flutter.widgets.AspectRatio",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -42,6 +43,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
+            "flutter.widgets.AspectRatio",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -89,6 +91,38 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
                 projection.propertyContracts().size());
         assertEquals(Set.of(new SlotName("child")), projection.slots());
+    }
+
+    @Test
+    void aspectRatioHasTheExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.AspectRatio");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("aspectRatio")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var ratio = projection.propertyContracts().get(
+                new PropertyName("aspectRatio"));
+        assertTrue(ratio.required());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE), ratio.acceptedKinds());
+        assertEquals(Optional.of("double:1"),
+                ratio.creationDefaultFingerprint());
+        assertEquals("0:0:*:1", ratio.numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("range:0:0:*:1", ratio.constraintFingerprints()
+                .get(PropertyValueKind.DOUBLE));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
     }
 
     @Test
@@ -199,6 +233,14 @@ class BuiltInWidgetCapabilityCatalogTest {
                         SlotCardinality.SINGLE, false, 0, 1),
                 projection("flutter.widgets.SizedBox").slotContracts().get(
                         new SlotName("child")));
+
+        var aspectRatio = projection("flutter.widgets.AspectRatio")
+                .propertyContracts().get(new PropertyName("aspectRatio"));
+        assertTrue(aspectRatio.required());
+        assertEquals(Optional.of("double:1"),
+                aspectRatio.creationDefaultFingerprint());
+        assertEquals("0:0:*:1", aspectRatio.numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
 
         var icon = projection("flutter.widgets.Icon");
         var iconData = icon.propertyContracts().get(new PropertyName("icon"));

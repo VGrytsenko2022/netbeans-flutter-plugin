@@ -18,17 +18,19 @@ public final class FlutterWidgetIconRegistry {
     private static final String ICON_ROOT =
             "dev/flutter/netbeans/plugin/designer/icons/widgets/";
 
-    private static final Map<String, String> REVIEWED_ICON_PATHS = Map.of(
-            "flutter.material.Scaffold", ICON_ROOT + "scaffold.svg",
-            "flutter.material.AppBar", ICON_ROOT + "appbar.svg",
-            "flutter.material.ElevatedButton", ICON_ROOT + "elevatedbutton.svg",
-            "flutter.widgets.Column", ICON_ROOT + "column.svg",
-            "flutter.widgets.Row", ICON_ROOT + "row.svg",
-            "flutter.widgets.Padding", ICON_ROOT + "padding.svg",
-            "flutter.widgets.Center", ICON_ROOT + "center.svg",
-            "flutter.widgets.Text", ICON_ROOT + "text.svg",
-            "flutter.widgets.Icon", ICON_ROOT + "icon.svg",
-            "flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");
+    private static final Map<String, String> REVIEWED_ICON_PATHS = Map.ofEntries(
+            Map.entry("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg"),
+            Map.entry("flutter.material.AppBar", ICON_ROOT + "appbar.svg"),
+            Map.entry("flutter.material.ElevatedButton",
+                    ICON_ROOT + "elevatedbutton.svg"),
+            Map.entry("flutter.widgets.Column", ICON_ROOT + "column.svg"),
+            Map.entry("flutter.widgets.Row", ICON_ROOT + "row.svg"),
+            Map.entry("flutter.widgets.Padding", ICON_ROOT + "padding.svg"),
+            Map.entry("flutter.widgets.Center", ICON_ROOT + "center.svg"),
+            Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
+            Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
+            Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),
+            Map.entry("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg"));
 
     private FlutterWidgetIconRegistry() {
     }

@@ -31,6 +31,7 @@ public final class BuiltInWidgetCatalog {
             text(),
             icon(),
             sizedBox(),
+            aspectRatio(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -521,6 +522,24 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("width", 0, false, nonNegativeNumbers()),
                         namedProperty("height", 1, false, nonNegativeNumbers())),
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition aspectRatio() {
+        return widget(
+                "flutter.widgets.AspectRatio",
+                "AspectRatio",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 60, "AspectRatio"),
+                List.of(namedProperty(
+                        "aspectRatio",
+                        0,
+                        true,
+                        positiveDoubles(),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE))),
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

@@ -7,7 +7,9 @@ import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
@@ -56,6 +58,22 @@ class WidgetNodePrototypeFactoryTest {
                 WidgetSlot.SingleSlot.class,
                 prototype.slots().get(new SlotName("child")));
         assertTrue(child.child().isEmpty());
+    }
+
+    @Test
+    void createsAspectRatioWithItsRequiredDefaultAndEmptyChildSlot() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.AspectRatio"), ID);
+
+        assertEquals(Map.of(
+                        new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                prototype.properties());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
     }
 
     @Test

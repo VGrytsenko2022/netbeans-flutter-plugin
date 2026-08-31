@@ -1693,14 +1693,23 @@ A RELEASE300 implementation audit additionally proves that the missing hook is
 not available to a normal module: split/clear-split synchronously removes or
 reparents children inside `TabsComponent`, while non-last clone admission
 short-circuits inside `CloneableTopComponent.Ref`. The plugin-only replacement
-path is a dedicated CES `CloneableEditor` shell. Its dormant first phase wraps
+path is a dedicated CES `CloneableEditor` shell. Its dormant foundation wraps
 the one Source editor component in an explicit Design/Source switcher, forwards
-the existing Design lifecycle and close-retry request, keeps the CES clone
-group, and exposes no internal `Splitable` contract. The shell deliberately
-uses `PERSISTENCE_NEVER` and is not selected by `createPane()` in production.
-Source/Save/Undo/navigation, platform History/actions, per-clone asynchronous
-close permits and restart reconstruction are mandatory runtime gates before the
-shell or exact-Web selector may be enabled.
+the existing Design lifecycle, keeps the CES clone group, and exposes no
+internal `Splitable` contract. It now owns a support-wide close reservation:
+clone creation and close admission are mutually exclusive, the exact clone
+identities, live document version and atomic pair coordinator/state/external-
+event/Source-state revision bind a one-shot permit, and a positive
+attempt token follows Canvas retirement, failure, retry and final
+`closeLast(false)`. The dirty last-clone Save/Discard/Cancel decision therefore
+precedes irreversible retirement and is never asked twice; stale or failed
+attempts cannot authorize a later close. The permit is released only after
+`componentClosed()`, while the incompatible synchronous CloseCookie batch is
+rejected before it can partially retire clones. The shell deliberately uses
+`PERSISTENCE_NEVER` and is not selected by `createPane()` in production.
+Source/Save/Undo/navigation, platform History/actions, restart reconstruction,
+and Canvas rebuild after a document revision invalidates an in-flight close are
+mandatory runtime gates before the shell or exact-Web selector may be enabled.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,

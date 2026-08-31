@@ -373,17 +373,22 @@ action wrapper or MIME `CloseOperationHandler`: `TabsComponent` performs the
 split reparent synchronously, and `CloneableTopComponent.Ref` admits a non-last
 clone without calling `closeLast()`. There is no exported asynchronous
 pre-removal SPI spanning both operations. A plugin-owned `CloneableEditor`
-shell is therefore the supported plugin-only direction. Its phase-one
-foundation reuses CES' sole Source pane, manually brackets the Design
-lifecycle, preserves clone grouping, supplies a shell close-retry host and does
-not implement internal `Splitable`. It remains production-disabled and
-`PERSISTENCE_NEVER`; exact Web remains off until runtime tests prove
-Source/Save/Undo/navigation, History/action parity, clone-local peer permits and
-restart reconstruction. The final combined permit must resolve a dirty
-last-clone Save/Discard/Cancel decision before retiring Canvas; otherwise Cancel
-could retain an editor whose native surface was already destroyed. A dormant
-shell is evidence for the path forward, not
-authorization to remove the stock MultiView.
+shell is therefore the supported plugin-only direction. Its dormant foundation
+reuses CES' sole Source pane, manually brackets the Design lifecycle, preserves
+clone grouping, supplies a tokenized shell close-retry host and does not
+implement internal `Splitable`. A support-owned reservation now makes clone
+construction and close mutually exclusive, binds one permit to exact clone and
+document revision plus one atomic pair identity/state/external-event/Source-
+state revision, resolves dirty last-clone Save/Discard/Cancel before
+Canvas retirement, and consumes that authority through `closeLast(false)`
+without a second prompt. Failure or stale callbacks revoke the attempt, while a
+successful permit remains held through `componentClosed()`. The stock
+synchronous CloseCookie batch fails closed while a dedicated shell is open.
+The shell remains production-disabled and `PERSISTENCE_NEVER`; exact Web stays
+off until runtime tests prove Source/Save/Undo/navigation, History/action parity,
+restart reconstruction, and Canvas recovery after an in-flight document change.
+A dormant shell is evidence for the path forward, not authorization to remove
+the stock MultiView.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.

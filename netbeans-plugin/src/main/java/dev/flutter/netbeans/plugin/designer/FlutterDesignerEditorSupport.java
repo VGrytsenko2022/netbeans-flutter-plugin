@@ -43,6 +43,7 @@ import org.openide.loaders.MultiDataObject;
 import org.openide.nodes.CookieSet;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.DataEditorSupport;
+import org.openide.util.Mutex;
 import org.openide.windows.CloneableOpenSupport;
 import org.openide.windows.CloneableTopComponent;
 import org.openide.xml.XMLUtil;
@@ -73,6 +74,8 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             activePersistenceAttempt = new ThreadLocal<>();
     private final ThreadLocal<Boolean> dedicatedPaneCreation =
             new ThreadLocal<>();
+    private final FlutterDesignerEditorClosePermitCoordinator editorClosePermits =
+            new FlutterDesignerEditorClosePermitCoordinator();
     private volatile PersistenceFinalizationHook persistenceFinalizationHook =
             () -> { };
 
@@ -128,27 +131,118 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     /** Phase-one construction seam for the plugin-owned, non-Splitable shell. */
     CloneableEditorSupport.Pane createDedicatedPane() {
-        FlutterDesignerCloneableEditor component =
-                new FlutterDesignerCloneableEditor(this);
-        initializeCloneableEditor(component);
-        if (getDataObject().isValid()) {
-            component.updateName();
+        requireDedicatedPaneCreationOnEdt();
+        FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+                reservation = null;
+        boolean ownsConstruction = dedicatedPaneCreation.get() == null;
+        if (ownsConstruction) {
+            reservation = requireCloneCreationReservation();
+            dedicatedPaneCreation.set(Boolean.TRUE);
         }
-        return component;
+        try {
+            FlutterDesignerCloneableEditor component =
+                    new FlutterDesignerCloneableEditor(this);
+            initializeCloneableEditor(component);
+            if (getDataObject().isValid()) {
+                component.updateName();
+            }
+            if (ownsConstruction) {
+                releaseCloneCreationAfterReferenceRegistration(reservation);
+                reservation = null;
+            }
+            return component;
+        } finally {
+            if (ownsConstruction) {
+                dedicatedPaneCreation.remove();
+                if (reservation != null) {
+                    reservation.close();
+                }
+            }
+        }
     }
 
     /** Creates a clone through CES so its private Pane identity is installed. */
     CloneableTopComponent createDedicatedCloneComponent() {
+        requireDedicatedPaneCreationOnEdt();
         if (dedicatedPaneCreation.get() != null) {
             throw new IllegalStateException(
                     "Nested dedicated Designer pane construction is not allowed");
         }
-        dedicatedPaneCreation.set(Boolean.TRUE);
+        FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+                reservation = requireCloneCreationReservation();
         try {
-            return createCloneableTopComponent();
+            dedicatedPaneCreation.set(Boolean.TRUE);
+            try {
+                CloneableTopComponent component = createCloneableTopComponent();
+                releaseCloneCreationAfterReferenceRegistration(reservation);
+                reservation = null;
+                return component;
+            } finally {
+                dedicatedPaneCreation.remove();
+            }
         } finally {
-            dedicatedPaneCreation.remove();
+            if (reservation != null) {
+                reservation.close();
+            }
         }
+    }
+
+    private static void requireDedicatedPaneCreationOnEdt() {
+        if (!EventQueue.isDispatchThread()) {
+            throw new IllegalStateException(
+                    "Flutter Designer editor panes must be created on the "
+                    + "Event Dispatch Thread so clone registration is atomic");
+        }
+    }
+
+    private static void releaseCloneCreationAfterReferenceRegistration(
+            FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+                    reservation) {
+        FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+                retained = Objects.requireNonNull(reservation, "reservation");
+        // NetBeans registers a clone in Ref only after createPane() or
+        // createClonedObject() returns. Since both callers execute on this EDT,
+        // the next event is the first safe point at which the exact topology is
+        // externally visible to close admission.
+        EventQueue.invokeLater(retained::close);
+    }
+
+    private FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+            requireCloneCreationReservation() {
+        FlutterDesignerEditorClosePermitCoordinator.CloneCreationReservation
+                reservation = editorClosePermits.reserveCloneCreation();
+        if (reservation == null) {
+            throw new IllegalStateException(
+                    "Cannot create or clone the Flutter Designer editor while "
+                    + "another clone is completing a peer-safe close");
+        }
+        return reservation;
+    }
+
+    FlutterDesignerEditorClosePermitCoordinator editorClosePermits() {
+        return editorClosePermits;
+    }
+
+    /** Acquires NetBeans' ordinary Save/Discard/Cancel decision exactly once. */
+    boolean confirmEditorShellDocumentClose() {
+        return super.canClose();
+    }
+
+    /** Exact document and pair identity retained by an asynchronous close. */
+    FlutterDesignerEditorClosePermitCoordinator.DocumentRevision
+            editorShellDocumentRevision() {
+        StyledDocument document = getDocument();
+        long documentVersion = document == null
+                ? -1 : DocumentUtilities.getDocumentVersion(document);
+        PairSaveCoordinator coordinator = pairSaveCoordinator;
+        PairSaveCoordinator.CloseRevision pairRevision = coordinator == null
+                ? null : coordinator.closeRevision();
+        return new FlutterDesignerEditorClosePermitCoordinator.DocumentRevision(
+                document,
+                documentVersion,
+                pairRevision,
+                isModified(),
+                sourceModified);
     }
 
     /** The user-facing editor represents the visible model, not its technical Dart owner. */
@@ -331,6 +425,28 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     void clearPersistenceFinalizationHook() {
         persistenceFinalizationHook = () -> { };
+    }
+
+    /**
+     * The stock CloseCookie path asks CES once and then closes every clone in a
+     * synchronous batch. That cannot await clone-local Canvas retirement and,
+     * after Discard, would also ask the dedicated last clone a second time.
+     * Keep that path fail-closed until the shell owns a tested batch permit.
+     */
+    @Override
+    protected boolean close(boolean ask) {
+        if (!EventQueue.isDispatchThread()) {
+            // CloneableOpenSupport would otherwise perform its own later EDT
+            // hop only after this override returned from authorization.  Keep
+            // the exact gate check and the stock clone batch in one EDT turn
+            // so an already-queued shell open/clone cannot cross between them.
+            return Mutex.EVENT.writeAccess(
+                    (Mutex.Action<Boolean>) () -> close(ask));
+        }
+        if (!editorClosePermits.authorizeSupportClose(ask)) {
+            return false;
+        }
+        return super.close(ask);
     }
 
     /** Virtual serialization must never advance the last persisted fallback. */

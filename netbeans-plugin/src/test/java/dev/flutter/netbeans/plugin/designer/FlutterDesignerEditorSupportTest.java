@@ -193,7 +193,17 @@ class FlutterDesignerEditorSupportTest {
         FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
                 editor.getDataObject();
 
-        CloneableEditorSupport.Pane pane = onEdt(editor::createDedicatedPane);
+        CloneableEditorSupport.Pane pane = onEdt(() -> {
+            CloneableEditorSupport.Pane created = editor.createDedicatedPane();
+            assertFalse(editor.editorClosePermits().cloneCreationAllowed(),
+                    "the reservation must outlive createPane until NetBeans can register Ref");
+            return created;
+        });
+        onEdt(() -> {
+            assertTrue(editor.editorClosePermits().cloneCreationAllowed(),
+                    "the next EDT turn follows the caller's Ref registration point");
+            return null;
+        });
         CloneableTopComponent component = pane.getComponent();
         Class<?> splitable = Class.forName("org.netbeans.core.multiview.Splitable");
 
@@ -233,6 +243,173 @@ class FlutterDesignerEditorSupportTest {
         assertSame(dataObject,
                 clone.getLookup().lookup(FlutterDesignerDataObject.class));
         assertFalse(splitable.isInstance(clone));
+    }
+
+    @Test
+    void dedicatedShellBlocksReentrantCloseCookieDuringOpenedPanesEvent()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("opening_close_gate");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor component =
+                (FlutterDesignerCloneableEditor) onEdt(
+                        () -> editor.createDedicatedPane().getComponent());
+        // The next EDT turn is the first point after the construction caller
+        // could have registered the component in its clone Ref.
+        onEdt(() -> null);
+        AtomicBoolean openedPanesObserved = new AtomicBoolean();
+        AtomicReference<Boolean> reentrantClose = new AtomicReference<>();
+        java.beans.PropertyChangeListener listener = event -> {
+            if (EditorCookie.Observable.PROP_OPENED_PANES.equals(
+                    event.getPropertyName())) {
+                openedPanesObserved.set(true);
+                reentrantClose.set(editor.close());
+            }
+        };
+        editor.addPropertyChangeListener(listener);
+        try {
+            onEdt(() -> {
+                component.open();
+                return null;
+            });
+            assertTrue(openedPanesObserved.get());
+            assertEquals(Boolean.FALSE, reentrantClose.get(),
+                    "the dedicated gate must exist before super.componentOpened fires listeners");
+            assertTrue(component.isOpened());
+        } finally {
+            editor.removePropertyChangeListener(listener);
+            onEdt(() -> {
+                if (component.isOpened()) {
+                    component.close();
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void directCloseDuringOpenedPanesCannotTearDownOpeningShell()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("opening_direct_close_gate");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor component =
+                (FlutterDesignerCloneableEditor) onEdt(
+                        () -> editor.createDedicatedPane().getComponent());
+        onEdt(() -> null);
+        AtomicBoolean openedPanesObserved = new AtomicBoolean();
+        AtomicReference<Boolean> directClose = new AtomicReference<>();
+        java.beans.PropertyChangeListener listener = event -> {
+            if (EditorCookie.Observable.PROP_OPENED_PANES.equals(
+                    event.getPropertyName())) {
+                openedPanesObserved.set(true);
+                directClose.set(component.close());
+            }
+        };
+        editor.addPropertyChangeListener(listener);
+        try {
+            onEdt(() -> {
+                component.open();
+                return null;
+            });
+            assertTrue(openedPanesObserved.get());
+            assertEquals(Boolean.TRUE, directClose.get(),
+                    "TopComponent reports this pre-registry close as an already-closed no-op");
+            assertTrue(component.isOpened());
+        } finally {
+            editor.removePropertyChangeListener(listener);
+            onEdt(() -> {
+                if (component.isOpened()) {
+                    component.close();
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void throwingOpenedPanesListenerCannotRemoveDedicatedCloseGate()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("opening_listener_failure");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor component =
+                (FlutterDesignerCloneableEditor) onEdt(
+                        () -> editor.createDedicatedPane().getComponent());
+        onEdt(() -> null);
+        AtomicBoolean openedPanesObserved = new AtomicBoolean();
+        RuntimeException listenerFailure = new RuntimeException(
+                "synthetic opened-panes listener failure");
+        java.beans.PropertyChangeListener listener = event -> {
+            if (EditorCookie.Observable.PROP_OPENED_PANES.equals(
+                    event.getPropertyName())) {
+                openedPanesObserved.set(true);
+                throw listenerFailure;
+            }
+        };
+        editor.addPropertyChangeListener(listener);
+        try {
+            onEdt(() -> {
+                component.open();
+                return null;
+            });
+            assertTrue(openedPanesObserved.get());
+            assertTrue(component.isOpened(),
+                    "WindowManager retains the component after a listener failure");
+            assertFalse(editor.close(),
+                    "a listener failure must leave the support CloseCookie fail-closed");
+        } finally {
+            editor.removePropertyChangeListener(listener);
+            onEdt(() -> {
+                if (component.isOpened()) {
+                    component.close();
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void offEdtCloseQueuedBehindShellOpenRechecksGateOnEdt()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("queued_open_close_gate");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor component =
+                (FlutterDesignerCloneableEditor) onEdt(
+                        () -> editor.createDedicatedPane().getComponent());
+        onEdt(() -> null);
+        CountDownLatch closeStarted = new CountDownLatch(1);
+        AtomicReference<Boolean> closeResult = new AtomicReference<>();
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
+        Thread closeThread = new Thread(() -> {
+            closeStarted.countDown();
+            try {
+                closeResult.set(editor.close());
+            } catch (Throwable failure) {
+                closeFailure.set(failure);
+            }
+        }, "off-edt-close-behind-dedicated-open");
+        closeThread.setDaemon(true);
+
+        try {
+            onEdt(() -> {
+                EventQueue.invokeLater(component::open);
+                closeThread.start();
+                assertTrue(closeStarted.await(2, TimeUnit.SECONDS));
+                return null;
+            });
+            closeThread.join(TimeUnit.SECONDS.toMillis(2));
+            assertFalse(closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertEquals(Boolean.FALSE, closeResult.get(),
+                    "the close must recheck after the earlier shell-open event");
+            assertTrue(onEdt(() -> Boolean.valueOf(
+                    component.isOpened())).booleanValue());
+        } finally {
+            onEdt(() -> {
+                if (component.isOpened()) {
+                    component.close();
+                }
+                return null;
+            });
+        }
     }
 
     @Test

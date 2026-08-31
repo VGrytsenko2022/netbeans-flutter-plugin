@@ -3,7 +3,9 @@ package dev.flutter.netbeans.plugin.designer;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -41,13 +43,15 @@ final class FlutterDesignerEditorPaneContent extends JPanel {
     FlutterDesignerEditorPaneContent(
             Component sourceComponent,
             FlutterDesignerEditorPerspective design,
-            Runnable closeRetry,
+            LongConsumer closeRetry,
+            BiConsumer<Long, Throwable> closeFailure,
             Consumer<Perspective> perspectiveListener) {
         super(new BorderLayout());
         this.design = Objects.requireNonNull(design, "design");
         this.perspectiveListener = Objects.requireNonNull(
                 perspectiveListener, "perspectiveListener");
         Objects.requireNonNull(closeRetry, "closeRetry");
+        Objects.requireNonNull(closeFailure, "closeFailure");
         sourcePanel.add(Objects.requireNonNull(
                 sourceComponent, "sourceComponent"), BorderLayout.CENTER);
 
@@ -62,7 +66,7 @@ final class FlutterDesignerEditorPaneContent extends JPanel {
                 "Switch between the visual Flutter Designer and its paired Dart source.");
         perspectives.addChangeListener(event -> tabSelectionChanged());
         add(perspectives, BorderLayout.CENTER);
-        design.bindCloseRetry(closeRetry);
+        design.bindCloseCallbacks(closeRetry, closeFailure);
         setPerspective(Perspective.DESIGN);
     }
 
@@ -112,6 +116,19 @@ final class FlutterDesignerEditorPaneContent extends JPanel {
 
     CloseOperationState closeState() {
         return design.closeState();
+    }
+
+    FlutterDesignerEditorPerspective.CloseBarrierState closeBarrierState(
+            long attemptId) {
+        return design.closeBarrierState(attemptId);
+    }
+
+    void beginCloseBarrier(long attemptId) {
+        design.beginCloseBarrier(attemptId);
+    }
+
+    void abandonCloseBarrier(long attemptId) {
+        design.abandonCloseBarrier(attemptId);
     }
 
     boolean requestPerspectiveFocus() {

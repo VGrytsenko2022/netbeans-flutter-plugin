@@ -1,5 +1,7 @@
 package dev.flutter.netbeans.plugin.designer;
 
+import java.util.function.BiConsumer;
+import java.util.function.LongConsumer;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import org.netbeans.core.spi.multiview.CloseOperationState;
@@ -7,6 +9,14 @@ import org.openide.util.Lookup;
 
 /** Lifecycle surface consumed by the plugin-owned editor shell. */
 interface FlutterDesignerEditorPerspective {
+    enum CloseBarrierState {
+        NOT_REQUIRED,
+        OPEN,
+        PENDING,
+        READY,
+        STALE
+    }
+
     JComponent visual();
 
     JComponent toolbar();
@@ -29,7 +39,15 @@ interface FlutterDesignerEditorPerspective {
 
     void deactivated();
 
-    void bindCloseRetry(Runnable retry);
+    void bindCloseCallbacks(
+            LongConsumer retry,
+            BiConsumer<Long, Throwable> failure);
+
+    CloseBarrierState closeBarrierState(long attemptId);
+
+    void beginCloseBarrier(long attemptId);
+
+    void abandonCloseBarrier(long attemptId);
 
     /** Production adapter retaining the existing Design implementation. */
     final class Design implements FlutterDesignerEditorPerspective {
@@ -96,8 +114,25 @@ interface FlutterDesignerEditorPerspective {
         }
 
         @Override
-        public void bindCloseRetry(Runnable retry) {
-            delegate.setEditorShellCloseRetryRequest(retry);
+        public void bindCloseCallbacks(
+                LongConsumer retry,
+                BiConsumer<Long, Throwable> failure) {
+            delegate.setEditorShellCloseCallbacks(retry, failure);
+        }
+
+        @Override
+        public CloseBarrierState closeBarrierState(long attemptId) {
+            return delegate.editorShellCloseBarrierState(attemptId);
+        }
+
+        @Override
+        public void beginCloseBarrier(long attemptId) {
+            delegate.beginEditorShellClose(attemptId);
+        }
+
+        @Override
+        public void abandonCloseBarrier(long attemptId) {
+            delegate.abandonEditorShellClose(attemptId);
         }
     }
 }

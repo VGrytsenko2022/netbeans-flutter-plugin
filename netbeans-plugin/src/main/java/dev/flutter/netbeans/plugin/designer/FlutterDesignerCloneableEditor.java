@@ -6,10 +6,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
-import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.openide.awt.UndoRedo;
 import org.openide.text.CloneableEditor;
 import org.openide.util.Lookup;
@@ -26,12 +27,17 @@ import org.openide.windows.TopComponent;
  * exact clone-safe Canvas close permit are covered by runtime tests.</p>
  */
 final class FlutterDesignerCloneableEditor extends CloneableEditor {
+    private static final Logger LOGGER = Logger.getLogger(
+            FlutterDesignerCloneableEditor.class.getName());
+
     private final FlutterDesignerEditorSupport editorSupport;
     private final FlutterDesignerDataObject dataObject;
     private final ActiveLookup activeLookup;
-    private final FlutterDesignerAsyncCloseOperationHandler closeHandler =
-            new FlutterDesignerAsyncCloseOperationHandler();
+    private final FlutterDesignerEditorClosePermitCoordinator closePermits;
     private FlutterDesignerEditorPaneContent content;
+    private FlutterDesignerEditorClosePermitCoordinator.Permit closePermit;
+    private FlutterDesignerEditorClosePermitCoordinator.Permit closeInvocationPermit;
+    private boolean componentOpening;
     private boolean componentOpen;
     private boolean componentShowing;
     private boolean componentActive;
@@ -41,6 +47,7 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
         super(Objects.requireNonNull(editorSupport, "editorSupport"), false);
         this.editorSupport = editorSupport;
         dataObject = (FlutterDesignerDataObject) editorSupport.getDataObject();
+        closePermits = editorSupport.editorClosePermits();
         activeLookup = new ActiveLookup(
                 dataObject.getLookup(), Lookups.singleton(getActionMap()));
         associateLookup(activeLookup);
@@ -74,6 +81,7 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
                             component,
                             new FlutterDesignerEditorPerspective.Design(design),
                             this::requestCloseRetry,
+                            this::canvasCloseFailed,
                             ignored -> perspectiveChanged());
             content = created;
             super.addImpl(created, constraints, index);
@@ -95,9 +103,36 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
 
     @Override
     protected void componentOpened() {
-        super.componentOpened();
+        componentOpening = true;
+        closePermits.editorShellOpenedOrClosing(this);
+        // CloneableEditor fires PROP_OPENED_PANES synchronously from this call.
+        // Register the support-level gate first so a reentrant CloseCookie
+        // listener cannot enter the stock synchronous batch before the
+        // dedicated shell is known to the coordinator.  Keep the gate if an
+        // opened-panes listener throws: WindowManager catches that failure and
+        // may still publish the physically open component. componentClosed()
+        // is the only safe point that removes this fail-closed registration.
+        try {
+            super.componentOpened();
+        } catch (RuntimeException | Error openingFailure) {
+            // WindowManager logs listener failures and can still publish this
+            // TopComponent as open. Complete our own Canvas lifecycle before
+            // propagating; if that completion also fails, componentOpening
+            // deliberately remains true and every ordinary close stays vetoed.
+            try {
+                completeComponentOpened();
+            } catch (RuntimeException | Error completionFailure) {
+                openingFailure.addSuppressed(completionFailure);
+            }
+            throw openingFailure;
+        }
+        completeComponentOpened();
+    }
+
+    private void completeComponentOpened() {
         componentOpen = true;
         synchronizeContentLifecycle();
+        componentOpening = false;
     }
 
     @Override
@@ -137,36 +172,205 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
 
     @Override
     protected void componentClosed() {
-        FlutterDesignerEditorPaneContent current = content;
-        if (current != null) {
-            current.closed();
-            remove(current);
-            content = null;
-            activeLookup.setPerspective(Lookup.EMPTY);
+        // Keep the support-level close gate present even for an unexpected
+        // direct componentClosed callback that bypassed canClose().
+        closePermits.editorShellOpenedOrClosing(this);
+        FlutterDesignerEditorClosePermitCoordinator.Permit admittedPermit =
+                closePermit;
+        FlutterDesignerEditorClosePermitCoordinator.ComponentClosedScope
+                closeScope = admittedPermit == null
+                        ? null : closePermits.enterComponentClosed(
+                                admittedPermit, this);
+        try {
+            FlutterDesignerEditorPaneContent current = content;
+            try {
+                if (current != null) {
+                    current.closed();
+                }
+            } finally {
+                try {
+                    if (current != null) {
+                        remove(current);
+                        content = null;
+                        activeLookup.setPerspective(Lookup.EMPTY);
+                    }
+                } finally {
+                    componentActive = false;
+                    componentShowing = false;
+                    componentOpening = false;
+                    componentOpen = false;
+                    sourceRequested = false;
+                    // CES clone-registry teardown must run even if a
+                    // perspective lifecycle callback fails during shutdown.
+                    super.componentClosed();
+                }
+            }
+        } finally {
+            try {
+                if (closeScope != null) {
+                    closeScope.close();
+                }
+            } finally {
+                closePermits.editorShellClosed(this);
+                if (closeScope == null
+                        || !closePermits.completeAdmitted(admittedPermit)) {
+                    closePermits.releaseOwner(this);
+                    LOGGER.log(Level.SEVERE,
+                            "Operation: finalize Flutter Designer editor close. "
+                            + "Target: {0}. Reason: componentClosed was reached "
+                            + "without the exact admitted close permit.",
+                            dataObject.getPrimaryFile().getPath());
+                }
+                closePermit = null;
+                closeInvocationPermit = null;
+            }
         }
-        componentActive = false;
-        componentShowing = false;
-        componentOpen = false;
-        sourceRequested = false;
-        super.componentClosed();
     }
 
     @Override
     public boolean canClose() {
+        if (!isOpened() || componentOpening) {
+            return false;
+        }
+        FlutterDesignerEditorClosePermitCoordinator.Permit previousPermit =
+                closePermit;
+        FlutterDesignerEditorClosePermitCoordinator.Admission admission =
+                closePermits.acquire(
+                        this,
+                        this::cloneTopology,
+                        editorSupport::editorShellDocumentRevision,
+                        editorSupport::confirmEditorShellDocumentClose);
+        if (!admission.authorized()) {
+            if (previousPermit != null
+                    && admission.status()
+                            == FlutterDesignerEditorClosePermitCoordinator
+                                    .AdmissionStatus.STALE) {
+                abandonClosePermit(previousPermit);
+            }
+            return false;
+        }
+        FlutterDesignerEditorClosePermitCoordinator.Permit permit =
+                admission.permit();
+        closePermit = permit;
         FlutterDesignerEditorPaneContent current = content;
-        if (current != null) {
-            CloseOperationState state = current.closeState();
-            // Production remains hard-disabled: on a dirty last clone this
-            // provisional flow can retire Canvas before super.canClose() asks
-            // the Source Save/Discard/Cancel question. The final shell must
-            // acquire one document/topology-bound combined permit first.
-            if (!state.canClose()
-                    && !closeHandler.resolveCloseOperation(
-                            new CloseOperationState[] {state})) {
+        FlutterDesignerEditorPerspective.CloseBarrierState barrierState =
+                FlutterDesignerEditorPerspective.CloseBarrierState.NOT_REQUIRED;
+        try {
+            if (current != null) {
+                barrierState = current.closeBarrierState(permit.sequence());
+            }
+        } catch (RuntimeException | Error failure) {
+            abandonClosePermit(permit);
+            throw failure;
+        }
+
+        switch (barrierState) {
+            case OPEN -> {
+                try {
+                    current.beginCloseBarrier(permit.sequence());
+                } catch (RuntimeException | Error failure) {
+                    abandonClosePermit(permit);
+                    throw failure;
+                }
                 return false;
             }
+            case PENDING -> {
+                return false;
+            }
+            case STALE -> {
+                abandonClosePermit(permit);
+                return false;
+            }
+            case NOT_REQUIRED, READY -> {
+                return commitClose(permit);
+            }
         }
-        return super.canClose();
+        throw new AssertionError("Unhandled Canvas close-barrier state");
+    }
+
+    @Override
+    protected boolean closeLast() {
+        FlutterDesignerEditorClosePermitCoordinator.Permit permit =
+                closeInvocationPermit;
+        if (permit == null
+                || !closePermits.consumeLastClose(
+                        permit,
+                        cloneTopology(),
+                        editorSupport.editorShellDocumentRevision())) {
+            // Never fall back to CloneableEditor's ordinary closeLast(). It
+            // would ask the dirty-document question after Canvas retirement.
+            LOGGER.log(Level.SEVERE,
+                    "Operation: close the final Flutter Designer editor clone. "
+                    + "Target: {0}. Reason: the one-shot document close "
+                    + "permit was absent or stale.",
+                    dataObject.getPrimaryFile().getPath());
+            return false;
+        }
+        return closeLast(false);
+    }
+
+    private boolean commitClose(
+            FlutterDesignerEditorClosePermitCoordinator.Permit permit) {
+        final FlutterDesignerEditorClosePermitCoordinator.CloneTopology topology;
+        final FlutterDesignerEditorClosePermitCoordinator.DocumentRevision revision;
+        try {
+            topology = cloneTopology();
+            revision = editorSupport.editorShellDocumentRevision();
+        } catch (RuntimeException | Error failure) {
+            abandonClosePermit(permit);
+            throw failure;
+        }
+        if (!closePermits.beginCommit(permit, topology, revision)) {
+            abandonClosePermit(permit);
+            return false;
+        }
+
+        boolean admitted = false;
+        closeInvocationPermit = permit;
+        try {
+            if (!super.canClose()) {
+                return false;
+            }
+            if (!closePermits.markAdmitted(permit)) {
+                throw new IllegalStateException(
+                        "The Flutter Designer close permit was lost after "
+                        + "NetBeans admitted the editor close");
+            }
+            admitted = true;
+            return true;
+        } finally {
+            closeInvocationPermit = null;
+            if (!admitted) {
+                closePermits.abortCommit(permit);
+                abandonClosePermit(permit);
+            }
+        }
+    }
+
+    private void abandonClosePermit(
+            FlutterDesignerEditorClosePermitCoordinator.Permit permit) {
+        closePermits.revoke(permit);
+        FlutterDesignerEditorPaneContent current = content;
+        try {
+            if (current != null) {
+                current.abandonCloseBarrier(permit.sequence());
+            }
+        } finally {
+            if (closePermit == permit) {
+                closePermit = null;
+            }
+        }
+    }
+
+    private FlutterDesignerEditorClosePermitCoordinator.CloneTopology
+            cloneTopology() {
+        List<Object> members = new ArrayList<>();
+        var components = getReference().getComponents();
+        while (components.hasMoreElements()) {
+            members.add(components.nextElement());
+        }
+        return new FlutterDesignerEditorClosePermitCoordinator.CloneTopology(
+                members);
     }
 
     @Override
@@ -243,11 +447,57 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
                 ? Lookup.EMPTY : current.activeLookup());
     }
 
-    private void requestCloseRetry() {
-        if (SwingUtilities.isEventDispatchThread()) {
+    private void requestCloseRetry(long attemptId) {
+        dispatchCloseCallback(() -> retryClose(attemptId));
+    }
+
+    private void retryClose(long attemptId) {
+        FlutterDesignerEditorClosePermitCoordinator.Permit permit = closePermit;
+        if (permit == null || permit.sequence() != attemptId) {
+            return;
+        }
+        try {
+            if (!closePermits.validate(
+                    permit,
+                    cloneTopology(),
+                    editorSupport.editorShellDocumentRevision())) {
+                abandonClosePermit(permit);
+                return;
+            }
             close();
+        } catch (RuntimeException | Error failure) {
+            abandonClosePermit(permit);
+            LOGGER.log(Level.WARNING,
+                    "Operation: retry Flutter Designer editor close. Target: "
+                    + dataObject.getPrimaryFile().getPath()
+                    + ". Reason: the tokenized close retry failed.",
+                    failure);
+        }
+    }
+
+    private void canvasCloseFailed(long attemptId, Throwable failure) {
+        Objects.requireNonNull(failure, "failure");
+        dispatchCloseCallback(() -> {
+            FlutterDesignerEditorClosePermitCoordinator.Permit permit =
+                    closePermit;
+            if (permit == null || permit.sequence() != attemptId) {
+                return;
+            }
+            abandonClosePermit(permit);
+            LOGGER.log(Level.WARNING,
+                    "Operation: retire Flutter Designer Canvas before editor "
+                    + "close. Target: "
+                    + dataObject.getPrimaryFile().getPath()
+                    + ". Reason: Canvas retirement failed; the editor remains open.",
+                    failure);
+        });
+    }
+
+    private static void dispatchCloseCallback(Runnable callback) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            callback.run();
         } else {
-            SwingUtilities.invokeLater(this::close);
+            SwingUtilities.invokeLater(callback);
         }
     }
 

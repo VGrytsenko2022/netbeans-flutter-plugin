@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.LongConsumer;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -22,7 +24,8 @@ class FlutterDesignerEditorPaneContentTest {
                 new ArrayList<>();
         FlutterDesignerEditorPaneContent content =
                 new FlutterDesignerEditorPaneContent(
-                        new JPanel(), design, () -> { }, selections::add);
+                        new JPanel(), design, ignored -> { },
+                        (ignored, failure) -> { }, selections::add);
 
         content.opened();
         content.opened();
@@ -59,18 +62,39 @@ class FlutterDesignerEditorPaneContentTest {
     @Test
     void keepsDesignCloseAuthorityWhileSourceIsSelected() {
         RecordingPerspective design = new RecordingPerspective();
-        AtomicReference<Runnable> closeRetry = new AtomicReference<>();
-        Runnable retry = () -> { };
+        AtomicReference<Long> retriedAttempt = new AtomicReference<>();
+        AtomicReference<Long> failedAttempt = new AtomicReference<>();
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
         FlutterDesignerEditorPaneContent content =
                 new FlutterDesignerEditorPaneContent(
-                        new JPanel(), design, retry, ignored -> { });
-        closeRetry.set(design.retry);
+                        new JPanel(), design, retriedAttempt::set,
+                        (attemptId, failure) -> {
+                            failedAttempt.set(attemptId);
+                            closeFailure.set(failure);
+                        }, ignored -> { });
 
         assertSame(design.lookup, content.activeLookup());
         content.selectSource();
         assertSame(Lookup.EMPTY, content.activeLookup());
         assertSame(design.closeState, content.closeState());
-        assertSame(retry, closeRetry.get());
+
+        design.closeBarrierState =
+                FlutterDesignerEditorPerspective.CloseBarrierState.PENDING;
+        assertSame(FlutterDesignerEditorPerspective.CloseBarrierState.PENDING,
+                content.closeBarrierState(41));
+        assertEquals(List.of(41L), design.barrierStateAttempts);
+
+        content.beginCloseBarrier(41);
+        content.abandonCloseBarrier(41);
+        assertEquals(List.of(41L), design.begunAttempts);
+        assertEquals(List.of(41L), design.abandonedAttempts);
+
+        Throwable failure = new IllegalStateException("close failed");
+        design.retry.accept(41);
+        design.failure.accept(41L, failure);
+        assertEquals(41L, retriedAttempt.get());
+        assertEquals(41L, failedAttempt.get());
+        assertSame(failure, closeFailure.get());
 
         content.opened();
         content.closed();
@@ -87,7 +111,14 @@ class FlutterDesignerEditorPaneContentTest {
         private final Lookup lookup = Lookups.singleton(this);
         private final CloseOperationState closeState =
                 CloseOperationState.STATE_OK;
-        private Runnable retry;
+        private LongConsumer retry;
+        private BiConsumer<Long, Throwable> failure;
+        private FlutterDesignerEditorPerspective.CloseBarrierState
+                closeBarrierState =
+                        FlutterDesignerEditorPerspective.CloseBarrierState.OPEN;
+        private final List<Long> barrierStateAttempts = new ArrayList<>();
+        private final List<Long> begunAttempts = new ArrayList<>();
+        private final List<Long> abandonedAttempts = new ArrayList<>();
 
         @Override
         public JComponent visual() {
@@ -145,9 +176,29 @@ class FlutterDesignerEditorPaneContentTest {
         }
 
         @Override
-        public void bindCloseRetry(Runnable retry) {
+        public void bindCloseCallbacks(
+                LongConsumer retry,
+                BiConsumer<Long, Throwable> failure) {
             this.retry = retry;
+            this.failure = failure;
             events.add("bind");
+        }
+
+        @Override
+        public FlutterDesignerEditorPerspective.CloseBarrierState
+                closeBarrierState(long attemptId) {
+            barrierStateAttempts.add(attemptId);
+            return closeBarrierState;
+        }
+
+        @Override
+        public void beginCloseBarrier(long attemptId) {
+            begunAttempts.add(attemptId);
+        }
+
+        @Override
+        public void abandonCloseBarrier(long attemptId) {
+            abandonedAttempts.add(attemptId);
         }
     }
 }

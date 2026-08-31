@@ -190,6 +190,21 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
     }
 
+    /**
+     * One atomic, monotonic pair-authority token for an asynchronous editor
+     * close.  The document itself is deliberately sampled outside this
+     * monitor: entering CES while holding the pair coordinator would invert
+     * the established document/coordinator lock order.  A torn cross-domain
+     * sample therefore fails stale on the next comparison through either the
+     * document version or one of these monotonic epochs.
+     */
+    CloseRevision closeRevision() {
+        synchronized (this) {
+            return new CloseRevision(
+                    this, epoch, externalEventEpoch, sourceStateEpoch);
+        }
+    }
+
     boolean canBeginPairDelete() {
         synchronized (this) {
             return pairPathOperationAvailableLocked();
@@ -8514,6 +8529,31 @@ final class PairSaveCoordinator implements Node.Cookie,
                 throw new IllegalArgumentException(
                         "sourceStateEpoch must be non-negative");
             }
+        }
+    }
+
+    /** Exact pair-side authority retained by a pending editor close. */
+    record CloseRevision(
+            Object coordinatorIdentity,
+            long stateEpoch,
+            long externalEventEpoch,
+            long sourceStateEpoch) {
+        CloseRevision {
+            Objects.requireNonNull(coordinatorIdentity,
+                    "coordinatorIdentity");
+            if (stateEpoch < 0 || externalEventEpoch < 0
+                    || sourceStateEpoch < 0) {
+                throw new IllegalArgumentException(
+                        "Pair close-revision epochs must be non-negative");
+            }
+        }
+
+        boolean sameRevision(CloseRevision other) {
+            Objects.requireNonNull(other, "other");
+            return coordinatorIdentity == other.coordinatorIdentity
+                    && stateEpoch == other.stateEpoch
+                    && externalEventEpoch == other.externalEventEpoch
+                    && sourceStateEpoch == other.sourceStateEpoch;
         }
     }
 

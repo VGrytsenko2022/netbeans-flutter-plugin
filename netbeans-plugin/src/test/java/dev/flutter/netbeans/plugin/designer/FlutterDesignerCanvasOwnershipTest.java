@@ -810,6 +810,263 @@ class FlutterDesignerCanvasOwnershipTest {
     }
 
     @Test
+    void tokenizedEditorShellCloseRetriesTheExactSuccessfulAttempt()
+            throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        session.retirementAttempts.add(retirement);
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) ->
+                                FlutterDesignerCanvasOwner.adopt(
+                                        backend, session)));
+        List<Long> retryAttempts = new ArrayList<>();
+        List<Long> failureAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (attemptId, ignoredFailure) ->
+                                failureAttempts.add(attemptId));
+                design.componentOpened();
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.OPEN,
+                        design.editorShellCloseBarrierState(41));
+                design.beginEditorShellClose(41);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.PENDING,
+                    onEdt(() -> design.editorShellCloseBarrierState(41)));
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(1, session.preparePeerRemovalCalls);
+
+            onEdt(() -> {
+                retirement.complete(null);
+                return null;
+            });
+            onEdt(() -> null);
+
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                    onEdt(() -> design.editorShellCloseBarrierState(41)));
+            assertEquals(List.of(41L), retryAttempts,
+                    "the successful retirement must retry its owning attempt exactly once");
+            assertTrue(failureAttempts.isEmpty());
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void readyReplacementAttemptIsRescheduledAfterAStaleQueuedRetry()
+            throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        session.retirementAttempts.add(retirement);
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) ->
+                                FlutterDesignerCanvasOwner.adopt(
+                                        backend, session)));
+        List<Long> retryAttempts = new ArrayList<>();
+        List<Long> failureAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (attemptId, ignoredFailure) ->
+                                failureAttempts.add(attemptId));
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.PENDING,
+                        design.editorShellCloseBarrierState(41));
+
+                retirement.complete(null);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                        design.editorShellCloseBarrierState(41),
+                        "attempt 41 must enqueue its retry before it is abandoned");
+
+                design.abandonEditorShellClose(41);
+                design.beginEditorShellClose(42);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                        design.editorShellCloseBarrierState(42),
+                        "attempt 42 becomes ready while retry 41 is still queued");
+                assertTrue(retryAttempts.isEmpty(),
+                        "neither queued retry may execute inside the setup EDT event");
+                return null;
+            });
+
+            // A stale retry may enqueue the replacement retry behind the first
+            // flush event, so drain two EDT turns deterministically.
+            onEdt(() -> null);
+            onEdt(() -> null);
+
+            assertEquals(List.of(42L), retryAttempts,
+                    "the stale retry for 41 must hand off its wakeup to ready attempt 42");
+            assertTrue(failureAttempts.isEmpty());
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void abandonedEditorShellCloseNeverRetriesItsStaleAttempt()
+            throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        session.retirementAttempts.add(retirement);
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) ->
+                                FlutterDesignerCanvasOwner.adopt(
+                                        backend, session)));
+        List<Long> retryAttempts = new ArrayList<>();
+        List<Long> failureAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (attemptId, ignoredFailure) ->
+                                failureAttempts.add(attemptId));
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.PENDING,
+                        design.editorShellCloseBarrierState(41));
+                design.abandonEditorShellClose(41);
+                return null;
+            });
+
+            onEdt(() -> {
+                retirement.complete(null);
+                return null;
+            });
+            onEdt(() -> null);
+
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.OPEN,
+                    onEdt(() -> design.editorShellCloseBarrierState(41)));
+            assertTrue(retryAttempts.isEmpty(),
+                    "completion must not resurrect an abandoned close attempt");
+            assertTrue(failureAttempts.isEmpty());
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void failedEditorShellCloseReportsItsAttemptWithoutGrantingAStalePermit()
+            throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> failedRetirement = new CompletableFuture<>();
+        CompletableFuture<Void> recoveredRetirement = new CompletableFuture<>();
+        session.retirementAttempts.add(failedRetirement);
+        session.retirementAttempts.add(recoveredRetirement);
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) ->
+                                FlutterDesignerCanvasOwner.adopt(
+                                        backend, session)));
+        List<Long> retryAttempts = new ArrayList<>();
+        List<Long> failureAttempts = new ArrayList<>();
+        List<Throwable> failures = new ArrayList<>();
+        IOException retirementFailure = new IOException(
+                "simulated editor-shell retirement failure");
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (attemptId, failure) -> {
+                            failureAttempts.add(attemptId);
+                            failures.add(failure);
+                        });
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                return null;
+            });
+
+            onEdt(() -> {
+                failedRetirement.completeExceptionally(retirementFailure);
+                return null;
+            });
+            onEdt(() -> null);
+
+            assertTrue(retryAttempts.isEmpty(),
+                    "a failed retirement must not schedule a close retry");
+            assertEquals(List.of(41L), failureAttempts);
+            assertEquals(1, failures.size());
+            assertSame(retirementFailure, failures.get(0));
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.OPEN,
+                    onEdt(() -> design.editorShellCloseBarrierState(41)),
+                    "the failed attempt must not retain a ready permit");
+
+            onEdt(() -> {
+                design.beginEditorShellClose(42);
+                return null;
+            });
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.STALE,
+                    onEdt(() -> design.editorShellCloseBarrierState(41)),
+                    "the old token must not observe the replacement attempt's barrier");
+            assertEquals(
+                    FlutterDesignerEditorPerspective.CloseBarrierState.PENDING,
+                    onEdt(() -> design.editorShellCloseBarrierState(42)));
+            assertEquals(2, session.preparePeerRemovalCalls);
+
+            onEdt(() -> {
+                design.abandonEditorShellClose(42);
+                recoveredRetirement.complete(null);
+                return null;
+            });
+            onEdt(() -> null);
+            assertTrue(retryAttempts.isEmpty());
+            assertEquals(List.of(41L), failureAttempts);
+        } finally {
+            recoveredRetirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+    }
+
+    @Test
     void multiViewCloseGateBecomesReadyOnlyAfterComponentIsPeerSafe()
             throws Exception {
         assertCloseGateTransition(

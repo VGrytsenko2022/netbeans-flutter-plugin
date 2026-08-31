@@ -118,6 +118,37 @@ class PairSaveCoordinatorIntegrationTest {
     Path temporaryDirectory;
 
     @Test
+    void editorCloseRevisionTracksCleanExternalEventsAndSourceAba()
+            throws Exception {
+        TestPair pair = createPair("editor_close_revision");
+        PairSaveCoordinator.CloseRevision initial =
+                pair.coordinator().closeRevision();
+
+        assertFalse(pair.coordinator().handleFileEvent(
+                new FileEvent(pair.designerFile())),
+                "a clean external event is reloadable rather than suppressed");
+        PairSaveCoordinator.CloseRevision afterExternalEvent =
+                pair.coordinator().closeRevision();
+        assertEquals(initial.stateEpoch(), afterExternalEvent.stateEpoch(),
+                "a clean event deliberately has no presentation-state transition");
+        assertNotEquals(initial.externalEventEpoch(),
+                afterExternalEvent.externalEventEpoch());
+        assertFalse(initial.sameRevision(afterExternalEvent),
+                "the close permit must still observe the clean external event");
+
+        pair.coordinator().sourceBecameModified();
+        pair.coordinator().sourceBecameUnmodified();
+        PairSaveCoordinator.CloseRevision afterSourceAba =
+                pair.coordinator().closeRevision();
+        assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                pair.coordinator().state().status());
+        assertTrue(afterSourceAba.sourceStateEpoch()
+                        >= afterExternalEvent.sourceStateEpoch() + 2,
+                "modified then unmodified remains a visible monotonic ABA");
+        assertFalse(afterExternalEvent.sameRevision(afterSourceAba));
+    }
+
+    @Test
     void realDataObjectUsesOneSaveCookieForCookieAndDirectSourceSaves()
             throws Exception {
         TestPair pair = createPair("source_lifecycle");

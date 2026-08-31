@@ -475,16 +475,21 @@ visibility and interaction callbacks are fenced by the exact active owner epoch;
 rapid route requests coalesce and poisoned retirement remains retained for
 explicit Retry.
 
-An asynchronous close-handler foundation maps the MultiView Canvas close state
-to coordinator retirement, vetoes the current close stack, and schedules a fresh
-TopComponent close only after peer-safe completion while preserving ordinary
-Save/Discard/Cancel decisions. It is deliberately not installed in production
-by default while exact-Web selection remains off. NetBeans `Split Document` and
-`Clear Split` currently reparent or remove the AWT hierarchy directly without
-consulting `canCloseElement()`; closing a non-last clone also bypasses
-`closeLast()` and its handler. This foundation therefore cannot yet protect
-every physical peer-loss path. Production keeps every target on the existing
-native route. The
+The dormant plugin-owned editor shell now combines document and Canvas close
+admission instead of relying on the MultiView handler alone. A support-owned
+reservation excludes clone construction and sibling closes, captures exact
+clone identities plus the live document version and one atomic pair revision
+(coordinator identity, state epoch, external-event epoch and Source-state
+epoch), asks dirty last-clone
+Save/Discard/Cancel before retirement, and carries one token through Canvas
+completion and `closeLast(false)`. Stale/failing callbacks revoke the permit and
+successful authority remains held through `componentClosed()`; the stock
+synchronous CloseCookie batch fails closed. It is deliberately not installed
+in production by default while exact-Web selection remains off. Runtime parity,
+restart reconstruction, and Canvas rebuild after an edit invalidates pending
+retirement remain open. NetBeans `Split Document` and `Clear Split` are excluded
+by the shell rather than exposed as unguarded reparent paths. Production keeps
+every target on the existing native route. The
 internal exact-Web selector branch never silently substitutes the native engine,
 but it is routing preparation rather than Web product admission.
 Web input acceptance is English-only; physical CJK IME and other language-

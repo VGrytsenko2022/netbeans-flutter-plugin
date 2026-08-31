@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
@@ -180,7 +181,10 @@ public final class FlutterDesignerMultiViewDesign
     private final FlutterDesignerCanvasOwnerCoordinator canvasOwnerCoordinator;
     private FlutterDesignerCanvasOwner canvasOwner;
     private MultiViewElementCallback multiViewCallback;
-    private Runnable editorShellCloseRetryRequest;
+    private Runnable legacyEditorShellCloseRetryRequest;
+    private LongConsumer editorShellCloseRetryRequest;
+    private BiConsumer<Long, Throwable> editorShellCloseFailureRequest;
+    private long editorShellCloseAttemptId = -1;
     private final PropertyChangeListener permanentFocusOwnerListener =
             this::permanentFocusOwnerChanged;
     private final AWTEventListener swingInputFocusListener =
@@ -634,6 +638,7 @@ public final class FlutterDesignerMultiViewDesign
                      + ". The owner remains retained and no replacement is "
                      + "installed; use Retry before switching backend or "
                      + "closing the view."));
+            notifyEditorShellCloseFailure(failure);
         }
 
         @Override
@@ -1893,7 +1898,10 @@ public final class FlutterDesignerMultiViewDesign
         MultiViewElementCallback admitted = Objects.requireNonNull(
                 callback, "callback");
         multiViewCallback = admitted;
+        legacyEditorShellCloseRetryRequest = null;
         editorShellCloseRetryRequest = null;
+        editorShellCloseFailureRequest = null;
+        editorShellCloseAttemptId = -1;
     }
 
     /**
@@ -1901,9 +1909,76 @@ public final class FlutterDesignerMultiViewDesign
      * to construct NetBeans' package-private MultiView callback.
      */
     void setEditorShellCloseRetryRequest(Runnable retryRequest) {
+        legacyEditorShellCloseRetryRequest = Objects.requireNonNull(
+                retryRequest, "retryRequest");
+        editorShellCloseRetryRequest = null;
+        editorShellCloseFailureRequest = null;
+        editorShellCloseAttemptId = -1;
+        multiViewCallback = null;
+    }
+
+    void setEditorShellCloseCallbacks(
+            LongConsumer retryRequest,
+            BiConsumer<Long, Throwable> failureRequest) {
         editorShellCloseRetryRequest = Objects.requireNonNull(
                 retryRequest, "retryRequest");
+        editorShellCloseFailureRequest = Objects.requireNonNull(
+                failureRequest, "failureRequest");
+        legacyEditorShellCloseRetryRequest = null;
+        editorShellCloseAttemptId = -1;
         multiViewCallback = null;
+    }
+
+    FlutterDesignerEditorPerspective.CloseBarrierState
+            editorShellCloseBarrierState(long attemptId) {
+        requireEditorShellCloseAttemptId(attemptId);
+        if (!componentLifecycleOpen || !canvasBackendSelector.exactWebEnabled()) {
+            return FlutterDesignerEditorPerspective.CloseBarrierState.NOT_REQUIRED;
+        }
+        if (editorShellCloseAttemptId < 0) {
+            return FlutterDesignerEditorPerspective.CloseBarrierState.OPEN;
+        }
+        if (editorShellCloseAttemptId != attemptId) {
+            return FlutterDesignerEditorPerspective.CloseBarrierState.STALE;
+        }
+        return switch (canvasCloseGateState) {
+            case READY_SAVE, READY_DISCARD ->
+                FlutterDesignerEditorPerspective.CloseBarrierState.READY;
+            case OPEN, RETIRING ->
+                FlutterDesignerEditorPerspective.CloseBarrierState.PENDING;
+        };
+    }
+
+    void beginEditorShellClose(long attemptId) {
+        requireEditorShellCloseAttemptId(attemptId);
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            throw new IllegalStateException(
+                    "Designer editor close must begin on the Event Dispatch Thread");
+        }
+        if (!componentLifecycleOpen || !canvasBackendSelector.exactWebEnabled()) {
+            return;
+        }
+        if (editorShellCloseAttemptId < 0) {
+            editorShellCloseAttemptId = attemptId;
+        } else if (editorShellCloseAttemptId != attemptId) {
+            throw new IllegalStateException(
+                    "Another Designer editor close attempt owns the Canvas barrier");
+        }
+        beginCanvasClose(false);
+    }
+
+    void abandonEditorShellClose(long attemptId) {
+        requireEditorShellCloseAttemptId(attemptId);
+        if (editorShellCloseAttemptId == attemptId) {
+            editorShellCloseAttemptId = -1;
+        }
+    }
+
+    private static void requireEditorShellCloseAttemptId(long attemptId) {
+        if (attemptId <= 0) {
+            throw new IllegalArgumentException(
+                    "Designer editor close attempt id must be positive");
+        }
     }
 
     @Override
@@ -1969,6 +2044,10 @@ public final class FlutterDesignerMultiViewDesign
             // its serial queue on a transient executor rejection, so a fresh
             // close action is the explicit recovery signal that reschedules
             // that retained work.
+            if (canvasOwnerCoordinator.phase()
+                    == FlutterDesignerCanvasOwnerCoordinator.Phase.POISONED) {
+                canvasOwnerCoordinator.retryTransition();
+            }
             close = canvasOwnerCoordinator.closeAsync();
         } catch (RuntimeException | LinkageError failure) {
             canvasCloseCompleted(failure);
@@ -1991,6 +2070,7 @@ public final class FlutterDesignerMultiViewDesign
                     "Flutter Designer Canvas release failed.",
                     "Operation: close Flutter Designer view. Target: "
                     + modelName + ". Reason: " + failureReason(terminal) + "."));
+            notifyEditorShellCloseFailure(terminal);
             return;
         }
         canvasCloseGateState = canvasCloseDiscardAuthorized
@@ -2003,9 +2083,11 @@ public final class FlutterDesignerMultiViewDesign
         if (canvasCloseRetryScheduled || !componentLifecycleOpen) {
             return;
         }
-        Runnable retryRequest = editorShellCloseRetryRequest;
+        LongConsumer retryRequest = editorShellCloseRetryRequest;
+        Runnable legacyRetryRequest = legacyEditorShellCloseRetryRequest;
+        long attemptId = editorShellCloseAttemptId;
         MultiViewElementCallback callback = multiViewCallback;
-        if (retryRequest == null && callback == null) {
+        if (retryRequest == null && legacyRetryRequest == null && callback == null) {
             return;
         }
         canvasCloseRetryScheduled = true;
@@ -2015,13 +2097,56 @@ public final class FlutterDesignerMultiViewDesign
                 return;
             }
             if (retryRequest != null
-                    && editorShellCloseRetryRequest == retryRequest) {
-                retryRequest.run();
+                    && attemptId > 0
+                    && editorShellCloseRetryRequest == retryRequest
+                    && editorShellCloseAttemptId == attemptId) {
+                retryRequest.accept(attemptId);
             } else if (retryRequest == null
+                    && legacyRetryRequest != null
+                    && legacyEditorShellCloseRetryRequest == legacyRetryRequest) {
+                legacyRetryRequest.run();
+            } else if (retryRequest == null
+                    && legacyRetryRequest == null
                     && multiViewCallback == callback) {
                 callback.getTopComponent().close();
+            } else if (canvasCloseGateState == CanvasCloseGateState.READY_SAVE
+                    || canvasCloseGateState
+                            == CanvasCloseGateState.READY_DISCARD) {
+                // The queued wakeup belongs to an attempt that was abandoned
+                // or whose callback was replaced.  A newer token may already
+                // own the same peer-safe Canvas barrier.  Hand the wakeup to
+                // that exact current owner instead of letting the stale event
+                // consume the single scheduling bit.  Do not reschedule an
+                // abandoned tokenized route with no current attempt: that
+                // would spin the EDT forever while the barrier remains ready.
+                boolean currentRetryAvailable =
+                        editorShellCloseRetryRequest != null
+                                ? editorShellCloseAttemptId > 0
+                                : legacyEditorShellCloseRetryRequest != null
+                                || multiViewCallback != null;
+                if (currentRetryAvailable) {
+                    scheduleCanvasCloseRetry();
+                }
             }
         });
+    }
+
+    private void notifyEditorShellCloseFailure(Throwable failure) {
+        long attemptId = editorShellCloseAttemptId;
+        BiConsumer<Long, Throwable> failureRequest =
+                editorShellCloseFailureRequest;
+        if (attemptId <= 0 || failureRequest == null) {
+            return;
+        }
+        editorShellCloseAttemptId = -1;
+        try {
+            failureRequest.accept(attemptId, Objects.requireNonNull(
+                    failure, "failure"));
+        } catch (RuntimeException | LinkageError callbackFailure) {
+            LOGGER.log(Level.WARNING,
+                    "Designer editor close-failure callback failed",
+                    callbackFailure);
+        }
     }
 
     @Override

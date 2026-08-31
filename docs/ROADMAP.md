@@ -437,17 +437,24 @@ accepted architecture is documented in
       The foundation is product-disabled and `PERSISTENCE_NEVER` until the
       gates below prove behavior rather than trading peer safety for editor
       regressions.
+    - [x] Add the dormant shell-owned asynchronous close permit. One
+      support-level reservation serializes clone construction and every close,
+      binds the exact clone identities plus live-document version and one
+      atomic pair coordinator/state/external-event/Source-state revision,
+      resolves the dirty last-clone Save/Discard/Cancel decision before
+      Canvas retirement, and carries one attempt token through retirement,
+      retry and `closeLast(false)`. Stale retries and failed retirement revoke
+      authority; successful authority remains reserved through
+      `componentClosed()`. The stock synchronous CloseCookie batch fails closed
+      while a dedicated shell is open.
     - [ ] Prove the dedicated shell's Source/Save/Undo/navigation, clone-local
       Canvas ownership, platform History/action parity and restart
-      reconstruction in the NetBeans runtime suite. Then add a shell-owned,
-      clone-topology- and document-epoch-bound asynchronous close permit before
-      changing its product gate or persistence policy. The permit must acquire
-      the dirty last-clone Save/Discard/Cancel decision before irreversible
-      Canvas retirement, so Cancel cannot leave an open editor with a dead
-      Canvas. Runtime acceptance must also cover programmatic mode movement;
-      the dormant shell disables tab dragging, undocking, sliding,
-      maximization and drag-copy because those stock UI paths can reparent the
-      AWT subtree without consulting `canClose()`.
+      reconstruction in the NetBeans runtime suite before changing its product
+      gate or persistence policy. Runtime acceptance must include recovery when
+      the document changes while Canvas retirement is pending, plus
+      programmatic mode movement. The dormant shell disables tab dragging,
+      undocking, sliding, maximization and drag-copy because those stock UI
+      paths can reparent the AWT subtree without consulting `canClose()`.
     - [ ] Add a proven peer-removal gate for every NetBeans path outside the
       last-clone close handler. `Split Document`/`Clear Split` directly reparent
       or remove the heavyweight AWT hierarchy without consulting

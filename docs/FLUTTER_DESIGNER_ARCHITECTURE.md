@@ -1697,26 +1697,49 @@ path is a dedicated CES `CloneableEditor` shell. Its dormant foundation wraps
 the one Source editor component in an explicit Design/Source switcher, forwards
 the existing Design lifecycle, keeps the CES clone group, and exposes no
 internal `Splitable` contract. It now owns a support-wide close reservation:
-clone creation and close admission are mutually exclusive, the exact clone
-identities, live document version and atomic pair coordinator/state/external-
-event/Source-state revision bind a one-shot permit, and a positive
-attempt token follows Canvas retirement, failure, retry and final
-`closeLast(false)`. The dirty last-clone Save/Discard/Cancel decision therefore
-precedes irreversible retirement and is never asked twice; stale or failed
-attempts cannot authorize a later close. The permit is released only after
-`componentClosed()`, while the incompatible synchronous CloseCookie batch is
-rejected before it can partially retire clones. When a document revision makes
+clone creation and ordinary close admission are mutually exclusive. One
+`CloseCookie`/shell-owned Close All batch asks Save/Discard/Cancel exactly once
+and then
+captures the exact clone topology, live document version and atomic pair
+coordinator/state/external-event/Source-state revision. It issues one exact
+owner permit at a time, retires that clone-local Canvas and reaches
+`componentClosed()` before dispatching the next owner. Topology or revision
+drift and retirement failure abort fail-closed. The synchronous entry point
+returns `false` while this sequence completes asynchronously instead of
+claiming early success. Each open shell incarnation has a unique stamp. A
+sibling lifecycle change may finish only the exact already-admitted physical
+cleanup and then abort the batch; same-owner close/reopen ABA invalidates the
+old permit and cannot remove the new incarnation. After NetBeans unregisters
+the clone, the permit binds its exact post-admission topology and document/pair
+revision. The final internal support close is authorized and acknowledged only
+when exact pre/post snapshots match and `close(false)` actually succeeds. When
+a document revision makes
 an in-flight close stale, the shell abandons that permit, waits for the captured
 owner coordinator to finish and rebuilds Canvas through a fresh coordinator
 generation. The owner factory, active owner, observer and close completion are
 generation-fenced, and the latest requested backend is retained. The shell
 permanently sets `TopComponent.PROP_CLOSING_DISABLED` and exposes a shell-owned
 permit-aware Close action, so RELEASE300 `Close Mode` cannot directly remove
-the shell. It deliberately uses `PERSISTENCE_NEVER` and is not selected by
-`createPane()` in production. Support-wide `editor.close()` integration for
-Rename/Delete/Move/Close All, platform History/action and restart/runtime
-parity, exact-Web product binding, and physical NetBeans acceptance remain
-mandatory before the shell or exact-Web selector may be enabled. `New Tab
+the shell. Since that latch also makes the stock global Close All skip the
+component, the shell exposes a permit-aware Close All action backed by the same
+support batch. It deliberately uses `PERSISTENCE_NEVER` and is not selected by
+`createPane()` in production. Pair-aware node Rename, Delete and Cut-Move now
+acquire an operation-owned pair lease before starting the support close. The
+support reservation remains active after the final exact
+`componentClosed()`; only its identity-bound one-shot proof can dispatch the
+matching operation callback off the EDT. That callback claims the same lease
+and replays the existing synchronous operation once. Rename and Delete invoke
+the real `DataObject` operation, preserving NetBeans events and binding updates,
+while Cut-Move reuses the paired move transaction. An exact `CutSession` blocks
+duplicate paste and clears only the still-current clipboard value after commit;
+cancel or failure leaves it retryable. Cancel, topology/revision drift,
+foreign/stale/reused proof, close failure and operation failure are
+mutation-free and release the close and pair reservations. The legacy
+synchronous entry point refuses a dedicated shell rather than reporting an
+asynchronous close as success. Platform Source/History/action and
+restart/runtime parity, exact-Web product binding, and physical NetBeans
+acceptance remain mandatory before the shell or exact-Web selector may be
+enabled. `New Tab
 Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
@@ -1797,14 +1820,14 @@ Implementation proceeds through explicit gates:
     Close-Mode-safe asynchronous close foundation complete; product gates
     pending] Keep the browser entry point, exact-view
     multi-view root and nonce-, sequence- and size-fenced JavaScript/Dart
-    transport on the existing bounded NBFC/model protocol. Next integrate the
-    dedicated shell with support-wide `editor.close()` callers used by
-    Rename/Delete/Move/Close All and resolve the `New Tab Group`, `Collapse Tab
+    transport on the existing bounded NBFC/model protocol. The support-wide
+    Close All batch and operation-owned, exact-proof Rename/Delete/Cut-Move
+    continuations are complete. Next resolve the `New Tab Group`, `Collapse Tab
     Group`, public `Mode.dockInto()` and direct post-removal paths that can still
     change the heavyweight AWT hierarchy without the asynchronous permit. Then
-    product-bind exact Web and pass restart/runtime plus assembled Windows
-    physical readiness, interaction and teardown. The standalone host, internal
-    route and close handler do not authorize the product route.
+    product-bind exact Web and pass Source/History/restart/runtime plus assembled
+    Windows physical readiness, interaction and teardown. The standalone host,
+    internal route and close handler do not authorize the product route.
 11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
     Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 12. Admit every further built-in only as a complete capability-gated vertical
@@ -1846,12 +1869,16 @@ infrastructure.
    tested. The coordinator now owns assembled MultiView component replacement,
    epoch fencing, poisoned-transition Retry and fresh-generation Canvas rebuild
    after an abandoned stale close. The dedicated shell permanently disables
-   stock `Close Mode` and owns the permit-aware Close action. Production routing
-   remains off because support-wide `editor.close()` callers and `New Tab Group`,
-   `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal paths
-   are not yet covered by one asynchronous permit. Exact-Web product binding,
-   restart/runtime parity and the physical gate also remain pending alongside
-   the Linux/macOS native-surface providers.
+   stock `Close Mode` and owns the permit-aware Close action. One exact-topology,
+   exact-revision Close All batch now asks Save/Discard/Cancel once and retires
+   clone-local Canvases sequentially. Pair-aware Rename, Delete and Cut-Move now
+   retain that reservation through one exact-proof, off-EDT continuation and
+   re-enter the existing synchronous operation under the matching pair lease.
+   Production routing remains off because `New Tab Group`, `Collapse Tab Group`,
+   public `Mode.dockInto()` and direct post-removal paths are not yet covered by
+   one asynchronous permit. Exact-Web product binding,
+   Source/History/restart/runtime parity and the physical gate also remain
+   pending alongside the Linux/macOS native-surface providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

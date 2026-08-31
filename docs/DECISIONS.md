@@ -377,13 +377,22 @@ shell is therefore the supported plugin-only direction. Its dormant foundation
 reuses CES' sole Source pane, manually brackets the Design lifecycle, preserves
 clone grouping, supplies a tokenized shell close-retry host and does not
 implement internal `Splitable`. A support-owned reservation now makes clone
-construction and close mutually exclusive, binds one permit to exact clone and
-document revision plus one atomic pair identity/state/external-event/Source-
-state revision, resolves dirty last-clone Save/Discard/Cancel before
-Canvas retirement, and consumes that authority through `closeLast(false)`
-without a second prompt. Failure or stale callbacks revoke the attempt, while a
-successful permit remains held through `componentClosed()`. The stock
-synchronous CloseCookie batch fails closed while a dedicated shell is open.
+construction and ordinary close mutually exclusive. The completed support-wide
+`CloseCookie`/shell-owned Close All batch resolves Save/Discard/Cancel exactly
+once, then
+binds the exact clone topology and post-decision live-document revision plus one
+atomic pair identity/state/external-event/Source-state revision. It issues one
+exact permit at a time, retires each clone-local Canvas sequentially and closes
+that owner before dispatching the next. Failure, topology drift or revision
+drift abort fail-closed, while successful authority remains held through each
+`componentClosed()`. Because completion is asynchronous, the initiating
+synchronous `CloseCookie` API returns `false` instead of reporting early
+success. A unique per-open shell stamp separates harmless sibling lifecycle
+drift from same-owner close/reopen ABA: the former may finish only the already
+admitted physical cleanup, while the latter revokes the old authority without
+touching the reopened shell. The irreversible post-`Ref.unregister` snapshot is
+bound explicitly, and the final internal `close(false)` must match exact
+pre/post topology and document/pair revisions and acknowledge actual success.
 The shell remains production-disabled and `PERSISTENCE_NEVER`; exact Web stays
 off. An abandoned or stale close now waits for the captured Canvas-owner
 coordinator to reach a safe terminal state and then rebuilds Canvas through a
@@ -392,9 +401,22 @@ callbacks are generation-fenced, and the latest requested backend survives the
 rebuild. The shell also permanently sets
 `TopComponent.PROP_CLOSING_DISABLED` and supplies its own permit-aware Close
 action, which closes the RELEASE300 `Close Mode` bypass without weakening the
-asynchronous permit. This does not authorize the product route: support-wide
-`editor.close()` callers used by Rename/Delete/Move/Close All still conflict
-with an open shell, and `New Tab Group`, `Collapse Tab Group`, public
+asynchronous permit. The same latch makes NetBeans' stock global Close All skip
+the shell, so the shell contributes its own support-batch action. This does not
+authorize the product route. Pair-aware node Rename, Delete and Cut-Move now
+reserve an operation-owned pair lease before asynchronous shell retirement.
+After the final exact `componentClosed()`, the support reservation remains held
+while one identity-bound, one-shot proof dispatches the operation callback off
+the EDT. The callback must claim that exact proof and lease before replaying the
+existing synchronous operation once. Rename and Delete re-enter the real
+`DataObject` contract, preserving ordinary NetBeans events and binding updates;
+Cut-Move re-enters the existing paired move transaction. Its exact `CutSession`
+blocks duplicate paste, clears only the still-current clipboard value after
+commit, and becomes retryable after cancellation or failure. Cancellation,
+topology or revision drift, stale/foreign/reused proof and close or operation
+failure are mutation-free and release both reservations. Direct synchronous
+pair-path admission fails closed while a dedicated shell exists. `New Tab
+Group`, `Collapse Tab Group`, public
 `Mode.dockInto()` and direct post-removal callbacks still lack a universal
 plugin-side asynchronous veto. Exact-Web product binding, restart/runtime
 parity and physical NetBeans acceptance also remain open. A dormant shell is
@@ -402,9 +424,9 @@ evidence for the path forward, not authorization to remove the stock MultiView.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.
-Product routing remains disabled until those support-wide close and
-reparent/post-removal bypasses are closed, exact Web is product-bound, and the
-restart/runtime and assembled physical acceptance matrices pass.
+Product routing remains disabled until the reparent/post-removal bypasses are
+closed, exact Web is product-bound, Source/History/restart/runtime parity is
+proven, and the assembled physical acceptance matrices pass.
 Current Web input acceptance is English-only; physical CJK IME and other
 language-specific input remain deferred to the final internationalization phase.
 The platform-neutral SPI, completed broader Windows acceptance matrix,

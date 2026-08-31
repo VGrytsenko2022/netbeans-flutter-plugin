@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -12,6 +13,7 @@ import dev.flutter.netbeans.plugin.ui.FlutterFileIcons;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -204,6 +206,85 @@ class FlutterDesignerPairedFileNodeTest {
         assertTrue(failure.getMessage().contains("home.dart"));
     }
 
+    @Test
+    void ordinaryNodeRenameRemainsSynchronousWhenNoDedicatedShellExists()
+            throws Exception {
+        NodeFixture fixture = fixture();
+        Node node = node(
+                fixture.member(),
+                new RecordingPairCopy(fixture.sourceFolder()));
+
+        node.setName("renamed_home");
+
+        assertEquals("renamed_home", node.getName());
+        assertEquals("renamed_home.dart",
+                node.getLookup().lookup(DataObject.class)
+                        .getPrimaryFile().getNameExt());
+        assertNull(fixture.sourceFolder().getFileObject("home.dart"));
+        assertNotNull(fixture.sourceFolder().getFileObject(
+                "renamed_home.dart"));
+    }
+
+    @Test
+    void ordinaryNodeDeleteRemainsSynchronousWhenNoDedicatedShellExists()
+            throws Exception {
+        NodeFixture fixture = fixture();
+        Node node = node(
+                fixture.member(),
+                new RecordingPairCopy(fixture.sourceFolder()));
+
+        node.destroy();
+
+        assertFalse(fixture.member().isValid());
+        assertNull(fixture.sourceFolder().getFileObject("home.dart"));
+    }
+
+    @Test
+    void cutSessionRejectsDuplicatesRetriesBeforeCommitAndThenStaysClosed()
+            throws Exception {
+        NodeFixture fixture = fixture();
+        Node node = node(
+                fixture.member(),
+                new RecordingPairCopy(fixture.sourceFolder()),
+                new RecordingPairMove(fixture.invalidFolder()));
+        Object session = cutSession(node.clipboardCut());
+        Method begin = session.getClass().getDeclaredMethod("begin");
+        Method retry = session.getClass().getDeclaredMethod("retry");
+        Method commit = session.getClass().getDeclaredMethod("commit");
+        begin.setAccessible(true);
+        retry.setAccessible(true);
+        commit.setAccessible(true);
+
+        assertTrue((Boolean) begin.invoke(session));
+        assertFalse((Boolean) begin.invoke(session),
+                "a pending Cut must not start a duplicate Move");
+
+        retry.invoke(session);
+        assertTrue((Boolean) begin.invoke(session),
+                "a rejected asynchronous Move must leave the Cut retryable");
+
+        commit.invoke(session);
+        retry.invoke(session);
+        assertFalse((Boolean) begin.invoke(session),
+                "a committed Cut must remain one-shot even after retry()");
+    }
+
+    @Test
+    void everyCutTransferCarriesAnExactDistinctSessionIdentity()
+            throws Exception {
+        NodeFixture fixture = fixture();
+        Node node = node(
+                fixture.member(),
+                new RecordingPairCopy(fixture.sourceFolder()),
+                new RecordingPairMove(fixture.invalidFolder()));
+
+        Object first = cutSession(node.clipboardCut());
+        Object second = cutSession(node.clipboardCut());
+
+        assertNotSame(first, second,
+                "clipboard cleanup must be scoped to the exact Cut transfer");
+    }
+
     private NodeFixture fixture() throws Exception {
         Path sourcePath = temporaryDirectory.resolve("source");
         Path invalidPath = temporaryDirectory.resolve("invalid");
@@ -253,6 +334,19 @@ class FlutterDesignerPairedFileNodeTest {
         } catch (ClassNotFoundException impossible) {
             throw new AssertionError(impossible);
         }
+    }
+
+    private static Object cutSession(Transferable transferable)
+            throws Exception {
+        DataFlavor sessionFlavor = Arrays.stream(
+                        transferable.getTransferDataFlavors())
+                .filter(flavor -> flavor.getRepresentationClass()
+                        .getName().equals(
+                                FlutterDesignerPairedFileNode.class.getName()
+                                + "$CutSession"))
+                .findFirst()
+                .orElseThrow();
+        return transferable.getTransferData(sessionFlavor);
     }
 
     private record NodeFixture(

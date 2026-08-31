@@ -476,25 +476,51 @@ rapid route requests coalesce and poisoned retirement remains retained for
 explicit Retry.
 
 The dormant plugin-owned editor shell now combines document and Canvas close
-admission instead of relying on the MultiView handler alone. A support-owned
-reservation excludes clone construction and sibling closes, captures exact
-clone identities plus the live document version and one atomic pair revision
-(coordinator identity, state epoch, external-event epoch and Source-state
-epoch), asks dirty last-clone
-Save/Discard/Cancel before retirement, and carries one token through Canvas
-completion and `closeLast(false)`. Stale/failing callbacks revoke the permit and
-successful authority remains held through `componentClosed()`; the stock
-synchronous CloseCookie batch fails closed. If the document changes while
+admission instead of relying on the MultiView handler alone. Its support-wide
+`CloseCookie`/shell-owned Close All batch asks dirty-document
+Save/Discard/Cancel exactly
+once, then captures the exact clone topology plus the post-decision live
+document version and atomic pair revision (coordinator identity, state epoch,
+external-event epoch and Source-state epoch). Clone creation and ordinary close
+admission remain excluded while exact per-owner permits retire every
+clone-local Canvas sequentially and only then close that owner. Topology or
+revision drift and retirement failure abort fail-closed; the initiating
+synchronous API returns `false` instead of claiming completion while the batch
+is asynchronous. Every physical shell incarnation has a unique identity stamp:
+sibling lifecycle drift still permits cleanup of an already-admitted exact
+owner, but cannot advance the batch, while close/reopen ABA of that same owner
+invalidates the old permit without removing the new incarnation. After
+NetBeans unregisters an admitted clone, retries bind the exact post-admission
+topology and document/pair revision. The final internal `close(false)` is fenced
+by matching pre/post snapshots and an explicit successful-result
+acknowledgement. Successful authority remains held through each
+`componentClosed()`. If the document changes while
 retirement is pending, abandoning the stale close now waits for the captured
 owner coordinator to finish, then rebuilds Canvas through a fresh coordinator
 generation. Factory, owner, observer and close-completion callbacks are fenced
 by that generation, and the latest requested backend is retained for the
 replacement. The shell permanently sets `TopComponent.PROP_CLOSING_DISABLED`
 and owns a permit-aware Close action, so RELEASE300 `Close Mode` cannot bypass
-the asynchronous close protocol. It is deliberately not installed in
-production by default while exact-Web selection remains off. Support-wide
-`editor.close()` callers used by Rename/Delete/Move/Close All, product exact-Web
-binding, History/action and restart/runtime parity remain open. NetBeans
+the asynchronous close protocol. Because that permanent latch also makes the
+stock global Close All skip the shell, a shell-owned Close All action invokes
+the support batch explicitly. It is deliberately not installed in
+production by default while exact-Web selection remains off. Pair-aware node
+Rename, Delete and Cut-Move now reserve an operation-owned pair lease before
+requesting the support close. After the final exact shell reaches
+`componentClosed()`, the close reservation is retained while one unforgeable,
+one-shot post-close proof transfers authority to a callback off the EDT. That
+callback claims the matching lease and invokes the existing synchronous pair
+operation exactly once; Rename and Delete therefore retain NetBeans'
+`DataObject` events and binding behavior instead of introducing a second
+filesystem path. Cut-Move keeps an exact clipboard `CutSession`, prevents a
+duplicate paste while pending and clears only that same clipboard value after a
+committed Move. Cancel, topology/revision drift, a foreign or reused proof,
+close failure and operation failure release their reservations without applying
+the requested path mutation; a failed/cancelled Move remains retryable on the
+clipboard. Direct synchronous pair-path callers fail closed when a dedicated
+shell is present and cannot mistake asynchronous retirement for success.
+Product exact-Web binding, History/action and restart/runtime parity remain
+open. NetBeans
 `New Tab Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct
 post-removal callbacks can still move or remove the hierarchy without a
 universal plugin-side asynchronous pre-removal veto. Production therefore keeps

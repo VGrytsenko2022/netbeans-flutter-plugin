@@ -79,6 +79,10 @@ final class FlutterDesignerPairRename {
         return DEFAULT.renameMember(member, targetStem);
     }
 
+    static String validateTargetStem(String targetStem) {
+        return requireTargetStem(targetStem);
+    }
+
     boolean canRename(FileObject member) {
         Optional<FlutterDesignerPairLayout.Pair> resolved =
                 FlutterDesignerPairLayout.findCompletePair(member);

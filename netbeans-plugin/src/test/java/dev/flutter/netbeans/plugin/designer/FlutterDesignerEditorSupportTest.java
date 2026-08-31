@@ -71,6 +71,7 @@ import org.openide.filesystems.FileUtil;
 import org.openide.loaders.SaveAsCapable;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.DataEditorSupport;
+import org.openide.windows.CloneableOpenSupport;
 import org.openide.windows.CloneableTopComponent;
 
 /** Structural contract for the designer-specific source editor support. */
@@ -229,6 +230,14 @@ class FlutterDesignerEditorSupportTest {
                 component.getClientProperty(CloneableTopComponent.PROP_CLOSING_DISABLED),
                 "Close Mode must not bypass the shell's exact canClose permit");
         assertSafeCloseContract((FlutterDesignerCloneableEditor) component);
+        assertEquals(1L, Arrays.stream(component.getActionMap().allKeys())
+                .map(component.getActionMap()::get)
+                .filter(Objects::nonNull)
+                .filter(action -> "Close All Flutter Designer Views".equals(
+                        action.getValue(Action.NAME)))
+                .count(),
+                "the permanent Close-Mode latch requires one shell-owned "
+                + "support-wide Close All action");
         assertSame(dataObject,
                 component.getLookup().lookup(FlutterDesignerDataObject.class));
         assertSame(component.getActionMap(),
@@ -278,6 +287,346 @@ class FlutterDesignerEditorSupportTest {
                 + "still consults the exact canClose permit");
         assertEquals(Boolean.TRUE, component.getClientProperty(
                 CloneableTopComponent.PROP_CLOSING_DISABLED));
+    }
+
+    @Test
+    void supportCloseRetiresDedicatedShellWithoutClaimingEarlySuccess()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("dedicated_batch_close");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor first =
+                (FlutterDesignerCloneableEditor) onEdt(() ->
+                        editor.createDedicatedCloneComponent());
+        onEdt(() -> null);
+        Boolean immediateClose = onEdt(() -> {
+            first.open();
+            assertTrue(first.isOpened());
+            assertEquals(1, editor.editorClosePermits().lifecycleShellCount(),
+                    "componentOpened must register the dedicated support-close gate");
+            return Boolean.valueOf(editor.close());
+        });
+        assertFalse(immediateClose.booleanValue(),
+                "CloseCookie cannot report synchronous success while a "
+                + "support-owned peer-safe batch is still completing");
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        boolean closed = false;
+        while (System.nanoTime() < deadline) {
+            closed = onEdt(() -> Boolean.valueOf(
+                    !first.isOpened()));
+            if (closed) {
+                break;
+            }
+            Thread.sleep(10);
+        }
+        assertTrue(closed,
+                "the admitted batch must eventually retire and close its shell");
+        assertTrue(editor.editorClosePermits().cloneCreationAllowed(),
+                "the final componentClosed callback must release the batch reservation");
+    }
+
+    @Test
+    void postCloseOperationWaitsForFinalShellAndRetainsCloneReservation()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("post_close_operation");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor first =
+                createRegisteredDedicatedShell(editor);
+        FlutterDesignerCloneableEditor second =
+                (FlutterDesignerCloneableEditor) onEdt(
+                        first::cloneTopComponent);
+        onEdt(() -> null);
+        onEdt(() -> {
+            first.open();
+            second.open();
+            return null;
+        });
+        assertEquals(2, editor.editorClosePermits().lifecycleShellCount());
+        FlutterDesignerEditorClosePermitCoordinator.CloneTopology topology =
+                editorCloneTopology(editor);
+        assertEquals(2, topology.size());
+        assertTrue(topology.containsIdentity(first));
+        assertTrue(topology.containsIdentity(second));
+
+        CountDownLatch actionStarted = new CountDownLatch(1);
+        CountDownLatch releaseAction = new CountDownLatch(1);
+        AtomicInteger actionCount = new AtomicInteger();
+        AtomicBoolean actionRanOnEdt = new AtomicBoolean(true);
+        AtomicInteger shellCountAtAction = new AtomicInteger(-1);
+        AtomicBoolean cloneAllowedAtAction = new AtomicBoolean(true);
+        var completion = onEdt(() -> editor.requestPostCloseOperation(
+                "Rename Flutter Designer pair",
+                "home_page.fd",
+                proof -> {
+                    actionCount.incrementAndGet();
+                    actionRanOnEdt.set(EventQueue.isDispatchThread());
+                    shellCountAtAction.set(
+                            editor.editorClosePermits().lifecycleShellCount());
+                    cloneAllowedAtAction.set(
+                            editor.editorClosePermits().cloneCreationAllowed());
+                    actionStarted.countDown();
+                    if (!releaseAction.await(3, TimeUnit.SECONDS)) {
+                        throw new IOException(
+                                "timed out waiting to release the synthetic operation");
+                    }
+                    return "renamed";
+                }));
+
+        assertTrue(actionStarted.await(3, TimeUnit.SECONDS),
+                "the post-close operation must eventually start");
+        assertEquals(0, shellCountAtAction.get(),
+                "the callback must not run before the final componentClosed callback");
+        assertFalse(actionRanOnEdt.get(),
+                "filesystem continuations must never run on the EDT");
+        assertFalse(cloneAllowedAtAction.get(),
+                "the exact post-close reservation must outlive componentClosed");
+        assertFalse(onEdt(() -> Boolean.valueOf(first.isOpened()))
+                .booleanValue());
+        assertFalse(onEdt(() -> Boolean.valueOf(second.isOpened()))
+                .booleanValue());
+        assertThrows(IllegalStateException.class,
+                () -> onEdt(editor::createDedicatedCloneComponent),
+                "clone creation must remain blocked while the callback owns its proof");
+
+        releaseAction.countDown();
+        FlutterDesignerEditorSupport.PostCloseOutcome<String> outcome =
+                completion.toCompletableFuture().get(3, TimeUnit.SECONDS);
+        assertTrue(outcome.succeeded());
+        assertEquals(FlutterDesignerEditorSupport.PostCloseStatus.SUCCEEDED,
+                outcome.status());
+        assertEquals("renamed", outcome.value());
+        assertNull(outcome.reason());
+        assertEquals(1, actionCount.get(),
+                "one admitted request must invoke its callback exactly once");
+        assertTrue(editor.editorClosePermits().cloneCreationAllowed(),
+                "completion must release the exact clone reservation");
+
+        assertNotNull(onEdt(editor::createDedicatedCloneComponent),
+                "clone creation must work again after completion");
+        onEdt(() -> null);
+    }
+
+    @Test
+    void rejectedPostCloseOperationDoesNotRunItsCallback() throws Exception {
+        EditorFixture fixture = createEditorFixture("post_close_rejected");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        AtomicInteger actionCount = new AtomicInteger();
+
+        FlutterDesignerEditorSupport.PostCloseOutcome<String> outcome = onEdt(
+                () -> editor.requestPostCloseOperation(
+                        "Delete Flutter Designer pair",
+                        "home_page.fd",
+                        proof -> {
+                            actionCount.incrementAndGet();
+                            return "deleted";
+                        })).toCompletableFuture().get(3, TimeUnit.SECONDS);
+
+        assertEquals(FlutterDesignerEditorSupport.PostCloseStatus.NOT_REQUIRED,
+                outcome.status());
+        assertFalse(outcome.succeeded());
+        assertNull(outcome.value());
+        assertNotNull(outcome.reason());
+        assertEquals(0, actionCount.get(),
+                "a rejected request must not invoke its filesystem callback");
+    }
+
+    @Test
+    void postCloseOperationFailureIsReportedAndReleasesReservation()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("post_close_failure");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerCloneableEditor component =
+                createRegisteredDedicatedShell(editor);
+        onEdt(() -> {
+            component.open();
+            return null;
+        });
+        assertEquals(1, editor.editorClosePermits().lifecycleShellCount());
+        FlutterDesignerEditorClosePermitCoordinator.CloneTopology topology =
+                editorCloneTopology(editor);
+        assertEquals(1, topology.size());
+        assertTrue(topology.containsIdentity(component));
+        AtomicInteger actionCount = new AtomicInteger();
+
+        var completion = onEdt(() -> editor.requestPostCloseOperation(
+                "Move Flutter Designer pair",
+                "home_page.fd",
+                proof -> {
+                    actionCount.incrementAndGet();
+                    throw new IOException("synthetic move failure");
+                }));
+        FlutterDesignerEditorSupport.PostCloseOutcome<Object> outcome =
+                completion.toCompletableFuture().get(3, TimeUnit.SECONDS);
+
+        assertEquals(FlutterDesignerEditorSupport.PostCloseStatus.OPERATION_FAILED,
+                outcome.status());
+        assertFalse(outcome.succeeded());
+        assertNull(outcome.value());
+        assertTrue(outcome.reason().contains("synthetic move failure"));
+        assertEquals(1, actionCount.get());
+        assertTrue(editor.editorClosePermits().cloneCreationAllowed(),
+                "a throwing callback must still release clone admission");
+    }
+
+    @Test
+    void pairPathReservationBlocksPeerOperationsSaveAndEarlyBinding()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("pair_path_reservation");
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        PairSaveCoordinator.PairDeleteLease delete =
+                coordinator.reservePairDeleteForEditorClose();
+        try {
+            assertFalse(coordinator.canBeginPairDelete());
+            assertFalse(coordinator.canBeginPairRename());
+            assertFalse(coordinator.canBeginPairMove());
+            assertFalse(coordinator.canBeginPairCopy());
+            assertThrows(IOException.class, coordinator::beginPairRename,
+                    "the reservation must be the sole pair-path owner");
+            IOException saveFailure = assertThrows(
+                    IOException.class, coordinator::save);
+            assertTrue(saveFailure.getMessage().contains("paired Delete"),
+                    "Save must identify the operation retaining pair authority");
+            assertThrows(IOException.class, () -> delete.bind(() -> { }),
+                    "a filesystem action cannot bind before exact shell-close proof");
+        } finally {
+            delete.finish(false);
+        }
+
+        assertTrue(coordinator.canBeginPairDelete());
+        assertTrue(coordinator.canBeginPairRename());
+        assertTrue(coordinator.canBeginPairMove());
+        assertTrue(coordinator.canBeginPairCopy());
+        coordinator.save();
+
+        PairSaveCoordinator.PairRenameLease rename =
+                coordinator.reservePairRenameForEditorClose();
+        rename.finish(false);
+        PairSaveCoordinator.PairMoveLease move =
+                coordinator.reservePairMoveForEditorClose();
+        move.finish(false);
+        assertTrue(coordinator.canBeginPairDelete(),
+                "every reservePair*ForEditorClose lease must release on finish");
+    }
+
+    @Test
+    void pairPathLeaseClaimsExactPostCloseProofOnlyOnceAndThenBinds()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("pair_path_close_proof");
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        PairSaveCoordinator.PairRenameLease rename =
+                coordinator.reservePairRenameForEditorClose();
+        PostCloseProofFixture close = postCloseProof(fixture.editor());
+        try {
+            rename.claimAfterEditorClose(close.proof());
+            rename.bind(() -> { });
+            assertThrows(IOException.class,
+                    () -> rename.claimAfterEditorClose(close.proof()),
+                    "one exact post-close proof cannot be claimed twice");
+        } finally {
+            rename.finish(false);
+        }
+        assertTrue(close.complete(),
+                "the proof reservation must remain releasable after the lease finishes");
+        assertTrue(coordinator.canBeginPairMove(),
+                "finishing the claimed lease must release pair-path authority");
+
+        PairSaveCoordinator.PairMoveLease move =
+                coordinator.reservePairMoveForEditorClose();
+        try {
+            assertThrows(IOException.class,
+                    () -> move.claimAfterEditorClose(close.proof()),
+                    "a completed proof cannot authorize a later lease");
+            assertThrows(IOException.class, () -> move.bind(() -> { }),
+                    "rejected proof must leave the lease awaiting editor close");
+        } finally {
+            move.finish(false);
+        }
+    }
+
+    @Test
+    void pairPathLeaseRejectsForeignProofAndStateDriftFailClosed()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("pair_path_stale_proof");
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        FlutterDesignerEditorClosePermitCoordinator foreignPermits =
+                new FlutterDesignerEditorClosePermitCoordinator();
+        PostCloseProofFixture foreign = postCloseProof(
+                foreignPermits, fixture.editor().editorShellDocumentRevision());
+        PairSaveCoordinator.PairDeleteLease delete =
+                coordinator.reservePairDeleteForEditorClose();
+        try {
+            IOException foreignFailure = assertThrows(IOException.class,
+                    () -> delete.claimAfterEditorClose(foreign.proof()));
+            assertTrue(foreignFailure.getMessage().contains("foreign"));
+        } finally {
+            delete.finish(false);
+        }
+        assertTrue(foreign.complete());
+
+        PairSaveCoordinator.PairMoveLease move =
+                coordinator.reservePairMoveForEditorClose();
+        PostCloseProofFixture exact = postCloseProof(fixture.editor());
+        try {
+            coordinator.sourceBecameModified();
+            IOException driftFailure = assertThrows(IOException.class,
+                    () -> move.claimAfterEditorClose(exact.proof()));
+            assertTrue(driftFailure.getMessage().contains(
+                    "editor state changed"));
+            assertThrows(IOException.class, () -> move.bind(() -> { }),
+                    "state drift must not expose transaction binding authority");
+        } finally {
+            move.finish(false);
+            coordinator.sourceBecameUnmodified();
+        }
+        assertTrue(exact.complete());
+        assertTrue(coordinator.canBeginPairRename(),
+                "failed proof admission plus finish must release the reservation");
+    }
+
+    @Test
+    void claimedPairPathLeaseRejectsRecoveryDriftBeforeReplayBinding()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture(
+                "pair_path_post_claim_recovery_drift");
+        PairSaveCoordinator coordinator = fixture.coordinator();
+        PairSaveCoordinator.PairRenameLease rename =
+                coordinator.reservePairRenameForEditorClose();
+        PostCloseProofFixture close = postCloseProof(fixture.editor());
+        AtomicBoolean proofReleased = new AtomicBoolean();
+        try {
+            rename.claimAfterEditorClose(close.proof());
+            rename.markRecoveryConflict(
+                    "synthetic foreign file event after close-proof claim");
+
+            IOException driftFailure = assertThrows(IOException.class,
+                    () -> coordinator.replayPairPathOperation(
+                            rename,
+                            () -> {
+                                rename.bind(() -> { });
+                                return null;
+                            }),
+                    "recovery drift after proof claim must veto the final "
+                    + "pre-mutation replay/bind fence");
+            assertTrue(driftFailure.getMessage().contains("authority")
+                            || driftFailure.getMessage().contains("changed")
+                            || driftFailure.getMessage().contains("active"),
+                    "the rejection must identify lost pair-path authority");
+        } finally {
+            rename.finish(false);
+            proofReleased.set(close.complete());
+        }
+
+        assertTrue(proofReleased.get(),
+                "the rejected replay must leave its close proof releasable");
+        assertEquals(PairSaveCoordinatorStatus.EXTERNAL_CONFLICT,
+                coordinator.state().status(),
+                "the synthetic foreign event remains a fail-closed conflict");
+        IOException postFinishFailure = assertThrows(
+                IOException.class, coordinator::save);
+        assertFalse(postFinishFailure.getMessage().contains(
+                        "paired Rename currently owns"),
+                "finish must release the active Rename lease even though the "
+                + "foreign-event conflict remains terminal");
     }
 
     @Test
@@ -1207,6 +1556,85 @@ class FlutterDesignerEditorSupportTest {
         return new FdDocumentCodec().encode(document).copyBytes();
     }
 
+    private static PostCloseProofFixture postCloseProof(
+            FlutterDesignerEditorSupport editor) {
+        return postCloseProof(
+                editor.editorClosePermits(),
+                editor.editorShellDocumentRevision());
+    }
+
+    private static FlutterDesignerEditorClosePermitCoordinator.CloneTopology
+            editorCloneTopology(FlutterDesignerEditorSupport editor)
+            throws Exception {
+        var method = FlutterDesignerEditorSupport.class.getDeclaredMethod(
+                "editorShellCloneTopology");
+        method.setAccessible(true);
+        return (FlutterDesignerEditorClosePermitCoordinator.CloneTopology)
+                method.invoke(editor);
+    }
+
+    private static FlutterDesignerCloneableEditor createRegisteredDedicatedShell(
+            FlutterDesignerEditorSupport editor) throws Exception {
+        FlutterDesignerCloneableEditor component = onEdt(() -> {
+            FlutterDesignerCloneableEditor created =
+                    (FlutterDesignerCloneableEditor)
+                            editor.createDedicatedPane().getComponent();
+            Field allEditors = CloneableOpenSupport.class.getDeclaredField(
+                    "allEditors");
+            allEditors.setAccessible(true);
+            created.setReference((CloneableTopComponent.Ref)
+                    allEditors.get(editor));
+            return created;
+        });
+        onEdt(() -> null);
+        return component;
+    }
+
+    private static PostCloseProofFixture postCloseProof(
+            FlutterDesignerEditorClosePermitCoordinator permits,
+            FlutterDesignerEditorClosePermitCoordinator.DocumentRevision revision) {
+        Object owner = new Object();
+        permits.editorShellOpenedOrClosing(owner);
+        FlutterDesignerEditorClosePermitCoordinator.CloneTopology openTopology =
+                new FlutterDesignerEditorClosePermitCoordinator.CloneTopology(
+                        List.of(owner));
+        FlutterDesignerEditorClosePermitCoordinator.CloneTopology closedTopology =
+                new FlutterDesignerEditorClosePermitCoordinator.CloneTopology(
+                        List.of());
+        FlutterDesignerEditorClosePermitCoordinator.SupportCloseAdmission start =
+                permits.beginSupportCloseForContinuation(
+                        () -> openTopology, () -> revision, () -> true);
+        assertTrue(start.authorized());
+        FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch =
+                start.batch();
+        FlutterDesignerEditorClosePermitCoordinator.Admission close =
+                permits.acquireSupportCloseOwner(
+                        batch, owner, openTopology, revision);
+        assertTrue(close.authorized());
+        assertTrue(permits.beginCommit(
+                close.permit(), openTopology, revision));
+        assertTrue(permits.consumeLastClose(
+                close.permit(), openTopology, revision));
+        assertTrue(permits.markAdmitted(close.permit()));
+        assertTrue(permits.bindAdmittedState(
+                close.permit(), closedTopology, revision));
+        FlutterDesignerEditorClosePermitCoordinator.ComponentClosedScope scope =
+                permits.enterComponentClosed(close.permit(), owner);
+        assertNotNull(scope);
+        assertTrue(permits.authorizeSupportClose(
+                false, closedTopology, revision));
+        assertTrue(permits.completeSupportClose(
+                true, closedTopology, revision));
+        scope.close();
+        permits.editorShellClosed(owner);
+        assertTrue(permits.completeSupportCloseOwner(
+                batch, owner, close.permit()));
+        FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof =
+                permits.beginPostCloseContinuation(batch);
+        assertNotNull(proof);
+        return new PostCloseProofFixture(permits, batch, proof);
+    }
+
     private static <T> T onEdt(Callable<T> operation) throws Exception {
         if (EventQueue.isDispatchThread()) {
             return operation.call();
@@ -1233,5 +1661,15 @@ class FlutterDesignerEditorSupportTest {
             FlutterDesignerEditorSupport editor,
             StyledDocument document,
             PairSaveCoordinator coordinator) {
+    }
+
+    private record PostCloseProofFixture(
+            FlutterDesignerEditorClosePermitCoordinator permits,
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof) {
+
+        boolean complete() {
+            return permits.completePostCloseContinuation(batch, proof);
+        }
     }
 }

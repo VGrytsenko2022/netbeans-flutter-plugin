@@ -445,8 +445,9 @@ accepted architecture is documented in
       Canvas retirement, and carries one attempt token through retirement,
       retry and `closeLast(false)`. Stale retries and failed retirement revoke
       authority; successful authority remains reserved through
-      `componentClosed()`. The stock synchronous CloseCookie batch fails closed
-      while a dedicated shell is open.
+      `componentClosed()`. Raw synchronous CES batch admission remains
+      fail-closed except inside the exact permit scope; the public support-wide
+      path is superseded by the asynchronous batch below.
     - [x] Recover Canvas after an abandoned or stale shell close without reviving
       retired authority. Wait for the captured owner coordinator to finish,
       rebuild through a fresh generation, fence factory/owner/observer/close
@@ -454,14 +455,44 @@ accepted architecture is documented in
       Permanently set `TopComponent.PROP_CLOSING_DISABLED` and route the shell's
       own Close action through the permit so RELEASE300 `Close Mode` cannot
       bypass asynchronous retirement.
+    - [x] Complete the dedicated-shell `CloseCookie`/shell-owned Close All
+      vertical slice.
+      One support-wide batch asks Save/Discard/Cancel exactly once, then binds
+      the exact clone topology and post-decision live-document/pair revision.
+      Clone creation and ordinary close admission remain excluded while the
+      batch retires each clone-local Canvas sequentially through an exact
+      per-owner shell-incarnation permit. The irreversible post-unregister state
+      and final internal close are fenced by exact pre/post topology and
+      document/pair revisions plus explicit success acknowledgement. Sibling
+      lifecycle drift may finish only physical cleanup; same-owner close/reopen
+      ABA revokes old authority without removing the new shell. Other topology
+      or revision drift and retirement failure abort fail-closed; the synchronous
+      `CloseCookie` entry point reports no early
+      success while asynchronous retirement is still running. The permanent
+      `PROP_CLOSING_DISABLED` latch still makes NetBeans' stock
+      global Close All skip this shell, so the shell exposes its own permit-aware
+      Close All action. This does not change either production flag: the
+      dedicated shell and exact-Web routing both remain disabled.
+    - [x] Complete the operation-owned post-close continuation for pair-aware
+      Rename, Delete and Cut-Move. Each command reserves its exact pair lease
+      before requesting shell retirement. After the final admitted
+      `componentClosed()`, the support-close reservation stays active while one
+      identity-bound proof dispatches one callback off the EDT. The callback
+      claims that proof and lease and replays the existing synchronous operation
+      exactly once; Rename/Delete keep the normal `DataObject` events and
+      binding updates. Cut-Move owns an exact `CutSession`, rejects duplicate
+      paste, clears only the same current clipboard value after commit and
+      remains retryable after cancel/failure. Cancel, topology/revision drift,
+      stale/foreign/reused proof, close failure and operation failure are
+      mutation-free and release both reservations. A direct synchronous caller
+      refuses an open dedicated shell rather than reporting early success.
     - [ ] Prove the dedicated shell's Source/Save/Undo/navigation, clone-local
       Canvas ownership, platform History/action parity and restart
       reconstruction in the NetBeans runtime suite before changing its product
-      gate or persistence policy. Integrate support-wide `editor.close()` callers
-      used by Rename/Delete/Move/Close All, and physically accept programmatic
-      mode movement. The dormant shell disables tab dragging, undocking,
-      sliding, maximization and drag-copy because those stock UI paths can
-      reparent the AWT subtree without consulting `canClose()`.
+      gate or persistence policy. Physically accept programmatic mode movement.
+      The dormant shell disables tab dragging, undocking, sliding, maximization
+      and drag-copy because those stock UI paths can reparent the AWT subtree
+      without consulting `canClose()`.
     - [ ] Add a proven peer-removal gate for every NetBeans path outside the
       permit-aware shell Close action. RELEASE300 `Close Mode` is protected by
       the permanent closing-disabled latch, but `New Tab Group`, `Collapse Tab
@@ -706,10 +737,12 @@ accepted architecture is documented in
     simultaneous surfaces plus bounded tab and Split Document heavyweight-peer
     teardown/recreation now pass the physical runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
-- [ ] Admit further built-ins only as complete vertical slices after the core
-  gates pass and the Palette-expansion work is resumed. The current typed
-  Properties slice spans all ten admitted built-ins and does not imply Create,
-  Canvas, DnD or Properties capability for any unreviewed widget.
+- [ ] Admit further built-ins only as complete vertical slices after the
+  current pair-save/editor-operation regression is green and Palette-expansion
+  work is resumed. The dormant dedicated-shell/exact-Web product gates above
+  remain independently disabled and do not block catalog expansion. The
+  current typed Properties slice spans all ten admitted built-ins and does not
+  imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

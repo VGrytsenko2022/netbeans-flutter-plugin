@@ -110,6 +110,9 @@ final class PairSaveCoordinator implements Node.Cookie,
     private ActiveSourceSave activeSourceSave;
     private ActiveFdOnlySave activeFdOnlySave;
     private PairPathOperationLease activePairPathOperation;
+    /** Exact worker-thread handoff for a post-close DataObject operation. */
+    private final ThreadLocal<PairPathOperationLease> pairPathReplay =
+            new ThreadLocal<>();
     /** Retained until all enclosing NetBeans atomic actions publish their events. */
     private FileSystem.AtomicAction pairPathOperationProvenance;
     private boolean sourceDirty;
@@ -206,33 +209,69 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     boolean canBeginPairDelete() {
+        PairPathOperationLease replay = pairPathReplay.get();
         synchronized (this) {
-            return pairPathOperationAvailableLocked();
+            return (replay instanceof PairDeleteLease
+                    && activePairPathOperation == replay
+                    && replay.replayReadyLocked())
+                    || pairPathOperationAvailableLocked();
         }
     }
 
     PairDeleteLease beginPairDelete() throws IOException {
+        PairDeleteLease replay = replayLease(PairDeleteLease.class);
+        if (replay != null) {
+            return replay;
+        }
         return beginPairPathOperation(new PairDeleteLease(), true);
     }
 
+    PairDeleteLease reservePairDeleteForEditorClose() throws IOException {
+        return reservePairPathOperation(new PairDeleteLease());
+    }
+
     boolean canBeginPairRename() {
+        PairPathOperationLease replay = pairPathReplay.get();
         synchronized (this) {
-            return pairPathOperationAvailableLocked();
+            return (replay instanceof PairRenameLease
+                    && activePairPathOperation == replay
+                    && replay.replayReadyLocked())
+                    || pairPathOperationAvailableLocked();
         }
     }
 
     PairRenameLease beginPairRename() throws IOException {
+        PairRenameLease replay = replayLease(PairRenameLease.class);
+        if (replay != null) {
+            return replay;
+        }
         return beginPairPathOperation(new PairRenameLease(), true);
     }
 
+    PairRenameLease reservePairRenameForEditorClose() throws IOException {
+        return reservePairPathOperation(new PairRenameLease());
+    }
+
     boolean canBeginPairMove() {
+        PairPathOperationLease replay = pairPathReplay.get();
         synchronized (this) {
-            return pairPathOperationAvailableLocked();
+            return (replay instanceof PairMoveLease
+                    && activePairPathOperation == replay
+                    && replay.replayReadyLocked())
+                    || pairPathOperationAvailableLocked();
         }
     }
 
     PairMoveLease beginPairMove() throws IOException {
+        PairMoveLease replay = replayLease(PairMoveLease.class);
+        if (replay != null) {
+            return replay;
+        }
         return beginPairPathOperation(new PairMoveLease(), true);
+    }
+
+    PairMoveLease reservePairMoveForEditorClose() throws IOException {
+        return reservePairPathOperation(new PairMoveLease());
     }
 
     boolean canBeginPairCopy() {
@@ -245,28 +284,65 @@ final class PairSaveCoordinator implements Node.Cookie,
         return beginPairPathOperation(new PairCopyLease(), false);
     }
 
+    <T> T replayPairPathOperation(
+            PairPathOperationLease lease,
+            PairPathReplay<T> replay) throws IOException {
+        Objects.requireNonNull(lease, "lease");
+        Objects.requireNonNull(replay, "replay");
+        if (pairPathReplay.get() != null) {
+            throw new IOException("a paired path-operation replay is already active");
+        }
+        synchronized (this) {
+            if (activePairPathOperation != lease
+                    || !lease.replayReadyLocked()) {
+                throw new IOException(
+                        "the paired " + lease.operation()
+                        + " replay lease is no longer active");
+            }
+        }
+        pairPathReplay.set(lease);
+        try {
+            return replay.run();
+        } finally {
+            pairPathReplay.remove();
+        }
+    }
+
+    private <T extends PairPathOperationLease> T replayLease(Class<T> type)
+            throws IOException {
+        PairPathOperationLease lease = pairPathReplay.get();
+        if (lease == null) {
+            return null;
+        }
+        synchronized (this) {
+            if (!type.isInstance(lease)
+                    || activePairPathOperation != lease
+                    || !lease.replayReadyLocked()) {
+                throw new IOException(
+                        "the active paired path-operation replay does not match "
+                        + type.getSimpleName());
+            }
+            return type.cast(lease);
+        }
+    }
+
     private <T extends PairPathOperationLease> T beginPairPathOperation(
             T lease,
             boolean closeEditor)
             throws IOException {
-        synchronized (this) {
-            if (!pairPathOperationAvailableLocked()) {
-                throw new IOException(
-                        "Cannot " + lease.operation().toLowerCase(Locale.ROOT)
-                        + " the Flutter Designer form while it has "
-                        + "unsaved changes, a conflict, or another active pair operation");
-            }
-            activePairPathOperation = lease;
-        }
+        reservePairPathOperation(lease, false);
 
         try {
             // Destructive path operations close the clean CES view because it
             // otherwise observes staging as a read-only transition. Copy owns
             // only a stable source snapshot and deliberately keeps that view
             // open while the same lease blocks save/command admission.
-            if (closeEditor && !editor.close()) {
+            if (closeEditor
+                    && !editor.closeForSynchronousPairPathOperation()) {
                 throw new IOException(
-                        "the clean Designer/Source editor refused to close");
+                        "the clean Designer/Source editor refused to close, "
+                        + "or an open dedicated shell requires its pair-aware "
+                        + "post-close command");
             }
             synchronized (this) {
                 if (activePairPathOperation != lease
@@ -290,9 +366,34 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
     }
 
+    private <T extends PairPathOperationLease> T reservePairPathOperation(
+            T lease) throws IOException {
+        return reservePairPathOperation(lease, true);
+    }
+
+    private <T extends PairPathOperationLease> T reservePairPathOperation(
+            T lease,
+            boolean awaitingEditorClose) throws IOException {
+        synchronized (this) {
+            if (!pairPathOperationAvailableLocked()) {
+                throw new IOException(
+                        "Cannot " + lease.operation().toLowerCase(Locale.ROOT)
+                        + " the Flutter Designer form while it has "
+                        + "unsaved changes, a conflict, or another active pair operation");
+            }
+            lease.awaitingEditorClose(awaitingEditorClose);
+            activePairPathOperation = lease;
+            return lease;
+        }
+    }
+
     private boolean pairPathOperationAvailableLocked() {
         return activePairPathOperation == null
-                && preparation == null
+                && pairPathOperationStateCleanLocked();
+    }
+
+    private boolean pairPathOperationStateCleanLocked() {
+        return preparation == null
                 && replacement == null
                 && staged == null
                 && historyTransition == null
@@ -9510,6 +9611,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         private final boolean invalidatesRetainedPair;
         private FileSystem.AtomicAction action;
         private String recoveryConflict;
+        private boolean awaitingEditorClose;
         private boolean closed;
 
         PairPathOperationLease(
@@ -9525,15 +9627,58 @@ final class PairSaveCoordinator implements Node.Cookie,
             return operation;
         }
 
+        final void awaitingEditorClose(boolean awaiting) {
+            awaitingEditorClose = awaiting;
+        }
+
+        private boolean replayReadyLocked() {
+            return !closed
+                    && !awaitingEditorClose
+                    && recoveryConflict == null
+                    && pairPathOperationStateCleanLocked();
+        }
+
         final void bind(FileSystem.AtomicAction pathAction) throws IOException {
             Objects.requireNonNull(pathAction, "pathAction");
             synchronized (PairSaveCoordinator.this) {
-                if (closed || activePairPathOperation != this || action != null) {
+                if (closed
+                        || awaitingEditorClose
+                        || activePairPathOperation != this
+                        || action != null
+                        || recoveryConflict != null
+                        || !pairPathOperationStateCleanLocked()) {
                     throw new IOException(
                             "The paired " + operation
-                            + " lease is no longer the sole active owner");
+                            + " lease lost its clean exclusive authority before "
+                            + "the filesystem transaction began");
                 }
                 action = pathAction;
+            }
+        }
+
+        /**
+         * Converts an exact completed shell-close proof into transaction
+         * authority without calling {@code editor.close()} a second time.
+         */
+        final void claimAfterEditorClose(
+                FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof)
+                throws IOException {
+            Objects.requireNonNull(proof, "proof");
+            if (!proof.claim(editor.editorClosePermits(), this)) {
+                throw new IOException(
+                        "the post-close proof is stale, foreign, or already consumed");
+            }
+            synchronized (PairSaveCoordinator.this) {
+                if (closed
+                        || activePairPathOperation != this
+                        || !awaitingEditorClose
+                        || !pairPathOperationStateCleanLocked()) {
+                    throw new IOException(
+                            "the paired editor state changed while "
+                            + operation
+                            + " was waiting for every Designer shell to close");
+                }
+                awaitingEditorClose = false;
             }
         }
 
@@ -9604,6 +9749,11 @@ final class PairSaveCoordinator implements Node.Cookie,
         private boolean owns(FileEvent event) {
             return action != null && event.firedFrom(action);
         }
+    }
+
+    @FunctionalInterface
+    interface PairPathReplay<T> {
+        T run() throws IOException;
     }
 
     final class PairDeleteLease extends PairPathOperationLease {

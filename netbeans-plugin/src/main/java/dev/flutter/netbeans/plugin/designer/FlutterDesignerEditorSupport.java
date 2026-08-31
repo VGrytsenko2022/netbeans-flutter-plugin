@@ -14,9 +14,14 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.EditorKit;
 import javax.swing.text.StyledDocument;
@@ -44,6 +49,7 @@ import org.openide.nodes.CookieSet;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.DataEditorSupport;
 import org.openide.util.Mutex;
+import org.openide.util.RequestProcessor;
 import org.openide.windows.CloneableOpenSupport;
 import org.openide.windows.CloneableTopComponent;
 import org.openide.xml.XMLUtil;
@@ -59,6 +65,13 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
         PrintCookie,
         CloseCookie,
         LineCookie {
+
+    private static final Logger LOGGER = Logger.getLogger(
+            FlutterDesignerEditorSupport.class.getName());
+    private static final RequestProcessor POST_CLOSE_OPERATIONS =
+            new RequestProcessor(
+                    FlutterDesignerEditorSupport.class.getName()
+                    + "-post-close", 1, true);
 
     private PairSaveCoordinator pairSaveCoordinator;
     private DesignerCombinedUndoRedo combinedUndoRedo;
@@ -76,6 +89,11 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             new ThreadLocal<>();
     private final FlutterDesignerEditorClosePermitCoordinator editorClosePermits =
             new FlutterDesignerEditorClosePermitCoordinator();
+    /** EDT-confined owner of one support-wide asynchronous close attempt. */
+    private FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch
+            supportCloseBatch;
+    /** EDT-confined request retaining clone admission through its callback. */
+    private PostCloseRequest<?> postCloseRequest;
     private volatile PersistenceFinalizationHook persistenceFinalizationHook =
             () -> { };
 
@@ -221,6 +239,98 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     FlutterDesignerEditorClosePermitCoordinator editorClosePermits() {
         return editorClosePermits;
+    }
+
+    /** Whether the dormant dedicated-shell route currently owns any clone. */
+    boolean hasDedicatedEditorShells() {
+        return editorClosePermits.lifecycleShellCount() > 0;
+    }
+
+    /**
+     * Atomic EDT gate used only by the legacy synchronous DataObject path.
+     * It must never turn a newly observed dedicated shell into an asynchronous
+     * close that the synchronous caller would mistake for cancellation.
+     */
+    boolean closeForSynchronousPairPathOperation() {
+        if (!EventQueue.isDispatchThread()) {
+            return Mutex.EVENT.writeAccess(
+                    (Mutex.Action<Boolean>)
+                            this::closeForSynchronousPairPathOperation);
+        }
+        if (editorClosePermits.lifecycleShellCount() > 0) {
+            return false;
+        }
+        return close(true);
+    }
+
+    /**
+     * Closes every dedicated shell and then runs one exact filesystem
+     * continuation off the EDT while clone admission remains reserved.
+     *
+     * <p>The returned stage cannot be externally cancelled. A caller receiving
+     * {@link PostCloseStatus#NOT_REQUIRED} must use its existing synchronous
+     * DataObject path; no callback has run in that case.</p>
+     */
+    <T> CompletionStage<PostCloseOutcome<T>> requestPostCloseOperation(
+            String operation,
+            String target,
+            PostCloseAction<T> action) {
+        String admittedOperation = Objects.requireNonNull(operation, "operation");
+        String admittedTarget = Objects.requireNonNull(target, "target");
+        PostCloseAction<T> admittedAction = Objects.requireNonNull(action, "action");
+        if (!EventQueue.isDispatchThread()) {
+            return Mutex.EVENT.writeAccess(
+                    (Mutex.Action<CompletionStage<PostCloseOutcome<T>>>) () ->
+                            requestPostCloseOperation(
+                                    admittedOperation,
+                                    admittedTarget,
+                                    admittedAction));
+        }
+
+        CompletableFuture<PostCloseOutcome<T>> completion =
+                new CompletableFuture<>();
+        if (editorClosePermits.lifecycleShellCount() == 0) {
+            completion.complete(PostCloseOutcome.rejected(
+                    PostCloseStatus.NOT_REQUIRED,
+                    "no dedicated Flutter Designer editor shell is open"));
+            return completion.minimalCompletionStage();
+        }
+        if (postCloseRequest != null || supportCloseBatch != null) {
+            completion.complete(PostCloseOutcome.rejected(
+                    PostCloseStatus.BUSY,
+                    "another support close or post-close operation is active"));
+            return completion.minimalCompletionStage();
+        }
+
+        PostCloseRequest<T> request = new PostCloseRequest<>(
+                admittedOperation, admittedTarget, admittedAction, completion);
+        final FlutterDesignerEditorClosePermitCoordinator.SupportCloseAdmission
+                admission;
+        try {
+            admission = editorClosePermits.beginSupportCloseForContinuation(
+                    this::editorShellCloneTopology,
+                    this::editorShellDocumentRevision,
+                    this::confirmEditorShellDocumentClose);
+        } catch (RuntimeException | Error failure) {
+            completion.complete(PostCloseOutcome.rejected(
+                    PostCloseStatus.CLOSE_FAILED,
+                    reason(failure)));
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            return completion.minimalCompletionStage();
+        }
+        if (!admission.authorized()) {
+            completion.complete(PostCloseOutcome.rejected(
+                    mapPostCloseStatus(admission.status()),
+                    supportCloseRejectionReason(admission.status())));
+            return completion.minimalCompletionStage();
+        }
+
+        postCloseRequest = request;
+        supportCloseBatch = admission.batch();
+        dispatchSupportCloseOwner(admission.batch());
+        return completion.minimalCompletionStage();
     }
 
     /** Acquires NetBeans' ordinary Save/Discard/Cancel decision exactly once. */
@@ -429,9 +539,10 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     /**
      * The stock CloseCookie path asks CES once and then closes every clone in a
-     * synchronous batch. That cannot await clone-local Canvas retirement and,
-     * after Discard, would also ask the dedicated last clone a second time.
-     * Keep that path fail-closed until the shell owns a tested batch permit.
+     * synchronous batch. A dedicated Designer shell instead admits one exact
+     * support-wide batch and retires each clone-local Canvas in sequence. The
+     * initiating synchronous API must return {@code false}: completion is
+     * deliberately asynchronous and is owned by the batch callbacks below.
      */
     @Override
     protected boolean close(boolean ask) {
@@ -443,10 +554,301 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             return Mutex.EVENT.writeAccess(
                     (Mutex.Action<Boolean>) () -> close(ask));
         }
-        if (!editorClosePermits.authorizeSupportClose(ask)) {
+        FlutterDesignerEditorClosePermitCoordinator.CloneTopology
+                authorizationTopology = null;
+        FlutterDesignerEditorClosePermitCoordinator.DocumentRevision
+                authorizationRevision = null;
+        if (editorClosePermits.lifecycleShellCount() > 0) {
+            try {
+                authorizationTopology = editorShellCloneTopology();
+                authorizationRevision = editorShellDocumentRevision();
+            } catch (RuntimeException | Error snapshotFailure) {
+                LOGGER.log(Level.WARNING,
+                        "Operation: authorize internal Flutter Designer support "
+                        + "close. Target: "
+                        + getDataObject().getPrimaryFile().getPath()
+                        + ". Reason: the exact post-admission snapshot could "
+                        + "not be read.",
+                        snapshotFailure);
+                return false;
+            }
+        }
+        if (editorClosePermits.authorizeSupportClose(
+                ask, authorizationTopology, authorizationRevision)) {
+            if (!editorClosePermits
+                    .authorizedSupportCloseRequiresCompletion()) {
+                return super.close(ask);
+            }
+            boolean closed = false;
+            try {
+                closed = super.close(ask);
+                return closed;
+            } finally {
+                FlutterDesignerEditorClosePermitCoordinator.CloneTopology
+                        completionTopology = null;
+                FlutterDesignerEditorClosePermitCoordinator.DocumentRevision
+                        completionRevision = null;
+                boolean completionSnapshotExact = false;
+                try {
+                    completionTopology = editorShellCloneTopology();
+                    completionRevision = editorShellDocumentRevision();
+                    completionSnapshotExact = true;
+                } catch (RuntimeException | Error snapshotFailure) {
+                    LOGGER.log(Level.WARNING,
+                            "Operation: verify internal Flutter Designer support "
+                            + "close. Target: "
+                            + getDataObject().getPrimaryFile().getPath()
+                            + ". Reason: the exact completion snapshot could "
+                            + "not be read.",
+                            snapshotFailure);
+                }
+                if (!editorClosePermits.completeSupportClose(
+                        closed && completionSnapshotExact,
+                        completionTopology,
+                        completionRevision)) {
+                    LOGGER.log(Level.SEVERE,
+                            "Operation: acknowledge internal Flutter Designer "
+                            + "support close. Target: {0}. Reason: the exact "
+                            + "componentClosed authorization scope was lost.",
+                            getDataObject().getPrimaryFile().getPath());
+                }
+            }
+        }
+        if (!ask) {
             return false;
         }
-        return super.close(ask);
+
+        FlutterDesignerEditorClosePermitCoordinator.SupportCloseAdmission
+                admission = editorClosePermits.beginSupportClose(
+                        this::editorShellCloneTopology,
+                        this::editorShellDocumentRevision,
+                        this::confirmEditorShellDocumentClose);
+        if (!admission.authorized()) {
+            return false;
+        }
+        FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch =
+                admission.batch();
+        supportCloseBatch = batch;
+        dispatchSupportCloseOwner(batch);
+        return false;
+    }
+
+    /** Snapshot of the CES clone registry in its canonical enumeration order. */
+    private FlutterDesignerEditorClosePermitCoordinator.CloneTopology
+            editorShellCloneTopology() {
+        ArrayList<Object> members = new ArrayList<>();
+        var components = allEditors.getComponents();
+        while (components.hasMoreElements()) {
+            members.add(components.nextElement());
+        }
+        return new FlutterDesignerEditorClosePermitCoordinator.CloneTopology(
+                members);
+    }
+
+    private void dispatchSupportCloseOwner(
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch) {
+        if (!EventQueue.isDispatchThread()) {
+            EventQueue.invokeLater(() -> dispatchSupportCloseOwner(batch));
+            return;
+        }
+        if (supportCloseBatch != batch) {
+            return;
+        }
+        Object nextOwner = editorClosePermits.nextSupportCloseOwner(batch);
+        if (!(nextOwner instanceof FlutterDesignerCloneableEditor editor)
+                || !editor.isOpened()) {
+            abortSupportClose(batch,
+                    "the next admitted editor clone was unavailable");
+            return;
+        }
+        final boolean accepted;
+        try {
+            accepted = editor.requestSupportClose(batch);
+        } catch (RuntimeException | Error failure) {
+            abortSupportClose(batch,
+                    "the next editor clone failed while starting its "
+                    + "peer-safe close: " + failure.getMessage());
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            return;
+        }
+        if (!accepted) {
+            abortSupportClose(batch,
+                    "the next admitted editor clone refused its peer-safe close");
+        }
+    }
+
+    void supportCloseOwnerCompleted(
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            boolean finalOwner) {
+        if (!EventQueue.isDispatchThread()) {
+            EventQueue.invokeLater(() ->
+                    supportCloseOwnerCompleted(batch, finalOwner));
+            return;
+        }
+        if (supportCloseBatch != batch) {
+            return;
+        }
+        if (finalOwner) {
+            PostCloseRequest<?> request = postCloseRequest;
+            if (request == null) {
+                supportCloseBatch = null;
+                return;
+            }
+            FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof =
+                    editorClosePermits.beginPostCloseContinuation(batch);
+            if (proof == null) {
+                editorClosePermits.abortPostCloseContinuation(batch);
+                supportCloseBatch = null;
+                postCloseRequest = null;
+                request.reject(
+                        PostCloseStatus.CLOSE_FAILED,
+                        "the exact post-close reservation could not be claimed");
+                return;
+            }
+            if (!request.start()) {
+                editorClosePermits.completePostCloseContinuation(batch, proof);
+                supportCloseBatch = null;
+                postCloseRequest = null;
+                return;
+            }
+            POST_CLOSE_OPERATIONS.post(() ->
+                    runPostCloseOperation(request, batch, proof));
+            return;
+        }
+        // Leave the batch reservation active across this event boundary. This
+        // avoids a recursive componentClosed stack while still preventing a
+        // clone or an ordinary close from crossing between owners.
+        EventQueue.invokeLater(() -> dispatchSupportCloseOwner(batch));
+    }
+
+    private <T> void runPostCloseOperation(
+            PostCloseRequest<T> request,
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof) {
+        PostCloseOutcome<T> outcome;
+        Error fatalFailure = null;
+        try {
+            T value = request.action.run(proof);
+            outcome = PostCloseOutcome.succeeded(value);
+        } catch (Exception failure) {
+            outcome = PostCloseOutcome.rejected(
+                    PostCloseStatus.OPERATION_FAILED,
+                    reason(failure));
+        } catch (Error failure) {
+            // Reservation cleanup must still run on the EDT, but VM-fatal and
+            // linkage failures must not be silently converted into an ordinary
+            // command rejection on the RequestProcessor thread.
+            fatalFailure = failure;
+            outcome = PostCloseOutcome.rejected(
+                    PostCloseStatus.OPERATION_FAILED,
+                    reason(failure));
+        }
+        PostCloseOutcome<T> completedOutcome = outcome;
+        EventQueue.invokeLater(() -> finishPostCloseOperation(
+                request, batch, proof, completedOutcome));
+        if (fatalFailure != null) {
+            throw fatalFailure;
+        }
+    }
+
+    private <T> void finishPostCloseOperation(
+            PostCloseRequest<T> request,
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof,
+            PostCloseOutcome<T> outcome) {
+        if (postCloseRequest != request || supportCloseBatch != batch) {
+            LOGGER.log(Level.SEVERE,
+                    "Operation: finish {0}. Target: {1}. Reason: the exact "
+                    + "post-close request lost its editor-support identity; "
+                    + "clone admission remains fail-closed.",
+                    new Object[] {request.operation, request.target});
+            request.complete(outcome);
+            return;
+        }
+        if (!editorClosePermits.completePostCloseContinuation(batch, proof)) {
+            LOGGER.log(Level.SEVERE,
+                    "Operation: finish {0}. Target: {1}. Reason: the exact "
+                    + "post-close reservation could not be released; clone "
+                    + "admission remains fail-closed.",
+                    new Object[] {request.operation, request.target});
+        }
+        postCloseRequest = null;
+        supportCloseBatch = null;
+        request.complete(outcome);
+    }
+
+    void supportCloseOwnerFailed(
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            String reason) {
+        Objects.requireNonNull(reason, "reason");
+        if (!EventQueue.isDispatchThread()) {
+            EventQueue.invokeLater(() -> supportCloseOwnerFailed(batch, reason));
+            return;
+        }
+        abortSupportClose(batch, reason);
+    }
+
+    private void abortSupportClose(
+            FlutterDesignerEditorClosePermitCoordinator.SupportCloseBatch batch,
+            String reason) {
+        if (supportCloseBatch != batch) {
+            return;
+        }
+        boolean released = editorClosePermits.abortSupportClose(batch);
+        boolean stillActive = editorClosePermits.supportCloseActive(batch);
+        PostCloseRequest<?> request = postCloseRequest;
+        if (!stillActive) {
+            supportCloseBatch = null;
+            postCloseRequest = null;
+        }
+        LOGGER.log(stillActive ? Level.SEVERE : Level.WARNING,
+                "Operation: close all Flutter Designer editor clones. Target: "
+                + "{0}. Reason: {1}{2}",
+                new Object[] {
+                    getDataObject().getPrimaryFile().getPath(),
+                    reason,
+                    stillActive
+                            ? "; the batch reservation remains fail-closed."
+                            : released ? "." : "; the batch was already aborted."
+                });
+        if (request != null) {
+            request.reject(PostCloseStatus.CLOSE_FAILED, reason);
+        }
+    }
+
+    private static PostCloseStatus mapPostCloseStatus(
+            FlutterDesignerEditorClosePermitCoordinator
+                    .SupportCloseAdmissionStatus status) {
+        return switch (status) {
+            case ACQUIRED -> throw new IllegalArgumentException(
+                    "An acquired support close is not a rejection");
+            case BUSY -> PostCloseStatus.BUSY;
+            case CANCELLED -> PostCloseStatus.CANCELLED;
+            case STALE -> PostCloseStatus.STALE;
+            case INVALID_TOPOLOGY -> PostCloseStatus.INVALID_TOPOLOGY;
+        };
+    }
+
+    private static String supportCloseRejectionReason(
+            FlutterDesignerEditorClosePermitCoordinator
+                    .SupportCloseAdmissionStatus status) {
+        return switch (status) {
+            case ACQUIRED -> "the support close was acquired";
+            case BUSY -> "another editor close or clone operation is active";
+            case CANCELLED -> "the user cancelled the editor close";
+            case STALE -> "the editor topology or document revision changed";
+            case INVALID_TOPOLOGY ->
+                    "the dedicated editor clone topology is incomplete or mixed";
+        };
+    }
+
+    private static String reason(Throwable failure) {
+        String message = failure.getMessage();
+        return message == null || message.isBlank()
+                ? failure.getClass().getSimpleName()
+                : message;
     }
 
     /** Virtual serialization must never advance the last persisted fallback. */
@@ -1315,6 +1717,99 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
         @Override
         public StyledDocument getDocument() {
             return document;
+        }
+    }
+
+    @FunctionalInterface
+    interface PostCloseAction<T> {
+        T run(FlutterDesignerEditorClosePermitCoordinator.PostCloseProof proof)
+                throws Exception;
+    }
+
+    enum PostCloseStatus {
+        SUCCEEDED,
+        NOT_REQUIRED,
+        CANCELLED,
+        BUSY,
+        STALE,
+        INVALID_TOPOLOGY,
+        CLOSE_FAILED,
+        OPERATION_FAILED
+    }
+
+    record PostCloseOutcome<T>(
+            PostCloseStatus status,
+            T value,
+            String reason) {
+        PostCloseOutcome {
+            Objects.requireNonNull(status, "status");
+            if (status == PostCloseStatus.SUCCEEDED) {
+                if (reason != null) {
+                    throw new IllegalArgumentException(
+                            "A successful post-close operation has no rejection reason");
+                }
+            } else if (reason == null || reason.isBlank()) {
+                throw new IllegalArgumentException(
+                        "A rejected post-close operation requires a reason");
+            }
+        }
+
+        static <T> PostCloseOutcome<T> succeeded(T value) {
+            return new PostCloseOutcome<>(PostCloseStatus.SUCCEEDED, value, null);
+        }
+
+        static <T> PostCloseOutcome<T> rejected(
+                PostCloseStatus status,
+                String reason) {
+            if (status == PostCloseStatus.SUCCEEDED) {
+                throw new IllegalArgumentException(
+                        "Use succeeded() for a successful post-close operation");
+            }
+            return new PostCloseOutcome<>(status, null, reason);
+        }
+
+        boolean succeeded() {
+            return status == PostCloseStatus.SUCCEEDED;
+        }
+    }
+
+    private static final class PostCloseRequest<T> {
+        private final String operation;
+        private final String target;
+        private final PostCloseAction<T> action;
+        private final CompletableFuture<PostCloseOutcome<T>> completion;
+        private boolean started;
+        private boolean completed;
+
+        PostCloseRequest(
+                String operation,
+                String target,
+                PostCloseAction<T> action,
+                CompletableFuture<PostCloseOutcome<T>> completion) {
+            this.operation = operation;
+            this.target = target;
+            this.action = action;
+            this.completion = completion;
+        }
+
+        synchronized void reject(PostCloseStatus status, String reason) {
+            complete(PostCloseOutcome.rejected(status, reason));
+        }
+
+        synchronized boolean start() {
+            if (started || completed) {
+                return false;
+            }
+            started = true;
+            return true;
+        }
+
+        synchronized void complete(PostCloseOutcome<T> outcome) {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            completion.complete(Objects.requireNonNull(outcome, "outcome"));
         }
     }
 

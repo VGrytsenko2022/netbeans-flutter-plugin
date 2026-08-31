@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerCanvasBackendSelector.Backend;
 import java.util.ArrayDeque;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -34,12 +35,17 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
     private volatile FlutterDesignerCanvasOwner retainedOwner;
     private volatile CallbackEpoch retainedEpoch;
     private volatile Throwable lastFailure;
+    private final CompletableFuture<Void> closeCompletion =
+            new CompletableFuture<>();
     private boolean drainScheduled;
-    private boolean closed;
+    private volatile boolean closed;
+    private volatile boolean closeRequested;
     private long nextEpochSequence;
     private long creationAttempt;
     private long retirementAttempt;
     private CallbackEpoch creatingEpoch;
+    private Backend deferredCreationFailureBackend;
+    private Throwable deferredCreationFailure;
 
     FlutterDesignerCanvasOwnerCoordinator(
             OwnerFactory factory,
@@ -54,6 +60,9 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
     /** Requests the latest backend; equal desired routes are strict no-ops. */
     void requestBackend(Backend backend) {
         Backend requested = Objects.requireNonNull(backend, "backend");
+        if (closeRequested) {
+            return;
+        }
         dispatch(() -> requestBackendSerial(requested));
     }
 
@@ -69,8 +78,12 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
     void admitCallback(CallbackEpoch epoch, Runnable callback) {
         CallbackEpoch candidate = Objects.requireNonNull(epoch, "epoch");
         Runnable admitted = Objects.requireNonNull(callback, "callback");
+        if (closeRequested) {
+            return;
+        }
         dispatch(() -> {
-            if (!closed
+            if (!closeRequested
+                    && !closed
                     && phase == Phase.ACTIVE
                     && activeEpoch == candidate
                     && activeOwner != null) {
@@ -99,17 +112,42 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
         return activeEpoch;
     }
 
+    /** Synchronous admission seam for EDT callbacks that must return a value. */
+    boolean isActiveEpoch(CallbackEpoch epoch) {
+        CallbackEpoch candidate = Objects.requireNonNull(epoch, "epoch");
+        return !closeRequested
+                && !closed
+                && phase == Phase.ACTIVE
+                && activeEpoch == candidate
+                && activeOwner != null;
+    }
+
     Throwable lastFailure() {
         return lastFailure;
     }
 
     @Override
     public void close() {
-        dispatch(this::closeSerial);
+        closeAsync();
+    }
+
+    /**
+     * Begins terminal retirement and completes only after every adopted owner
+     * is peer-safe. A retryable retirement failure deliberately leaves the
+     * completion pending until {@link #retryTransition()} succeeds.
+     */
+    CompletionStage<Void> closeAsync() {
+        closeRequested = true;
+        try {
+            dispatch(this::closeSerial);
+        } catch (RuntimeException | LinkageError failure) {
+            throw failure;
+        }
+        return closeCompletion.minimalCompletionStage();
     }
 
     private void requestBackendSerial(Backend backend) {
-        if (closed || desiredBackend == backend) {
+        if (closeRequested || closed || desiredBackend == backend) {
             return;
         }
         desiredBackend = backend;
@@ -149,7 +187,7 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
         desiredBackend = null;
         lastFailure = null;
         switch (phase) {
-            case EMPTY -> phase = Phase.CLOSED;
+            case EMPTY -> completeClosed();
             case ACTIVE -> beginActiveRetirement();
             case POISONED -> beginRetirementAttempt(retainedOwner, retainedEpoch);
             case CREATING, RETIRING -> {
@@ -229,19 +267,46 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
             return;
         }
 
+        Throwable detachFailure = invokeObserver(() ->
+                observer.ownerRetired(owner, epoch));
+        if (detachFailure != null) {
+            phase = Phase.POISONED;
+            lastFailure = detachFailure;
+            if (deferredCreationFailure == null && desiredBackend != null) {
+                // A UI detach failure is not equivalent to a successful owner
+                // switch. Retry only the detach first; require a separate,
+                // explicit creation Retry after the hierarchy is known clean.
+                deferCreationFailure(desiredBackend, detachFailure);
+            }
+            notifyObserver(() -> observer.ownerRetirementFailed(
+                    owner, epoch, detachFailure));
+            return;
+        }
+
         retainedOwner = null;
         retainedEpoch = null;
-        lastFailure = null;
+        Backend failedBackend = deferredCreationFailureBackend;
+        Throwable creationFailure = deferredCreationFailure;
+        deferredCreationFailureBackend = null;
+        deferredCreationFailure = null;
         phase = closed ? Phase.CLOSED : Phase.EMPTY;
-        notifyObserver(() -> observer.ownerRetired(owner, epoch));
-        if (!closed) {
+        if (closed) {
+            lastFailure = null;
+            closeCompletion.complete(null);
+        } else if (creationFailure != null
+                && desiredBackend == failedBackend) {
+            lastFailure = creationFailure;
+            notifyObserver(() -> observer.ownerCreationFailed(
+                    failedBackend, epoch, creationFailure));
+        } else if (!closeRequested) {
+            lastFailure = null;
             beginCreationIfNeeded();
         }
     }
 
     private void beginCreationIfNeeded() {
         Backend backend = desiredBackend;
-        if (closed || phase != Phase.EMPTY || backend == null) {
+        if (closeRequested || closed || phase != Phase.EMPTY || backend == null) {
             return;
         }
         CallbackEpoch epoch = nextEpoch(backend);
@@ -291,9 +356,26 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
                     "Canvas owner factory completed without an owner");
         }
         if (terminal != null) {
+            if (terminal instanceof RetainedOwnerCreationFailure retained) {
+                FlutterDesignerCanvasOwner rejectedOwner = retained.owner();
+                if (rejectedOwner.backend() != backend) {
+                    IllegalStateException mismatch = new IllegalStateException(
+                            "Retained Canvas owner has backend "
+                            + rejectedOwner.backend() + " for requested backend "
+                            + backend,
+                            retained);
+                    deferCreationFailure(backend, mismatch);
+                } else {
+                    deferCreationFailure(backend, retained);
+                }
+                retireLateCandidate(rejectedOwner, epoch);
+                return;
+            }
             phase = closed ? Phase.CLOSED : Phase.EMPTY;
             lastFailure = terminal;
-            if (!closed) {
+            if (closed) {
+                closeCompletion.complete(null);
+            } else if (!closeRequested) {
                 Throwable reported = terminal;
                 notifyObserver(() -> observer.ownerCreationFailed(
                         backend, epoch, reported));
@@ -307,15 +389,11 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
             IllegalStateException mismatch = new IllegalStateException(
                     "Canvas owner factory returned backend " + candidate.backend()
                     + " for requested backend " + backend);
-            lastFailure = mismatch;
-            if (!closed) {
-                notifyObserver(() -> observer.ownerCreationFailed(
-                        backend, epoch, mismatch));
-            }
+            deferCreationFailure(backend, mismatch);
             retireLateCandidate(candidate, epoch);
             return;
         }
-        if (closed || desiredBackend != backend) {
+        if (closeRequested || closed || desiredBackend != backend) {
             retireLateCandidate(candidate, epoch);
             return;
         }
@@ -324,7 +402,18 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
         activeEpoch = epoch;
         phase = Phase.ACTIVE;
         lastFailure = null;
-        notifyObserver(() -> observer.ownerActivated(candidate, epoch));
+        Throwable activationFailure = invokeObserver(() ->
+                observer.ownerActivated(candidate, epoch));
+        if (activationFailure != null) {
+            deferCreationFailure(backend, activationFailure);
+            beginActiveRetirement();
+        }
+    }
+
+    private void deferCreationFailure(Backend backend, Throwable failure) {
+        deferredCreationFailureBackend = Objects.requireNonNull(
+                backend, "backend");
+        deferredCreationFailure = Objects.requireNonNull(failure, "failure");
     }
 
     private void retireLateCandidate(
@@ -340,6 +429,11 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
             throw new IllegalStateException("Canvas owner epoch space is exhausted");
         }
         return new CallbackEpoch(++nextEpochSequence, backend);
+    }
+
+    private void completeClosed() {
+        phase = Phase.CLOSED;
+        closeCompletion.complete(null);
     }
 
     private void dispatch(Runnable task) {
@@ -359,7 +453,6 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
             callbackExecutor.execute(this::drainDispatched);
         } catch (RuntimeException | LinkageError failure) {
             synchronized (dispatchLock) {
-                dispatched.clear();
                 drainScheduled = false;
             }
             throw failure;
@@ -386,11 +479,17 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
     }
 
     private void notifyObserver(Runnable notification) {
+        invokeObserver(notification);
+    }
+
+    private Throwable invokeObserver(Runnable notification) {
         try {
             notification.run();
+            return null;
         } catch (RuntimeException | LinkageError failure) {
             LOGGER.log(Level.WARNING,
                     "Canvas owner transition observer failed", failure);
+            return failure;
         }
     }
 
@@ -441,6 +540,35 @@ final class FlutterDesignerCanvasOwnerCoordinator implements AutoCloseable {
         CompletionStage<FlutterDesignerCanvasOwner> create(
                 Backend backend,
                 CallbackEpoch epoch) throws Exception;
+    }
+
+    /**
+     * Factory failure after a session has already transferred into an owner.
+     * The coordinator must retain and retire that owner instead of losing the
+     * only retryable reference to a native peer.
+     */
+    static final class RetainedOwnerCreationFailure extends RuntimeException {
+        private final FlutterDesignerCanvasOwner owner;
+
+        RetainedOwnerCreationFailure(
+                FlutterDesignerCanvasOwner owner,
+                Throwable creationFailure) {
+            super("Canvas owner configuration failed before activation: "
+                    + failureMessage(creationFailure),
+                    Objects.requireNonNull(creationFailure, "creationFailure"));
+            this.owner = Objects.requireNonNull(owner, "owner");
+        }
+
+        FlutterDesignerCanvasOwner owner() {
+            return owner;
+        }
+
+        private static String failureMessage(Throwable failure) {
+            String message = failure.getMessage();
+            return message == null || message.isBlank()
+                    ? failure.getClass().getSimpleName()
+                    : message;
+        }
     }
 
     interface Observer {

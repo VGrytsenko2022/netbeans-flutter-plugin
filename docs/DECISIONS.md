@@ -317,7 +317,7 @@ Runtime detection, exact page/bridge authentication, an authenticated NBFC
 bounds and visibility, the focus API, private parking-parent handoff,
 parent-HWND release, matching-PID browser resource release, exact-handle destroy
 retry, close-during-start and deadline-bounded teardown.
-That smoke does not authorize provider/product selection or session routing,
+That smoke does not authorize production provider selection or session routing,
 production Retry/crash recovery, or the
 assembled NetBeans model/layout/selection, DPI and isolation matrix. The backend
 therefore remains unavailable in the product until those independent gates pass.
@@ -335,30 +335,44 @@ insertion unavailable. The Web runner binds to its exact `FlutterView`; a second
 distinct view is terminal rather than silently borrowing `implicitView`.
 The assembled MultiView owns one backend-neutral envelope for the Canvas
 session, component and exact focus surface, with raw host transfer hidden behind
-a routed factory. A separate coordinator implements mutually exclusive owner
-creation, asynchronous pre-peer-loss retirement, epoch-fenced callbacks,
-coalesced route changes and poisoned cleanup retry. Production still fixes the
-selector to the existing native route for all targets, including the bounded
-Web responsive preview: the coordinator is not yet connected to MultiView's
-component/close-veto path. The exact-Web selector branch must never use a
-native-engine fallback. This establishes the tested ownership/session seam
-without claiming Web product readiness.
+a routed factory. The coordinator is now connected as the assembled MultiView's
+sole component-replacement authority. It implements mutually exclusive owner
+creation, keeps the old heavyweight component attached throughout asynchronous
+pre-peer-loss retirement, removes it only after that proof, and creates the
+successor afterward. Exact owner epochs fence model, presentation, focus,
+visibility and interaction callbacks; rapid route changes coalesce and poisoned
+cleanup retains the owner for explicit Retry.
+
+The asynchronous close-handler foundation exposes pending and peer-safe Canvas
+close states, preserves ordinary Save/Discard/Cancel decisions, vetoes the
+current close stack while coordinator retirement runs and schedules a fresh
+TopComponent close only after completion. It is deliberately not installed in
+production by default while exact-Web selection remains off. NetBeans
+`Split Document` and `Clear Split` currently reparent or remove the heavyweight
+AWT hierarchy directly without consulting `canCloseElement()`; closing a
+non-last clone also bypasses `closeLast()` and its handler. The close foundation
+cannot protect those paths. Production therefore still fixes the selector
+to the existing native route for all targets, including the bounded Web
+responsive preview. The exact-Web selector branch must never use a native-engine
+fallback. This establishes the assembled ownership/session seam without claiming
+Web product readiness.
 The disconnected exact-Web build prerequisite strictly binds Flutter version,
 framework revision, engine revision and Dart SDK version from SDK evidence into
 its cache fingerprint, compiler defines, build result and `runner.hello`. It
 uses one JVM/cross-process lock, stable bounded markers, full artifact
 revalidation, fresh private publication and shared descendant-aware process-tree
 retirement. Mutable generated roots are never served; publication-owner and
-final-lease cleanup are retryable. The internal session and owner now enforce
-the exact hello comparison and pre-peer-loss barrier, but this still grants no
-product route until MultiView awaits that asynchronous barrier before replacing
-or destroying the heavyweight component.
+final-lease cleanup are retryable. The internal session, owner and assembled
+MultiView now enforce the exact hello comparison and pre-peer-loss barrier for
+coordinator-owned replacement and ordinary close preparation. This still grants
+no product route until every physical peer-removal path, including Split/Clear
+Split, non-last clone close and direct `componentClosed()`, is proven to await
+that barrier.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.
-Product routing remains disabled until
-the NetBeans owner awaits that barrier and the assembled acceptance matrix
-passes.
+Product routing remains disabled until the split/clone/direct-close bypasses are
+closed and the assembled acceptance matrix passes.
 Current Web input acceptance is English-only; physical CJK IME and other
 language-specific input remain deferred to the final internationalization phase.
 The platform-neutral SPI, completed broader Windows acceptance matrix,

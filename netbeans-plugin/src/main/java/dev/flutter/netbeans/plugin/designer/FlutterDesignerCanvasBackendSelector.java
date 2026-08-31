@@ -17,6 +17,10 @@ final class FlutterDesignerCanvasBackendSelector {
         this.exactWebEnabled = exactWebEnabled;
     }
 
+    boolean exactWebEnabled() {
+        return exactWebEnabled;
+    }
+
     Backend select(CanvasTargetPlatform targetPlatform) {
         Objects.requireNonNull(targetPlatform, "targetPlatform");
         return exactWebEnabled && targetPlatform == CanvasTargetPlatform.WEB

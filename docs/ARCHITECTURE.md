@@ -458,22 +458,35 @@ FileId handles pin the sessions parent, UDF root and marker without delete
 sharing across verification and traversal; the root and marker are deleted by
 handle, preventing a concurrent rename/replacement race. That proof is
 deliberately not product routing or the assembled NetBeans browser acceptance
-matrix: the build/cache prerequisite and exact compiled identity now exist, but
-no Web provider/session route, production owner awaiting the peer-loss barrier,
-Retry UI, or product model/
-layout/selection and mixed-DPI gate is enabled. Until those separate gates
-pass, selecting Web still uses only the native-engine responsive layout preview
-above and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform
-channels.
+matrix: the build/cache prerequisite and exact compiled identity now exist, and
+an internal Web provider/session route is assembled, but production selection,
+the split/clone/direct-close peer-removal gate, and the product model/layout/selection,
+Retry/crash and mixed-DPI acceptance matrix remain disabled. Until those
+separate gates pass, selecting Web still uses only the native-engine responsive
+layout preview above and must not claim `kIsWeb`, DOM, browser fonts, plugins or
+platform channels.
 The assembled MultiView now owns one backend-neutral envelope containing the
-Canvas session, component and exact focus surface; raw `NativeCanvasHost`
-ownership stays behind its factory. The session contract covers surface
-lifecycle, focus, presentation, selection, viewport and drag/drop operations.
-A separate pure
-selector is production-defaulted to the existing native route for every target.
-Its exact-Web branch is test-only and fails closed with an explicit unavailable
-state when no admitted Web session is installed; it cannot silently substitute
-the native engine. This seam is routing preparation, not Web product admission.
+Canvas session, component and exact focus surface; raw host ownership stays
+behind its routed factory. Its coordinator is the sole component-replacement
+authority: activation installs the owner component, retirement leaves that
+heavyweight component attached until asynchronous pre-peer-loss proof succeeds,
+then removes it before creating a replacement. Model, presentation, focus,
+visibility and interaction callbacks are fenced by the exact active owner epoch;
+rapid route requests coalesce and poisoned retirement remains retained for
+explicit Retry.
+
+An asynchronous close-handler foundation maps the MultiView Canvas close state
+to coordinator retirement, vetoes the current close stack, and schedules a fresh
+TopComponent close only after peer-safe completion while preserving ordinary
+Save/Discard/Cancel decisions. It is deliberately not installed in production
+by default while exact-Web selection remains off. NetBeans `Split Document` and
+`Clear Split` currently reparent or remove the AWT hierarchy directly without
+consulting `canCloseElement()`; closing a non-last clone also bypasses
+`closeLast()` and its handler. This foundation therefore cannot yet protect
+every physical peer-loss path. Production keeps every target on the existing
+native route. The
+internal exact-Web selector branch never silently substitutes the native engine,
+but it is routing preparation rather than Web product admission.
 Web input acceptance is English-only; physical CJK IME and other language-
 specific input remain deferred to the final internationalization phase.
 

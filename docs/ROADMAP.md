@@ -389,8 +389,9 @@ accepted architecture is documented in
       tree; owner and final-lease deletion remain retryable.
     - [x] Provide an asynchronous pre-peer-loss barrier that fences future AWT
       attachment and reparents the controller to a private parking HWND before
-      the heavyweight parent may be removed. The future product owner must
-      await this contract before the route can be enabled.
+      the heavyweight parent may be removed. The assembled owner coordinator now
+      awaits this contract before component replacement; every other physical
+      peer-removal path must do the same before the route can be enabled.
     - [x] Treat an unconfirmed or failed native destroy as terminal/poisoned,
       retain the exact live handle for bounded retry and reject restart until
       native ownership is proven released.
@@ -412,10 +413,26 @@ accepted architecture is documented in
       cleanup for explicit retry. The Web runner binds metrics to its exact
       `FlutterView` and rejects a second distinct view instead of reading an
       ambient `implicitView`.
-    - [ ] Integrate that coordinator with the assembled MultiView close-veto and
-      component-replacement path. Production exact-Web selection stays off until
-      close cannot destroy the heavyweight parent before asynchronous WebView2
-      release proof and the physical gate below passes.
+    - [x] Connect that coordinator to the assembled MultiView component path.
+      Owner activation installs the current component, retirement keeps the old
+      heavyweight component attached until its asynchronous pre-peer-loss barrier
+      succeeds, and only then removes it and creates the replacement. Presentation,
+      focus, visibility and interaction callbacks are admitted only for the exact
+      active owner epoch; a poisoned transition retains its owner and exposes
+      explicit Retry.
+    - [x] Implement the asynchronous close-handler foundation. A Canvas close
+      state vetoes the current close stack, starts coordinator retirement and
+      schedules a fresh TopComponent close only after peer-safe completion while
+      preserving ordinary Save/Discard/Cancel handling. The handler is deliberately
+      not installed in production by default while exact-Web selection remains
+      off.
+    - [ ] Add a proven peer-removal gate for every NetBeans path outside the
+      last-clone close handler. `Split Document`/`Clear Split` directly reparent
+      or remove the heavyweight AWT hierarchy without consulting
+      `canCloseElement()`, and closing a non-last clone bypasses `closeLast()` in
+      `CloneableTopComponent`. Production exact-Web selection stays off until
+      split, clone-close and direct `componentClosed()` paths all await the same
+      pre-peer-loss barrier and the physical gate below is closed.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of

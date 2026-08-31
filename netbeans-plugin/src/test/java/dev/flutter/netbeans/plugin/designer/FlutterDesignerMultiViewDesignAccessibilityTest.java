@@ -1278,7 +1278,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
-    void exactWebRouteFailsClosedWhenNoAdmittedBackendIsInstalled()
+    void exactWebRouteFailsClosedWithoutSilentNativeFallback()
             throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -1286,7 +1286,17 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                             Lookup.EMPTY,
                             () -> true,
                             () -> true,
-                            new FlutterDesignerCanvasBackendSelector(true));
+                            new FlutterDesignerCanvasBackendSelector(true),
+                            (backend, ignoredCallbacks) -> {
+                                throw new FlutterDesignerCanvasSessionFactory
+                                        .CreationException(
+                                                backend
+                                                        == FlutterDesignerCanvasBackendSelector
+                                                                .Backend.EXACT_WEB
+                                                                ? "exact Flutter Web Canvas"
+                                                                : "test native Canvas",
+                                                "simulated unavailable backend");
+                            });
             try {
                 JPanel visual = (JPanel) design.getVisualRepresentation();
                 JToolBar toolbar = (JToolBar) design.getToolbarRepresentation();
@@ -1310,7 +1320,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 assertEquals("Exact Flutter Web Canvas is unavailable.",
                         canvasStatus.getText());
                 assertTrue(canvasStatus.getToolTipText().contains(
-                        "no admitted Web Canvas backend is installed"));
+                        "simulated unavailable backend"));
                 assertFalse(canvasStatus.getToolTipText().contains(
                         "owning Flutter project is unavailable"));
             } finally {

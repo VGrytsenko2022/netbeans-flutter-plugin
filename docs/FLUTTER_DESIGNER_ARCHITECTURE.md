@@ -1667,18 +1667,27 @@ HTTPS origin, frozen resource policy, Java endpoint and standalone physical host
 gate are complete. A disconnected build/cache prerequisite now binds the exact
 Flutter, framework, engine and Dart SDK identity into its compiler defines,
 cache fingerprint, result and `runner.hello`, then privately publishes every
-validated generation. The assembled MultiView product route, component/close
-owner handoff, end-to-end Retry/crash behavior and NetBeans physical acceptance
-remain open. Host-level explicit focus/visibility behavior is implemented. The
+validated generation. The assembled MultiView component/owner handoff and its
+asynchronous close-handler foundation are implemented internally; production
+routing, the split/clone/direct-close peer-removal gate, end-to-end Retry/crash
+behavior and NetBeans physical acceptance remain open. Host-level explicit
+focus/visibility behavior is implemented. The
 internal exact-Web session now
 consumes that authenticated stream, checks the compiled engine identity against
 `runner.hello`, reuses the native session's model/layout/selection/viewport and
 interaction fences, and matches Flutter presentation against independently
 observed WebView2 physical metrics. A backend-neutral routed factory and
 epoch-fenced asynchronous owner coordinator guarantee retirement-before-create
-and retry poisoned cleanup. Those objects are not yet connected to MultiView's
-component replacement and synchronous close-veto, so this remains unavailable
-as a product Canvas backend.
+and retry poisoned cleanup. That coordinator is now the assembled MultiView's
+component-replacement authority: it keeps the retiring heavyweight component
+attached until the pre-peer-loss barrier completes, removes it before installing
+the successor, and admits callbacks only for the exact active epoch. The close
+foundation vetoes the current stack and retries TopComponent close only after
+coordinator retirement. It is not installed in production by default while
+exact-Web selection remains off, because NetBeans Split/Clear Split can directly
+reparent or remove the AWT hierarchy without consulting `canCloseElement()`, and
+closing a non-last clone bypasses `closeLast()` and its close handler.
+Exact Web therefore remains unavailable as a product Canvas backend.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -1710,9 +1719,9 @@ Implementation proceeds through explicit gates:
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. The separately compiled browser runner
-   foundation described below does not change this product route until MultiView
-   integrates the exact-Web session/owner transition and the assembled physical
-   gate passes.
+   foundation described below does not change this product route until every
+   split/clone/direct-close peer-removal bypass is closed and the assembled
+   physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
    with the Explorer/Nodes widget tree, publish the exact ten-item Palette and
    expose selected-node Properties. Enable catalog-driven Set/Reset for the 514
@@ -1752,14 +1761,16 @@ Implementation proceeds through explicit gates:
    current physical host still lacks a composition-capable input method. This
    gate does not claim Linux/macOS or runtime-faithful Web support.
 10. [Authenticated Web runner/transport, host, exact build/cache, internal Web
-    session and mutually exclusive owner-transition foundation complete;
-    assembled product gates open] Keep the browser entry point, exact-view
+    session, assembled owner transition and asynchronous close foundation
+    complete; physical product gates pending] Keep the browser entry point, exact-view
     multi-view root and nonce-, sequence- and size-fenced JavaScript/Dart
-    transport on the existing bounded NBFC/model protocol. Next integrate the
-    transition coordinator with MultiView's asynchronous component/close path
-    and pass the assembled Windows physical readiness, interaction and teardown
-    gate. The standalone host and internal session do not authorize the product
-    route.
+    transport on the existing bounded NBFC/model protocol. Next add a proven
+    pre-removal hook for NetBeans Split/Clear Split and non-last clone close,
+    which currently bypass the close handler while directly changing the
+    heavyweight AWT hierarchy,
+    then pass the assembled Windows physical readiness, interaction and teardown
+    gate. The standalone host, internal route and close handler do not authorize
+    the product route.
 11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
     Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 12. Admit every further built-in only as a complete capability-gated vertical
@@ -1798,9 +1809,13 @@ infrastructure.
    static-build proof, native WebView2 host, and origin/resource confinement are
    complete. The internal exact Web session, routed factory and asynchronous
    owner-transition coordinator are also implemented and deterministically
-   tested. MultiView component/close integration, production routing and the
-   assembled physical gate remain pending alongside the Linux/macOS native-
-   surface providers.
+   tested. The coordinator now owns assembled MultiView component replacement,
+   epoch fencing and poisoned-transition Retry, and the asynchronous close-handler
+   foundation exists. Production routing remains off because Split/Clear Split
+   and non-last clone close can remove or reparent the AWT hierarchy outside the
+   close handler; that
+   physical gate remains pending alongside the Linux/macOS native-surface
+   providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

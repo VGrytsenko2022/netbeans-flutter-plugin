@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
@@ -26,6 +27,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.swing.JComponent;
@@ -148,6 +151,112 @@ class FlutterDesignerCanvasOwnerCoordinatorTest {
     }
 
     @Test
+    void failedCriticalDetachRetainsRetiredOwnerUntilDetachAndCreationAreRetried()
+            throws Exception {
+        TestSession nativeSession = new TestSession();
+        FlutterDesignerCanvasOwner nativeOwner = owner(
+                Backend.NATIVE, nativeSession);
+        FlutterDesignerCanvasOwner webOwner = owner(
+                Backend.EXACT_WEB, new TestSession());
+        List<Backend> factoryCalls = new ArrayList<>();
+        AtomicInteger detachAttempts = new AtomicInteger();
+        IllegalStateException detachFailure = new IllegalStateException(
+                "simulated critical component detach failure");
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) -> {
+                    factoryCalls.add(backend);
+                    return CompletableFuture.completedFuture(
+                            backend == Backend.NATIVE ? nativeOwner : webOwner);
+                },
+                new FlutterDesignerCanvasOwnerCoordinator.Observer() {
+                    @Override
+                    public void ownerRetired(
+                            FlutterDesignerCanvasOwner ignoredOwner,
+                            CallbackEpoch ignoredEpoch) {
+                        if (detachAttempts.incrementAndGet() == 1) {
+                            throw detachFailure;
+                        }
+                    }
+                });
+
+        coordinator.requestBackend(Backend.NATIVE);
+        coordinator.requestBackend(Backend.EXACT_WEB);
+
+        assertEquals(Phase.POISONED, coordinator.phase());
+        assertNull(coordinator.activeOwner());
+        assertSame(nativeOwner, coordinator.retainedOwner());
+        assertSame(detachFailure, coordinator.lastFailure());
+        assertTrue(nativeOwner.closed(),
+                "peer retirement succeeded before the critical detach failed");
+        assertEquals(1, nativeSession.prepareCalls,
+                "the physical peer must be retired exactly once");
+        assertEquals(1, detachAttempts.get());
+        assertEquals(List.of(Backend.NATIVE), factoryCalls,
+                "a failed detach must not create the successor");
+
+        coordinator.retryTransition();
+
+        assertEquals(Phase.EMPTY, coordinator.phase());
+        assertNull(coordinator.activeOwner());
+        assertNull(coordinator.retainedOwner());
+        assertEquals(1, nativeSession.prepareCalls,
+                "retrying an already retired owner must only retry detach");
+        assertEquals(2, detachAttempts.get());
+        assertEquals(List.of(Backend.NATIVE), factoryCalls,
+                "successful detach recovery must remain fail-closed");
+
+        coordinator.retryTransition();
+
+        assertEquals(Phase.ACTIVE, coordinator.phase());
+        assertSame(webOwner, coordinator.activeOwner());
+        assertEquals(List.of(Backend.NATIVE, Backend.EXACT_WEB), factoryCalls);
+    }
+
+    @Test
+    void failedCriticalActivationRetiresCandidateBeforeExplicitCreationRetry() {
+        TestSession rejectedSession = new TestSession();
+        FlutterDesignerCanvasOwner rejectedOwner = owner(
+                Backend.NATIVE, rejectedSession);
+        FlutterDesignerCanvasOwner replacementOwner = owner(
+                Backend.NATIVE, new TestSession());
+        AtomicInteger factoryCalls = new AtomicInteger();
+        AtomicInteger activationAttempts = new AtomicInteger();
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) -> CompletableFuture.completedFuture(
+                        factoryCalls.incrementAndGet() == 1
+                                ? rejectedOwner
+                                : replacementOwner),
+                new FlutterDesignerCanvasOwnerCoordinator.Observer() {
+                    @Override
+                    public void ownerActivated(
+                            FlutterDesignerCanvasOwner ignoredOwner,
+                            CallbackEpoch ignoredEpoch) {
+                        if (activationAttempts.incrementAndGet() == 1) {
+                            throw new IllegalStateException(
+                                    "simulated critical component activation failure");
+                        }
+                    }
+                });
+
+        coordinator.requestBackend(Backend.NATIVE);
+
+        assertEquals(Phase.EMPTY, coordinator.phase());
+        assertNull(coordinator.activeOwner());
+        assertNull(coordinator.retainedOwner());
+        assertTrue(rejectedOwner.closed());
+        assertEquals(1, rejectedSession.prepareCalls);
+        assertEquals(1, factoryCalls.get(),
+                "activation failure cleanup must not enter a create loop");
+
+        coordinator.retryTransition();
+
+        assertEquals(Phase.ACTIVE, coordinator.phase());
+        assertSame(replacementOwner, coordinator.activeOwner());
+        assertEquals(2, factoryCalls.get());
+        assertEquals(2, activationAttempts.get());
+    }
+
+    @Test
     void closeFencesLateCreationAndRetiresItsCandidate() {
         CompletableFuture<FlutterDesignerCanvasOwner> creation =
                 new CompletableFuture<>();
@@ -263,12 +372,13 @@ class FlutterDesignerCanvasOwnerCoordinatorTest {
                 FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP);
 
         coordinator.requestBackend(Backend.NATIVE);
-        coordinator.close();
+        CompletionStage<Void> closed = coordinator.closeAsync();
         failedRetirement.completeExceptionally(
                 new IllegalStateException("simulated close failure"));
 
         assertEquals(Phase.POISONED, coordinator.phase());
         assertSame(nativeOwner, coordinator.retainedOwner());
+        assertFalse(closed.toCompletableFuture().isDone());
         coordinator.retryTransition();
         assertEquals(Phase.RETIRING, coordinator.phase());
         assertEquals(2, session.prepareCalls);
@@ -278,6 +388,227 @@ class FlutterDesignerCanvasOwnerCoordinatorTest {
         assertEquals(Phase.CLOSED, coordinator.phase());
         assertTrue(nativeOwner.closed());
         assertNull(coordinator.retainedOwner());
+        assertTrue(closed.toCompletableFuture().isDone());
+        closed.toCompletableFuture().join();
+    }
+
+    @Test
+    void closeOfAlreadyPoisonedTransitionRetriesRetainedOwnerWithoutReplacement() {
+        CompletableFuture<Void> failedSwitchRetirement = new CompletableFuture<>();
+        CompletableFuture<Void> closeRetirement = new CompletableFuture<>();
+        TestSession session = new TestSession(List.of(
+                failedSwitchRetirement, closeRetirement));
+        FlutterDesignerCanvasOwner nativeOwner = owner(
+                Backend.NATIVE, session);
+        List<Backend> factoryCalls = new ArrayList<>();
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) -> {
+                    factoryCalls.add(backend);
+                    return CompletableFuture.completedFuture(nativeOwner);
+                },
+                FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP);
+
+        coordinator.requestBackend(Backend.NATIVE);
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        failedSwitchRetirement.completeExceptionally(
+                new IllegalStateException("simulated switch retirement failure"));
+
+        assertEquals(Phase.POISONED, coordinator.phase());
+        assertSame(nativeOwner, coordinator.retainedOwner());
+        assertEquals(List.of(Backend.NATIVE), factoryCalls);
+
+        CompletionStage<Void> closed = coordinator.closeAsync();
+
+        assertEquals(Phase.RETIRING, coordinator.phase());
+        assertSame(nativeOwner, coordinator.retainedOwner());
+        assertNull(coordinator.activeOwner());
+        assertNull(coordinator.desiredBackend());
+        assertEquals(2, session.prepareCalls);
+        assertEquals(List.of(Backend.NATIVE), factoryCalls);
+        assertFalse(closed.toCompletableFuture().isDone());
+
+        closeRetirement.complete(null);
+
+        closed.toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+        assertTrue(nativeOwner.closed());
+        assertNull(coordinator.retainedOwner());
+        assertEquals(List.of(Backend.NATIVE), factoryCalls);
+    }
+
+    @Test
+    void closeCompletionWaitsForALateCandidateAndCompletesAfterRetirement() {
+        CompletableFuture<FlutterDesignerCanvasOwner> creation =
+                new CompletableFuture<>();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.EXACT_WEB,
+                new TestSession(List.of(retirement)));
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) -> creation,
+                FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP);
+
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        CompletionStage<Void> closed = coordinator.closeAsync();
+
+        assertFalse(closed.toCompletableFuture().isDone());
+        creation.complete(owner);
+        assertEquals(Phase.RETIRING, coordinator.phase());
+        assertFalse(closed.toCompletableFuture().isDone());
+
+        retirement.complete(null);
+
+        closed.toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+        assertTrue(owner.closed());
+    }
+
+    @Test
+    void closeCompletionFinishesWhenPendingCreationFailsWithoutAnOwner() {
+        CompletableFuture<FlutterDesignerCanvasOwner> creation =
+                new CompletableFuture<>();
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) -> creation,
+                FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP);
+
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        CompletionStage<Void> closed = coordinator.closeAsync();
+        creation.completeExceptionally(
+                new IllegalStateException("simulated creation failure"));
+
+        closed.toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+        assertNull(coordinator.activeOwner());
+        assertNull(coordinator.retainedOwner());
+    }
+
+    @Test
+    void closeRequestSynchronouslyFencesCallbacksBeforeQueuedCloseRuns() {
+        ManualExecutor executor = new ManualExecutor();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.EXACT_WEB, new TestSession());
+        FlutterDesignerCanvasOwnerCoordinator coordinator =
+                new FlutterDesignerCanvasOwnerCoordinator(
+                        (backend, ignoredEpoch) ->
+                                CompletableFuture.completedFuture(owner),
+                        FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP,
+                        executor);
+        AtomicInteger admitted = new AtomicInteger();
+
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        executor.drain();
+        CallbackEpoch epoch = coordinator.activeEpoch();
+        assertTrue(coordinator.isActiveEpoch(epoch));
+
+        CompletionStage<Void> closed = coordinator.closeAsync();
+        coordinator.admitCallback(epoch, admitted::incrementAndGet);
+
+        assertFalse(coordinator.isActiveEpoch(epoch));
+        assertEquals(0, admitted.get());
+        assertEquals(Phase.ACTIVE, coordinator.phase());
+        executor.drain();
+        closed.toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+    }
+
+    @Test
+    void externalCompletionCannotForgePeerSafeClose() {
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.EXACT_WEB,
+                new TestSession(List.of(retirement)));
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) ->
+                        CompletableFuture.completedFuture(owner),
+                FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP);
+        coordinator.requestBackend(Backend.EXACT_WEB);
+
+        CompletionStage<Void> protectedClose = coordinator.closeAsync();
+        CompletableFuture<Void> callerView = protectedClose.toCompletableFuture();
+        callerView.complete(null);
+
+        assertTrue(callerView.isDone());
+        assertEquals(Phase.RETIRING, coordinator.phase());
+        assertFalse(coordinator.closeAsync().toCompletableFuture().isDone());
+
+        retirement.complete(null);
+        coordinator.closeAsync().toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+    }
+
+    @Test
+    void rejectedInitialCloseDispatchRetainsTheRequestForExplicitRetry() {
+        RejectOnceExecutor executor = new RejectOnceExecutor();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.NATIVE, new TestSession());
+        FlutterDesignerCanvasOwnerCoordinator coordinator =
+                new FlutterDesignerCanvasOwnerCoordinator(
+                        (backend, ignoredEpoch) ->
+                                CompletableFuture.completedFuture(owner),
+                        FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP,
+                        executor);
+        coordinator.requestBackend(Backend.NATIVE);
+        executor.rejectNext();
+
+        assertThrows(RejectedExecutionException.class, coordinator::closeAsync);
+        assertFalse(coordinator.isActiveEpoch(coordinator.activeEpoch()));
+
+        coordinator.closeAsync().toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+        assertTrue(owner.closed());
+    }
+
+    @Test
+    void rejectedRetirementCompletionDispatchIsRecoveredByRepeatedClose() {
+        RejectOnceExecutor executor = new RejectOnceExecutor();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.EXACT_WEB,
+                new TestSession(List.of(retirement)));
+        FlutterDesignerCanvasOwnerCoordinator coordinator =
+                new FlutterDesignerCanvasOwnerCoordinator(
+                        (backend, ignoredEpoch) ->
+                                CompletableFuture.completedFuture(owner),
+                        FlutterDesignerCanvasOwnerCoordinator.Observer.NOOP,
+                        executor);
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        CompletionStage<Void> close = coordinator.closeAsync();
+        executor.rejectNext();
+
+        retirement.complete(null);
+
+        assertEquals(Phase.RETIRING, coordinator.phase());
+        assertFalse(close.toCompletableFuture().isDone());
+        coordinator.closeAsync().toCompletableFuture().join();
+        assertEquals(Phase.CLOSED, coordinator.phase());
+        assertTrue(owner.closed());
+    }
+
+    @Test
+    void ownerRetiredObserverRunsBeforeCloseCompletionIsPublished() {
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        FlutterDesignerCanvasOwner owner = owner(
+                Backend.EXACT_WEB,
+                new TestSession(List.of(retirement)));
+        List<String> events = new ArrayList<>();
+        FlutterDesignerCanvasOwnerCoordinator coordinator = coordinator(
+                (backend, ignoredEpoch) ->
+                        CompletableFuture.completedFuture(owner),
+                new FlutterDesignerCanvasOwnerCoordinator.Observer() {
+                    @Override
+                    public void ownerRetired(
+                            FlutterDesignerCanvasOwner ignoredOwner,
+                            CallbackEpoch ignoredEpoch) {
+                        events.add("retired");
+                    }
+                });
+        coordinator.requestBackend(Backend.EXACT_WEB);
+        CompletionStage<Void> close = coordinator.closeAsync();
+        close.whenComplete((ignored, failure) -> events.add("complete"));
+
+        retirement.complete(null);
+
+        assertEquals(List.of("retired", "complete"), events);
     }
 
     private static FlutterDesignerCanvasOwnerCoordinator coordinator(
@@ -291,6 +622,39 @@ class FlutterDesignerCanvasOwnerCoordinatorTest {
             Backend backend,
             TestSession session) {
         return FlutterDesignerCanvasOwner.adopt(backend, session);
+    }
+
+    private static final class ManualExecutor implements Executor {
+        private final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.addLast(command);
+        }
+
+        void drain() {
+            Runnable task;
+            while ((task = tasks.pollFirst()) != null) {
+                task.run();
+            }
+        }
+    }
+
+    private static final class RejectOnceExecutor implements Executor {
+        private boolean rejectNext;
+
+        @Override
+        public void execute(Runnable command) {
+            if (rejectNext) {
+                rejectNext = false;
+                throw new RejectedExecutionException("simulated rejection");
+            }
+            command.run();
+        }
+
+        void rejectNext() {
+            rejectNext = true;
+        }
     }
 
     private static final class RecordingObserver

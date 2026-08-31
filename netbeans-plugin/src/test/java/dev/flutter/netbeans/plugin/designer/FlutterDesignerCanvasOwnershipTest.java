@@ -27,6 +27,7 @@ import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasPlatformProvi
 import dev.flutter.netbeans.plugin.designer.canvas.spi.NativeCanvasSurfaceMetrics;
 import java.awt.Canvas;
 import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -49,6 +50,7 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
+import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.openide.util.Lookup;
 
 class FlutterDesignerCanvasOwnershipTest {
@@ -392,6 +394,499 @@ class FlutterDesignerCanvasOwnershipTest {
             });
         }
         assertEquals(1, rejectedSession.closeCalls);
+    }
+
+    @Test
+    void hiddenLateOwnerActivationDoesNotReinstallGlobalFocusListeners()
+            throws Exception {
+        TestSession nativeSession = new TestSession();
+        TestSession exactSession = new TestSession();
+        AtomicReference<FlutterDesignerMultiViewDesign> designReference =
+                new AtomicReference<>();
+        FlutterDesignerCanvasSessionFactory factory = (backend, ignoredCallbacks) -> {
+            if (backend == Backend.EXACT_WEB) {
+                FlutterDesignerMultiViewDesign design = designReference.get();
+                assertTrue(EventQueue.isDispatchThread());
+                design.componentHidden();
+                return FlutterDesignerCanvasOwner.adopt(backend, exactSession);
+            }
+            return FlutterDesignerCanvasOwner.adopt(backend, nativeSession);
+        };
+
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        factory));
+        designReference.set(design);
+        try {
+            onEdt(() -> {
+                design.componentOpened();
+                assertFalse(design.canvasFocusListenersInstalledForTests(),
+                        "an opened but hidden Design view must not own global listeners");
+                design.componentShowing();
+                assertTrue(design.canvasFocusListenersInstalledForTests());
+                design.requestCanvasBackendForTests(Backend.EXACT_WEB);
+                return null;
+            });
+
+            assertSame(Backend.EXACT_WEB, design.canvasOwnerForTests().backend());
+            assertFalse(design.canvasFocusListenersInstalledForTests(),
+                    "late activation must preserve the hidden-view listener fence");
+            assertNull(nativeSession.component.getParent());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    exactSession.component,
+                    design.getVisualRepresentation()));
+        } finally {
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(1, nativeSession.closeCalls);
+        assertEquals(1, exactSession.closeCalls);
+    }
+
+    @Test
+    void multiViewConfigurationFailureRetainsOwnerUntilCleanupAndCreationRetries()
+            throws Exception {
+        TestSession rejectedSession = new TestSession();
+        rejectedSession.failViewportListener = true;
+        CompletableFuture<Void> failedCleanup = new CompletableFuture<>();
+        CompletableFuture<Void> recoveredCleanup = new CompletableFuture<>();
+        rejectedSession.retirementAttempts.add(failedCleanup);
+        rejectedSession.retirementAttempts.add(recoveredCleanup);
+        TestSession replacementSession = new TestSession();
+        AtomicInteger factoryCalls = new AtomicInteger();
+        AtomicReference<FlutterDesignerCanvasOwner> rejectedOwner =
+                new AtomicReference<>();
+        FlutterDesignerCanvasSessionFactory factory = (backend, ignoredCallbacks) -> {
+            int attempt = factoryCalls.incrementAndGet();
+            if (attempt == 1) {
+                FlutterDesignerCanvasOwner owner =
+                        FlutterDesignerCanvasOwner.adopt(backend, rejectedSession);
+                rejectedOwner.set(owner);
+                return owner;
+            }
+            assertEquals(2, attempt,
+                    "configuration failure must not enter an automatic create loop");
+            return FlutterDesignerCanvasOwner.adopt(backend, replacementSession);
+        };
+
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        FlutterDesignerCanvasBackendSelector.production(),
+                        factory));
+        try {
+            onEdt(() -> {
+                design.componentOpened();
+                return null;
+            });
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(1, factoryCalls.get());
+            assertEquals(1, rejectedSession.preparePeerRemovalCalls);
+            assertNull(design.canvasOwnerForTests());
+
+            IOException cleanupFailure = new IOException(
+                    "simulated rejected-owner cleanup failure");
+            onEdt(() -> {
+                failedCleanup.completeExceptionally(cleanupFailure);
+                return null;
+            });
+
+            FlutterDesignerCanvasOwner retained = rejectedOwner.get();
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.POISONED,
+                    design.canvasOwnerPhaseForTests());
+            assertNull(design.canvasOwnerForTests());
+            assertSame(
+                    FlutterDesignerCanvasOwner.RetirementState.POISONED,
+                    retained.retirementState());
+            assertEquals(1, factoryCalls.get());
+            assertEquals(1, rejectedSession.preparePeerRemovalCalls);
+            assertNull(rejectedSession.component.getParent());
+            assertNull(replacementSession.component.getParent());
+
+            onEdt(() -> {
+                design.retryCanvasOwnerTransitionForTests();
+                return null;
+            });
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(2, rejectedSession.preparePeerRemovalCalls);
+            assertEquals(1, factoryCalls.get());
+
+            onEdt(() -> {
+                recoveredCleanup.complete(null);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.EMPTY,
+                    design.canvasOwnerPhaseForTests());
+            assertTrue(retained.closed());
+            assertNull(design.canvasOwnerForTests());
+            assertEquals(1, factoryCalls.get(),
+                    "cleanup recovery must not automatically recreate the owner");
+            assertNull(replacementSession.component.getParent());
+
+            onEdt(() -> {
+                design.retryCanvasOwnerTransitionForTests();
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(2, factoryCalls.get());
+            assertSame(
+                    replacementSession.component,
+                    design.canvasOwnerForTests().component());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    replacementSession.component,
+                    design.getVisualRepresentation()));
+        } finally {
+            failedCleanup.completeExceptionally(
+                    new IOException("test cleanup fallback"));
+            recoveredCleanup.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(1, replacementSession.closeCalls);
+    }
+
+    @Test
+    void multiViewKeepsNativeComponentAttachedUntilRetirementThenInstallsExactWeb()
+            throws Exception {
+        TestSession nativeSession = new TestSession();
+        CompletableFuture<Void> nativeRetirement = new CompletableFuture<>();
+        nativeSession.retirementAttempts.add(nativeRetirement);
+        TestSession webSession = new TestSession();
+        AtomicInteger nativeCreates = new AtomicInteger();
+        AtomicInteger webCreates = new AtomicInteger();
+        FlutterDesignerCanvasSessionFactory factory = (backend, ignoredCallbacks) -> {
+            TestSession selected = switch (backend) {
+                case NATIVE -> {
+                    nativeCreates.incrementAndGet();
+                    yield nativeSession;
+                }
+                case EXACT_WEB -> {
+                    webCreates.incrementAndGet();
+                    yield webSession;
+                }
+            };
+            return FlutterDesignerCanvasOwner.adopt(backend, selected);
+        };
+
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        factory));
+        try {
+            FlutterDesignerCanvasOwner nativeOwner = design.canvasOwnerForTests();
+            assertEquals(Backend.NATIVE, nativeOwner.backend());
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(1, nativeCreates.get());
+            assertEquals(0, webCreates.get());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+
+            onEdt(() -> {
+                design.requestCanvasBackendForTests(Backend.EXACT_WEB);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertNull(design.canvasOwnerForTests());
+            assertEquals(1, nativeSession.preparePeerRemovalCalls);
+            assertEquals(0, webCreates.get());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+            assertNull(webSession.component.getParent());
+
+            onEdt(() -> {
+                nativeRetirement.complete(null);
+                return null;
+            });
+
+            FlutterDesignerCanvasOwner webOwner = design.canvasOwnerForTests();
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(Backend.EXACT_WEB, webOwner.backend());
+            assertEquals(1, webCreates.get());
+            assertTrue(nativeOwner.closed());
+            assertNull(nativeSession.component.getParent());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    webSession.component,
+                    design.getVisualRepresentation()));
+        } finally {
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(1, webSession.closeCalls);
+        assertNull(webSession.component.getParent());
+    }
+
+    @Test
+    void multiViewFailedRetirementKeepsOldComponentAndRetryCompletesReplacement()
+            throws Exception {
+        TestSession nativeSession = new TestSession();
+        CompletableFuture<Void> failedRetirement = new CompletableFuture<>();
+        CompletableFuture<Void> recoveredRetirement = new CompletableFuture<>();
+        nativeSession.retirementAttempts.add(failedRetirement);
+        nativeSession.retirementAttempts.add(recoveredRetirement);
+        TestSession webSession = new TestSession();
+        AtomicInteger webCreates = new AtomicInteger();
+        FlutterDesignerCanvasSessionFactory factory = (backend, ignoredCallbacks) -> {
+            if (backend == Backend.EXACT_WEB) {
+                webCreates.incrementAndGet();
+                return FlutterDesignerCanvasOwner.adopt(backend, webSession);
+            }
+            return FlutterDesignerCanvasOwner.adopt(backend, nativeSession);
+        };
+
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        factory));
+        try {
+            FlutterDesignerCanvasOwner nativeOwner = design.canvasOwnerForTests();
+            onEdt(() -> {
+                design.requestCanvasBackendForTests(Backend.EXACT_WEB);
+                return null;
+            });
+
+            IOException cleanupFailure = new IOException(
+                    "simulated native peer release failure");
+            onEdt(() -> {
+                failedRetirement.completeExceptionally(cleanupFailure);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.POISONED,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(
+                    FlutterDesignerCanvasOwner.RetirementState.POISONED,
+                    nativeOwner.retirementState());
+            assertNull(design.canvasOwnerForTests());
+            assertEquals(0, webCreates.get());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+            assertNull(webSession.component.getParent());
+
+            onEdt(() -> {
+                design.retryCanvasOwnerTransitionForTests();
+                return null;
+            });
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(2, nativeSession.preparePeerRemovalCalls);
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+
+            onEdt(() -> {
+                recoveredRetirement.complete(null);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(Backend.EXACT_WEB, design.canvasOwnerForTests().backend());
+            assertEquals(1, webCreates.get());
+            assertTrue(nativeOwner.closed());
+            assertNull(nativeSession.component.getParent());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    webSession.component,
+                    design.getVisualRepresentation()));
+        } finally {
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(1, webSession.closeCalls);
+        assertNull(webSession.component.getParent());
+    }
+
+    @Test
+    void multiViewCloseDuringBackendRetirementKeepsOldComponentUntilPeerSafe()
+            throws Exception {
+        TestSession nativeSession = new TestSession();
+        CompletableFuture<Void> nativeRetirement = new CompletableFuture<>();
+        nativeSession.retirementAttempts.add(nativeRetirement);
+        TestSession webSession = new TestSession();
+        AtomicInteger webCreates = new AtomicInteger();
+        FlutterDesignerCanvasSessionFactory factory = (backend, ignoredCallbacks) -> {
+            if (backend == Backend.EXACT_WEB) {
+                webCreates.incrementAndGet();
+                return FlutterDesignerCanvasOwner.adopt(backend, webSession);
+            }
+            return FlutterDesignerCanvasOwner.adopt(backend, nativeSession);
+        };
+
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        factory));
+        try {
+            onEdt(() -> {
+                design.componentOpened();
+                design.requestCanvasBackendForTests(Backend.EXACT_WEB);
+                return null;
+            });
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(0, webCreates.get());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(0, webCreates.get());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    nativeSession.component,
+                    design.getVisualRepresentation()));
+            assertNull(webSession.component.getParent());
+
+            onEdt(() -> {
+                nativeRetirement.complete(null);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.CLOSED,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(0, webCreates.get());
+            assertNull(nativeSession.component.getParent());
+            assertNull(webSession.component.getParent());
+        } finally {
+            nativeRetirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void multiViewCloseGateBecomesReadyOnlyAfterComponentIsPeerSafe()
+            throws Exception {
+        assertCloseGateTransition(
+                false,
+                FlutterDesignerAsyncCloseOperationHandler.READY_SAVE_ID);
+        assertCloseGateTransition(
+                true,
+                FlutterDesignerAsyncCloseOperationHandler.READY_DISCARD_ID);
+    }
+
+    private static void assertCloseGateTransition(
+            boolean discard,
+            String expectedReadyId) throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        session.retirementAttempts.add(retirement);
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) ->
+                                FlutterDesignerCanvasOwner.adopt(
+                                        backend, session)));
+        try {
+            onEdt(() -> {
+                design.componentOpened();
+                return null;
+            });
+            CloseOperationState pending = onEdt(design::canCloseElement);
+            assertFalse(pending.canClose());
+            assertEquals(
+                    FlutterDesignerAsyncCloseOperationHandler.PENDING_ID,
+                    pending.getCloseWarningID());
+
+            onEdt(() -> {
+                (discard
+                        ? pending.getDiscardAction()
+                        : pending.getProceedAction()).actionPerformed(
+                                new ActionEvent(
+                                        design,
+                                        ActionEvent.ACTION_PERFORMED,
+                                        discard ? "discard" : "proceed"));
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(1, session.preparePeerRemovalCalls);
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    session.component,
+                    design.getVisualRepresentation()));
+            assertEquals(
+                    FlutterDesignerAsyncCloseOperationHandler.PENDING_ID,
+                    onEdt(design::canCloseElement).getCloseWarningID());
+
+            onEdt(() -> {
+                retirement.complete(null);
+                return null;
+            });
+
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.CLOSED,
+                    design.canvasOwnerPhaseForTests());
+            assertNull(session.component.getParent());
+            CloseOperationState ready = onEdt(design::canCloseElement);
+            assertFalse(ready.canClose());
+            assertEquals(expectedReadyId, ready.getCloseWarningID());
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
     }
 
     private static FlutterDesignerCanvasSessionFactory.Callbacks callbacks() {

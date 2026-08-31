@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -146,6 +148,7 @@ public final class FlutterDesignerMultiViewDesign
     private final JLabel detailLabel;
     private final JLabel canvasStatusLabel;
     private final JLabel canvasInteractionStatusLabel;
+    private final JPanel canvasPanel;
     private final JButton canvasRetryButton;
     private final JButton canvasDetailsButton;
     private final JProgressBar progress;
@@ -174,7 +177,9 @@ public final class FlutterDesignerMultiViewDesign
             event -> projectPlatformsChanged();
     private final FlutterDesignerCanvasBackendSelector canvasBackendSelector;
     private final FlutterDesignerCanvasSessionFactory canvasSessionFactory;
-    private final FlutterDesignerCanvasOwner canvasOwner;
+    private final FlutterDesignerCanvasOwnerCoordinator canvasOwnerCoordinator;
+    private FlutterDesignerCanvasOwner canvasOwner;
+    private MultiViewElementCallback multiViewCallback;
     private final PropertyChangeListener permanentFocusOwnerListener =
             this::permanentFocusOwnerChanged;
     private final AWTEventListener swingInputFocusListener =
@@ -216,6 +221,11 @@ public final class FlutterDesignerMultiViewDesign
     private long mutationViewEpoch;
     private boolean platformListening;
     private boolean designVisible;
+    private boolean designActivated;
+    private CanvasCloseGateState canvasCloseGateState = CanvasCloseGateState.OPEN;
+    private boolean canvasCloseDiscardAuthorized;
+    private CompletionStage<Void> canvasCloseCompletion;
+    private boolean canvasCloseRetryScheduled;
     private KeyboardFocusManager permanentFocusOwnerManager;
     private Toolkit swingInputFocusToolkit;
     private long swingFocusRepairEpoch;
@@ -408,7 +418,7 @@ public final class FlutterDesignerMultiViewDesign
         // Enabled only after the current bundled runner confirms the negotiated
         // viewport capability with exact metrics for this presentation.
         viewportControls.setControlsEnabled(false);
-        JPanel canvasPanel = new JPanel(new BorderLayout());
+        canvasPanel = new JPanel(new BorderLayout());
         // Status copy is deliberately complete for accessibility and diagnostics,
         // but a long JLabel must not become the right side's split-pane minimum.
         // Otherwise JSplitPane clamps its minimum and maximum divider locations
@@ -450,54 +460,211 @@ public final class FlutterDesignerMultiViewDesign
         configureAccessibility();
         updatePreviewModeAccessibility();
 
-        // Acquire the eager production owner only after every other view field
-        // and component has been assembled. No later constructor operation can
-        // strand a provider host if ownership or listener publication fails.
-        FlutterDesignerCanvasOwner selectedCanvasOwner = null;
+        // The coordinator is the sole authority allowed to replace a Canvas
+        // component. It never creates a successor until the previous owner has
+        // completed peer-safe retirement.
+        canvasOwnerCoordinator = new FlutterDesignerCanvasOwnerCoordinator(
+                this::createCanvasOwner,
+                new CanvasOwnerObserver(),
+                FlutterDesignerMultiViewDesign::dispatchOnEdt);
+        canvasOwnerCoordinator.requestBackend(
+                FlutterDesignerCanvasBackendSelector.Backend.NATIVE);
+    }
+
+    private static void dispatchOnEdt(Runnable command) {
+        Objects.requireNonNull(command, "command");
+        if (java.awt.EventQueue.isDispatchThread()) {
+            command.run();
+        } else {
+            java.awt.EventQueue.invokeLater(command);
+        }
+    }
+
+    private CompletionStage<FlutterDesignerCanvasOwner> createCanvasOwner(
+            FlutterDesignerCanvasBackendSelector.Backend backend,
+            FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch) {
+        FlutterDesignerCanvasOwner created = null;
         try {
-            selectedCanvasOwner = Objects.requireNonNull(
-                    this.canvasSessionFactory.create(
-                            FlutterDesignerCanvasBackendSelector.Backend.NATIVE,
+            created = Objects.requireNonNull(
+                    canvasSessionFactory.create(
+                            backend,
                             new FlutterDesignerCanvasSessionFactory.Callbacks(
-                                    this::renderNativeCanvasStatus,
-                                    this::selectWidgetFromCanvas,
-                                    this::consumePaletteDropToken,
-                                    this::applyAdmittedPaletteDrop,
-                                    deletion -> deleteSelectedWidgetFromCanvas(
-                                            deletion.widgetId()))),
+                                    status -> admitCanvasCallback(
+                                            epoch,
+                                            () -> renderNativeCanvasStatus(status)),
+                                    selection -> admitCanvasCallback(
+                                            epoch,
+                                            () -> selectWidgetFromCanvas(selection)),
+                                    token -> canvasOwnerCoordinator.isActiveEpoch(epoch)
+                                            ? consumePaletteDropToken(token)
+                                            : Optional.empty(),
+                                    drop -> admitCanvasCallback(
+                                            epoch,
+                                            () -> applyAdmittedPaletteDrop(drop)),
+                                    deletion -> admitCanvasCallback(
+                                            epoch,
+                                            () -> deleteSelectedWidgetFromCanvas(
+                                                    deletion.widgetId())))),
                     "Canvas session factory returned no owner");
-            selectedCanvasOwner.setTextEditCommitListener(
-                    this::applyInlineTextEditCommit);
-            selectedCanvasOwner.setViewportMetricsListener(
-                    this::renderViewportMetrics);
-            selectedCanvasOwner.setInteractionListener(
-                    this::nativeCanvasInteractionFromRunner);
-            selectedCanvasOwner.setInteractionBarrierListener(
-                    this::renderInteractionBarrierState);
-            canvasPanel.add(selectedCanvasOwner.component(), BorderLayout.CENTER);
+            FlutterDesignerCanvasOwner configured = created;
+            configured.setTextEditCommitListener(commit -> admitCanvasCallback(
+                    epoch, () -> applyInlineTextEditCommit(commit)));
+            configured.setViewportMetricsListener(metrics -> admitCanvasCallback(
+                    epoch, () -> renderViewportMetrics(metrics)));
+            configured.setInteractionListener(() -> admitCanvasCallback(
+                    epoch, this::nativeCanvasInteractionFromRunner));
+            configured.setInteractionBarrierListener(state -> admitCanvasCallback(
+                    epoch, () -> renderInteractionBarrierState(state)));
+            return CompletableFuture.completedFuture(configured);
         } catch (FlutterDesignerCanvasSessionFactory.CreationException
                 | RuntimeException | LinkageError failure) {
-            String reason = failureReason(failure);
+            if (created == null) {
+                return CompletableFuture.failedFuture(failure);
+            }
+            // Ownership already transferred before listener configuration
+            // failed. Hand the exact owner back to the coordinator so it can
+            // retain a poisoned native peer and expose bounded cleanup Retry;
+            // a factory-local best-effort close would lose that only handle.
+            return CompletableFuture.failedFuture(
+                    new FlutterDesignerCanvasOwnerCoordinator
+                            .RetainedOwnerCreationFailure(created, failure));
+        }
+    }
+
+    private void admitCanvasCallback(
+            FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch,
+            Runnable callback) {
+        canvasOwnerCoordinator.admitCallback(epoch, callback);
+    }
+
+    private static Throwable unwrapCompletionFailure(Throwable failure) {
+        Throwable current = failure;
+        while (current instanceof CompletionException
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private final class CanvasOwnerObserver
+            implements FlutterDesignerCanvasOwnerCoordinator.Observer {
+        @Override
+        public void ownerCreationStarted(
+                FlutterDesignerCanvasBackendSelector.Backend backend,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch) {
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.STARTING,
+                    canvasTitle(backend) + " is starting...",
+                    "Target: " + canvasTarget(backend)
+                    + ". Creating the requested backend for owner epoch "
+                    + epoch + "."));
+        }
+
+        @Override
+        public void ownerActivated(
+                FlutterDesignerCanvasOwner owner,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch) {
+            canvasOwner = owner;
+            canvasPanel.add(owner.component(), BorderLayout.CENTER);
+            canvasPanel.revalidate();
+            canvasPanel.repaint();
+            if (componentLifecycleOpen && designVisible) {
+                installPermanentFocusOwnerListener();
+                installSwingInputFocusListener();
+            }
+            owner.setViewportPresentation(
+                    viewportControls.currentPresentation());
+            if (designVisible) {
+                owner.show();
+            } else {
+                owner.hide();
+            }
+            clearPresentedCanvasIdentity();
+            if (currentCanvasDocument != null) {
+                presentCurrentCanvas();
+            }
+            selectedWidgetId().ifPresent(owner::selectWidget);
+            renderInteractionBarrierState(owner.interactionBarrierState());
+            if (designActivated && !swingFocusClaimedForActivation) {
+                owner.requestFocus();
+            }
+        }
+
+        @Override
+        public void ownerRetirementStarted(
+                FlutterDesignerCanvasOwner owner,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch) {
+            if (canvasOwner == owner) {
+                canvasOwner = null;
+            }
+            nativeCanvasFocusBootstrapEpoch++;
+            clearSwingFocusClaim();
+            invalidatePaletteDragAuthority();
+            viewportCommandTimer.stop();
+            pendingViewportPresentation = null;
+            clearPresentedCanvasIdentity();
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.STARTING,
+                    "Releasing " + canvasTitle(owner.backend()) + "...",
+                    "Target: " + canvasTarget(owner.backend())
+                    + ". The component remains attached until owner epoch "
+                    + epoch + " confirms peer-safe retirement."));
+        }
+
+        @Override
+        public void ownerRetired(
+                FlutterDesignerCanvasOwner owner,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch) {
+            canvasPanel.remove(owner.component());
+            canvasPanel.revalidate();
+            canvasPanel.repaint();
+        }
+
+        @Override
+        public void ownerRetirementFailed(
+                FlutterDesignerCanvasOwner owner,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch,
+                Throwable failure) {
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    canvasTitle(owner.backend()) + " release failed.",
+                     "Target: " + canvasTarget(owner.backend())
+                     + ". Reason: " + failureReason(failure)
+                     + ". The owner remains retained and no replacement is "
+                     + "installed; use Retry before switching backend or "
+                     + "closing the view."));
+        }
+
+        @Override
+        public void ownerCreationFailed(
+                FlutterDesignerCanvasBackendSelector.Backend backend,
+                FlutterDesignerCanvasOwnerCoordinator.CallbackEpoch epoch,
+                Throwable failure) {
             String target = failure
                     instanceof FlutterDesignerCanvasSessionFactory.CreationException
                             creationFailure
                     ? creationFailure.target()
-                    : "provider-owned native Flutter surface";
-            if (selectedCanvasOwner != null) {
-                try {
-                    selectedCanvasOwner.close();
-                } catch (RuntimeException | LinkageError cleanupFailure) {
-                    reason += "; session cleanup failed: "
-                            + failureReason(cleanupFailure);
-                }
-            }
-            selectedCanvasOwner = null;
+                    : canvasTarget(backend);
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Native Flutter Canvas is unavailable.",
-                    "Target: " + target + ". Reason: " + reason));
+                    canvasTitle(backend) + " is unavailable.",
+                    "Target: " + target + ". Reason: "
+                    + failureReason(failure) + "."));
         }
-        canvasOwner = selectedCanvasOwner;
+    }
+
+    private static String canvasTitle(
+            FlutterDesignerCanvasBackendSelector.Backend backend) {
+        return backend == FlutterDesignerCanvasBackendSelector.Backend.EXACT_WEB
+                ? "Exact Flutter Web Canvas"
+                : "Native Flutter Canvas";
+    }
+
+    private static String canvasTarget(
+            FlutterDesignerCanvasBackendSelector.Backend backend) {
+        return backend == FlutterDesignerCanvasBackendSelector.Backend.EXACT_WEB
+                ? "exact Flutter Web Canvas"
+                : "provider-owned native Flutter surface";
     }
 
     private static JLabel centeredLabel(String text) {
@@ -568,7 +735,7 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentOpened() {
         componentLifecycleOpen = true;
-        if (canvasOwner != null) {
+        if (canvasOwner != null && designVisible) {
             installPermanentFocusOwnerListener();
             installSwingInputFocusListener();
         }
@@ -592,7 +759,6 @@ public final class FlutterDesignerMultiViewDesign
             refreshPreviewChoices(selectedPreviewTarget().orElse(null), null);
         }
         if (dataObject != null
-                && canvasOwner != null
                 && projectThemeResolutionController == null) {
             try {
                 Path projectRoot = Path.of(
@@ -638,6 +804,7 @@ public final class FlutterDesignerMultiViewDesign
     @Override
     public void componentClosed() {
         componentLifecycleOpen = false;
+        designActivated = false;
         nativeCanvasFocusBootstrapEpoch++;
         clearSwingFocusClaim();
         uninstallSwingInputFocusListener();
@@ -681,9 +848,7 @@ public final class FlutterDesignerMultiViewDesign
         propertiesTabController.reset();
         clearPresentedCanvasIdentity();
         clearWidgetTree();
-        if (canvasOwner != null) {
-            canvasOwner.close();
-        }
+        canvasOwnerCoordinator.close();
         if (controller != null && listening) {
             listening = false;
             controller.removePropertyChangeListener(this);
@@ -746,6 +911,7 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentActivated() {
+        designActivated = true;
         FlutterDesignerAuxiliaryWindows.openDefaultOnce();
         if (canvasOwner != null && !swingFocusClaimedForActivation) {
             canvasOwner.requestFocus();
@@ -754,6 +920,7 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void componentDeactivated() {
+        designActivated = false;
         nativeCanvasFocusBootstrapEpoch++;
         clearSwingFocusClaim();
         if (canvasOwner != null) {
@@ -1664,6 +1831,28 @@ public final class FlutterDesignerMultiViewDesign
         return canvasOwner == null ? null : canvasOwner.focusSurface();
     }
 
+    void requestCanvasBackendForTests(
+            FlutterDesignerCanvasBackendSelector.Backend backend) {
+        canvasOwnerCoordinator.requestBackend(backend);
+    }
+
+    void retryCanvasOwnerTransitionForTests() {
+        canvasOwnerCoordinator.retryTransition();
+    }
+
+    FlutterDesignerCanvasOwnerCoordinator.Phase canvasOwnerPhaseForTests() {
+        return canvasOwnerCoordinator.phase();
+    }
+
+    FlutterDesignerCanvasOwner canvasOwnerForTests() {
+        return canvasOwner;
+    }
+
+    boolean canvasFocusListenersInstalledForTests() {
+        return permanentFocusOwnerManager != null
+                || swingInputFocusToolkit != null;
+    }
+
     static void releaseRunnerFocusSafely(Runnable release) {
         Objects.requireNonNull(release, "release");
         try {
@@ -1700,11 +1889,117 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void setMultiViewCallback(MultiViewElementCallback callback) {
+        multiViewCallback = Objects.requireNonNull(callback, "callback");
     }
 
     @Override
     public CloseOperationState canCloseElement() {
-        return CloseOperationState.STATE_OK;
+        if (!componentLifecycleOpen || !canvasBackendSelector.exactWebEnabled()) {
+            return CloseOperationState.STATE_OK;
+        }
+        FlutterDesignerAsyncCloseOperationHandler.GatePhase phase = switch (
+                canvasCloseGateState) {
+            case OPEN, RETIRING ->
+                FlutterDesignerAsyncCloseOperationHandler.GatePhase.PENDING;
+            case READY_SAVE ->
+                FlutterDesignerAsyncCloseOperationHandler.GatePhase.READY_SAVE;
+            case READY_DISCARD ->
+                FlutterDesignerAsyncCloseOperationHandler.GatePhase.READY_DISCARD;
+        };
+        Action proceed = canvasCloseAction(false);
+        Action discard = canvasCloseAction(true);
+        return FlutterDesignerAsyncCloseOperationHandler.canvasState(
+                phase, proceed, discard);
+    }
+
+    private Action canvasCloseAction(boolean discard) {
+        return new AbstractAction(
+                discard ? "Discard and release Canvas" : "Release Canvas") {
+            {
+                putValue(Action.LONG_DESCRIPTION,
+                        "Prepare the Flutter Designer Canvas native peer for safe close.");
+                putValue(Action.SHORT_DESCRIPTION,
+                        "Await Canvas peer-safe retirement before closing this editor.");
+            }
+
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                beginCanvasClose(discard);
+            }
+        };
+    }
+
+    private void beginCanvasClose(boolean discard) {
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            java.awt.EventQueue.invokeLater(() -> beginCanvasClose(discard));
+            return;
+        }
+        if (!componentLifecycleOpen) {
+            return;
+        }
+        if (discard) {
+            canvasCloseDiscardAuthorized = true;
+        }
+        if (canvasCloseGateState == CanvasCloseGateState.READY_SAVE
+                || canvasCloseGateState == CanvasCloseGateState.READY_DISCARD) {
+            canvasCloseGateState = canvasCloseDiscardAuthorized
+                    ? CanvasCloseGateState.READY_DISCARD
+                    : CanvasCloseGateState.READY_SAVE;
+            scheduleCanvasCloseRetry();
+            return;
+        }
+        canvasCloseGateState = CanvasCloseGateState.RETIRING;
+        final CompletionStage<Void> close;
+        try {
+            // Re-ping an already pending close as well. The coordinator keeps
+            // its serial queue on a transient executor rejection, so a fresh
+            // close action is the explicit recovery signal that reschedules
+            // that retained work.
+            close = canvasOwnerCoordinator.closeAsync();
+        } catch (RuntimeException | LinkageError failure) {
+            canvasCloseCompleted(failure);
+            return;
+        }
+        if (canvasCloseCompletion == null) {
+            canvasCloseCompletion = close;
+            close.whenComplete((ignored, failure) -> dispatchOnEdt(() ->
+                    canvasCloseCompleted(failure)));
+        }
+    }
+
+    private void canvasCloseCompleted(Throwable failure) {
+        Throwable terminal = unwrapCompletionFailure(failure);
+        if (terminal != null) {
+            canvasCloseCompletion = null;
+            canvasCloseGateState = CanvasCloseGateState.OPEN;
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    "Flutter Designer Canvas release failed.",
+                    "Operation: close Flutter Designer view. Target: "
+                    + modelName + ". Reason: " + failureReason(terminal) + "."));
+            return;
+        }
+        canvasCloseGateState = canvasCloseDiscardAuthorized
+                ? CanvasCloseGateState.READY_DISCARD
+                : CanvasCloseGateState.READY_SAVE;
+        scheduleCanvasCloseRetry();
+    }
+
+    private void scheduleCanvasCloseRetry() {
+        if (canvasCloseRetryScheduled || !componentLifecycleOpen) {
+            return;
+        }
+        MultiViewElementCallback callback = multiViewCallback;
+        if (callback == null) {
+            return;
+        }
+        canvasCloseRetryScheduled = true;
+        java.awt.EventQueue.invokeLater(() -> {
+            canvasCloseRetryScheduled = false;
+            if (componentLifecycleOpen && multiViewCallback == callback) {
+                callback.getTopComponent().close();
+            }
+        });
     }
 
     @Override
@@ -1968,39 +2263,30 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         PreviewTarget target = selected.orElseThrow();
-        if (canvasBackendSelector.select(target.targetPlatform())
-                == FlutterDesignerCanvasBackendSelector.Backend.EXACT_WEB) {
+        FlutterDesignerCanvasBackendSelector.Backend requestedBackend =
+                canvasBackendSelector.select(target.targetPlatform());
+        canvasOwnerCoordinator.requestBackend(requestedBackend);
+        FlutterDesignerCanvasOwner owner = canvasOwner;
+        if (owner == null || owner.backend() != requestedBackend) {
             clearPresentedCanvasIdentity();
-            if (canvasOwner != null) {
-                canvasOwner.withdraw();
-            }
-            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
-                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Exact Flutter Web Canvas is unavailable.",
-                    "Target: " + target.displayName() + " preview. Reason: exact "
-                    + "Flutter Web routing is enabled, but no admitted Web Canvas "
-                    + "backend is installed."));
-            return;
-        }
-        if (canvasOwner == null) {
             return;
         }
         if (dataObject == null) {
             clearPresentedCanvasIdentity();
-            canvasOwner.withdraw();
+            owner.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Native Flutter Canvas is unavailable.",
+                    canvasTitle(owner.backend()) + " is unavailable.",
                     "Target: " + modelName + " project theme. Reason: the owning "
                     + "Flutter project is unavailable."));
             return;
         }
         if (projectThemeResolutionController == null) {
             clearPresentedCanvasIdentity();
-            canvasOwner.withdraw();
+            owner.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Native Flutter Canvas is unavailable.",
+                    canvasTitle(owner.backend()) + " is unavailable.",
                     "Target: " + modelName + " project theme. Reason: the project "
                     + "theme verifier is unavailable"
                     + (projectThemeSetupFailure == null
@@ -2016,10 +2302,11 @@ public final class FlutterDesignerMultiViewDesign
                         FlutterDesignerProjectThemeResolver.uiBrightness());
         if (cachedTheme.isEmpty()) {
             clearPresentedCanvasIdentity();
-            canvasOwner.withdraw();
+            owner.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.STARTING,
-                    "Resolving Flutter project theme...",
+                    "Resolving " + canvasTitle(owner.backend())
+                    + " project theme...",
                     "Target: " + modelName + " project theme. Verifying the bounded "
                     + "descriptor and generated Dart hash outside the UI thread."));
             return;
@@ -2028,10 +2315,10 @@ public final class FlutterDesignerMultiViewDesign
                 cachedTheme.orElseThrow();
         if (!themeResolution.available()) {
             clearPresentedCanvasIdentity();
-            canvasOwner.withdraw();
+            owner.withdraw();
             renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
                     FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
-                    "Native Flutter Canvas theme is unavailable.",
+                    canvasTitle(owner.backend()) + " theme is unavailable.",
                     "Target: " + modelName + " project theme. Reason: "
                     + themeResolution.detail()));
             return;
@@ -2041,10 +2328,10 @@ public final class FlutterDesignerMultiViewDesign
                 && presentedCanvasCatalog == catalog
                 && Objects.equals(presentedCanvasTarget, target)
                 && Objects.equals(presentedCanvasTheme, resolvedTheme)) {
-            selectedWidgetId().ifPresent(canvasOwner::selectWidget);
+            selectedWidgetId().ifPresent(owner::selectWidget);
             return;
         }
-        canvasOwner.present(
+        owner.present(
                 document,
                 catalog,
                 target.mode(),
@@ -2054,7 +2341,7 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasCatalog = catalog;
         presentedCanvasTarget = target;
         presentedCanvasTheme = resolvedTheme;
-        selectedWidgetId().ifPresent(canvasOwner::selectWidget);
+        selectedWidgetId().ifPresent(owner::selectWidget);
     }
 
     private List<PreviewTarget> availablePreviewChoices() {
@@ -4037,14 +4324,24 @@ public final class FlutterDesignerMultiViewDesign
         boolean detailsAvailable = state.stage()
                 == FlutterDesignerNativeCanvasStatus.Stage.FAILED
                 || state.stage() == FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE;
-        boolean retryAvailable = state.stage()
+        FlutterDesignerCanvasOwnerCoordinator.Phase ownerPhase =
+                canvasOwnerCoordinator.phase();
+        boolean transitionRetryAvailable =
+                ownerPhase == FlutterDesignerCanvasOwnerCoordinator.Phase.POISONED
+                || (ownerPhase == FlutterDesignerCanvasOwnerCoordinator.Phase.EMPTY
+                        && canvasOwnerCoordinator.desiredBackend() != null);
+        boolean runtimeRetryAvailable = state.stage()
                 == FlutterDesignerNativeCanvasStatus.Stage.FAILED
                 && canvasOwner != null
                 && canvasOwner.canRestart();
+        boolean retryAvailable = transitionRetryAvailable
+                || runtimeRetryAvailable;
         canvasRetryButton.setVisible(retryAvailable);
         canvasRetryButton.setEnabled(retryAvailable);
         canvasRetryButton.setToolTipText(retryAvailable
-                ? "Start one fresh isolated Canvas runner after this failure."
+                ? transitionRetryAvailable
+                        ? "Retry the failed Canvas owner transition."
+                        : "Start one fresh isolated Canvas runner after this failure."
                 : null);
         canvasRetryButton.getAccessibleContext().setAccessibleDescription(
                 retryAvailable
@@ -4070,6 +4367,15 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private void retryNativeCanvas() {
+        FlutterDesignerCanvasOwnerCoordinator.Phase ownerPhase =
+                canvasOwnerCoordinator.phase();
+        if (ownerPhase == FlutterDesignerCanvasOwnerCoordinator.Phase.POISONED
+                || (ownerPhase == FlutterDesignerCanvasOwnerCoordinator.Phase.EMPTY
+                        && canvasOwnerCoordinator.desiredBackend() != null)) {
+            canvasRetryButton.setEnabled(false);
+            canvasOwnerCoordinator.retryTransition();
+            return;
+        }
         FlutterDesignerCanvasSession session = canvasOwner;
         if (session == null || !session.canRestart()) {
             return;
@@ -4185,6 +4491,13 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasCatalog = null;
         presentedCanvasTarget = null;
         presentedCanvasTheme = null;
+    }
+
+    private enum CanvasCloseGateState {
+        OPEN,
+        RETIRING,
+        READY_SAVE,
+        READY_DISCARD
     }
 
     private static final class ExplorerPanel extends JPanel

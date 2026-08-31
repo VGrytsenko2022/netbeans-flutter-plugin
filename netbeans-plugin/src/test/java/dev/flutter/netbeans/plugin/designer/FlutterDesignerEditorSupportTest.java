@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -49,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.Action;
 import javax.swing.ActionMap;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
@@ -223,6 +225,10 @@ class FlutterDesignerEditorSupportTest {
                 component.getClientProperty(CloneableTopComponent.PROP_MAXIMIZATION_DISABLED));
         assertEquals(Boolean.TRUE,
                 component.getClientProperty(CloneableTopComponent.PROP_DND_COPY_DISABLED));
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_CLOSING_DISABLED),
+                "Close Mode must not bypass the shell's exact canClose permit");
+        assertSafeCloseContract((FlutterDesignerCloneableEditor) component);
         assertSame(dataObject,
                 component.getLookup().lookup(FlutterDesignerDataObject.class));
         assertSame(component.getActionMap(),
@@ -243,6 +249,35 @@ class FlutterDesignerEditorSupportTest {
         assertSame(dataObject,
                 clone.getLookup().lookup(FlutterDesignerDataObject.class));
         assertFalse(splitable.isInstance(clone));
+        assertEquals(Boolean.TRUE,
+                clone.getClientProperty(CloneableTopComponent.PROP_CLOSING_DISABLED));
+        assertSafeCloseContract((FlutterDesignerCloneableEditor) clone);
+    }
+
+    @Test
+    void dedicatedShellOwnsAnExplicitCloseActionDespiteCloseModeLatch()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("dedicated_safe_close");
+        FlutterDesignerCloneableEditor component =
+                (FlutterDesignerCloneableEditor) onEdt(() ->
+                        fixture.editor().createDedicatedPane().getComponent());
+        onEdt(() -> null);
+        Action closeAction = assertSafeCloseContract(component);
+
+        onEdt(() -> {
+            component.open();
+            assertTrue(component.isOpened());
+            assertEquals(Boolean.TRUE, component.getClientProperty(
+                    CloneableTopComponent.PROP_CLOSING_DISABLED));
+            closeAction.actionPerformed(null);
+            return null;
+        });
+
+        assertFalse(onEdt(component::isOpened).booleanValue(),
+                "the shell-owned action must use TopComponent.close(), which "
+                + "still consults the exact canClose permit");
+        assertEquals(Boolean.TRUE, component.getClientProperty(
+                CloneableTopComponent.PROP_CLOSING_DISABLED));
     }
 
     @Test
@@ -964,6 +999,35 @@ class FlutterDesignerEditorSupportTest {
                         fixture.document(), exact, snapshot -> { });
             }
         });
+    }
+
+    private static Action assertSafeCloseContract(
+            FlutterDesignerCloneableEditor component) {
+        ActionMap actionMap = component.getActionMap();
+        Object[] keys = actionMap.allKeys();
+        List<Action> mapped = keys == null
+                ? List.of()
+                : Arrays.stream(keys)
+                        .map(actionMap::get)
+                        .filter(Objects::nonNull)
+                        .filter(action -> "Close Flutter Designer".equals(
+                                action.getValue(Action.NAME)))
+                        .toList();
+        assertEquals(1, mapped.size(),
+                "the dedicated shell must own exactly one permit-aware close mapping");
+        Action action = mapped.getFirst();
+        assertTrue(action.getValue(Action.ACCELERATOR_KEY)
+                instanceof javax.swing.KeyStroke);
+        javax.swing.KeyStroke accelerator = (javax.swing.KeyStroke)
+                action.getValue(Action.ACCELERATOR_KEY);
+        Object mappedKey = component.getInputMap(
+                javax.swing.JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                .get(accelerator);
+        assertNotNull(mappedKey,
+                "the shell accelerator must resolve through its ancestor InputMap");
+        assertSame(action, actionMap.get(mappedKey),
+                "the InputMap key must resolve to the exact permit-aware action");
+        return action;
     }
 
     private EditorFixture createEditorFixture(String name) throws Exception {

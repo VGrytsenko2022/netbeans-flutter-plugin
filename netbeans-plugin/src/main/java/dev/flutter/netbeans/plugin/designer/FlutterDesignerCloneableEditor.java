@@ -2,14 +2,20 @@ package dev.flutter.netbeans.plugin.designer;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.JComponent;
 import javax.swing.JToolBar;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import org.openide.awt.UndoRedo;
 import org.openide.text.CloneableEditor;
@@ -29,11 +35,20 @@ import org.openide.windows.TopComponent;
 final class FlutterDesignerCloneableEditor extends CloneableEditor {
     private static final Logger LOGGER = Logger.getLogger(
             FlutterDesignerCloneableEditor.class.getName());
+    private static final String SAFE_CLOSE_ACTION_KEY =
+            "flutter-designer.safe-close";
 
     private final FlutterDesignerEditorSupport editorSupport;
     private final FlutterDesignerDataObject dataObject;
     private final ActiveLookup activeLookup;
     private final FlutterDesignerEditorClosePermitCoordinator closePermits;
+    private final Action safeCloseAction = new AbstractAction(
+            "Close Flutter Designer") {
+        @Override
+        public void actionPerformed(ActionEvent event) {
+            close();
+        }
+    };
     private FlutterDesignerEditorPaneContent content;
     private FlutterDesignerEditorClosePermitCoordinator.Permit closePermit;
     private FlutterDesignerEditorClosePermitCoordinator.Permit closeInvocationPermit;
@@ -59,6 +74,22 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
         putClientProperty(TopComponent.PROP_SLIDING_DISABLED, Boolean.TRUE);
         putClientProperty(TopComponent.PROP_MAXIMIZATION_DISABLED, Boolean.TRUE);
         putClientProperty(TopComponent.PROP_DND_COPY_DISABLED, Boolean.TRUE);
+        // RELEASE300 Close Mode bypasses TopComponent.canClose() and checks
+        // only this supported per-component latch. Keep it permanent and
+        // expose the permit-aware action below for intentional single-shell
+        // close. Programmatic TopComponent.close() still consults canClose().
+        putClientProperty(TopComponent.PROP_CLOSING_DISABLED, Boolean.TRUE);
+        int menuMask = System.getProperty("os.name", "")
+                .toLowerCase(java.util.Locale.ROOT).startsWith("mac")
+                        ? InputEvent.META_DOWN_MASK
+                        : InputEvent.CTRL_DOWN_MASK;
+        KeyStroke closeKey = KeyStroke.getKeyStroke(KeyEvent.VK_W, menuMask);
+        safeCloseAction.putValue(Action.ACCELERATOR_KEY, closeKey);
+        safeCloseAction.putValue(Action.SHORT_DESCRIPTION,
+                "Close this Flutter Designer after its Canvas peer is safe");
+        getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+                .put(closeKey, SAFE_CLOSE_ACTION_KEY);
+        getActionMap().put(SAFE_CLOSE_ACTION_KEY, safeCloseAction);
     }
 
     @Override
@@ -381,13 +412,15 @@ final class FlutterDesignerCloneableEditor extends CloneableEditor {
     @Override
     public Action[] getActions() {
         Action[] inherited = super.getActions();
+        List<Action> merged = new ArrayList<>(Arrays.asList(inherited));
+        merged.add(null);
+        merged.add(safeCloseAction);
         FlutterDesignerEditorPaneContent current = content;
         if (current == null
                 || current.perspective()
                         != FlutterDesignerEditorPaneContent.Perspective.DESIGN) {
-            return inherited;
+            return merged.toArray(Action[]::new);
         }
-        List<Action> merged = new ArrayList<>(Arrays.asList(inherited));
         Action[] designActions = current.activeActions();
         if (designActions.length > 0) {
             merged.add(null);

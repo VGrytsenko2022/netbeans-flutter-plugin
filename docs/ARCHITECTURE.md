@@ -484,11 +484,20 @@ epoch), asks dirty last-clone
 Save/Discard/Cancel before retirement, and carries one token through Canvas
 completion and `closeLast(false)`. Stale/failing callbacks revoke the permit and
 successful authority remains held through `componentClosed()`; the stock
-synchronous CloseCookie batch fails closed. It is deliberately not installed
-in production by default while exact-Web selection remains off. Runtime parity,
-restart reconstruction, and Canvas rebuild after an edit invalidates pending
-retirement remain open. NetBeans `Split Document` and `Clear Split` are excluded
-by the shell rather than exposed as unguarded reparent paths. Production keeps
+synchronous CloseCookie batch fails closed. If the document changes while
+retirement is pending, abandoning the stale close now waits for the captured
+owner coordinator to finish, then rebuilds Canvas through a fresh coordinator
+generation. Factory, owner, observer and close-completion callbacks are fenced
+by that generation, and the latest requested backend is retained for the
+replacement. The shell permanently sets `TopComponent.PROP_CLOSING_DISABLED`
+and owns a permit-aware Close action, so RELEASE300 `Close Mode` cannot bypass
+the asynchronous close protocol. It is deliberately not installed in
+production by default while exact-Web selection remains off. Support-wide
+`editor.close()` callers used by Rename/Delete/Move/Close All, product exact-Web
+binding, History/action and restart/runtime parity remain open. NetBeans
+`New Tab Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct
+post-removal callbacks can still move or remove the hierarchy without a
+universal plugin-side asynchronous pre-removal veto. Production therefore keeps
 every target on the existing native route. The
 internal exact-Web selector branch never silently substitutes the native engine,
 but it is routing preparation rather than Web product admission.

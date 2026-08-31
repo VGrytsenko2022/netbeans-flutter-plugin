@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -933,20 +934,29 @@ class FlutterDesignerCanvasOwnershipTest {
     }
 
     @Test
-    void abandonedEditorShellCloseNeverRetriesItsStaleAttempt()
+    void abandonedPendingEditorShellCloseRebuildsAFreshOwnerWithoutRetrying()
             throws Exception {
-        TestSession session = new TestSession();
+        TestSession retiredSession = new TestSession();
         CompletableFuture<Void> retirement = new CompletableFuture<>();
-        session.retirementAttempts.add(retirement);
+        retiredSession.retirementAttempts.add(retirement);
+        TestSession recoveredSession = new TestSession();
+        AtomicInteger creates = new AtomicInteger();
         FlutterDesignerMultiViewDesign design = onEdt(() ->
                 new FlutterDesignerMultiViewDesign(
                         Lookup.EMPTY,
                         () -> true,
                         () -> true,
                         new FlutterDesignerCanvasBackendSelector(true),
-                        (backend, ignoredCallbacks) ->
-                                FlutterDesignerCanvasOwner.adopt(
-                                        backend, session)));
+                        (backend, ignoredCallbacks) -> {
+                            int attempt = creates.incrementAndGet();
+                            assertTrue(attempt <= 2,
+                                    "pending abandonment must rebuild exactly once");
+                            return FlutterDesignerCanvasOwner.adopt(
+                                    backend,
+                                    attempt == 1
+                                            ? retiredSession : recoveredSession);
+                        }));
+        FlutterDesignerCanvasOwner retiredOwner = design.canvasOwnerForTests();
         List<Long> retryAttempts = new ArrayList<>();
         List<Long> failureAttempts = new ArrayList<>();
         try {
@@ -976,6 +986,20 @@ class FlutterDesignerCanvasOwnershipTest {
             assertTrue(retryAttempts.isEmpty(),
                     "completion must not resurrect an abandoned close attempt");
             assertTrue(failureAttempts.isEmpty());
+            assertEquals(2, creates.get(),
+                    "peer-safe completion must install one fresh generation");
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            FlutterDesignerCanvasOwner recoveredOwner =
+                    design.canvasOwnerForTests();
+            assertNotSame(retiredOwner, recoveredOwner);
+            assertEquals(recoveredSession.component, recoveredOwner.component());
+            assertTrue(retiredOwner.closed());
+            assertNull(retiredSession.component.getParent());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    recoveredSession.component,
+                    design.getVisualRepresentation()));
         } finally {
             retirement.complete(null);
             onEdt(() -> {
@@ -983,6 +1007,256 @@ class FlutterDesignerCanvasOwnershipTest {
                 return null;
             });
         }
+        assertEquals(0, retiredSession.closeCalls,
+                "the asynchronous retirement completion owns old-session cleanup");
+        assertEquals(1, recoveredSession.closeCalls);
+    }
+
+    @Test
+    void abandonedReadyCloseRebuildsCanvasInAFreshCoordinatorGeneration()
+            throws Exception {
+        TestSession retiredSession = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        retiredSession.retirementAttempts.add(retirement);
+        TestSession recoveredSession = new TestSession();
+        AtomicInteger creates = new AtomicInteger();
+        List<FlutterDesignerCanvasSessionFactory.Callbacks> callbackSets =
+                new ArrayList<>();
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, callbacks) -> {
+                            callbackSets.add(callbacks);
+                            TestSession session = creates.incrementAndGet() == 1
+                                    ? retiredSession : recoveredSession;
+                            return FlutterDesignerCanvasOwner.adopt(
+                                    backend, session);
+                        }));
+        FlutterDesignerCanvasOwner retiredOwner = design.canvasOwnerForTests();
+        List<Long> retryAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (ignoredAttempt, ignoredFailure) -> { });
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                assertEquals(
+                        FlutterDesignerCanvasOwnerCoordinator.Phase.RETIRING,
+                        design.canvasOwnerPhaseForTests());
+                design.requestCanvasBackendForTests(Backend.EXACT_WEB);
+                retirement.complete(null);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                        design.editorShellCloseBarrierState(41));
+                design.abandonEditorShellClose(41);
+                return null;
+            });
+
+            // Drain the stale retry and then the recovery event. The retired
+            // coordinator is terminal; recovery must create a distinct owner
+            // generation instead of weakening closeAsync().
+            onEdt(() -> null);
+            onEdt(() -> null);
+
+            assertTrue(retryAttempts.isEmpty(),
+                    "an abandoned attempt must never receive its queued retry");
+            assertEquals(2, creates.get());
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(recoveredSession.component,
+                    design.canvasOwnerForTests().component());
+            assertEquals(Backend.EXACT_WEB,
+                    design.canvasOwnerForTests().backend(),
+                    "recovery must honor the latest requested preview backend");
+            assertTrue(retiredOwner.closed());
+            assertNull(retiredSession.component.getParent());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    recoveredSession.component,
+                    design.getVisualRepresentation()));
+
+            FlutterDesignerNativeCanvasStatus currentStatus =
+                    new FlutterDesignerNativeCanvasStatus(
+                            FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                            "Recovered generation",
+                            "current callback");
+            FlutterDesignerNativeCanvasStatus staleStatus =
+                    new FlutterDesignerNativeCanvasStatus(
+                            FlutterDesignerNativeCanvasStatus.Stage.FAILED,
+                            "Retired generation",
+                            "stale callback");
+            onEdt(() -> {
+                callbackSets.get(1).statusListener().accept(currentStatus);
+                callbackSets.get(0).statusListener().accept(staleStatus);
+                return null;
+            });
+            assertSame(currentStatus, design.lastCanvasStatusForTests(),
+                    "retired coordinator callbacks must not cross the new "
+                    + "generation fence");
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(0, retiredSession.closeCalls,
+                "the supplied asynchronous retirement completion owns the "
+                + "test session cleanup");
+        assertEquals(1, recoveredSession.closeCalls);
+    }
+
+    @Test
+    void failedRecoveryCreationStaysEmptyUntilExplicitRetryCreatesFreshOwner()
+            throws Exception {
+        TestSession retiredSession = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        retiredSession.retirementAttempts.add(retirement);
+        TestSession recoveredSession = new TestSession();
+        AtomicInteger creates = new AtomicInteger();
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) -> {
+                            int attempt = creates.incrementAndGet();
+                            if (attempt == 1) {
+                                return FlutterDesignerCanvasOwner.adopt(
+                                        backend, retiredSession);
+                            }
+                            if (attempt == 2) {
+                                throw new FlutterDesignerCanvasSessionFactory
+                                        .CreationException(
+                                                "recovered Canvas",
+                                                "simulated recovery creation failure");
+                            }
+                            assertEquals(3, attempt,
+                                    "failed recovery must wait for explicit Retry");
+                            return FlutterDesignerCanvasOwner.adopt(
+                                    backend, recoveredSession);
+                        }));
+        List<Long> retryAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (ignoredAttempt, ignoredFailure) -> { });
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                retirement.complete(null);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                        design.editorShellCloseBarrierState(41));
+                design.abandonEditorShellClose(41);
+                return null;
+            });
+            onEdt(() -> null);
+            onEdt(() -> null);
+
+            assertTrue(retryAttempts.isEmpty());
+            assertEquals(2, creates.get());
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.EMPTY,
+                    design.canvasOwnerPhaseForTests());
+            assertNull(design.canvasOwnerForTests());
+            FlutterDesignerNativeCanvasStatus failed =
+                    design.lastCanvasStatusForTests();
+            assertEquals(
+                    FlutterDesignerNativeCanvasStatus.Stage.UNAVAILABLE,
+                    failed.stage());
+            assertTrue(failed.detail().contains(
+                    "simulated recovery creation failure"));
+            assertNull(recoveredSession.component.getParent());
+
+            onEdt(() -> {
+                design.retryCanvasOwnerTransitionForTests();
+                return null;
+            });
+
+            assertEquals(3, creates.get());
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.ACTIVE,
+                    design.canvasOwnerPhaseForTests());
+            assertEquals(recoveredSession.component,
+                    design.canvasOwnerForTests().component());
+            assertTrue(SwingUtilities.isDescendingFrom(
+                    recoveredSession.component,
+                    design.getVisualRepresentation()));
+        } finally {
+            retirement.complete(null);
+            onEdt(() -> {
+                design.componentClosed();
+                return null;
+            });
+        }
+        assertEquals(0, retiredSession.closeCalls);
+        assertEquals(1, recoveredSession.closeCalls);
+    }
+
+    @Test
+    void admittedTerminalCloseDoesNotRebuildCanvasAfterComponentClosed()
+            throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> retirement = new CompletableFuture<>();
+        session.retirementAttempts.add(retirement);
+        AtomicInteger creates = new AtomicInteger();
+        FlutterDesignerMultiViewDesign design = onEdt(() ->
+                new FlutterDesignerMultiViewDesign(
+                        Lookup.EMPTY,
+                        () -> true,
+                        () -> true,
+                        new FlutterDesignerCanvasBackendSelector(true),
+                        (backend, ignoredCallbacks) -> {
+                            assertEquals(1, creates.incrementAndGet(),
+                                    "an admitted terminal close must not rebuild");
+                            return FlutterDesignerCanvasOwner.adopt(
+                                    backend, session);
+                        }));
+        AtomicBoolean componentClosed = new AtomicBoolean();
+        List<Long> retryAttempts = new ArrayList<>();
+        try {
+            onEdt(() -> {
+                design.setEditorShellCloseCallbacks(
+                        retryAttempts::add,
+                        (ignoredAttempt, ignoredFailure) -> { });
+                design.componentOpened();
+                design.beginEditorShellClose(41);
+                retirement.complete(null);
+                assertEquals(
+                        FlutterDesignerEditorPerspective.CloseBarrierState.READY,
+                        design.editorShellCloseBarrierState(41));
+                design.componentClosed();
+                componentClosed.set(true);
+                return null;
+            });
+            onEdt(() -> null);
+            onEdt(() -> null);
+
+            assertTrue(retryAttempts.isEmpty(),
+                    "a physically closed component must suppress its queued retry");
+            assertEquals(1, creates.get());
+            assertEquals(
+                    FlutterDesignerCanvasOwnerCoordinator.Phase.CLOSED,
+                    design.canvasOwnerPhaseForTests());
+            assertNull(design.canvasOwnerForTests());
+            assertNull(session.component.getParent());
+        } finally {
+            retirement.complete(null);
+            if (!componentClosed.get()) {
+                onEdt(() -> {
+                    design.componentClosed();
+                    return null;
+                });
+            }
+        }
+        assertEquals(0, session.closeCalls,
+                "the supplied retirement completion already made the owner safe");
     }
 
     @Test

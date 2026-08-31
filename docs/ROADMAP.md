@@ -447,21 +447,29 @@ accepted architecture is documented in
       authority; successful authority remains reserved through
       `componentClosed()`. The stock synchronous CloseCookie batch fails closed
       while a dedicated shell is open.
+    - [x] Recover Canvas after an abandoned or stale shell close without reviving
+      retired authority. Wait for the captured owner coordinator to finish,
+      rebuild through a fresh generation, fence factory/owner/observer/close
+      callbacks by that generation, and retain the latest requested backend.
+      Permanently set `TopComponent.PROP_CLOSING_DISABLED` and route the shell's
+      own Close action through the permit so RELEASE300 `Close Mode` cannot
+      bypass asynchronous retirement.
     - [ ] Prove the dedicated shell's Source/Save/Undo/navigation, clone-local
       Canvas ownership, platform History/action parity and restart
       reconstruction in the NetBeans runtime suite before changing its product
-      gate or persistence policy. Runtime acceptance must include recovery when
-      the document changes while Canvas retirement is pending, plus
-      programmatic mode movement. The dormant shell disables tab dragging,
-      undocking, sliding, maximization and drag-copy because those stock UI
-      paths can reparent the AWT subtree without consulting `canClose()`.
+      gate or persistence policy. Integrate support-wide `editor.close()` callers
+      used by Rename/Delete/Move/Close All, and physically accept programmatic
+      mode movement. The dormant shell disables tab dragging, undocking,
+      sliding, maximization and drag-copy because those stock UI paths can
+      reparent the AWT subtree without consulting `canClose()`.
     - [ ] Add a proven peer-removal gate for every NetBeans path outside the
-      last-clone close handler. `Split Document`/`Clear Split` directly reparent
-      or remove the heavyweight AWT hierarchy without consulting
-      `canCloseElement()`, and closing a non-last clone bypasses `closeLast()` in
-      `CloneableTopComponent`. Production exact-Web selection stays off until
-      split, clone-close and direct `componentClosed()` paths all await the same
-      pre-peer-loss barrier and the physical gate below is closed.
+      permit-aware shell Close action. RELEASE300 `Close Mode` is protected by
+      the permanent closing-disabled latch, but `New Tab Group`, `Collapse Tab
+      Group`, public `Mode.dockInto()` and direct post-removal callbacks can still
+      reparent or remove the heavyweight hierarchy without a universal exported
+      asynchronous veto. Production exact-Web selection stays off until those
+      paths, exact-Web product binding, restart/runtime acceptance and the
+      physical gate below are closed.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of

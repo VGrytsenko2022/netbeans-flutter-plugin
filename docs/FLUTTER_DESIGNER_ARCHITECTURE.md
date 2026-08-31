@@ -1705,11 +1705,21 @@ attempt token follows Canvas retirement, failure, retry and final
 precedes irreversible retirement and is never asked twice; stale or failed
 attempts cannot authorize a later close. The permit is released only after
 `componentClosed()`, while the incompatible synchronous CloseCookie batch is
-rejected before it can partially retire clones. The shell deliberately uses
-`PERSISTENCE_NEVER` and is not selected by `createPane()` in production.
-Source/Save/Undo/navigation, platform History/actions, restart reconstruction,
-and Canvas rebuild after a document revision invalidates an in-flight close are
-mandatory runtime gates before the shell or exact-Web selector may be enabled.
+rejected before it can partially retire clones. When a document revision makes
+an in-flight close stale, the shell abandons that permit, waits for the captured
+owner coordinator to finish and rebuilds Canvas through a fresh coordinator
+generation. The owner factory, active owner, observer and close completion are
+generation-fenced, and the latest requested backend is retained. The shell
+permanently sets `TopComponent.PROP_CLOSING_DISABLED` and exposes a shell-owned
+permit-aware Close action, so RELEASE300 `Close Mode` cannot directly remove
+the shell. It deliberately uses `PERSISTENCE_NEVER` and is not selected by
+`createPane()` in production. Support-wide `editor.close()` integration for
+Rename/Delete/Move/Close All, platform History/action and restart/runtime
+parity, exact-Web product binding, and physical NetBeans acceptance remain
+mandatory before the shell or exact-Web selector may be enabled. `New Tab
+Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
+callbacks also remain unguarded because RELEASE300 exports no universal
+plugin-side asynchronous pre-removal veto for those paths.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -1783,16 +1793,18 @@ Implementation proceeds through explicit gates:
    current physical host still lacks a composition-capable input method. This
    gate does not claim Linux/macOS or runtime-faithful Web support.
 10. [Authenticated Web runner/transport, host, exact build/cache, internal Web
-    session, assembled owner transition and asynchronous close foundation
-    complete; physical product gates pending] Keep the browser entry point, exact-view
+    session, assembled owner transition, stale-close Canvas recovery and
+    Close-Mode-safe asynchronous close foundation complete; product gates
+    pending] Keep the browser entry point, exact-view
     multi-view root and nonce-, sequence- and size-fenced JavaScript/Dart
-    transport on the existing bounded NBFC/model protocol. Next add a proven
-    pre-removal hook for NetBeans Split/Clear Split and non-last clone close,
-    which currently bypass the close handler while directly changing the
-    heavyweight AWT hierarchy,
-    then pass the assembled Windows physical readiness, interaction and teardown
-    gate. The standalone host, internal route and close handler do not authorize
-    the product route.
+    transport on the existing bounded NBFC/model protocol. Next integrate the
+    dedicated shell with support-wide `editor.close()` callers used by
+    Rename/Delete/Move/Close All and resolve the `New Tab Group`, `Collapse Tab
+    Group`, public `Mode.dockInto()` and direct post-removal paths that can still
+    change the heavyweight AWT hierarchy without the asynchronous permit. Then
+    product-bind exact Web and pass restart/runtime plus assembled Windows
+    physical readiness, interaction and teardown. The standalone host, internal
+    route and close handler do not authorize the product route.
 11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
     Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 12. Admit every further built-in only as a complete capability-gated vertical
@@ -1832,12 +1844,14 @@ infrastructure.
    complete. The internal exact Web session, routed factory and asynchronous
    owner-transition coordinator are also implemented and deterministically
    tested. The coordinator now owns assembled MultiView component replacement,
-   epoch fencing and poisoned-transition Retry, and the asynchronous close-handler
-   foundation exists. Production routing remains off because Split/Clear Split
-   and non-last clone close can remove or reparent the AWT hierarchy outside the
-   close handler; that
-   physical gate remains pending alongside the Linux/macOS native-surface
-   providers.
+   epoch fencing, poisoned-transition Retry and fresh-generation Canvas rebuild
+   after an abandoned stale close. The dedicated shell permanently disables
+   stock `Close Mode` and owns the permit-aware Close action. Production routing
+   remains off because support-wide `editor.close()` callers and `New Tab Group`,
+   `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal paths
+   are not yet covered by one asynchronous permit. Exact-Web product binding,
+   restart/runtime parity and the physical gate also remain pending alongside
+   the Linux/macOS native-surface providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

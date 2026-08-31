@@ -385,15 +385,26 @@ without a second prompt. Failure or stale callbacks revoke the attempt, while a
 successful permit remains held through `componentClosed()`. The stock
 synchronous CloseCookie batch fails closed while a dedicated shell is open.
 The shell remains production-disabled and `PERSISTENCE_NEVER`; exact Web stays
-off until runtime tests prove Source/Save/Undo/navigation, History/action parity,
-restart reconstruction, and Canvas recovery after an in-flight document change.
-A dormant shell is evidence for the path forward, not authorization to remove
-the stock MultiView.
+off. An abandoned or stale close now waits for the captured Canvas-owner
+coordinator to reach a safe terminal state and then rebuilds Canvas through a
+fresh coordinator generation. Factory, owner, observer and close-completion
+callbacks are generation-fenced, and the latest requested backend survives the
+rebuild. The shell also permanently sets
+`TopComponent.PROP_CLOSING_DISABLED` and supplies its own permit-aware Close
+action, which closes the RELEASE300 `Close Mode` bypass without weakening the
+asynchronous permit. This does not authorize the product route: support-wide
+`editor.close()` callers used by Rename/Delete/Move/Close All still conflict
+with an open shell, and `New Tab Group`, `Collapse Tab Group`, public
+`Mode.dockInto()` and direct post-removal callbacks still lack a universal
+plugin-side asynchronous veto. Exact-Web product binding, restart/runtime
+parity and physical NetBeans acceptance also remain open. A dormant shell is
+evidence for the path forward, not authorization to remove the stock MultiView.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.
-Product routing remains disabled until the split/clone/direct-close bypasses are
-closed and the assembled acceptance matrix passes.
+Product routing remains disabled until those support-wide close and
+reparent/post-removal bypasses are closed, exact Web is product-bound, and the
+restart/runtime and assembled physical acceptance matrices pass.
 Current Web input acceptance is English-only; physical CJK IME and other
 language-specific input remain deferred to the final internationalization phase.
 The platform-neutral SPI, completed broader Windows acceptance matrix,

@@ -13,10 +13,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -179,13 +176,18 @@ public final class CanvasRunnerBuildService {
             try {
                 finished = process.waitFor(buildTimeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException ex) {
-                terminate(process);
+                IOException interruptedFailure = new IOException(
+                        "interrupted while building the Flutter Canvas runner", ex);
+                try {
+                    retireProcessAndAwaitDrainer(process, drainer);
+                } catch (IOException cleanupFailure) {
+                    interruptedFailure.addSuppressed(cleanupFailure);
+                }
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted while building the Flutter Canvas runner", ex);
+                throw interruptedFailure;
             }
             if (!finished) {
-                terminate(process);
-                awaitDrainer(drainer);
+                retireProcessAndAwaitDrainer(process, drainer);
                 throw new IOException("Flutter Canvas runner build exceeded "
                         + buildTimeout.toSeconds() + " seconds\n" + diagnostics.snapshot());
             }
@@ -335,100 +337,34 @@ public final class CanvasRunnerBuildService {
         }
     }
 
-    private static void terminate(Process process) {
-        Map<Long, ProcessHandle> descendants = new LinkedHashMap<>();
-        boolean interrupted = false;
-        try {
-            captureDescendants(process, descendants);
-            destroyDescendants(descendants, false);
-            process.destroy();
-
-            long gracefulDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-            while (treeIsAlive(process, descendants)
-                    && System.nanoTime() < gracefulDeadline) {
-                captureDescendants(process, descendants);
-                destroyDescendants(descendants, false);
-                interrupted |= terminationPause();
-            }
-
-            captureDescendants(process, descendants);
-            destroyDescendants(descendants, true);
-            if (process.isAlive()) {
-                process.destroyForcibly();
-            }
-            long forcedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            while (treeIsAlive(process, descendants)
-                    && System.nanoTime() < forcedDeadline) {
-                captureDescendants(process, descendants);
-                destroyDescendants(descendants, true);
-                if (process.isAlive()) {
-                    process.destroyForcibly();
-                }
-                interrupted |= terminationPause();
-            }
-        } finally {
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
-    private static void captureDescendants(
+    private static void retireProcessAndAwaitDrainer(
             Process process,
-            Map<Long, ProcessHandle> captured) {
-        try (Stream<ProcessHandle> stream = process.descendants()) {
-            stream.limit(1_024).forEach(handle -> captured.putIfAbsent(handle.pid(), handle));
-        } catch (RuntimeException ignored) {
-            // A test process or restrictive platform may not expose descendants.
-        }
-        // A child may outlive and become detached from the root process. Keep
-        // discovering below every already-captured live handle until the tree
-        // is physically gone.
-        for (ProcessHandle handle : List.copyOf(captured.values())) {
-            if (!handle.isAlive()) {
-                continue;
-            }
-            try (Stream<ProcessHandle> stream = handle.descendants()) {
-                stream.limit(1_024 - Math.min(1_024, captured.size()))
-                        .forEach(child -> captured.putIfAbsent(child.pid(), child));
-            } catch (RuntimeException ignored) {
-                // Best effort on platforms that restrict process-tree queries.
-            }
-        }
-    }
-
-    private static void destroyDescendants(
-            Map<Long, ProcessHandle> descendants,
-            boolean forcibly) {
-        descendants.values().stream()
-                .filter(ProcessHandle::isAlive)
-                .sorted(Comparator.reverseOrder())
-                .forEach(handle -> {
-                    try {
-                        if (forcibly) {
-                            handle.destroyForcibly();
-                        } else {
-                            handle.destroy();
-                        }
-                    } catch (RuntimeException ignored) {
-                        // Rechecked during the bounded termination loop.
-                    }
-                });
-    }
-
-    private static boolean treeIsAlive(
-            Process process,
-            Map<Long, ProcessHandle> descendants) {
-        return process.isAlive()
-                || descendants.values().stream().anyMatch(ProcessHandle::isAlive);
-    }
-
-    private static boolean terminationPause() {
+            Thread drainer) throws IOException {
+        IOException cleanupFailure = null;
         try {
-            Thread.sleep(25);
-            return false;
-        } catch (InterruptedException ex) {
-            return true;
+            CanvasProcessTreeRetirement.retire(process);
+        } catch (IOException retirementFailure) {
+            cleanupFailure = retirementFailure;
+            // A still-live process can keep the redirected pipe open forever.
+            // Relinquish diagnostics ownership before the bounded join so the
+            // virtual reader can terminate even when tree retirement failed.
+            try {
+                process.getInputStream().close();
+            } catch (IOException streamFailure) {
+                cleanupFailure.addSuppressed(streamFailure);
+            }
+        }
+        try {
+            awaitDrainer(drainer);
+        } catch (IOException drainerFailure) {
+            if (cleanupFailure == null) {
+                cleanupFailure = drainerFailure;
+            } else {
+                cleanupFailure.addSuppressed(drainerFailure);
+            }
+        }
+        if (cleanupFailure != null) {
+            throw cleanupFailure;
         }
     }
 

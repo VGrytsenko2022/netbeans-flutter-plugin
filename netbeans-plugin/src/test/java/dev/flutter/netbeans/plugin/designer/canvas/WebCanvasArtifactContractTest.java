@@ -24,6 +24,17 @@ import org.junit.jupiter.api.io.TempDir;
 class WebCanvasArtifactContractTest {
 
     @Test
+    void stableFileIdentityRejectsOneSidedUnavailableKeys() {
+        Object key = new Object();
+
+        assertTrue(WebCanvasArtifactContract.sameFileKey(null, null));
+        assertTrue(WebCanvasArtifactContract.sameFileKey(key, key));
+        assertFalse(WebCanvasArtifactContract.sameFileKey(null, key));
+        assertFalse(WebCanvasArtifactContract.sameFileKey(key, null));
+        assertFalse(WebCanvasArtifactContract.sameFileKey(key, new Object()));
+    }
+
+    @Test
     void defaultLimitsMatchTheNativeImmutableSnapshotBoundary() {
         WebCanvasArtifactContract.Limits limits =
                 WebCanvasArtifactContract.Limits.defaults();
@@ -86,8 +97,8 @@ class WebCanvasArtifactContractTest {
 
         assertEquals("0cd610717bde95fd88343c64f81c11ba4e5c0010",
                 expected.engineRevision());
-        assertEquals(36, expected.files().size());
-        assertEquals("53be6ecd2c7e9235ae065733c302c41a8c4ba4af58137241ffe9c77a68a74c44",
+        assertEquals(35, expected.files().size());
+        assertEquals("ee0205f3c145a45f304b8df374615445db7b629679be8f6c269dacbf6d85c5b3",
                 expected.files().get("main.dart.js").sha256());
     }
 
@@ -116,6 +127,22 @@ class WebCanvasArtifactContractTest {
         assertThrows(UnsupportedOperationException.class,
                 () -> first.excludedBuildMetadata().clear());
         assertTrue(contract.fingerprint().contains("flutter-3.44.8"));
+    }
+
+    @Test
+    void rejectsMalformedPathDependentBuildMetadata() throws Exception {
+        Path sourceRoot = createArtifact("invalid-build-metadata");
+        WebCanvasArtifactContract contract = testContract(sourceRoot);
+        Files.writeString(
+                webRoot(sourceRoot).resolve(".last_build_id"),
+                "not-a-flutter-build-id",
+                StandardCharsets.US_ASCII);
+
+        IOException failure = assertThrows(
+                IOException.class,
+                () -> contract.validate(sourceRoot));
+
+        assertTrue(failure.getMessage().contains("32 lowercase hex digits"));
     }
 
     @Test
@@ -498,6 +525,10 @@ class WebCanvasArtifactContractTest {
             Files.writeString(file, "artifact:" + relative, StandardCharsets.UTF_8);
         }
         Files.write(output.resolve("flutter_service_worker.js"), new byte[0]);
+        Files.writeString(
+                output.resolve(".last_build_id"),
+                sha256(name.getBytes(StandardCharsets.UTF_8)).substring(0, 32),
+                StandardCharsets.US_ASCII);
 
         writeBuildText(sourceRoot, "index.html", validIndex());
         writeBuildText(sourceRoot, "canvas.css", validCss());
@@ -525,6 +556,7 @@ class WebCanvasArtifactContractTest {
             Path sourceRoot, String engineRevision) throws IOException {
         TreeMap<String, WebCanvasArtifactContract.ArtifactFile> files = new TreeMap<>();
         Set<String> paths = new HashSet<>(NON_EMPTY_FILES);
+        paths.remove(".last_build_id");
         paths.add("flutter_service_worker.js");
         for (String relative : paths) {
             byte[] bytes = Files.readAllBytes(webRoot(sourceRoot).resolve(relative));

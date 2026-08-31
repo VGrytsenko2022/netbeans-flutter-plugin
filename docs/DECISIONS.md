@@ -316,8 +316,8 @@ Runtime detection, exact page/bridge authentication, an authenticated NBFC
 bounds and visibility, the focus API, private parking-parent handoff,
 parent-HWND release, matching-PID browser resource release, exact-handle destroy
 retry, close-during-start and deadline-bounded teardown.
-That smoke does not authorize provider/product selection, build/cache/session
-routing, Web `CanvasEngineIdentity`, production Retry/crash recovery, or the
+That smoke does not authorize provider/product selection or session routing,
+production Retry/crash recovery, or the
 assembled NetBeans model/layout/selection, DPI and isolation matrix. The backend
 therefore remains unavailable in the product until those independent gates pass.
 The host foundation now supplies an asynchronous pre-peer-loss barrier, a
@@ -326,13 +326,23 @@ poisoned state with exact-handle teardown retry, matching-PID
 external per-session ownership marker. Failed native startup also returns any
 retained exact handle to Java; a null failed-create handle is release proof,
 while an unconfirmed/malformed result quarantines its callback and UDF.
-The assembled MultiView now talks to one backend-neutral Canvas-session
-contract and chooses a route through a pure selector. Production fixes that
+The assembled MultiView now owns one backend-neutral envelope for the Canvas
+session, component and exact focus surface, with raw host transfer hidden behind
+a factory, and chooses a route through a pure selector. Production fixes that
 selector to the existing native route for all targets, including the bounded
 Web responsive preview. The exact-Web selector branch is test-only, reports a
 concrete unavailable state when no admitted backend exists and must never use a
 native-engine fallback. This establishes an ownership/routing seam without
 claiming Web product readiness.
+The disconnected exact-Web build prerequisite strictly binds Flutter version,
+framework revision, engine revision and Dart SDK version from SDK evidence into
+its cache fingerprint, compiler defines, build result and `runner.hello`. It
+uses one JVM/cross-process lock, stable bounded markers, full artifact
+revalidation, fresh private publication and shared descendant-aware process-tree
+retirement. Mutable generated roots are never served; publication-owner and
+final-lease cleanup are retryable. None of this grants a Web session product
+route: the future session must compare the exact hello identity and the future
+owner must await the pre-peer-loss barrier before backend replacement.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.

@@ -18,4 +18,10 @@ Never canvasRuntimeProcessExit(int code) {
   );
 }
 
+String canvasRuntimeFlutterVersion() => 'unknown';
+
+String canvasRuntimeFrameworkRevision() => 'unknown';
+
+String canvasRuntimeEngineRevision() => 'unknown';
+
 String canvasRuntimeDartSdkVersion() => 'unknown';

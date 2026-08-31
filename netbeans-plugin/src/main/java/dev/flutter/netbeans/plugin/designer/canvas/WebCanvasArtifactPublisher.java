@@ -35,14 +35,25 @@ import java.util.UUID;
  * into its immutable generation name.
  */
 final class WebCanvasArtifactPublisher {
+    static final int MAX_PUBLICATION_DEPTH = 8;
+    static final int MAX_PUBLICATION_PATHS = 1
+            + WebCanvasArtifactContract.MAX_SNAPSHOT_FILES
+            * MAX_PUBLICATION_DEPTH;
     private static final String BUILD_METADATA = ".last_build_id";
     private static final String GENERATION_PREFIX = "generation-";
     private static final String STAGING_PREFIX = ".staging-";
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
 
     private final Path ownedRoot;
+    private final DeletionAttempt deletionAttempt;
 
     WebCanvasArtifactPublisher(Path ownedRoot) throws IOException {
+        this(ownedRoot, ignored -> { });
+    }
+
+    WebCanvasArtifactPublisher(
+            Path ownedRoot,
+            DeletionAttempt deletionAttempt) throws IOException {
         Path candidate = Objects.requireNonNull(ownedRoot, "ownedRoot")
                 .toAbsolutePath().normalize();
         Path parent = candidate.getParent();
@@ -55,6 +66,8 @@ final class WebCanvasArtifactPublisher {
         }
         this.ownedRoot = requireSafeDirectory(candidate,
                 "Web Canvas publication root").toRealPath();
+        this.deletionAttempt = Objects.requireNonNull(
+                deletionAttempt, "deletionAttempt");
     }
 
     PublishedArtifact publish(
@@ -234,20 +247,37 @@ final class WebCanvasArtifactPublisher {
         }
     }
 
-    private static void verifyPublishedTree(
+    static void verifyPublishedTree(
             Path root,
             Map<String, WebCanvasArtifactContract.ArtifactFile> expected) throws IOException {
         Path safeRoot = requireSafeDirectory(root, "Web Canvas publication generation");
+        Set<String> expectedDirectories = expectedDirectories(expected.keySet());
         Set<String> actual = new HashSet<>();
+        Set<String> actualDirectories = new HashSet<>();
         Set<String> folded = new HashSet<>();
-        Files.walkFileTree(safeRoot, new SimpleFileVisitor<>() {
+        TraversalBudget budget = new TraversalBudget(safeRoot);
+        Files.walkFileTree(
+                safeRoot,
+                Set.of(),
+                MAX_PUBLICATION_DEPTH + 1,
+                new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(
                     Path directory, BasicFileAttributes attributes) throws IOException {
+                budget.visit(directory);
                 rejectLinkOrReparse(directory, "Web Canvas publication directory");
                 if (!attributes.isDirectory() || attributes.isOther()) {
                     throw new IOException("unsafe directory in Web Canvas publication: "
                             + directory);
+                }
+                if (!directory.equals(safeRoot)) {
+                    String relative = portableRelative(safeRoot, directory);
+                    if (!expectedDirectories.contains(relative)) {
+                        throw new IOException(
+                                "unexpected directory in Web Canvas publication: "
+                                + relative);
+                    }
+                    actualDirectories.add(relative);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -255,6 +285,7 @@ final class WebCanvasArtifactPublisher {
             @Override
             public FileVisitResult visitFile(
                     Path file, BasicFileAttributes attributes) throws IOException {
+                budget.visit(file);
                 rejectLinkOrReparse(file, "Web Canvas publication file");
                 if (!attributes.isRegularFile() || attributes.isOther()) {
                     throw new IOException("non-regular file in Web Canvas publication: " + file);
@@ -277,6 +308,23 @@ final class WebCanvasArtifactPublisher {
         if (!actual.equals(expected.keySet())) {
             throw new IOException("Web Canvas publication file set differs from snapshot");
         }
+        if (!actualDirectories.equals(expectedDirectories)) {
+            throw new IOException("Web Canvas publication directory set differs from snapshot");
+        }
+    }
+
+    private static Set<String> expectedDirectories(Set<String> files)
+            throws IOException {
+        Set<String> directories = new HashSet<>();
+        for (String file : files) {
+            String relative = requirePortableRelative(file);
+            int separator = relative.lastIndexOf('/');
+            while (separator > 0) {
+                directories.add(relative.substring(0, separator));
+                separator = relative.lastIndexOf('/', separator - 1);
+            }
+        }
+        return Set.copyOf(directories);
     }
 
     private static void verifyFile(
@@ -383,6 +431,7 @@ final class WebCanvasArtifactPublisher {
         }
         requireDirectChild(artifact.root,
                 GENERATION_PREFIX + artifact.generationId);
+        deletionAttempt.beforeDelete(artifact.root);
         deleteSafeTree(artifact.root, "Web Canvas publication generation");
     }
 
@@ -393,10 +442,16 @@ final class WebCanvasArtifactPublisher {
             return;
         }
         requireSafeDirectory(tree, label);
-        Files.walkFileTree(tree, new SimpleFileVisitor<>() {
+        TraversalBudget budget = new TraversalBudget(tree);
+        Files.walkFileTree(
+                tree,
+                Set.of(),
+                MAX_PUBLICATION_DEPTH + 1,
+                new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(
                     Path directory, BasicFileAttributes attributes) throws IOException {
+                budget.visit(directory);
                 rejectLinkOrReparse(directory, label);
                 if (!attributes.isDirectory() || attributes.isOther()) {
                     throw new IOException(label + " contains an unsafe directory: " + directory);
@@ -407,6 +462,7 @@ final class WebCanvasArtifactPublisher {
             @Override
             public FileVisitResult visitFile(
                     Path file, BasicFileAttributes attributes) throws IOException {
+                budget.visit(file);
                 rejectLinkOrReparse(file, label);
                 if (!attributes.isRegularFile() || attributes.isOther()) {
                     throw new IOException(label + " contains a non-regular file: " + file);
@@ -425,6 +481,30 @@ final class WebCanvasArtifactPublisher {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private static final class TraversalBudget {
+        private final Path root;
+        private int paths;
+
+        private TraversalBudget(Path root) {
+            this.root = root.toAbsolutePath().normalize();
+        }
+
+        private void visit(Path path) throws IOException {
+            Path candidate = path.toAbsolutePath().normalize();
+            int depth = candidate.equals(root)
+                    ? 0
+                    : root.relativize(candidate).getNameCount();
+            if (depth > MAX_PUBLICATION_DEPTH) {
+                throw new IOException("Web Canvas publication exceeds maximum depth "
+                        + MAX_PUBLICATION_DEPTH + ": " + candidate);
+            }
+            if (++paths > MAX_PUBLICATION_PATHS) {
+                throw new IOException("Web Canvas publication contains more than "
+                        + MAX_PUBLICATION_PATHS + " paths: " + candidate);
+            }
+        }
     }
 
     private static Path requireSafeDirectory(Path path, String label) throws IOException {
@@ -467,8 +547,7 @@ final class WebCanvasArtifactPublisher {
             throw new IOException(label + " must not be a link or reparse point: " + path);
         }
         BasicFileAttributes followed = Files.readAttributes(path, BasicFileAttributes.class);
-        if (noFollow.fileKey() != null && followed.fileKey() != null
-                && !noFollow.fileKey().equals(followed.fileKey())) {
+        if (!sameFileKey(noFollow.fileKey(), followed.fileKey())) {
             throw new IOException(label + " resolves through a link or reparse point: " + path);
         }
         try {
@@ -497,8 +576,8 @@ final class WebCanvasArtifactPublisher {
         }
     }
 
-    private static boolean sameFileKey(Object first, Object second) {
-        return first == null || second == null || first.equals(second);
+    static boolean sameFileKey(Object first, Object second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     private static IOException changed(String relative) {
@@ -528,6 +607,11 @@ final class WebCanvasArtifactPublisher {
                     "Web Canvas generation id must be a lowercase SHA-256 value");
         }
         return value;
+    }
+
+    @FunctionalInterface
+    interface DeletionAttempt {
+        void beforeDelete(Path generationRoot) throws IOException;
     }
 
     static final class PublishedArtifact implements AutoCloseable {
@@ -612,14 +696,22 @@ final class WebCanvasArtifactPublisher {
                     throw new IllegalStateException(
                             "Web Canvas publication lease accounting underflow");
                 }
-                leaseCount--;
-                if (closeRequested && leaseCount == 0 && !deleted && !deleting) {
+                if (closeRequested && leaseCount == 1 && !deleted && !deleting) {
                     deleting = true;
                     deleteNow = true;
+                } else {
+                    leaseCount--;
                 }
             }
             if (deleteNow) {
                 deleteGeneration();
+                synchronized (this) {
+                    if (leaseCount != 1 || !deleted) {
+                        throw new IllegalStateException(
+                                "Web Canvas publication final lease state changed");
+                    }
+                    leaseCount = 0;
+                }
             }
         }
 
@@ -664,14 +756,10 @@ final class WebCanvasArtifactPublisher {
             }
 
             @Override
-            public void close() throws IOException {
-                PublishedArtifact retained;
-                synchronized (this) {
-                    retained = artifact;
+            public synchronized void close() throws IOException {
+                if (artifact != null) {
+                    artifact.releaseLease();
                     artifact = null;
-                }
-                if (retained != null) {
-                    retained.releaseLease();
                 }
             }
         }

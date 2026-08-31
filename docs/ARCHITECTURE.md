@@ -413,6 +413,21 @@ the complete bounded resource set in memory before returning from session
 creation. Browser requests therefore never reread executable files and no
 project/publication folder remains as a WebView2 fallback mapping.
 
+The product-disabled Web build prerequisite materializes the manifest-pinned
+runner under one JVM plus cross-process cache lock. It strictly reads
+`flutter.version.json`, cross-checks `engine.version` and an optional SDK-root
+`version`, and binds Flutter version, framework revision, engine revision and
+Dart SDK version into both the cache fingerprint and fixed Web compiler defines.
+Dependency resolution uses `pub get --offline`; this constrains Pub package
+resolution and does not claim that an unprepared Flutter SDK cannot fetch a
+missing engine artifact. A clean build removes only the admitted generated
+`build` and `.dart_tool` roots, disables the service worker, and requires local
+Web resources. Every cache marker is bounded and stable-read, every cache hit is
+fully revalidated, and every caller receives a new private publication. Native
+and Web build timeout paths share descendant-aware bounded process-tree
+retirement; unconfirmed retirement fails closed. Publication-owner and final
+lease deletion can be retried after transient filesystem failures.
+
 A nonce/generation digest selects one lowercase `.invalid` HTTPS origin. Only
 exact known snapshot paths and the exact `/index.html` navigation are admitted.
 The frozen CSP and response security headers block workers, off-origin execution
@@ -443,15 +458,18 @@ FileId handles pin the sessions parent, UDF root and marker without delete
 sharing across verification and traversal; the root and marker are deleted by
 handle, preventing a concurrent rename/replacement race. That proof is
 deliberately not product routing or the assembled NetBeans browser acceptance
-matrix: no Web provider build/cache/session route, Web `CanvasEngineIdentity`,
-production owner awaiting the peer-loss barrier, Retry UI, or product model/
+matrix: the build/cache prerequisite and exact compiled identity now exist, but
+no Web provider/session route, production owner awaiting the peer-loss barrier,
+Retry UI, or product model/
 layout/selection and mixed-DPI gate is enabled. Until those separate gates
 pass, selecting Web still uses only the native-engine responsive layout preview
 above and must not claim `kIsWeb`, DOM, browser fonts, plugins or platform
 channels.
-The assembled MultiView now owns a backend-neutral Canvas-session contract for
-surface lifecycle, focus, presentation, selection, viewport and drag/drop
-operations instead of retaining a `NativeCanvasHost` field. A separate pure
+The assembled MultiView now owns one backend-neutral envelope containing the
+Canvas session, component and exact focus surface; raw `NativeCanvasHost`
+ownership stays behind its factory. The session contract covers surface
+lifecycle, focus, presentation, selection, viewport and drag/drop operations.
+A separate pure
 selector is production-defaulted to the existing native route for every target.
 Its exact-Web branch is test-only and fails closed with an explicit unavailable
 state when no admitted Web session is installed; it cannot silently substitute

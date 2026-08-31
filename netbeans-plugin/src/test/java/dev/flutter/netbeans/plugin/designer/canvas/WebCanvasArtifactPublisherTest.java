@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +28,17 @@ class WebCanvasArtifactPublisherTest {
 
     @TempDir
     Path temporary;
+
+    @Test
+    void stableFileIdentityRejectsOneSidedUnavailableKeys() {
+        Object key = new Object();
+
+        assertTrue(WebCanvasArtifactPublisher.sameFileKey(null, null));
+        assertTrue(WebCanvasArtifactPublisher.sameFileKey(key, key));
+        assertFalse(WebCanvasArtifactPublisher.sameFileKey(null, key));
+        assertFalse(WebCanvasArtifactPublisher.sameFileKey(key, null));
+        assertFalse(WebCanvasArtifactPublisher.sameFileKey(key, new Object()));
+    }
 
     @Test
     void publishesOnlyServeableSnapshotFilesAndCleansOwnedGeneration() throws Exception {
@@ -53,6 +65,99 @@ class WebCanvasArtifactPublisherTest {
         artifact.close();
         assertFalse(Files.exists(generationRoot));
         assertTrue(Files.isDirectory(owned));
+    }
+
+    @Test
+    void publishedTreeRejectsAnUnexpectedEmptyDirectory() throws Exception {
+        WebCanvasArtifactPublisher publisher = new WebCanvasArtifactPublisher(
+                temporary.resolve("published"));
+        WebCanvasArtifactPublisher.PublishedArtifact artifact =
+                publisher.publish(snapshot(artifactSource()), GENERATION);
+        Path unexpected = Files.createDirectory(
+                artifact.root().resolve("unexpected-empty"));
+
+        IOException failure = assertThrows(IOException.class, () ->
+                WebCanvasArtifactPublisher.verifyPublishedTree(
+                        artifact.root(), artifact.files()));
+
+        assertTrue(failure.getMessage().contains("unexpected directory"));
+        Files.delete(unexpected);
+        artifact.close();
+    }
+
+    @Test
+    void cleanupRejectsExcessiveDepthAndRemainsRetryable() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicReference<Path> deepest = new AtomicReference<>();
+        WebCanvasArtifactPublisher publisher = new WebCanvasArtifactPublisher(
+                temporary.resolve("published"),
+                generation -> {
+                    if (attempts.incrementAndGet() != 1) {
+                        return;
+                    }
+                    Path current = generation;
+                    for (int depth = 0;
+                            depth <= WebCanvasArtifactPublisher.MAX_PUBLICATION_DEPTH;
+                            depth++) {
+                        current = Files.createDirectory(
+                                current.resolve("depth-" + depth));
+                    }
+                    deepest.set(current);
+                });
+        WebCanvasArtifactPublisher.PublishedArtifact artifact =
+                publisher.publish(snapshot(artifactSource()), GENERATION);
+
+        IOException failure = assertThrows(IOException.class, artifact::close);
+
+        assertTrue(failure.getMessage().contains("maximum depth"));
+        Path current = deepest.get();
+        while (current != null && !current.equals(artifact.root())) {
+            Files.deleteIfExists(current);
+            current = current.getParent();
+        }
+        artifact.close();
+        assertFalse(Files.exists(artifact.root()));
+        assertEquals(2, attempts.get());
+    }
+
+    @Test
+    void cleanupRejectsExcessivePathCountAndRemainsRetryable()
+            throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicReference<Path> overflowDirectory = new AtomicReference<>();
+        WebCanvasArtifactPublisher publisher = new WebCanvasArtifactPublisher(
+                temporary.resolve("published"),
+                generation -> {
+                    if (attempts.incrementAndGet() != 1) {
+                        return;
+                    }
+                    Path overflow = Files.createDirectory(
+                            generation.resolve("overflow"));
+                    overflowDirectory.set(overflow);
+                    for (int index = 0;
+                            index < WebCanvasArtifactPublisher.MAX_PUBLICATION_PATHS;
+                            index++) {
+                        Files.createFile(overflow.resolve("path-" + index));
+                    }
+                });
+        WebCanvasArtifactPublisher.PublishedArtifact artifact =
+                publisher.publish(snapshot(artifactSource()), GENERATION);
+
+        IOException failure = assertThrows(IOException.class, artifact::close);
+
+        assertTrue(failure.getMessage().contains("contains more than"));
+        Path overflow = overflowDirectory.get();
+        if (Files.exists(overflow)) {
+            try (var children = Files.list(overflow)) {
+                for (Path child : children.toList()) {
+                    Files.deleteIfExists(child);
+                }
+            }
+            Files.deleteIfExists(overflow);
+        }
+        artifact.close();
+        assertFalse(Files.exists(artifact.root()));
+        assertEquals(2, attempts.get());
     }
 
     @Test
@@ -112,6 +217,48 @@ class WebCanvasArtifactPublisherTest {
         assertNull(leaseFailure.get());
         assertFalse(Files.exists(generationRoot));
         assertThrows(IllegalStateException.class, artifact::acquireLease);
+    }
+
+    @Test
+    void finalLeaseReleaseRetriesTransientDeletionAndRemainsIdempotent()
+            throws Exception {
+        AtomicInteger deletionAttempts = new AtomicInteger();
+        WebCanvasArtifactPublisher publisher = new WebCanvasArtifactPublisher(
+                temporary.resolve("published"),
+                ignored -> {
+                    if (deletionAttempts.incrementAndGet() == 1) {
+                        throw new IOException("transient deletion failure");
+                    }
+                });
+        WebCanvasArtifactPublisher.PublishedArtifact artifact =
+                publisher.publish(snapshot(artifactSource()), GENERATION);
+        WebCanvasArtifactPublisher.PublishedArtifact.Lease lease =
+                artifact.acquireLease();
+        Path generationRoot = artifact.root();
+        artifact.close();
+
+        IOException firstFailure = assertThrows(IOException.class, lease::close);
+
+        assertTrue(firstFailure.getMessage().contains("transient deletion failure"));
+        assertTrue(Files.isDirectory(generationRoot));
+
+        AtomicReference<Throwable> leftFailure = new AtomicReference<>();
+        AtomicReference<Throwable> rightFailure = new AtomicReference<>();
+        CountDownLatch retry = new CountDownLatch(1);
+        Thread left = Thread.ofVirtual().start(() -> closeLease(
+                lease, retry, leftFailure));
+        Thread right = Thread.ofVirtual().start(() -> closeLease(
+                lease, retry, rightFailure));
+        retry.countDown();
+        left.join();
+        right.join();
+
+        assertNull(leftFailure.get());
+        assertNull(rightFailure.get());
+        assertEquals(2, deletionAttempts.get());
+        assertFalse(Files.exists(generationRoot));
+        lease.close();
+        artifact.close();
     }
 
     @Test
@@ -240,6 +387,18 @@ class WebCanvasArtifactPublisherTest {
         Files.writeString(source.resolve(".last_build_id"), "build-1",
                 StandardCharsets.UTF_8);
         return source;
+    }
+
+    private static void closeLease(
+            WebCanvasArtifactPublisher.PublishedArtifact.Lease lease,
+            CountDownLatch start,
+            AtomicReference<Throwable> failure) {
+        await(start);
+        try {
+            lease.close();
+        } catch (Throwable problem) {
+            failure.set(problem);
+        }
     }
 
     private static WebCanvasArtifactContract.ArtifactSnapshot snapshot(Path source)

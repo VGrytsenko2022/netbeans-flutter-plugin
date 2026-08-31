@@ -54,11 +54,11 @@ final class WebCanvasArtifactContract {
     static final long MAX_SNAPSHOT_TOTAL_BYTES = 128L * 1024 * 1024;
 
     private static final Path WEB_OUTPUT = Path.of("build", "web");
-    private static final String SNAPSHOT_FORMAT = "NETBEANS_WEB_CANVAS_ARTIFACT|1";
+    private static final String SNAPSHOT_FORMAT = "NETBEANS_WEB_CANVAS_ARTIFACT|2";
     private static final String EXPECTED_MANIFEST_HEADER =
-            "# NetBeans Flutter Web Canvas artifact v1";
+            "# NetBeans Flutter Web Canvas artifact v2";
     private static final String CONTRACT_FINGERPRINT =
-            "flutter-web-canvas-artifact-v1-flutter-3.44.8-dart2js-canvaskit";
+            "flutter-web-canvas-artifact-v2-flutter-3.44.8-dart2js-canvaskit";
     private static final String SERVICE_WORKER = "flutter_service_worker.js";
     private static final String BUILD_METADATA = ".last_build_id";
     private static final String REQUIRED_CONTENT_SECURITY_POLICY = String.join(" ",
@@ -134,8 +134,13 @@ final class WebCanvasArtifactContract {
             "version.json");
     private static final Set<String> ROOT_DIRECTORIES = Set.of("assets", "canvaskit");
     private static final Set<String> ALLOWED_FILES = allowedFiles();
+    private static final Set<String> PINNED_FILES = pinnedFiles();
     private static final Set<String> POLICY_FILES = Set.of(
-            "index.html", "canvas.css", "canvas_bridge.js", "flutter_bootstrap.js");
+            BUILD_METADATA,
+            "index.html",
+            "canvas.css",
+            "canvas_bridge.js",
+            "flutter_bootstrap.js");
 
     private static final Pattern HTML_REFERENCE = Pattern.compile(
             "(?is)\\b(src|href|action|poster)\\s*=\\s*(['\"])(.*?)\\2");
@@ -321,8 +326,9 @@ final class WebCanvasArtifactContract {
         validateBridge(policyText.get("canvas_bridge.js"));
         validateBootstrap(policyText.get("flutter_bootstrap.js"));
 
-        String aggregate = aggregateSha256(files);
         ArtifactFile metadata = files.remove(BUILD_METADATA);
+        validateBuildMetadata(policyText.get(BUILD_METADATA));
+        String aggregate = aggregateSha256(files);
         return new ArtifactSnapshot(
                 realRoot,
                 files,
@@ -401,8 +407,8 @@ final class WebCanvasArtifactContract {
                 retained == null ? null : retained.toByteArray());
     }
 
-    private static boolean sameFileKey(Object first, Object second) {
-        return first == null || second == null || first.equals(second);
+    static boolean sameFileKey(Object first, Object second) {
+        return first == null ? second == null : first.equals(second);
     }
 
     private static void requireCompleteArtifact(Map<String, ArtifactFile> files)
@@ -453,7 +459,6 @@ final class WebCanvasArtifactContract {
     private void validateExpectedArtifact(ArtifactSnapshot snapshot)
             throws IOException {
         TreeMap<String, ArtifactFile> files = new TreeMap<>(snapshot.files());
-        files.putAll(snapshot.excludedBuildMetadata());
         if (!files.keySet().equals(expectedArtifact.files().keySet())) {
             Set<String> missing = new HashSet<>(expectedArtifact.files().keySet());
             missing.removeAll(files.keySet());
@@ -470,6 +475,13 @@ final class WebCanvasArtifactContract {
                 throw new IOException("Flutter Web Canvas artifact file differs from the pinned "
                         + "Flutter 3.44.8 build: " + entry.getKey());
             }
+        }
+    }
+
+    private static void validateBuildMetadata(String metadata) throws IOException {
+        if (metadata == null || !metadata.matches("[0-9a-f]{32}")) {
+            throw new IOException(
+                    "Flutter Web Canvas .last_build_id must be 32 lowercase hex digits");
         }
     }
 
@@ -803,6 +815,12 @@ final class WebCanvasArtifactContract {
         return Set.copyOf(result);
     }
 
+    private static Set<String> pinnedFiles() {
+        Set<String> result = new HashSet<>(ALLOWED_FILES);
+        result.remove(BUILD_METADATA);
+        return Set.copyOf(result);
+    }
+
     private static ExpectedArtifact loadPackagedExpectedArtifact() {
         try (InputStream input = CanvasRunnerBundle.openWebArtifactManifest()) {
             return readExpectedArtifact(input);
@@ -976,8 +994,7 @@ final class WebCanvasArtifactContract {
             throw new IOException(label + " must not be a link or reparse point: " + path);
         }
         BasicFileAttributes followed = Files.readAttributes(path, BasicFileAttributes.class);
-        if (noFollow.fileKey() != null && followed.fileKey() != null
-                && !noFollow.fileKey().equals(followed.fileKey())) {
+        if (!sameFileKey(noFollow.fileKey(), followed.fileKey())) {
             throw new IOException(label + " resolves through a link or junction: " + path);
         }
         rejectWindowsReparseAttribute(path, label);
@@ -1040,9 +1057,10 @@ final class WebCanvasArtifactContract {
     /**
      * Immutable evidence for one closed build tree.
      *
-     * <p>{@code files} contains only files safe to publish. Build-only metadata
-     * remains hashed in the aggregate but is exposed separately so a publisher
-     * cannot accidentally serve it.
+     * <p>{@code files} contains only files safe to publish. Path-dependent
+     * build metadata is validated and counted separately, but excluded from the
+     * stable aggregate so a publisher cannot accidentally serve it and cache
+     * identity does not depend on the private build directory.
      */
     record ArtifactSnapshot(
             Path root,
@@ -1087,7 +1105,7 @@ final class WebCanvasArtifactContract {
             }
             files = Collections.unmodifiableMap(new TreeMap<>(
                     Objects.requireNonNull(files, "files")));
-            if (!files.keySet().equals(ALLOWED_FILES)) {
+            if (!files.keySet().equals(PINNED_FILES)) {
                 throw new IllegalArgumentException(
                         "expected Flutter Web Canvas file set does not match the contract");
             }

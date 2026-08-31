@@ -10,4 +10,10 @@ void canvasRuntimeProcessDiagnostic(String message) => stderr.writeln(message);
 
 Never canvasRuntimeProcessExit(int code) => exit(code);
 
+String canvasRuntimeFlutterVersion() => 'bundled';
+
+String canvasRuntimeFrameworkRevision() => 'bundled';
+
+String canvasRuntimeEngineRevision() => 'bundled';
+
 String canvasRuntimeDartSdkVersion() => Platform.version.split(' ').first;

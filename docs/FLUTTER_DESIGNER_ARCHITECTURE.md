@@ -1662,11 +1662,15 @@ headless-browser bridge harness and deterministic offline release-build proof
 with local CanvasKit and licensed local Roboto for the English-only scope are
 complete. The Web runtime profile observes resize metrics and republishes exact
 layout geometry without installing or advertising the Windows OLE DnD channel.
-The native Win32 WebView2 Runtime/loader and COM child-controller host,
-virtual HTTPS origin and CSP/navigation/resource policy, Java endpoint,
-provider/build/cache/product routing, Web engine identity, teardown/retry and
-assembled physical acceptance remain open. Therefore this implemented
-foundation is not yet a product-available Canvas backend.
+The native Win32 WebView2 Runtime/loader and COM child-controller host, virtual
+HTTPS origin, frozen resource policy, Java endpoint and standalone physical host
+gate are complete. A disconnected build/cache prerequisite now binds the exact
+Flutter, framework, engine and Dart SDK identity into its compiler defines,
+cache fingerprint, result and `runner.hello`, then privately publishes every
+validated generation. The assembled provider/session/product route, asynchronous
+owner replacement, explicit focus/visibility parity, Retry/crash behavior and
+NetBeans physical acceptance remain open. Therefore this implemented foundation
+is not yet a product-available Canvas backend.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -1698,8 +1702,8 @@ Implementation proceeds through explicit gates:
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. The separately compiled browser runner
-   foundation described below does not change this product route until its
-   native WebView2 and physical gates pass.
+   foundation described below does not change this product route until the exact
+   Web session/owner transition and assembled physical gate pass.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
    with the Explorer/Nodes widget tree, publish the exact ten-item Palette and
    expose selected-node Properties. Enable catalog-driven Set/Reset for the 514
@@ -1738,14 +1742,14 @@ Implementation proceeds through explicit gates:
    Flutter and Java tests pass; the
    current physical host still lacks a composition-capable input method. This
    gate does not claim Linux/macOS or runtime-faithful Web support.
-10. [Authenticated Web runner/transport and offline build proof complete;
-    native/product gates open] Keep the browser entry point, multi-view root and
+10. [Authenticated Web runner/transport, host and exact build/cache prerequisite
+    complete; assembled product gates open] Keep the browser entry point, multi-view root and
     nonce-, sequence- and size-fenced JavaScript/Dart transport on the existing
-    bounded NBFC/model protocol. Next implement the native WebView2 host and
-    virtual-origin/resource policy, route an exact Web engine through provider,
-    build/cache and product lifecycle, and pass the assembled Windows physical
+    bounded NBFC/model protocol. Next implement the exact Web session and
+    mutually exclusive asynchronous owner transition, route it through the
+    provider/product lifecycle, and pass the assembled Windows physical
     readiness, interaction and teardown gate. None of those next steps is marked
-    complete by the static bundle proof.
+    complete by the standalone host or build/cache proof.
 11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
     Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 12. Admit every further built-in only as a complete capability-gated vertical
@@ -1780,10 +1784,11 @@ infrastructure.
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Windows inline Text product
    slice is also implemented under ADR-036, while physical CJK IME acceptance
-   remains open. The authenticated browser runner/transport foundation and its
-   offline static-build proof are complete, while the native WebView2 host,
-   origin/resource confinement, product routing and assembled physical gate
-   remain pending alongside the Linux/macOS native-surface providers.
+   remains open. The authenticated browser runner/transport foundation, offline
+   static-build proof, native WebView2 host, and origin/resource confinement are
+   complete. Exact Web session/owner integration, product routing, and the
+   assembled physical gate remain pending alongside the Linux/macOS
+   native-surface providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

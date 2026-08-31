@@ -2061,9 +2061,9 @@ Map<String, Object?> _runnerHello(
     'body': {
       'runnerVersion': _runnerVersion,
       'engine': {
-        'flutterVersion': 'bundled',
-        'frameworkRevision': 'bundled',
-        'engineRevision': 'bundled',
+        'flutterVersion': canvasRuntimeFlutterVersion(),
+        'frameworkRevision': canvasRuntimeFrameworkRevision(),
+        'engineRevision': canvasRuntimeEngineRevision(),
         'dartSdkVersion': canvasRuntimeDartSdkVersion(),
       },
       'acceptedCapabilities': [

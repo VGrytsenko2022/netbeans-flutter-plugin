@@ -376,6 +376,17 @@ accepted architecture is documented in
       selector. Production keeps every target on the existing native route;
       the test-only exact-Web decision fails closed until an admitted Web
       session exists and never silently falls back to native rendering.
+    - [x] Give the assembled MultiView one backend-neutral owner/factory envelope
+      for the session, component and exact focus surface. Failed construction
+      closes whichever side already transferred ownership, and the product still
+      creates only the admitted native owner.
+    - [x] Add the default-off exact-Web build/cache prerequisite. It reads one
+      strict bounded Flutter SDK identity, validates the framework revision,
+      cross-checks engine evidence and optional SDK-root Flutter-version
+      evidence, includes all four identity fields in the cache contract, passes
+      them to the Web compiler, validates every cache hit, and publishes a fresh
+      private immutable generation. Timeout cleanup retires the captured process
+      tree; owner and final-lease deletion remain retryable.
     - [x] Provide an asynchronous pre-peer-loss barrier that fences future AWT
       attachment and reparents the controller to a private parking HWND before
       the heavyweight parent may be removed. The future product owner must
@@ -390,6 +401,11 @@ accepted architecture is documented in
       outside the incrementally deleted UDF tree, stable Win32 FileId handles
       that block concurrent root/marker replacement, and handle-based deletion
       of that evidence last.
+    - [ ] Implement the admitted exact-Web session and dynamic owner transition.
+      It must compare the compiled `CanvasEngineIdentity` with `runner.hello`,
+      await pre-peer removal before replacing the heavyweight component, expose
+      explicit visibility/focus observation parity and never keep two live
+      backend owners.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of

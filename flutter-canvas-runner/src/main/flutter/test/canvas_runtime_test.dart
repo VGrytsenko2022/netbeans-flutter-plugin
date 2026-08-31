@@ -75,21 +75,24 @@ void main() {
 
     expect(helloJson['type'], 'runner.hello');
     expect(helloJson['replyTo'], 0);
-    expect(
-      (helloJson['body'] as Map<String, Object?>)['acceptedCapabilities'],
-      [
-        'readOnly.render',
-        'readOnly.layout',
-        'readOnly.selection',
-        'palette.drop.catalogInsert.v1',
-        'palette.drop.sourceAware.v1',
-        'widget.deleteSelection.v1',
-        'widget.inlineTextEdit.v1',
-        'widget.movePreview.v1',
-        'viewport.presentation.v1',
-        'surface.presentation.v1',
-      ],
-    );
+    final helloBody = helloJson['body'] as Map<String, Object?>;
+    final engine = helloBody['engine'] as Map<String, Object?>;
+    expect(engine['flutterVersion'], 'bundled');
+    expect(engine['frameworkRevision'], 'bundled');
+    expect(engine['engineRevision'], 'bundled');
+    expect(engine['dartSdkVersion'], isNotEmpty);
+    expect(helloBody['acceptedCapabilities'], [
+      'readOnly.render',
+      'readOnly.layout',
+      'readOnly.selection',
+      'palette.drop.catalogInsert.v1',
+      'palette.drop.sourceAware.v1',
+      'widget.deleteSelection.v1',
+      'widget.inlineTextEdit.v1',
+      'widget.movePreview.v1',
+      'viewport.presentation.v1',
+      'surface.presentation.v1',
+    ]);
     expect(closedJson['type'], 'runner.closed');
     expect(closedJson['replyTo'], 1);
     expect(await reader.read(maxPayloadBytes: 262144), isNull);

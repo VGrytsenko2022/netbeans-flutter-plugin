@@ -1689,6 +1689,19 @@ reparent or remove the AWT hierarchy without consulting `canCloseElement()`, and
 closing a non-last clone bypasses `closeLast()` and its close handler.
 Exact Web therefore remains unavailable as a product Canvas backend.
 
+A RELEASE300 implementation audit additionally proves that the missing hook is
+not available to a normal module: split/clear-split synchronously removes or
+reparents children inside `TabsComponent`, while non-last clone admission
+short-circuits inside `CloneableTopComponent.Ref`. The plugin-only replacement
+path is a dedicated CES `CloneableEditor` shell. Its dormant first phase wraps
+the one Source editor component in an explicit Design/Source switcher, forwards
+the existing Design lifecycle and close-retry request, keeps the CES clone
+group, and exposes no internal `Splitable` contract. The shell deliberately
+uses `PERSISTENCE_NEVER` and is not selected by `createPane()` in production.
+Source/Save/Undo/navigation, platform History/actions, per-clone asynchronous
+close permits and restart reconstruction are mandatory runtime gates before the
+shell or exact-Web selector may be enabled.
+
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
 `Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`. It proves native hosting, bounded model publication,

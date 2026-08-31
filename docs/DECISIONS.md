@@ -368,6 +368,22 @@ coordinator-owned replacement and ordinary close preparation. This still grants
 no product route until every physical peer-removal path, including Split/Clear
 Split, non-last clone close and direct `componentClosed()`, is proven to await
 that barrier.
+The RELEASE300 source audit established that this cannot be completed by an
+action wrapper or MIME `CloseOperationHandler`: `TabsComponent` performs the
+split reparent synchronously, and `CloneableTopComponent.Ref` admits a non-last
+clone without calling `closeLast()`. There is no exported asynchronous
+pre-removal SPI spanning both operations. A plugin-owned `CloneableEditor`
+shell is therefore the supported plugin-only direction. Its phase-one
+foundation reuses CES' sole Source pane, manually brackets the Design
+lifecycle, preserves clone grouping, supplies a shell close-retry host and does
+not implement internal `Splitable`. It remains production-disabled and
+`PERSISTENCE_NEVER`; exact Web remains off until runtime tests prove
+Source/Save/Undo/navigation, History/action parity, clone-local peer permits and
+restart reconstruction. The final combined permit must resolve a dirty
+last-clone Save/Discard/Cancel decision before retiring Canvas; otherwise Cancel
+could retain an editor whose native surface was already destroyed. A dormant
+shell is evidence for the path forward, not
+authorization to remove the stock MultiView.
 Windows cleanup holds stable FileId handles that deny delete sharing for the
 parent/root/marker, denies marker writes, and deletes the verified root and
 marker by handle with the marker last.

@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.ActionMap;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.StyledDocument;
@@ -182,6 +183,56 @@ class FlutterDesignerEditorSupportTest {
                 "the title annotation must follow the paired DataObject dirty state");
         assertTrue(editor.messageToolTip().contains("unsaved changes"),
                 "the tooltip must explain why the paired form is dirty");
+    }
+
+    @Test
+    void dedicatedShellIsCloneableButCannotEnterNetBeansSplitPaths()
+            throws Exception {
+        EditorFixture fixture = createEditorFixture("dedicated_shell");
+        FlutterDesignerEditorSupport editor = fixture.editor();
+        FlutterDesignerDataObject dataObject = (FlutterDesignerDataObject)
+                editor.getDataObject();
+
+        CloneableEditorSupport.Pane pane = onEdt(editor::createDedicatedPane);
+        CloneableTopComponent component = pane.getComponent();
+        Class<?> splitable = Class.forName("org.netbeans.core.multiview.Splitable");
+
+        assertTrue(component instanceof FlutterDesignerCloneableEditor);
+        assertFalse(splitable.isInstance(component),
+                "the plugin-owned pane must not expose Split/Clear Split reparenting");
+        assertEquals(CloneableTopComponent.PERSISTENCE_NEVER,
+                component.getPersistenceType(),
+                "restart reconstruction remains disabled until its runtime gate is proven");
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_DRAGGING_DISABLED));
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_UNDOCKING_DISABLED));
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_SLIDING_DISABLED));
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_MAXIMIZATION_DISABLED));
+        assertEquals(Boolean.TRUE,
+                component.getClientProperty(CloneableTopComponent.PROP_DND_COPY_DISABLED));
+        assertSame(dataObject,
+                component.getLookup().lookup(FlutterDesignerDataObject.class));
+        assertSame(component.getActionMap(),
+                component.getLookup().lookup(ActionMap.class),
+                "the dedicated Source shell must retain global editor actions");
+        assertEquals("home_page.fd", component.getDisplayName());
+        assertTrue(component.getToolTipText().contains(
+                FileUtil.getFileDisplayName(dataObject.getPrimaryFile())));
+        assertFalse(FlutterDesignerEditorShellRoute.PRODUCTION_ENABLED,
+                "phase one must not silently replace the proven MultiView route");
+
+        CloneableTopComponent clone = onEdt(component::cloneTopComponent);
+        assertTrue(clone instanceof FlutterDesignerCloneableEditor);
+        assertSame(component.getReference(), clone.getReference(),
+                "dedicated shells must still share the CES clone group");
+        assertSame(clone, clone.getClientProperty("CloneableEditorSupport.Pane"),
+                "CES must install its private Pane identity on every clone");
+        assertSame(dataObject,
+                clone.getLookup().lookup(FlutterDesignerDataObject.class));
+        assertFalse(splitable.isInstance(clone));
     }
 
     @Test

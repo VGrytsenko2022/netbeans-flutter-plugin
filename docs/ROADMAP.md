@@ -426,6 +426,28 @@ accepted architecture is documented in
       preserving ordinary Save/Discard/Cancel handling. The handler is deliberately
       not installed in production by default while exact-Web selection remains
       off.
+    - [x] Audit the actual NetBeans 30 split and clone-close implementation.
+      `TabsComponent` reparents with synchronous `removeAll()`, non-last clone
+      close short-circuits before `closeLast()`, and no exported asynchronous
+      pre-removal hook can cover both paths from a plugin. Add a dormant
+      plugin-owned `CloneableEditor` shell foundation that reuses the one CES
+      Source pane, owns an explicit Design/Source lifecycle, forwards the
+      Design close retry without fabricating a `MultiViewElementCallback`, is
+      cloneable, and deliberately does not implement internal `Splitable`.
+      The foundation is product-disabled and `PERSISTENCE_NEVER` until the
+      gates below prove behavior rather than trading peer safety for editor
+      regressions.
+    - [ ] Prove the dedicated shell's Source/Save/Undo/navigation, clone-local
+      Canvas ownership, platform History/action parity and restart
+      reconstruction in the NetBeans runtime suite. Then add a shell-owned,
+      clone-topology- and document-epoch-bound asynchronous close permit before
+      changing its product gate or persistence policy. The permit must acquire
+      the dirty last-clone Save/Discard/Cancel decision before irreversible
+      Canvas retirement, so Cancel cannot leave an open editor with a dead
+      Canvas. Runtime acceptance must also cover programmatic mode movement;
+      the dormant shell disables tab dragging, undocking, sliding,
+      maximization and drag-copy because those stock UI paths can reparent the
+      AWT subtree without consulting `canClose()`.
     - [ ] Add a proven peer-removal gate for every NetBeans path outside the
       last-clone close handler. `Split Document`/`Clear Split` directly reparent
       or remove the heavyweight AWT hierarchy without consulting

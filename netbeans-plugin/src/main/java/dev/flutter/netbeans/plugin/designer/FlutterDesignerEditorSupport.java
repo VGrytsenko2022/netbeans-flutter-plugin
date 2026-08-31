@@ -71,6 +71,8 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             new ThreadLocal<>();
     private final ThreadLocal<DartGuardedSectionsProvider.PersistenceAttempt>
             activePersistenceAttempt = new ThreadLocal<>();
+    private final ThreadLocal<Boolean> dedicatedPaneCreation =
+            new ThreadLocal<>();
     private volatile PersistenceFinalizationHook persistenceFinalizationHook =
             () -> { };
 
@@ -106,6 +108,10 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
 
     @Override
     protected CloneableEditorSupport.Pane createPane() {
+        if (FlutterDesignerEditorShellRoute.PRODUCTION_ENABLED
+                || Boolean.TRUE.equals(dedicatedPaneCreation.get())) {
+            return createDedicatedPane();
+        }
         CloneableTopComponent component = MultiViews.createCloneableMultiView(
                 FlutterDesignerMime.MIME_TYPE,
                 getDataObject());
@@ -118,6 +124,31 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             component.setToolTipText(messageToolTip());
         }
         return (CloneableEditorSupport.Pane) component;
+    }
+
+    /** Phase-one construction seam for the plugin-owned, non-Splitable shell. */
+    CloneableEditorSupport.Pane createDedicatedPane() {
+        FlutterDesignerCloneableEditor component =
+                new FlutterDesignerCloneableEditor(this);
+        initializeCloneableEditor(component);
+        if (getDataObject().isValid()) {
+            component.updateName();
+        }
+        return component;
+    }
+
+    /** Creates a clone through CES so its private Pane identity is installed. */
+    CloneableTopComponent createDedicatedCloneComponent() {
+        if (dedicatedPaneCreation.get() != null) {
+            throw new IllegalStateException(
+                    "Nested dedicated Designer pane construction is not allowed");
+        }
+        dedicatedPaneCreation.set(Boolean.TRUE);
+        try {
+            return createCloneableTopComponent();
+        } finally {
+            dedicatedPaneCreation.remove();
+        }
     }
 
     /** The user-facing editor represents the visible model, not its technical Dart owner. */

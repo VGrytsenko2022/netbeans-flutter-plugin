@@ -835,8 +835,11 @@ class FlutterDesignerCanvasOwnershipTest {
                         (backend, ignoredCallbacks) ->
                                 FlutterDesignerCanvasOwner.adopt(
                                         backend, session)));
+        AtomicInteger closeRetries = new AtomicInteger();
         try {
             onEdt(() -> {
+                design.setEditorShellCloseRetryRequest(
+                        closeRetries::incrementAndGet);
                 design.componentOpened();
                 return null;
             });
@@ -880,6 +883,9 @@ class FlutterDesignerCanvasOwnershipTest {
             CloseOperationState ready = onEdt(design::canCloseElement);
             assertFalse(ready.canClose());
             assertEquals(expectedReadyId, ready.getCloseWarningID());
+            onEdt(() -> null);
+            assertEquals(1, closeRetries.get(),
+                    "the dedicated shell must receive one fresh close request");
         } finally {
             retirement.complete(null);
             onEdt(() -> {

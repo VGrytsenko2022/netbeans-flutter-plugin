@@ -180,6 +180,7 @@ public final class FlutterDesignerMultiViewDesign
     private final FlutterDesignerCanvasOwnerCoordinator canvasOwnerCoordinator;
     private FlutterDesignerCanvasOwner canvasOwner;
     private MultiViewElementCallback multiViewCallback;
+    private Runnable editorShellCloseRetryRequest;
     private final PropertyChangeListener permanentFocusOwnerListener =
             this::permanentFocusOwnerChanged;
     private final AWTEventListener swingInputFocusListener =
@@ -1889,7 +1890,20 @@ public final class FlutterDesignerMultiViewDesign
 
     @Override
     public void setMultiViewCallback(MultiViewElementCallback callback) {
-        multiViewCallback = Objects.requireNonNull(callback, "callback");
+        MultiViewElementCallback admitted = Objects.requireNonNull(
+                callback, "callback");
+        multiViewCallback = admitted;
+        editorShellCloseRetryRequest = null;
+    }
+
+    /**
+     * Binds the close retry to a plugin-owned editor shell without attempting
+     * to construct NetBeans' package-private MultiView callback.
+     */
+    void setEditorShellCloseRetryRequest(Runnable retryRequest) {
+        editorShellCloseRetryRequest = Objects.requireNonNull(
+                retryRequest, "retryRequest");
+        multiViewCallback = null;
     }
 
     @Override
@@ -1989,14 +2003,22 @@ public final class FlutterDesignerMultiViewDesign
         if (canvasCloseRetryScheduled || !componentLifecycleOpen) {
             return;
         }
+        Runnable retryRequest = editorShellCloseRetryRequest;
         MultiViewElementCallback callback = multiViewCallback;
-        if (callback == null) {
+        if (retryRequest == null && callback == null) {
             return;
         }
         canvasCloseRetryScheduled = true;
         java.awt.EventQueue.invokeLater(() -> {
             canvasCloseRetryScheduled = false;
-            if (componentLifecycleOpen && multiViewCallback == callback) {
+            if (!componentLifecycleOpen) {
+                return;
+            }
+            if (retryRequest != null
+                    && editorShellCloseRetryRequest == retryRequest) {
+                retryRequest.run();
+            } else if (retryRequest == null
+                    && multiViewCallback == callback) {
                 callback.getTopComponent().close();
             }
         });

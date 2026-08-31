@@ -401,11 +401,21 @@ accepted architecture is documented in
       outside the incrementally deleted UDF tree, stable Win32 FileId handles
       that block concurrent root/marker replacement, and handle-based deletion
       of that evidence last.
-    - [ ] Implement the admitted exact-Web session and dynamic owner transition.
-      It must compare the compiled `CanvasEngineIdentity` with `runner.hello`,
-      await pre-peer removal before replacing the heavyweight component, expose
-      explicit visibility/focus observation parity and never keep two live
-      backend owners.
+    - [x] Implement the internal admitted exact-Web session and backend-neutral
+      factory/owner-transition foundation. The Web session uses the authenticated
+      byte-stream transport, compares the compiled `CanvasEngineIdentity` with
+      `runner.hello`, applies the same model/layout/selection/viewport/interaction
+      fences, exposes explicit visibility and focus parity, and deliberately
+      leaves native OLE Palette insertion unavailable. The transition coordinator
+      coalesces rapid route changes, retires the prior peer asynchronously before
+      creating its replacement, fences callbacks by epoch and retains poisoned
+      cleanup for explicit retry. The Web runner binds metrics to its exact
+      `FlutterView` and rejects a second distinct view instead of reading an
+      ambient `implicitView`.
+    - [ ] Integrate that coordinator with the assembled MultiView close-veto and
+      component-replacement path. Production exact-Web selection stays off until
+      close cannot destroy the heavyweight parent before asynchronous WebView2
+      release proof and the physical gate below passes.
   - [ ] Pass the assembled Windows NetBeans physical gate for load/readiness,
     model/layout/selection round trips, resize/DPI/focus, hide/resume, close,
     Retry/crash cleanup, origin/navigation/resource isolation and rejection of

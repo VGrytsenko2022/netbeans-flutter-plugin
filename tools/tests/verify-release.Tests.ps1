@@ -43,10 +43,13 @@ function New-ReleaseFixture {
         [string]$Root,
         [string]$Category = 'Flutter',
         [switch]$OptionalSdkSkip,
+        [switch]$OptionalWebCanvasSkip,
         [switch]$OptionalPlatformSkip,
         [switch]$UnexpectedSkip,
         [switch]$UnexpectedSdkMethodSkip,
+        [switch]$UnexpectedWebCanvasMethodSkip,
         [switch]$PassingCanvasSdkGates,
+        [switch]$PassingWebCanvasGates,
         [switch]$InstalledUserdir,
         [switch]$CriticalLog,
         [switch]$AuxiliaryOrderingLog,
@@ -159,6 +162,75 @@ function New-ReleaseFixture {
 </testsuite>
 "@
     }
+    if ($OptionalWebCanvasSkip -or $PassingWebCanvasGates) {
+        $webCanvasClasses = @(
+            [pscustomobject]@{
+                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest'
+                Methods = @(
+                    'buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested',
+                    'linkedSdkIdentityMetadataIsRejectedWhenLinksAreAvailable'
+                )
+            },
+            [pscustomobject]@{
+                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest'
+                Methods = @(
+                    'validatesConfiguredRealFlutterWebArtifactWhenRequested',
+                    'rejectsFileSymlinkEscapeWhenSupported'
+                )
+            },
+            [pscustomobject]@{
+                Name = 'dev.flutter.netbeans.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest'
+                Methods = @(
+                    'loadsPackagedX64AdapterAndProbesInstalledRuntime'
+                )
+            },
+            [pscustomobject]@{
+                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest'
+                Methods = @(
+                    'rejectsSourceSymlinkWithoutReadingItsTarget',
+                    'cleanupFailsClosedWhenPublishedTreeIsReplacedByLink'
+                )
+            },
+            [pscustomobject]@{
+                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest'
+                Methods = @(
+                    'linkedUserDataParentIsRejectedWithoutTouchingItsTarget',
+                    'windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
+                )
+            }
+        )
+        foreach ($webCanvasClass in $webCanvasClasses) {
+            $className = [string]$webCanvasClass.Name
+            $simpleName = $className.Substring($className.LastIndexOf('.') + 1)
+            $packageName = $className.Substring(0, $className.LastIndexOf('.'))
+            $sourcePath = 'netbeans-plugin\src\test\java\' +
+                $className.Replace('.', '\') + '.java'
+            Write-Utf8File (Join-Path $Root $sourcePath) `
+                "package $packageName; class $simpleName {}"
+
+            $testCases = @($webCanvasClass.Methods | ForEach-Object {
+                if ($OptionalWebCanvasSkip) {
+                    "  <testcase classname=`"$className`" name=`"$_`">" +
+                        "<skipped message=`"optional Web Canvas prerequisite is unavailable`"/>" +
+                        '</testcase>'
+                } else {
+                    "  <testcase classname=`"$className`" name=`"$_`"/>"
+                }
+            }) -join "`n"
+            $skipped = if ($OptionalWebCanvasSkip) {
+                $webCanvasClass.Methods.Count
+            } else {
+                0
+            }
+            Write-Utf8File (Join-Path $Root (
+                    'netbeans-plugin\target\surefire-reports\TEST-' +
+                    $className + '.xml')) @"
+<testsuite name="$className" tests="$($webCanvasClass.Methods.Count)" failures="0" errors="0" skipped="$skipped">
+$testCases
+</testsuite>
+"@
+        }
+    }
     if ($PassingCanvasSdkGates) {
         Write-Utf8File (Join-Path $Root `
             'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
@@ -204,6 +276,20 @@ function New-ReleaseFixture {
 <testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="1">
   <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="someUnrelatedTest">
+    <skipped message="unrelated reason"/>
+  </testcase>
+</testsuite>
+"@
+    }
+    if ($UnexpectedWebCanvasMethodSkip) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\WebCanvasBuildServiceTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.canvas; class WebCanvasBuildServiceTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest" name="someUnrelatedTest">
     <skipped message="unrelated reason"/>
   </testcase>
 </testsuite>
@@ -354,6 +440,7 @@ function Invoke-ReleaseVerifier {
         [pscustomobject]$Fixture,
         [switch]$InstalledUserdir,
         [switch]$RequireOptionalSdkTests,
+        [switch]$RequireOptionalWebCanvasTests,
         [switch]$RequireOptionalPlatformTests
     )
     $arguments = @(
@@ -369,6 +456,9 @@ function Invoke-ReleaseVerifier {
     }
     if ($RequireOptionalSdkTests) {
         $arguments += '-RequireOptionalSdkTests'
+    }
+    if ($RequireOptionalWebCanvasTests) {
+        $arguments += '-RequireOptionalWebCanvasTests'
     }
     if ($RequireOptionalPlatformTests) {
         $arguments += '-RequireOptionalPlatformTests'
@@ -515,6 +605,64 @@ Describe 'verify-release.ps1' {
         $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
     }
 
+    It 'classifies only exact optional Web Canvas cases under an independent strict gate' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'optional-web-canvas') `
+            -OptionalWebCanvasSkip -PassingCanvasSdkGates
+
+        $allowed = Invoke-ReleaseVerifier $fixture
+        $sdkRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
+        $webRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalWebCanvasTests
+
+        $allowed.ExitCode | Should Be 0
+        $allowed.Text | Should Match 'Allowed optional Web Canvas skips'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.JnaWindowsWebView2PhysicalTest'
+        $sdkRequired.ExitCode | Should Be 0
+        $sdkRequired.Text | Should Match 'All optional SDK-backed tests ran without skips'
+        $webRequired.ExitCode | Should Be 1
+        $webRequired.Text | Should Match 'Optional Web Canvas test\(s\) were skipped while -RequireOptionalWebCanvasTests was set'
+        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested'
+        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
+    }
+
+    It 'accepts strict Web Canvas mode only when every exact gate ran without skips' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'passing-web-canvas') `
+            -PassingWebCanvasGates
+
+        $result = Invoke-ReleaseVerifier $fixture -RequireOptionalWebCanvasTests
+
+        $result.ExitCode | Should Be 0
+        $result.Text | Should Match 'All optional Web Canvas tests ran without skips'
+        ([regex]::Matches($result.Text,
+                'Required optional Web Canvas test case is recorded:').Count) |
+            Should Be 9
+        $result.Text | Should Match 'Release verification PASSED'
+    }
+
+    It 'requires every exact Web Canvas gate report in strict Web mode' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'missing-web-canvas-gates')
+
+        $result = Invoke-ReleaseVerifier $fixture -RequireOptionalWebCanvasTests
+
+        $result.ExitCode | Should Be 1
+        ([regex]::Matches($result.Text,
+                'Required optional Web Canvas test case report is missing:').Count) |
+            Should Be 9
+        $result.Text | Should Match 'WebCanvasBuildServiceTest#buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested'
+        $result.Text | Should Match 'JnaWindowsWebView2PhysicalTest#loadsPackagedX64AdapterAndProbesInstalledRuntime'
+        $result.Text | Should Match 'WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
+    }
+
+    It 'does not allow an unrelated skip inside a Web Canvas test class' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive `
+            'unexpected-web-canvas-method') -UnexpectedWebCanvasMethodSkip
+
+        $result = Invoke-ReleaseVerifier $fixture
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match "Unexpected skipped test class 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest' \(test 'someUnrelatedTest'\)"
+    }
+
     It 'classifies Pair Copy read-only probes as platform-dependent rather than SDK-backed' {
         $fixture = New-ReleaseFixture (Join-Path $TestDrive 'optional-platform') `
             -OptionalPlatformSkip -PassingCanvasSdkGates
@@ -534,7 +682,7 @@ Describe 'verify-release.ps1' {
         $platformRequired.Text | Should Match 'Required optional platform test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
     }
 
-    It 'rejects skipped classes outside both explicit optional policies' {
+    It 'rejects skipped classes outside all explicit optional policies' {
         $fixture = New-ReleaseFixture (Join-Path $TestDrive 'unexpected-skip') `
             -UnexpectedSkip
 

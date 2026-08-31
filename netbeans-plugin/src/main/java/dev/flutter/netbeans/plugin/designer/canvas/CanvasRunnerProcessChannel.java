@@ -124,6 +124,26 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                 listener);
     }
 
+    /**
+     * Creates the same bounded protocol channel over an authenticated,
+     * transport-owned byte stream pair.
+     *
+     * <p>This is the narrow entry point used by the exact Flutter Web Canvas:
+     * WebView2 owns browser lifetime and the authenticated host bridge owns
+     * the streams, while this class continues to own only NBFC framing and the
+     * Canvas wire session. Closing the returned channel closes the supplied
+     * streams but never attempts to terminate their external transport.</p>
+     */
+    public static CanvasRunnerProcessChannel overStreams(
+            InputStream stdout,
+            OutputStream stdin,
+            CanvasSessionId sessionId,
+            Executor listenerExecutor,
+            Listener listener) {
+        return new CanvasRunnerProcessChannel(
+                stdout, stdin, sessionId, listenerExecutor, listener);
+    }
+
     CanvasRunnerProcessChannel(
             InputStream stdout,
             OutputStream stdin,

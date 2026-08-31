@@ -21,7 +21,7 @@ interface FlutterDesignerCanvasSessionFactory {
             throws CreationException;
 
     static FlutterDesignerCanvasSessionFactory production() {
-        return FlutterDesignerNativeCanvasSessionFactory.production();
+        return FlutterDesignerRoutedCanvasSessionFactory.production();
     }
 
     record Callbacks(
@@ -68,6 +68,82 @@ interface FlutterDesignerCanvasSessionFactory {
             }
             return accepted;
         }
+    }
+}
+
+/**
+ * Backend-neutral production factory. Exact Web construction is admitted here
+ * while product routing remains independently gated by the MultiView close and
+ * physical Windows/WebView2 verification barrier.
+ */
+final class FlutterDesignerRoutedCanvasSessionFactory
+        implements FlutterDesignerCanvasSessionFactory {
+    @FunctionalInterface
+    interface WebSessionCreator {
+        FlutterDesignerCanvasSession create(Callbacks callbacks)
+                throws IOException;
+    }
+
+    private final FlutterDesignerCanvasSessionFactory nativeFactory;
+    private final WebSessionCreator webSessionCreator;
+
+    private FlutterDesignerRoutedCanvasSessionFactory(
+            FlutterDesignerCanvasSessionFactory nativeFactory,
+            WebSessionCreator webSessionCreator) {
+        this.nativeFactory = Objects.requireNonNull(
+                nativeFactory, "nativeFactory");
+        this.webSessionCreator = Objects.requireNonNull(
+                webSessionCreator, "webSessionCreator");
+    }
+
+    static FlutterDesignerCanvasSessionFactory production() {
+        return new FlutterDesignerRoutedCanvasSessionFactory(
+                FlutterDesignerNativeCanvasSessionFactory.production(),
+                callbacks -> FlutterDesignerWebCanvasSession.createDefault(
+                        callbacks.statusListener(),
+                        callbacks.selectionListener(),
+                        callbacks.paletteDropListener(),
+                        callbacks.deleteSelectionListener()));
+    }
+
+    static FlutterDesignerCanvasSessionFactory forTests(
+            FlutterDesignerCanvasSessionFactory nativeFactory,
+            WebSessionCreator webSessionCreator) {
+        return new FlutterDesignerRoutedCanvasSessionFactory(
+                nativeFactory, webSessionCreator);
+    }
+
+    @Override
+    public FlutterDesignerCanvasOwner create(
+            Backend backend,
+            Callbacks callbacks) throws CreationException {
+        Backend acceptedBackend = Objects.requireNonNull(backend, "backend");
+        Callbacks acceptedCallbacks = Objects.requireNonNull(
+                callbacks, "callbacks");
+        if (acceptedBackend == Backend.NATIVE) {
+            return nativeFactory.create(acceptedBackend, acceptedCallbacks);
+        }
+        try {
+            FlutterDesignerCanvasSession session = Objects.requireNonNull(
+                    webSessionCreator.create(acceptedCallbacks),
+                    "Web Canvas session factory returned no session");
+            return FlutterDesignerCanvasOwner.adopt(acceptedBackend, session);
+        } catch (IOException | RuntimeException | LinkageError failure) {
+            if (failure instanceof CreationException creationFailure) {
+                throw creationFailure;
+            }
+            throw new CreationException(
+                    "exact Flutter Web Canvas",
+                    failureReason(failure),
+                    failure);
+        }
+    }
+
+    private static String failureReason(Throwable failure) {
+        String message = failure.getMessage();
+        return message == null || message.isBlank()
+                ? failure.getClass().getSimpleName()
+                : message;
     }
 }
 

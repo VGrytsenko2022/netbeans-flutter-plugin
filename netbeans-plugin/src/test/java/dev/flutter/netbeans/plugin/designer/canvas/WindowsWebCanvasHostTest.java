@@ -50,6 +50,9 @@ class WindowsWebCanvasHostTest {
         assertEdtFailure(fixture.host::runnerStdout);
         assertEdtFailure(fixture.host::runnerStdin);
         assertEdtFailure(fixture.host::isBridgeReady);
+        assertEdtFailure(fixture.host::isControllerFocused);
+        assertEdtFailure(fixture.host::releaseControllerFocus);
+        assertEdtFailure(fixture.host::isCarrierDisplayable);
         assertEdtFailure(fixture.host::preparePeerRemovalAsync);
         assertEdtFailure(() -> {
             fixture.host.requestControllerFocus();
@@ -62,6 +65,107 @@ class WindowsWebCanvasHostTest {
             return null;
         });
         assertEquals(1, fixture.executor.pendingCount());
+    }
+
+    @Test
+    void deferredConstructionIsCheapAndDependencyPreparationRejectsTheEdt()
+            throws Exception {
+        DeferredFixture fixture = deferredFixture("deferred-cheap", 0);
+
+        assertEquals(0, fixture.loader.loadCalls);
+        IllegalStateException failure = onEdt(() -> assertThrows(
+                IllegalStateException.class,
+                fixture.host::prepareNativeDependencies));
+
+        assertTrue(failure.getMessage().contains("off the EDT"));
+        assertEquals(0, fixture.loader.loadCalls);
+    }
+
+    @Test
+    void deferredDependencyPreparationPublishesOneCompleteBundle()
+            throws Exception {
+        DeferredFixture fixture = deferredFixture("deferred-success", 0);
+
+        fixture.host.prepareNativeDependencies();
+        fixture.host.prepareNativeDependencies();
+        onEdt(() -> {
+            fixture.host.start(fixture.request, fixture.listener);
+            return null;
+        });
+
+        assertEquals(1, fixture.loader.loadCalls);
+        assertEquals(1, fixture.executor.pendingCount());
+    }
+
+    @Test
+    void failedDeferredPreparationRefusesStartAndRetryCanSucceed()
+            throws Exception {
+        DeferredFixture fixture = deferredFixture("deferred-retry", 1);
+
+        IOException preparationFailure = assertThrows(
+                IOException.class, fixture.host::prepareNativeDependencies);
+        assertTrue(preparationFailure.getMessage().contains("injected"));
+        IllegalStateException startFailure = onEdt(() -> assertThrows(
+                IllegalStateException.class,
+                () -> fixture.host.start(fixture.request, fixture.listener)));
+        assertTrue(startFailure.getMessage().contains("were not prepared"));
+        assertEquals(1, fixture.loader.loadCalls);
+        assertEquals(0, fixture.executor.pendingCount());
+
+        fixture.host.prepareNativeDependencies();
+        onEdt(() -> {
+            fixture.host.start(fixture.request, fixture.listener);
+            return null;
+        });
+
+        assertEquals(2, fixture.loader.loadCalls);
+        assertEquals(1, fixture.executor.pendingCount());
+    }
+
+    @Test
+    void controllerFocusObservationAndReleaseAreLifecycleFencedAndDelegated()
+            throws Exception {
+        Fixture fixture = fixture("controller-focus");
+
+        assertFalse(onEdt(fixture.host::isControllerFocused));
+        assertFalse(onEdt(fixture.host::releaseControllerFocus));
+        assertEquals(0, fixture.focusApi.setFocusCalls);
+
+        startAndFinish(fixture);
+
+        assertTrue(onEdt(fixture.host::isControllerFocused));
+        assertTrue(onEdt(fixture.host::releaseControllerFocus));
+        assertEquals(HWND, fixture.focusApi.foregroundWindow);
+        assertEquals(1, fixture.focusApi.setFocusCalls);
+        assertFalse(onEdt(fixture.host::isControllerFocused));
+    }
+
+    @Test
+    void unresolvedFocusQueueDetachFailsAndRetiresTheActiveHost()
+            throws Exception {
+        Fixture fixture = fixture("controller-focus-detach-failure");
+        fixture.focusApi.detachSucceeds = false;
+        startAndFinish(fixture);
+
+        assertFalse(onEdt(fixture.host::releaseControllerFocus));
+
+        assertEquals("Release Web Canvas focus",
+                fixture.listener.failureOperation);
+        assertTrue(fixture.listener.failureReason.contains(
+                "could not detach the AWT and WebView2 input queues"));
+        assertFalse(onEdt(fixture.host::isControllerFocused));
+    }
+
+    @Test
+    void carrierDisplayabilityReadsTheExactHeavyweightCanvasOnTheEdt()
+            throws Exception {
+        Fixture fixture = fixture("carrier-displayable");
+
+        assertTrue(onEdt(() -> fixture.host.getComponent(0) instanceof Canvas));
+        assertEquals(
+                onEdt(() -> fixture.host.getComponent(0).isDisplayable()),
+                onEdt(fixture.host::isCarrierDisplayable));
+        assertFalse(onEdt(fixture.host::isCarrierDisplayable));
     }
 
     @Test
@@ -253,10 +357,16 @@ class WindowsWebCanvasHostTest {
             canvas.setSize(800, 600);
             canvas.dispatchEvent(new ComponentEvent(
                     canvas, ComponentEvent.COMPONENT_RESIZED));
+            fixture.host.setControllerVisible(true);
             canvas.dispatchEvent(new ComponentEvent(
                     canvas, ComponentEvent.COMPONENT_SHOWN));
+            fixture.host.setControllerVisible(false);
             canvas.dispatchEvent(new ComponentEvent(
                     canvas, ComponentEvent.COMPONENT_HIDDEN));
+            // A Swing hierarchy event cannot resurrect an explicitly hidden
+            // browser controller; the runtime owner is authoritative.
+            canvas.dispatchEvent(new ComponentEvent(
+                    canvas, ComponentEvent.COMPONENT_SHOWN));
             fixture.host.requestControllerFocus();
             return null;
         });
@@ -287,6 +397,24 @@ class WindowsWebCanvasHostTest {
         assertEquals(HWND, fixture.clientBounds.lastWindow);
         assertEquals(List.of(0, 0, 975, 720),
                 fixture.api.sessions.getFirst().bounds.getLast());
+    }
+
+    @Test
+    void unsafePhysicalSurfaceIsRejectedBeforeNativeCreation() throws Exception {
+        Fixture fixture = fixture("unsafe-physical-bounds");
+        fixture.clientBounds.bounds = new NativeCanvasWindowBounds(4_097, 1);
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> onEdt(() -> {
+                    fixture.host.start(fixture.request, fixture.listener);
+                    return null;
+                }));
+
+        assertTrue(failure.getMessage().contains("physicalWidth"));
+        assertEquals(0, fixture.executor.pendingCount());
+        assertTrue(fixture.api.requests.isEmpty());
+        assertTrue(fixture.api.sessions.isEmpty());
     }
 
     @Test
@@ -1012,19 +1140,79 @@ class WindowsWebCanvasHostTest {
         ManualDeadlineScheduler deadlines = new ManualDeadlineScheduler();
         FakeClientBoundsResolver clientBounds = new FakeClientBoundsResolver();
         ManualCleanupRetryDelay cleanupRetries = new ManualCleanupRetryDelay();
+        HostFocusNativeApi focusApi = new HostFocusNativeApi();
+        WindowsWebCanvasFocusController focusController =
+                new WindowsWebCanvasFocusController(
+                        focusApi,
+                        () -> HostFocusNativeApi.CURRENT_PROCESS,
+                        (currentProcess, candidateProcess) ->
+                                currentProcess == HostFocusNativeApi.CURRENT_PROCESS
+                                && (candidateProcess
+                                == HostFocusNativeApi.CURRENT_PROCESS
+                                || candidateProcess
+                                == HostFocusNativeApi.BROWSER_PROCESS));
         WindowsWebCanvasHost host = onEdt(() -> {
             WindowsWebCanvasHost created = new WindowsWebCanvasHost(
                     api, executor, ignored -> HWND, deadlines, clientBounds,
-                    cleanupRetries);
+                    cleanupRetries, focusController);
             created.setSize(640, 480);
             created.doLayout();
             return created;
         });
         return new Fixture(
                 host, api, executor, deadlines, clientBounds, cleanupRetries,
-                artifact,
+                focusApi, artifact,
                 sessionsRoot, request.userDataFolder(), request,
                 new RecordingListener());
+    }
+
+    private DeferredFixture deferredFixture(
+            String name, int failuresBeforeSuccess) throws Exception {
+        Path root = Files.createDirectories(temporary.resolve(name));
+        WebCanvasArtifactPublisher.PublishedArtifact artifact = artifact(root);
+        Path cacheParent = Files.createDirectory(root.resolve("cache"));
+        WindowsWebCanvasHost.UserDataSessionsRoot sessionsRoot =
+                WindowsWebCanvasHost.UserDataSessionsRoot.openOrCreate(
+                        cacheParent.resolve("webview2-sessions"));
+        WindowsWebCanvasHost.StartRequest request =
+                new WindowsWebCanvasHost.StartRequest(
+                        artifact,
+                        sessionsRoot,
+                        sessionsRoot.sessionPath("session"),
+                        NONCE);
+        FakeNativeApi api = new FakeNativeApi();
+        ManualExecutor executor = new ManualExecutor();
+        ManualDeadlineScheduler deadlines = new ManualDeadlineScheduler();
+        FakeClientBoundsResolver clientBounds = new FakeClientBoundsResolver();
+        ManualCleanupRetryDelay cleanupRetries = new ManualCleanupRetryDelay();
+        HostFocusNativeApi focusApi = new HostFocusNativeApi();
+        WindowsWebCanvasFocusController focusController =
+                new WindowsWebCanvasFocusController(
+                        focusApi,
+                        () -> HostFocusNativeApi.CURRENT_PROCESS,
+                        (currentProcess, candidateProcess) ->
+                                currentProcess == HostFocusNativeApi.CURRENT_PROCESS
+                                && (candidateProcess
+                                == HostFocusNativeApi.CURRENT_PROCESS
+                                || candidateProcess
+                                == HostFocusNativeApi.BROWSER_PROCESS));
+        RetryingNativeDependencyLoader loader =
+                new RetryingNativeDependencyLoader(
+                        api, clientBounds, focusController,
+                        failuresBeforeSuccess);
+        WindowsWebCanvasHost host = onEdt(() -> {
+            WindowsWebCanvasHost created = WindowsWebCanvasHost.createDeferred(
+                    executor,
+                    ignored -> HWND,
+                    deadlines,
+                    cleanupRetries,
+                    loader);
+            created.setSize(640, 480);
+            created.doLayout();
+            return created;
+        });
+        return new DeferredFixture(
+                host, executor, request, new RecordingListener(), loader);
     }
 
     private static void start(Fixture fixture) throws Exception {
@@ -1196,11 +1384,20 @@ class WindowsWebCanvasHostTest {
             ManualDeadlineScheduler deadlines,
             FakeClientBoundsResolver clientBounds,
             ManualCleanupRetryDelay cleanupRetries,
+            HostFocusNativeApi focusApi,
             WebCanvasArtifactPublisher.PublishedArtifact artifact,
             WindowsWebCanvasHost.UserDataSessionsRoot sessionsRoot,
             Path userDataFolder,
             WindowsWebCanvasHost.StartRequest request,
             RecordingListener listener) {
+    }
+
+    private record DeferredFixture(
+            WindowsWebCanvasHost host,
+            ManualExecutor executor,
+            WindowsWebCanvasHost.StartRequest request,
+            RecordingListener listener,
+            RetryingNativeDependencyLoader loader) {
     }
 
     private static final class Holder<T> {
@@ -1225,6 +1422,34 @@ class WindowsWebCanvasHostTest {
                 command = pending.removeFirst();
             }
             command.run();
+        }
+    }
+
+    private static final class RetryingNativeDependencyLoader
+            implements WindowsWebCanvasHost.NativeDependencyLoader {
+        private final WindowsWebCanvasHost.NativeDependencies dependencies;
+        private int failuresRemaining;
+        private int loadCalls;
+
+        private RetryingNativeDependencyLoader(
+                WindowsWebView2NativeApi nativeApi,
+                WindowsWebCanvasHost.ClientBoundsResolver clientBoundsResolver,
+                WindowsWebCanvasFocusController focusController,
+                int failuresRemaining) {
+            this.dependencies = new WindowsWebCanvasHost.NativeDependencies(
+                    nativeApi, clientBoundsResolver, focusController);
+            this.failuresRemaining = failuresRemaining;
+        }
+
+        @Override
+        public synchronized WindowsWebCanvasHost.NativeDependencies load()
+                throws IOException {
+            loadCalls++;
+            if (failuresRemaining > 0) {
+                failuresRemaining--;
+                throw new IOException("injected native dependency failure");
+            }
+            return dependencies;
         }
     }
 
@@ -1287,6 +1512,63 @@ class WindowsWebCanvasHostTest {
                 throws IOException {
             failedAttempts.add(failedAttempt);
             retryAction.run(failedAttempt, failure);
+        }
+    }
+
+    private static final class HostFocusNativeApi
+            implements WindowsWebCanvasFocusController.NativeApi {
+        private static final long CURRENT_PROCESS = 77L;
+        private static final long BROWSER_PROCESS = 88L;
+        private static final long CONTROLLER_FOCUS = HWND + 1L;
+
+        private long foregroundWindow = CONTROLLER_FOCUS;
+        private int setFocusCalls;
+        private boolean detachSucceeds = true;
+
+        @Override
+        public boolean isWindow(long window) {
+            return window == HWND || window == CONTROLLER_FOCUS;
+        }
+
+        @Override
+        public boolean isChild(long parentWindow, long childWindow) {
+            return parentWindow == HWND && childWindow == CONTROLLER_FOCUS;
+        }
+
+        @Override
+        public WindowsWebCanvasFocusController.WindowIdentity windowIdentity(
+                long window) {
+            if (window == HWND) {
+                return new WindowsWebCanvasFocusController.WindowIdentity(
+                        11L, CURRENT_PROCESS);
+            }
+            if (window == CONTROLLER_FOCUS) {
+                return new WindowsWebCanvasFocusController.WindowIdentity(
+                        22L, BROWSER_PROCESS);
+            }
+            return new WindowsWebCanvasFocusController.WindowIdentity(0L, 0L);
+        }
+
+        @Override
+        public long foregroundFocusedWindow() {
+            return foregroundWindow;
+        }
+
+        @Override
+        public long currentThreadId() {
+            return 11L;
+        }
+
+        @Override
+        public boolean attachThreadInput(
+                long sourceThread, long targetThread, boolean attach) {
+            return attach || detachSucceeds;
+        }
+
+        @Override
+        public void setFocus(long window) {
+            setFocusCalls++;
+            foregroundWindow = window;
         }
     }
 

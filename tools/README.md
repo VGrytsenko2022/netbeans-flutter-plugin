@@ -23,8 +23,8 @@ The checks cover:
 - the module configuration and module JAR entries inside the NBM;
 - every Maven `*Test.java`/`*IT.java` source having a corresponding
   Surefire/Failsafe XML report, zero recorded failures/errors, only explicitly
-  classified SDK-backed or platform-filesystem probes being skipped, and a
-  passing `PluginPackageMetadataIT` report;
+  classified SDK-backed, Web Canvas, or platform-filesystem probes being
+  skipped, and a passing `PluginPackageMetadataIT` report;
 - the SHA-256, optionally against a previously recorded expected value;
 - optionally, an isolated installed NetBeans userdir: enabled module config,
   update tracking and its files, installed JAR versions, a NetBeans 30 log,
@@ -62,6 +62,41 @@ The SDK properties belong to the Maven run that produces the XML reports. The
 verifier is read-only and validates both that the two Canvas gate cases are
 present in those reports and that no SDK-gated case skipped.
 
+Web Canvas prerequisites are classified independently from the general SDK and
+filesystem probes. By default their exact known skips are reported but allowed.
+Use `-RequireOptionalWebCanvasTests` only for a Windows x64 release-evidence run
+that has all of the following prerequisites:
+
+- a prepared Flutter SDK passed as
+  `-Dweb.canvas.flutter.sdk=<Flutter SDK root>` for the packaged exact-Web build;
+- an already built runner source root passed as
+  `-Dcanvas.runner.web.source=<absolute runner source root>`; that root must
+  contain the validated `build/web` output;
+- Microsoft Edge WebView2 Runtime installed and the physical probe enabled with
+  `-Dnetbeans.flutter.webview2.physical=true`;
+- an interactive Windows environment whose filesystem permits the tested
+  symbolic-link/reparse-point and stable-handle probes.
+
+The strict switch requires every exact Web Canvas gate case to be present in the
+Maven XML reports and to have run without a skip. It covers the real build and
+artifact contract, packaged JNA/installed-Runtime probe, and the Web publication,
+SDK metadata, user-data and Windows deletion safety probes. For example, after
+building the exact runner artifact:
+
+```powershell
+mvn clean install `
+  "-Dweb.canvas.flutter.sdk=<Flutter SDK root>" `
+  "-Dcanvas.runner.web.source=<absolute runner source root>" `
+  "-Dnetbeans.flutter.webview2.physical=true"
+
+pwsh -NoProfile -File tools/verify-release.ps1 `
+  -RequireOptionalWebCanvasTests
+```
+
+This verifies the currently recorded prerequisite and physical-probe evidence;
+it does not turn the standalone WebView2 host smoke into an assembled NetBeans
+exact-Web product acceptance gate.
+
 `FlutterDesignerPairCopyTest` has two read-only filesystem probes whose native
 permission behavior is not an SDK prerequisite. They are reported separately
 as optional platform-dependent skips. Require those probes too when producing
@@ -72,6 +107,7 @@ skip:
 ```powershell
 pwsh -NoProfile -File tools/verify-release.ps1 `
   -RequireOptionalSdkTests `
+  -RequireOptionalWebCanvasTests `
   -RequireOptionalPlatformTests
 ```
 

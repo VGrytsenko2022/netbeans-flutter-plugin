@@ -1,6 +1,8 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,8 +29,19 @@ import java.awt.Canvas;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -70,6 +83,149 @@ class FlutterDesignerCanvasOwnershipTest {
                 FlutterDesignerCanvasOwner.adopt(Backend.NATIVE, session));
 
         assertEquals(1, session.closeCalls);
+    }
+
+    @Test
+    void concurrentRetirementCallsShareOneInFlightAttempt() throws Exception {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> pending = new CompletableFuture<>();
+        session.retirementAttempts.add(pending);
+        FlutterDesignerCanvasOwner owner =
+                FlutterDesignerCanvasOwner.adopt(Backend.EXACT_WEB, session);
+        int callers = 8;
+        CountDownLatch ready = new CountDownLatch(callers);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(callers);
+        List<Future<CompletionStage<Void>>> calls = new ArrayList<>();
+        try {
+            for (int index = 0; index < callers; index++) {
+                calls.add(executor.submit(() -> {
+                    ready.countDown();
+                    assertTrue(start.await(5, TimeUnit.SECONDS));
+                    return owner.preparePeerRemovalAsync();
+                }));
+            }
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+
+            CompletionStage<Void> shared = calls.getFirst().get(5, TimeUnit.SECONDS);
+            for (Future<CompletionStage<Void>> call : calls) {
+                assertSame(shared, call.get(5, TimeUnit.SECONDS));
+            }
+            assertEquals(1, session.preparePeerRemovalCalls);
+            assertEquals(
+                    FlutterDesignerCanvasOwner.RetirementState.RETIRING,
+                    owner.retirementState());
+            assertFalse(owner.closed());
+
+            pending.complete(null);
+            shared.toCompletableFuture().join();
+            assertEquals(
+                    FlutterDesignerCanvasOwner.RetirementState.RETIRED,
+                    owner.retirementState());
+            assertTrue(owner.closed());
+            assertSame(shared, owner.preparePeerRemovalAsync());
+            assertEquals(1, session.preparePeerRemovalCalls);
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void failedRetirementIsPoisonedButRetryableUntilSuccess() {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> failed = new CompletableFuture<>();
+        CompletableFuture<Void> recovered = new CompletableFuture<>();
+        session.retirementAttempts.add(failed);
+        session.retirementAttempts.add(recovered);
+        FlutterDesignerCanvasOwner owner =
+                FlutterDesignerCanvasOwner.adopt(Backend.EXACT_WEB, session);
+
+        CompletionStage<Void> first = owner.preparePeerRemovalAsync();
+        IOException cleanupFailure = new IOException("simulated WebView2 cleanup failure");
+        failed.completeExceptionally(cleanupFailure);
+        CompletionException reported = assertThrows(
+                CompletionException.class,
+                () -> first.toCompletableFuture().join());
+        assertSame(cleanupFailure, reported.getCause());
+        assertEquals(
+                FlutterDesignerCanvasOwner.RetirementState.POISONED,
+                owner.retirementState());
+        assertFalse(owner.closed());
+
+        CompletionStage<Void> retry = owner.preparePeerRemovalAsync();
+        assertNotSame(first, retry);
+        assertEquals(2, session.preparePeerRemovalCalls);
+        assertEquals(
+                FlutterDesignerCanvasOwner.RetirementState.RETIRING,
+                owner.retirementState());
+        assertFalse(owner.closed());
+
+        recovered.complete(null);
+        retry.toCompletableFuture().join();
+        assertEquals(
+                FlutterDesignerCanvasOwner.RetirementState.RETIRED,
+                owner.retirementState());
+        assertTrue(owner.closed());
+    }
+
+    @Test
+    void closeInitiatesAsyncRetirementWithoutClaimingEarlySuccess() {
+        TestSession session = new TestSession();
+        CompletableFuture<Void> pending = new CompletableFuture<>();
+        session.retirementAttempts.add(pending);
+        FlutterDesignerCanvasOwner owner =
+                FlutterDesignerCanvasOwner.adopt(Backend.EXACT_WEB, session);
+
+        owner.close();
+
+        assertEquals(1, session.preparePeerRemovalCalls);
+        assertEquals(
+                FlutterDesignerCanvasOwner.RetirementState.RETIRING,
+                owner.retirementState());
+        assertFalse(owner.closed());
+        pending.complete(null);
+        assertTrue(owner.closed());
+    }
+
+    @Test
+    void rejectedAdoptionPreservesSynchronousCleanupFailureAsSuppressed() {
+        TestSession session = new TestSession();
+        session.componentResult = null;
+        IllegalStateException cleanupFailure =
+                new IllegalStateException("simulated cleanup failure");
+        session.closeAction = () -> {
+            throw cleanupFailure;
+        };
+
+        NullPointerException adoptionFailure = assertThrows(
+                NullPointerException.class,
+                () -> FlutterDesignerCanvasOwner.adopt(Backend.NATIVE, session));
+
+        assertEquals(1, session.closeCalls);
+        assertEquals(1, adoptionFailure.getSuppressed().length);
+        assertSame(cleanupFailure, adoptionFailure.getSuppressed()[0]);
+    }
+
+    @Test
+    void rejectedAdoptionPreservesLaterAsyncCleanupFailureAsSuppressed() {
+        TestSession session = new TestSession();
+        session.componentResult = null;
+        CompletableFuture<Void> cleanup = new CompletableFuture<>();
+        session.retirementAttempts.add(cleanup);
+
+        NullPointerException adoptionFailure = assertThrows(
+                NullPointerException.class,
+                () -> FlutterDesignerCanvasOwner.adopt(Backend.EXACT_WEB, session));
+        assertEquals(0, adoptionFailure.getSuppressed().length);
+
+        IOException cleanupFailure = new IOException("later cleanup failure");
+        cleanup.completeExceptionally(cleanupFailure);
+        assertEquals(1, adoptionFailure.getSuppressed().length);
+        assertSame(cleanupFailure, adoptionFailure.getSuppressed()[0]);
+        assertEquals(1, session.preparePeerRemovalCalls);
     }
 
     @Test
@@ -117,6 +273,57 @@ class FlutterDesignerCanvasOwnershipTest {
 
         assertEquals(1, session.closeCalls);
         assertEquals(1, host.closeCalls);
+    }
+
+    @Test
+    void routedFactoryCreatesTheExactRequestedBackendOnly() throws Exception {
+        AtomicInteger nativeCreates = new AtomicInteger();
+        AtomicInteger webCreates = new AtomicInteger();
+        TestSession nativeSession = new TestSession();
+        TestSession webSession = new TestSession();
+        FlutterDesignerCanvasSessionFactory factory =
+                FlutterDesignerRoutedCanvasSessionFactory.forTests(
+                        (backend, ignoredCallbacks) -> {
+                            nativeCreates.incrementAndGet();
+                            return FlutterDesignerCanvasOwner.adopt(
+                                    backend, nativeSession);
+                        },
+                        ignoredCallbacks -> {
+                            webCreates.incrementAndGet();
+                            return webSession;
+                        });
+
+        FlutterDesignerCanvasOwner web = factory.create(
+                Backend.EXACT_WEB, callbacks());
+        assertEquals(Backend.EXACT_WEB, web.backend());
+        assertEquals(0, nativeCreates.get());
+        assertEquals(1, webCreates.get());
+
+        FlutterDesignerCanvasOwner nativeOwner = factory.create(
+                Backend.NATIVE, callbacks());
+        assertEquals(Backend.NATIVE, nativeOwner.backend());
+        assertEquals(1, nativeCreates.get());
+        assertEquals(1, webCreates.get());
+    }
+
+    @Test
+    void routedFactoryNamesExactWebCreationFailures() {
+        FlutterDesignerCanvasSessionFactory factory =
+                FlutterDesignerRoutedCanvasSessionFactory.forTests(
+                        (backend, ignoredCallbacks) -> {
+                            throw new AssertionError("native route must not run");
+                        },
+                        ignoredCallbacks -> {
+                            throw new IOException("simulated WebView2 load failure");
+                        });
+
+        FlutterDesignerCanvasSessionFactory.CreationException failure =
+                assertThrows(
+                        FlutterDesignerCanvasSessionFactory.CreationException.class,
+                        () -> factory.create(Backend.EXACT_WEB, callbacks()));
+
+        assertEquals("exact Flutter Web Canvas", failure.target());
+        assertTrue(failure.getMessage().contains("simulated WebView2 load failure"));
     }
 
     @Test
@@ -224,7 +431,10 @@ class FlutterDesignerCanvasOwnershipTest {
         private final JPanel component = new JPanel();
         private JComponent componentResult = component;
         private Runnable closeAction = () -> { };
+        private final ArrayDeque<CompletionStage<Void>> retirementAttempts =
+                new ArrayDeque<>();
         private int closeCalls;
+        private int preparePeerRemovalCalls;
         private boolean failViewportListener;
 
         @Override
@@ -340,6 +550,15 @@ class FlutterDesignerCanvasOwnershipTest {
 
         @Override
         public void clearWidgetMovePreview() {
+        }
+
+        @Override
+        public CompletionStage<Void> preparePeerRemovalAsync() {
+            if (retirementAttempts.isEmpty()) {
+                return FlutterDesignerCanvasSession.super.preparePeerRemovalAsync();
+            }
+            preparePeerRemovalCalls++;
+            return retirementAttempts.removeFirst();
         }
 
         @Override

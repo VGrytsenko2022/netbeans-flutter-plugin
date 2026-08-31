@@ -1667,10 +1667,18 @@ HTTPS origin, frozen resource policy, Java endpoint and standalone physical host
 gate are complete. A disconnected build/cache prerequisite now binds the exact
 Flutter, framework, engine and Dart SDK identity into its compiler defines,
 cache fingerprint, result and `runner.hello`, then privately publishes every
-validated generation. The assembled provider/session/product route, asynchronous
-owner replacement, explicit focus/visibility parity, Retry/crash behavior and
-NetBeans physical acceptance remain open. Therefore this implemented foundation
-is not yet a product-available Canvas backend.
+validated generation. The assembled MultiView product route, component/close
+owner handoff, end-to-end Retry/crash behavior and NetBeans physical acceptance
+remain open. Host-level explicit focus/visibility behavior is implemented. The
+internal exact-Web session now
+consumes that authenticated stream, checks the compiled engine identity against
+`runner.hello`, reuses the native session's model/layout/selection/viewport and
+interaction fences, and matches Flutter presentation against independently
+observed WebView2 physical metrics. A backend-neutral routed factory and
+epoch-fenced asynchronous owner coordinator guarantee retirement-before-create
+and retry poisoned cleanup. Those objects are not yet connected to MultiView's
+component replacement and synchronous close-veto, so this remains unavailable
+as a product Canvas backend.
 
 The current protocol-v9 projection intentionally contains exactly the ten
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
@@ -1702,8 +1710,9 @@ Implementation proceeds through explicit gates:
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. The separately compiled browser runner
-   foundation described below does not change this product route until the exact
-   Web session/owner transition and assembled physical gate pass.
+   foundation described below does not change this product route until MultiView
+   integrates the exact-Web session/owner transition and the assembled physical
+   gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
    with the Explorer/Nodes widget tree, publish the exact ten-item Palette and
    expose selected-node Properties. Enable catalog-driven Set/Reset for the 514
@@ -1742,14 +1751,15 @@ Implementation proceeds through explicit gates:
    Flutter and Java tests pass; the
    current physical host still lacks a composition-capable input method. This
    gate does not claim Linux/macOS or runtime-faithful Web support.
-10. [Authenticated Web runner/transport, host and exact build/cache prerequisite
-    complete; assembled product gates open] Keep the browser entry point, multi-view root and
-    nonce-, sequence- and size-fenced JavaScript/Dart transport on the existing
-    bounded NBFC/model protocol. Next implement the exact Web session and
-    mutually exclusive asynchronous owner transition, route it through the
-    provider/product lifecycle, and pass the assembled Windows physical
-    readiness, interaction and teardown gate. None of those next steps is marked
-    complete by the standalone host or build/cache proof.
+10. [Authenticated Web runner/transport, host, exact build/cache, internal Web
+    session and mutually exclusive owner-transition foundation complete;
+    assembled product gates open] Keep the browser entry point, exact-view
+    multi-view root and nonce-, sequence- and size-fenced JavaScript/Dart
+    transport on the existing bounded NBFC/model protocol. Next integrate the
+    transition coordinator with MultiView's asynchronous component/close path
+    and pass the assembled Windows physical readiness, interaction and teardown
+    gate. The standalone host and internal session do not authorize the product
+    route.
 11. Prove runner crash/restart/close, native-handle cleanup, pair Save and
     Undo/Redo behavior, then implement the Linux and macOS SPI providers.
 12. Admit every further built-in only as a complete capability-gated vertical
@@ -1786,9 +1796,11 @@ infrastructure.
    slice is also implemented under ADR-036, while physical CJK IME acceptance
    remains open. The authenticated browser runner/transport foundation, offline
    static-build proof, native WebView2 host, and origin/resource confinement are
-   complete. Exact Web session/owner integration, product routing, and the
-   assembled physical gate remain pending alongside the Linux/macOS
-   native-surface providers.
+   complete. The internal exact Web session, routed factory and asynchronous
+   owner-transition coordinator are also implemented and deterministically
+   tested. MultiView component/close integration, production routing and the
+   assembled physical gate remain pending alongside the Linux/macOS native-
+   surface providers.
 
 These decisions must be resolved with focused prototypes and tests; they do
 not weaken the accepted `.fd` canonical-model and guarded-Dart-region rule.

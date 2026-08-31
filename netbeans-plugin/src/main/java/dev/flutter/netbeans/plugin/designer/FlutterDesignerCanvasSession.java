@@ -15,6 +15,8 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import javax.swing.JComponent;
 
@@ -78,6 +80,24 @@ interface FlutterDesignerCanvasSession extends AutoCloseable {
             WidgetPlacement destination);
 
     void clearWidgetMovePreview();
+
+    /**
+     * Starts backend-owned teardown and completes only when the heavyweight
+     * surface may be removed from its AWT hierarchy.
+     *
+     * <p>The default is safe for existing sessions whose {@link #close()}
+     * performs the complete peer-release step synchronously. Backends with an
+     * asynchronous native barrier must override this method and complete the
+     * returned stage only after that barrier succeeds.</p>
+     */
+    default CompletionStage<Void> preparePeerRemovalAsync() {
+        try {
+            close();
+            return CompletableFuture.completedFuture(null);
+        } catch (RuntimeException | LinkageError failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
 
     @Override
     void close();

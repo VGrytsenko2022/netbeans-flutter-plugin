@@ -23,6 +23,7 @@ class NativeCanvasApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    runtime.bindSurfaceView(View.of(context));
     return AnimatedBuilder(
       animation: runtime,
       builder: (context, _) {

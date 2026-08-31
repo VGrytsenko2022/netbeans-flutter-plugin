@@ -7,6 +7,7 @@ import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinDef.DWORD;
 import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
+import dev.flutter.netbeans.designer.canvas.CanvasSurfaceMetrics;
 import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -58,11 +59,12 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     private static final String USER_DATA_SESSIONS_ROOT_MARKER_FORMAT =
             "NETBEANS_FLUTTER_WEBVIEW2_SESSIONS_ROOT|1|";
 
-    private final WindowsWebView2NativeApi nativeApi;
+    private volatile NativeDependencies nativeDependencies;
     private final Executor nativeExecutor;
     private final ParentHandleResolver parentHandleResolver;
     private final StartupDeadlineScheduler startupDeadlineScheduler;
-    private final ClientBoundsResolver clientBoundsResolver;
+    private final NativeDependencyLoader nativeDependencyLoader;
+    private final Object dependencyPreparationLock = new Object();
     private final CleanupRetryDelay cleanupRetryDelay;
     private final HostCanvas canvas = new HostCanvas();
     private final Object nativeEventLock = new Object();
@@ -82,6 +84,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     private boolean bridgeAuthenticated;
     private boolean transportFailureTerminalPending;
     private volatile WindowsWebView2NativeApi.NativeSession nativeSession;
+    private boolean requestedControllerVisible;
+    private Consumer<CanvasSurfaceMetrics> surfaceMetricsListener = ignored -> {};
     private OwnedUserDataFolder ownedUserDataFolder;
     private WebCanvasArtifactPublisher.PublishedArtifact.Lease artifactLease;
     private WebCanvasHostBridge bridge;
@@ -99,12 +103,32 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             CompletableFuture.completedFuture(null);
 
     static WindowsWebCanvasHost createDefault() throws IOException {
-        return new WindowsWebCanvasHost(
-                JnaWindowsWebView2NativeApi.loadPackaged(),
+        return createDeferred(
                 command -> Thread.ofVirtual()
                         .name("flutter-webview2-native-lifecycle")
                         .start(command),
-                ParentHandleResolver.system());
+                ParentHandleResolver.system(),
+                StartupDeadlineScheduler.system(),
+                CleanupRetryDelay.system(),
+                NativeDependencyLoader.system());
+    }
+
+    static WindowsWebCanvasHost createDeferred(
+            Executor nativeExecutor,
+            ParentHandleResolver parentHandleResolver,
+            StartupDeadlineScheduler startupDeadlineScheduler,
+            CleanupRetryDelay cleanupRetryDelay,
+            NativeDependencyLoader nativeDependencyLoader) {
+        return new WindowsWebCanvasHost(
+                null,
+                nativeExecutor,
+                parentHandleResolver,
+                startupDeadlineScheduler,
+                null,
+                cleanupRetryDelay,
+                null,
+                Objects.requireNonNull(
+                        nativeDependencyLoader, "nativeDependencyLoader"));
     }
 
     WindowsWebCanvasHost(
@@ -113,7 +137,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             ParentHandleResolver parentHandleResolver) {
         this(nativeApi, nativeExecutor, parentHandleResolver,
                 StartupDeadlineScheduler.system(), ClientBoundsResolver.system(),
-                CleanupRetryDelay.system());
+                CleanupRetryDelay.system(),
+                WindowsWebCanvasFocusController.system());
     }
 
     WindowsWebCanvasHost(
@@ -123,7 +148,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             StartupDeadlineScheduler startupDeadlineScheduler) {
         this(nativeApi, nativeExecutor, parentHandleResolver,
                 startupDeadlineScheduler, ClientBoundsResolver.system(),
-                CleanupRetryDelay.system());
+                CleanupRetryDelay.system(),
+                WindowsWebCanvasFocusController.system());
     }
 
     WindowsWebCanvasHost(
@@ -134,7 +160,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             ClientBoundsResolver clientBoundsResolver) {
         this(nativeApi, nativeExecutor, parentHandleResolver,
                 startupDeadlineScheduler, clientBoundsResolver,
-                CleanupRetryDelay.system());
+                CleanupRetryDelay.system(),
+                WindowsWebCanvasFocusController.system());
     }
 
     WindowsWebCanvasHost(
@@ -144,15 +171,44 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             StartupDeadlineScheduler startupDeadlineScheduler,
             ClientBoundsResolver clientBoundsResolver,
             CleanupRetryDelay cleanupRetryDelay) {
+        this(nativeApi, nativeExecutor, parentHandleResolver,
+                startupDeadlineScheduler, clientBoundsResolver,
+                cleanupRetryDelay, WindowsWebCanvasFocusController.system());
+    }
+
+    WindowsWebCanvasHost(
+            WindowsWebView2NativeApi nativeApi,
+            Executor nativeExecutor,
+            ParentHandleResolver parentHandleResolver,
+            StartupDeadlineScheduler startupDeadlineScheduler,
+            ClientBoundsResolver clientBoundsResolver,
+            CleanupRetryDelay cleanupRetryDelay,
+            WindowsWebCanvasFocusController focusController) {
+        this(nativeApi, nativeExecutor, parentHandleResolver,
+                startupDeadlineScheduler, clientBoundsResolver,
+                cleanupRetryDelay, focusController, null);
+    }
+
+    private WindowsWebCanvasHost(
+            WindowsWebView2NativeApi nativeApi,
+            Executor nativeExecutor,
+            ParentHandleResolver parentHandleResolver,
+            StartupDeadlineScheduler startupDeadlineScheduler,
+            ClientBoundsResolver clientBoundsResolver,
+            CleanupRetryDelay cleanupRetryDelay,
+            WindowsWebCanvasFocusController focusController,
+            NativeDependencyLoader nativeDependencyLoader) {
         super(new BorderLayout());
-        this.nativeApi = Objects.requireNonNull(nativeApi, "nativeApi");
+        this.nativeDependencyLoader = nativeDependencyLoader;
+        this.nativeDependencies = nativeDependencyLoader == null
+                ? new NativeDependencies(
+                        nativeApi, clientBoundsResolver, focusController)
+                : null;
         this.nativeExecutor = Objects.requireNonNull(nativeExecutor, "nativeExecutor");
         this.parentHandleResolver = Objects.requireNonNull(
                 parentHandleResolver, "parentHandleResolver");
         this.startupDeadlineScheduler = Objects.requireNonNull(
                 startupDeadlineScheduler, "startupDeadlineScheduler");
-        this.clientBoundsResolver = Objects.requireNonNull(
-                clientBoundsResolver, "clientBoundsResolver");
         this.cleanupRetryDelay = Objects.requireNonNull(
                 cleanupRetryDelay, "cleanupRetryDelay");
         canvas.setBackground(new Color(0x20, 0x22, 0x24));
@@ -166,13 +222,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             }
 
             @Override
-            public void componentShown(ComponentEvent event) {
-                publishVisibility(true);
-            }
-
-            @Override
-            public void componentHidden(ComponentEvent event) {
-                publishVisibility(false);
+            public void componentMoved(ComponentEvent event) {
+                publishBounds();
             }
         });
         add(canvas, BorderLayout.CENTER);
@@ -185,6 +236,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     void start(StartRequest request, Listener listener) {
         requireEdt();
         Objects.requireNonNull(request, "request");
+        requirePreparedDependencies();
         if (phase != Phase.NEW && phase != Phase.CLOSED) {
             throw new IllegalStateException(phase == Phase.POISONED
                     ? "Web Canvas host cleanup is incomplete; restart is forbidden"
@@ -223,10 +275,12 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
                                 acceptBridgeTerminal(startedGeneration, terminal));
                     }
                 });
-        NativeCanvasWindowBounds clientBounds = physicalClientBounds(parent);
+        CanvasSurfaceMetrics initialMetrics = physicalSurfaceMetrics(parent);
         WindowsWebView2NativeApi.CreateRequest nativeRequest =
                 new WindowsWebView2NativeApi.CreateRequest(
-                        parent, 0, 0, clientBounds.width(), clientBounds.height(),
+                        parent, 0, 0,
+                        initialMetrics.physicalWidth(),
+                        initialMetrics.physicalHeight(),
                         request.userDataFolder(), request.artifact().root(),
                         originPolicy, request.artifact().files(),
                         request.sessionNonce());
@@ -314,6 +368,106 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         }
     }
 
+    /**
+     * Publishes the backend-neutral requested visibility explicitly. A late
+     * WebView2 initialization replays the same state instead of inferring a
+     * stale value from an earlier Swing component event.
+     */
+    void setControllerVisible(boolean visible) {
+        requireEdt();
+        requestedControllerVisible = visible;
+        publishEffectiveVisibility();
+    }
+
+    /**
+     * Loads every packaged/JNA dependency outside the Swing EDT. A default
+     * host refuses to start until this exact preparation completed.
+     */
+    void prepareNativeDependencies() throws IOException {
+        if (EventQueue.isDispatchThread()) {
+            throw new IllegalStateException(
+                    "Web Canvas native dependencies must be prepared off the EDT");
+        }
+        if (nativeDependencyLoader == null || dependenciesPrepared()) {
+            return;
+        }
+        synchronized (dependencyPreparationLock) {
+            if (dependenciesPrepared()) {
+                return;
+            }
+            NativeDependencies prepared = Objects.requireNonNull(
+                    nativeDependencyLoader.load(),
+                    "nativeDependencyLoader.load()");
+            nativeDependencies = prepared;
+        }
+    }
+
+    void setSurfaceMetricsListener(Consumer<CanvasSurfaceMetrics> listener) {
+        requireEdt();
+        surfaceMetricsListener = Objects.requireNonNull(listener, "listener");
+        publishSurfaceMetricsIfPossible();
+    }
+
+    boolean isControllerFocused() {
+        requireEdt();
+        NativeDependencies dependencies = nativeDependencies;
+        if (nativeSession == null
+                || dependencies == null
+                || (phase != Phase.STARTING && phase != Phase.RUNNING)) {
+            return false;
+        }
+        try {
+            return dependencies.focusController()
+                    .isControllerFocused(parentWindow);
+        } catch (RuntimeException | LinkageError failure) {
+            return false;
+        }
+    }
+
+    boolean releaseControllerFocus() {
+        requireEdt();
+        NativeDependencies dependencies = nativeDependencies;
+        if (nativeSession == null
+                || dependencies == null
+                || (phase != Phase.STARTING && phase != Phase.RUNNING)) {
+            return false;
+        }
+        try {
+            WindowsWebCanvasFocusController.FocusReleaseResult result =
+                    dependencies.focusController()
+                            .releaseControllerFocus(parentWindow);
+            if (result == WindowsWebCanvasFocusController.FocusReleaseResult
+                    .INPUT_QUEUE_DETACH_FAILED) {
+                failOnEdt(generation, "Release Web Canvas focus", new IOException(
+                        "Windows could not detach the AWT and WebView2 input "
+                        + "queues after releasing controller focus"));
+                return false;
+            }
+            return result
+                    == WindowsWebCanvasFocusController.FocusReleaseResult.RELEASED;
+        } catch (RuntimeException | LinkageError failure) {
+            return false;
+        }
+    }
+
+    boolean isCarrierDisplayable() {
+        requireEdt();
+        return canvas.isDisplayable();
+    }
+
+    private boolean dependenciesPrepared() {
+        return nativeDependencies != null;
+    }
+
+    private NativeDependencies requirePreparedDependencies() {
+        NativeDependencies prepared = nativeDependencies;
+        if (prepared == null) {
+            throw new IllegalStateException(
+                    "Web Canvas native dependencies were not prepared off the EDT");
+        }
+        return prepared;
+    }
+
     CompletableFuture<Void> closeAsync() {
         requireEdt();
         beginClose(generation);
@@ -352,6 +506,8 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         Throwable failure = null;
         boolean failedCreateReleaseConfirmed = true;
         try {
+            WindowsWebView2NativeApi nativeApi =
+                    requirePreparedDependencies().nativeApi();
             requireSafeArtifactDirectory(request.contentRoot());
             createdUserData = OwnedUserDataFolder.create(
                     userDataSessionsRoot, request.userDataFolder(),
@@ -420,7 +576,7 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             // UI callbacks cannot poison native lifetime.
         }
         publishBounds();
-        publishVisibility(isShowing());
+        publishEffectiveVisibility();
         drainPendingNativeEvents(expectedGeneration);
     }
 
@@ -685,10 +841,36 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
             return;
         }
         try {
-            NativeCanvasWindowBounds bounds = physicalClientBounds(parentWindow);
-            session.setBounds(0, 0, bounds.width(), bounds.height());
+            CanvasSurfaceMetrics metrics = physicalSurfaceMetrics(parentWindow);
+            session.setBounds(
+                    0,
+                    0,
+                    metrics.physicalWidth(),
+                    metrics.physicalHeight());
+            publishSurfaceMetrics(metrics);
         } catch (IOException | RuntimeException failure) {
             failOnEdt(generation, "Resize Web Canvas", failure);
+        }
+    }
+
+    private void publishSurfaceMetricsIfPossible() {
+        if (!EventQueue.isDispatchThread() || parentWindow == 0
+                || nativeSession == null
+                || (phase != Phase.STARTING && phase != Phase.RUNNING)) {
+            return;
+        }
+        try {
+            publishSurfaceMetrics(physicalSurfaceMetrics(parentWindow));
+        } catch (RuntimeException failure) {
+            failOnEdt(generation, "Observe Web Canvas surface metrics", failure);
+        }
+    }
+
+    private void publishSurfaceMetrics(CanvasSurfaceMetrics metrics) {
+        try {
+            surfaceMetricsListener.accept(metrics);
+        } catch (RuntimeException ignored) {
+            // UI/session callbacks cannot poison native browser ownership.
         }
     }
 
@@ -697,20 +879,25 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         return current == Phase.STARTING || current == Phase.RUNNING;
     }
 
-    private NativeCanvasWindowBounds physicalClientBounds(long window) {
+    private CanvasSurfaceMetrics physicalSurfaceMetrics(long window) {
         if (window == 0) {
             throw new IllegalStateException(
                     "The Web Canvas AWT carrier has no native HWND");
         }
+        ClientBoundsResolver clientBoundsResolver =
+                requirePreparedDependencies().clientBoundsResolver();
         NativeCanvasWindowBounds raw = Objects.requireNonNull(
                 clientBoundsResolver.resolve(window), "native client bounds");
         int width = Math.max(1, raw.width());
         int height = Math.max(1, raw.height());
-        if (width > 32_767 || height > 32_767) {
-            throw new IllegalStateException(
-                    "Web Canvas physical client bounds exceed the native range");
-        }
-        return new NativeCanvasWindowBounds(width, height);
+        int devicePixelRatioMicros =
+                clientBoundsResolver.devicePixelRatioMicros(window);
+        return new CanvasSurfaceMetrics(
+                width, height, devicePixelRatioMicros);
+    }
+
+    private void publishEffectiveVisibility() {
+        publishVisibility(requestedControllerVisible);
     }
 
     private void publishVisibility(boolean visible) {
@@ -2078,6 +2265,29 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
         default void closed(String teardownFailure) {}
     }
 
+    @FunctionalInterface
+    interface NativeDependencyLoader {
+        NativeDependencies load() throws IOException;
+
+        static NativeDependencyLoader system() {
+            return () -> new NativeDependencies(
+                    JnaWindowsWebView2NativeApi.loadPackaged(),
+                    ClientBoundsResolver.system(),
+                    WindowsWebCanvasFocusController.system());
+        }
+    }
+
+    record NativeDependencies(
+            WindowsWebView2NativeApi nativeApi,
+            ClientBoundsResolver clientBoundsResolver,
+            WindowsWebCanvasFocusController focusController) {
+        NativeDependencies {
+            Objects.requireNonNull(nativeApi, "nativeApi");
+            Objects.requireNonNull(clientBoundsResolver, "clientBoundsResolver");
+            Objects.requireNonNull(focusController, "focusController");
+        }
+    }
+
     interface StartupDeadlineScheduler {
         Cancellation schedule(Duration timeout, Runnable callback);
 
@@ -2120,14 +2330,31 @@ final class WindowsWebCanvasHost extends JPanel implements AutoCloseable {
     interface ClientBoundsResolver {
         NativeCanvasWindowBounds resolve(long parentWindow);
 
+        default int devicePixelRatioMicros(long parentWindow) {
+            return CanvasSurfaceMetrics.MICROS_PER_UNIT;
+        }
+
         static ClientBoundsResolver system() {
             JnaWindowsNativeCanvasApi windows = new JnaWindowsNativeCanvasApi();
-            return parentWindow -> {
-                if (windows.windowDpi(parentWindow) <= 0) {
-                    throw new IllegalStateException(
-                            "GetDpiForWindow failed for the Web Canvas HWND");
+            return new ClientBoundsResolver() {
+                @Override
+                public NativeCanvasWindowBounds resolve(long parentWindow) {
+                    return windows.clientBounds(parentWindow);
                 }
-                return windows.clientBounds(parentWindow);
+
+                @Override
+                public int devicePixelRatioMicros(long parentWindow) {
+                    int dpi = windows.windowDpi(parentWindow);
+                    long micros = Math.round(
+                            dpi * (double) CanvasSurfaceMetrics.MICROS_PER_UNIT
+                            / 96.0d);
+                    if (micros < CanvasSurfaceMetrics.MIN_DEVICE_PIXEL_RATIO_MICROS
+                            || micros > CanvasSurfaceMetrics.MAX_DEVICE_PIXEL_RATIO_MICROS) {
+                        throw new IllegalStateException(
+                                "GetDpiForWindow returned an unsupported Web Canvas DPI");
+                    }
+                    return (int) micros;
+                }
             };
         }
     }

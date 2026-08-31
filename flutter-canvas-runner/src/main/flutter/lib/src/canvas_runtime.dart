@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -451,6 +452,7 @@ class CanvasRuntimeController extends ChangeNotifier
   CanvasViewportPresentation? _viewportPresentation;
   CanvasViewportMetrics? _viewportMetrics;
   String? _lastViewportPublication;
+  FlutterView? _surfaceView;
   bool _bindingObserverInstalled = false;
   bool _nativeDropHandlerInstalled = false;
   bool _closed = false;
@@ -467,6 +469,33 @@ class CanvasRuntimeController extends ChangeNotifier
   CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
   CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
   bool get inlineTextEditNegotiated => _inlineTextEditNegotiated;
+
+  /// Binds this one-shot Canvas runtime to its exact Flutter render surface.
+  ///
+  /// A rebuild of the same [FlutterView] is idempotent. A second distinct view
+  /// would make layout identities and physical presentation metrics ambiguous,
+  /// so the session fails closed instead of silently migrating surfaces.
+  void bindSurfaceView(FlutterView view) {
+    final current = _surfaceView;
+    if (current == null) {
+      _surfaceView = view;
+      return;
+    }
+    if (identical(current, view)) {
+      return;
+    }
+    final error = StateError(
+      'Flutter Canvas runtime is already bound to FlutterView '
+      '${current.viewId}; second FlutterView ${view.viewId} is not allowed.',
+    );
+    // The protocol loop can be blocked in read(). The authenticated host will
+    // close its transport after observing runner.failure.
+    unawaited(_failClosed(error, cancelReader: false));
+    throw error;
+  }
+
+  @visibleForTesting
+  FlutterView? get boundSurfaceView => _surfaceView;
 
   @visibleForTesting
   bool get bindingObserverInstalled => _bindingObserverInstalled;
@@ -1424,10 +1453,10 @@ class CanvasRuntimeController extends ChangeNotifier
   }
 
   Map<String, Object?> _readSurfacePresentation() {
-    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    final view = _surfaceView;
     if (view == null) {
       throw const FormatException(
-        'Canvas surface presentation requires one implicit FlutterView.',
+        'Canvas surface presentation requires an exact bound FlutterView.',
       );
     }
     final physicalSize = view.physicalSize;

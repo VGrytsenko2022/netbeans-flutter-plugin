@@ -64,6 +64,7 @@ class FlutterDesignerCanvasSessionContractTest {
                 "authorizePaletteDragSource",
                 "showWidgetMovePreview",
                 "clearWidgetMovePreview",
+                "preparePeerRemovalAsync",
                 "close"), methods);
 
         for (Method method : FlutterDesignerCanvasSession.class

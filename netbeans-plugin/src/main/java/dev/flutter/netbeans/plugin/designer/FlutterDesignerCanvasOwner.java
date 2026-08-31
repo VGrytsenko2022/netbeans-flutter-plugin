@@ -16,6 +16,9 @@ import java.awt.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import javax.swing.JComponent;
 
@@ -31,7 +34,9 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
     private final FlutterDesignerCanvasSession session;
     private final JComponent component;
     private final Component focusSurface;
-    private boolean closed;
+    private final Object retirementLock = new Object();
+    private RetirementState retirementState = RetirementState.ACTIVE;
+    private CompletableFuture<Void> retirementFuture;
 
     private FlutterDesignerCanvasOwner(
             Backend backend,
@@ -64,11 +69,7 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
                     acceptedComponent,
                     findUniqueCanvasSurface(acceptedComponent));
         } catch (RuntimeException | LinkageError failure) {
-            try {
-                acceptedSession.close();
-            } catch (RuntimeException | LinkageError cleanupFailure) {
-                failure.addSuppressed(cleanupFailure);
-            }
+            initiateRejectedSessionCleanup(acceptedSession, failure);
             throw failure;
         }
     }
@@ -82,7 +83,15 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
     }
 
     boolean closed() {
-        return closed;
+        synchronized (retirementLock) {
+            return retirementState == RetirementState.RETIRED;
+        }
+    }
+
+    RetirementState retirementState() {
+        synchronized (retirementLock) {
+            return retirementState;
+        }
     }
 
     @Override
@@ -210,12 +219,101 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
     }
 
     @Override
-    public void close() {
-        if (closed) {
-            return;
+    public CompletionStage<Void> preparePeerRemovalAsync() {
+        CompletableFuture<Void> published;
+        synchronized (retirementLock) {
+            if (retirementState == RetirementState.RETIRED) {
+                return retirementFuture == null
+                        ? CompletableFuture.completedFuture(null)
+                        : retirementFuture;
+            }
+            if (retirementState == RetirementState.RETIRING) {
+                return retirementFuture;
+            }
+            retirementState = RetirementState.RETIRING;
+            published = new CompletableFuture<>();
+            retirementFuture = published;
         }
-        closed = true;
-        session.close();
+
+        final CompletionStage<Void> delegated;
+        try {
+            delegated = Objects.requireNonNull(
+                    session.preparePeerRemovalAsync(),
+                    "Canvas session returned no peer-removal completion");
+        } catch (RuntimeException | LinkageError failure) {
+            finishRetirement(published, failure);
+            return published;
+        }
+        try {
+            delegated.whenComplete((ignored, failure) ->
+                    finishRetirement(published, failure));
+        } catch (RuntimeException | LinkageError failure) {
+            finishRetirement(published, failure);
+        }
+        return published;
+    }
+
+    @Override
+    public void close() {
+        // AutoCloseable cannot expose the asynchronous completion. Initiate the
+        // same retirement without claiming success; callers that remove the
+        // component must await preparePeerRemovalAsync() instead.
+        preparePeerRemovalAsync();
+    }
+
+    private void finishRetirement(
+            CompletableFuture<Void> published,
+            Throwable failure) {
+        Throwable terminal = unwrapCompletionFailure(failure);
+        synchronized (retirementLock) {
+            if (retirementFuture != published
+                    || retirementState != RetirementState.RETIRING) {
+                return;
+            }
+            if (terminal == null) {
+                retirementState = RetirementState.RETIRED;
+            } else {
+                retirementState = RetirementState.POISONED;
+                // A failed native cleanup is explicitly retryable. The failed
+                // attempt remains observable through its returned future, but
+                // a subsequent call receives a fresh attempt.
+                retirementFuture = null;
+            }
+        }
+        if (terminal == null) {
+            published.complete(null);
+        } else {
+            published.completeExceptionally(terminal);
+        }
+    }
+
+    private static void initiateRejectedSessionCleanup(
+            FlutterDesignerCanvasSession rejected,
+            Throwable adoptionFailure) {
+        try {
+            CompletionStage<Void> cleanup = Objects.requireNonNull(
+                    rejected.preparePeerRemovalAsync(),
+                    "Rejected Canvas session returned no peer-removal completion");
+            cleanup.whenComplete((ignored, cleanupFailure) -> {
+                Throwable terminal = unwrapCompletionFailure(cleanupFailure);
+                if (terminal != null && terminal != adoptionFailure) {
+                    adoptionFailure.addSuppressed(terminal);
+                }
+            });
+        } catch (RuntimeException | LinkageError cleanupFailure) {
+            if (cleanupFailure != adoptionFailure) {
+                adoptionFailure.addSuppressed(cleanupFailure);
+            }
+        }
+    }
+
+    private static Throwable unwrapCompletionFailure(Throwable failure) {
+        Throwable current = failure;
+        while (current instanceof CompletionException
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private static Component findUniqueCanvasSurface(Component root) {
@@ -235,5 +333,12 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
                 collectCanvasSurfaces(child, surfaces);
             }
         }
+    }
+
+    enum RetirementState {
+        ACTIVE,
+        RETIRING,
+        RETIRED,
+        POISONED
     }
 }

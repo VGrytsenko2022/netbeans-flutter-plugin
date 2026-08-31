@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -522,13 +523,60 @@ void main() {
     );
   });
 
+  testWidgets('NativeCanvasApp binds the exact ancestor FlutterView', (
+    tester,
+  ) async {
+    final runtime = CanvasRuntimeController(
+      input: const Stream<List<int>>.empty(),
+      output: (_) {},
+      flush: () async {},
+      diagnostic: fail,
+    );
+
+    await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+
+    final appContext = tester.element(find.byType(NativeCanvasApp));
+    expect(runtime.boundSurfaceView, same(View.of(appContext)));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('rejects a second distinct FlutterView binding', (tester) async {
+    final diagnostics = <String>[];
+    final runtime = CanvasRuntimeController(
+      input: const Stream<List<int>>.empty(),
+      output: (_) {},
+      flush: () async {},
+      diagnostic: diagnostics.add,
+    );
+    final firstView = tester.view;
+    final secondView = _testSurfaceView(tester, viewId: 9001);
+
+    runtime.bindSurfaceView(firstView);
+    runtime.bindSurfaceView(firstView);
+    expect(
+      () => runtime.bindSurfaceView(secondView),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('second FlutterView 9001 is not allowed'),
+        ),
+      ),
+    );
+
+    expect(runtime.boundSurfaceView, same(firstView));
+    expect(runtime.closed, isTrue);
+    expect(runtime.errorMessage, contains('second FlutterView 9001'));
+    expect(diagnostics, hasLength(1));
+  });
+
   testWidgets(
     'publishes exact post-frame surface metrics and coalesces rapid resize',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
-      tester.view.devicePixelRatio = 1.25;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+      final surfaceView = _testSurfaceView(tester, viewId: 9002);
+      surfaceView.physicalSize = const Size(731, 419);
+      surfaceView.devicePixelRatio = 1.25;
 
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
@@ -538,6 +586,7 @@ void main() {
         flush: () async {},
         diagnostic: fail,
       );
+      runtime.bindSurfaceView(surfaceView);
       final running = runtime.start();
       input.add(
         encodeNbfcFrame(
@@ -546,7 +595,7 @@ void main() {
         ),
       );
       _addRender(input, fixture.modelBytesForViewTest());
-      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      await tester.pumpWidget(const SizedBox.shrink());
       for (
         var attempt = 0;
         attempt < 20 &&
@@ -568,16 +617,17 @@ void main() {
         'logicalRevisionId': 2,
         'frameSequence': 0,
         'layoutSequence': 0,
-        'physicalWidth': 800,
-        'physicalHeight': 600,
+        'physicalWidth': 731,
+        'physicalHeight': 419,
         'devicePixelRatioMicros': 1250000,
       });
+      expect(runtime.boundSurfaceView, same(surfaceView));
 
-      tester.view.physicalSize = const Size(1000, 700);
-      tester.view.devicePixelRatio = 1.5;
+      surfaceView.physicalSize = const Size(1000, 700);
+      surfaceView.devicePixelRatio = 1.5;
       runtime.didChangeMetrics();
-      tester.view.physicalSize = const Size(1200, 800);
-      tester.view.devicePixelRatio = 2.0;
+      surfaceView.physicalSize = const Size(1200, 800);
+      surfaceView.devicePixelRatio = 2.0;
       for (var notification = 0; notification < 50; notification++) {
         runtime.didChangeMetrics();
       }
@@ -2932,3 +2982,17 @@ Map<String, Object?> _close() => {
   'type': 'host.close',
   'body': {'reason': 'formClosed'},
 };
+
+TestFlutterView _testSurfaceView(WidgetTester tester, {required int viewId}) =>
+    TestFlutterView(
+      view: _TestSurfaceFlutterView(viewId),
+      platformDispatcher: tester.platformDispatcher,
+      display: tester.view.display,
+    );
+
+class _TestSurfaceFlutterView extends Fake implements FlutterView {
+  _TestSurfaceFlutterView(this.viewId);
+
+  @override
+  final int viewId;
+}

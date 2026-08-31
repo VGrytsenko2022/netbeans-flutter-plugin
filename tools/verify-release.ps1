@@ -6,6 +6,7 @@ param(
     [string]$InstalledUserdir,
     [string]$ExpectedSha256,
     [switch]$RequireOptionalSdkTests,
+    [switch]$RequireOptionalWebCanvasTests,
     [switch]$RequireOptionalPlatformTests,
     [switch]$SkipFreshnessCheck
 )
@@ -41,6 +42,17 @@ $OptionalSdkTestClasses = @(
 $OptionalSdkTestCases = @(
     'dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested',
     'dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+)
+$OptionalWebCanvasTestCases = @(
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest#buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested',
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested',
+    'dev.flutter.netbeans.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest#loadsPackagedX64AdapterAndProbesInstalledRuntime',
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest#linkedSdkIdentityMetadataIsRejectedWhenLinksAreAvailable',
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest#rejectsFileSymlinkEscapeWhenSupported',
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest#rejectsSourceSymlinkWithoutReadingItsTarget',
+    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest#cleanupFailsClosedWhenPublishedTreeIsReplacedByLink',
+    'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest#linkedUserDataParentIsRejectedWithoutTouchingItsTarget',
+    'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
 )
 $OptionalPlatformTestCases = @(
     'dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable',
@@ -363,6 +375,9 @@ function Verify-TestReports {
             $OptionalSdkTestClasses -contains $_.ClassName -or
             $OptionalSdkTestCases -contains ("{0}#{1}" -f $_.ClassName, $_.Name)
         })
+    $optionalWebCanvasSkips = @($skippedTests | Where-Object {
+            $OptionalWebCanvasTestCases -contains ("{0}#{1}" -f $_.ClassName, $_.Name)
+        })
     $optionalPlatformSkips = @($skippedTests | Where-Object {
             $OptionalPlatformTestCases -contains ("{0}#{1}" -f $_.ClassName, $_.Name)
         })
@@ -370,6 +385,7 @@ function Verify-TestReports {
             $key = "{0}#{1}" -f $_.ClassName, $_.Name
             $OptionalSdkTestClasses -notcontains $_.ClassName -and
             $OptionalSdkTestCases -notcontains $key -and
+            $OptionalWebCanvasTestCases -notcontains $key -and
             $OptionalPlatformTestCases -notcontains $key
         })
 
@@ -401,6 +417,29 @@ function Verify-TestReports {
                 Write-Pass "Required optional SDK test case is recorded: $identity"
             } else {
                 Add-Failure "Required optional SDK test case report is missing: $identity"
+            }
+        }
+    }
+
+    if ($optionalWebCanvasSkips.Count -gt 0) {
+        $webCanvasClasses = (($optionalWebCanvasSkips |
+                    ForEach-Object { $_.ClassName } | Sort-Object -Unique) -join ', ')
+        if ($RequireOptionalWebCanvasTests) {
+            Add-Failure ("Optional Web Canvas test(s) were skipped while " +
+                "-RequireOptionalWebCanvasTests was set: $webCanvasClasses")
+        } else {
+            Write-Info "Allowed optional Web Canvas skips: $webCanvasClasses"
+        }
+    } elseif ($RequireOptionalWebCanvasTests) {
+        Write-Pass 'All optional Web Canvas tests ran without skips.'
+    }
+    if ($RequireOptionalWebCanvasTests) {
+        foreach ($identity in $OptionalWebCanvasTestCases) {
+            $parts = $identity.Split('#', 2)
+            if (Test-ReportsContainCase $allReports $parts[0] $parts[1]) {
+                Write-Pass "Required optional Web Canvas test case is recorded: $identity"
+            } else {
+                Add-Failure "Required optional Web Canvas test case report is missing: $identity"
             }
         }
     }

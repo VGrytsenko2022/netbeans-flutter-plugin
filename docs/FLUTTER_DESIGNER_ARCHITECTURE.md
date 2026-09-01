@@ -510,7 +510,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v11 projection for the fourteen exact built-ins carrying
+  canonical protocol-v11 projection for the nineteen exact built-ins carrying
   the Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control JSON, model JSON, negotiated image bytes and reserved
@@ -1064,15 +1064,18 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop and the broader unreviewed Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 533 reviewed fields of
-  `Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-  `Align`, `SizedBox`, `AspectRatio`, `Text`, `Icon`, `Container` and `Opacity`; 17 are
+  read/write Properties are enabled only for the 617 reviewed fields of
+  `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
+  `Center`, `Align`, `FractionallySizedBox`, `SizedBox`, `AspectRatio`, `Stack`,
+  `Expanded`, `Text`, `Icon`, `Image`, `Container` and `Opacity`; 17 are
   Scaffold leaves, 286 are ElevatedButton leaves, 120 are grouped AppBar
   leaves, 59 are typed Text leaves, 13 are
   typed Icon constructor properties, one is `AspectRatio.aspectRatio` and 13
   form the complete reviewed Container surface described below; Opacity adds
-  its required alpha and optional semantics flag, and Align adds alignment plus
-  two nullable size factors.
+  its required alpha and optional semantics flag, Align and FractionallySizedBox
+  add three rows each, Stack adds four, Expanded one, Image 22 and TextField 54.
+  Sixteen definitions use reviewed const constructors, and 600 rows belong to
+  the eighteen non-`Scaffold` definitions.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1080,16 +1083,16 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. All fourteen current definitions publish typed read/write catalog
+property sheet. All nineteen current definitions publish typed read/write catalog
 properties. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the fourteen
+context-sensitive standard NetBeans Palette containing exactly the nineteen
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative fourteen-source, 252-candidate insertion matrix with 226
-accepted and 26 rejected cells. Palette, Explorer/Nodes,
+host-authoritative nineteen-source, 380-candidate insertion matrix with 328
+accepted and 52 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (533 fields)
+### Writable Properties API contract (617 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 unreviewed constructor graphs. Scaffold contributes exactly 17 independently
@@ -1334,6 +1337,68 @@ outside the widget without altering generated layout. Existing alignment,
 numeric and optional-single-slot encodings keep every schema/protocol version
 unchanged.
 
+`FractionallySizedBox` is the analogous const fractional-layout slice. It adds
+optional physical/directional `alignment`, optional finite non-negative
+`widthFactor` and `heightFactor`, and one optional any-widget `child`. Omission
+preserves Flutter's center alignment and null factors. Native and exact-Web
+projections use the real widget under bounded/unbounded constraints and LTR/RTL;
+an empty zero-size layout retains only an IDE-owned selection/drop target.
+
+`Stack` is a const four-row layout slice: optional `alignment`,
+`textDirection`, `fit` and `clipBehavior`, followed by an ordered any-widget
+`children` list. Designer supports non-positioned children only. The exact clip
+value is forwarded to Flutter; extrapolated non-positioned alignment does not
+set RenderStack's visual-overflow flag, and descendant/paint-only overflow is
+not clipped. Empty lists admit index zero and populated lists expose terminal
+append.
+
+`Expanded` is a const required-child slice with one optional non-negative integer
+`flex`. Palette creation wraps an existing direct `Row.children` or
+`Column.children` child with one atomic `WrapWidget`, preserving the child and
+adding one wrapper ID. It never creates an empty prototype in a terminal slot;
+its required child editor is replacement-only.
+
+`Image` is a const leaf with exactly 22 rows: required `image`, then
+`frameBuilder`, `loadingBuilder`, `errorBuilder`, `semanticLabel`,
+`excludeFromSemantics`, `width`, `height`, `color`, `opacity`, `colorBlendMode`,
+`fit`, `alignment`, `repeat`, `centerSliceLeft`, `centerSliceTop`,
+`centerSliceRight`, `centerSliceBottom`, `matchTextDirection`, `gaplessPlayback`,
+`isAntiAlias` and `filterQuality`. Its provider editor reuses the declared
+asset-only choices from Container decoration. The four center-slice leaves are
+all-or-none, strict left/right and top/bottom pairs and incompatible with
+`BoxFit.cover`/`none`. Add/Replace resolves the first sorted declared asset before
+stable-ID allocation; unavailable inventory emits no command.
+
+`TextField` is the canonical const `flutter.material.TextField` leaf. Its 54
+optional named leaves have no creation defaults and are projected into these
+reviewed Properties groups:
+
+| Group | Count | Exact leaves |
+| --- | ---: | --- |
+| Input | 14 | `keyboardType`, `textInputAction`, `textCapitalization`, `obscuringCharacter`, `obscureText`, `autocorrect`, `smartDashesType`, `smartQuotesType`, `enableSuggestions`, `maxLines`, `minLines`, `maxLength`, `maxLengthEnforcement`, `keyboardAppearance` |
+| Layout | 9 | `textAlign`, `textAlignVertical`, `textDirection`, `expands`, `scrollPaddingLeft`, `scrollPaddingTop`, `scrollPaddingRight`, `scrollPaddingBottom`, `clipBehavior` |
+| Behavior | 11 | `readOnly`, `autofocus`, `enabled`, `ignorePointers`, `dragStartBehavior`, `enableInteractiveSelection`, `selectAllOnFocus`, `stylusHandwritingEnabled`, `enableIMEPersonalizedLearning`, `enableInlinePrediction`, `canRequestFocus` |
+| Cursor and selection | 11 | `showCursor`, `cursorWidth`, `cursorHeight`, `cursorRadiusX`, `cursorRadiusY`, `cursorOpacityAnimates`, `cursorColor`, `cursorErrorColor`, `selectionHeightStyle`, `selectionWidthStyle`, `mouseCursor` |
+| Callbacks | 8 | `onChanged`, `onEditingComplete`, `onSubmitted`, `onAppPrivateCommand`, `onTap`, `onTapAlwaysCalled`, `onTapOutside`, `onTapUpOutside` |
+| Restoration | 1 | `restorationId` |
+
+Keyboard type has 16 reviewed presets, `TextAlignVertical` three and
+`SystemMouseCursors` 36. Callback values are identifiers, never arbitrary Dart.
+Controller, focus node, formatter, decoration/style/builder graphs, typed text,
+selection and runtime controller/focus state are deliberately absent. Radius
+X/Y and the four scroll-padding leaves are all-or-none and mutate atomically.
+Line limits, `expands`, obscure mode, keyboard action/type, obscuring character
+and max length retain the catalog's cross-property validation. Generation
+synthesizes TextInputType options, TextAlignVertical, `TextField.noMaxLength`,
+`Radius.elliptical`, `EdgeInsets.fromLTRB` and SystemMouseCursors.
+
+Every generated TextField is guarded by an unconditional
+`LayoutBuilder`/`SizedBox`: width is 240 only when incoming width is unbounded;
+height is 120 only for `expands: true` under unbounded height. Canvas builds the
+same real TextField behind pointer/focus exclusion with inert callback presence.
+This makes direct and indirect flex placements safe without a TextField-specific
+placement rule.
+
 [`Container`](https://api.flutter.dev/flutter/widgets/Container/Container.html)
 adds its complete reviewed non-widget constructor surface. Its optional single
 `child` remains an any-widget slot at constructor position 12 and is not counted
@@ -1444,7 +1509,7 @@ accessible status naming the logical identity, issue code and bounded reason.
 The selection/layout outline, padding/margin guides and Palette/move drop
 overlays remain outside the decorated/transformed `Container` and remain usable.
 
-These 533 fields use catalog constraints for editor selection, value admission,
+These 617 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
 font fallbacks use a dedicated multiline one-family-per-line editor; optional
 booleans use an accessible `<not set>`/checked/unchecked checkbox; integer and
@@ -1697,7 +1762,7 @@ DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
 token to the exact current canonical type and traits for hover filtering;
 negotiating or decoding either capability does not by itself enable Palette
 mutation. `host.render` describes one canonical bounded protocol-v11 model
-frame. The runner decodes only the fourteen reviewed Canvas-capable built-in
+frame. The runner decodes only the nineteen reviewed Canvas-capable built-in
 widget contracts and never loads project code. `CATALOG_JSON` remains reserved
 for a future versioned catalog contract. When `asset.imageBytes.v1` is
 negotiated, the model's sorted resource descriptors are followed by exact NBFC
@@ -1731,21 +1796,30 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the fourteen exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
-`Column`,
-`Row`, `Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`, `Text`, `Icon`,
-`ElevatedButton`, `Container` and `Opacity`.
-Sixteen any-widget slots admit all fourteen sources: `Scaffold.body`,
+the nineteen exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
+`ElevatedButton`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
+`FractionallySizedBox`, `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Text`,
+`Icon`, `Image`, `Container` and `Opacity`.
+Eighteen any-widget slots expose the reusable slot contract: `Scaffold.body`,
 `Scaffold.floatingActionButton`,
 `Column.children`, `Row.children`, `Padding.child`, `Center.child`, `Align.child`,
-`SizedBox.child`, `AspectRatio.child`, `ElevatedButton.child`, `Container.child`,
-`Opacity.child`, `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
+`FractionallySizedBox.child`, `SizedBox.child`, `AspectRatio.child`,
+`ElevatedButton.child`, `Container.child`, `Opacity.child`, `Stack.children`,
+`AppBar.leading`, `AppBar.title`, `AppBar.actions` and
 `AppBar.flexibleSpace`. The two trait-bound slots, `Scaffold.appBar` and
 `AppBar.bottom`, admit only AppBar through its canonical
-`PreferredSizeWidget` trait. This yields 252 candidate cells: exactly 226
-admitted and 26 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
+`PreferredSizeWidget` trait. Expanded's source-side direct-parent rule admits
+only `Row.children` and `Column.children`; the other eighteen sources enter all
+eighteen any-widget destinations. This yields 380 candidate cells: exactly 328
+admitted and 52 rejected. An empty Row, Column, Stack or AppBar actions list has no ordering ambiguity, so
 its complete bounded visible design-time rectangle resolves insertion index
 zero; after the first child, only the terminal append zone is exposed.
+Expanded Palette creation is a separate atomic wrapper mode over an existing
+direct Row/Column child, never terminal Add or an empty placeholder. Image Add
+and Replace New Widget resolve the first sorted declared asset before stable-ID
+allocation and fail closed when inventory is unavailable. TextField remains an
+ordinary direct leaf source; its generated and Canvas constraint guards make
+unbounded flex placements safe without a placement exception.
 The slice does not support an arbitrary list index, a definition without the
 exact reviewed DnD capability or an
 unreviewed constructor slot. This
@@ -1834,8 +1908,8 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current fourteen-definition,
-252-candidate matrix with 226 accepted and 26 rejected cells described above,
+`Center.child[0]`. It is superseded by the current nineteen-definition,
+380-candidate matrix with 328 accepted and 52 rejected cells described above,
 whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
@@ -1991,18 +2065,21 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v11 projection intentionally contains exactly the fourteen
-Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`, `ElevatedButton` and
-`Container`, plus `Opacity`. It proves native hosting, bounded model publication,
+The current protocol-v11 projection intentionally contains exactly the nineteen
+Canvas-capable definitions: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
+`Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
+`FractionallySizedBox`, `SizedBox`, `AspectRatio`, `Stack`, `Expanded`,
+`Container` and `Opacity`. It proves native hosting, bounded model publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the fourteen widget types and 533
+Host-side property mutation is admitted only for the nineteen widget types and 617
 properties listed above, including the 17-leaf Scaffold, 286-leaf
 ElevatedButton, 120-leaf AppBar, 59-leaf Text, 13-property Icon and 13-property
-Container projections plus Opacity's two and Align's three properties; the runner still receives
+Container projections plus Opacity's two, Align's three,
+FractionallySizedBox's three, Stack's four, Expanded's one, Image's 22 and
+TextField's 54 properties; the runner still receives
 no persistence authority.
 
-This fourteen-widget slice is complete across create, open, edit, save, reopen,
+This nineteen-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
 same-tree move and exact-slot management. Unreviewed widget definitions remain
 fail-closed until each receives an equally complete independently reviewed
@@ -2019,7 +2096,7 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current Windows fourteen-widget slice complete] Embed the isolated Flutter runner,
+4. [Current Windows nineteen-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with the same revision-scoped typed asset resources and no
@@ -2028,16 +2105,17 @@ Implementation proceeds through explicit gates:
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact fourteen-item Palette
+   with the Explorer/Nodes widget tree, publish the exact nineteen-item Palette
    and expose selected-node Properties. Enable catalog-driven Set/Reset/Patch
-   for the 533 reviewed fields, including all 17 Scaffold leaves, all 286
+   for the 617 reviewed fields, including all 17 Scaffold leaves, all 286
    ElevatedButton leaves,
    all 120 reviewed AppBar leaves,
    all 59 reviewed Text leaves, both
    nullable non-negative `SizedBox` dimensions, the required positive
    `AspectRatio.aspectRatio` value, all 13 typed Icon constructor properties and
    all 13 typed Container constructor properties, Opacity's required alpha plus
-   optional semantics flag, and Align's alignment plus two optional factors,
+   optional semantics flag, Align's and FractionallySizedBox's three rows each,
+   Stack's four, Expanded's flex, Image's 22 and TextField's 54 rows,
    through one-shot
    revision-bound pair-save.
 6. [Complete; historical Text-only slice superseded] Implement the Windows
@@ -2045,8 +2123,8 @@ Implementation proceeds through explicit gates:
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the fourteen-source, 252-candidate
-   compatibility matrix with 226 accepted and 26 rejected cells. Its live
+   `Center.child[0]`; the current contract is the nineteen-source, 380-candidate
+   compatibility matrix with 328 accepted and 52 rejected cells. Its live
    assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
    Undo → Save cycle.
@@ -2108,6 +2186,16 @@ Properties, Create, Canvas, DnD, deterministic Dart generation, Save/reopen and
 Undo/Redo. It adds no schema or protocol version because all encoded value and
 slot shapes already exist.
 
+`FractionallySizedBox`, `Stack`, `Expanded`, `Image` and `TextField` are complete
+under ADR-042 through ADR-046. FractionallySizedBox reuses alignment/factor and
+single-slot contracts. Stack adds a closed four-property non-positioned list
+layout. Expanded uses the shared placement rule and atomic wrapper command for
+its required child. Image reuses the API-5 typed asset provider with pre-ID
+inventory admission. TextField adds 54 reviewed scalar/preset leaves, atomic
+radius/padding patches and the generated/Canvas constraint guard while
+deliberately storing no runtime editable state. None changes a schema or
+protocol version.
+
 1. Pair-aware Save As, cross-directory Copy with explicit relative-URI rebasing,
    and the explicit conversion flow for an already modified or open Dart
    source. Same-folder pair Copy/Paste is implemented under ADR-022; same-project
@@ -2116,13 +2204,15 @@ slot shapes already exist.
 2. Structured property-editor/model contracts for contributed widgets and the
    remaining unreviewed Flutter graphs/callback shapes, plus localized
    presentation. Strict callback identifiers are implemented for Scaffold and
-   ElevatedButton. The catalog-driven provider for the current fourteen-widget
+   ElevatedButton. The catalog-driven provider for the current nineteen-widget
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
    state composites, AppBar composites, Text composites, a closed Paint subset,
    shadows, font features, font variations, IconData, semantic theme roles and
    Container's structured AlignmentGeometry/BoxConstraints/Matrix4/complete
-   BoxDecoration and asset-only DecorationImage graphs, plus Align's reused
-   AlignmentGeometry and finite non-negative factor editors; built-in
+   BoxDecoration and asset-only DecorationImage graphs, direct Image provider
+   editing, Align/FractionallySizedBox alignment and factor editors, Stack and
+   Expanded layout fields, and TextField's closed presets, strict callbacks and
+   atomic compound rows; built-in
    domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner

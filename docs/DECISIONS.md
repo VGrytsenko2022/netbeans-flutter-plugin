@@ -12,9 +12,11 @@ atomic replacement and clear-all commands. ADR-035 governs the writable
 `Scaffold` slice. ADR-037 records the eleven-widget `AspectRatio` milestone.
 ADR-038 records the twelve-widget `Container` milestone, and ADR-039 completes
 its shared typed-asset branch. ADR-040 records the thirteen-widget `Opacity`
-milestone. ADR-041 establishes the current catalog surface: 533 typed rows
-across fourteen widgets and 252 Palette/DnD candidates, including 226 accepted
-and 26 rejected cells. The total still includes the 17 closed
+milestone; ADR-041 through ADR-045 add `Align`, `FractionallySizedBox`, `Stack`,
+`Expanded` and `Image`. ADR-046 establishes the current catalog surface: 617
+typed rows across nineteen widgets, sixteen const-constructor definitions and
+380 Palette/DnD candidates, including 328 accepted and 52 rejected cells. The
+600-field non-`Scaffold` total still sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
@@ -22,7 +24,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-041 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-046 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -264,12 +266,15 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039, ADR-040 and ADR-041 make 516 catalog-backed non-`Scaffold` Properties
+ADR-038, ADR-039 and ADR-040 through ADR-046 make 600 catalog-backed
+non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
 120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
 `AspectRatio.aspectRatio` value, all 13 `Container` constructor properties,
-the two Opacity properties and the three Align properties.
+the two Opacity properties, three Align properties, three FractionallySizedBox
+properties, four Stack properties, one Expanded property, 22 Image properties
+and 54 TextField properties.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -279,14 +284,20 @@ and ADR-033 superseded it with ten sources and 140 candidates (122 accepted and
 candidates (145 accepted and 20 rejected), and ADR-038 established twelve
 sources and 192 candidates (170 accepted and 22 rejected). ADR-040 established
 thirteen sources and 221 candidates (197 accepted and 24 rejected). ADR-041
-establishes the current fourteen-source, 252-candidate matrix (226 accepted and
-26 rejected). Same-tree existing-widget movement is separately enabled by ADR-028.
+established fourteen sources and 252 candidates (226 accepted and 26 rejected),
+ADR-042 established 285 candidates (257 accepted and 28 rejected), ADR-043
+established 320 (290 accepted and 30 rejected), ADR-044 established 340 (292
+accepted and 48 rejected), and ADR-045 established 360 (310 accepted and 50
+rejected). ADR-046 establishes the current nineteen-source, 380-candidate matrix
+(328 accepted and 52 rejected). Same-tree existing-widget movement is separately
+enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
 protocol-v11 model payload accepts only exact reviewed Canvas-capable built-ins:
-`Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center`,
-`Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity` and `ElevatedButton`; the
+`Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
+`Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
+`AspectRatio`, `Stack`, `Expanded`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -300,12 +311,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated fourteen-widget model for Mobile, Tablet,
+Canvas now renders the validated nineteen-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those fourteen Create-capable definitions, and the DnD-capable set uses the
-reviewed 252-cell candidate matrix across sixteen any-widget and two trait-bound
-destination slots; 226 cells are accepted and 26 rejected. Canvas model
+those nineteen Create-capable definitions, and the DnD-capable set uses the
+reviewed 380-cell candidate matrix across eighteen any-widget and two trait-bound
+destination slots; 328 cells are accepted and 52 rejected. Canvas model
 protocol v11's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
@@ -1510,3 +1521,102 @@ any-widget plus two trait-bound destinations produce 252 candidates:
 satisfies `PreferredSizeWidget`, for 226 accepted; the other `13 × 2 = 26`
 trait-bound cells are rejected. All Palette insertion and movement outside this
 closed matrix remains fail closed.
+
+## ADR-042 — Complete FractionallySizedBox as a bounded Layout slice
+
+Accepted. `flutter.widgets.FractionallySizedBox` is the canonical const Flutter
+3.44.8 constructor from `package:flutter/widgets.dart`. Its reviewed surface is
+optional physical/directional `alignment`, optional finite non-negative
+`widthFactor` and `heightFactor`, and one optional any-widget `child`; `key` and
+raw Dart are excluded. New prototypes keep all properties omitted so Flutter's
+center alignment and null factors remain distinct from explicit values. Native
+and exact-Web projections build the real widget under bounded/unbounded and
+LTR/RTL inputs, with an IDE-only selection/drop target for an empty zero-size
+layout. Existing value/slot encodings keep every version unchanged.
+
+This adds three rows and one source/destination to ADR-041: 536 writable rows
+across 15 widgets and 285 DnD candidates, 257 accepted and 28 rejected.
+
+## ADR-043 — Complete Stack with non-positioned ordered children
+
+Accepted. `flutter.widgets.Stack` is a const Flutter 3.44.8 slice with optional
+`alignment`, `textDirection`, `fit` and `clipBehavior` plus an ordered list of
+any-widget `children`. Designer currently admits non-positioned children only;
+`Positioned` is not implied. Clip values are passed to Flutter exactly.
+Extrapolated non-positioned alignment does not set RenderStack's visual-overflow
+flag, and descendant or paint-only overflow is not clipped by Stack. Palette,
+tree, Canvas, slot editing and same-tree moves share terminal append semantics.
+
+This adds four rows, one source and one destination: 540 writable rows across 16
+widgets and 320 DnD candidates, 290 accepted and 30 rejected. Versions remain
+unchanged.
+
+## ADR-044 — Expanded is an atomic wrapper, not a terminal prototype
+
+Accepted. `flutter.widgets.Expanded` is a const slice with optional
+non-negative integer `flex` and one required any-widget `child`. An Expanded node
+is valid only as a direct `Row.children` or `Column.children` child. Palette
+creation therefore targets an existing direct flex child and submits one atomic
+`WrapWidget` with the existing parent/slot/index, preserved child and one new
+wrapper ID. It never exposes terminal Add or an empty placeholder. Existing
+Expanded nodes move only between those destinations, and `Expanded.child` is
+replacement-only with no add, remove or clear operation.
+
+Expanded adds one row and one source but no optional destination: 541 writable
+rows across 17 widgets and 340 DnD candidates, 292 accepted and 48 rejected.
+No schema or protocol version changes.
+
+## ADR-045 — Image creation requires a real declared asset
+
+Accepted. The const leaf `flutter.widgets.Image` exposes the required
+asset-only `image` provider and 21 optional reviewed callback, accessibility,
+size, color/opacity, blend, fit/alignment/repeat, center-slice, direction,
+playback, antialias and quality leaves. Network/file/memory/custom providers and
+arbitrary callback expressions remain excluded. Palette, tree, Canvas and slot
+Replace New Widget resolve the deterministic first sorted declared asset before
+stable-ID allocation. Empty or unavailable inventory returns a concrete
+fail-closed reason, no command and no ID.
+
+The four non-negative center-slice coordinates are all-or-none, require strict
+left < right and top < bottom, and cannot accompany `BoxFit.cover` or
+`BoxFit.none`. Provider decode scale and effective ResizeImage bounds constrain
+the projected rectangle identically in Dart and Canvas. Image adds 22 rows and
+one source: 563 writable rows across 18 widgets, 546 outside Scaffold, 15 const
+definitions and 360 DnD candidates, 310 accepted and 50 rejected. Existing API
+5 image-provider and protocol-v11 resource encodings require no version bump.
+
+## ADR-046 — TextField stores constructor intent, not editable state
+
+Accepted. The canonical const `flutter.material.TextField` is a Material Palette
+leaf named **Text Field**, ordered after Elevated Button. It has no creation
+dialog, child slot or creation defaults. Its 54 optional named leaves are
+presented as Input (14), Layout (9), Behavior (11), Cursor and selection (11),
+Callbacks (8) and Restoration (1). Closed keyboard-type (16),
+`TextAlignVertical` (3) and system-mouse-cursor (36) presets complement typed
+enums, numbers, booleans, colors and strict callback identifiers.
+
+Designer deliberately excludes `controller`, `focusNode`, input formatters,
+decoration/style/builder and other owner-managed graphs. Runtime typed text,
+selection, controller state and focus state are not persisted. Radius X/Y and
+the four scroll-padding leaves are all-or-none; the Properties UI sets/resets
+each compound atomically without inventing a numeric default. Validation also
+enforces positive ordered line limits, the `expands`/line-limit relation,
+single-line obscure text, the newline keyboard relation, one-BMP-scalar
+obscuring character and `maxLength == -1 || maxLength > 0`. Dart synthesis emits
+reviewed TextInputType/static/mouse-cursor presets, `TextField.noMaxLength`,
+`Radius.elliptical` and `EdgeInsets.fromLTRB`.
+
+Generated Dart wraps every TextField in an unconditional
+`LayoutBuilder`/`SizedBox`; it supplies width 240 only when width is unbounded and
+height 120 only for `expands: true` under unbounded height. The Canvas builds the
+same real TextField behind pointer/focus exclusion and uses inert closures for
+callback presence, so direct and indirect Row/Column placement remains admitted
+without storing runtime input state or adding placement rules.
+
+TextField adds 54 non-Scaffold rows and one ordinary source to ADR-045. The final
+surface is 617 writable rows across 19 widgets, 600 outside Scaffold and 16
+const-constructor definitions. Nineteen sources across 18 any-widget and two
+trait-bound destinations form 380 candidates: TextField adds 18 accepted
+any-widget cells and two rejected trait cells, producing 328 accepted and 52
+rejected overall. `.fd` stays v6, Catalog API stays 5, Canvas model stays v11 and
+NBFC/control framing stays version 1.

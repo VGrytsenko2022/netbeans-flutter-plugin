@@ -6,6 +6,48 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted Material `flutter.material.TextField` vertical slice is a const,
+  leaf Palette definition named **Text Field** with 54 optional named constructor
+  leaves and no creation dialog or stored creation defaults. Properties group the
+  reviewed fields as Input (14), Layout (9), Behavior (11), Cursor and selection
+  (11), Callbacks (8) and Restoration (1), with closed keyboard-type,
+  `TextAlignVertical` and system-mouse-cursor presets. Callback values are strict
+  identifiers; controller, focus-node, formatter, decoration/style/builder graphs,
+  typed text, selection and runtime controller/focus state are not persisted by
+  Designer. Cursor-radius and scroll-padding leaves are set/reset as atomic
+  pairs/quartets. Generated Dart and the real non-interactive Canvas TextField use
+  a `LayoutBuilder`/`SizedBox` constraint guard: unbounded width receives 240
+  logical pixels, while `expands: true` under unbounded height receives 120.
+  The current catalog contains 19 widgets, 16 const-constructor definitions and
+  617 writable rows, including 600 across the 18 non-`Scaffold` definitions.
+  Nineteen sources across 18 any-widget and two trait-bound destinations form
+  380 DnD candidates: 328 accepted and 52 rejected. `.fd` schema v6, Catalog API
+  5, Canvas model v11 and version-1 framing/control contracts remain unchanged.
+- The accepted const `flutter.widgets.Image` leaf exposes its required typed
+  asset-only `ImageProvider` plus 21 reviewed callback, accessibility, sizing,
+  paint and quality leaves. Palette/tree/Canvas Add chooses the deterministic
+  first sorted declared asset before allocating a stable ID and fails closed
+  when the inventory is empty or unavailable. Four center-slice coordinates are
+  all-or-none, form a strict non-empty rectangle and reject `BoxFit.cover` or
+  `BoxFit.none`; Canvas and generated Dart share the same provider and decode
+  bounds.
+- The accepted const `flutter.widgets.Expanded` slice exposes optional
+  non-negative `flex` and one required `child`. Its Palette affordance never
+  creates a terminal placeholder: it atomically wraps an existing direct
+  `Row.children` or `Column.children` child with one new stable ID. Existing
+  Expanded nodes may move only between those direct flex destinations, and the
+  required-child slot editor is replacement-only.
+- The accepted const `flutter.widgets.Stack` slice exposes `alignment`,
+  `textDirection`, `fit`, `clipBehavior` and an ordered any-widget `children`
+  slot. Designer currently supports non-positioned children only. Palette,
+  tree, Canvas, slot-editor and same-tree move routes share terminal append and
+  compatibility admission.
+- The accepted const `flutter.widgets.FractionallySizedBox` slice exposes
+  optional physical/directional `alignment`, non-negative `widthFactor` and
+  `heightFactor`, plus one optional any-widget `child`. Native and exact-Web
+  Canvas use the real Flutter layout under bounded/unbounded and LTR/RTL inputs,
+  while an IDE-only overlay retains selection and drop access for zero-size
+  empty layouts.
 - The accepted `Align` vertical slice completes `flutter.widgets.Align` across
   the catalog, model validation/codecs, Properties, Create,
   Palette/tree/native-Canvas DnD, deterministic Dart generation, Save/reopen and
@@ -16,7 +58,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   arguments remain excluded. New prototypes keep all three properties omitted.
   Native and exact-Web projections build the real Flutter `Align`, preserve
   physical versus directional alignment under LTR/RTL, and keep an IDE-only
-  selectable/drop target for a zero-size empty widget. The current catalog has
+  selectable/drop target for a zero-size empty widget. At the Align milestone the catalog had
   533 writable rows across 14 widgets. Fourteen sources across 16 any-widget
   and two trait-bound destinations form 252 DnD candidates: 226 accepted and 26
   rejected. Existing alignment, numeric and single-slot encodings are

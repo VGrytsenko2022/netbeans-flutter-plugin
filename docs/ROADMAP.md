@@ -799,6 +799,33 @@ accepted architecture is documented in
   version-1 framing/control unchanged. The active surface is 14 widgets and 533
   writable rows. Fourteen sources across 16 any-widget plus two trait-bound
   destinations form 252 candidates: 226 accepted and 26 rejected.
+- [x] Complete `FractionallySizedBox` as a const Layout slice with optional
+  physical/directional alignment, non-negative width/height factors, an optional
+  child and real bounded/unbounded plus LTR/RTL Canvas behavior. This milestone
+  reached 15 widgets, 536 rows and 285 DnD candidates: 257 accepted and 28
+  rejected.
+- [x] Complete `Stack` with alignment, text direction, fit, exact Flutter clip
+  behavior and ordered terminal-append non-positioned children. `Positioned` is
+  not implied. This milestone reached 16 widgets, 540 rows and 320 DnD
+  candidates: 290 accepted and 30 rejected.
+- [x] Complete `Expanded` as a required-child wrapper with optional non-negative
+  flex. Palette creation wraps an existing direct Row/Column child atomically,
+  never creates a terminal placeholder, and exposes replacement-only child
+  editing. This milestone reached 17 widgets, 541 rows and 340 DnD candidates:
+  292 accepted and 48 rejected.
+- [x] Complete the const `Image` leaf with one required asset-only provider and
+  21 optional reviewed fields. Creation resolves a deterministic declared asset
+  before ID allocation, and centerSlice uses an all-or-none strict rectangle.
+  This milestone reached 18 widgets, 15 const definitions, 563 rows (546 outside
+  Scaffold) and 360 DnD candidates: 310 accepted and 50 rejected.
+- [x] Complete the const Material `TextField` leaf with 54 optional grouped rows,
+  closed presets, strict callback identifiers, atomic radius/padding compounds
+  and no stored runtime text/controller/focus state. Generated Dart and Canvas
+  use the robust `LayoutBuilder`/`SizedBox` guard for unbounded width and
+  expanding unbounded height. The current surface is 19 widgets, 16 const
+  definitions and 617 rows (600 outside Scaffold). Nineteen sources across 18
+  any-widget plus two trait destinations form 380 candidates: 328 accepted and
+  52 rejected. All schema/protocol versions remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -818,7 +845,7 @@ accepted architecture is documented in
   current pair-save/editor-operation regression is green and Palette-expansion
   work is resumed. The dormant dedicated-shell/exact-Web product gates above
   remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all fourteen admitted built-ins and does not
+  current typed Properties slice spans all nineteen admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

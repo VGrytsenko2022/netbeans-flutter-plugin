@@ -50,11 +50,12 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly fourteen
-widgets: `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Align`,
-`SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text`, `Icon` and
-`ElevatedButton`. Their `General` Properties expose exactly 533 typed writable
-rows: 516 across the thirteen
+The current capability-gated Palette and native Canvas admit exactly nineteen
+widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
+`Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
+`FractionallySizedBox`, `Stack`, `Expanded`, `Text`, `Icon` and `Image`. Sixteen
+definitions use reviewed const constructors. Their `General` Properties expose
+exactly 617 typed writable rows: 600 across the eighteen
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -87,6 +88,30 @@ expands, while a factor shrink-wraps to the child's size. Directional horizontal
 coordinates flip under LTR/RTL, physical coordinates do not, and values outside
 `[-1, 1]` intentionally extrapolate. An empty zero-size Align remains selectable
 and accepts a drop through an IDE-only target that does not alter generated Dart.
+
+`FractionallySizedBox` exposes the same optional alignment domain plus optional
+finite non-negative width and height factors and one optional child. `Stack`
+exposes alignment, text direction, fit, clip behavior and an ordered list of
+non-positioned children. `Expanded` exposes optional non-negative flex and a
+required child; drop it on an existing direct Row/Column child to wrap that child
+atomically. It is unavailable as a terminal Add, and its child editor supports
+replacement but not add, remove or clear.
+
+`Image` is a leaf with a required asset-only provider and 21 optional reviewed
+fields. Add chooses the deterministic first sorted declared asset before a stable
+ID is allocated; no available asset means no command and no new ID. Its four
+center-slice coordinates must be supplied together, form a strict rectangle and
+cannot be combined with `BoxFit.cover` or `BoxFit.none`.
+
+`TextField` is a Material leaf with 54 optional Properties across Input, Layout,
+Behavior, Cursor and selection, Callbacks and Restoration. Creation opens no
+dialog and stores no constructor defaults. Runtime typed text, selection,
+controller state and focus state are not stored by Designer. Editing either
+unset cursor-radius axis seeds both axes from that value; editing any unset
+scroll-padding edge seeds all four edges. Restore Default removes the complete
+compound value. Generated Dart and Canvas keep direct Row/Column placement safe
+with a `LayoutBuilder`/`SizedBox`: unbounded width receives 240 logical pixels,
+and `expands: true` under unbounded height receives 120.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -136,10 +161,11 @@ responsive layout preview.
 
 The current surface uses `.fd` schema v6, contributor Catalog API 5 and Canvas
 model protocol 11. Schema v1-v5 files migrate in memory with no image and are written
-as v6 only after an admitted edit. Opacity and Align reuse existing alignment,
-double, boolean and single-slot encodings, so they change none of those
-versions. Fourteen sources across sixteen any-widget and two trait-bound slots
-produce 252 compatibility candidates: 226 accepted and 26 rejected.
+as v6 only after an admitted edit. The five newer widget slices reuse the
+existing API-5 value, asset, slot and command contracts; TextField's constraint
+guard is generated presentation code, not a persisted kind. None changes those
+versions. Nineteen sources across eighteen any-widget and two trait-bound slots
+produce 380 compatibility candidates: 328 accepted and 52 rejected.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and
@@ -165,6 +191,12 @@ bound to the exact presented revision and child ids; stale, incompatible,
 root, cyclic, cardinality-violating or minimum-violating requests are disabled
 or rejected without changing the model, generated Dart, saved pair or history.
 OK submits at most once, while Cancel submits nothing.
+
+Expanded is the exception to ordinary Palette prototype insertion: it wraps one
+existing direct Row/Column child and its required `child` slot is replacement-only.
+Image Add and Replace New Widget additionally require a current declared asset
+inventory before allocating a stable ID. TextField is an ordinary immediate leaf
+insertion and never captures runtime editable state.
 
 Every application newly created by this plugin also receives the shared
 `.fd_templates/project.fdtheme` catalog and generated

@@ -27,10 +27,11 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the fourteen capability-authorized Palette widgets (`Scaffold`,
-    `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Align`, `SizedBox`,
-    `AspectRatio`, `Container`, `Opacity`, `Text`, `Icon` and `ElevatedButton`)
-    through a fail-closed 252-cell catalog matrix with 226 accepted and 26 rejected
+    accepts the nineteen capability-authorized Palette widgets (`Scaffold`,
+    `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Padding`, `Center`,
+    `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
+    `FractionallySizedBox`, `Stack`, `Expanded`, `Text`, `Icon` and `Image`)
+    through a fail-closed 380-cell catalog matrix with 328 accepted and 52 rejected
     combinations, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
@@ -262,9 +263,9 @@ The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
 bounded validated protocol-v11 model restricted by the exact built-in capability
-gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`,
-`Center`, `Align`, `SizedBox`, `AspectRatio`, `ElevatedButton`, `Container` and
-`Opacity`.
+gate to `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
+`Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Container` and `Opacity`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
 targets and carries each target into Flutter's adaptive theme semantics on the
@@ -272,7 +273,7 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The thirteen non-`Scaffold` widgets expose 516 typed
+tree and standard Properties. The eighteen non-`Scaffold` widgets expose 600 typed
 read/write property rows. `AppBar` contributes 120 independently resettable
 leaves across behavior, layout, colors/elevation, shape, icon themes, text
 styles and system-UI overlay groups, plus exact `leading`, `title`, `actions`,
@@ -295,7 +296,7 @@ so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
 remain direct local arguments. Generated Dart and the native Canvas have exact
 argument parity. The active Design lookup supplies the standard NetBeans Palette
-with the exact fourteen widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
+with the exact nineteen widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
 behavior/callback fields, five 54-leaf state groups for default, disabled,
 pressed, hovered and focused values, and nine common layout/feedback fields.
 Its callbacks store strict Dart identifiers only—never arbitrary expressions.
@@ -373,8 +374,10 @@ logical identity, code and reason. Selection/layout frames, guides and drop zone
 the decorated/transformed `Container`. The Image tab exposes typed accessible
 controls and inventory status, and one accepted structured/dependent edit is
 one Undo/Redo unit. The optional `child` remains a named single any-widget slot
-rather than a property row. The current catalog therefore exposes exactly 533
-writable rows across fourteen widgets; `.fd` is v6, the contributor Catalog API
+rather than a property row. The current catalog therefore exposes exactly 617
+writable rows across nineteen widgets, including 600 across the eighteen
+non-`Scaffold` definitions; sixteen definitions use reviewed const constructors.
+`.fd` is v6, the contributor Catalog API
 is 5 and the Canvas model protocol is 11. Exact-Web product selection remains
 separately gated; the currently routed Web choice is the native-engine layout
 preview.
@@ -408,22 +411,53 @@ build real Flutter `Align`, and an empty factor-driven zero-size widget retains
 an IDE-only selection/drop target. Existing alignment, numeric and single-slot
 encodings keep all protocol versions unchanged.
 
-Sixteen any-widget slots admit all fourteen sources:
+`FractionallySizedBox` adds the corresponding const fractional-layout contract:
+optional physical/directional alignment, optional finite non-negative width and
+height factors, and one optional any-widget child. `Stack` adds four optional
+layout leaves and an ordered list of non-positioned children; its clip value is
+passed to Flutter exactly, while extrapolated non-positioned alignment and
+descendant paint-only overflow do not become RenderStack visual overflow and are
+not clipped. `Expanded` adds optional non-negative `flex` and a required child;
+Palette creation atomically wraps an existing direct Row/Column child and never
+creates a terminal placeholder. Its child editor is replacement-only.
+
+`Image` is a const leaf with 22 reviewed properties. Its required asset-only
+provider is selected from the deterministic first sorted declared project asset
+before a stable ID is allocated; an empty or unavailable inventory rejects Add
+without changing the document. The four center-slice coordinates are
+all-or-none, strictly ordered and incompatible with `BoxFit.cover`/`none`.
+
+`TextField` is a const Material leaf named **Text Field** in the Palette. Its 54
+optional rows are grouped as Input (14), Layout (9), Behavior (11), Cursor and
+selection (11), Callbacks (8) and Restoration (1), with no creation dialog or
+stored constructor defaults. Designer persists only reviewed constructor intent,
+not typed text, selection, controller or focus state. Cursor-radius and
+scroll-padding edits are atomic pair/quartet operations. Generated Dart and the
+real non-interactive Canvas TextField use a `LayoutBuilder`/`SizedBox` guard:
+unbounded width receives 240 logical pixels and an expanding field under
+unbounded height receives 120.
+
+Eighteen any-widget slots provide the reusable destination contract:
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
-`Row.children`, `Center.child`, `Align.child`, `Padding.child`, `SizedBox.child`,
-`AspectRatio.child`, `Container.child`, `Opacity.child`,
+`Row.children`, `Center.child`, `Align.child`, `FractionallySizedBox.child`,
+`Padding.child`, `SizedBox.child`, `AspectRatio.child`, `Container.child`,
+`Opacity.child`, `Stack.children`,
 `ElevatedButton.child`, and AppBar's `leading`, `title`, `actions` and
 `flexibleSpace`. `Scaffold.appBar` and `AppBar.bottom` accept only
-`PreferredSizeWidget`, currently the reviewed AppBar. The 18 destinations
-therefore form 252 candidate cells: 226 accepted and 26 rejected.
+`PreferredSizeWidget`, currently the reviewed AppBar. The 20 destinations and
+19 sources form 380 candidate cells: 328 accepted and 52 rejected. Expanded's
+source-side rule admits only direct `Row.children`/`Column.children`; the other
+18 sources enter all 18 any-widget slots, and only AppBar enters the two
+trait-bound slots.
 `ElevatedButton.child` is an optional-single, required-named-but-nullable slot;
 an empty button deterministically emits `child: null`. An empty `Row`/`Column`
 or AppBar actions list exposes its
 complete bounded design-time area as insertion index `0`; once populated, only
 its terminal append zone is admitted. The standard
-widget tree accepts the same Palette prototypes on an exact row: `Row` and
-`Column` append to `children`, while an empty `Center`, `Align`, `Padding`,
-`SizedBox`, `AspectRatio`, `Container`, `Opacity` or `ElevatedButton`
+widget tree accepts the same Palette operations on an exact row: `Row`, `Column`
+and `Stack` append to `children`, while an empty `Center`, `Align`,
+`FractionallySizedBox`, `Padding`, `SizedBox`, `AspectRatio`, `Container`,
+`Opacity` or `ElevatedButton`
 receives its
 `child`. Parents with several compatible catalog slots, including AppBar and
 Scaffold, remain rejected as ambiguous by flattened-tree drop; select the

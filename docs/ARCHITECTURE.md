@@ -160,13 +160,16 @@ Canvas model projection, including migration of schema v1-v5 to v6. The sealed
 `IMAGE_PROVIDER` property-kind change makes contributor Catalog API 5 the exact
 current boundary; API 1 through API 4 contributors fail closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, fourteen-item context Palette, selected-node
+Canvas/tree selection edge, nineteen-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 533 catalog-backed fields across
-`Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-`Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text` and `Icon`. AspectRatio adds one required
+Properties are writable for exactly 617 catalog-backed fields across
+`Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
+`Center`, `Align`, `FractionallySizedBox`, `SizedBox`, `AspectRatio`, `Stack`,
+`Expanded`, `Container`, `Opacity`, `Text`, `Icon` and `Image`. Sixteen of the
+nineteen definitions use reviewed const constructors; the eighteen
+non-`Scaffold` definitions account for 600 rows. AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
 scalar slice; ElevatedButton contributes 286 typed leaves; AppBar contributes
@@ -215,6 +218,29 @@ Canvas projections construct a real Flutter `Align`/`RenderPositionedBox`.
 Factor-driven empty zero-size layout remains real, while an IDE-only target
 keeps selection and DnD available without changing generated Dart. Existing
 alignment, numeric and single-slot representations require no version change.
+
+FractionallySizedBox adds three optional rows—alignment plus non-negative width
+and height factors—and one optional child. Stack adds alignment, text direction,
+fit and clip behavior plus one ordered non-positioned-children list slot.
+Expanded adds optional non-negative `flex` and one required child; its Palette
+mode wraps an existing direct Row/Column child and the required-child editor is
+replacement-only. Image is a leaf with one required typed asset-only provider
+and 21 optional callback, accessibility, layout and paint rows. Palette/tree/
+Canvas creation resolves the deterministic first sorted declared asset before
+allocating a stable ID; missing or unavailable inventory admits no command.
+
+TextField is the canonical const `flutter.material.TextField` leaf. Its 54
+optional named rows are presented as Input (14), Layout (9), Behavior (11),
+Cursor and selection (11), Callbacks (8) and Restoration (1). It creates no
+controller, focus node or stored runtime editable state, and callbacks are strict
+identifiers. Validation keeps cursor radius and scroll padding all-or-none,
+enforces the reviewed line/expands/obscuring/max-length relations and synthesizes
+typed Flutter presets, `Radius`, `EdgeInsets` and mouse cursors. Properties sends
+radius/padding changes as atomic patches. Generated Dart wraps every TextField in
+`LayoutBuilder`/`SizedBox`, supplying width 240 only for unbounded width and
+height 120 only for `expands: true` under unbounded height. Canvas renders the
+same real widget under an input/focus exclusion boundary with inert callback
+presence. No schema, Catalog API or protocol version changes.
 
 `ImageProviderValue` is a reusable asset-only union for `AssetImage` and
 `ExactAssetImage`, with a safe relative POSIX asset name, optional Dart package,
@@ -279,9 +305,9 @@ subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` are preserved;
 explicit local values remain local overrides. The bundled Material Icons
 registry contains 8,825 entries locked to Flutter 3.44.8.
 
-The current contract admits fourteen exact capability-gated Palette sources
-across sixteen any-widget and two `PreferredSizeWidget` destination slots:
-252 candidates, of which 226 are accepted and 26 rejected. Same-tree existing-
+The current contract admits nineteen exact capability-gated Palette sources
+across eighteen any-widget and two `PreferredSizeWidget` destination slots:
+380 candidates, of which 328 are accepted and 52 rejected. Same-tree existing-
 widget move/reorder uses the shared compatibility planner. The Slots editor
 exposes atomic occupied-single replacement and single/list clear operations
 with exact revision/child fences and one chronological Undo step. Cross-form
@@ -454,7 +480,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current fourteen-definition
+historical source restriction is superseded by the current nineteen-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -488,12 +514,15 @@ immediately, and consumption or grace expiry is final. OLE `MOVE` confirms only
 timely Flutter prepare and commit dispatch, not Java command admission. Java
 still consumes the token atomically, rejects stale/replayed/foreign or
 no-longer-valid responses, revalidates the current parent and slot, and
-remains the only path to an `AddWidget` command. That command uses the
+remains the only path to an admitted Designer command: ordinary prototypes use
+`AddWidget`, while Expanded uses one atomic `WrapWidget`. That command uses the
 established generation, analysis, paired replacement, Save and chronological
 Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
-authority. DnD outside the fourteen-source, 252-candidate matrix (226 accepted,
-26 rejected) remains disabled; process separation is not described as an OS security
+authority. Image creation additionally resolves the first sorted declared asset
+before stable-ID allocation and fails closed when inventory is unavailable. DnD
+outside the nineteen-source, 380-candidate matrix (328 accepted, 52 rejected)
+remains disabled; process separation is not described as an OS security
 sandbox.
 
 The current internal slice implements the NetBeans-independent Canvas
@@ -716,9 +745,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact fourteen widgets carrying
-the Create capability. All fourteen built-ins, including `Scaffold`, admit the
-reviewed 533-property Set/Reset slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact nineteen widgets carrying
+the Create capability. All nineteen built-ins, including `Scaffold`, admit the
+reviewed 617-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then
@@ -738,6 +767,14 @@ layout/selection frame outside `transform`, paints distinct padding and margin
 guides and retains an empty zero-size child target. Native and internal exact-Web paths
 render the same real `DecorationImage` or a deterministic unavailable-asset
 placeholder without moving those overlays.
+
+TextField's 54 rows use closed enum and static presets, optional booleans,
+bounded numeric and color editors, strict callback identifiers and the shared
+mouse-cursor registry. Cursor radius and scroll padding submit one atomic patch
+and expose compound-aware Restore Default help. The direct Image node reuses the
+same declared-provider choices as Container decoration. The generated and Canvas
+TextField constraint guards preserve direct insertion under unbounded flex
+constraints without adding a placement exception to the shared DnD matrix.
 
 The Windows-only inline Text slice is activated only for the selected existing
 `flutter.widgets.Text`, by double-click or F2. Flutter temporarily owns a real

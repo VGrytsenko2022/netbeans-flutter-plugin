@@ -515,6 +515,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
+        node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -928,6 +929,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     int insertionIndex,
     String slotName,
   ) {
+    if (parentNode.type == 'flutter.widgets.Stack' && slotName == 'children') {
+      return parentRect;
+    }
     if (children.isEmpty) {
       return parentRect;
     }
@@ -1768,6 +1772,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
+      'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
@@ -2669,6 +2674,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     verticalDirection: _verticalDirection(),
     textBaseline: _textBaseline(),
     spacing: _number('spacing') ?? 0.0,
+    children: _children('children'),
+  );
+
+  Widget _stack() => Stack(
+    alignment: _alignmentGeometry('alignment') ?? AlignmentDirectional.topStart,
+    textDirection: _textDirection(),
+    fit: _stackFit(),
+    clipBehavior: _clipBehavior() ?? Clip.hardEdge,
     children: _children('children'),
   );
 
@@ -3727,6 +3740,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   VerticalDirection _verticalDirection() => _enum('verticalDirection') == 'up'
       ? VerticalDirection.up
       : VerticalDirection.down;
+
+  StackFit _stackFit() => switch (_enum('fit')) {
+    'expand' => StackFit.expand,
+    'passthrough' => StackFit.passthrough,
+    _ => StackFit.loose,
+  };
 
   TextBaseline? _textBaseline([String name = 'textBaseline']) =>
       switch (_enum(name)) {

@@ -3745,6 +3745,25 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.Stack': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'fit': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'StackFit',
+        enumValues: {'loose', 'expand', 'passthrough'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.Padding': _WidgetSpec(
     {
       'padding': _PropertySpec(
@@ -4510,6 +4529,12 @@ W|flutter.widgets.SizedBox
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.Stack
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:StackFit:expand,loose,passthrough
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+S|children|list|0|0|10000|any
 W|flutter.widgets.Text
 P|data|string|1|string:VGV4dA|-|string:any
 P|localeCountryCode|string|0|-|-|string:pattern:KD86W0EtWl17Mn18WzAtOV17M30p

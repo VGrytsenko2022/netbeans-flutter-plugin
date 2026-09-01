@@ -78,6 +78,8 @@ class DesignerCommandSessionTest {
     private static final PropertyName ALIGNMENT = property("alignment");
     private static final PropertyName WIDTH_FACTOR = property("widthFactor");
     private static final PropertyName HEIGHT_FACTOR = property("heightFactor");
+    private static final PropertyName TEXT_DIRECTION = property("textDirection");
+    private static final PropertyName FIT = property("fit");
     private static final PropertyName COLOR = property("color");
     private static final PropertyName DECORATION = property("decoration");
     private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
@@ -539,6 +541,103 @@ class DesignerCommandSessionTest {
                 find(widthRestored.current().document().root(), WRAPPER_ID)
                         .properties().get(WIDTH_FACTOR));
         DesignerCommandSession resetRedone = widthRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void stackEditResetChildrenUndoRedoAndReopenAreByteExact() throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Stack")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.ListSlot) prototype.slots().get(CHILDREN))
+                .children().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 0),
+                text(THIRD_ID, "Stack layer")));
+        DesignerCommandSession aligned = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE)));
+        DesignerCommandSession directed = applied(aligned, new SetProperty(
+                WRAPPER_ID,
+                TEXT_DIRECTION,
+                new PropertyValue.EnumValue("TextDirection", "rtl")));
+        DesignerCommandSession fitted = applied(directed, new SetProperty(
+                WRAPPER_ID,
+                FIT,
+                new PropertyValue.EnumValue("StackFit", "passthrough")));
+        DesignerCommandSession clipped = applied(fitted, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer")));
+
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                FIT,
+                new PropertyValue.EnumValue("StackFit", "cover")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "visible")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(clipped, new ResetProperty(
+                WRAPPER_ID, FIT));
+        WidgetNode finalStack = find(reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE),
+                finalStack.properties().get(ALIGNMENT));
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "rtl"),
+                finalStack.properties().get(TEXT_DIRECTION));
+        assertFalse(finalStack.properties().containsKey(FIT));
+        assertEquals(new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer"),
+                finalStack.properties().get(CLIP_BEHAVIOR));
+        assertEquals(List.of(THIRD_ID),
+                ((WidgetSlot.ListSlot) finalStack.slots().get(CHILDREN))
+                        .children().stream().map(WidgetNode::id).toList());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const Stack("), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(-1.0, 1.0)"), dart);
+        assertTrue(dart.contains("textDirection: TextDirection.rtl"), dart);
+        assertFalse(dart.contains("fit:"), dart);
+        assertTrue(dart.contains(
+                "clipBehavior: Clip.antiAliasWithSaveLayer"), dart);
+        assertTrue(dart.contains("children: ["), dart);
+        assertTrue(dart.contains("const Text('Stack layer')"), dart);
+
+        DesignerCommandSession fitRestored = reset.undo().session();
+        assertEquals(new PropertyValue.EnumValue("StackFit", "passthrough"),
+                find(fitRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(FIT));
+        DesignerCommandSession resetRedone = fitRestored.redo().session();
         assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
         assertArrayEquals(reset.current().dartCandidateBytes(),
                 resetRedone.current().dartCandidateBytes());

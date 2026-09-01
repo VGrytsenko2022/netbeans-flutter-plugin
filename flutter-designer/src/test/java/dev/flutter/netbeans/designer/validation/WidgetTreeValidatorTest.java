@@ -620,6 +620,95 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void stackAcceptsReviewedAlignmentEnumsAndOptionalAnyWidgetChildren() {
+        WidgetNode omitted = node(
+                "stack-omitted", "flutter.widgets.Stack", Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> "Issues were: " + omittedResult.issues());
+
+        WidgetNode child = node(
+                "stack-child", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Layer")),
+                Map.of());
+        for (PropertyValue.AlignmentGeometryValue.HorizontalBasis basis
+                : PropertyValue.AlignmentGeometryValue.HorizontalBasis.values()) {
+            WidgetNode valid = node(
+                    "stack-alignment-" + basis.name(),
+                    "flutter.widgets.Stack",
+                    Map.of(name("alignment"),
+                            new PropertyValue.AlignmentGeometryValue(
+                                    basis,
+                                    new BigDecimal("-0.25"),
+                                    new BigDecimal("0.75"))),
+                    Map.of(slotName("children"),
+                            new WidgetSlot.ListSlot(List.of(child))));
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+        }
+
+        Map<String, String> enumTypes = Map.of(
+                "textDirection", "TextDirection",
+                "fit", "StackFit",
+                "clipBehavior", "Clip");
+        Map<String, List<String>> accepted = Map.of(
+                "textDirection", List.of("rtl", "ltr"),
+                "fit", List.of("loose", "expand", "passthrough"),
+                "clipBehavior", List.of(
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"));
+        for (Map.Entry<String, List<String>> entry : accepted.entrySet()) {
+            for (String value : entry.getValue()) {
+                WidgetNode valid = node(
+                        "stack-enum-" + entry.getKey() + '-' + value,
+                        "flutter.widgets.Stack",
+                        Map.of(name(entry.getKey()), new PropertyValue.EnumValue(
+                                enumTypes.get(entry.getKey()), value)),
+                        Map.of(slotName("children"),
+                                new WidgetSlot.ListSlot(List.of(child))));
+                ValidationResult result = validator().validate(
+                        document(valid), BuiltInWidgetCatalog.getDefault());
+                assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+            }
+        }
+
+        Map<String, PropertyValue> rejectedEnums = Map.of(
+                "textDirection", new PropertyValue.EnumValue("TextDirection", "up"),
+                "fit", new PropertyValue.EnumValue("StackFit", "cover"),
+                "clipBehavior", new PropertyValue.EnumValue("Clip", "visible"));
+        for (Map.Entry<String, PropertyValue> entry : rejectedEnums.entrySet()) {
+            WidgetNode invalid = node(
+                    "stack-enum-invalid-" + entry.getKey(),
+                    "flutter.widgets.Stack",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        for (Map.Entry<String, PropertyValue> entry : Map.<String, PropertyValue>of(
+                "alignment", new PropertyValue.StringValue("topStart"),
+                "textDirection", new PropertyValue.BooleanValue(true),
+                "fit", new PropertyValue.StringValue("loose"),
+                "clipBehavior", new PropertyValue.IntegerValue(BigInteger.ZERO))
+                .entrySet()) {
+            WidgetNode invalid = node(
+                    "stack-kind-" + entry.getKey(),
+                    "flutter.widgets.Stack",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+    }
+
+    @Test
     void containerEnforcesBackgroundAndClipRelationshipsAfterNestedValidation() {
         PropertyValue.BoxDecorationValue decoration = boxDecoration(
                 new ColorSource.Literal(0xFF102030L));

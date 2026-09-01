@@ -152,7 +152,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Container", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Opacity", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Align", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.FractionallySizedBox", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.FractionallySizedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Stack", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -290,6 +291,17 @@ public final class BuiltInWidgetCapabilityCatalog {
                             PropertyValueKind.INTEGER,
                             PropertyValueKind.DOUBLE)),
                     Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Stack", projection(Map.ofEntries(
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                    enumProperty(
+                            "fit", "StackFit", "loose", "expand", "passthrough"),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("children", listSlotSchema(false, 0, 10_000)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));

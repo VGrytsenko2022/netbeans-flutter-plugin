@@ -862,6 +862,100 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsStackInPinnedSdkOrderWithPhysicalAlignmentEnumsAndChildren() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Stack"),
+                Map.of(
+                        property("alignment"), alignment(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                "0.5", "-0.25"),
+                        property("textDirection"),
+                                new PropertyValue.EnumValue("TextDirection", "rtl"),
+                        property("fit"),
+                                new PropertyValue.EnumValue("StackFit", "expand"),
+                        property("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "antiAlias")),
+                Map.of(slot("children"), new WidgetSlot.ListSlot(List.of(
+                        text("Behind"), text("Front")))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Stack(
+                      alignment: const Alignment(0.5, -0.25),
+                      textDirection: TextDirection.rtl,
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.antiAlias,
+                      children: [
+                        const Text('Behind'),
+                        const Text('Front'),
+                      ],
+                    );
+                  }
+                """, generated.build().payload());
+    }
+
+    @Test
+    void emitsDirectionalStackWithoutMaterializingFrameworkDefaults() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Stack"),
+                Map.of(property("alignment"), alignment(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        "-1", "1")),
+                Map.of(slot("children"), new WidgetSlot.ListSlot(List.of())),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Stack(
+                      alignment: const AlignmentDirectional(-1.0, 1.0),
+                      children: [],
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
+    void emitsNewStackPrototypeWithEmptyChildrenAndFrameworkDefaultsOmitted() {
+        WidgetNode root = WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault()
+                        .find(new WidgetTypeId("flutter.widgets.Stack"))
+                        .orElseThrow(),
+                StableId.random());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Stack(
+                      children: [],
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
     void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
         PropertyValue.AlignmentGeometryValue begin = alignment(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,

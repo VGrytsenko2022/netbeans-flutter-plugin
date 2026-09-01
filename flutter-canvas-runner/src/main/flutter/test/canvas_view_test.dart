@@ -103,6 +103,13 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
+      canvasStackChildrenAppendDropSlot,
+    ]);
+    expect(
+      canvasStackChildrenAppendDropSlot.zonePlacement,
+      CanvasDropZonePlacement.fullNode,
+    );
     expect(
       canvasDropSlotsForWidgetType('flutter.material.ElevatedButton'),
       const [canvasEmptyChildDropSlot],
@@ -117,7 +124,7 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 15-source by 19-destination compatibility matrix', () {
+  test('closes the 16-source by 20-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -133,14 +140,15 @@ void main() {
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.SizedBox',
+      'flutter.widgets.Stack',
       'flutter.widgets.Text',
     };
     final destinations = <CanvasDropSlotSemantics>[];
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(15));
-    expect(destinations, hasLength(19));
+    expect(sourceTypes, hasLength(16));
+    expect(destinations, hasLength(20));
 
     var accepted = 0;
     var rejected = 0;
@@ -158,9 +166,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 257);
-    expect(rejected, 28);
-    expect(accepted + rejected, 285);
+    expect(accepted, 290);
+    expect(rejected, 30);
+    expect(accepted + rejected, 320);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2065,6 +2073,279 @@ void main() {
       expect(drop?.slotName, 'child');
       expect(drop?.insertionIndex, 0);
       expect(drop?.zone?.isEmpty, isFalse);
+    },
+  );
+
+  testWidgets(
+    'renders real Stack defaults, exact fits, alignment, and z-order',
+    (tester) async {
+      const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+      const bottomId = 'f5d1751b-136a-4db0-9e22-2ecb498eb425';
+      const topId = '0bdf25b7-ce2c-4cb7-9f04-270e53ad3157';
+      final children = <Map<String, Object?>>[
+        _viewSizedBoxNode(bottomId, width: 40, height: 20),
+        _viewSizedBoxNode(topId, width: 80, height: 30),
+      ];
+      String? selectedWidgetId;
+
+      Finder stackFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$stackId')),
+            matching: find.byType(Stack),
+          )
+          .first;
+
+      Future<RenderStack> pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithConstrainedStack(
+                  properties: properties,
+                  children: children,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => selectedWidgetId = id,
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderStack>(stackFinder());
+      }
+
+      List<RenderBox> renderChildren(RenderStack stack) {
+        final result = <RenderBox>[];
+        RenderBox? child = stack.firstChild;
+        while (child != null) {
+          result.add(child);
+          child = stack.childAfter(child);
+        }
+        return result;
+      }
+
+      final defaults = await pump(const {});
+      final defaultWidget = tester.widget<Stack>(stackFinder());
+      expect(defaultWidget.alignment, AlignmentDirectional.topStart);
+      expect(defaultWidget.textDirection, isNull);
+      expect(defaultWidget.fit, StackFit.loose);
+      expect(defaultWidget.clipBehavior, Clip.hardEdge);
+      expect(defaults.size, const Size(100, 50));
+      var renderedChildren = renderChildren(defaults);
+      expect(renderedChildren.map((child) => child.size), const [
+        Size(40, 20),
+        Size(80, 30),
+      ]);
+      expect(
+        renderedChildren.map(
+          (child) => (child.parentData! as StackParentData).offset,
+        ),
+        const [Offset.zero, Offset.zero],
+      );
+
+      final stackRect = tester.getRect(stackFinder());
+      await tester.tapAt(stackRect.topLeft + const Offset(10, 10));
+      await tester.pump();
+      expect(
+        selectedWidgetId,
+        topId,
+        reason: 'the last Stack child paints and hit-tests on top',
+      );
+
+      final expanded = await pump({
+        'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'expand'},
+      });
+      expect(expanded.size, const Size(200, 100));
+      expect(renderChildren(expanded).map((child) => child.size), const [
+        Size(200, 100),
+        Size(200, 100),
+      ]);
+
+      final passthrough = await pump({
+        'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'passthrough'},
+      });
+      expect(passthrough.size, const Size(100, 50));
+      expect(renderChildren(passthrough).map((child) => child.size), const [
+        Size(100, 50),
+        Size(100, 50),
+      ]);
+
+      final extrapolated = await pump({
+        'alignment': _viewAlignment(horizontal: 2, vertical: -2),
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'none'},
+      });
+      final explicitWidget = tester.widget<Stack>(stackFinder());
+      expect(explicitWidget.alignment, const Alignment(2, -2));
+      expect(explicitWidget.clipBehavior, Clip.none);
+      renderedChildren = renderChildren(extrapolated);
+      expect(
+        (renderedChildren.first.parentData! as StackParentData).offset,
+        const Offset(90, -15),
+      );
+      expect(
+        (renderedChildren.last.parentData! as StackParentData).offset,
+        const Offset(30, -10),
+      );
+    },
+  );
+
+  testWidgets('resolves Stack directional defaults and explicit override', (
+    tester,
+  ) async {
+    const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+    final child = _viewSizedBoxNode(
+      'f5d1751b-136a-4db0-9e22-2ecb498eb425',
+      width: 40,
+      height: 20,
+    );
+
+    Future<({Offset offset, TextDirection direction})> render({
+      required String locale,
+      String? explicitDirection,
+    }) async {
+      final properties = <String, Object?>{};
+      if (explicitDirection != null) {
+        properties['textDirection'] = {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': explicitDirection,
+        };
+      }
+      final json = _modelWithConstrainedStack(
+        properties: properties,
+        children: [child],
+      );
+      (json['profile']! as Map<String, Object?>)['locale'] = locale;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      final node = find.byKey(const ValueKey('canvas-widget-$stackId'));
+      final finder = find
+          .descendant(of: node, matching: find.byType(Stack))
+          .first;
+      final stack = tester.renderObject<RenderStack>(finder);
+      final first = stack.firstChild!;
+      return (
+        offset: (first.parentData! as StackParentData).offset,
+        direction: stack.textDirection!,
+      );
+    }
+
+    final ambientLtr = await render(locale: 'en-US');
+    expect(ambientLtr.direction, TextDirection.ltr);
+    expect(ambientLtr.offset, Offset.zero);
+
+    final ambientRtl = await render(locale: 'ar-SA');
+    expect(ambientRtl.direction, TextDirection.rtl);
+    expect(ambientRtl.offset, const Offset(60, 0));
+
+    final overridden = await render(locale: 'ar-SA', explicitDirection: 'ltr');
+    expect(overridden.direction, TextDirection.ltr);
+    expect(overridden.offset, Offset.zero);
+  });
+
+  testWidgets(
+    'uses full-node Stack append and move zones and preserves zero selection',
+    (tester) async {
+      const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+      const sourceId = 'f5d1751b-136a-4db0-9e22-2ecb498eb425';
+      CanvasDropResolver? dropResolver;
+      CanvasMovePreviewResolver? moveResolver;
+
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithConstrainedStack(
+                properties: const {},
+                children: [_viewSizedBoxNode(sourceId, width: 40, height: 20)],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+          onDropResolverChanged: (value) => dropResolver = value,
+          onMovePreviewResolverChanged: (value) => moveResolver = value,
+        ),
+      );
+      await tester.pump();
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final stack = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$stackId')),
+      );
+      final point = stack.bottomRight - const Offset(2, 2);
+      final drop = dropResolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, stackId);
+      expect(drop?.slotName, 'children');
+      expect(drop?.insertionIndex, 1);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(
+        drop!.zone!.rightMicros - drop.zone!.leftMicros,
+        closeTo((stack.width / surface.width * 1000000).round(), 2),
+        reason: 'Stack exposes its complete rendered node, not a terminal band',
+      );
+
+      final move = moveResolver!(sourceId, stackId, 'children', 0);
+      expect(move?.parentWidgetId, stackId);
+      expect(move?.slotName, 'children');
+      expect(move?.insertionIndex, 0);
+      expect(move?.zone?.leftMicros, drop.zone!.leftMicros);
+      expect(move?.zone?.topMicros, drop.zone!.topMicros);
+      expect(move?.zone?.rightMicros, drop.zone!.rightMicros);
+      expect(move?.zone?.bottomMicros, drop.zone!.bottomMicros);
+
+      final zeroModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithConstrainedStack(
+                properties: const {},
+                children: const [],
+                unboundedMainAxis: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: zeroModel,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.getSize(find.byKey(const ValueKey('canvas-widget-$stackId'))),
+        Size.zero,
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$stackId'),
+      );
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
     },
   );
 
@@ -4840,6 +5121,84 @@ Map<String, Object?> _modelWithCenteredFractionallySizedBox({
   };
   return model;
 }
+
+Map<String, Object?> _modelWithConstrainedStack({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  bool unboundedMainAxis = false,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final stack = <String, Object?>{
+    'id': '5a809127-5a50-4dbf-b5fd-464619344ac4',
+    'type': 'flutter.widgets.Stack',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final constrained = unboundedMainAxis
+      ? <String, Object?>{
+          'id': 'c2f2877d-3fab-4b71-a232-b4bf44dcd7c0',
+          'type': 'flutter.widgets.Row',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[stack],
+            },
+          },
+        }
+      : <String, Object?>{
+          'id': 'd376e25c-2809-4d1a-bc48-d54fca11a123',
+          'type': 'flutter.widgets.Container',
+          'properties': <String, Object?>{
+            'constraints': <String, Object?>{
+              'kind': 'boxConstraints',
+              'minWidth': 100,
+              'maxWidth': 200,
+              'minHeight': 50,
+              'maxHeight': 100,
+            },
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': stack},
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '3ca862de-2561-4f9e-af0f-dfa53e7f4f28',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': constrained},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _viewSizedBoxNode(
+  String id, {
+  required num width,
+  required num height,
+}) => <String, Object?>{
+  'id': id,
+  'type': 'flutter.widgets.SizedBox',
+  'properties': <String, Object?>{
+    'width': {'kind': width is int ? 'integer' : 'double', 'value': width},
+    'height': {'kind': height is int ? 'integer' : 'double', 'value': height},
+  },
+  'slots': <String, Object?>{
+    'child': <String, Object?>{'kind': 'single', 'child': null},
+  },
+};
 
 Map<String, Object?> _modelWithCenteredOpacity({
   required double opacity,

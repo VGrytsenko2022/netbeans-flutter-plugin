@@ -412,6 +412,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.Stack",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -443,10 +444,10 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(536, writableCount,
+        assertEquals(540, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, Align, "
-                + "and FractionallySizedBox leaves");
+                + "FractionallySizedBox, and Stack leaves");
     }
 
     @Test
@@ -910,6 +911,104 @@ class FlutterWidgetPropertiesNodeTest {
                         .contains("not from the theme")),
                 () -> assertTrue(child.getShortDescription()
                         .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void stackProjectsExactLayerPropertiesAndOrderedChildrenContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Stack");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("f2a439a3-3b4f-4510-9504-61b5e74517aa"));
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                "alignment", "textDirection", "fit", "clipBehavior"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Layer alignment, direction, sizing, clipping, and ordered "
+                + "non-Positioned children for the selected Stack widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        assertEquals("Alignment", alignment.getDisplayName());
+        assertEquals(
+                "Physical position or directional position for the current Designer's "
+                + "ordinary, non-Positioned children. Flutter defaults to directional "
+                + "top-start; coordinates outside -1 through 1 extrapolate. Directional "
+                + "values use the explicit Stack text direction when set, otherwise "
+                + "ambient LTR/RTL Directionality. Accepted: physical or directional "
+                + "AlignmentGeometry. Restore Default removes the explicit constructor "
+                + "argument.",
+                alignment.getShortDescription());
+        assertTrue(alignment.supportsDefaultValue());
+
+        Node.Property<FlutterPropertyCellValue> textDirection = cellProperty(
+                property(node, "textDirection"));
+        assertEquals("Text direction", textDirection.getDisplayName());
+        assertEquals(
+                "Optional LTR or RTL override used only to resolve directional Stack "
+                + "alignment. Omission preserves the ambient Directionality; this value "
+                + "is not read from the theme. Accepted: TextDirection[rtl, ltr]. Restore "
+                + "Default removes the explicit constructor argument.",
+                textDirection.getShortDescription());
+        PropertyEditor textDirectionEditor = textDirection.getPropertyEditor();
+        textDirectionEditor.setAsText("rtl");
+        assertEquals(
+                new PropertyValue.EnumValue("TextDirection", "rtl"),
+                cell(textDirectionEditor).explicitValue().orElseThrow());
+
+        Node.Property<FlutterPropertyCellValue> fit = cellProperty(
+                property(node, "fit"));
+        assertEquals("Fit", fit.getDisplayName());
+        assertEquals(
+                "How Stack constrains non-positioned children: loose relaxes incoming "
+                + "minimums, expand tightens to the biggest allowed size, and passthrough "
+                + "preserves incoming constraints. Flutter defaults to loose. Accepted: "
+                + "StackFit[loose, expand, passthrough]. Restore Default removes the "
+                + "explicit constructor argument.",
+                fit.getShortDescription());
+        PropertyEditor fitEditor = fit.getPropertyEditor();
+        fitEditor.setAsText("expand");
+        assertEquals(
+                new PropertyValue.EnumValue("StackFit", "expand"),
+                cell(fitEditor).explicitValue().orElseThrow());
+
+        Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
+                property(node, "clipBehavior"));
+        assertEquals("Clip behavior", clipBehavior.getDisplayName());
+        assertEquals(
+                "The selected value is passed to Flutter unchanged; Flutter defaults to "
+                + "hard edge. RenderStack clips only when a direct child's geometry sets "
+                + "its visual-overflow flag. Extrapolated alignment of a non-Positioned "
+                + "child does not set that flag, so it is not clipped; descendant or "
+                + "paint-only overflow is not clipped either. Accepted: "
+                + "Clip[none, hardEdge, antiAlias, "
+                + "antiAliasWithSaveLayer]. Restore Default removes the explicit "
+                + "constructor argument.",
+                clipBehavior.getShortDescription());
+        PropertyEditor clipEditor = clipBehavior.getPropertyEditor();
+        clipEditor.setAsText("antiAlias");
+        assertEquals(
+                new PropertyValue.EnumValue("Clip", "antiAlias"),
+                cell(clipEditor).explicitValue().orElseThrow());
+
+        Node.Property<?> children = property(node, "children");
+        assertAll(
+                () -> assertEquals("Children", children.getDisplayName()),
+                () -> assertEquals("Empty", children.getValue()),
+                () -> assertEquals(
+                        "Ordered Stack children painted from first (back) to last (front). "
+                        + "The current Designer slice creates ordinary, non-Positioned "
+                        + "children; they use Stack alignment and fit. Directional alignment "
+                        + "resolves from the explicit or ambient TextDirection "
+                        + "(LTR/RTL), not from the theme. Occupancy: 0/10000; minimum: 0. "
+                        + "Open the custom editor to add, move, reorder, or remove a widget.",
+                        children.getShortDescription()));
     }
 
     @Test
@@ -1570,7 +1669,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fifteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void sixteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1586,6 +1685,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.Stack",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1605,7 +1705,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(15, iconPaths.size(),
+        assertEquals(16, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

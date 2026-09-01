@@ -50,6 +50,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -379,11 +380,100 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void stackTokenPreviewsAndCommitsOptionalPropertiesAndEmptyOrderedChildren() {
+        Fixture fixture = fixture(STACK);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(STACK, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(STACK, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the Stack palette authority once"));
+    }
+
+    @Test
+    void textTokenAppendsAFullNodeAtTheFrontOfStackPaintOrder() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(stack(List.of(
+                text(FIRST_ID, "existing back layer"))));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(1, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.destination().parentId()),
+                () -> assertEquals(CHILDREN, command.destination().slotName()),
+                () -> assertEquals(1, command.destination().index(),
+                        "terminal insertion is Stack's front paint layer"),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(DATA, new PropertyValue.StringValue("Text")),
+                        command.widget().properties()),
+                () -> assertEquals(Map.of(), command.widget().slots()));
+    }
+
+    @Test
     void resolvesOnlyOneCurrentlyAvailableCompatibleCatalogSlot() {
         List<AcceptedCase> accepted = List.of(
                 new AcceptedCase(
                         "empty Column",
                         document(column(List.of())),
+                        CHILDREN),
+                new AcceptedCase(
+                        "empty Stack",
+                        document(stack(List.of())),
                         CHILDREN),
                 new AcceptedCase(
                         "empty Center",
@@ -562,6 +652,13 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static WidgetNode column(List<WidgetNode> children) {
         return withSlot(
                 prototype(COLUMN),
+                CHILDREN,
+                new WidgetSlot.ListSlot(children));
+    }
+
+    private static WidgetNode stack(List<WidgetNode> children) {
+        return withSlot(
+                prototype(STACK),
                 CHILDREN,
                 new WidgetSlot.ListSlot(children));
     }

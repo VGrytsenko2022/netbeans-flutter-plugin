@@ -285,6 +285,37 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(dark16.paint(), dark32.paint());
     }
 
+    @Test
+    void stackFamilyUsesExactReviewedLayerGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "stack.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=9, rx=1.5, stroke-width=1, width=9, x=1.5, y=1.5]",
+                "rect[height=9, rx=1.5, stroke-width=1, width=9, x=3.5, y=3.5]",
+                "rect[height=9, rx=1.5, stroke-width=1, width=9, x=5.5, y=5.5]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=18, rx=3, stroke-width=2, width=18, x=3, y=3]",
+                "rect[height=18, rx=3, stroke-width=2, width=18, x=7, y=7]",
+                "rect[height=18, rx=3, stroke-width=2, width=18, x=11, y=11]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "rect[fill=#80DEEA, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "rect[fill=#4DD0E1, stroke=#90CAF9]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
     private static SvgResource readSvg(String resource, int expectedSize) throws Exception {
         byte[] bytes = readResource(resource);
         String source = new String(bytes, StandardCharsets.UTF_8);
@@ -444,6 +475,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Align", ICON_ROOT + "align.svg");
         expected.put("flutter.widgets.FractionallySizedBox",
                 ICON_ROOT + "fractionallysizedbox.svg");
+        expected.put("flutter.widgets.Stack", ICON_ROOT + "stack.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

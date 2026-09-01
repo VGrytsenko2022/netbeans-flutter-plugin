@@ -122,6 +122,20 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsStackWithoutMaterializingDefaultsAndWithEmptyChildrenList() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.Stack"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Stack"), prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("children")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.ListSlot.class,
+                prototype.slots().get(new SlotName("children"))).children().isEmpty());
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

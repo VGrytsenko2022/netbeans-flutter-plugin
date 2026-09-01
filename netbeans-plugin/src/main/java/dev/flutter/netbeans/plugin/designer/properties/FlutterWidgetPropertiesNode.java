@@ -66,6 +66,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX_TYPE =
             new WidgetTypeId("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId STACK_TYPE =
+            new WidgetTypeId("flutter.widgets.Stack");
     private static final PropertyName ALIGNMENT_PROPERTY =
             new PropertyName("alignment");
     private static final PropertyName WIDTH_FACTOR_PROPERTY =
@@ -73,6 +75,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private static final PropertyName HEIGHT_FACTOR_PROPERTY =
             new PropertyName("heightFactor");
     private static final SlotName CHILD_SLOT = new SlotName("child");
+    private static final SlotName CHILDREN_SLOT = new SlotName("children");
+    private static final PropertyName TEXT_DIRECTION_PROPERTY =
+            new PropertyName("textDirection");
+    private static final PropertyName STACK_FIT_PROPERTY =
+            new PropertyName("fit");
+    private static final PropertyName STACK_CLIP_BEHAVIOR_PROPERTY =
+            new PropertyName("clipBehavior");
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
     private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
@@ -393,6 +402,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (STACK_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered Stack children painted from first (back) to last (front). "
+                    + "The current Designer slice creates ordinary, non-Positioned children; "
+                    + "they use Stack alignment and fit. Directional alignment resolves from "
+                    + "the explicit or ambient TextDirection "
+                    + "(LTR/RTL), not from the theme. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -412,6 +431,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
+        boolean stack = STACK_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
@@ -429,6 +449,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                         + "the selected FractionallySizedBox widget; directional "
                                         + "alignment resolves from TextDirection (LTR/RTL), not "
                                         + "from the theme."
+                        : stack
+                                ? "Layer alignment, direction, sizing, clipping, and ordered "
+                                        + "non-Positioned children for the selected Stack widget."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
@@ -510,6 +533,45 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "height, imposed as a tight child height. Zero and values above "
                                 + "one are valid; omission passes vertical constraints through. "
                                 + "Do not set it when the incoming maximum height is unbounded."));
+            } else if (stack && ALIGNMENT_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Alignment",
+                        "Physical position or directional position for the current Designer's "
+                                + "ordinary, non-Positioned children. Flutter defaults to "
+                                + "directional top-start; coordinates outside -1 through 1 "
+                                + "extrapolate. Directional values use the explicit Stack text "
+                                + "direction when set, otherwise ambient LTR/RTL Directionality."));
+            } else if (stack && TEXT_DIRECTION_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Text direction",
+                        "Optional LTR or RTL override used only to resolve directional Stack "
+                                + "alignment. Omission preserves the ambient Directionality; "
+                                + "this value is not read from the theme."));
+            } else if (stack && STACK_FIT_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Fit",
+                        "How Stack constrains non-positioned children: loose relaxes incoming "
+                                + "minimums, expand tightens to the biggest allowed size, and "
+                                + "passthrough preserves incoming constraints. Flutter defaults "
+                                + "to loose."));
+            } else if (stack
+                    && STACK_CLIP_BEHAVIOR_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Clip behavior",
+                        "The selected value is passed to Flutter unchanged; Flutter defaults "
+                                + "to hard edge. RenderStack clips only when a direct child's "
+                                + "geometry sets its visual-overflow flag. Extrapolated alignment "
+                                + "of a non-Positioned child does not set that flag, so it is not "
+                                + "clipped; descendant or paint-only overflow is not clipped "
+                                + "either."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

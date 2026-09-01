@@ -440,6 +440,88 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void stackChildrenAddsNewFrontLayerAtExactTerminalPaintOrderIndex()
+            throws Exception {
+        WidgetDefinition stackDefinition = definition("flutter.widgets.Stack");
+        WidgetNode back = text(
+                id("42bb3e86-daab-4a97-9c1d-9515f34f7a8b"), "back");
+        WidgetNode stackPrototype = WidgetNodePrototypeFactory.create(
+                stackDefinition,
+                id("8a51ab51-dd2e-40b4-8dba-b74ef9fc332e"));
+        WidgetNode stack = new WidgetNode(
+                stackPrototype.id(),
+                stackPrototype.type(),
+                stackPrototype.properties(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(back))),
+                Extensions.empty());
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                stack,
+                stackDefinition,
+                ignored -> { },
+                new FlutterWidgetSlotEditorContext(
+                        document(stack),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))),
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+
+            assertEquals(1, current.getModel().getSize());
+            assertEquals("1 widget", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals(List.of(), labels(position),
+                    "fresh list children are terminal-only and expose no arbitrary index");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(stack.id(), add.ownerId());
+            assertEquals(CHILDREN, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(1, add.index(),
+                    "terminal Stack insertion paints the new layer in front");
+
+            children.setValue(staged);
+            children.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted Stack children dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
     void preferredSizeSlotsOfferOnlyAppBarAndProduceExactAddIntent()
             throws Exception {
         WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");

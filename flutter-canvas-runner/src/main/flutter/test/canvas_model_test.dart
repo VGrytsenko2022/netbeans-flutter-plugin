@@ -680,6 +680,176 @@ void main() {
     );
   });
 
+  test('decodes the exact optional Stack contract and ordered children', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '8c1fa4e5-15ac-491c-843a-642633474416',
+        'flutter.widgets.Stack',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final first = _node(
+      '8a75a6c4-928f-46b2-8b75-9b72909dd5f3',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Bottom'},
+      },
+    );
+    final second = _node(
+      '7cdd7705-d8c9-4d77-b733-a559a04fc008',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Top'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'alignment': _canvasAlignment(
+            basis: 'directional',
+            horizontal: -1,
+            vertical: 0.5,
+          ),
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': 'ltr',
+          },
+          'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'passthrough'},
+          'clipBehavior': {
+            'kind': 'enum',
+            'type': 'Clip',
+            'value': 'antiAlias',
+          },
+        },
+        slots: {
+          'children': _list([first, second]),
+        },
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.Stack');
+    expect(decoded.properties.keys, const [
+      'alignment',
+      'textDirection',
+      'fit',
+      'clipBehavior',
+    ]);
+    final alignment =
+        decoded.properties['alignment']!.value as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, -1);
+    expect(alignment.vertical, 0.5);
+    expect(
+      (decoded.properties['textDirection']!.value as CanvasEnumValue).value,
+      'ltr',
+    );
+    expect(
+      (decoded.properties['fit']!.value as CanvasEnumValue).value,
+      'passthrough',
+    );
+    expect(
+      (decoded.properties['clipBehavior']!.value as CanvasEnumValue).value,
+      'antiAlias',
+    );
+    expect(decoded.slot('children')!.children.map((child) => child.id), [
+      first['id'],
+      second['id'],
+    ]);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('children'), isNull);
+
+    final explicitEmpty = _decode(
+      model(slots: {'children': _list(const [])}),
+    ).root;
+    expect(explicitEmpty.slot('children')!.children, isEmpty);
+  });
+
+  test('rejects values outside the reviewed Stack projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '8c1fa4e5-15ac-491c-843a-642633474416',
+        'flutter.widgets.Stack',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'tight'},
+      },
+      const {
+        'fit': {'kind': 'enum', 'type': 'FlexFit', 'value': 'loose'},
+      },
+      const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'auto',
+        },
+      },
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'alignment': {'kind': 'string', 'value': 'topStart'},
+      },
+      {'alignment': _canvasAlignment(basis: 'fractional')},
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'children': _single(null)})),
+      throwsFormatException,
+    );
+  });
+
+  test('Stack reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Stack\n');
+    final end = contract.indexOf('W|flutter.widgets.Text\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Stack\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|fit|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'StackFit:expand,loose,passthrough\n'
+      'P|textDirection|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextDirection:ltr,rtl\n'
+      'S|children|list|0|0|10000|any\n',
+    );
+  });
+
   test('decodes the exact AspectRatio contract and optional child slot', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,

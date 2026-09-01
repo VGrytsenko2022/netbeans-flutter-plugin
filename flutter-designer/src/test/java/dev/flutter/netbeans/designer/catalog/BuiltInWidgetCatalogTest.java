@@ -29,7 +29,7 @@ class BuiltInWidgetCatalogTest {
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
 
     @Test
-    void containsExactlyTheReviewedFifteenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedSixteenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -45,13 +45,14 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Row",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.Stack",
                 "flutter.widgets.Text"), typeIds(BuiltInWidgetCatalog.getDefault().definitions()));
     }
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(15, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(12, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(16, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(13, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -62,9 +63,14 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(536, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(540, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
+        assertEquals(523, BuiltInWidgetCatalog.getDefault().definitions().stream()
+                .filter(value -> !value.typeId().value().equals(
+                        "flutter.material.Scaffold"))
+                .mapToInt(value -> value.properties().size())
+                .sum(), "Non-Scaffold writable properties are counted exactly once");
     }
 
     @Test
@@ -84,6 +90,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Stack", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Text", WIDGETS_IMPORT));
 
         Map<String, String> actual = BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -125,6 +132,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
+                new DartSymbolReference(WIDGETS_IMPORT, "StackFit"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextDecorationStyle"),
@@ -151,6 +159,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.Stack",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
     }
@@ -192,6 +201,11 @@ class BuiltInWidgetCatalogTest {
                 assertTrue(property(catalog, type, property)
                         .creationDefault().isEmpty(), type + "." + property);
             }
+        }
+        for (String property : List.of(
+                "alignment", "textDirection", "fit", "clipBehavior")) {
+            assertTrue(property(catalog, "flutter.widgets.Stack", property)
+                    .creationDefault().isEmpty(), "Stack." + property);
         }
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
                 .creationDefault().isEmpty());
@@ -717,6 +731,83 @@ class BuiltInWidgetCatalogTest {
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
         assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
         assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void stackExposesExactFlutter344SurfaceAndOptionalAnyWidgetChildren() {
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+
+        assertEquals("Stack", stack.dartClassName());
+        assertTrue(stack.constConstructor());
+        assertEquals(WIDGETS_IMPORT, stack.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), stack.importUris());
+        assertTrue(stack.traits().isEmpty());
+        assertEquals(new PaletteMetadata("flutter.layout", 200, 110, "Stack"),
+                stack.palette());
+        assertEquals(List.of(
+                        "alignment", "textDirection", "fit", "clipBehavior"),
+                stack.properties().stream()
+                        .map(value -> value.name().value())
+                        .toList());
+
+        PropertyDefinition alignment = stack.property(new PropertyName("alignment"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, false), alignment.parameter());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefault().isEmpty());
+        PropertyValueConstraint.AlignmentGeometryValues alignmentValues =
+                assertInstanceOf(PropertyValueConstraint.AlignmentGeometryValues.class,
+                        alignment.constraints().getFirst());
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                BigDecimal.ONE.negate(), BigDecimal.ONE)));
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                BigDecimal.ONE, BigDecimal.ONE.negate())));
+
+        Map<String, List<String>> enumValues = Map.of(
+                "textDirection", List.of("rtl", "ltr"),
+                "fit", List.of("loose", "expand", "passthrough"),
+                "clipBehavior", List.of(
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"));
+        Map<String, String> enumTypes = Map.of(
+                "textDirection", "TextDirection",
+                "fit", "StackFit",
+                "clipBehavior", "Clip");
+        int order = 1;
+        for (Map.Entry<String, List<String>> entry : enumValues.entrySet().stream()
+                .sorted(java.util.Comparator.comparingInt(value -> switch (value.getKey()) {
+                    case "textDirection" -> 1;
+                    case "fit" -> 2;
+                    case "clipBehavior" -> 3;
+                    default -> throw new AssertionError(value.getKey());
+                })).toList()) {
+            PropertyDefinition property = stack.property(new PropertyName(entry.getKey()))
+                    .orElseThrow();
+            assertEquals(DartParameter.named(order++, false), property.parameter());
+            assertEquals(Set.of(PropertyValueKind.ENUM), property.acceptedKinds());
+            assertTrue(property.creationDefault().isEmpty());
+            PropertyValueConstraint.EnumValues values = assertInstanceOf(
+                    PropertyValueConstraint.EnumValues.class,
+                    property.constraints().getFirst());
+            assertEquals(new DartSymbolReference(
+                    WIDGETS_IMPORT, enumTypes.get(entry.getKey())), values.dartType());
+            assertEquals(entry.getValue(), values.values());
+            for (String value : entry.getValue()) {
+                assertTrue(values.accepts(new PropertyValue.EnumValue(
+                        enumTypes.get(entry.getKey()), value)), entry.getKey() + '.' + value);
+            }
+        }
+
+        SlotDefinition children = stack.slot(new SlotName("children")).orElseThrow();
+        assertEquals(DartParameter.named(4, false), children.parameter());
+        assertEquals(SlotCardinality.LIST, children.cardinality());
+        assertEquals(0, children.minChildren());
+        assertEquals(10_000, children.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, children.acceptance());
+        assertTrue(children.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(children.acceptance().accepts(stack));
     }
 
     @Test

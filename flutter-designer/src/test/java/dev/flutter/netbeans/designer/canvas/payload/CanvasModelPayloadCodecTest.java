@@ -87,6 +87,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.Stack",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -96,7 +97,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactFifteenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactSixteenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -126,6 +127,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Align\""));
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.FractionallySizedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Stack\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
@@ -140,6 +142,11 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"basis\":\"physical\",\"horizontal\":-0.5,"));
         assertTrue(json.contains("\"widthFactor\":{\"kind\":\"double\",\"value\":0.625}"));
         assertTrue(json.contains("\"heightFactor\":{\"kind\":\"integer\",\"value\":2}"));
+        assertTrue(json.contains("\"basis\":\"physical\",\"horizontal\":0.125,"));
+        assertTrue(json.contains("\"fit\":{\"kind\":\"enum\","
+                + "\"type\":\"StackFit\",\"value\":\"passthrough\"}"));
+        assertTrue(json.contains("\"clipBehavior\":{\"kind\":\"enum\","
+                + "\"type\":\"Clip\",\"value\":\"antiAliasWithSaveLayer\"}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -601,6 +608,25 @@ class CanvasModelPayloadCodecTest {
                         new PropertyName("heightFactor"),
                                 new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+        WidgetNode stack = new WidgetNode(
+                id("447f1126-7b29-40c6-8595-7ae6c182bc06"),
+                type("flutter.widgets.Stack"),
+                Map.of(
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.PHYSICAL,
+                                        new BigDecimal("0.125"),
+                                        new BigDecimal("-0.875")),
+                        new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue("TextDirection", "ltr"),
+                        new PropertyName("fit"),
+                                new PropertyValue.EnumValue("StackFit", "passthrough"),
+                        new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "Clip", "antiAliasWithSaveLayer")),
+                Map.of(new SlotName("children"),
+                        new WidgetSlot.ListSlot(List.of(fractional))));
         WidgetNode align = new WidgetNode(
                 id("9c39207e-e9a0-438a-8350-d71474977bd2"),
                 type("flutter.widgets.Align"),
@@ -615,7 +641,7 @@ class CanvasModelPayloadCodecTest {
                                 new PropertyValue.IntegerValue(BigInteger.ZERO),
                         new PropertyName("heightFactor"),
                                 new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(fractional)));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(stack)));
         WidgetNode opacity = new WidgetNode(
                 id("c061d779-a0a3-46fb-9b0e-7b22397b51d2"),
                 type("flutter.widgets.Opacity"),

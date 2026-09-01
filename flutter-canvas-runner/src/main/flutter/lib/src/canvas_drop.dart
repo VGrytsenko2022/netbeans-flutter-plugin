@@ -170,6 +170,12 @@ const canvasChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   maximumChildren: 10000,
 );
 
+const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
+  slotName: 'children',
+  maximumChildren: 10000,
+  zonePlacement: CanvasDropZonePlacement.fullNode,
+);
+
 const canvasEmptyChildDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'child',
 );
@@ -242,6 +248,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       ],
       'flutter.widgets.Column' ||
       'flutter.widgets.Row' => const [canvasChildrenAppendDropSlot],
+      'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Center' ||

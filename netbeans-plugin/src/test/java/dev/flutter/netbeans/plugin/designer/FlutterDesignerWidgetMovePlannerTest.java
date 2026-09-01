@@ -48,6 +48,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -105,6 +106,45 @@ class FlutterDesignerWidgetMovePlannerTest {
                 () -> assertEquals(nestedText,
                         ((WidgetSlot.SingleSlot) source.slots().get(CHILD))
                                 .child().orElseThrow()));
+    }
+
+    @Test
+    void onStackAppendsTheCompleteSubtreeAtTheFrontPaintLayer() {
+        WidgetNode nestedText = validText(D_ID, "nested");
+        WidgetNode source = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(nestedText)));
+        WidgetNode stack = listParent(
+                B_ID,
+                STACK,
+                CHILDREN,
+                List.of(validText(C_ID, "existing back layer")));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.On(B_ID));
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(result);
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(B_ID, CHILDREN, 1)),
+                accepted.command(),
+                "Stack On-drop must append after the current front layer");
+        assertAcceptedCommandApplies(
+                document,
+                BUILT_INS,
+                source,
+                result);
     }
 
     @Test

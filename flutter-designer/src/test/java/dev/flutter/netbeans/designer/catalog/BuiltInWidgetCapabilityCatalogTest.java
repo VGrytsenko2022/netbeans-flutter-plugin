@@ -35,6 +35,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Opacity",
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
+            "flutter.widgets.Stack",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -52,6 +53,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Opacity",
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
+            "flutter.widgets.Stack",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -64,7 +66,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFifteenSourcesAndNineteenDestinations() {
+    void exactDndCapabilityMatrixHasSixteenSourcesAndTwentyDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -84,11 +86,19 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(15, sources.size());
-        assertEquals(19, destinations.size());
-        assertEquals(285, candidates);
-        assertEquals(257, accepted);
-        assertEquals(28, candidates - accepted);
+        assertEquals(16, sources.size());
+        assertEquals(20, destinations.size());
+        assertEquals(18, destinations.stream()
+                .filter(destination -> destination.acceptance()
+                        instanceof SlotAcceptance.AnyWidget)
+                .count());
+        assertEquals(2, destinations.stream()
+                .filter(destination -> destination.acceptance()
+                        instanceof SlotAcceptance.HasTrait)
+                .count());
+        assertEquals(320, candidates);
+        assertEquals(290, accepted);
+        assertEquals(30, candidates - accepted);
     }
 
     @Test
@@ -302,6 +312,63 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),
                 projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void stackHasTheExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Stack");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("alignment"),
+                        new PropertyName("textDirection"),
+                        new PropertyName("fit"),
+                        new PropertyName("clipBehavior")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("children")), projection.slots());
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertTrue(alignment.numericBounds().isEmpty());
+
+        String widgetsLibrary =
+                "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA";
+        Map<String, String> enumFingerprints = Map.of(
+                "textDirection", "enum:" + widgetsLibrary
+                        + ":TextDirection:ltr,rtl",
+                "fit", "enum:" + widgetsLibrary
+                        + ":StackFit:expand,loose,passthrough",
+                "clipBehavior", "enum:" + widgetsLibrary
+                        + ":Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none");
+        for (Map.Entry<String, String> entry : enumFingerprints.entrySet()) {
+            var property = projection.propertyContracts().get(
+                    new PropertyName(entry.getKey()));
+            assertFalse(property.required(), entry.getKey());
+            assertEquals(Set.of(PropertyValueKind.ENUM),
+                    property.acceptedKinds(), entry.getKey());
+            assertTrue(property.creationDefaultFingerprint().isEmpty(), entry.getKey());
+            assertTrue(property.numericBounds().isEmpty(), entry.getKey());
+            assertEquals(entry.getValue(), property.constraintFingerprints()
+                    .get(PropertyValueKind.ENUM), entry.getKey());
+        }
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10_000),
+                projection.slotContracts().get(new SlotName("children")));
     }
 
     @Test
@@ -582,6 +649,20 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "double:range:0:1:*:1;"
                 + "integer:range:0:1:9007199254740991:1\n"
                 + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Stack\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|clipBehavior|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|fit|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "StackFit:expand,loose,passthrough\n"
+                + "P|textDirection|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "TextDirection:ltr,rtl\n"
+                + "S|children|list|0|0|10000|any\n"));
     }
 
     @Test

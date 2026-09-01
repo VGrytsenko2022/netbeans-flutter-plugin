@@ -36,6 +36,7 @@ public final class BuiltInWidgetCatalog {
             opacity(),
             align(),
             fractionallySizedBox(),
+            stack(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -671,6 +672,40 @@ public final class BuiltInWidgetCatalog {
                                 false,
                                 nonNegativeNumbers())),
                 List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition stack() {
+        return widget(
+                "flutter.widgets.Stack",
+                "Stack",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 110, "Stack"),
+                List.of(
+                        namedProperty(
+                                "alignment",
+                                0,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "textDirection",
+                                1,
+                                false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty(
+                                "fit",
+                                2,
+                                false,
+                                enumValues("StackFit", "loose", "expand", "passthrough")),
+                        namedProperty(
+                                "clipBehavior",
+                                3,
+                                false,
+                                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                        "antiAliasWithSaveLayer"))),
+                List.of(listSlot("children", 4, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

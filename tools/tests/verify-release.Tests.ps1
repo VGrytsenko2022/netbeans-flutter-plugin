@@ -43,12 +43,13 @@ function New-ReleaseFixture {
         [string]$Root,
         [string]$Category = 'Flutter',
         [switch]$OptionalSdkSkip,
+        [switch]$OptionalMaterialIconPreviewSkip,
         [switch]$OptionalWebCanvasSkip,
         [switch]$OptionalPlatformSkip,
         [switch]$UnexpectedSkip,
         [switch]$UnexpectedSdkMethodSkip,
         [switch]$UnexpectedWebCanvasMethodSkip,
-        [switch]$PassingCanvasSdkGates,
+        [switch]$PassingRequiredSdkCases,
         [switch]$PassingWebCanvasGates,
         [switch]$InstalledUserdir,
         [switch]$CriticalLog,
@@ -145,6 +146,20 @@ function New-ReleaseFixture {
 </testsuite>
 "@
     }
+    if ($OptionalSdkSkip -or $OptionalMaterialIconPreviewSkip) {
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest"
+           tests="1" failures="0" errors="0" skipped="1">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested">
+    <skipped message="material.icon.preview.flutter.sdk was not configured"/>
+  </testcase>
+</testsuite>
+"@
+    }
     if ($OptionalPlatformSkip) {
         Write-Utf8File (Join-Path $Root `
             'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\FlutterDesignerPairCopyTest.java') `
@@ -231,7 +246,7 @@ $testCases
 "@
         }
     }
-    if ($PassingCanvasSdkGates) {
+    if ($PassingRequiredSdkCases) {
         Write-Utf8File (Join-Path $Root `
             'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
             'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
@@ -240,6 +255,16 @@ $testCases
 <testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="0">
   <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested"/>
+</testsuite>
+"@
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
+            'package dev.flutter.netbeans.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
+        Write-Utf8File (Join-Path $Root `
+            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
+<testsuite name="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest"
+           tests="1" failures="0" errors="0" skipped="0">
+  <testcase classname="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested"/>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
@@ -597,17 +622,33 @@ Describe 'verify-release.ps1' {
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional SDK skips'
         $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest'
+        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
         $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT'
         $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.DartEditorEndToEndIT'
         $required.ExitCode | Should Be 1
         $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set'
         $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
         $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+    }
+
+    It 'allows the exact Material icon preview SDK skip by default and rejects it in strict SDK mode' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive `
+            'optional-material-icon-preview') -OptionalMaterialIconPreviewSkip
+
+        $allowed = Invoke-ReleaseVerifier $fixture
+        $required = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
+
+        $allowed.ExitCode | Should Be 0
+        $allowed.Text | Should Match 'Allowed optional SDK skips: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
+        $required.ExitCode | Should Be 1
+        $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
     }
 
     It 'classifies only exact optional Web Canvas cases under an independent strict gate' {
         $fixture = New-ReleaseFixture (Join-Path $TestDrive 'optional-web-canvas') `
-            -OptionalWebCanvasSkip -PassingCanvasSdkGates
+            -OptionalWebCanvasSkip -PassingRequiredSdkCases
 
         $allowed = Invoke-ReleaseVerifier $fixture
         $sdkRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
@@ -665,7 +706,7 @@ Describe 'verify-release.ps1' {
 
     It 'classifies Pair Copy read-only probes as platform-dependent rather than SDK-backed' {
         $fixture = New-ReleaseFixture (Join-Path $TestDrive 'optional-platform') `
-            -OptionalPlatformSkip -PassingCanvasSdkGates
+            -OptionalPlatformSkip -PassingRequiredSdkCases
 
         $allowed = Invoke-ReleaseVerifier $fixture
         $sdkRequired = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
@@ -702,13 +743,17 @@ Describe 'verify-release.ps1' {
         $result.Text | Should Match "Unexpected skipped test class 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest' \(test 'someUnrelatedTest'\)"
     }
 
-    It 'requires both exact Canvas SDK gate cases in strict SDK mode' {
-        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'missing-canvas-sdk-gates')
+    It 'requires every exact SDK gate case report in strict SDK mode' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'missing-sdk-gates')
 
         $result = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
 
         $result.ExitCode | Should Be 1
+        ([regex]::Matches($result.Text,
+                'Required optional SDK test case report is missing:').Count) |
+            Should Be 3
         $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
         $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
     }
 

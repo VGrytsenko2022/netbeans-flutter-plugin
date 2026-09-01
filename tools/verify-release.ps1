@@ -41,6 +41,7 @@ $OptionalSdkTestClasses = @(
 )
 $OptionalSdkTestCases = @(
     'dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested',
+    'dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested',
     'dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
 )
 $OptionalWebCanvasTestCases = @(

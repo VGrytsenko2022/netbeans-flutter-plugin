@@ -40,17 +40,19 @@ pwsh -NoProfile -File tools/verify-release.ps1 `
 ```
 
 Require the optional real Flutter, Dart, and Android SDK tests to have run
-instead of being skipped. This includes the packaged Canvas runner build smoke
-(`CanvasRunnerBuildServiceTest`, configured with
-`-Dcanvas.runner.flutter.sdk=<Flutter SDK root>`), the assembled-NetBeans Dart
-editor E2E test (configured with `dart.executable`), and the physical Windows
-Canvas acceptance (`FlutterDesignerNativeCanvasWindowsIT`, configured with
-`-Dcanvas.runner.acceptance.flutter.sdk=<Flutter SDK root>`). The physical gate
-also requires a Windows desktop host; without either prerequisite its report is
-skipped and strict SDK verification fails:
+instead of being skipped. This includes Flutter project creation, real Dart
+analysis and assembled-NetBeans editor E2E, Android AVD discovery, the pinned
+Material icon font preview, the packaged Canvas runner build smoke, and the
+physical Windows Canvas acceptance. The physical gate also requires a Windows
+desktop host; without either prerequisite its report is skipped and strict SDK
+verification fails:
 
 ```powershell
 mvn clean install `
+  "-Dflutter.it.sdk=<Flutter SDK root>" `
+  "-Ddart.executable=<absolute path to Dart executable>" `
+  "-Dandroid.sdk.integration=<Android SDK root>" `
+  "-Dmaterial.icon.preview.flutter.sdk=<Flutter SDK root>" `
   "-Dcanvas.runner.flutter.sdk=<Flutter SDK root>" `
   "-Dcanvas.runner.acceptance.flutter.sdk=<Flutter SDK root>" `
   "-Dnetbeans.runtime.it.fork.timeout.seconds=900"
@@ -59,8 +61,9 @@ pwsh -NoProfile -File tools/verify-release.ps1 -RequireOptionalSdkTests
 ```
 
 The SDK properties belong to the Maven run that produces the XML reports. The
-verifier is read-only and validates both that the two Canvas gate cases are
-present in those reports and that no SDK-gated case skipped.
+verifier is read-only and validates that the two Canvas gate cases and the
+pinned Material icon font case are present in those reports, and that no
+SDK-gated case skipped.
 
 Web Canvas prerequisites are classified independently from the general SDK and
 filesystem probes. By default their exact known skips are reported but allowed.

@@ -74,6 +74,13 @@ import org.openide.windows.CloneableTopComponent;
  * and must
  * observe the real AWT HWND, isolated runner process and FLUTTERVIEW child.</p>
  *
+ * <p>The harness does not treat programmatic {@code requestActive()} as physical
+ * foreground authority. After the first frame is rendered it resolves and
+ * raises the exact assembled-runtime root HWND without activating it, establishes
+ * Swing focus with a real {@link Robot} click, and only then clicks the Canvas
+ * surface. Production must continue to refuse focus while an unrelated process
+ * owns the foreground window.</p>
+ *
  * <p>This scope proves live divider-resize convergence, two-view isolation,
  * exact native attachment/DPR/DPI-awareness facts, one tab peer-loss
  * teardown/recreation cycle, two simultaneous production Split Document Design
@@ -83,7 +90,8 @@ import org.openide.windows.CloneableTopComponent;
  * transition still requires a physical second monitor with a different scale;
  * this gate records the exact current HWND DPI but deliberately does not
  * synthesize {@code WM_DPICHANGED}. It also makes no claim about IME
- * composition, native menus or unbounded heavyweight peer-recreation
+ * composition, broader native menu/popup paths beyond the accepted Preview
+ * selector and Window → Services menu, or unbounded heavyweight peer-recreation
  * patterns outside the accepted tab and Split Document matrix.</p>
  */
 final class FlutterDesignerNativeCanvasWindowsIT {
@@ -181,6 +189,20 @@ final class FlutterDesignerNativeCanvasWindowsIT {
         private static final Duration STOP_TIMEOUT = Duration.ofSeconds(20);
         private static final Duration FOCUS_STABILITY_WINDOW =
                 Duration.ofMillis(750);
+        private static final int GA_ROOT = 2;
+        private static final int SWP_NOSIZE = 0x0001;
+        private static final int SWP_NOMOVE = 0x0002;
+        private static final int SWP_NOACTIVATE = 0x0010;
+        private static final int SWP_NOOWNERZORDER = 0x0200;
+        private static final int SWP_ASYNCWINDOWPOS = 0x4000;
+        private static final int TEST_ROOT_Z_ORDER_FLAGS = SWP_NOSIZE
+                | SWP_NOMOVE
+                | SWP_NOACTIVATE
+                | SWP_NOOWNERZORDER
+                | SWP_ASYNCWINDOWPOS;
+        private static final String ACCEPTED_MAIN_MENU = "Window";
+        private static final String ACCEPTED_MAIN_MENU_ITEM = "Services";
+        private static final int MAIN_MENU_CANVAS_OVERLAP_PIXELS = 32;
 
         private ClassLoader loader;
         private Object nativeApi;
@@ -190,8 +212,14 @@ final class FlutterDesignerNativeCanvasWindowsIT {
         private Method nativeWindowDpi;
         private Method nativeForegroundFocusedWindow;
         private Constructor<?> jnaPointerConstructor;
+        private Constructor<?> jnaPointByValueConstructor;
+        private Method jnaPointerNativeValue;
         private Object getWindowDpiAwarenessContext;
         private Object getAwarenessFromDpiAwarenessContext;
+        private Object getAncestorFunction;
+        private Object isIconicFunction;
+        private Object setWindowPosFunction;
+        private Object windowFromPointFunction;
         private Method jnaInvokePointer;
         private Method jnaInvokeInt;
 
@@ -227,6 +255,8 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 assertNativeIdentity("first Design MultiView", firstIdentity);
                 assertExactSurfaceMetrics(
                         "first Design MultiView", firstIdentity, first.surfaceMetrics());
+                first.establishTestedIdeForeground(firstIdentity);
+                first.clickCanvas();
                 awaitRunnerFocused(first, firstIdentity);
                 assertFocusRoundTrip(first, firstIdentity);
                 assertPreviewPopupRoundTrip(first, firstIdentity);
@@ -645,11 +675,31 @@ final class FlutterDesignerNativeCanvasWindowsIT {
         private void assertNetBeansMainMenuPopupRoundTrip(
                 NativeView view,
                 NativeIdentity identity) throws Exception {
-            NativeSurfaceMetrics before = view.surfaceMetrics();
             assertSameNativeGeneration(
                     view.label() + " changed native generation before main-menu popup",
                     identity,
                     view.identity());
+
+            NativeSurfaceMetrics beforeLayout = view.surfaceMetrics();
+            if (view.prepareMainMenuPopupOverlap()) {
+                await(view.label() + " main-menu overlap layout did not converge; "
+                                + view.diagnostic(identity),
+                        STOP_TIMEOUT,
+                        () -> exactResizedSurfaceReady(
+                                view, identity, beforeLayout));
+            }
+            view.clickCanvas();
+            awaitRunnerFocused(view, identity);
+            await(view.label() + " did not restore exact FLUTTERVIEW focus after "
+                            + "main-menu overlap preparation; "
+                            + view.focusDiagnostic(),
+                    STOP_TIMEOUT,
+                    () -> view.exactFlutterViewPhysicallyFocused(identity));
+            NativeSurfaceMetrics before = view.surfaceMetrics();
+            assertExactSurfaceMetrics(
+                    view.label() + " before main-menu popup",
+                    identity,
+                    before);
 
             MainMenuPopup popup = view.openOverlappingMainMenuPopup();
             Rectangle canvasBounds = view.surfaceScreenBounds();
@@ -1223,6 +1273,8 @@ final class FlutterDesignerNativeCanvasWindowsIT {
             Class<?> nativeLibraryType = loader.loadClass("com.sun.jna.NativeLibrary");
             Class<?> functionType = loader.loadClass("com.sun.jna.Function");
             Class<?> pointerType = loader.loadClass("com.sun.jna.Pointer");
+            Class<?> pointByValueType = loader.loadClass(
+                    "com.sun.jna.platform.win32.WinDef$POINT$ByValue");
             Object user32 = nativeLibraryType
                     .getMethod("getInstance", String.class, ClassLoader.class)
                     .invoke(null, "user32", loader);
@@ -1237,7 +1289,19 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                     user32,
                     "GetAwarenessFromDpiAwarenessContext",
                     alternateConvention);
+            getAncestorFunction = getFunction.invoke(
+                    user32, "GetAncestor", alternateConvention);
+            isIconicFunction = getFunction.invoke(
+                    user32, "IsIconic", alternateConvention);
+            setWindowPosFunction = getFunction.invoke(
+                    user32, "SetWindowPos", alternateConvention);
+            windowFromPointFunction = getFunction.invoke(
+                    user32, "WindowFromPoint", alternateConvention);
             jnaPointerConstructor = pointerType.getConstructor(long.class);
+            jnaPointByValueConstructor = pointByValueType.getConstructor(
+                    int.class, int.class);
+            jnaPointerNativeValue = pointerType.getMethod(
+                    "nativeValue", pointerType);
             jnaInvokePointer = functionType.getMethod("invokePointer", Object[].class);
             jnaInvokeInt = functionType.getMethod("invokeInt", Object[].class);
         }
@@ -1310,6 +1374,98 @@ final class FlutterDesignerNativeCanvasWindowsIT {
             } catch (ReflectiveOperationException failure) {
                 throw new AssertionError(
                         "Cannot query actual DPI-awareness for Win32 HWND " + window,
+                        failure);
+            }
+        }
+
+        private long rootWindow(long window) {
+            try {
+                Object hwnd = jnaPointerConstructor.newInstance(window);
+                Object root = jnaInvokePointer.invoke(
+                        getAncestorFunction,
+                        (Object) new Object[] {hwnd, GA_ROOT});
+                return nativePointerValue(root);
+            } catch (InvocationTargetException failure) {
+                throw new AssertionError(
+                        "Cannot query GA_ROOT for Win32 HWND " + window,
+                        failure.getCause());
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(
+                        "Cannot query GA_ROOT for Win32 HWND " + window,
+                        failure);
+            }
+        }
+
+        private boolean isIconic(long window) {
+            try {
+                Object hwnd = jnaPointerConstructor.newInstance(window);
+                int result = (int) jnaInvokeInt.invoke(
+                        isIconicFunction,
+                        (Object) new Object[] {hwnd});
+                return result != 0;
+            } catch (InvocationTargetException failure) {
+                throw new AssertionError(
+                        "Cannot query minimized state for root HWND " + window,
+                        failure.getCause());
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(
+                        "Cannot query minimized state for root HWND " + window,
+                        failure);
+            }
+        }
+
+        private long windowAtPoint(Point point) {
+            try {
+                Object nativePoint = jnaPointByValueConstructor.newInstance(
+                        point.x, point.y);
+                Object window = jnaInvokePointer.invoke(
+                        windowFromPointFunction,
+                        (Object) new Object[] {nativePoint});
+                return nativePointerValue(window);
+            } catch (InvocationTargetException failure) {
+                throw new AssertionError(
+                        "Cannot hit-test Win32 screen point " + point,
+                        failure.getCause());
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(
+                        "Cannot hit-test Win32 screen point " + point,
+                        failure);
+            }
+        }
+
+        private long nativePointerValue(Object pointer)
+                throws ReflectiveOperationException {
+            if (pointer == null) {
+                return 0L;
+            }
+            return ((Number) jnaPointerNativeValue.invoke(null, pointer))
+                    .longValue();
+        }
+
+        private boolean raiseRootWindowWithoutActivation(long window) {
+            try {
+                Object hwnd = jnaPointerConstructor.newInstance(window);
+                int result = (int) jnaInvokeInt.invoke(
+                        setWindowPosFunction,
+                        (Object) new Object[] {
+                            hwnd,
+                            null, // HWND_TOP
+                            0,
+                            0,
+                            0,
+                            0,
+                            TEST_ROOT_Z_ORDER_FLAGS
+                        });
+                return result != 0;
+            } catch (InvocationTargetException failure) {
+                throw new AssertionError(
+                        "Cannot raise root HWND " + window
+                                + " without activation through SetWindowPos",
+                        failure.getCause());
+            } catch (ReflectiveOperationException failure) {
+                throw new AssertionError(
+                        "Cannot raise root HWND " + window
+                                + " without activation through SetWindowPos",
                         failure);
             }
         }
@@ -1458,18 +1614,18 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                     component.getHeight());
         }
 
-        private static int mainMenuPriority(String label) {
-            String normalized = label == null ? "" : label.replace("&", "").trim();
-            if ("Window".equalsIgnoreCase(normalized)) {
-                return 0;
-            }
-            if ("Flutter".equalsIgnoreCase(normalized)) {
-                return 1;
-            }
-            if ("Tools".equalsIgnoreCase(normalized)) {
-                return 2;
-            }
-            return 3;
+        private static boolean physicallyOverlaps(
+                Rectangle first,
+                Rectangle second) {
+            Rectangle overlap = first.intersection(second);
+            return overlap.width > 0 && overlap.height > 0;
+        }
+
+        private static boolean menuLabelEquals(String expected, String actual) {
+            String normalized = actual == null
+                    ? ""
+                    : actual.replace("&", "").trim();
+            return expected.equalsIgnoreCase(normalized);
         }
 
         private static JSplitPane findResizeSplit(Component host) {
@@ -1812,42 +1968,127 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 }
             }
 
+            private boolean prepareMainMenuPopupOverlap() throws Exception {
+                JMenu menu = acceptedMainMenu();
+                clickMainMenu(menu);
+                assertTrue(label + " NetBeans " + ACCEPTED_MAIN_MENU
+                                + " menu did not open for overlap layout preparation",
+                        waitUntil(Duration.ofSeconds(3),
+                                () -> mainMenuPopupShowing(menu)));
+
+                MainMenuGeometry geometry = mainMenuGeometry(menu);
+                Rectangle canvasBounds = surfaceScreenBounds();
+                dismissMainMenuPopup();
+                assertTrue(label + " could not close " + ACCEPTED_MAIN_MENU
+                                + " menu after overlap layout preparation",
+                        waitUntil(Duration.ofSeconds(3),
+                                () -> !mainMenuPopupShowing(menu)));
+
+                int requiredOverlap = Math.min(
+                        MAIN_MENU_CANVAS_OVERLAP_PIXELS,
+                        geometry.itemBounds().width);
+                Rectangle currentItemOverlap = geometry.itemBounds()
+                        .intersection(canvasBounds);
+                if (physicallyOverlaps(geometry.popupBounds(), canvasBounds)
+                        && currentItemOverlap.width >= requiredOverlap
+                        && currentItemOverlap.height > 0) {
+                    return false;
+                }
+
+                int verticalOverlap = Math.min(
+                        geometry.itemBounds().y + geometry.itemBounds().height,
+                        canvasBounds.y + canvasBounds.height)
+                        - Math.max(geometry.itemBounds().y, canvasBounds.y);
+                assertTrue(label + " NetBeans " + ACCEPTED_MAIN_MENU + " → "
+                                + ACCEPTED_MAIN_MENU_ITEM
+                                + " cannot overlap the Canvas vertically; item="
+                                + geometry.itemBounds() + ", Canvas=" + canvasBounds,
+                        verticalOverlap > 0);
+
+                int desiredCanvasX = geometry.itemBounds().x
+                        + geometry.itemBounds().width
+                        - requiredOverlap;
+                int requiredShift = canvasBounds.x - desiredCanvasX;
+                assertTrue(label + " main-menu overlap requires moving the Canvas "
+                                + "right, which the production right-hand Canvas split "
+                                + "cannot provide; item=" + geometry.itemBounds()
+                                + ", Canvas=" + canvasBounds,
+                        requiredShift > 0);
+                shiftCanvasDividerLeft(requiredShift);
+                await(label + " could not prepare a deterministic "
+                                + MAIN_MENU_CANVAS_OVERLAP_PIXELS
+                                + "px overlap for NetBeans " + ACCEPTED_MAIN_MENU
+                                + " → " + ACCEPTED_MAIN_MENU_ITEM + "; item="
+                                + geometry.itemBounds(),
+                        STOP_TIMEOUT,
+                        () -> {
+                            try {
+                                Rectangle shiftedCanvas = surfaceScreenBounds();
+                                Rectangle shiftedItemOverlap = geometry.itemBounds()
+                                        .intersection(shiftedCanvas);
+                                return physicallyOverlaps(
+                                                geometry.popupBounds(), shiftedCanvas)
+                                        && shiftedItemOverlap.width >= requiredOverlap
+                                        && shiftedItemOverlap.height > 0;
+                            } catch (Exception transientState) {
+                                return false;
+                            }
+                        });
+                return true;
+            }
+
             private MainMenuPopup openOverlappingMainMenuPopup()
                     throws Exception {
                 Rectangle canvasBounds = surfaceScreenBounds();
-                List<JMenu> candidates = mainMenuCandidates();
-                assertFalse(label + " has no enabled production main menus",
-                        candidates.isEmpty());
-                List<String> diagnostics = new ArrayList<>();
-                for (JMenu menu : candidates) {
-                    String menuLabel = onEdtValue(() -> String.valueOf(menu.getText()));
-                    clickMainMenu(menu);
-                    if (!waitUntil(Duration.ofSeconds(3),
-                            () -> mainMenuPopupShowing(menu))) {
-                        diagnostics.add(menuLabel + "=<not shown>");
-                        dismissMainMenuPopup();
-                        continue;
-                    }
-                    Optional<MainMenuPopup> popup = overlappingMainMenuPopup(
-                            menu, menuLabel, canvasBounds);
-                    if (popup.isPresent()) {
-                        return popup.orElseThrow();
-                    }
-                    diagnostics.add(mainMenuPopupDiagnostic(menu, menuLabel));
+                JMenu menu = acceptedMainMenu();
+                clickMainMenu(menu);
+                assertTrue(label + " NetBeans " + ACCEPTED_MAIN_MENU
+                                + " menu did not open",
+                        waitUntil(Duration.ofSeconds(3),
+                                () -> mainMenuPopupShowing(menu)));
+                MainMenuGeometry geometry = mainMenuGeometry(menu);
+                Rectangle popupOverlap = geometry.popupBounds()
+                        .intersection(canvasBounds);
+                Rectangle itemOverlap = geometry.itemBounds()
+                        .intersection(canvasBounds);
+                if (popupOverlap.width <= 0 || popupOverlap.height <= 0
+                        || itemOverlap.width <= 0 || itemOverlap.height <= 0) {
+                    String diagnostic = mainMenuPopupDiagnostic(
+                            menu, ACCEPTED_MAIN_MENU);
                     dismissMainMenuPopup();
-                    if (!waitUntil(Duration.ofSeconds(3),
-                            () -> !mainMenuPopupShowing(menu))) {
-                        throw new AssertionError(label + " could not close non-overlapping "
-                                + menuLabel + " menu while probing production menus");
-                    }
+                    throw new AssertionError(label + " NetBeans "
+                            + ACCEPTED_MAIN_MENU + " → " + ACCEPTED_MAIN_MENU_ITEM
+                            + " did not physically overlap the embedded FlutterView "
+                            + "after deterministic layout preparation; Canvas="
+                            + canvasBounds + "; menu=" + diagnostic
+                            + "; item=" + geometry.itemBounds());
                 }
-                throw new AssertionError(label
-                        + " has no production main-menu item physically overlapping "
-                        + "the embedded FlutterView; Canvas=" + canvasBounds
-                        + "; menus=" + diagnostics);
+                Point target = new Point(
+                        itemOverlap.x + Math.max(0, itemOverlap.width / 2),
+                        itemOverlap.y + Math.max(0, itemOverlap.height / 2));
+                return onEdtValue(() -> {
+                    JPopupMenu popup = menu.getPopupMenu();
+                    JMenuItem item = acceptedMainMenuItem(popup);
+                    Window popupWindow = SwingUtilities.getWindowAncestor(popup);
+                    assertNotNull(label + " showing main-menu popup has no Window",
+                            popupWindow);
+                    Window mainWindow = SwingUtilities.getWindowAncestor(multiView);
+                    return new MainMenuPopup(
+                            menu,
+                            popup,
+                            item,
+                            ACCEPTED_MAIN_MENU,
+                            ACCEPTED_MAIN_MENU_ITEM,
+                            geometry.popupBounds(),
+                            geometry.itemBounds(),
+                            target,
+                            popupWindow.getClass().getName(),
+                            popupWindow != mainWindow,
+                            popup.isLightWeightPopupEnabled());
+                });
             }
 
-            private List<JMenu> mainMenuCandidates() throws Exception {
+            private JMenu acceptedMainMenu() throws Exception {
                 return onEdtValue(() -> {
                     Window mainWindow = SwingUtilities.getWindowAncestor(multiView);
                     assertNotNull(label + " Designer has no NetBeans main window",
@@ -1856,27 +2097,19 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                             mainWindow, JMenuBar.class);
                     assertNotNull(label + " NetBeans main window has no JMenuBar",
                             menuBar);
-                    List<JMenu> menus = new ArrayList<>();
                     for (int index = 0; index < menuBar.getMenuCount(); index++) {
                         JMenu menu = menuBar.getMenu(index);
                         if (menu != null
                                 && menu.isShowing()
                                 && menu.isVisible()
-                                && menu.isEnabled()) {
-                            menus.add(menu);
+                                && menu.isEnabled()
+                                && menuLabelEquals(
+                                        ACCEPTED_MAIN_MENU, menu.getText())) {
+                            return menu;
                         }
                     }
-                    menus.sort((left, right) -> {
-                        int priority = Integer.compare(
-                                mainMenuPriority(left.getText()),
-                                mainMenuPriority(right.getText()));
-                        if (priority != 0) {
-                            return priority;
-                        }
-                        return String.valueOf(left.getText()).compareToIgnoreCase(
-                                String.valueOf(right.getText()));
-                    });
-                    return List.copyOf(menus);
+                    throw new AssertionError(label + " has no enabled production "
+                            + ACCEPTED_MAIN_MENU + " menu");
                 });
             }
 
@@ -1904,54 +2137,57 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 }
             }
 
-            private Optional<MainMenuPopup> overlappingMainMenuPopup(
-                    JMenu menu,
-                    String menuLabel,
-                    Rectangle canvasBounds) throws Exception {
+            private MainMenuGeometry mainMenuGeometry(JMenu menu)
+                    throws Exception {
                 return onEdtValue(() -> {
                     JPopupMenu popup = menu.getPopupMenu();
-                    if (!popup.isShowing()) {
-                        return Optional.empty();
-                    }
-                    Rectangle popupBounds = componentScreenBounds(popup);
-                    Rectangle popupOverlap = popupBounds.intersection(canvasBounds);
-                    if (popupOverlap.width <= 0 || popupOverlap.height <= 0) {
-                        return Optional.empty();
-                    }
-                    for (Component component : popup.getComponents()) {
-                        if (!(component instanceof JMenuItem item)
-                                || component instanceof JMenu
-                                || !item.isShowing()
-                                || !item.isEnabled()) {
-                            continue;
-                        }
-                        Rectangle itemBounds = componentScreenBounds(item);
-                        Rectangle itemOverlap = itemBounds.intersection(canvasBounds);
-                        if (itemOverlap.width <= 0 || itemOverlap.height <= 0) {
-                            continue;
-                        }
-                        Point target = new Point(
-                                itemOverlap.x + Math.max(0, itemOverlap.width / 2),
-                                itemOverlap.y + Math.max(0, itemOverlap.height / 2));
-                        Window popupWindow = SwingUtilities.getWindowAncestor(popup);
-                        assertNotNull(label + " showing main-menu popup has no Window",
-                                popupWindow);
-                        Window mainWindow = SwingUtilities.getWindowAncestor(multiView);
-                        return Optional.of(new MainMenuPopup(
-                                menu,
-                                popup,
-                                item,
-                                menuLabel,
-                                String.valueOf(item.getText()),
-                                popupBounds,
-                                itemBounds,
-                                target,
-                                popupWindow.getClass().getName(),
-                                popupWindow != mainWindow,
-                                popup.isLightWeightPopupEnabled()));
-                    }
-                    return Optional.empty();
+                    assertTrue(label + " NetBeans " + ACCEPTED_MAIN_MENU
+                                    + " popup is not showing",
+                            popup.isShowing());
+                    JMenuItem item = acceptedMainMenuItem(popup);
+                    return new MainMenuGeometry(
+                            componentScreenBounds(popup),
+                            componentScreenBounds(item));
                 });
+            }
+
+            private JMenuItem acceptedMainMenuItem(JPopupMenu popup) {
+                for (Component component : popup.getComponents()) {
+                    if (component instanceof JMenuItem item
+                            && !(component instanceof JMenu)
+                            && item.isShowing()
+                            && item.isEnabled()
+                            && menuLabelEquals(
+                                    ACCEPTED_MAIN_MENU_ITEM, item.getText())) {
+                        return item;
+                    }
+                }
+                throw new AssertionError(label + " NetBeans "
+                        + ACCEPTED_MAIN_MENU + " menu has no enabled "
+                        + ACCEPTED_MAIN_MENU_ITEM + " item");
+            }
+
+            private void shiftCanvasDividerLeft(int requiredShift)
+                    throws Exception {
+                onEdt(() -> {
+                    assertTrue(label + " resize split is not showing",
+                            resizeSplit.isShowing());
+                    int current = resizeSplit.getDividerLocation();
+                    int minimum = resizeSplit.getMinimumDividerLocation();
+                    int availableShift = current - minimum;
+                    assertTrue(label + " production divider cannot shift the Canvas "
+                                    + requiredShift + "px left for main-menu overlap; "
+                                    + "available=" + availableShift + "px, divider="
+                                    + minimum + ".." + current,
+                            availableShift >= requiredShift);
+                    resizeSplit.setDividerLocation(current - requiredShift);
+                    resizeSplit.revalidate();
+                    Container top = resizeSplit.getTopLevelAncestor();
+                    if (top != null) {
+                        top.validate();
+                    }
+                });
+                drainEdt();
             }
 
             private String mainMenuPopupDiagnostic(
@@ -2114,8 +2350,222 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 }
             }
 
+            private void establishTestedIdeForeground(NativeIdentity identity)
+                    throws Exception {
+                onEdt(() -> {
+                    Window window = SwingUtilities.getWindowAncestor(
+                            netBeansFocusTarget);
+                    assertNotNull(label + " has no assembled-runtime top-level window",
+                            window);
+                    assertTrue(label + " assembled-runtime top-level window is not showing",
+                            window.isShowing());
+                });
+                drainEdt();
+
+                long expectedOwner = ProcessHandle.current().pid();
+                long targetOwner = ownerProcessId(identity.parentWindow());
+                assertEquals(label + " assembled-runtime parent HWND belongs to "
+                                + "another process",
+                        expectedOwner, targetOwner);
+
+                long rootWindow = NativeCanvasRuntimeCase.this
+                        .rootWindow(identity.parentWindow());
+                assertTrue(label + " GetAncestor(GA_ROOT) returned no HWND; "
+                                + "targetParentHwnd=" + identity.parentWindow(),
+                        rootWindow != 0L);
+                assertTrue(label + " assembled-runtime root HWND is not live; "
+                                + "targetParentHwnd=" + identity.parentWindow()
+                                + "; targetRootHwnd=" + rootWindow,
+                        isWindow(rootWindow));
+                long rootOwner = ownerProcessId(rootWindow);
+                assertEquals(label + " assembled-runtime root HWND belongs to "
+                                + "another process; targetParentHwnd="
+                                + identity.parentWindow() + "; targetRootHwnd="
+                                + rootWindow,
+                        expectedOwner, rootOwner);
+                assertFalse(label + " assembled-runtime root HWND is minimized; "
+                                + "targetRootHwnd=" + rootWindow,
+                        NativeCanvasRuntimeCase.this.isIconic(rootWindow));
+
+                long initialForegroundWindow = NativeCanvasRuntimeCase.this
+                        .foregroundFocusedWindow();
+                long initialForegroundOwner = initialForegroundWindow == 0L
+                        ? 0L
+                        : ownerProcessId(initialForegroundWindow);
+                boolean startedBehindUnrelatedProcess =
+                        initialForegroundOwner != targetOwner
+                        && initialForegroundOwner != identity.processId();
+                assertTrue(label + " could not raise the exact assembled-runtime "
+                                + "root HWND to HWND_TOP without activation; "
+                                + "targetParentHwnd=" + identity.parentWindow()
+                                + "; targetRootHwnd=" + rootWindow
+                                + "; targetOwnerPid=" + targetOwner
+                                + "; rootOwnerPid=" + rootOwner
+                                + "; initialForegroundHwnd="
+                                + initialForegroundWindow
+                                + "; initialForegroundOwnerPid="
+                                + initialForegroundOwner
+                                + "; runnerPid=" + identity.processId()
+                                + "; flutterViewHwnd="
+                                + identity.flutterViewWindow(),
+                        NativeCanvasRuntimeCase.this
+                                .raiseRootWindowWithoutActivation(rootWindow));
+                assertTrue(label + " assembled-runtime root HWND retired during "
+                                + "test-only z-order activation; targetRootHwnd="
+                                + rootWindow,
+                        isWindow(rootWindow));
+                assertEquals(label + " assembled-runtime root HWND changed owner "
+                                + "during test-only z-order activation; targetRootHwnd="
+                                + rootWindow,
+                        expectedOwner, ownerProcessId(rootWindow));
+                assertFalse(label + " assembled-runtime root HWND became minimized "
+                                + "during test-only z-order activation; targetRootHwnd="
+                                + rootWindow,
+                        NativeCanvasRuntimeCase.this.isIconic(rootWindow));
+                assertStagingDidNotActivateTarget(
+                        "immediately after SetWindowPos",
+                        identity,
+                        targetOwner,
+                        startedBehindUnrelatedProcess,
+                        initialForegroundWindow,
+                        initialForegroundOwner);
+
+                Point focusTarget = awaitSwingTargetExposed(
+                        rootWindow, targetOwner, identity);
+                assertStagingDidNotActivateTarget(
+                        "after HWND_TOP exposure and before Robot click",
+                        identity,
+                        targetOwner,
+                        startedBehindUnrelatedProcess,
+                        initialForegroundWindow,
+                        initialForegroundOwner);
+                lifecycleEvents.add("test-root-z-order(rootHwnd=" + rootWindow
+                        + ",targetPid=" + targetOwner
+                        + ",runnerPid=" + identity.processId()
+                        + ",flutterViewHwnd=" + identity.flutterViewWindow()
+                        + ",focusTarget=" + focusTarget
+                        + ",initialForegroundHwnd=" + initialForegroundWindow
+                        + ",initialForegroundOwnerPid=" + initialForegroundOwner
+                        + ")");
+
+                focusNetBeansControl(focusTarget);
+                await(label + " could not establish physical Swing focus before the "
+                                + "first Canvas click; targetParentHwnd="
+                                + identity.parentWindow() + "; targetRootHwnd="
+                                + rootWindow + "; targetOwnerPid=" + targetOwner
+                                + "; initialForegroundHwnd="
+                                + initialForegroundWindow
+                                + "; initialForegroundOwnerPid="
+                                + initialForegroundOwner + "; " + focusDiagnostic(),
+                        STOP_TIMEOUT,
+                        this::netBeansPhysicallyFocused);
+                long focusedWindow = NativeCanvasRuntimeCase.this
+                        .foregroundFocusedWindow();
+                long focusedOwner = focusedWindow == 0L
+                        ? 0L
+                        : ownerProcessId(focusedWindow);
+                assertEquals(label + " physical Swing click focused another process",
+                        targetOwner, focusedOwner);
+                lifecycleEvents.add("physical-foreground(targetPid=" + targetOwner
+                        + ",focusedHwnd=" + focusedWindow
+                        + ",rootHwnd=" + rootWindow + ")");
+            }
+
+            private void assertStagingDidNotActivateTarget(
+                    String phase,
+                    NativeIdentity identity,
+                    long targetOwner,
+                    boolean startedBehindUnrelatedProcess,
+                    long initialForegroundWindow,
+                    long initialForegroundOwner) {
+                if (!startedBehindUnrelatedProcess) {
+                    return;
+                }
+                long focusedWindow = NativeCanvasRuntimeCase.this
+                        .foregroundFocusedWindow();
+                long focusedOwner = focusedWindow == 0L
+                        ? 0L
+                        : ownerProcessId(focusedWindow);
+                assertTrue(label + " test-only HWND_TOP staging activated the "
+                                + "assembled runtime " + phase + "; targetOwnerPid="
+                                + targetOwner + "; runnerPid="
+                                + identity.processId() + "; flutterViewHwnd="
+                                + identity.flutterViewWindow()
+                                + "; initialForegroundHwnd="
+                                + initialForegroundWindow
+                                + "; initialForegroundOwnerPid="
+                                + initialForegroundOwner
+                                + "; currentForegroundHwnd=" + focusedWindow
+                                + "; currentForegroundOwnerPid=" + focusedOwner,
+                        focusedOwner != targetOwner
+                                && focusedOwner != identity.processId()
+                                && focusedWindow != identity.flutterViewWindow());
+            }
+
+            private Point awaitSwingTargetExposed(
+                    long expectedRoot,
+                    long expectedOwner,
+                    NativeIdentity identity) throws Exception {
+                long deadline = System.nanoTime() + STOP_TIMEOUT.toNanos();
+                NativeWindowHit lastHit = null;
+                Throwable lastFailure = null;
+                do {
+                    drainEdt();
+                    assertTrue(label + " assembled-runtime root HWND retired while "
+                                    + "waiting for HWND_TOP exposure; targetRootHwnd="
+                                    + expectedRoot,
+                            isWindow(expectedRoot));
+                    assertFalse(label + " assembled-runtime root HWND minimized while "
+                                    + "waiting for HWND_TOP exposure; targetRootHwnd="
+                                    + expectedRoot,
+                            NativeCanvasRuntimeCase.this.isIconic(expectedRoot));
+                    try {
+                        Point point = netBeansFocusTargetScreenPoint();
+                        long hitWindow = NativeCanvasRuntimeCase.this
+                                .windowAtPoint(point);
+                        long hitRoot = hitWindow == 0L
+                                ? 0L
+                                : NativeCanvasRuntimeCase.this.rootWindow(hitWindow);
+                        long hitOwner = hitWindow == 0L
+                                ? 0L
+                                : ownerProcessId(hitWindow);
+                        lastHit = new NativeWindowHit(
+                                point, hitWindow, hitRoot, hitOwner);
+                        if (hitRoot == expectedRoot
+                                && hitOwner == expectedOwner) {
+                            return point;
+                        }
+                        lastFailure = null;
+                    } catch (Exception | AssertionError transientFailure) {
+                        lastFailure = transientFailure;
+                    }
+                    Thread.sleep(25);
+                } while (System.nanoTime() < deadline);
+
+                long focusedWindow = NativeCanvasRuntimeCase.this
+                        .foregroundFocusedWindow();
+                long focusedOwner = focusedWindow == 0L
+                        ? 0L
+                        : ownerProcessId(focusedWindow);
+                throw new AssertionError(label + " test-only HWND_TOP request did "
+                        + "not expose the exact Swing target before Robot click; "
+                        + "targetParentHwnd=" + identity.parentWindow()
+                        + "; targetRootHwnd=" + expectedRoot
+                        + "; targetOwnerPid=" + expectedOwner
+                        + "; runnerPid=" + identity.processId()
+                        + "; flutterViewHwnd=" + identity.flutterViewWindow()
+                        + "; currentForegroundHwnd=" + focusedWindow
+                        + "; currentForegroundOwnerPid=" + focusedOwner
+                        + "; lastHit=" + lastHit,
+                        lastFailure);
+            }
+
             private void focusNetBeansControl() throws Exception {
-                Point center = onEdtValue(() -> {
+                focusNetBeansControl(netBeansFocusTargetScreenPoint());
+            }
+
+            private Point netBeansFocusTargetScreenPoint() throws Exception {
+                return onEdtValue(() -> {
                     assertTrue(label + " widget tree focus target is not showing",
                             netBeansFocusTarget.isShowing());
                     Point location = netBeansFocusTarget.getLocationOnScreen();
@@ -2131,7 +2581,10 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                             y);
                     return location;
                 });
-                clickScreenPoint(center);
+            }
+
+            private void focusNetBeansControl(Point target) throws Exception {
+                clickScreenPoint(target);
                 drainEdt();
                 lifecycleEvents.add("swing-click(showing=" + multiView.isShowing()
                         + ",focused=" + netBeansControlFocused() + ")");
@@ -2342,6 +2795,18 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 String popupWindowClass,
                 boolean separatePopupWindow,
                 boolean lightWeightPopupEnabled) {
+        }
+
+        private record MainMenuGeometry(
+                Rectangle popupBounds,
+                Rectangle itemBounds) {
+        }
+
+        private record NativeWindowHit(
+                Point point,
+                long window,
+                long rootWindow,
+                long ownerProcessId) {
         }
 
         private record NativeIdentity(

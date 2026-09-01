@@ -538,8 +538,10 @@ accepted architecture is documented in
     Bound missing acknowledgements and fail closed to the retained Swing target;
     consume older cross-queue events without focus authority, revalidate exact
     HWND identity again after joining input queues and before `SetFocus`, and
-    accept the physical activation → Swing → Canvas → Swing focus round-trip by
-    foreground HWND/PID, stable beyond the complete retry window.
+    accept the physical Canvas click → Swing → Canvas click → Swing focus
+    round-trip by foreground HWND/PID, stable beyond the complete retry window.
+    Programmatic MultiView activation alone is not physical foreground authority
+    and must never steal focus from an unrelated process.
   - [x] Accept live resize through the assembled physical production-divider
     runtime gate: keep embedded bounds parent-owned, coalesce host resize bursts
     to the latest target without replacing the runner generation, require
@@ -837,9 +839,10 @@ accepted architecture is documented in
     `Undo B` returns to the clean savepoint with no `SaveCookie`.
   - [ ] Pass the remaining Windows interaction acceptance above independently
     of persistence: physical mixed-DPI movement, physical CJK IME and broader
-    native menu/popup paths beyond the accepted Preview selector. Two
-    simultaneous surfaces plus bounded tab and Split Document heavyweight-peer
-    teardown/recreation now pass the physical runtime gate.
+    native menu/popup paths beyond the accepted Preview selector and standard
+    **Window → Services** menu. Two simultaneous surfaces plus bounded tab and
+    Split Document heavyweight-peer teardown/recreation now pass the physical
+    runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Admit further built-ins only as complete vertical slices after the
   current pair-save/editor-operation regression is green and Palette-expansion

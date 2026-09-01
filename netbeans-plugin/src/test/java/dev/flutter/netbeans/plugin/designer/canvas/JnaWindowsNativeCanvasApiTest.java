@@ -146,6 +146,35 @@ class JnaWindowsNativeCanvasApiTest {
     }
 
     @Test
+    void foreignForegroundRefusalCanBeRetriedAfterJvmRegainsAuthority() {
+        FocusNativeState state = new FocusNativeState();
+        state.focusedWindow = 40L;
+        state.otherFocusProcessId = 99L;
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(0, state.setFocusCalls);
+        assertTrue(state.inputAttachmentEdges.isEmpty());
+
+        // A later real user activation moves foreground focus into the JVM.
+        // Only that new physical authority may make the retained request safe.
+        state.focusedWindow = 10L;
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.FOCUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(30L, state.focusedWindow);
+        assertEquals(1, state.setFocusCalls);
+        assertEquals(List.of(
+                "11->33:true",
+                "11->22:true",
+                "11->22:false",
+                "11->33:false"), state.inputAttachmentEdges);
+    }
+
+    @Test
     void foreignForegroundDriftDuringQueueJoinDoesNotReceiveSetFocus() {
         FocusNativeState state = new FocusNativeState();
         state.moveFocusToForeignAfterParentAttach = true;

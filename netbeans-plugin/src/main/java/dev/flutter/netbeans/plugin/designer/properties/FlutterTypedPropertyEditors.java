@@ -342,7 +342,9 @@ final class FlutterTypedPropertyEditors {
         @Override
         public final boolean isPaintable() {
             return binding.editorKind() == EditorKind.COLOR
-                    || binding.editorKind() == EditorKind.THEME_COLOR;
+                    || binding.editorKind() == EditorKind.THEME_COLOR
+                    || FlutterPropertyValuePreview.isPaintable(
+                            binding.editorKind());
         }
 
         @Override
@@ -350,6 +352,10 @@ final class FlutterTypedPropertyEditors {
             if (binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR) {
                 FlutterPropertyEditorComponents.paintColorValue(
+                        graphics, box, cellValue());
+            } else if (FlutterPropertyValuePreview.isPaintable(
+                    binding.editorKind())) {
+                FlutterPropertyValuePreview.paintValue(
                         graphics, box, cellValue());
             } else {
                 super.paintValue(graphics, box);

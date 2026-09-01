@@ -6,6 +6,14 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- Typed `IconData` values now show the exact Material glyph beside their
+  readable `Icons.*` name in both the NetBeans Properties value cell and every
+  row of the searchable chooser. One shared UI renderer loads the pinned
+  `MaterialIcons-Regular.otf` asynchronously from the currently resolved
+  Flutter SDK, verifies its fixed normalized cache path, size and SHA-256 against the packaged Web
+  Canvas artifact manifest, and never falls back to a platform icon font.
+  Missing, linked, changed or mismatched font content produces a neutral vector
+  placeholder while the searchable text and accessibility labels remain usable.
 - The accepted Material `flutter.material.TextField` vertical slice is a const,
   leaf Palette definition named **Text Field** with 54 optional named constructor
   leaves and no creation dialog or stored creation defaults. Properties group the

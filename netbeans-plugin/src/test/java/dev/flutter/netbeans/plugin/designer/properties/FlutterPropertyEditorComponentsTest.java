@@ -1517,8 +1517,15 @@ class FlutterPropertyEditorComponentsTest {
             assertEquals("arrow_back", arrowBack.name());
             assertTrue(arrowBack.matchTextDirection());
             Component rendered = renderedListCell(results, arrowBack);
-            assertTrue(assertInstanceOf(javax.swing.JLabel.class, rendered)
-                    .getText().endsWith("RTL"));
+            javax.swing.JLabel renderedLabel = assertInstanceOf(
+                    javax.swing.JLabel.class, rendered);
+            assertTrue(renderedLabel.getText().endsWith("RTL"));
+            assertNotNull(renderedLabel.getIcon(),
+                    "every Material icon result must expose the shared preview");
+            assertEquals(FlutterPropertyValuePreview.MATERIAL_ICON_LIST_SIZE,
+                    renderedLabel.getIcon().getIconWidth());
+            assertEquals(FlutterPropertyValuePreview.MATERIAL_ICON_LIST_SIZE,
+                    renderedLabel.getIcon().getIconHeight());
             assertEquals(results.getModel().getSize()
                     + " results · 8,825 total · Flutter 3.44.8",
                     status.getText());

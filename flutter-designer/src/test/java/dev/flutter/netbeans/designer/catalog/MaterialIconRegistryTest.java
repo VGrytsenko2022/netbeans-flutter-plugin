@@ -47,6 +47,29 @@ class MaterialIconRegistryTest {
     }
 
     @Test
+    void findsTheCanonicalFirstNameForAnExactSerializedIconValue() {
+        MaterialIconRegistry registry = MaterialIconRegistry.bundled();
+        MaterialIconRegistry.MaterialIcon star =
+                registry.find("star").orElseThrow();
+
+        assertEquals(star,
+                registry.find(star.codePoint(), false).orElseThrow());
+        assertTrue(registry.find(star.codePoint(), true).isEmpty());
+        assertTrue(registry.find(-1, false).isEmpty());
+
+        MaterialIconRegistry aliases = MaterialIconRegistry.readForTesting(
+                stream(fixture(3, List.of(
+                        "alpha\te001\t0",
+                        "alpha_alias\te001\t0",
+                        "alpha_rtl\te001\t1"))),
+                3);
+        assertEquals("alpha", aliases.find(0xE001, false)
+                .orElseThrow().name());
+        assertEquals("alpha_rtl", aliases.find(0xE001, true)
+                .orElseThrow().name());
+    }
+
+    @Test
     void searchIsRankedDeterministicNormalizedAndBounded() {
         MaterialIconRegistry registry = MaterialIconRegistry.bundled();
 

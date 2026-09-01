@@ -2,6 +2,8 @@ package dev.flutter.netbeans.plugin.settings;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.BackingStoreException;
@@ -16,6 +18,8 @@ public final class FlutterSettings {
     private static final String KEY_DISCOVERY_VERSION = "sdk.discovery.version";
 
     private final Preferences preferences;
+    private final CopyOnWriteArrayList<Runnable> changeListeners =
+            new CopyOnWriteArrayList<>();
 
     public static FlutterSettings getDefault() {
         return DefaultHolder.INSTANCE;
@@ -32,15 +36,31 @@ public final class FlutterSettings {
                 preferences.get(KEY_DART_HOME, ""));
     }
 
-    public synchronized void save(FlutterToolchainConfig config) {
-        writeConfig(config);
-        flush();
+    public void save(FlutterToolchainConfig config) {
+        synchronized (this) {
+            writeConfig(config);
+            flush();
+        }
+        notifyChangeListeners();
     }
 
-    synchronized void saveDiscovered(FlutterToolchainConfig config, int discoveryVersion) {
-        writeConfig(config);
-        preferences.putInt(KEY_DISCOVERY_VERSION, discoveryVersion);
-        flush();
+    void saveDiscovered(FlutterToolchainConfig config, int discoveryVersion) {
+        synchronized (this) {
+            writeConfig(config);
+            preferences.putInt(KEY_DISCOVERY_VERSION, discoveryVersion);
+            flush();
+        }
+        notifyChangeListeners();
+    }
+
+    /** Registers a lightweight listener for persisted toolchain changes. */
+    public void addChangeListener(Runnable listener) {
+        changeListeners.addIfAbsent(Objects.requireNonNull(listener, "listener"));
+    }
+
+    /** Removes a listener previously registered with {@link #addChangeListener}. */
+    public void removeChangeListener(Runnable listener) {
+        changeListeners.remove(Objects.requireNonNull(listener, "listener"));
     }
 
     synchronized boolean hasDartModeSetting() {
@@ -91,6 +111,17 @@ public final class FlutterSettings {
             preferences.flush();
         } catch (BackingStoreException ex) {
             LOGGER.log(Level.WARNING, "Could not persist Flutter SDK settings", ex);
+        }
+    }
+
+    private void notifyChangeListeners() {
+        for (Runnable listener : changeListeners) {
+            try {
+                listener.run();
+            } catch (RuntimeException failure) {
+                LOGGER.log(Level.WARNING,
+                        "A Flutter toolchain settings listener failed", failure);
+            }
         }
     }
 

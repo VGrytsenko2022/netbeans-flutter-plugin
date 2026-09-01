@@ -59,7 +59,12 @@ exactly 617 typed writable rows: 600 across the eighteen
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
-bundled Material Icons locked to Flutter 3.44.8. Keep
+bundled Material Icons locked to Flutter 3.44.8. The Properties value and every
+search-result row include the real glyph preview beside the readable `Icons.*`
+name. Preview loading is asynchronous and accepts only the exact
+manifest-verified Material font in the currently resolved Flutter SDK; when that font
+is unavailable, a neutral placeholder is shown and the text selector remains
+fully usable. Keep
 `flutter.uses-material-design: true` in `pubspec.yaml` when using those Material
 glyphs. Omitted theme-backed properties inherit the active `IconTheme`, while
 `blendMode` and `fontWeight` remain local; the native Canvas previews the same

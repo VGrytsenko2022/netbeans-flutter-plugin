@@ -1519,7 +1519,14 @@ catalog lists; theme-aware colors choose literal ARGB or a reviewed
 Shadow/OpenType editors with Add/Remove/Up/Down controls. ElevatedButton adds
 strict callback-ID fields and the same typed state-aware color, numeric, enum,
 insets, typography and shape editors. Built-in Icon data uses
-the searchable reviewed Material registry plus an explicit **None** choice.
+the searchable reviewed Material registry plus an explicit **None** choice. A
+shared Swing preview paints the exact glyph beside its readable name in both
+the PropertySheet cell and chooser list. The font is loaded off the EDT only
+from the currently resolved Flutter SDK at its fixed normalized cache path after
+no-link, stable-byte,
+size and packaged-manifest SHA-256 verification; a platform font is never used
+as fallback, and unavailable bytes retain a neutral vector placeholder plus
+the complete textual/accessibility contract.
 Container adds the transactional alignment, constraints, matrix and tabbed
 decoration editors described above. Its accessible Image tab selects only the
 declared app/package inventory and exposes provider/exact scale, one resize,

@@ -1002,6 +1002,17 @@ Java capability fingerprint and independent
 Dart protocol-v6 decoder enforce exact property types, numeric bounds, defaults
 and leaf cardinality.
 
+The closed `IconData` editor also owns the visible selector preview contract.
+Its PropertySheet cell and chooser rows keep the readable `Icons.*` name and
+paint the exact private Material font glyph loaded asynchronously from the
+currently resolved SDK. This value preview is deliberately font-derived because
+the registry represents Flutter `IconData`, not a generic NetBeans action icon;
+the plugin neither registers the font globally nor substitutes a platform font.
+Only bytes at the fixed normalized SDK-cache path that match the packaged Web
+artifact size and SHA-256 contract are decoded. Missing, linked, changing or
+mismatched bytes fail closed to a neutral vector placeholder, and a persisted
+toolchain change invalidates an unavailable result without blocking the EDT.
+
 At the ADR-031 milestone the active surface contained exactly eight built-ins: `Scaffold`,
 `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text` and `Icon`. All eight
 are Create/Canvas/Palette-DnD sources; the seven non-`Scaffold` definitions are

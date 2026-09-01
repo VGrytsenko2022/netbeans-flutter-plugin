@@ -290,7 +290,11 @@ tags and `FontVariation` axes. The deprecated `Text.textScaleFactor` argument,
 remain outside this slice. `Icon` contributes its typed positional `icon`
 value plus all 12 supported named constructor properties. Its searchable
 bundled Material Icons catalog contains 8,825 entries locked to Flutter 3.44.8;
-the built-in chooser admits only **None** or one exact registry glyph. Generated
+the built-in chooser admits only **None** or one exact registry glyph. The
+Properties value cell and chooser rows display that glyph beside its readable
+name by asynchronously loading the exact manifest-verified Material font from
+the currently resolved Flutter SDK; there is no system-font fallback, and unavailable
+preview bytes leave the text selector usable with a neutral placeholder. Generated
 applications must keep `flutter.uses-material-design: true`
 so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`

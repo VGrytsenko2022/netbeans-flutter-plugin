@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import org.junit.jupiter.api.AfterEach;
@@ -64,5 +65,24 @@ class FlutterSettingsTest {
         FlutterToolchainConfig stored = settings.load();
         assertEquals(Path.of("..\\flutter sdk").toAbsolutePath().normalize().toString(), stored.flutterHome());
         assertEquals(Path.of("..\\dart sdk").toAbsolutePath().normalize().toString(), stored.dartHome());
+    }
+
+    @Test
+    void notifiesRegisteredListenersAfterPersistedToolchainChanges() {
+        AtomicInteger changes = new AtomicInteger();
+        Runnable listener = () -> {
+            assertFalse(Thread.holdsLock(settings),
+                    "toolchain listeners must run outside the settings monitor");
+            changes.incrementAndGet();
+        };
+        settings.addChangeListener(listener);
+
+        settings.save(new FlutterToolchainConfig("C:\\flutter", true, ""));
+        settings.saveDiscovered(
+                new FlutterToolchainConfig("C:\\detected", true, ""), 5);
+        settings.removeChangeListener(listener);
+        settings.save(new FlutterToolchainConfig("C:\\other", true, ""));
+
+        assertEquals(2, changes.get());
     }
 }

@@ -797,6 +797,7 @@ final class FlutterPropertyEditorComponents {
                 FlutterTypedPropertyEditors.Binding binding,
                 PropertyEnv environment) {
             super(editor, binding, environment);
+            FlutterPropertyValuePreview.refreshMaterialIconFont();
             setLayout(new BorderLayout(0, 8));
             setName("flutter.materialIcon.custom");
             setPreferredSize(new Dimension(620, 430));
@@ -837,7 +838,10 @@ final class FlutterPropertyEditorComponents {
                         boolean focused) {
                     super.getListCellRendererComponent(
                             list, value, index, selected, focused);
+                    setIcon(null);
                     if (value instanceof MaterialIconRegistry.MaterialIcon icon) {
+                        setIcon(FlutterPropertyValuePreview.materialIcon(icon));
+                        setIconTextGap(8);
                         setText(icon.displayLabel() + "   Icons." + icon.name()
                                 + "   U+%04X".formatted(icon.codePoint())
                                 + (icon.matchTextDirection() ? "   RTL" : ""));
@@ -874,7 +878,8 @@ final class FlutterPropertyEditorComponents {
                     setRegistryEnabled(false);
                     stageValid(FlutterPropertyCellValue.explicit(initial));
                 } else {
-                    MaterialIconRegistry.MaterialIcon selected = findExact(initial)
+                    MaterialIconRegistry.MaterialIcon selected =
+                            FlutterPropertyValuePreview.findExactMaterialIcon(initial)
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "The current IconData is not in the bundled Material registry."));
                     search.setText(selected.name());
@@ -969,21 +974,6 @@ final class FlutterPropertyEditorComponents {
             status.getAccessibleContext().setAccessibleName(
                     "Material icon search status: " + summary);
             status.getAccessibleContext().setAccessibleDescription(summary);
-        }
-
-        private static Optional<MaterialIconRegistry.MaterialIcon> findExact(
-                PropertyValue.IconDataValue value) {
-            if (!value.fontFamily().equals(Optional.of(
-                    REGISTRY.metadata().fontFamily()))
-                    || value.fontPackage().isPresent()
-                    || !value.fontFamilyFallback().isEmpty()) {
-                return Optional.empty();
-            }
-            int codePoint = value.codePoint().orElse(-1);
-            return REGISTRY.entries().stream().filter(candidate ->
-                    candidate.codePoint() == codePoint
-                    && candidate.matchTextDirection()
-                    == value.matchTextDirection()).findFirst();
         }
 
         private static PropertyValue.IconDataValue toValue(

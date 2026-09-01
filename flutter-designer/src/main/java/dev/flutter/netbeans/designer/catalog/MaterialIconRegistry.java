@@ -59,6 +59,7 @@ public final class MaterialIconRegistry {
     private final SourceMetadata metadata;
     private final List<MaterialIcon> entries;
     private final Map<String, MaterialIcon> byName;
+    private final Map<Long, MaterialIcon> byCodePointAndDirection;
 
     private MaterialIconRegistry(
             SourceMetadata metadata,
@@ -67,6 +68,12 @@ public final class MaterialIconRegistry {
         this.metadata = metadata;
         this.entries = List.copyOf(entries);
         this.byName = Collections.unmodifiableMap(new LinkedHashMap<>(byName));
+        LinkedHashMap<Long, MaterialIcon> values = new LinkedHashMap<>();
+        for (MaterialIcon icon : entries) {
+            values.putIfAbsent(valueKey(
+                    icon.codePoint(), icon.matchTextDirection()), icon);
+        }
+        this.byCodePointAndDirection = Collections.unmodifiableMap(values);
     }
 
     /** Returns the lazily loaded, strictly validated bundled registry. */
@@ -86,6 +93,16 @@ public final class MaterialIconRegistry {
     public Optional<MaterialIcon> find(String name) {
         Objects.requireNonNull(name, "name");
         return Optional.ofNullable(byName.get(name));
+    }
+
+    /** Finds the canonical first icon for one exact serialized IconData value. */
+    public Optional<MaterialIcon> find(
+            int codePoint, boolean matchTextDirection) {
+        if (!Character.isValidCodePoint(codePoint)) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(byCodePointAndDirection.get(
+                valueKey(codePoint, matchTextDirection)));
     }
 
     /**
@@ -333,6 +350,10 @@ public final class MaterialIconRegistry {
             }
         }
         return normalized.toString();
+    }
+
+    private static long valueKey(int codePoint, boolean matchTextDirection) {
+        return ((long) codePoint << 1) | (matchTextDirection ? 1L : 0L);
     }
 
     private static int matchRank(String name, String query) {

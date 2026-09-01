@@ -141,10 +141,8 @@ public final class PropertyValueFormatter {
                 && value.fontPackage().isEmpty()
                 && value.fontFamilyFallback().isEmpty()) {
             int codePoint = value.codePoint().orElseThrow();
-            return MaterialIconRegistry.bundled().entries().stream()
-                    .filter(icon -> icon.codePoint() == codePoint
-                    && icon.matchTextDirection() == value.matchTextDirection())
-                    .findFirst()
+            return MaterialIconRegistry.bundled()
+                    .find(codePoint, value.matchTextDirection())
                     .map(icon -> "Icons." + icon.name()
                     + " (U+%04X)".formatted(codePoint))
                     .orElseGet(() -> "IconData(U+%04X, MaterialIcons)"

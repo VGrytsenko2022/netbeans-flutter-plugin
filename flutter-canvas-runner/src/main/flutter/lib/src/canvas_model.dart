@@ -3606,6 +3606,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.FractionallySizedBox': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'widthFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'heightFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.AspectRatio': _WidgetSpec(
     {
       'aspectRatio': _PropertySpec(
@@ -4456,6 +4470,11 @@ P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDire
 P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1|any
+W|flutter.widgets.FractionallySizedBox
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
 W|flutter.widgets.Icon
 P|applyTextScaling|boolean|0|-|-|boolean:any

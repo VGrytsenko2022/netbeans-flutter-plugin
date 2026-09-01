@@ -220,6 +220,41 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void fractionallySizedBoxFamilyUsesExactReviewedFractionGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "fractionallysizedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=6, rx=1, stroke-width=1, width=7, x=3.5, y=4.5]",
+                "path[d=M3.5 12.5h7M3.5 11.7v1.6M10.5 11.7v1.6M12.5 4.5v6M11.7 4.5h1.6M11.7 10.5h1.6, stroke-linecap=round, stroke-width=1]",
+                "path[d=M5.2 7.5h3.6M5.2 7.5l1-1M5.2 7.5l1 1M8.8 7.5l-1-1M8.8 7.5l-1 1, stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=12, rx=2, stroke-width=2, width=14, x=7, y=9]",
+                "path[d=M7 25h14M7 23.4v3.2M21 23.4v3.2M25 9v12M23.4 9h3.2M23.4 21h3.2, stroke-linecap=round, stroke-width=2]",
+                "path[d=M10.4 15h7.2M10.4 15l2-2M10.4 15l2 2M17.6 15l-2-2M17.6 15l-2 2, stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#1565C0]",
+                "path[fill=none, stroke=#26C6DA]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#29B6F6]",
+                "path[fill=none, stroke=#80DEEA]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void opacityFamilyUsesExactReviewedTransparencyGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "opacity.svg";
@@ -407,6 +442,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Container", ICON_ROOT + "container.svg");
         expected.put("flutter.widgets.Opacity", ICON_ROOT + "opacity.svg");
         expected.put("flutter.widgets.Align", ICON_ROOT + "align.svg");
+        expected.put("flutter.widgets.FractionallySizedBox",
+                ICON_ROOT + "fractionallysizedbox.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

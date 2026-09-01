@@ -511,6 +511,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
+        (node.type == 'flutter.widgets.FractionallySizedBox' &&
+            ((node.slot('child')?.children.isEmpty ?? true) ||
+                node.properties['widthFactor']?.value == 0 ||
+                node.properties['heightFactor']?.value == 0)) ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1769,6 +1773,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.Container' => _container(context),
+      'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
       'flutter.widgets.Opacity' => _opacity(),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
@@ -3000,6 +3005,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   );
 
   Widget _align() => Align(
+    alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+    widthFactor: _number('widthFactor'),
+    heightFactor: _number('heightFactor'),
+    child: _single('child'),
+  );
+
+  Widget _fractionallySizedBox() => FractionallySizedBox(
     alignment: _alignmentGeometry('alignment') ?? Alignment.center,
     widthFactor: _number('widthFactor'),
     heightFactor: _number('heightFactor'),

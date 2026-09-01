@@ -467,6 +467,96 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void fractionallySizedBoxEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.FractionallySizedBox"))
+                        .orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside fraction")));
+        DesignerCommandSession aligned = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE)));
+        DesignerCommandSession widthSet = applied(aligned, new SetProperty(
+                WRAPPER_ID,
+                WIDTH_FACTOR,
+                new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        DesignerCommandSession heightSet = applied(widthSet, new SetProperty(
+                WRAPPER_ID,
+                HEIGHT_FACTOR,
+                new PropertyValue.DoubleValue(new BigDecimal("1.25"))));
+
+        assertRejected(heightSet, new SetProperty(
+                WRAPPER_ID,
+                WIDTH_FACTOR,
+                new PropertyValue.IntegerValue(BigInteger.ONE.negate())),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(heightSet, new SetProperty(
+                WRAPPER_ID,
+                HEIGHT_FACTOR,
+                new PropertyValue.DoubleValue(new BigDecimal("-0.001"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(heightSet, new ResetProperty(
+                WRAPPER_ID, WIDTH_FACTOR));
+        WidgetNode finalBox = find(reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE),
+                finalBox.properties().get(ALIGNMENT));
+        assertFalse(finalBox.properties().containsKey(WIDTH_FACTOR));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("1.25")),
+                finalBox.properties().get(HEIGHT_FACTOR));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const FractionallySizedBox("), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(-1.0, 1.0)"), dart);
+        assertFalse(dart.contains("widthFactor:"), dart);
+        assertTrue(dart.contains("heightFactor: 1.25"), dart);
+        assertTrue(dart.contains("child: const Text('Inside fraction')"), dart);
+
+        DesignerCommandSession widthRestored = reset.undo().session();
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                find(widthRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(WIDTH_FACTOR));
+        DesignerCommandSession resetRedone = widthRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
     void patchPropertiesAtomicallyTransitionsContainerBackgroundAndClip()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

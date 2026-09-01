@@ -86,6 +86,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Container",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
+                "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -95,7 +96,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactFourteenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactFifteenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -123,6 +124,8 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.AspectRatio\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Opacity\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Align\""));
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.FractionallySizedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
@@ -134,6 +137,9 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"));
         assertTrue(json.contains("\"widthFactor\":{\"kind\":\"integer\",\"value\":0}"));
         assertTrue(json.contains("\"heightFactor\":{\"kind\":\"double\",\"value\":1.5}"));
+        assertTrue(json.contains("\"basis\":\"physical\",\"horizontal\":-0.5,"));
+        assertTrue(json.contains("\"widthFactor\":{\"kind\":\"double\",\"value\":0.625}"));
+        assertTrue(json.contains("\"heightFactor\":{\"kind\":\"integer\",\"value\":2}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -580,6 +586,21 @@ class CanvasModelPayloadCodecTest {
                 Map.of(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
                         "4508c721-215c-4059-be29-3e38fd02b411", "World"))));
+        WidgetNode fractional = new WidgetNode(
+                id("c7068cbf-70b6-439d-a25e-d70eec7fc942"),
+                type("flutter.widgets.FractionallySizedBox"),
+                Map.of(
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.PHYSICAL,
+                                        new BigDecimal("-0.5"),
+                                        new BigDecimal("0.75")),
+                        new PropertyName("widthFactor"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.625")),
+                        new PropertyName("heightFactor"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
         WidgetNode align = new WidgetNode(
                 id("9c39207e-e9a0-438a-8350-d71474977bd2"),
                 type("flutter.widgets.Align"),
@@ -594,7 +615,7 @@ class CanvasModelPayloadCodecTest {
                                 new PropertyValue.IntegerValue(BigInteger.ZERO),
                         new PropertyName("heightFactor"),
                                 new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(fractional)));
         WidgetNode opacity = new WidgetNode(
                 id("c061d779-a0a3-46fb-9b0e-7b22397b51d2"),
                 type("flutter.widgets.Opacity"),

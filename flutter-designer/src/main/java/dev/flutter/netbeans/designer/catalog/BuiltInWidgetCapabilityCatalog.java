@@ -151,7 +151,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.AspectRatio", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Container", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Opacity", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Align", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Align", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.FractionallySizedBox", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -260,6 +261,21 @@ public final class BuiltInWidgetCapabilityCatalog {
                     property("alwaysIncludeSemantics", PropertyValueKind.BOOLEAN)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Align", projection(Map.ofEntries(
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    numericProperty(
+                            "widthFactor",
+                            NON_NEGATIVE_NUMBER_BOUNDS,
+                            PropertyValueKind.INTEGER,
+                            PropertyValueKind.DOUBLE),
+                    numericProperty(
+                            "heightFactor",
+                            NON_NEGATIVE_NUMBER_BOUNDS,
+                            PropertyValueKind.INTEGER,
+                            PropertyValueKind.DOUBLE)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.FractionallySizedBox", projection(Map.ofEntries(
                     Map.entry("alignment", constrainedSchema(
                             PropertyValueKind.ALIGNMENT_GEOMETRY,
                             "alignmentGeometry")),

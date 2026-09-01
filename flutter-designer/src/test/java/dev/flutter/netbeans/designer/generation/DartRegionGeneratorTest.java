@@ -775,6 +775,93 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsFractionallySizedBoxInPinnedSdkOrderWithPhysicalAlignmentAndChild() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.FractionallySizedBox"),
+                Map.of(
+                        property("alignment"), alignment(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                "0.5", "-0.25"),
+                        property("widthFactor"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                        property("heightFactor"),
+                                new PropertyValue.DoubleValue(new BigDecimal("1.25"))),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const FractionallySizedBox(
+                      alignment: const Alignment(0.5, -0.25),
+                      widthFactor: 0,
+                      heightFactor: 1.25,
+                      child: const Text('Inside'),
+                    );
+                  }
+                """, generated.build().payload());
+    }
+
+    @Test
+    void emitsDirectionalFractionallySizedBoxWithoutMaterializingFrameworkDefaults() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.FractionallySizedBox"),
+                Map.of(property("alignment"), alignment(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        "-1", "1")),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const FractionallySizedBox(
+                      alignment: const AlignmentDirectional(-1.0, 1.0),
+                      child: null,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
+    void emitsNewFractionallySizedBoxPrototypeAsDefaultPreservingConstWidget() {
+        WidgetNode root = WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault()
+                        .find(new WidgetTypeId("flutter.widgets.FractionallySizedBox"))
+                        .orElseThrow(),
+                StableId.random());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const FractionallySizedBox(
+                      child: null,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
     void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
         PropertyValue.AlignmentGeometryValue begin = alignment(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,

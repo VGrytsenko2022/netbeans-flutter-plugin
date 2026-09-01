@@ -540,6 +540,146 @@ void main() {
     );
   });
 
+  test(
+    'decodes the exact optional FractionallySizedBox contract and child slot',
+    () {
+      Map<String, Object?> model({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '2276af62-761d-43b2-95c5-47da42403bb7',
+          'flutter.widgets.FractionallySizedBox',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final child = _node(
+        'ab1460a1-0659-4793-b42f-14e0f4f07059',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Fractional child'},
+        },
+      );
+      final decoded = _decode(
+        model(
+          properties: {
+            'alignment': _canvasAlignment(
+              basis: 'directional',
+              horizontal: 2.25,
+              vertical: -1.5,
+            ),
+            'widthFactor': {'kind': 'integer', 'value': 0},
+            'heightFactor': {'kind': 'double', 'value': 2.5},
+          },
+          slots: {'child': _single(child)},
+        ),
+      ).root;
+
+      expect(decoded.type, 'flutter.widgets.FractionallySizedBox');
+      expect(decoded.properties.keys, const [
+        'alignment',
+        'widthFactor',
+        'heightFactor',
+      ]);
+      final alignment =
+          decoded.properties['alignment']!.value
+              as CanvasAlignmentGeometryValue;
+      expect(alignment.basis, 'directional');
+      expect(alignment.horizontal, 2.25);
+      expect(alignment.vertical, -1.5);
+      expect(decoded.properties['widthFactor']!.value, 0);
+      expect(decoded.properties['heightFactor']!.value, 2.5);
+      expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+      final omitted = _decode(model()).root;
+      expect(omitted.properties, isEmpty);
+      expect(omitted.slot('child'), isNull);
+
+      final explicitEmpty = _decode(
+        model(slots: {'child': _single(null)}),
+      ).root;
+      expect(explicitEmpty.slot('child')!.child, isNull);
+
+      final physical = _decode(
+        model(
+          properties: {
+            'alignment': _canvasAlignment(horizontal: -3, vertical: 4),
+            'widthFactor': {'kind': 'double', 'value': 0.0},
+            'heightFactor': {'kind': 'integer', 'value': 1},
+          },
+        ),
+      ).root;
+      final physicalAlignment =
+          physical.properties['alignment']!.value
+              as CanvasAlignmentGeometryValue;
+      expect(physicalAlignment.basis, 'physical');
+      expect(physicalAlignment.horizontal, -3);
+      expect(physicalAlignment.vertical, 4);
+    },
+  );
+
+  test('rejects values outside the FractionallySizedBox projection', () {
+    Map<String, Object?> model(Map<String, Object?> properties) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '2276af62-761d-43b2-95c5-47da42403bb7',
+        'flutter.widgets.FractionallySizedBox',
+        properties: properties,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'widthFactor': {'kind': 'integer', 'value': -1},
+      },
+      const {
+        'heightFactor': {'kind': 'double', 'value': -0.0001},
+      },
+      const {
+        'widthFactor': {'kind': 'boolean', 'value': true},
+      },
+      const {
+        'alignment': {'kind': 'string', 'value': 'center'},
+      },
+      {'alignment': _canvasAlignment(basis: 'fractional')},
+      const {
+        'unknown': {'kind': 'integer', 'value': 0},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+  });
+
+  test('FractionallySizedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.FractionallySizedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.FractionallySizedBox\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|heightFactor|double,integer|0|-|'
+      'double:0:1:*:1;integer:0:1:9007199254740991:1|'
+      'double:range:0:1:*:1;integer:range:0:1:9007199254740991:1\n'
+      'P|widthFactor|double,integer|0|-|'
+      'double:0:1:*:1;integer:0:1:9007199254740991:1|'
+      'double:range:0:1:*:1;integer:range:0:1:9007199254740991:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes the exact AspectRatio contract and optional child slot', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,
@@ -1321,7 +1461,10 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    final end = contract.indexOf(
+      'W|flutter.widgets.FractionallySizedBox\n',
+      start,
+    );
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

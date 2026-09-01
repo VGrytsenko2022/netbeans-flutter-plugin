@@ -90,6 +90,10 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Container'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.FractionallySizedBox'),
+      const [canvasEmptyChildDropSlot],
+    );
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -113,7 +117,7 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 14-source by 18-destination compatibility matrix', () {
+  test('closes the 15-source by 19-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -125,6 +129,7 @@ void main() {
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
       'flutter.widgets.Container',
+      'flutter.widgets.FractionallySizedBox',
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.SizedBox',
@@ -134,8 +139,8 @@ void main() {
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(14));
-    expect(destinations, hasLength(18));
+    expect(sourceTypes, hasLength(15));
+    expect(destinations, hasLength(19));
 
     var accepted = 0;
     var rejected = 0;
@@ -153,9 +158,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 226);
-    expect(rejected, 26);
-    expect(accepted + rejected, 252);
+    expect(accepted, 257);
+    expect(rejected, 28);
+    expect(accepted + rejected, 285);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -1836,6 +1841,230 @@ void main() {
       expect(align.child, isNotNull);
       expect(align.widthFactor, 0);
       expect(align.heightFactor, 1);
+    },
+  );
+
+  testWidgets(
+    'renders real FractionallySizedBox constraints, overflow, and alignment',
+    (tester) async {
+      const widgetId = '403df8b2-b244-4e7c-9ff1-29ba070206b6';
+      final fixedChild = <String, Object?>{
+        'id': '941b5560-c22e-4c5d-8180-e2985e4123a7',
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{
+          'width': {'kind': 'integer', 'value': 40},
+          'height': {'kind': 'integer', 'value': 20},
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      };
+
+      Finder widgetFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(FractionallySizedBox),
+          )
+          .first;
+
+      Future<RenderFractionallySizedOverflowBox> pump(
+        Map<String, Object?> properties,
+      ) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredFractionallySizedBox(
+                  properties: properties,
+                  child: fixedChild,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderFractionallySizedOverflowBox>(
+          widgetFinder(),
+        );
+      }
+
+      final omitted = await pump(const {});
+      final omittedWidget = tester.widget<FractionallySizedBox>(widgetFinder());
+      expect(omittedWidget.alignment, Alignment.center);
+      expect(omittedWidget.widthFactor, isNull);
+      expect(omittedWidget.heightFactor, isNull);
+      expect(omitted.size, const Size(200, 100));
+      expect(omitted.child!.size, const Size(200, 100));
+      expect((omitted.child!.parentData! as BoxParentData).offset, Offset.zero);
+
+      final fractional = await pump({
+        'widthFactor': {'kind': 'double', 'value': 0.5},
+        'heightFactor': {'kind': 'double', 'value': 0.25},
+      });
+      expect(fractional.size, const Size(200, 100));
+      expect(fractional.child!.size, const Size(100, 25));
+      expect(
+        (fractional.child!.parentData! as BoxParentData).offset,
+        const Offset(50, 37.5),
+      );
+
+      final overflow = await pump({
+        'widthFactor': {'kind': 'double', 'value': 1.5},
+        'heightFactor': {'kind': 'integer', 'value': 2},
+      });
+      expect(overflow.size, const Size(200, 100));
+      expect(overflow.child!.size, const Size(300, 200));
+      expect(
+        (overflow.child!.parentData! as BoxParentData).offset,
+        const Offset(-50, -50),
+      );
+
+      final extrapolated = await pump({
+        'alignment': _viewAlignment(horizontal: 2, vertical: -2),
+        'widthFactor': {'kind': 'double', 'value': 0.5},
+        'heightFactor': {'kind': 'double', 'value': 0.25},
+      });
+      final explicitWidget = tester.widget<FractionallySizedBox>(
+        widgetFinder(),
+      );
+      expect(explicitWidget.alignment, const Alignment(2, -2));
+      expect(explicitWidget.widthFactor, 0.5);
+      expect(explicitWidget.heightFactor, 0.25);
+      expect(
+        (extrapolated.child!.parentData! as BoxParentData).offset,
+        const Offset(150, -37.5),
+      );
+      expect(find.byType(Align), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'resolves FractionallySizedBox directional start in LTR and RTL',
+    (tester) async {
+      const widgetId = '403df8b2-b244-4e7c-9ff1-29ba070206b6';
+      final child = <String, Object?>{
+        'id': '941b5560-c22e-4c5d-8180-e2985e4123a7',
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{},
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      };
+
+      Future<({Offset offset, double remainingWidth, TextDirection direction})>
+      render(String locale) async {
+        final json = _modelWithCenteredFractionallySizedBox(
+          properties: {
+            'alignment': _viewAlignment(
+              basis: 'directional',
+              horizontal: -1,
+              vertical: 0,
+            ),
+            'widthFactor': {'kind': 'double', 'value': 0.5},
+            'heightFactor': {'kind': 'double', 'value': 0.5},
+          },
+          child: child,
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = locale;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final node = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+        final finder = find
+            .descendant(of: node, matching: find.byType(FractionallySizedBox))
+            .first;
+        final widget = tester.widget<FractionallySizedBox>(finder);
+        expect(widget.alignment, const AlignmentDirectional(-1, 0));
+        final render = tester.renderObject<RenderFractionallySizedOverflowBox>(
+          finder,
+        );
+        return (
+          offset: (render.child!.parentData! as BoxParentData).offset,
+          remainingWidth: render.size.width - render.child!.size.width,
+          direction: render.textDirection!,
+        );
+      }
+
+      final ltr = await render('en-US');
+      expect(ltr.direction, TextDirection.ltr);
+      expect(ltr.offset.dx, 0);
+      expect(ltr.offset.dy, 25);
+
+      final rtl = await render('ar-SA');
+      expect(rtl.direction, TextDirection.rtl);
+      expect(rtl.remainingWidth, 100);
+      expect(rtl.offset.dx, rtl.remainingWidth);
+      expect(rtl.offset.dy, 25);
+    },
+  );
+
+  testWidgets(
+    'keeps zero-size FractionallySizedBox selectable and exposes child DnD',
+    (tester) async {
+      const widgetId = '403df8b2-b244-4e7c-9ff1-29ba070206b6';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredFractionallySizedBox(
+                properties: const {},
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
     },
   );
 
@@ -4563,6 +4792,50 @@ Map<String, Object?> _modelWithCenteredAlign({
           },
         },
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredFractionallySizedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final fractionallySizedBox = <String, Object?>{
+    'id': '403df8b2-b244-4e7c-9ff1-29ba070206b6',
+    'type': 'flutter.widgets.FractionallySizedBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': 'd4401632-faf9-4765-9165-61de3e851ea6',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 200},
+            'height': {'kind': 'integer', 'value': 100},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{
+              'kind': 'single',
+              'child': fractionallySizedBox,
+            },
+          },
+        }
+      : fractionallySizedBox;
+  body['child'] = <String, Object?>{
+    'id': '5e5dadcf-d272-45d9-aec8-295ac4afc7f0',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
     },
   };
   return model;

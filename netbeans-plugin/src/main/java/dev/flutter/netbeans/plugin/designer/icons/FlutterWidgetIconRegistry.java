@@ -28,6 +28,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Padding", ICON_ROOT + "padding.svg"),
             Map.entry("flutter.widgets.Center", ICON_ROOT + "center.svg"),
             Map.entry("flutter.widgets.Align", ICON_ROOT + "align.svg"),
+            Map.entry("flutter.widgets.FractionallySizedBox",
+                    ICON_ROOT + "fractionallysizedbox.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),

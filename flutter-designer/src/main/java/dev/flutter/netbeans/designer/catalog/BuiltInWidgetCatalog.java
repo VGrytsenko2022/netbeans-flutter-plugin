@@ -35,6 +35,7 @@ public final class BuiltInWidgetCatalog {
             container(),
             opacity(),
             align(),
+            fractionallySizedBox(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -625,6 +626,34 @@ public final class BuiltInWidgetCatalog {
                 List.of(WIDGETS_IMPORT),
                 Set.of(),
                 palette("flutter.layout", 200, 90, "Align"),
+                List.of(
+                        namedProperty(
+                                "alignment",
+                                0,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "widthFactor",
+                                1,
+                                false,
+                                nonNegativeNumbers()),
+                        namedProperty(
+                                "heightFactor",
+                                2,
+                                false,
+                                nonNegativeNumbers())),
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition fractionallySizedBox() {
+        return widget(
+                "flutter.widgets.FractionallySizedBox",
+                "FractionallySizedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 100, "FractionallySizedBox"),
                 List.of(
                         namedProperty(
                                 "alignment",

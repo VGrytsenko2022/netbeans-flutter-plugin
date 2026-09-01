@@ -48,7 +48,8 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
             "flutter.widgets.Opacity",
-            "flutter.widgets.Align");
+            "flutter.widgets.Align",
+            "flutter.widgets.FractionallySizedBox");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -65,7 +66,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"), itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity", "Align"),
+                "Container", "Opacity", "Align", "FractionallySizedBox"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
@@ -88,7 +89,7 @@ class FlutterDesignerPaletteTest {
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity", "Align"),
+                "Container", "Opacity", "Align", "FractionallySizedBox"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
@@ -190,6 +191,31 @@ class FlutterDesignerPaletteTest {
                 node.getLookup().lookup(FlutterDesignerPaletteItem.class));
         assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
         assertEquals("Align", node.getDisplayName());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void fractionallySizedBoxPaletteSelectionExposesReviewedMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.FractionallySizedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        100,
+                        "FractionallySizedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("FractionallySizedBox", node.getDisplayName());
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
@@ -467,7 +493,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void fourteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fifteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -486,7 +512,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(14, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(15, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

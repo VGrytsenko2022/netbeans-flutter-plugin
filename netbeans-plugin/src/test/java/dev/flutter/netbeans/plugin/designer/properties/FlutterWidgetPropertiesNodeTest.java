@@ -411,6 +411,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Container",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
+                "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -442,9 +443,10 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(533, writableCount,
+        assertEquals(536, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
-                + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, and Align leaves");
+                + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, Align, "
+                + "and FractionallySizedBox leaves");
     }
 
     @Test
@@ -813,6 +815,101 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(child.getShortDescription().contains("LTR/RTL")),
                 () -> assertTrue(child.getShortDescription().contains("not from the theme")),
                 () -> assertTrue(child.getShortDescription().contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void fractionallySizedBoxProjectsIncomingFractionsAlignmentAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.FractionallySizedBox");
+        StableId id = StableId.parse("7d783649-ab39-4daa-8ba3-29a7fbc7d0a0");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("alignment", "widthFactor", "heightFactor"),
+                names(properties.getProperties()));
+        assertAll(
+                () -> assertTrue(properties.getShortDescription()
+                        .contains("Incoming-size fractions")),
+                () -> assertTrue(properties.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(properties.getShortDescription()
+                        .contains("not from the theme")));
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("1.5"),
+                        new BigDecimal("-2"));
+        assertAll(
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("defaults to center")),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("outside -1 through 1")),
+                () -> assertTrue(alignment.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(alignment.supportsDefaultValue()));
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        assertEquals(List.of(new SetProperty(
+                id, new PropertyName("alignment"), directional)), commands);
+
+        Node.Property<FlutterPropertyCellValue> width = cellProperty(
+                property(node, "widthFactor"));
+        Node.Property<FlutterPropertyCellValue> height = cellProperty(
+                property(node, "heightFactor"));
+        assertAll(
+                () -> assertTrue(width.getShortDescription()
+                        .contains("bounded incoming maximum width")),
+                () -> assertTrue(width.getShortDescription()
+                        .contains("tight child width")),
+                () -> assertTrue(width.getShortDescription()
+                        .contains("Zero and values above one are valid")),
+                () -> assertTrue(width.getShortDescription()
+                        .contains("unbounded")),
+                () -> assertTrue(height.getShortDescription()
+                        .contains("bounded incoming maximum height")),
+                () -> assertTrue(height.getShortDescription()
+                        .contains("tight child height")),
+                () -> assertTrue(width.supportsDefaultValue()),
+                () -> assertTrue(height.supportsDefaultValue()));
+        PropertyEditor widthEditor = width.getPropertyEditor();
+        widthEditor.setAsText("0");
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                cell(widthEditor).explicitValue().orElseThrow());
+        widthEditor.setAsText("1.25");
+        PropertyValue.DoubleValue explicitWidth = new PropertyValue.DoubleValue(
+                new BigDecimal("1.25"));
+        assertEquals(explicitWidth, cell(widthEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("-0.1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("NaN"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("Infinity"));
+
+        width.setValue(FlutterPropertyCellValue.explicit(explicitWidth));
+        width.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("alignment"), directional),
+                new SetProperty(id, new PropertyName("widthFactor"), explicitWidth)),
+                commands,
+                "the immutable prototype snapshot is already at the width default");
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("tight fractions")),
+                () -> assertTrue(child.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("not from the theme")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
     }
 
     @Test
@@ -1473,7 +1570,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fourteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fifteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1488,6 +1585,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Container",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
+                "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1507,7 +1605,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(14, iconPaths.size(),
+        assertEquals(15, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

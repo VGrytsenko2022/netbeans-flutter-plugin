@@ -246,6 +246,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Center' ||
       'flutter.widgets.Container' ||
+      'flutter.widgets.FractionallySizedBox' ||
       'flutter.widgets.Opacity' ||
       'flutter.widgets.Padding' ||
       'flutter.widgets.SizedBox' ||

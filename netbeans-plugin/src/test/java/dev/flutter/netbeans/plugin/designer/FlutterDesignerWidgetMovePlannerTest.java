@@ -46,6 +46,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
+    private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
+            type("flutter.widgets.FractionallySizedBox");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -319,6 +321,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyAlign.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyFractionallySizedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into FractionallySizedBox");
+        WidgetNode emptyFractionallySizedBox = WidgetNodePrototypeFactory.create(
+                definition(FRACTIONALLY_SIZED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyFractionallySizedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyFractionallySizedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyFractionallySizedBox.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

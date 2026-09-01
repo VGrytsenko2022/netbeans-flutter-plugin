@@ -64,6 +64,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("alwaysIncludeSemantics");
     private static final WidgetTypeId ALIGN_TYPE =
             new WidgetTypeId("flutter.widgets.Align");
+    private static final WidgetTypeId FRACTIONALLY_SIZED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.FractionallySizedBox");
     private static final PropertyName ALIGNMENT_PROPERTY =
             new PropertyName("alignment");
     private static final PropertyName WIDTH_FACTOR_PROPERTY =
@@ -381,6 +383,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child given tight fractions of the bounded incoming width "
+                    + "or height, then positioned using physical alignment or directional "
+                    + "alignment resolved from TextDirection (LTR/RTL), not from the theme. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -399,6 +411,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
+        boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
@@ -411,6 +424,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Positioning and optional shrink-wrap factors for the selected "
                                         + "Align widget; directional alignment resolves from "
                                         + "TextDirection (LTR/RTL), not from the theme."
+                        : fractionallySizedBox
+                                ? "Incoming-size fractions, positioning, and optional child for "
+                                        + "the selected FractionallySizedBox widget; directional "
+                                        + "alignment resolves from TextDirection (LTR/RTL), not "
+                                        + "from the theme."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
@@ -462,6 +480,36 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         "Optional finite non-negative multiplier applied to the child's height. "
                                 + "Zero is valid; when omitted, Align expands on a bounded "
                                 + "vertical axis and shrink-wraps on an unbounded axis."));
+            } else if (fractionallySizedBox
+                    && ALIGNMENT_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Alignment",
+                        "Physical position or directional position resolved from TextDirection "
+                                + "(LTR/RTL), not from the theme. Flutter defaults to center; "
+                                + "coordinates outside -1 through 1 extrapolate and can place "
+                                + "the child beyond the available box."));
+            } else if (fractionallySizedBox
+                    && WIDTH_FACTOR_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Width factor",
+                        "Optional finite non-negative fraction of the bounded incoming maximum "
+                                + "width, imposed as a tight child width. Zero and values above "
+                                + "one are valid; omission passes horizontal constraints through. "
+                                + "Do not set it when the incoming maximum width is unbounded."));
+            } else if (fractionallySizedBox
+                    && HEIGHT_FACTOR_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Height factor",
+                        "Optional finite non-negative fraction of the bounded incoming maximum "
+                                + "height, imposed as a tight child height. Zero and values above "
+                                + "one are valid; omission passes vertical constraints through. "
+                                + "Do not set it when the incoming maximum height is unbounded."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

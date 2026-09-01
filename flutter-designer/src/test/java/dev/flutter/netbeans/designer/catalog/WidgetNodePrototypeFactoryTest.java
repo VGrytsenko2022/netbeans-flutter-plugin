@@ -107,6 +107,21 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsFractionallySizedBoxWithoutMaterializingDefaultsAndWithEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.FractionallySizedBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.FractionallySizedBox"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

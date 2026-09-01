@@ -376,6 +376,70 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void fractionallySizedBoxChildAddsTextAsOneExactTransactionalIntent()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.FractionallySizedBox");
+        WidgetNode fractionallySizedBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("e33804b6-ed2a-491f-a8ea-a87cb9430c8a"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(fractionallySizedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                fractionallySizedBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "FractionallySizedBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(fractionallySizedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted FractionallySizedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
     void preferredSizeSlotsOfferOnlyAppBarAndProduceExactAddIntent()
             throws Exception {
         WidgetDefinition scaffoldDefinition = definition("flutter.material.Scaffold");

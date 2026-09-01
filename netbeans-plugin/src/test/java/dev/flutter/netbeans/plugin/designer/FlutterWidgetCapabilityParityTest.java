@@ -25,12 +25,13 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(14, javaTypes.size(),
-                "the reviewed Canvas source set includes Opacity and Align");
+        assertEquals(15, javaTypes.size(),
+                "the reviewed Canvas source set includes FractionallySizedBox");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
         assertTrue(javaTypes.contains("flutter.widgets.Align"));
+        assertTrue(javaTypes.contains("flutter.widgets.FractionallySizedBox"));
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),
@@ -69,6 +70,8 @@ class FlutterWidgetCapabilityParityTest {
                 "Opacity.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Align"),
                 "Align.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.FractionallySizedBox"),
+                "FractionallySizedBox.child must remain a Java-admitted DnD target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

@@ -77,6 +77,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
+                "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -569,6 +570,57 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"resolution\":{\"kind\":\"resolved\""), json);
         assertFalse(json.contains(
                 "\"kind\":\"imageProvider\",\"kind\":\"asset\""), json);
+    }
+
+    @Test
+    void projectsTextFieldScalarCompoundsAndCallbackPresenceWithoutHandlerCode()
+            throws Exception {
+        WidgetNode field = new WidgetNode(
+                id("9fac7a8b-a2e0-463b-b39a-4b046d6b5f16"),
+                type("flutter.material.TextField"),
+                Map.ofEntries(
+                        Map.entry(new PropertyName("keyboardType"),
+                                new PropertyValue.StringValue("numberSignedDecimal")),
+                        Map.entry(new PropertyName("obscuringCharacter"),
+                                new PropertyValue.StringValue(Character.toString(0x2022))),
+                        Map.entry(new PropertyName("maxLength"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(-1))),
+                        Map.entry(new PropertyName("cursorRadiusX"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(new PropertyName("cursorRadiusY"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(3))),
+                        Map.entry(new PropertyName("scrollPaddingLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(new PropertyName("scrollPaddingTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(new PropertyName("scrollPaddingRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(3))),
+                        Map.entry(new PropertyName("scrollPaddingBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(4))),
+                        Map.entry(new PropertyName("selectionHeightStyle"),
+                                new PropertyValue.EnumValue("BoxHeightStyle", "max")),
+                        Map.entry(new PropertyName("dragStartBehavior"),
+                                new PropertyValue.EnumValue("DragStartBehavior", "down")),
+                        Map.entry(new PropertyName("mouseCursor"),
+                                new PropertyValue.StringValue("text")),
+                        Map.entry(new PropertyName("onChanged"),
+                                new PropertyValue.CallbackValue("handleChanged"))),
+                Map.of());
+
+        String json = new String(
+                new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), field))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"type\":\"flutter.material.TextField\""), json);
+        assertTrue(json.contains("\"keyboardType\":{\"kind\":\"string\","
+                + "\"value\":\"numberSignedDecimal\"}"), json);
+        assertTrue(json.contains("\"maxLength\":{\"kind\":\"integer\",\"value\":-1}"),
+                json);
+        assertTrue(json.contains("\"selectionHeightStyle\":{\"kind\":\"enum\","
+                + "\"type\":\"BoxHeightStyle\",\"value\":\"max\"}"), json);
+        assertTrue(json.contains("\"onChanged\":{\"kind\":\"callbackPresence\"}"), json);
+        assertFalse(json.contains("handleChanged"), json);
     }
 
     private static void assertCanvasAdmissionRejects(

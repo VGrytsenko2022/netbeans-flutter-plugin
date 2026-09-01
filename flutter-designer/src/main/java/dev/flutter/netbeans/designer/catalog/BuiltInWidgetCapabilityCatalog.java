@@ -61,6 +61,8 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final String WIDGETS_LIBRARY = "package:flutter/widgets.dart";
     private static final String MATERIAL_LIBRARY = "package:flutter/material.dart";
     private static final String GESTURES_LIBRARY = "package:flutter/gestures.dart";
+    private static final String SERVICES_LIBRARY = "package:flutter/services.dart";
+    private static final String DART_UI_LIBRARY = "dart:ui";
     private static final String IMAGE_PROVIDER_CONTRACT_FINGERPRINT =
             "imageProvider:v1:asset,exactAsset:package:exactScale:"
             + "resize(1..16384,exact,fit,allowUpscaling)";
@@ -142,6 +144,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", STATIC_EDITABLE),
             Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
             Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Padding", STATIC_EDITABLE),
@@ -215,6 +218,14 @@ public final class BuiltInWidgetCapabilityCatalog {
             NON_NEGATIVE_INTEGER_BOUNDS = Map.of(
                     PropertyValueKind.INTEGER, NON_NEGATIVE_PORTABLE_INTEGER);
     private static final Map<PropertyValueKind, CanvasNumericBounds>
+            MAX_LENGTH_INTEGER_BOUNDS = Map.of(
+                    PropertyValueKind.INTEGER,
+                    bounds(
+                            BigDecimal.valueOf(-1),
+                            true,
+                            new BigDecimal(DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                            true));
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
             NON_NEGATIVE_EDGE_INSETS_BOUNDS = Map.of(
                     PropertyValueKind.EDGE_INSETS, NON_NEGATIVE_NUMERIC);
 
@@ -229,6 +240,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", scaffoldProjection()),
             Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
+            Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
             Map.entry("flutter.widgets.Padding", projection(Map.of(
@@ -587,6 +599,118 @@ public final class BuiltInWidgetCapabilityCatalog {
                 enumProperty(
                         "filterQuality", "FilterQuality", "none", "low", "medium",
                         "high")),
+                Map.of());
+    }
+
+    private static CanvasProjection textFieldProjection() {
+        return projection(Map.ofEntries(
+                stringPatternProperty(
+                        "keyboardType",
+                        "(?:text|multiline|number|numberSigned|numberDecimal|numberSignedDecimal|phone|datetime|emailAddress|url|visiblePassword|name|streetAddress|none|webSearch|twitter)"),
+                enumPropertyForLibrary(
+                        "textInputAction", SERVICES_LIBRARY, "TextInputAction",
+                        "none", "unspecified", "done", "go", "search", "send",
+                        "next", "previous", "continueAction", "join", "route",
+                        "emergencyCall", "newline"),
+                enumPropertyForLibrary(
+                        "textCapitalization", SERVICES_LIBRARY, "TextCapitalization",
+                        "words", "sentences", "characters", "none"),
+                enumProperty(
+                        "textAlign", "TextAlign",
+                        "left", "right", "center", "justify", "start", "end"),
+                stringPatternProperty(
+                        "textAlignVertical", "(?:top|center|bottom)"),
+                enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                property("readOnly", PropertyValueKind.BOOLEAN),
+                property("showCursor", PropertyValueKind.BOOLEAN),
+                property("autofocus", PropertyValueKind.BOOLEAN),
+                stringPatternProperty(
+                        "obscuringCharacter",
+                        "[\\u0000-\\uD7FF\\uE000-\\uFFFF]"),
+                property("obscureText", PropertyValueKind.BOOLEAN),
+                property("autocorrect", PropertyValueKind.BOOLEAN),
+                enumPropertyForLibrary(
+                        "smartDashesType", SERVICES_LIBRARY, "SmartDashesType",
+                        "disabled", "enabled"),
+                enumPropertyForLibrary(
+                        "smartQuotesType", SERVICES_LIBRARY, "SmartQuotesType",
+                        "disabled", "enabled"),
+                property("enableSuggestions", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "maxLines", POSITIVE_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                numericProperty(
+                        "minLines", POSITIVE_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                property("expands", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "maxLength", MAX_LENGTH_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                enumPropertyForLibrary(
+                        "maxLengthEnforcement", SERVICES_LIBRARY,
+                        "MaxLengthEnforcement",
+                        "none", "enforced", "truncateAfterCompositionEnds"),
+                callbackProperty("onChanged"),
+                callbackProperty("onEditingComplete"),
+                callbackProperty("onSubmitted"),
+                callbackProperty("onAppPrivateCommand"),
+                property("enabled", PropertyValueKind.BOOLEAN),
+                property("ignorePointers", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "cursorWidth", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "cursorHeight", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "cursorRadiusX", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "cursorRadiusY", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                property("cursorOpacityAnimates", PropertyValueKind.BOOLEAN),
+                colorOrThemeProperty("cursorColor"),
+                colorOrThemeProperty("cursorErrorColor"),
+                enumPropertyForLibrary(
+                        "selectionHeightStyle", DART_UI_LIBRARY, "BoxHeightStyle",
+                        "tight", "max", "includeLineSpacingMiddle",
+                        "includeLineSpacingTop", "includeLineSpacingBottom", "strut"),
+                enumPropertyForLibrary(
+                        "selectionWidthStyle", DART_UI_LIBRARY, "BoxWidthStyle",
+                        "tight", "max"),
+                enumProperty("keyboardAppearance", "Brightness", "dark", "light"),
+                numericProperty(
+                        "scrollPaddingLeft", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "scrollPaddingTop", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "scrollPaddingRight", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "scrollPaddingBottom", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                enumPropertyForLibrary(
+                        "dragStartBehavior", GESTURES_LIBRARY, "DragStartBehavior",
+                        "down", "start"),
+                property("enableInteractiveSelection", PropertyValueKind.BOOLEAN),
+                property("selectAllOnFocus", PropertyValueKind.BOOLEAN),
+                callbackProperty("onTap"),
+                property("onTapAlwaysCalled", PropertyValueKind.BOOLEAN),
+                callbackProperty("onTapOutside"),
+                callbackProperty("onTapUpOutside"),
+                stringPatternProperty(
+                        "mouseCursor",
+                        "(?:none|basic|click|forbidden|wait|progress|contextMenu|help|text|verticalText|cell|precise|move|grab|grabbing|noDrop|alias|copy|disappearing|allScroll|resizeLeftRight|resizeUpDown|resizeUpLeftDownRight|resizeUpRightDownLeft|resizeUp|resizeDown|resizeLeft|resizeRight|resizeUpLeft|resizeUpRight|resizeDownLeft|resizeDownRight|resizeColumn|resizeRow|zoomIn|zoomOut)"),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer"),
+                stringLengthProperty("restorationId", 1, 256),
+                property("stylusHandwritingEnabled", PropertyValueKind.BOOLEAN),
+                property("enableIMEPersonalizedLearning", PropertyValueKind.BOOLEAN),
+                property("enableInlinePrediction", PropertyValueKind.BOOLEAN),
+                property("canRequestFocus", PropertyValueKind.BOOLEAN)),
                 Map.of());
     }
 

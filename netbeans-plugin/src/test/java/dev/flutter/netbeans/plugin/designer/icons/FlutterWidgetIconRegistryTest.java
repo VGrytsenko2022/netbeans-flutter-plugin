@@ -317,6 +317,41 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void textFieldFamilyUsesExactReviewedInputCaretGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "textfield.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=11, rx=1.5, stroke-width=1, width=13, x=1.5, y=2.5]",
+                "path[d=M3.8 7.2h6.4M3.8 10.2h8.4, stroke-linecap=round, stroke-width=1.2]",
+                "path[d=M11.1 5.3v4.1, stroke-linecap=round, stroke-width=1.3]",
+                "path[d=M2.5 12.5h11, stroke-linecap=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=22, rx=3, stroke-width=2, width=26, x=3, y=5]",
+                "path[d=M7.6 14.4h12.8M7.6 20.4h16.8, stroke-linecap=round, stroke-width=2.4]",
+                "path[d=M22.2 10.6v8.2, stroke-linecap=round, stroke-width=2.6]",
+                "path[d=M5 25h22, stroke-linecap=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "path[fill=none, stroke=#1565C0]",
+                "path[fill=none, stroke=#26C6DA]",
+                "path[fill=none, stroke=#42A5F5]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "path[fill=none, stroke=#64B5F6]",
+                "path[fill=none, stroke=#80DEEA]",
+                "path[fill=none, stroke=#42A5F5]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void stackFamilyUsesExactReviewedLayerGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "stack.svg";
@@ -525,6 +560,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.ElevatedButton",
                 ICON_ROOT + "elevatedbutton.svg");
         expected.put("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg");
+        expected.put("flutter.material.TextField", ICON_ROOT + "textfield.svg");
         expected.put("flutter.widgets.Center", ICON_ROOT + "center.svg");
         expected.put("flutter.widgets.Column", ICON_ROOT + "column.svg");
         expected.put("flutter.widgets.Icon", ICON_ROOT + "icon.svg");

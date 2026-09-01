@@ -136,6 +136,17 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsTextFieldWithoutMaterializingFrameworkDefaultsOrSlots() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.material.TextField"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.material.TextField"), prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(prototype.slots().isEmpty());
+        assertTrue(prototype.extensions().values().isEmpty());
+    }
+
+    @Test
     void createsExpandedOnlyAsAnIncompleteDetachedAtomicWrapperPayload() {
         WidgetDefinition definition = definition("flutter.widgets.Expanded");
 

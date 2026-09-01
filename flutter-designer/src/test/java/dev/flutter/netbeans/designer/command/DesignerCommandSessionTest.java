@@ -656,6 +656,126 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void textFieldCompoundsExpandsCallbacksUndoRedoAndReopenAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.material.TextField")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(prototype.slots().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        assertRejectedUnchanged(added, new SetProperty(
+                WRAPPER_ID,
+                property("cursorRadiusX"),
+                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        DesignerCommandSession compounds = applied(added, new PatchProperties(
+                WRAPPER_ID,
+                List.of(
+                        new PatchProperties.SetPatch(
+                                property("cursorRadiusX"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(2))),
+                        new PatchProperties.SetPatch(
+                                property("cursorRadiusY"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(3))),
+                        new PatchProperties.SetPatch(
+                                property("scrollPaddingLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        new PatchProperties.SetPatch(
+                                property("scrollPaddingTop"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(2))),
+                        new PatchProperties.SetPatch(
+                                property("scrollPaddingRight"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(3))),
+                        new PatchProperties.SetPatch(
+                                property("scrollPaddingBottom"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(4))))));
+        DesignerCommandSession configured = applied(
+                compounds,
+                new PatchProperties(
+                        WRAPPER_ID,
+                        List.of(
+                                new PatchProperties.SetPatch(
+                                        property("keyboardType"),
+                                        new PropertyValue.StringValue(
+                                                "numberSignedDecimal")),
+                                new PatchProperties.SetPatch(
+                                        property("maxLength"),
+                                        new PropertyValue.IntegerValue(
+                                                BigInteger.valueOf(-1))),
+                                new PatchProperties.SetPatch(
+                                        property("expands"),
+                                        new PropertyValue.BooleanValue(true)))));
+
+        assertRejectedUnchanged(configured, new SetProperty(
+                WRAPPER_ID,
+                MAX_LINES,
+                new PropertyValue.IntegerValue(BigInteger.ONE)),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+        String configuredDart = new String(
+                configured.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(configuredDart.contains("return Column("), configuredDart);
+        assertTrue(configuredDart.contains("LayoutBuilder("), configuredDart);
+        assertTrue(configuredDart.contains("const TextField("), configuredDart);
+        assertTrue(configuredDart.contains(
+                ".TextInputType.numberWithOptions("
+                + "signed: true, decimal: true)"), configuredDart);
+        assertTrue(configuredDart.contains("maxLines: null"), configuredDart);
+        assertTrue(configuredDart.contains("minLines: null"), configuredDart);
+        assertTrue(configuredDart.contains("expands: true"), configuredDart);
+        assertTrue(configuredDart.contains(
+                "maxLength: TextField.noMaxLength"), configuredDart);
+        assertTrue(configuredDart.contains(
+                "cursorRadius: const Radius.elliptical(2.0, 3.0)"),
+                configuredDart);
+        assertTrue(configuredDart.contains(
+                "scrollPadding: const EdgeInsets.fromLTRB("
+                + "1.0, 2.0, 3.0, 4.0)"), configuredDart);
+
+        DesignerCommandSession callbackSet = applied(configured, new SetProperty(
+                WRAPPER_ID,
+                property("onChanged"),
+                new PropertyValue.CallbackValue("handleChanged")));
+        String callbackDart = new String(
+                callbackSet.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(callbackDart.contains("TextField("), callbackDart);
+        assertFalse(callbackDart.contains("const TextField("), callbackDart);
+        assertTrue(callbackDart.contains("onChanged: handleChanged"), callbackDart);
+
+        DesignerCommandSession callbackUndone = callbackSet.undo().session();
+        assertArrayEquals(configured.current().fdBytes(),
+                callbackUndone.current().fdBytes());
+        assertArrayEquals(configured.current().dartCandidateBytes(),
+                callbackUndone.current().dartCandidateBytes());
+        DesignerCommandSession callbackRedone = callbackUndone.redo().session();
+        assertArrayEquals(callbackSet.current().fdBytes(),
+                callbackRedone.current().fdBytes());
+        assertArrayEquals(callbackSet.current().dartCandidateBytes(),
+                callbackRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = callbackRedone.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
     void patchPropertiesAtomicallyTransitionsContainerBackgroundAndClip()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

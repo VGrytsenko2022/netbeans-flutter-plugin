@@ -40,6 +40,8 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetCatalog BUILT_INS = BuiltInWidgetCatalog.getDefault();
     private static final WidgetTypeId SCAFFOLD = type("flutter.material.Scaffold");
     private static final WidgetTypeId APP_BAR = type("flutter.material.AppBar");
+    private static final WidgetTypeId TEXT_FIELD =
+            type("flutter.material.TextField");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId ROW = type("flutter.widgets.Row");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
@@ -148,6 +150,32 @@ class FlutterDesignerWidgetMovePlannerTest {
                 BUILT_INS,
                 source,
                 result);
+    }
+
+    @Test
+    void existingTextFieldLeafMovesWithinTheSameTreeWithStableIdPreserved() {
+        WidgetNode source = WidgetNode.empty(A_ID, TEXT_FIELD);
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(Map.of(), source.properties());
+        assertEquals(Map.of(), source.slots());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }
 
     @Test

@@ -38,6 +38,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.Scaffold",
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
+            "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Text",
@@ -66,7 +67,8 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("Material", "Layout", "Basic"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"), itemLabels(categories[0]));
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
+                itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "Stack",
@@ -89,7 +91,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -305,6 +307,34 @@ class FlutterDesignerPaletteTest {
                 "required Image.image"));
         assertTrue(node.getShortDescription().contains(
                 "unavailable"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void textFieldPaletteSelectionExplainsRuntimeOnlyEditingState()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.material.TextField";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.material",
+                        100,
+                        40,
+                        "Text Field"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals(
+                "Create a Material TextField leaf immediately, without a creation dialog "
+                + "or stored constructor defaults. Runtime typed text, selection, "
+                + "controller state, and focus state are not stored by Designer.",
+                node.getShortDescription());
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
@@ -582,7 +612,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void eighteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void nineteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -601,7 +631,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(18, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(19, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

@@ -260,6 +260,13 @@ public final class FlutterDesignerPalette {
                         + "deterministic first sorted asset and sets required Image.image; "
                         + "Palette, tree, Canvas, and slot Add are unavailable when the "
                         + "current project asset inventory has no safe declared image.");
+            } else if ("flutter.material.TextField".equals(
+                    definition.typeId().value())) {
+                setShortDescription(
+                        "Create a Material TextField leaf immediately, without a creation "
+                        + "dialog or stored constructor defaults. Runtime typed text, "
+                        + "selection, controller state, and focus state are not stored "
+                        + "by Designer.");
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

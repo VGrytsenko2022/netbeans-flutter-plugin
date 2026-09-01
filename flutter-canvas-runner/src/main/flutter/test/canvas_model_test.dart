@@ -1201,6 +1201,277 @@ void main() {
     );
   });
 
+  test('decodes all 54 reviewed TextField constructor leaves exactly', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '73d9ec43-3d37-4304-8998-71fe51804284',
+      'flutter.material.TextField',
+      properties: {
+        'keyboardType': {'kind': 'string', 'value': 'numberSignedDecimal'},
+        'textInputAction': {
+          'kind': 'enum',
+          'type': 'TextInputAction',
+          'value': 'done',
+        },
+        'textCapitalization': {
+          'kind': 'enum',
+          'type': 'TextCapitalization',
+          'value': 'words',
+        },
+        'textAlign': {'kind': 'enum', 'type': 'TextAlign', 'value': 'center'},
+        'textAlignVertical': {'kind': 'string', 'value': 'bottom'},
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'ltr',
+        },
+        'readOnly': {'kind': 'boolean', 'value': true},
+        'showCursor': {'kind': 'boolean', 'value': false},
+        'autofocus': {'kind': 'boolean', 'value': true},
+        'obscuringCharacter': {'kind': 'string', 'value': '•'},
+        'obscureText': {'kind': 'boolean', 'value': false},
+        'autocorrect': {'kind': 'boolean', 'value': false},
+        'smartDashesType': {
+          'kind': 'enum',
+          'type': 'SmartDashesType',
+          'value': 'disabled',
+        },
+        'smartQuotesType': {
+          'kind': 'enum',
+          'type': 'SmartQuotesType',
+          'value': 'enabled',
+        },
+        'enableSuggestions': {'kind': 'boolean', 'value': false},
+        'maxLines': {'kind': 'integer', 'value': 4},
+        'minLines': {'kind': 'integer', 'value': 2},
+        'expands': {'kind': 'boolean', 'value': false},
+        'maxLength': {'kind': 'integer', 'value': -1},
+        'maxLengthEnforcement': {
+          'kind': 'enum',
+          'type': 'MaxLengthEnforcement',
+          'value': 'truncateAfterCompositionEnds',
+        },
+        'onChanged': {'kind': 'callbackPresence'},
+        'onEditingComplete': {'kind': 'callbackPresence'},
+        'onSubmitted': {'kind': 'callbackPresence'},
+        'onAppPrivateCommand': {'kind': 'callbackPresence'},
+        'enabled': {'kind': 'boolean', 'value': true},
+        'ignorePointers': {'kind': 'boolean', 'value': false},
+        'cursorWidth': {'kind': 'integer', 'value': 3},
+        'cursorHeight': {'kind': 'double', 'value': 22.5},
+        'cursorRadiusX': {'kind': 'double', 'value': 4.0},
+        'cursorRadiusY': {'kind': 'double', 'value': 6.0},
+        'cursorOpacityAnimates': {'kind': 'boolean', 'value': true},
+        'cursorColor': {
+          'kind': 'themeToken',
+          'token': 'material.colorScheme.primary',
+        },
+        'cursorErrorColor': {'kind': 'color', 'argb': '0xFFAA1122'},
+        'selectionHeightStyle': {
+          'kind': 'enum',
+          'type': 'BoxHeightStyle',
+          'value': 'includeLineSpacingBottom',
+        },
+        'selectionWidthStyle': {
+          'kind': 'enum',
+          'type': 'BoxWidthStyle',
+          'value': 'max',
+        },
+        'keyboardAppearance': {
+          'kind': 'enum',
+          'type': 'Brightness',
+          'value': 'dark',
+        },
+        'scrollPaddingLeft': {'kind': 'double', 'value': 1.0},
+        'scrollPaddingTop': {'kind': 'double', 'value': 2.0},
+        'scrollPaddingRight': {'kind': 'double', 'value': 3.0},
+        'scrollPaddingBottom': {'kind': 'double', 'value': 4.0},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'enableInteractiveSelection': {'kind': 'boolean', 'value': false},
+        'selectAllOnFocus': {'kind': 'boolean', 'value': true},
+        'onTap': {'kind': 'callbackPresence'},
+        'onTapAlwaysCalled': {'kind': 'boolean', 'value': true},
+        'onTapOutside': {'kind': 'callbackPresence'},
+        'onTapUpOutside': {'kind': 'callbackPresence'},
+        'mouseCursor': {'kind': 'string', 'value': 'resizeColumn'},
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+        'restorationId': {'kind': 'string', 'value': 'profile-name'},
+        'stylusHandwritingEnabled': {'kind': 'boolean', 'value': false},
+        'enableIMEPersonalizedLearning': {'kind': 'boolean', 'value': false},
+        'enableInlinePrediction': {'kind': 'boolean', 'value': true},
+        'canRequestFocus': {'kind': 'boolean', 'value': false},
+      },
+    );
+
+    final textField = _decode(json).root;
+    expect(textField.type, 'flutter.material.TextField');
+    expect(textField.properties, hasLength(54));
+    expect(textField.slots, isEmpty);
+    expect(textField.properties['maxLength']!.value, -1);
+    expect(textField.properties['cursorWidth']!.kind, 'integer');
+    expect(
+      (textField.properties['selectionHeightStyle']!.value as CanvasEnumValue)
+          .type,
+      'BoxHeightStyle',
+    );
+    expect(textField.properties['onTapUpOutside']!.value, isTrue);
+  });
+
+  test('closes TextField presets, bounds, and constructor relationships', () {
+    Map<String, Object?> model(Map<String, Object?> properties) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '73d9ec43-3d37-4304-8998-71fe51804284',
+        'flutter.material.TextField',
+        properties: properties,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      {
+        'cursorRadiusX': {'kind': 'double', 'value': 1.0},
+      },
+      {
+        'scrollPaddingLeft': {'kind': 'double', 'value': 1.0},
+      },
+      {
+        'minLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'maxLines': {'kind': 'integer', 'value': 2},
+        'minLines': {'kind': 'integer', 'value': 3},
+      },
+      {
+        'expands': {'kind': 'boolean', 'value': true},
+        'maxLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'obscureText': {'kind': 'boolean', 'value': true},
+        'maxLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'obscureText': {'kind': 'boolean', 'value': true},
+        'expands': {'kind': 'boolean', 'value': true},
+      },
+      {
+        'maxLength': {'kind': 'integer', 'value': 0},
+      },
+      {
+        'keyboardType': {'kind': 'string', 'value': 'text'},
+        'textInputAction': {
+          'kind': 'enum',
+          'type': 'TextInputAction',
+          'value': 'newline',
+        },
+        'maxLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'keyboardType': {'kind': 'string', 'value': 'custom'},
+      },
+      {
+        'cursorRadiusX': {'kind': 'integer', 'value': 1},
+        'cursorRadiusY': {'kind': 'double', 'value': 1.0},
+      },
+      {
+        'scrollPaddingLeft': {'kind': 'integer', 'value': 1},
+        'scrollPaddingTop': {'kind': 'double', 'value': 1.0},
+        'scrollPaddingRight': {'kind': 'double', 'value': 1.0},
+        'scrollPaddingBottom': {'kind': 'double', 'value': 1.0},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+
+    for (final value in <String>[
+      'A',
+      '•',
+      '\u0000',
+      '\uD7FF',
+      '\uE000',
+      '\uFFFF',
+    ]) {
+      expect(
+        () => _decode(
+          model({
+            'obscuringCharacter': {'kind': 'string', 'value': value},
+          }),
+        ),
+        returnsNormally,
+        reason: value.codeUnits.toString(),
+      );
+    }
+    for (final value in <String>['', 'ab', '\u{1F600}', '\uD800', '\uDC00']) {
+      expect(
+        () => _decode(
+          model({
+            'obscuringCharacter': {'kind': 'string', 'value': value},
+          }),
+        ),
+        throwsFormatException,
+        reason: value.codeUnits.toString(),
+      );
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      {
+        'expands': {'kind': 'boolean', 'value': true},
+      },
+      {
+        'textInputAction': {
+          'kind': 'enum',
+          'type': 'TextInputAction',
+          'value': 'newline',
+        },
+        'maxLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'keyboardType': {'kind': 'string', 'value': 'multiline'},
+        'textInputAction': {
+          'kind': 'enum',
+          'type': 'TextInputAction',
+          'value': 'newline',
+        },
+        'maxLines': {'kind': 'integer', 'value': 2},
+      },
+      {
+        'maxLength': {'kind': 'integer', 'value': -1},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties)),
+        returnsNormally,
+        reason: properties.toString(),
+      );
+    }
+  });
+
+  test('TextField reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.material.TextField\n');
+    final end = contract.indexOf('W|flutter.widgets.Align\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final block = contract.substring(start, end);
+    final bytes = utf8.encode(block);
+    expect(bytes, hasLength(8076));
+    expect(
+      sha256Hex(bytes),
+      '0cae00ba20bef22302e2b2db29fafbe19a535e51d9791416d670e6881162f61f',
+    );
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(54));
+    expect(RegExp(r'^S\|', multiLine: true).allMatches(block), isEmpty);
+    expect(RegExp(r'^R\|', multiLine: true).allMatches(block), isEmpty);
+  });
+
   test('decodes the exact AspectRatio contract and optional child slot', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,
@@ -2252,7 +2523,7 @@ void main() {
   test('Scaffold reviewed contract is exact and closed at 17 leaves', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.Scaffold\n');
-    final end = contract.indexOf('W|flutter.widgets.Align\n', start);
+    final end = contract.indexOf('W|flutter.material.TextField\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final section = contract.substring(start, end);

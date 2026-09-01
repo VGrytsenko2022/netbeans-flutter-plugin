@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -1820,6 +1821,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.material.TextField' => _textField(context),
       'flutter.widgets.Text' =>
         editing ? _inlineTextEditor(context) : _text(context),
       _ => const SizedBox.shrink(),
@@ -2942,6 +2944,117 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return Rect.fromLTRB(left, top, right, bottom);
   }
 
+  Widget _textField(BuildContext context) {
+    final expands = _boolean('expands') ?? false;
+    final maxLength = _integer('maxLength');
+    final cursorRadiusX = _number('cursorRadiusX');
+    final cursorRadiusY = _number('cursorRadiusY');
+    final scrollPaddingLeft = _number('scrollPaddingLeft');
+    final scrollPaddingTop = _number('scrollPaddingTop');
+    final scrollPaddingRight = _number('scrollPaddingRight');
+    final scrollPaddingBottom = _number('scrollPaddingBottom');
+
+    final field = IgnorePointer(
+      ignoring: true,
+      child: ExcludeFocus(
+        excluding: true,
+        child: Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          descendantsAreFocusable: false,
+          descendantsAreTraversable: false,
+          child: TextField(
+            keyboardType: _textInputType(),
+            textInputAction: _textInputAction(),
+            textCapitalization:
+                _textCapitalization() ?? TextCapitalization.none,
+            textAlign: _textAlign() ?? TextAlign.start,
+            textAlignVertical: _textAlignVertical(),
+            textDirection: _textDirection(),
+            readOnly: _boolean('readOnly') ?? false,
+            showCursor: _boolean('showCursor'),
+            autofocus: _boolean('autofocus') ?? false,
+            obscuringCharacter: _string('obscuringCharacter') ?? '•',
+            obscureText: _boolean('obscureText') ?? false,
+            autocorrect: _boolean('autocorrect'),
+            smartDashesType: _smartDashesType(),
+            smartQuotesType: _smartQuotesType(),
+            enableSuggestions: _boolean('enableSuggestions') ?? true,
+            maxLines: expands ? null : (_integer('maxLines') ?? 1),
+            minLines: expands ? null : _integer('minLines'),
+            expands: expands,
+            maxLength: maxLength == -1 ? TextField.noMaxLength : maxLength,
+            maxLengthEnforcement: _maxLengthEnforcement(),
+            onChanged: _callbackPresent('onChanged') ? (value) {} : null,
+            onEditingComplete: _callbackPresent('onEditingComplete')
+                ? () {}
+                : null,
+            onSubmitted: _callbackPresent('onSubmitted') ? (value) {} : null,
+            onAppPrivateCommand: _callbackPresent('onAppPrivateCommand')
+                ? (action, data) {}
+                : null,
+            enabled: _boolean('enabled'),
+            ignorePointers: _boolean('ignorePointers'),
+            cursorWidth: _number('cursorWidth') ?? 2.0,
+            cursorHeight: _number('cursorHeight'),
+            cursorRadius: cursorRadiusX == null || cursorRadiusY == null
+                ? null
+                : Radius.elliptical(cursorRadiusX, cursorRadiusY),
+            cursorOpacityAnimates: _boolean('cursorOpacityAnimates'),
+            cursorColor: _resolvedColor(context, 'cursorColor'),
+            cursorErrorColor: _resolvedColor(context, 'cursorErrorColor'),
+            selectionHeightStyle: _boxHeightStyle(),
+            selectionWidthStyle: _boxWidthStyle(),
+            keyboardAppearance: _brightness('keyboardAppearance'),
+            scrollPadding:
+                scrollPaddingLeft == null ||
+                    scrollPaddingTop == null ||
+                    scrollPaddingRight == null ||
+                    scrollPaddingBottom == null
+                ? const EdgeInsets.all(20.0)
+                : EdgeInsets.fromLTRB(
+                    scrollPaddingLeft,
+                    scrollPaddingTop,
+                    scrollPaddingRight,
+                    scrollPaddingBottom,
+                  ),
+            dragStartBehavior: _dragStartBehavior(),
+            enableInteractiveSelection: _boolean('enableInteractiveSelection'),
+            selectAllOnFocus: _boolean('selectAllOnFocus'),
+            onTap: _callbackPresent('onTap') ? () {} : null,
+            onTapAlwaysCalled: _boolean('onTapAlwaysCalled') ?? false,
+            onTapOutside: _callbackPresent('onTapOutside') ? (event) {} : null,
+            onTapUpOutside: _callbackPresent('onTapUpOutside')
+                ? (event) {}
+                : null,
+            mouseCursor: _mouseCursor('mouseCursor'),
+            clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+            restorationId: _string('restorationId'),
+            stylusHandwritingEnabled:
+                _boolean('stylusHandwritingEnabled') ??
+                EditableText.defaultStylusHandwritingEnabled,
+            enableIMEPersonalizedLearning:
+                _boolean('enableIMEPersonalizedLearning') ?? true,
+            enableInlinePrediction: _boolean('enableInlinePrediction'),
+            canRequestFocus: _boolean('canRequestFocus') ?? true,
+          ),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final guardWidth = constraints.maxWidth.isInfinite;
+        final guardHeight = expands && constraints.maxHeight.isInfinite;
+        return SizedBox(
+          width: guardWidth ? 240 : null,
+          height: guardHeight ? 120 : null,
+          child: field,
+        );
+      },
+    );
+  }
+
   ColorFilter _colorFilter(
     BuildContext context,
     CanvasColorFilterValue value,
@@ -3935,6 +4048,106 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     'justify' => TextAlign.justify,
     _ => null,
   };
+
+  TextInputType? _textInputType() => switch (_string('keyboardType')) {
+    'text' => TextInputType.text,
+    'multiline' => TextInputType.multiline,
+    'number' => TextInputType.number,
+    'numberSigned' => const TextInputType.numberWithOptions(signed: true),
+    'numberDecimal' => const TextInputType.numberWithOptions(decimal: true),
+    'numberSignedDecimal' => const TextInputType.numberWithOptions(
+      signed: true,
+      decimal: true,
+    ),
+    'phone' => TextInputType.phone,
+    'datetime' => TextInputType.datetime,
+    'emailAddress' => TextInputType.emailAddress,
+    'url' => TextInputType.url,
+    'visiblePassword' => TextInputType.visiblePassword,
+    'name' => TextInputType.name,
+    'streetAddress' => TextInputType.streetAddress,
+    'none' => TextInputType.none,
+    'webSearch' => TextInputType.webSearch,
+    'twitter' => TextInputType.twitter,
+    _ => null,
+  };
+
+  TextInputAction? _textInputAction() => switch (_enum('textInputAction')) {
+    'none' => TextInputAction.none,
+    'unspecified' => TextInputAction.unspecified,
+    'done' => TextInputAction.done,
+    'go' => TextInputAction.go,
+    'search' => TextInputAction.search,
+    'send' => TextInputAction.send,
+    'next' => TextInputAction.next,
+    'previous' => TextInputAction.previous,
+    'continueAction' => TextInputAction.continueAction,
+    'join' => TextInputAction.join,
+    'route' => TextInputAction.route,
+    'emergencyCall' => TextInputAction.emergencyCall,
+    'newline' => TextInputAction.newline,
+    _ => null,
+  };
+
+  TextCapitalization? _textCapitalization() =>
+      switch (_enum('textCapitalization')) {
+        'words' => TextCapitalization.words,
+        'sentences' => TextCapitalization.sentences,
+        'characters' => TextCapitalization.characters,
+        'none' => TextCapitalization.none,
+        _ => null,
+      };
+
+  TextAlignVertical? _textAlignVertical() =>
+      switch (_string('textAlignVertical')) {
+        'top' => TextAlignVertical.top,
+        'center' => TextAlignVertical.center,
+        'bottom' => TextAlignVertical.bottom,
+        _ => null,
+      };
+
+  SmartDashesType? _smartDashesType() => switch (_enum('smartDashesType')) {
+    'disabled' => SmartDashesType.disabled,
+    'enabled' => SmartDashesType.enabled,
+    _ => null,
+  };
+
+  SmartQuotesType? _smartQuotesType() => switch (_enum('smartQuotesType')) {
+    'disabled' => SmartQuotesType.disabled,
+    'enabled' => SmartQuotesType.enabled,
+    _ => null,
+  };
+
+  MaxLengthEnforcement? _maxLengthEnforcement() =>
+      switch (_enum('maxLengthEnforcement')) {
+        'none' => MaxLengthEnforcement.none,
+        'enforced' => MaxLengthEnforcement.enforced,
+        'truncateAfterCompositionEnds' =>
+          MaxLengthEnforcement.truncateAfterCompositionEnds,
+        _ => null,
+      };
+
+  ui.BoxHeightStyle? _boxHeightStyle() => switch (_enum(
+    'selectionHeightStyle',
+  )) {
+    'tight' => ui.BoxHeightStyle.tight,
+    'max' => ui.BoxHeightStyle.max,
+    'includeLineSpacingMiddle' => ui.BoxHeightStyle.includeLineSpacingMiddle,
+    'includeLineSpacingTop' => ui.BoxHeightStyle.includeLineSpacingTop,
+    'includeLineSpacingBottom' => ui.BoxHeightStyle.includeLineSpacingBottom,
+    'strut' => ui.BoxHeightStyle.strut,
+    _ => null,
+  };
+
+  ui.BoxWidthStyle? _boxWidthStyle() => switch (_enum('selectionWidthStyle')) {
+    'tight' => ui.BoxWidthStyle.tight,
+    'max' => ui.BoxWidthStyle.max,
+    _ => null,
+  };
+
+  DragStartBehavior _dragStartBehavior() => _enum('dragStartBehavior') == 'down'
+      ? DragStartBehavior.down
+      : DragStartBehavior.start;
 
   TextOverflow? _textOverflow([String name = 'overflow']) =>
       switch (_enum(name)) {

@@ -25,8 +25,8 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(18, javaTypes.size(),
-                "the reviewed Canvas source set includes Image");
+        assertEquals(19, javaTypes.size(),
+                "the reviewed Canvas source set includes TextField");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -35,6 +35,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.Stack"));
         assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
+        assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),

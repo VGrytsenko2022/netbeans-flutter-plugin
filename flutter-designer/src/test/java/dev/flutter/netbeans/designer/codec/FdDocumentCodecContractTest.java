@@ -504,6 +504,40 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
+    void roundTripsTextFieldUsingOnlyExistingV6ScalarKinds() throws Exception {
+        String textField = minimalDocument("6", "{}").replace(
+                "\"type\": \"flutter.widgets.Text\"",
+                "\"type\": \"flutter.material.TextField\"").replace(
+                "\"properties\": {}",
+                "\"properties\": {"
+                + "\"keyboardType\": {\"kind\": \"string\", \"value\": \"numberSignedDecimal\"},"
+                + "\"obscuringCharacter\": {\"kind\": \"string\", \"value\": \"\\u2022\"},"
+                + "\"maxLines\": {\"kind\": \"integer\", \"value\": 3},"
+                + "\"cursorWidth\": {\"kind\": \"double\", \"value\": 2.5},"
+                + "\"clipBehavior\": {\"kind\": \"enum\", \"type\": \"Clip\", "
+                + "\"value\": \"antiAlias\"},"
+                + "\"onChanged\": {\"kind\": \"callback\", "
+                + "\"handler\": \"handleChanged\"}}" );
+
+        FdDecodeResult.Current decoded = current(codec.decode(utf8(textField)));
+        assertEquals("flutter.material.TextField", decoded.document().root().type().value());
+        assertEquals(new PropertyValue.StringValue("numberSignedDecimal"),
+                property(decoded.document(), "keyboardType"));
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(3)),
+                property(decoded.document(), "maxLines"));
+        assertEquals(new PropertyValue.CallbackValue("handleChanged"),
+                property(decoded.document(), "onChanged"));
+
+        OriginalFdBytes encoded = codec.encode(decoded.document());
+        String canonical = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
+        assertTrue(canonical.contains("\"schemaVersion\": 6"));
+        assertFalse(canonical.contains("textFieldValue"));
+        FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
+        assertEquals(decoded.document(), roundTrip.document());
+        assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
+    }
+
+    @Test
     void roundTripsCanonicalTypedIconDataIncludingExplicitNull() throws Exception {
         String iconJson = "{\"kind\":\"iconData\","
                 + "\"codePoint\":128640,"

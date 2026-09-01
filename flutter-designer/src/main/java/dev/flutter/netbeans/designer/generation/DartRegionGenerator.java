@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
@@ -56,6 +57,7 @@ public final class DartRegionGenerator {
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String DART_UI_IMPORT = "dart:ui";
     private static final int INLINE_CONSTRUCTOR_LIMIT = 100;
     private static final Comparator<ConstructorArgument> ARGUMENT_ORDER = Comparator
             .comparing((ConstructorArgument value) -> value.parameter().style())
@@ -225,6 +227,7 @@ public final class DartRegionGenerator {
         boolean requiresMaterialTheme = false;
         boolean requiresServices = false;
         boolean requiresGestures = false;
+        boolean requiresDartUi = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
         while (!pending.isEmpty()) {
@@ -245,14 +248,16 @@ public final class DartRegionGenerator {
                     && current.node().properties().keySet().stream()
                             .map(PropertyName::value)
                             .anyMatch(name -> name.startsWith("systemOverlayStyle"));
-            requiresGestures |= current.node().properties().keySet().stream()
-                    .map(definition::property)
-                    .flatMap(Optional::stream)
-                    .flatMap(property -> property.constraints().stream())
-                    .filter(PropertyValueConstraint.EnumValues.class::isInstance)
-                    .map(PropertyValueConstraint.EnumValues.class::cast)
-                    .anyMatch(constraint -> constraint.dartType().libraryUri()
-                            .equals(GESTURES_IMPORT));
+            requiresServices |= current.node().type().equals(
+                    TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)
+                    && current.node().properties().containsKey(
+                            new PropertyName("keyboardType"));
+            requiresServices |= usesEnumLibrary(
+                    current.node(), definition, SERVICES_IMPORT);
+            requiresGestures |= usesEnumLibrary(
+                    current.node(), definition, GESTURES_IMPORT);
+            requiresDartUi |= usesEnumLibrary(
+                    current.node(), definition, DART_UI_IMPORT);
 
             ArrayList<WidgetAtPath> children = new ArrayList<>();
             for (Map.Entry<SlotName, WidgetSlot> entry : current.node().slots().entrySet()) {
@@ -275,8 +280,22 @@ public final class DartRegionGenerator {
 
         ImportPlanner planner = ImportPlanner.create(
                 usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
-                requiresServices, requiresGestures);
+                requiresServices, requiresGestures, requiresDartUi);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
+    }
+
+    private static boolean usesEnumLibrary(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String libraryUri) {
+        return node.properties().keySet().stream()
+                .map(definition::property)
+                .flatMap(Optional::stream)
+                .flatMap(property -> property.constraints().stream())
+                .filter(PropertyValueConstraint.EnumValues.class::isInstance)
+                .map(PropertyValueConstraint.EnumValues.class::cast)
+                .anyMatch(constraint -> constraint.dartType().libraryUri()
+                        .equals(libraryUri));
     }
 
     private RenderedValue renderNode(
@@ -289,9 +308,12 @@ public final class DartRegionGenerator {
                 DartGenerationDiagnosticCode.INTERNAL_CATALOG_INCONSISTENCY,
                 path,
                 Optional.of(node.id()),
-                Optional.empty(),
-                "Validated widget type '" + node.type().value()
-                + "' disappeared from the generation catalog.")));
+                    Optional.empty(),
+                    "Validated widget type '" + node.type().value()
+                    + "' disappeared from the generation catalog.")));
+        boolean textField = node.type().equals(
+                TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE);
+        int constructorBaseIndent = textField ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
@@ -315,6 +337,10 @@ public final class DartRegionGenerator {
                     && isImageSynthesizedProperty(property.name())) {
                 continue;
             }
+            if (node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)
+                    && TextFieldWidgetPropertySchema.isSynthesized(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
@@ -324,7 +350,7 @@ public final class DartRegionGenerator {
                         false,
                         renderProperty(
                                 value, property, propertyPath, node.id(), context,
-                                baseIndent + 2)));
+                                constructorBaseIndent + 2)));
             }
         }
         for (SlotDefinition slot : definition.slots()) {
@@ -335,12 +361,13 @@ public final class DartRegionGenerator {
                         slot.parameter(),
                         slot.name().value(),
                         true,
-                        renderSlot(value, slotPath, baseIndent + 2, context)));
+                    renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
             }
         }
         if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)) {
             appendTextCompoundArguments(
-                    node, definition, path, baseIndent + 2, context, arguments);
+                    node, definition, path, constructorBaseIndent + 2,
+                    context, arguments);
         }
         if (node.type().equals(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE)) {
             appendScaffoldStaticPresetArguments(
@@ -348,14 +375,20 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)) {
             appendAppBarCompoundArguments(
-                    node, definition, path, baseIndent + 2, context, arguments);
+                    node, definition, path, constructorBaseIndent + 2,
+                    context, arguments);
         }
         if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)) {
             appendElevatedButtonCompoundArguments(
-                    node, definition, path, baseIndent + 2, context, arguments);
+                    node, definition, path, constructorBaseIndent + 2,
+                    context, arguments);
         }
         if (node.type().value().equals("flutter.widgets.Image")) {
             appendImageSynthesizedArguments(
+                    node, definition, path, context, arguments);
+        }
+        if (node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)) {
+            appendTextFieldSynthesizedArguments(
                     node, definition, path, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
@@ -376,13 +409,17 @@ public final class DartRegionGenerator {
             constructor += "." + definition.namedConstructor().orElseThrow();
         }
         if (arguments.isEmpty()) {
-            return scalar(
+            RenderedValue rendered = scalar(
                     constructor + "()",
                     constant,
                     path,
                     node.id(),
                     context,
                     List.of(classOccurrence));
+            return textField
+                    ? wrapTextFieldConstraintGuard(
+                            node, path, baseIndent, context, rendered)
+                    : rendered;
         }
 
         if (arguments.stream().noneMatch(ConstructorArgument::slot)
@@ -408,20 +445,24 @@ public final class DartRegionGenerator {
             }
             inline.append(')');
             if (inline.codePointCount(0, inline.length()) <= INLINE_CONSTRUCTOR_LIMIT) {
-                return scalar(
+                RenderedValue rendered = scalar(
                         inline.toString(),
                         constant,
                         path,
                         node.id(),
                         context,
                         inlineOccurrences);
+                return textField
+                        ? wrapTextFieldConstraintGuard(
+                                node, path, baseIndent, context, rendered)
+                        : rendered;
             }
         }
 
         LineAccumulator lines = new LineAccumulator(
                 context.maxRenderedUtf8Bytes(), path, node.id());
         lines.add(constructor + "(", List.of(classOccurrence));
-        int argumentIndent = baseIndent + 2;
+        int argumentIndent = constructorBaseIndent + 2;
         for (ConstructorArgument argument : arguments) {
             List<String> valueLines = argument.value().lines();
             String prefix = argument.parameter().style() == ParameterStyle.NAMED
@@ -436,8 +477,66 @@ public final class DartRegionGenerator {
                     argument.value().symbolOccurrences(),
                     spaces(argumentIndent).length() + prefix.length());
         }
+        lines.add(spaces(constructorBaseIndent) + ')');
+        RenderedValue rendered = lines.build(constant);
+        return textField
+                ? wrapTextFieldConstraintGuard(
+                        node, path, baseIndent, context, rendered)
+                : rendered;
+    }
+
+    /**
+     * Preserves the modeled TextField while supplying finite fallback axes
+     * only when arbitrary ancestor wrappers propagate unbounded constraints.
+     */
+    private RenderedValue wrapTextFieldConstraintGuard(
+            WidgetNode node,
+            String path,
+            int baseIndent,
+            GenerationContext context,
+            RenderedValue field) {
+        RenderedSymbol layoutBuilder = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "LayoutBuilder");
+        RenderedSymbol sizedBox = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "SizedBox");
+        LineAccumulator lines = new LineAccumulator(
+                context.maxRenderedUtf8Bytes(), path, node.id());
+        lines.add(
+                layoutBuilder.text() + '(',
+                List.of(occurrence(
+                        "widget:" + node.id() + ":textfield-guard:layout-builder",
+                        layoutBuilder.nameOffset(),
+                        layoutBuilder.name(),
+                        layoutBuilder.libraryUri(),
+                        path,
+                        Optional.of(node.id()))));
+
+        String builderPrefix = spaces(baseIndent + 2)
+                + "builder: (_, constraints) => ";
+        lines.add(
+                builderPrefix + sizedBox.text() + '(',
+                List.of(occurrence(
+                        "widget:" + node.id() + ":textfield-guard:sized-box",
+                        builderPrefix.length() + sizedBox.nameOffset(),
+                        sizedBox.name(),
+                        sizedBox.libraryUri(),
+                        path,
+                        Optional.of(node.id()))));
+        int argumentIndent = baseIndent + 4;
+        lines.add(spaces(argumentIndent)
+                + "width: constraints.hasBoundedWidth ? null : 240,");
+        if (Boolean.TRUE.equals(textFieldBoolean(node, "expands"))) {
+            lines.add(spaces(argumentIndent)
+                    + "height: constraints.hasBoundedHeight ? null : 120,");
+        }
+        String childPrefix = spaces(argumentIndent) + "child: ";
+        lines.addBlock(
+                childPrefix + field.joined() + ',',
+                field.symbolOccurrences(),
+                childPrefix.length());
+        lines.add(spaces(baseIndent + 2) + "),");
         lines.add(spaces(baseIndent) + ')');
-        return lines.build(constant);
+        return lines.build(false);
     }
 
     private void appendScaffoldStaticPresetArguments(
@@ -4521,6 +4620,269 @@ public final class DartRegionGenerator {
                 centerSlice));
     }
 
+    private void appendTextFieldSynthesizedArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        appendTextFieldKeyboardType(node, definition, path, context, arguments);
+        appendTextFieldStaticPreset(
+                node, definition, "textAlignVertical", "textAlignVertical",
+                MATERIAL_IMPORT, "TextAlignVertical", path, context, arguments);
+        appendTextFieldMaxLength(node, definition, path, context, arguments);
+        appendTextFieldRadius(node, definition, path, context, arguments);
+        appendTextFieldScrollPadding(node, definition, path, context, arguments);
+        appendTextFieldStaticPreset(
+                node, definition, "mouseCursor", "mouseCursor",
+                WIDGETS_IMPORT, "SystemMouseCursors", path, context, arguments);
+
+        if (Boolean.TRUE.equals(textFieldBoolean(node, "expands"))) {
+            for (String propertyName : List.of("maxLines", "minLines")) {
+                PropertyDefinition property = definition
+                        .property(new PropertyName(propertyName)).orElseThrow();
+                String propertyPath = path + "/properties/expands";
+                arguments.add(new ConstructorArgument(
+                        property.parameter(),
+                        propertyName,
+                        false,
+                        scalar("null", true, propertyPath, node.id(), context)));
+            }
+        }
+    }
+
+    private void appendTextFieldKeyboardType(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition
+                .property(new PropertyName("keyboardType")).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return;
+        }
+        String propertyPath = path + "/properties/keyboardType";
+        if (!(value instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "TextField keyboardType must be a validated string preset.");
+        }
+        RenderedSymbol type = context.planner().renderedSymbol(
+                SERVICES_IMPORT, "TextInputType");
+        String rendered;
+        int symbolOffset;
+        switch (preset.value()) {
+            case "numberSigned" -> {
+                rendered = "const " + type.text()
+                        + ".numberWithOptions(signed: true)";
+                symbolOffset = "const ".length() + type.nameOffset();
+            }
+            case "numberDecimal" -> {
+                rendered = "const " + type.text()
+                        + ".numberWithOptions(decimal: true)";
+                symbolOffset = "const ".length() + type.nameOffset();
+            }
+            case "numberSignedDecimal" -> {
+                rendered = "const " + type.text()
+                        + ".numberWithOptions(signed: true, decimal: true)";
+                symbolOffset = "const ".length() + type.nameOffset();
+            }
+            default -> {
+                rendered = type.text() + '.' + preset.value();
+                symbolOffset = type.nameOffset();
+            }
+        }
+        arguments.add(new ConstructorArgument(
+                property.parameter(),
+                "keyboardType",
+                false,
+                scalar(
+                        rendered,
+                        true,
+                        propertyPath,
+                        node.id(),
+                        context,
+                        List.of(occurrence(
+                                "widget:" + node.id()
+                                + ":textfield-keyboard-type",
+                                symbolOffset,
+                                type.name(),
+                                type.libraryUri(),
+                                propertyPath,
+                                Optional.of(node.id()))))));
+    }
+
+    private void appendTextFieldStaticPreset(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String propertyName,
+            String argumentName,
+            String libraryUri,
+            String dartType,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition
+                .property(new PropertyName(propertyName)).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return;
+        }
+        String propertyPath = path + "/properties/" + pointer(propertyName);
+        if (!(value instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "TextField static preset '" + propertyName
+                    + "' must be a validated string.");
+        }
+        RenderedSymbol type = context.planner().renderedSymbol(libraryUri, dartType);
+        arguments.add(new ConstructorArgument(
+                property.parameter(),
+                argumentName,
+                false,
+                scalar(
+                        type.text() + '.' + preset.value(),
+                        true,
+                        propertyPath,
+                        node.id(),
+                        context,
+                        List.of(occurrence(
+                                "widget:" + node.id() + ":textfield-preset:"
+                                + propertyName,
+                                type.nameOffset(),
+                                type.name(),
+                                type.libraryUri(),
+                                propertyPath,
+                                Optional.of(node.id()))))));
+    }
+
+    private void appendTextFieldMaxLength(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition
+                .property(new PropertyName("maxLength")).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return;
+        }
+        String propertyPath = path + "/properties/maxLength";
+        if (!(value instanceof PropertyValue.IntegerValue integer)) {
+            throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "TextField maxLength must be a validated integer.");
+        }
+        RenderedValue rendered;
+        if (integer.value().equals(java.math.BigInteger.valueOf(-1))) {
+            RenderedSymbol type = context.planner().renderedSymbol(
+                    MATERIAL_IMPORT, "TextField");
+            rendered = scalar(
+                    type.text() + ".noMaxLength",
+                    true,
+                    propertyPath,
+                    node.id(),
+                    context,
+                    List.of(occurrence(
+                            "widget:" + node.id() + ":textfield-no-max-length",
+                            type.nameOffset(),
+                            type.name(),
+                            type.libraryUri(),
+                            propertyPath,
+                            Optional.of(node.id()))));
+        } else {
+            rendered = scalar(
+                    integer.value().toString(), true,
+                    propertyPath, node.id(), context);
+        }
+        arguments.add(new ConstructorArgument(
+                property.parameter(), "maxLength", false, rendered));
+    }
+
+    private void appendTextFieldRadius(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition xProperty = definition
+                .property(new PropertyName("cursorRadiusX")).orElseThrow();
+        PropertyValue xValue = node.properties().get(xProperty.name());
+        if (xValue == null) {
+            return;
+        }
+        PropertyValue yValue = node.properties().get(new PropertyName("cursorRadiusY"));
+        if (!(xValue instanceof PropertyValue.DoubleValue x)
+                || !(yValue instanceof PropertyValue.DoubleValue y)) {
+            throw catalogInconsistency(
+                    path + "/properties/cursorRadiusX", node.id(),
+                    "TextField cursor radius must contain two validated doubles.");
+        }
+        String propertyPath = path + "/properties/cursorRadiusX";
+        RenderedValue radius = renderPositionalCompositeValues(
+                "Radius",
+                Optional.of("elliptical"),
+                List.of(
+                        scalar(dartDouble(x.value()), true,
+                                propertyPath, node.id(), context),
+                        scalar(dartDouble(y.value()), true,
+                                path + "/properties/cursorRadiusY", node.id(), context)),
+                propertyPath,
+                node.id(),
+                context);
+        arguments.add(new ConstructorArgument(
+                xProperty.parameter(), "cursorRadius", false, radius));
+    }
+
+    private void appendTextFieldScrollPadding(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition leftProperty = definition
+                .property(new PropertyName("scrollPaddingLeft")).orElseThrow();
+        PropertyValue leftValue = node.properties().get(leftProperty.name());
+        if (leftValue == null) {
+            return;
+        }
+        ArrayList<RenderedValue> values = new ArrayList<>();
+        for (String name : List.of(
+                "scrollPaddingLeft", "scrollPaddingTop",
+                "scrollPaddingRight", "scrollPaddingBottom")) {
+            PropertyValue value = node.properties().get(new PropertyName(name));
+            if (!(value instanceof PropertyValue.DoubleValue decimal)) {
+                throw catalogInconsistency(
+                        path + "/properties/" + name, node.id(),
+                        "TextField scroll padding must contain four validated doubles.");
+            }
+            values.add(scalar(
+                    dartDouble(decimal.value()), true,
+                    path + "/properties/" + name, node.id(), context));
+        }
+        String propertyPath = path + "/properties/scrollPaddingLeft";
+        RenderedValue padding = renderPositionalCompositeValues(
+                "EdgeInsets",
+                Optional.of("fromLTRB"),
+                values,
+                propertyPath,
+                node.id(),
+                context);
+        arguments.add(new ConstructorArgument(
+                leftProperty.parameter(), "scrollPadding", false, padding));
+    }
+
+    private static Boolean textFieldBoolean(
+            WidgetNode node,
+            String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value instanceof PropertyValue.BooleanValue flag
+                ? flag.value() : null;
+    }
+
     private RenderedValue renderProperty(
             PropertyValue value,
             PropertyDefinition definition,
@@ -5308,7 +5670,8 @@ public final class DartRegionGenerator {
                 int maximumImports,
                 boolean requiresMaterialTheme,
                 boolean requiresServices,
-                boolean requiresGestures) {
+                boolean requiresGestures,
+                boolean requiresDartUi) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
             if (requiresServices) {
@@ -5317,6 +5680,12 @@ public final class DartRegionGenerator {
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
                     if (uri.equals(GESTURES_IMPORT) && !requiresGestures) {
+                        continue;
+                    }
+                    if (uri.equals(SERVICES_IMPORT) && !requiresServices) {
+                        continue;
+                    }
+                    if (uri.equals(DART_UI_IMPORT) && !requiresDartUi) {
                         continue;
                     }
                     if (uri.equals(MATERIAL_IMPORT)) {

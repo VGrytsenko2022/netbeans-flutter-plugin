@@ -25,6 +25,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Scaffold",
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
+            "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -45,6 +46,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Scaffold",
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
+            "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Padding",
@@ -70,7 +72,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasEighteenSourcesAndTwentyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasNineteenSourcesAndTwentyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -93,7 +95,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(18, sources.size());
+        assertEquals(19, sources.size());
         assertEquals(20, destinations.size());
         assertEquals(18, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -103,9 +105,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(360, candidates);
-        assertEquals(310, accepted);
-        assertEquals(50, candidates - accepted);
+        assertEquals(380, candidates);
+        assertEquals(328, accepted);
+        assertEquals(52, candidates - accepted);
     }
 
     @Test
@@ -405,6 +407,95 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, true, 1, 1),
                 projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void textFieldHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.material.TextField");
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(54, projection.propertyContracts().size());
+        assertTrue(projection.slots().isEmpty());
+        assertTrue(projection.propertyContracts().values().stream()
+                .allMatch(value -> !value.required()
+                        && value.creationDefaultFingerprint().isEmpty()));
+
+        for (String name : List.of("maxLines", "minLines")) {
+            assertEquals("1:1:9007199254740991:1",
+                    projection.propertyContracts().get(new PropertyName(name))
+                            .numericBounds().get(PropertyValueKind.INTEGER).fingerprint(),
+                    name);
+        }
+        assertEquals("-1:1:9007199254740991:1",
+                projection.propertyContracts().get(new PropertyName("maxLength"))
+                        .numericBounds().get(PropertyValueKind.INTEGER).fingerprint());
+        for (String name : List.of("cursorWidth", "cursorHeight")) {
+            var contract = projection.propertyContracts().get(new PropertyName(name));
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    contract.acceptedKinds(), name);
+            assertEquals("0:1:9007199254740991:1",
+                    contract.numericBounds().get(PropertyValueKind.INTEGER).fingerprint(), name);
+            assertEquals("0:1:*:1",
+                    contract.numericBounds().get(PropertyValueKind.DOUBLE).fingerprint(), name);
+        }
+        for (String name : List.of(
+                "cursorRadiusX", "cursorRadiusY", "scrollPaddingLeft",
+                "scrollPaddingTop", "scrollPaddingRight", "scrollPaddingBottom")) {
+            assertEquals("0:1:*:1",
+                    projection.propertyContracts().get(new PropertyName(name))
+                            .numericBounds().get(PropertyValueKind.DOUBLE).fingerprint(), name);
+        }
+
+        String obscurerPattern = "[\\u0000-\\uD7FF\\uE000-\\uFFFF]";
+        String encodedPattern = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(obscurerPattern.getBytes(StandardCharsets.UTF_8));
+        assertEquals("pattern:" + encodedPattern,
+                projection.propertyContracts().get(new PropertyName("obscuringCharacter"))
+                        .constraintFingerprints().get(PropertyValueKind.STRING));
+        assertEquals("length:1:256",
+                projection.propertyContracts().get(new PropertyName("restorationId"))
+                        .constraintFingerprints().get(PropertyValueKind.STRING));
+        assertTrue(projection.propertyContracts().get(new PropertyName("textInputAction"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:"));
+        assertTrue(projection.propertyContracts().get(new PropertyName("selectionHeightStyle"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:ZGFydDp1aQ:BoxHeightStyle:"));
+        assertTrue(projection.propertyContracts().get(new PropertyName("dragStartBehavior"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:"));
+        for (String name : List.of(
+                "onChanged", "onEditingComplete", "onSubmitted",
+                "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside")) {
+            assertEquals("callbackReference",
+                    projection.propertyContracts().get(new PropertyName(name))
+                            .constraintFingerprints().get(PropertyValueKind.CALLBACK), name);
+        }
+    }
+
+    @Test
+    void textFieldFullReviewedProjectionHasStableFingerprintWithoutRelationLines()
+            throws Exception {
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.TextField\n");
+        int end = contract.indexOf("W|", start + 2);
+        String textField = contract.substring(start, end);
+
+        assertEquals(8_076,
+                textField.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(
+                "0cae00ba20bef22302e2b2db29fafbe19a535e51d9791416d670e6881162f61f",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(textField.getBytes(StandardCharsets.UTF_8))));
+        assertFalse(textField.contains("\nR|"), textField);
+        assertFalse(textField.contains("\nC|"), textField);
     }
 
     @Test

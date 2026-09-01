@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -18,6 +19,7 @@ import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -477,6 +479,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
+                "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -521,9 +524,10 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(563, writableCount,
+        assertEquals(617, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
-                + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, Align, "
+                + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
+                + "Opacity, Align, "
                 + "FractionallySizedBox, Stack, Expanded, and Image leaves");
     }
 
@@ -1214,6 +1218,311 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void textFieldProjectsExactFiftyFourRowsHelpPresetsAndResetSemantics()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.material.TextField");
+        StableId id = StableId.parse("12d90d32-a237-4d35-9694-f3f434572853");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        assertEquals(
+                "Text Field — " + id + ". Runtime typed text, selection, controller "
+                + "state, and focus state are not stored by Designer.",
+                node.getShortDescription());
+        assertTrue(widget.properties().isEmpty(),
+                "TextField creation must not invent constructor defaults or runtime state");
+        assertTrue(widget.slots().isEmpty(), "TextField is a leaf");
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(List.of(
+                FlutterWidgetPropertiesNode.IDENTITY_SET_NAME,
+                "textFieldInput",
+                "textFieldLayout",
+                "textFieldBehavior",
+                "textFieldCursorSelection",
+                "textFieldCallbacks",
+                "textFieldRestoration"),
+                Arrays.stream(sets).map(Node.PropertySet::getName).toList());
+        assertEquals(List.of(
+                "keyboardType", "textInputAction", "textCapitalization",
+                "obscuringCharacter", "obscureText", "autocorrect",
+                "smartDashesType", "smartQuotesType", "enableSuggestions",
+                "maxLines", "minLines", "maxLength", "maxLengthEnforcement",
+                "keyboardAppearance"), names(sets[1].getProperties()));
+        assertEquals(List.of(
+                "textAlign", "textAlignVertical", "textDirection", "expands",
+                "scrollPaddingLeft", "scrollPaddingTop", "scrollPaddingRight",
+                "scrollPaddingBottom", "clipBehavior"),
+                names(sets[2].getProperties()));
+        assertEquals(List.of(
+                "readOnly", "autofocus", "enabled", "ignorePointers",
+                "dragStartBehavior", "enableInteractiveSelection",
+                "selectAllOnFocus",
+                "stylusHandwritingEnabled", "enableIMEPersonalizedLearning",
+                "enableInlinePrediction", "canRequestFocus"),
+                names(sets[3].getProperties()));
+        assertEquals(List.of(
+                "showCursor", "cursorWidth", "cursorHeight", "cursorRadiusX",
+                "cursorRadiusY", "cursorOpacityAnimates", "cursorColor",
+                "cursorErrorColor", "selectionHeightStyle",
+                "selectionWidthStyle", "mouseCursor"),
+                names(sets[4].getProperties()));
+        assertEquals(List.of(
+                "onChanged", "onEditingComplete", "onSubmitted",
+                "onAppPrivateCommand", "onTap", "onTapAlwaysCalled", "onTapOutside",
+                "onTapUpOutside"), names(sets[5].getProperties()));
+        assertEquals(List.of("restorationId"), names(sets[6].getProperties()));
+
+        int writableRows = 0;
+        for (int index = 0;
+                index < TextFieldWidgetPropertySchema.Group.values().length;
+                index++) {
+            TextFieldWidgetPropertySchema.Group group =
+                    TextFieldWidgetPropertySchema.Group.values()[index];
+            Node.PropertySet set = sets[index + 1];
+            assertEquals(group.displayName(), set.getDisplayName());
+            assertEquals(group.description(), set.getShortDescription());
+            for (Node.Property<?> property : set.getProperties()) {
+                TextFieldWidgetPropertySchema.Definition presentation =
+                        TextFieldWidgetPropertySchema.find(property.getName())
+                                .orElseThrow();
+                assertEquals(group, presentation.group(), property.getName());
+                assertEquals(presentation.displayName(), property.getDisplayName());
+                assertTrue(property.getShortDescription().startsWith(
+                        presentation.description() + " Accepted: "),
+                        property.getName());
+                String resetHelp = switch (presentation.target()) {
+                    case CURSOR_RADIUS ->
+                        "Restore Default removes the complete cursorRadius value.";
+                    case SCROLL_PADDING ->
+                        "Restore Default removes the complete scrollPadding value.";
+                    default ->
+                        "Restore Default removes the explicit constructor argument.";
+                };
+                assertTrue(property.getShortDescription().endsWith(resetHelp),
+                        property.getName());
+                assertTrue(property.canWrite(), property.getName());
+                assertEquals(FlutterPropertyCellValue.class,
+                        property.getValueType(), property.getName());
+                assertTrue(property.supportsDefaultValue(), property.getName());
+                assertTrue(property.isDefaultValue(), property.getName());
+                assertNotNull(property.getPropertyEditor(), property.getName());
+                writableRows++;
+            }
+        }
+        assertEquals(TextFieldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                writableRows);
+        assertEquals(54, writableRows);
+
+        PropertyEditor keyboardType = property(node, "keyboardType")
+                .getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "text", "multiline", "number", "numberSigned",
+                "numberDecimal", "numberSignedDecimal", "phone", "datetime",
+                "emailAddress", "url", "visiblePassword", "name",
+                "streetAddress", "none", "webSearch", "twitter"),
+                List.of(keyboardType.getTags()));
+        keyboardType.setAsText("emailAddress");
+        assertEquals(new PropertyValue.StringValue("emailAddress"),
+                cell(keyboardType).explicitValue().orElseThrow());
+
+        PropertyEditor vertical = property(node, "textAlignVertical")
+                .getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT, "top", "center", "bottom"),
+                List.of(vertical.getTags()));
+        vertical.setAsText("bottom");
+        assertEquals(new PropertyValue.StringValue("bottom"),
+                cell(vertical).explicitValue().orElseThrow());
+
+        PropertyEditor mouseCursor = property(node, "mouseCursor")
+                .getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                "none", "basic", "click", "forbidden", "wait", "progress",
+                "contextMenu", "help", "text", "verticalText", "cell",
+                "precise", "move", "grab", "grabbing", "noDrop", "alias",
+                "copy", "disappearing", "allScroll", "resizeLeftRight",
+                "resizeUpDown", "resizeUpLeftDownRight",
+                "resizeUpRightDownLeft", "resizeUp", "resizeDown",
+                "resizeLeft", "resizeRight", "resizeUpLeft", "resizeUpRight",
+                "resizeDownLeft", "resizeDownRight", "resizeColumn",
+                "resizeRow", "zoomIn", "zoomOut"),
+                List.of(mouseCursor.getTags()));
+        mouseCursor.setAsText("click");
+        assertEquals(new PropertyValue.StringValue("click"),
+                cell(mouseCursor).explicitValue().orElseThrow());
+
+        PropertyEditor inputAction = property(node, "textInputAction")
+                .getPropertyEditor();
+        inputAction.setAsText("search");
+        assertEquals(new PropertyValue.EnumValue("TextInputAction", "search"),
+                cell(inputAction).explicitValue().orElseThrow());
+        PropertyEditor callback = property(node, "onChanged").getPropertyEditor();
+        callback.setAsText("_handleChanged");
+        assertEquals(new PropertyValue.CallbackValue("_handleChanged"),
+                cell(callback).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> callback.setAsText("(value) => print(value)"));
+
+        PropertyEditor maxLines = property(node, "maxLines").getPropertyEditor();
+        maxLines.setAsText("2");
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                cell(maxLines).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class, () -> maxLines.setAsText("0"));
+        PropertyEditor cursorWidth = property(node, "cursorWidth").getPropertyEditor();
+        cursorWidth.setAsText("1.5");
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("1.5")),
+                cell(cursorWidth).explicitValue().orElseThrow());
+        PropertyEditor readOnly = property(node, "readOnly").getPropertyEditor();
+        readOnly.setAsText("true");
+        assertEquals(new PropertyValue.BooleanValue(true),
+                cell(readOnly).explicitValue().orElseThrow());
+        PropertyEditor cursorColor = property(node, "cursorColor")
+                .getPropertyEditor();
+        cursorColor.setAsText("0xFF336699");
+        assertEquals(PropertyValue.ColorValue.fromWireArgb("0xFF336699"),
+                cell(cursorColor).explicitValue().orElseThrow());
+
+        WidgetNode explicit = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(new PropertyName("readOnly"),
+                        new PropertyValue.BooleanValue(true)),
+                Map.of(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode explicitNode = new FlutterWidgetPropertiesNode(
+                Children.LEAF, explicit, definition, commands::add);
+        Node.Property<?> explicitReadOnly = property(explicitNode, "readOnly");
+        assertFalse(explicitReadOnly.isDefaultValue());
+        explicitReadOnly.restoreDefaultValue();
+        assertEquals(List.of(new ResetProperty(id, new PropertyName("readOnly"))),
+                commands);
+    }
+
+    @Test
+    void textFieldCompoundRowsSubmitAtomicSetAndResetPatches() throws Exception {
+        WidgetDefinition definition = definition("flutter.material.TextField");
+        StableId id = StableId.parse("a5b58e87-6ea2-4efd-bf85-a8825d5fa124");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode emptyNode = new FlutterWidgetPropertiesNode(
+                Children.LEAF, empty, definition, commands::add);
+        assertTrue(property(emptyNode, "cursorRadiusX").getShortDescription()
+                .contains("editing either axis seeds both axes"));
+        assertTrue(property(emptyNode, "scrollPaddingTop").getShortDescription()
+                .contains("editing any edge seeds all four edges"));
+        PropertyValue.DoubleValue radiusSeed = new PropertyValue.DoubleValue(
+                new BigDecimal("4.5"));
+
+        cellProperty(property(emptyNode, "cursorRadiusX")).setValue(
+                FlutterPropertyCellValue.explicit(radiusSeed));
+
+        PatchProperties radiusSet = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(id, radiusSet.widgetId());
+        assertEquals(List.of(
+                new PatchProperties.SetPatch(
+                        new PropertyName("cursorRadiusX"), radiusSeed),
+                new PatchProperties.SetPatch(
+                        new PropertyName("cursorRadiusY"), radiusSeed)),
+                radiusSet.patches(),
+                "the first entered radius seeds a complete value without a default");
+
+        commands.clear();
+        PropertyValue.DoubleValue paddingSeed = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(12));
+        cellProperty(property(emptyNode, "scrollPaddingTop")).setValue(
+                FlutterPropertyCellValue.explicit(paddingSeed));
+
+        PatchProperties paddingSet = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(List.of(
+                new PatchProperties.SetPatch(
+                        new PropertyName("scrollPaddingLeft"), paddingSeed),
+                new PatchProperties.SetPatch(
+                        new PropertyName("scrollPaddingTop"), paddingSeed),
+                new PatchProperties.SetPatch(
+                        new PropertyName("scrollPaddingRight"), paddingSeed),
+                new PatchProperties.SetPatch(
+                        new PropertyName("scrollPaddingBottom"), paddingSeed)),
+                paddingSet.patches(),
+                "the first entered inset seeds all four explicit edges");
+
+        PropertyValue.DoubleValue radiusX = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(2));
+        PropertyValue.DoubleValue radiusY = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(3));
+        PropertyValue.DoubleValue left = new PropertyValue.DoubleValue(
+                BigDecimal.ONE);
+        PropertyValue.DoubleValue top = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(2));
+        PropertyValue.DoubleValue right = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(3));
+        PropertyValue.DoubleValue bottom = new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(4));
+        WidgetNode configured = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.ofEntries(
+                        Map.entry(new PropertyName("cursorRadiusX"), radiusX),
+                        Map.entry(new PropertyName("cursorRadiusY"), radiusY),
+                        Map.entry(new PropertyName("scrollPaddingLeft"), left),
+                        Map.entry(new PropertyName("scrollPaddingTop"), top),
+                        Map.entry(new PropertyName("scrollPaddingRight"), right),
+                        Map.entry(new PropertyName("scrollPaddingBottom"), bottom)),
+                Map.of(),
+                Extensions.empty());
+        commands.clear();
+        FlutterWidgetPropertiesNode configuredNode =
+                new FlutterWidgetPropertiesNode(
+                        Children.LEAF, configured, definition, commands::add);
+
+        PropertyValue.DoubleValue updatedRadiusX =
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(9));
+        cellProperty(property(configuredNode, "cursorRadiusX")).setValue(
+                FlutterPropertyCellValue.explicit(updatedRadiusX));
+        assertEquals(List.of(
+                new PatchProperties.SetPatch(
+                        new PropertyName("cursorRadiusX"), updatedRadiusX),
+                new PatchProperties.SetPatch(
+                        new PropertyName("cursorRadiusY"), radiusY)),
+                assertInstanceOf(PatchProperties.class, commands.getFirst())
+                        .patches(),
+                "editing a complete pair must preserve its explicit peer");
+
+        commands.clear();
+        cellProperty(property(configuredNode, "cursorRadiusY"))
+                .restoreDefaultValue();
+        PatchProperties radiusReset = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(List.of(
+                new PatchProperties.ResetPatch(
+                        new PropertyName("cursorRadiusX")),
+                new PatchProperties.ResetPatch(
+                        new PropertyName("cursorRadiusY"))),
+                radiusReset.patches());
+
+        commands.clear();
+        cellProperty(property(configuredNode, "scrollPaddingRight"))
+                .restoreDefaultValue();
+        PatchProperties paddingReset = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(List.of(
+                new PatchProperties.ResetPatch(
+                        new PropertyName("scrollPaddingLeft")),
+                new PatchProperties.ResetPatch(
+                        new PropertyName("scrollPaddingTop")),
+                new PatchProperties.ResetPatch(
+                        new PropertyName("scrollPaddingRight")),
+                new PatchProperties.ResetPatch(
+                        new PropertyName("scrollPaddingBottom"))),
+                paddingReset.patches());
+    }
+
+    @Test
     void elevatedButtonProjectsAllWritableLeavesIntoEnterpriseGroupsAndChildSlot()
             throws Exception {
         WidgetDefinition definition = definition("flutter.material.ElevatedButton");
@@ -1800,12 +2109,13 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void eighteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void nineteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
+                "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -1848,7 +2158,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(18, iconPaths.size(),
+        assertEquals(19, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

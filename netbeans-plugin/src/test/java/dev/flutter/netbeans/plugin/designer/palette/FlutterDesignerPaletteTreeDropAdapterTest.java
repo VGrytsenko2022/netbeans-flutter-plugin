@@ -40,6 +40,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             BuiltInWidgetCatalog.getDefault();
     private static final WidgetTypeId SCAFFOLD =
             type("flutter.material.Scaffold");
+    private static final WidgetTypeId TEXT_FIELD =
+            type("flutter.material.TextField");
     private static final WidgetTypeId COLUMN =
             type("flutter.widgets.Column");
     private static final WidgetTypeId ROW =
@@ -309,6 +311,47 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit consumes the AspectRatio palette authority once"));
+    }
+
+    @Test
+    void textFieldTokenPreviewsAndCommitsEmptyLeafWithoutCreationDialogState() {
+        Fixture fixture = fixture(TEXT_FIELD);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(TEXT_FIELD, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(TEXT_FIELD, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(Map.of(), command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the TextField palette authority once"));
     }
 
     @Test

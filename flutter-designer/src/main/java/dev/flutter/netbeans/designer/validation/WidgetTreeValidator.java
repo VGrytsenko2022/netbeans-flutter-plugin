@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -19,6 +20,7 @@ import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -330,6 +332,11 @@ public final class WidgetTreeValidator {
             }
         }
 
+        if (type.equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.value())) {
+            validateTextField(node, propertiesPath, issues);
+            return;
+        }
+
         if (type.equals("flutter.widgets.Image")) {
             validateImageCenterSlice(node, propertiesPath, issues);
             return;
@@ -441,6 +448,118 @@ public final class WidgetTreeValidator {
                         + "' duplicates the identifier first declared at '" + firstPath + "'."));
             }
         }
+    }
+
+    private static void validateTextField(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        validateTextFieldComponents(
+                node,
+                propertiesPath,
+                issues,
+                List.of("cursorRadiusX", "cursorRadiusY"),
+                "TextField cursorRadius requires cursorRadiusX and cursorRadiusY together.");
+        validateTextFieldComponents(
+                node,
+                propertiesPath,
+                issues,
+                List.of(
+                        "scrollPaddingLeft", "scrollPaddingTop",
+                        "scrollPaddingRight", "scrollPaddingBottom"),
+                "TextField scrollPadding requires scrollPaddingLeft, scrollPaddingTop, "
+                + "scrollPaddingRight, and scrollPaddingBottom together.");
+
+        BigInteger maxLines = integerValue(node, "maxLines");
+        BigInteger minLines = integerValue(node, "minLines");
+        boolean expands = Boolean.TRUE.equals(booleanValue(node, "expands"));
+        if (expands) {
+            if (maxLines != null) {
+                issues.add(issue(
+                        PROPERTY_CONFLICT,
+                        propertiesPath + "/maxLines",
+                        node.id(),
+                        "TextField expands=true requires maxLines and minLines to be omitted."));
+            }
+            if (minLines != null) {
+                issues.add(issue(
+                        PROPERTY_CONFLICT,
+                        propertiesPath + "/minLines",
+                        node.id(),
+                        "TextField expands=true requires maxLines and minLines to be omitted."));
+            }
+        } else if (minLines != null) {
+            BigInteger effectiveMaxLines = maxLines == null ? BigInteger.ONE : maxLines;
+            if (minLines.compareTo(effectiveMaxLines) > 0) {
+                issues.add(issue(
+                        PROPERTY_CONSTRAINT,
+                        propertiesPath + "/minLines",
+                        node.id(),
+                        "TextField minLines cannot be greater than maxLines."));
+            }
+        }
+
+        BigInteger maxLength = integerValue(node, "maxLength");
+        if (BigInteger.ZERO.equals(maxLength)) {
+            issues.add(issue(
+                    PROPERTY_CONSTRAINT,
+                    propertiesPath + "/maxLength",
+                    node.id(),
+                    "TextField maxLength must be -1 or greater than zero."));
+        }
+
+        if (Boolean.TRUE.equals(booleanValue(node, "obscureText"))
+                && (expands
+                || (maxLines != null && !BigInteger.ONE.equals(maxLines)))) {
+            issues.add(issue(
+                    PROPERTY_CONFLICT,
+                    propertiesPath + "/obscureText",
+                    node.id(),
+                    "TextField obscureText=true requires maxLines=1 and expands=false."));
+        }
+
+        PropertyValue actionValue = node.properties().get(
+                new PropertyName("textInputAction"));
+        PropertyValue keyboardValue = node.properties().get(
+                new PropertyName("keyboardType"));
+        boolean effectiveMultiline = expands
+                || (maxLines != null && !BigInteger.ONE.equals(maxLines));
+        if (effectiveMultiline
+                && actionValue instanceof PropertyValue.EnumValue action
+                && action.type().equals("TextInputAction")
+                && action.value().equals("newline")
+                && keyboardValue instanceof PropertyValue.StringValue keyboard
+                && keyboard.value().equals("text")) {
+            issues.add(issue(
+                    PROPERTY_CONFLICT,
+                    propertiesPath + "/keyboardType",
+                    node.id(),
+                    "Use keyboardType TextInputType.multiline when using "
+                    + "TextInputAction.newline on a multiline TextField."));
+        }
+    }
+
+    private static void validateTextFieldComponents(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            List<String> componentNames,
+            String message) {
+        List<String> present = componentNames.stream()
+                .filter(name -> node.properties().containsKey(new PropertyName(name)))
+                .toList();
+        if (present.isEmpty() || present.size() == componentNames.size()) {
+            return;
+        }
+        String firstMissing = componentNames.stream()
+                .filter(name -> !present.contains(name))
+                .findFirst()
+                .orElseThrow();
+        issues.add(issue(
+                PROPERTY_DEPENDENCY,
+                propertiesPath + '/' + firstMissing,
+                node.id(),
+                message));
     }
 
     private static void validateImageCenterSlice(
@@ -821,6 +940,14 @@ public final class WidgetTreeValidator {
         PropertyValue value = node.properties().get(new PropertyName(propertyName));
         return value instanceof PropertyValue.BooleanValue flag
                 ? flag.value() : null;
+    }
+
+    private static BigInteger integerValue(
+            WidgetNode node,
+            String propertyName) {
+        PropertyValue value = node.properties().get(new PropertyName(propertyName));
+        return value instanceof PropertyValue.IntegerValue integer
+                ? integer.value() : null;
     }
 
     private static void validateElevatedButtonEffectiveShapes(

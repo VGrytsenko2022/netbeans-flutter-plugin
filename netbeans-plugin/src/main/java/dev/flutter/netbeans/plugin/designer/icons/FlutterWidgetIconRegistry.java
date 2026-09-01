@@ -23,6 +23,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.AppBar", ICON_ROOT + "appbar.svg"),
             Map.entry("flutter.material.ElevatedButton",
                     ICON_ROOT + "elevatedbutton.svg"),
+            Map.entry("flutter.material.TextField", ICON_ROOT + "textfield.svg"),
             Map.entry("flutter.widgets.Column", ICON_ROOT + "column.svg"),
             Map.entry("flutter.widgets.Row", ICON_ROOT + "row.svg"),
             Map.entry("flutter.widgets.Padding", ICON_ROOT + "padding.svg"),

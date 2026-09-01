@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -116,6 +117,7 @@ void main() {
     );
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Icon'), isEmpty);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Image'), isEmpty);
+    expect(canvasDropSlotsForWidgetType('flutter.material.TextField'), isEmpty);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Text'), isEmpty);
     expect(
       canvasEmptyChildDropSlot.accepts(currentChildCount: 0, insertionIndex: 1),
@@ -142,11 +144,12 @@ void main() {
     expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
   });
 
-  test('closes the 18-source by 20-destination compatibility matrix', () {
+  test('closes the 19-source by 20-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
       'flutter.material.ElevatedButton',
+      'flutter.material.TextField',
       'flutter.widgets.Align',
       'flutter.widgets.AspectRatio',
       'flutter.widgets.Column',
@@ -171,7 +174,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(18));
+    expect(sourceTypes, hasLength(19));
     expect(destinations, hasLength(20));
 
     var accepted = 0;
@@ -196,9 +199,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 310);
-    expect(rejected, 50);
-    expect(accepted + rejected, 360);
+    expect(accepted, 328);
+    expect(rejected, 52);
+    expect(accepted + rejected, 380);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2802,6 +2805,388 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets(
+    'renders all reviewed TextField arguments without editable state',
+    (tester) async {
+      const textFieldId = '73d9ec43-3d37-4304-8998-71fe51804284';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredTextField(
+                id: textFieldId,
+                properties: {
+                  'keyboardType': {
+                    'kind': 'string',
+                    'value': 'numberSignedDecimal',
+                  },
+                  'textInputAction': {
+                    'kind': 'enum',
+                    'type': 'TextInputAction',
+                    'value': 'done',
+                  },
+                  'textCapitalization': {
+                    'kind': 'enum',
+                    'type': 'TextCapitalization',
+                    'value': 'words',
+                  },
+                  'textAlign': {
+                    'kind': 'enum',
+                    'type': 'TextAlign',
+                    'value': 'center',
+                  },
+                  'textAlignVertical': {'kind': 'string', 'value': 'bottom'},
+                  'textDirection': {
+                    'kind': 'enum',
+                    'type': 'TextDirection',
+                    'value': 'ltr',
+                  },
+                  'readOnly': {'kind': 'boolean', 'value': true},
+                  'showCursor': {'kind': 'boolean', 'value': false},
+                  'autofocus': {'kind': 'boolean', 'value': true},
+                  'obscuringCharacter': {'kind': 'string', 'value': '#'},
+                  'obscureText': {'kind': 'boolean', 'value': false},
+                  'autocorrect': {'kind': 'boolean', 'value': false},
+                  'smartDashesType': {
+                    'kind': 'enum',
+                    'type': 'SmartDashesType',
+                    'value': 'disabled',
+                  },
+                  'smartQuotesType': {
+                    'kind': 'enum',
+                    'type': 'SmartQuotesType',
+                    'value': 'enabled',
+                  },
+                  'enableSuggestions': {'kind': 'boolean', 'value': false},
+                  'maxLines': {'kind': 'integer', 'value': 4},
+                  'minLines': {'kind': 'integer', 'value': 2},
+                  'expands': {'kind': 'boolean', 'value': false},
+                  'maxLength': {'kind': 'integer', 'value': -1},
+                  'maxLengthEnforcement': {
+                    'kind': 'enum',
+                    'type': 'MaxLengthEnforcement',
+                    'value': 'truncateAfterCompositionEnds',
+                  },
+                  'onChanged': {'kind': 'callbackPresence'},
+                  'onEditingComplete': {'kind': 'callbackPresence'},
+                  'onSubmitted': {'kind': 'callbackPresence'},
+                  'onAppPrivateCommand': {'kind': 'callbackPresence'},
+                  'enabled': {'kind': 'boolean', 'value': true},
+                  'ignorePointers': {'kind': 'boolean', 'value': false},
+                  'cursorWidth': {'kind': 'integer', 'value': 3},
+                  'cursorHeight': {'kind': 'double', 'value': 22.5},
+                  'cursorRadiusX': {'kind': 'double', 'value': 4.0},
+                  'cursorRadiusY': {'kind': 'double', 'value': 6.0},
+                  'cursorOpacityAnimates': {'kind': 'boolean', 'value': true},
+                  'cursorColor': {
+                    'kind': 'themeToken',
+                    'token': 'material.colorScheme.primary',
+                  },
+                  'cursorErrorColor': {'kind': 'color', 'argb': '0xFFAA1122'},
+                  'selectionHeightStyle': {
+                    'kind': 'enum',
+                    'type': 'BoxHeightStyle',
+                    'value': 'includeLineSpacingBottom',
+                  },
+                  'selectionWidthStyle': {
+                    'kind': 'enum',
+                    'type': 'BoxWidthStyle',
+                    'value': 'max',
+                  },
+                  'keyboardAppearance': {
+                    'kind': 'enum',
+                    'type': 'Brightness',
+                    'value': 'dark',
+                  },
+                  'scrollPaddingLeft': {'kind': 'double', 'value': 1.0},
+                  'scrollPaddingTop': {'kind': 'double', 'value': 2.0},
+                  'scrollPaddingRight': {'kind': 'double', 'value': 3.0},
+                  'scrollPaddingBottom': {'kind': 'double', 'value': 4.0},
+                  'dragStartBehavior': {
+                    'kind': 'enum',
+                    'type': 'DragStartBehavior',
+                    'value': 'down',
+                  },
+                  'enableInteractiveSelection': {
+                    'kind': 'boolean',
+                    'value': false,
+                  },
+                  'selectAllOnFocus': {'kind': 'boolean', 'value': true},
+                  'onTap': {'kind': 'callbackPresence'},
+                  'onTapAlwaysCalled': {'kind': 'boolean', 'value': true},
+                  'onTapOutside': {'kind': 'callbackPresence'},
+                  'onTapUpOutside': {'kind': 'callbackPresence'},
+                  'mouseCursor': {'kind': 'string', 'value': 'resizeColumn'},
+                  'clipBehavior': {
+                    'kind': 'enum',
+                    'type': 'Clip',
+                    'value': 'antiAlias',
+                  },
+                  'restorationId': {'kind': 'string', 'value': 'profile-name'},
+                  'stylusHandwritingEnabled': {
+                    'kind': 'boolean',
+                    'value': false,
+                  },
+                  'enableIMEPersonalizedLearning': {
+                    'kind': 'boolean',
+                    'value': false,
+                  },
+                  'enableInlinePrediction': {'kind': 'boolean', 'value': true},
+                  'canRequestFocus': {'kind': 'boolean', 'value': true},
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      String? selected;
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (value) => selected = value,
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(const ValueKey('canvas-widget-$textFieldId'));
+      final finder = find.descendant(
+        of: node,
+        matching: find.byType(TextField),
+      );
+      final field = tester.widget<TextField>(finder);
+      expect(
+        field.keyboardType,
+        const TextInputType.numberWithOptions(signed: true, decimal: true),
+      );
+      expect(field.textInputAction, TextInputAction.done);
+      expect(field.textCapitalization, TextCapitalization.words);
+      expect(field.textAlign, TextAlign.center);
+      expect(field.textAlignVertical, TextAlignVertical.bottom);
+      expect(field.textDirection, TextDirection.ltr);
+      expect(field.readOnly, isTrue);
+      expect(field.showCursor, isFalse);
+      expect(field.autofocus, isTrue);
+      expect(field.obscuringCharacter, '#');
+      expect(field.obscureText, isFalse);
+      expect(field.autocorrect, isFalse);
+      expect(field.smartDashesType, SmartDashesType.disabled);
+      expect(field.smartQuotesType, SmartQuotesType.enabled);
+      expect(field.enableSuggestions, isFalse);
+      expect(field.maxLines, 4);
+      expect(field.minLines, 2);
+      expect(field.expands, isFalse);
+      expect(field.maxLength, TextField.noMaxLength);
+      expect(
+        field.maxLengthEnforcement,
+        MaxLengthEnforcement.truncateAfterCompositionEnds,
+      );
+      expect(field.onChanged, isNotNull);
+      expect(field.onEditingComplete, isNotNull);
+      expect(field.onSubmitted, isNotNull);
+      expect(field.onAppPrivateCommand, isNotNull);
+      expect(field.enabled, isTrue);
+      expect(field.ignorePointers, isFalse);
+      expect(field.cursorWidth, 3);
+      expect(field.cursorHeight, 22.5);
+      expect(field.cursorRadius, const Radius.elliptical(4, 6));
+      expect(field.cursorOpacityAnimates, isTrue);
+      expect(
+        field.cursorColor,
+        Theme.of(tester.element(finder)).colorScheme.primary,
+      );
+      expect(field.cursorErrorColor, const Color(0xffaa1122));
+      expect(
+        field.selectionHeightStyle,
+        ui.BoxHeightStyle.includeLineSpacingBottom,
+      );
+      expect(field.selectionWidthStyle, ui.BoxWidthStyle.max);
+      expect(field.keyboardAppearance, Brightness.dark);
+      expect(field.scrollPadding, const EdgeInsets.fromLTRB(1, 2, 3, 4));
+      expect(field.dragStartBehavior, DragStartBehavior.down);
+      expect(field.enableInteractiveSelection, isFalse);
+      expect(field.selectAllOnFocus, isTrue);
+      expect(field.onTap, isNotNull);
+      expect(field.onTapAlwaysCalled, isTrue);
+      expect(field.onTapOutside, isNotNull);
+      expect(field.onTapUpOutside, isNotNull);
+      expect(field.mouseCursor, SystemMouseCursors.resizeColumn);
+      expect(field.clipBehavior, Clip.antiAlias);
+      expect(field.restorationId, 'profile-name');
+      expect(field.stylusHandwritingEnabled, isFalse);
+      expect(field.enableIMEPersonalizedLearning, isFalse);
+      expect(field.enableInlinePrediction, isTrue);
+      expect(field.canRequestFocus, isTrue);
+      expect(field.controller, isNull);
+      expect(field.focusNode, isNull);
+
+      final ignorePointers = find.ancestor(
+        of: finder,
+        matching: find.byType(IgnorePointer),
+      );
+      expect(ignorePointers, findsWidgets);
+      expect(
+        ignorePointers
+            .evaluate()
+            .map((element) => element.widget)
+            .whereType<IgnorePointer>(),
+        contains(predicate<IgnorePointer>((widget) => widget.ignoring)),
+      );
+      final excludeFocus = find.ancestor(
+        of: finder,
+        matching: find.byType(ExcludeFocus),
+      );
+      expect(excludeFocus, findsOneWidget);
+      expect(tester.widget<ExcludeFocus>(excludeFocus).excluding, isTrue);
+      final focusGuards = find
+          .ancestor(of: finder, matching: find.byType(Focus))
+          .evaluate()
+          .map((element) => element.widget)
+          .whereType<Focus>();
+      expect(
+        focusGuards,
+        contains(
+          predicate<Focus>(
+            (widget) =>
+                !widget.canRequestFocus &&
+                widget.skipTraversal &&
+                !widget.descendantsAreFocusable &&
+                !widget.descendantsAreTraversable,
+          ),
+        ),
+      );
+      final editable = tester.widget<EditableText>(
+        find.descendant(of: finder, matching: find.byType(EditableText)),
+      );
+      expect(editable.focusNode.hasFocus, isFalse);
+      await tester.tap(node);
+      await tester.pump();
+      expect(selected, textFieldId);
+      expect(editable.focusNode.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('bounds TextField behind unbounded flex intermediaries', (
+    tester,
+  ) async {
+    Future<Size> render({
+      required String parentType,
+      required Map<String, Object?> properties,
+    }) async {
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithTextFieldInFlex(
+                parentType: parentType,
+                properties: properties,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      return tester.getSize(find.byType(TextField));
+    }
+
+    final rowSize = await render(
+      parentType: 'flutter.widgets.Row',
+      properties: {},
+    );
+    expect(rowSize.width, 240);
+    expect(rowSize.height, greaterThan(0));
+
+    final columnSize = await render(
+      parentType: 'flutter.widgets.Column',
+      properties: {
+        'expands': {'kind': 'boolean', 'value': true},
+      },
+    );
+    expect(columnSize.height, 120);
+    expect(columnSize.width, greaterThan(0));
+    final expanded = tester.widget<TextField>(find.byType(TextField));
+    expect(expanded.expands, isTrue);
+    expect(expanded.maxLines, isNull);
+    expect(expanded.minLines, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preserves pinned TextField defaults when leaves are omitted', (
+    tester,
+  ) async {
+    const textFieldId = '73d9ec43-3d37-4304-8998-71fe51804284';
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithCenteredTextField(id: textFieldId, properties: {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.keyboardType, TextInputType.text);
+    expect(field.textInputAction, isNull);
+    expect(field.textCapitalization, TextCapitalization.none);
+    expect(field.textAlign, TextAlign.start);
+    expect(field.textAlignVertical, isNull);
+    expect(field.textDirection, isNull);
+    expect(field.readOnly, isFalse);
+    expect(field.showCursor, isNull);
+    expect(field.autofocus, isFalse);
+    expect(field.obscuringCharacter, '•');
+    expect(field.obscureText, isFalse);
+    expect(field.autocorrect, isNull);
+    expect(field.smartDashesType, SmartDashesType.enabled);
+    expect(field.smartQuotesType, SmartQuotesType.enabled);
+    expect(field.enableSuggestions, isTrue);
+    expect(field.maxLines, 1);
+    expect(field.minLines, isNull);
+    expect(field.expands, isFalse);
+    expect(field.maxLength, isNull);
+    expect(field.maxLengthEnforcement, isNull);
+    expect(field.enabled, isNull);
+    expect(field.ignorePointers, isNull);
+    expect(field.cursorWidth, 2);
+    expect(field.cursorHeight, isNull);
+    expect(field.cursorRadius, isNull);
+    expect(field.cursorOpacityAnimates, isNull);
+    expect(field.cursorColor, isNull);
+    expect(field.cursorErrorColor, isNull);
+    expect(field.keyboardAppearance, isNull);
+    expect(field.scrollPadding, const EdgeInsets.all(20));
+    expect(field.dragStartBehavior, DragStartBehavior.start);
+    expect(field.enableInteractiveSelection, isTrue);
+    expect(field.selectAllOnFocus, isNull);
+    expect(field.onTapAlwaysCalled, isFalse);
+    expect(field.mouseCursor, isNull);
+    expect(field.clipBehavior, Clip.hardEdge);
+    expect(field.restorationId, isNull);
+    expect(
+      field.stylusHandwritingEnabled,
+      EditableText.defaultStylusHandwritingEnabled,
+    );
+    expect(field.enableIMEPersonalizedLearning, isTrue);
+    expect(field.enableInlinePrediction, isNull);
+    expect(field.canRequestFocus, isTrue);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
@@ -5799,6 +6184,74 @@ Map<String, Object?> _modelWithCenteredImage({
           'properties': properties,
           'slots': <String, Object?>{},
         },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredTextField({
+  required String id,
+  required Map<String, Object?> properties,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': id,
+          'type': 'flutter.material.TextField',
+          'properties': properties,
+          'slots': <String, Object?>{},
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithTextFieldInFlex({
+  required String parentType,
+  required Map<String, Object?> properties,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': 'c197acdc-e87f-4b42-888c-907554c30262',
+    'type': parentType,
+    'properties': <String, Object?>{
+      'mainAxisSize': {'kind': 'enum', 'type': 'MainAxisSize', 'value': 'min'},
+    },
+    'slots': <String, Object?>{
+      'children': <String, Object?>{
+        'kind': 'list',
+        'children': <Object?>[
+          <String, Object?>{
+            'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+            'type': 'flutter.widgets.Align',
+            'properties': <String, Object?>{},
+            'slots': <String, Object?>{
+              'child': <String, Object?>{
+                'kind': 'single',
+                'child': <String, Object?>{
+                  'id': '73d9ec43-3d37-4304-8998-71fe51804284',
+                  'type': 'flutter.material.TextField',
+                  'properties': properties,
+                  'slots': <String, Object?>{},
+                },
+              },
+            },
+          },
+        ],
       },
     },
   };

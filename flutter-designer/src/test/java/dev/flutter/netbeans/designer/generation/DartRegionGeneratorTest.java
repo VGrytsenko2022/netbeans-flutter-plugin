@@ -51,7 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DartRegionGeneratorTest {
+    private static final String DART_UI_IMPORT = "dart:ui";
+    private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
+    private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final String PROBE_IMPORT = "package:probe/probe.dart";
     private static final String ZERO_HASH = "0".repeat(64);
@@ -1037,6 +1040,83 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void guardsTextFieldAcrossIndirectUnboundedFlexWrappers() {
+        WidgetNode rowField = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.TextField"),
+                Map.of(), Map.of(), Extensions.empty());
+        WidgetNode widthlessBox = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.SizedBox"),
+                Map.of(),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(rowField)),
+                Extensions.empty());
+        WidgetNode center = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(widthlessBox)),
+                Extensions.empty());
+        PropertyValue.EdgeInsetsValue paddingValue =
+                new PropertyValue.EdgeInsetsValue(
+                        BigDecimal.valueOf(8), BigDecimal.valueOf(8),
+                        BigDecimal.valueOf(8), BigDecimal.valueOf(8));
+        WidgetNode rowPadding = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Padding"),
+                Map.of(property("padding"), paddingValue),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(center)),
+                Extensions.empty());
+        WidgetNode row = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Row"),
+                Map.of(),
+                Map.of(slot("children"),
+                        new WidgetSlot.ListSlot(List.of(rowPadding))),
+                Extensions.empty());
+
+        WidgetNode expandingField = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.TextField"),
+                Map.of(property("expands"), new PropertyValue.BooleanValue(true)),
+                Map.of(), Extensions.empty());
+        WidgetNode columnPadding = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Padding"),
+                Map.of(property("padding"), paddingValue),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(expandingField)),
+                Extensions.empty());
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Column"),
+                Map.of(),
+                Map.of(slot("children"),
+                        new WidgetSlot.ListSlot(List.of(row, columnPadding))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("import 'package:flutter/material.dart';\n",
+                result.generated().orElseThrow().imports().payload());
+        String build = result.generated().orElseThrow().build().payload();
+        assertTrue(build.contains("return Column("), build);
+        assertEquals(2, build.split("LayoutBuilder\\(", -1).length - 1, build);
+        assertEquals(2, build.split(
+                "width: constraints\\.hasBoundedWidth \\? null : 240", -1)
+                .length - 1, build);
+        assertEquals(1, build.split(
+                "height: constraints\\.hasBoundedHeight \\? null : 120", -1)
+                .length - 1, build);
+        assertTrue(build.contains("child: const TextField()"), build);
+        assertTrue(build.contains(
+                "child: const TextField("
+                + "maxLines: null, minLines: null, expands: true)"), build);
+    }
+
+    @Test
     void emitsImageWithScalarOpacityAnimationAndSynthesizedCenterSlice() {
         WidgetNode image = new WidgetNode(
                 StableId.random(),
@@ -1119,6 +1199,266 @@ class DartRegionGeneratorTest {
                 .anyMatch(value -> value.symbolName().equals("AlwaysStoppedAnimation")));
         assertTrue(result.generated().orElseThrow().symbolOccurrences().stream()
                 .anyMatch(value -> value.symbolName().equals("Rect")));
+    }
+
+    @Test
+    void emitsNewTextFieldPrototypeWithoutMaterializingFrameworkDefaults() {
+        WidgetNode textField = WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault()
+                        .find(new WidgetTypeId("flutter.material.TextField"))
+                        .orElseThrow(),
+                StableId.random());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(textField, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return LayoutBuilder(
+                      builder: (_, constraints) => SizedBox(
+                        width: constraints.hasBoundedWidth ? null : 240,
+                        child: const TextField(),
+                      ),
+                    );
+                  }
+                """, generated.build().payload());
+    }
+
+    @Test
+    void emitsEveryReviewedTextFieldKeyboardPresetIncludingNumberOptions() {
+        LinkedHashMap<String, String> expected = new LinkedHashMap<>();
+        for (String preset : List.of(
+                "text", "multiline", "number", "phone", "datetime",
+                "emailAddress", "url", "visiblePassword", "name",
+                "streetAddress", "none", "webSearch", "twitter")) {
+            expected.put(preset, "." + preset);
+        }
+        expected.put("numberSigned", ".numberWithOptions(signed: true)");
+        expected.put("numberDecimal", ".numberWithOptions(decimal: true)");
+        expected.put("numberSignedDecimal",
+                ".numberWithOptions(signed: true, decimal: true)");
+
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            WidgetNode textField = new WidgetNode(
+                    StableId.random(),
+                    new WidgetTypeId("flutter.material.TextField"),
+                    Map.of(property("keyboardType"),
+                            new PropertyValue.StringValue(entry.getKey())),
+                    Map.of(),
+                    Extensions.empty());
+
+            DartGenerationResult result = new DartRegionGenerator().generate(
+                    document(textField, WidgetClassKind.STATELESS),
+                    BuiltInWidgetCatalog.getDefault());
+
+            assertTrue(result.successful(),
+                    () -> entry.getKey() + ": " + result.diagnostics());
+            GeneratedDartRegions generated = result.generated().orElseThrow();
+            DartImportDirective services = generated.importPlan().directives().stream()
+                    .filter(value -> value.uri().equals(SERVICES_IMPORT))
+                    .findFirst().orElseThrow();
+            String servicesPrefix = services.prefix().orElseThrow();
+            String expectedValue = servicesPrefix + ".TextInputType"
+                    + entry.getValue();
+            if (entry.getKey().startsWith("number")
+                    && !entry.getKey().equals("number")) {
+                expectedValue = "const " + expectedValue;
+            }
+            String build = generated.build().payload();
+            assertTrue(build.contains("return LayoutBuilder("), build);
+            assertTrue(build.contains("child: const TextField("), build);
+            assertTrue(build.contains(
+                    "keyboardType: " + expectedValue),
+                    entry.getKey() + ": " + build);
+            assertEquals(
+                    List.of(MATERIAL_IMPORT, SERVICES_IMPORT),
+                    generated.importPlan().directives().stream()
+                            .map(DartImportDirective::uri)
+                            .sorted()
+                            .toList());
+        }
+    }
+
+    @Test
+    void assemblesTextFieldSynthesizedValuesAndConditionalImportsAsConst() {
+        WidgetNode textField = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.TextField"),
+                Map.ofEntries(
+                        Map.entry(property("keyboardType"),
+                                new PropertyValue.StringValue("numberSignedDecimal")),
+                        Map.entry(property("textInputAction"),
+                                new PropertyValue.EnumValue(
+                                        "TextInputAction", "search")),
+                        Map.entry(property("textAlign"),
+                                new PropertyValue.EnumValue("TextAlign", "center")),
+                        Map.entry(property("textAlignVertical"),
+                                new PropertyValue.StringValue("bottom")),
+                        Map.entry(property("maxLength"),
+                                new PropertyValue.IntegerValue(
+                                        BigInteger.valueOf(-1))),
+                        Map.entry(property("cursorRadiusX"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(2))),
+                        Map.entry(property("cursorRadiusY"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(3))),
+                        Map.entry(property("selectionHeightStyle"),
+                                new PropertyValue.EnumValue(
+                                        "BoxHeightStyle", "strut")),
+                        Map.entry(property("selectionWidthStyle"),
+                                new PropertyValue.EnumValue("BoxWidthStyle", "max")),
+                        Map.entry(property("scrollPaddingLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(property("scrollPaddingTop"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(2))),
+                        Map.entry(property("scrollPaddingRight"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(3))),
+                        Map.entry(property("scrollPaddingBottom"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(4))),
+                        Map.entry(property("dragStartBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "DragStartBehavior", "start")),
+                        Map.entry(property("mouseCursor"),
+                                new PropertyValue.StringValue("resizeColumn"))),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(textField, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals(
+                List.of(DART_UI_IMPORT, GESTURES_IMPORT,
+                        MATERIAL_IMPORT, SERVICES_IMPORT),
+                generated.importPlan().directives().stream()
+                        .map(DartImportDirective::uri).toList());
+        String uiPrefix = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals(DART_UI_IMPORT))
+                .findFirst().orElseThrow().prefix().orElseThrow();
+        String gesturesPrefix = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals(GESTURES_IMPORT))
+                .findFirst().orElseThrow().prefix().orElseThrow();
+        String servicesPrefix = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals(SERVICES_IMPORT))
+                .findFirst().orElseThrow().prefix().orElseThrow();
+        String build = generated.build().payload();
+        assertTrue(build.contains("return LayoutBuilder("), build);
+        assertTrue(build.contains("child: const TextField("), build);
+        assertTrue(build.contains("keyboardType: const " + servicesPrefix
+                + ".TextInputType.numberWithOptions("
+                + "signed: true, decimal: true)"), build);
+        assertTrue(build.contains("textInputAction: " + servicesPrefix
+                + ".TextInputAction.search"), build);
+        assertTrue(build.contains("textAlign: TextAlign.center"), build);
+        assertTrue(build.contains(
+                "textAlignVertical: TextAlignVertical.bottom"), build);
+        assertTrue(build.contains("maxLength: TextField.noMaxLength"), build);
+        assertTrue(build.contains(
+                "cursorRadius: const Radius.elliptical(2.0, 3.0)"), build);
+        assertTrue(build.contains("selectionHeightStyle: " + uiPrefix
+                + ".BoxHeightStyle.strut"), build);
+        assertTrue(build.contains("selectionWidthStyle: " + uiPrefix
+                + ".BoxWidthStyle.max"), build);
+        assertTrue(build.contains(
+                "scrollPadding: const EdgeInsets.fromLTRB("
+                + "1.0, 2.0, 3.0, 4.0)"), build);
+        assertTrue(build.contains("dragStartBehavior: " + gesturesPrefix
+                + ".DragStartBehavior.start"), build);
+        assertTrue(build.contains(
+                "mouseCursor: SystemMouseCursors.resizeColumn"), build);
+        assertFalse(build.contains("cursorRadiusX:"), build);
+        assertFalse(build.contains("scrollPaddingLeft:"), build);
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(value ->
+                value.symbolName().equals("TextInputType")
+                        && value.libraryUri().equals(SERVICES_IMPORT)));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(value ->
+                value.symbolName().equals("BoxHeightStyle")
+                        && value.libraryUri().equals(DART_UI_IMPORT)));
+    }
+
+    @Test
+    void expandsTextFieldSynthesizesNullLinePairInPinnedArgumentOrder() {
+        WidgetNode textField = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.TextField"),
+                Map.of(property("expands"), new PropertyValue.BooleanValue(true)),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(textField, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return LayoutBuilder(
+                      builder: (_, constraints) => SizedBox(
+                        width: constraints.hasBoundedWidth ? null : 240,
+                        height: constraints.hasBoundedHeight ? null : 120,
+                        child: const TextField(maxLines: null, minLines: null, expands: true),
+                      ),
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
+    void textFieldCallbacksAreDirectReferencesAndDisableConst() {
+        WidgetNode textField = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.material.TextField"),
+                Map.ofEntries(
+                        Map.entry(property("onChanged"),
+                                new PropertyValue.CallbackValue("handleChanged")),
+                        Map.entry(property("onEditingComplete"),
+                                new PropertyValue.CallbackValue("handleEditingComplete")),
+                        Map.entry(property("onSubmitted"),
+                                new PropertyValue.CallbackValue("handleSubmitted")),
+                        Map.entry(property("onAppPrivateCommand"),
+                                new PropertyValue.CallbackValue("handlePrivateCommand")),
+                        Map.entry(property("onTap"),
+                                new PropertyValue.CallbackValue("handleTap")),
+                        Map.entry(property("onTapOutside"),
+                                new PropertyValue.CallbackValue("handleTapOutside")),
+                        Map.entry(property("onTapUpOutside"),
+                                new PropertyValue.CallbackValue("handleTapUpOutside"))),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(textField, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        String build = result.generated().orElseThrow().build().payload();
+        assertTrue(build.contains("return LayoutBuilder("), build);
+        assertTrue(build.contains("child: TextField("), build);
+        assertFalse(build.contains("child: const TextField("), build);
+        assertTrue(build.contains("onChanged: handleChanged"), build);
+        assertTrue(build.contains(
+                "onEditingComplete: handleEditingComplete"), build);
+        assertTrue(build.contains("onSubmitted: handleSubmitted"), build);
+        assertTrue(build.contains(
+                "onAppPrivateCommand: handlePrivateCommand"), build);
+        assertTrue(build.contains("onTap: handleTap"), build);
+        assertTrue(build.contains("onTapOutside: handleTapOutside"), build);
+        assertTrue(build.contains("onTapUpOutside: handleTapUpOutside"), build);
+        assertEquals("import 'package:flutter/material.dart';\n",
+                result.generated().orElseThrow().imports().payload());
     }
 
     @Test

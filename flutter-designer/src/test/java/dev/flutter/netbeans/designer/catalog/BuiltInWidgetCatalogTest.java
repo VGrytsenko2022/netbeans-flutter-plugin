@@ -26,14 +26,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BuiltInWidgetCatalogTest {
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
+    private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedEighteenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedNineteenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.material.Scaffold",
+                "flutter.material.TextField",
                 "flutter.widgets.Align",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Center",
@@ -53,8 +56,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(18, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(15, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(19, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(16, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -65,10 +68,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(563, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(617, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(546, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(600, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -81,6 +84,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.AppBar", MATERIAL_IMPORT),
                 Map.entry("flutter.material.ElevatedButton", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Scaffold", MATERIAL_IMPORT),
+                Map.entry("flutter.material.TextField", MATERIAL_IMPORT),
                 Map.entry("flutter.widgets.Align", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
@@ -110,6 +114,10 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(MATERIAL_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.material.AppBar").importUris(),
                 "AppBar owns Material symbols and typed enum/style symbols from widgets.dart");
+        assertEquals(List.of(
+                        DART_UI_IMPORT, GESTURES_IMPORT, MATERIAL_IMPORT,
+                        SERVICES_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.material.TextField").importUris());
     }
 
     @Test
@@ -128,6 +136,8 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BorderStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BoxFit"),
+                new DartSymbolReference(DART_UI_IMPORT, "BoxHeightStyle"),
+                new DartSymbolReference(DART_UI_IMPORT, "BoxWidthStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
@@ -139,11 +149,16 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
+                new DartSymbolReference(SERVICES_IMPORT, "MaxLengthEnforcement"),
+                new DartSymbolReference(SERVICES_IMPORT, "SmartDashesType"),
+                new DartSymbolReference(SERVICES_IMPORT, "SmartQuotesType"),
                 new DartSymbolReference(WIDGETS_IMPORT, "StackFit"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
+                new DartSymbolReference(SERVICES_IMPORT, "TextCapitalization"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextDecorationStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextDirection"),
+                new DartSymbolReference(SERVICES_IMPORT, "TextInputAction"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextLeadingDistribution"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextOverflow"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextWidthBasis"),
@@ -156,6 +171,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
+                "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Padding",
@@ -218,6 +234,8 @@ class BuiltInWidgetCatalogTest {
         }
         assertTrue(property(catalog, "flutter.widgets.Expanded", "flex")
                 .creationDefault().isEmpty());
+        assertTrue(definition("flutter.material.TextField").properties().stream()
+                .allMatch(value -> value.creationDefault().isEmpty()));
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
                 .creationDefault().isEmpty());
     }
@@ -860,6 +878,72 @@ class BuiltInWidgetCatalogTest {
         assertEquals(1, child.maxChildren());
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
         assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void textFieldExposesExactConstLeafSurfaceAndReviewedScalarDomains() {
+        WidgetDefinition field = definition("flutter.material.TextField");
+
+        assertEquals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE, field.typeId());
+        assertEquals("TextField", field.dartClassName());
+        assertTrue(field.namedConstructor().isEmpty());
+        assertTrue(field.constConstructor());
+        assertEquals(MATERIAL_IMPORT, field.dartLibraryUri());
+        assertEquals(new PaletteMetadata("flutter.material", 100, 40, "Text Field"),
+                field.palette());
+        assertTrue(field.traits().isEmpty());
+        assertTrue(field.slots().isEmpty());
+        assertEquals(List.copyOf(TextFieldWidgetPropertySchema.definitions().keySet()),
+                field.properties().stream().map(value -> value.name().value()).toList());
+        assertEquals(54, field.properties().size());
+        for (int order = 0; order < field.properties().size(); order++) {
+            PropertyDefinition property = field.properties().get(order);
+            assertEquals(DartParameter.named(order, false), property.parameter(),
+                    property.name().value());
+            assertTrue(property.creationDefault().isEmpty(), property.name().value());
+        }
+
+        for (String name : List.of("maxLines", "minLines")) {
+            PropertyValueConstraint.IntegerRange range = assertInstanceOf(
+                    PropertyValueConstraint.IntegerRange.class,
+                    field.property(new PropertyName(name)).orElseThrow()
+                            .constraints().getFirst());
+            assertEquals(BigInteger.ONE, range.minimum(), name);
+            assertEquals(DartNumericLiterals.MAX_PORTABLE_INTEGER, range.maximum(), name);
+        }
+        PropertyValueConstraint.IntegerRange maxLength = assertInstanceOf(
+                PropertyValueConstraint.IntegerRange.class,
+                field.property(new PropertyName("maxLength")).orElseThrow()
+                        .constraints().getFirst());
+        assertEquals(BigInteger.valueOf(-1), maxLength.minimum());
+        assertEquals(DartNumericLiterals.MAX_PORTABLE_INTEGER, maxLength.maximum());
+
+        for (String name : List.of("cursorWidth", "cursorHeight")) {
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    field.property(new PropertyName(name)).orElseThrow().acceptedKinds(), name);
+        }
+        for (String name : List.of(
+                "cursorRadiusX", "cursorRadiusY", "scrollPaddingLeft",
+                "scrollPaddingTop", "scrollPaddingRight", "scrollPaddingBottom")) {
+            PropertyDefinition property = field.property(new PropertyName(name)).orElseThrow();
+            assertEquals(Set.of(PropertyValueKind.DOUBLE), property.acceptedKinds(), name);
+            PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                    PropertyValueConstraint.DoubleRange.class,
+                    property.constraints().getFirst());
+            assertEquals(BigDecimal.ZERO, range.minimum(), name);
+            assertTrue(range.minimumInclusive(), name);
+            assertNull(range.maximum(), name);
+        }
+        for (String name : List.of(
+                "onChanged", "onEditingComplete", "onSubmitted",
+                "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside")) {
+            assertInstanceOf(PropertyValueConstraint.CallbackReference.class,
+                    field.property(new PropertyName(name)).orElseThrow()
+                            .constraints().getFirst(), name);
+        }
+        assertStringPattern(field, "keyboardType", "numberSignedDecimal", "signed");
+        assertStringPattern(field, "textAlignVertical", "center", "middle");
+        assertStringPattern(field, "mouseCursor", "resizeColumn", "resizeColumns");
     }
 
     @Test

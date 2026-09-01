@@ -3120,6 +3120,9 @@ const _nonNegativeNumberBounds = <String, _NumericBounds>{
 const _nonNegativeIntegerBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
 };
+const _textFieldMaxLengthIntegerBounds = <String, _NumericBounds>{
+  'integer': _NumericBounds(minimum: -1, maximum: maxCanvasSequence),
+};
 const _positiveIntegerBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(
     minimum: 1,
@@ -3133,6 +3136,9 @@ const _nonNegativeEdgeInsetsBounds = <String, _NumericBounds>{
 };
 const _widgetsLibraryUri = 'package:flutter/widgets.dart';
 const _materialLibraryUri = 'package:flutter/material.dart';
+const _servicesLibraryUri = 'package:flutter/services.dart';
+const _gesturesLibraryUri = 'package:flutter/gestures.dart';
+const _dartUiLibraryUri = 'dart:ui';
 
 const _fontWeightProperty = _PropertySpec(
   {'enum'},
@@ -3983,6 +3989,174 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     _elevatedButtonProperties(),
     const {'child': _requiredEmptySingleSlot},
   ),
+  'flutter.material.TextField': _WidgetSpec({
+    'keyboardType': _PropertySpec(
+      {'string'},
+      stringPattern:
+          r'(?:text|multiline|number|numberSigned|numberDecimal|numberSignedDecimal|phone|datetime|emailAddress|url|visiblePassword|name|streetAddress|none|webSearch|twitter)',
+    ),
+    'textInputAction': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _servicesLibraryUri,
+      enumType: 'TextInputAction',
+      enumValues: {
+        'none',
+        'unspecified',
+        'done',
+        'go',
+        'search',
+        'send',
+        'next',
+        'previous',
+        'continueAction',
+        'join',
+        'route',
+        'emergencyCall',
+        'newline',
+      },
+    ),
+    'textCapitalization': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _servicesLibraryUri,
+      enumType: 'TextCapitalization',
+      enumValues: {'words', 'sentences', 'characters', 'none'},
+    ),
+    'textAlign': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextAlign',
+      enumValues: {'left', 'right', 'center', 'justify', 'start', 'end'},
+    ),
+    'textAlignVertical': _PropertySpec({
+      'string',
+    }, stringPattern: r'(?:top|center|bottom)'),
+    'textDirection': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'TextDirection',
+      enumValues: {'rtl', 'ltr'},
+    ),
+    'readOnly': _PropertySpec({'boolean'}),
+    'showCursor': _PropertySpec({'boolean'}),
+    'autofocus': _PropertySpec({'boolean'}),
+    'obscuringCharacter': _PropertySpec({
+      'string',
+    }, stringPattern: r'[\u0000-\uD7FF\uE000-\uFFFF]'),
+    'obscureText': _PropertySpec({'boolean'}),
+    'autocorrect': _PropertySpec({'boolean'}),
+    'smartDashesType': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _servicesLibraryUri,
+      enumType: 'SmartDashesType',
+      enumValues: {'disabled', 'enabled'},
+    ),
+    'smartQuotesType': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _servicesLibraryUri,
+      enumType: 'SmartQuotesType',
+      enumValues: {'disabled', 'enabled'},
+    ),
+    'enableSuggestions': _PropertySpec({'boolean'}),
+    'maxLines': _PropertySpec({
+      'integer',
+    }, numericBounds: _positiveIntegerBounds),
+    'minLines': _PropertySpec({
+      'integer',
+    }, numericBounds: _positiveIntegerBounds),
+    'expands': _PropertySpec({'boolean'}),
+    'maxLength': _PropertySpec({
+      'integer',
+    }, numericBounds: _textFieldMaxLengthIntegerBounds),
+    'maxLengthEnforcement': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _servicesLibraryUri,
+      enumType: 'MaxLengthEnforcement',
+      enumValues: {'none', 'enforced', 'truncateAfterCompositionEnds'},
+    ),
+    'onChanged': _PropertySpec({'callback'}),
+    'onEditingComplete': _PropertySpec({'callback'}),
+    'onSubmitted': _PropertySpec({'callback'}),
+    'onAppPrivateCommand': _PropertySpec({'callback'}),
+    'enabled': _PropertySpec({'boolean'}),
+    'ignorePointers': _PropertySpec({'boolean'}),
+    'cursorWidth': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'cursorHeight': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'cursorRadiusX': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'cursorRadiusY': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'cursorOpacityAnimates': _PropertySpec({'boolean'}),
+    'cursorColor': _themeAwareColorProperty,
+    'cursorErrorColor': _themeAwareColorProperty,
+    'selectionHeightStyle': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _dartUiLibraryUri,
+      enumType: 'BoxHeightStyle',
+      enumValues: {
+        'tight',
+        'max',
+        'includeLineSpacingMiddle',
+        'includeLineSpacingTop',
+        'includeLineSpacingBottom',
+        'strut',
+      },
+    ),
+    'selectionWidthStyle': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _dartUiLibraryUri,
+      enumType: 'BoxWidthStyle',
+      enumValues: {'tight', 'max'},
+    ),
+    'keyboardAppearance': _brightnessProperty,
+    'scrollPaddingLeft': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'scrollPaddingTop': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'scrollPaddingRight': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'scrollPaddingBottom': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'dragStartBehavior': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _gesturesLibraryUri,
+      enumType: 'DragStartBehavior',
+      enumValues: {'down', 'start'},
+    ),
+    'enableInteractiveSelection': _PropertySpec({'boolean'}),
+    'selectAllOnFocus': _PropertySpec({'boolean'}),
+    'onTap': _PropertySpec({'callback'}),
+    'onTapAlwaysCalled': _PropertySpec({'boolean'}),
+    'onTapOutside': _PropertySpec({'callback'}),
+    'onTapUpOutside': _PropertySpec({'callback'}),
+    'mouseCursor': _PropertySpec(
+      {'string'},
+      stringPattern:
+          r'(?:none|basic|click|forbidden|wait|progress|contextMenu|help|text|verticalText|cell|precise|move|grab|grabbing|noDrop|alias|copy|disappearing|allScroll|resizeLeftRight|resizeUpDown|resizeUpLeftDownRight|resizeUpRightDownLeft|resizeUp|resizeDown|resizeLeft|resizeRight|resizeUpLeft|resizeUpRight|resizeDownLeft|resizeDownRight|resizeColumn|resizeRow|zoomIn|zoomOut)',
+    ),
+    'clipBehavior': _clipBehaviorProperty,
+    'restorationId': _PropertySpec(
+      {'string'},
+      minimumStringLength: 1,
+      maximumStringLength: 256,
+      explicitStringLength: true,
+    ),
+    'stylusHandwritingEnabled': _PropertySpec({'boolean'}),
+    'enableIMEPersonalizedLearning': _PropertySpec({'boolean'}),
+    'enableInlinePrediction': _PropertySpec({'boolean'}),
+    'canRequestFocus': _PropertySpec({'boolean'}),
+  }, {}),
   'flutter.widgets.Text': _WidgetSpec({
     'data': _PropertySpec(
       {'string'},
@@ -4553,6 +4727,61 @@ P|restorationId|string|0|-|-|string:length:1:256
 S|appBar|single|0|0|1|trait:Zmx1dHRlci53aWRnZXRzLlByZWZlcnJlZFNpemVXaWRnZXQ
 S|body|single|0|0|1|any
 S|floatingActionButton|single|0|0|1|any
+W|flutter.material.TextField
+P|autocorrect|boolean|0|-|-|boolean:any
+P|autofocus|boolean|0|-|-|boolean:any
+P|canRequestFocus|boolean|0|-|-|boolean:any
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|cursorColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|cursorErrorColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|cursorHeight|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|cursorOpacityAnimates|boolean|0|-|-|boolean:any
+P|cursorRadiusX|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|cursorRadiusY|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|cursorWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
+P|enableIMEPersonalizedLearning|boolean|0|-|-|boolean:any
+P|enableInlinePrediction|boolean|0|-|-|boolean:any
+P|enableInteractiveSelection|boolean|0|-|-|boolean:any
+P|enableSuggestions|boolean|0|-|-|boolean:any
+P|enabled|boolean|0|-|-|boolean:any
+P|expands|boolean|0|-|-|boolean:any
+P|ignorePointers|boolean|0|-|-|boolean:any
+P|keyboardAppearance|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Brightness:dark,light
+P|keyboardType|string|0|-|-|string:pattern:KD86dGV4dHxtdWx0aWxpbmV8bnVtYmVyfG51bWJlclNpZ25lZHxudW1iZXJEZWNpbWFsfG51bWJlclNpZ25lZERlY2ltYWx8cGhvbmV8ZGF0ZXRpbWV8ZW1haWxBZGRyZXNzfHVybHx2aXNpYmxlUGFzc3dvcmR8bmFtZXxzdHJlZXRBZGRyZXNzfG5vbmV8d2ViU2VhcmNofHR3aXR0ZXIp
+P|maxLength|integer|0|-|integer:-1:1:9007199254740991:1|integer:range:-1:1:9007199254740991:1
+P|maxLengthEnforcement|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:MaxLengthEnforcement:enforced,none,truncateAfterCompositionEnds
+P|maxLines|integer|0|-|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
+P|minLines|integer|0|-|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
+P|mouseCursor|string|0|-|-|string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0KQ
+P|obscureText|boolean|0|-|-|boolean:any
+P|obscuringCharacter|string|0|-|-|string:pattern:W1x1MDAwMC1cdUQ3RkZcdUUwMDAtXHVGRkZGXQ
+P|onAppPrivateCommand|callback|0|-|-|callback:callbackReference
+P|onChanged|callback|0|-|-|callback:callbackReference
+P|onEditingComplete|callback|0|-|-|callback:callbackReference
+P|onSubmitted|callback|0|-|-|callback:callbackReference
+P|onTap|callback|0|-|-|callback:callbackReference
+P|onTapAlwaysCalled|boolean|0|-|-|boolean:any
+P|onTapOutside|callback|0|-|-|callback:callbackReference
+P|onTapUpOutside|callback|0|-|-|callback:callbackReference
+P|readOnly|boolean|0|-|-|boolean:any
+P|restorationId|string|0|-|-|string:length:1:256
+P|scrollPaddingBottom|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|scrollPaddingLeft|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|scrollPaddingRight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|scrollPaddingTop|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|selectAllOnFocus|boolean|0|-|-|boolean:any
+P|selectionHeightStyle|enum|0|-|-|enum:enum:ZGFydDp1aQ:BoxHeightStyle:includeLineSpacingBottom,includeLineSpacingMiddle,includeLineSpacingTop,max,strut,tight
+P|selectionWidthStyle|enum|0|-|-|enum:enum:ZGFydDp1aQ:BoxWidthStyle:max,tight
+P|showCursor|boolean|0|-|-|boolean:any
+P|smartDashesType|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:SmartDashesType:disabled,enabled
+P|smartQuotesType|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:SmartQuotesType:disabled,enabled
+P|stylusHandwritingEnabled|boolean|0|-|-|boolean:any
+P|textAlign|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextAlign:center,end,justify,left,right,start
+P|textAlignVertical|string|0|-|-|string:pattern:KD86dG9wfGNlbnRlcnxib3R0b20p
+P|textCapitalization|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:TextCapitalization:characters,none,sentences,words
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|textInputAction|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:TextInputAction:continueAction,done,emergencyCall,go,join,newline,next,none,previous,route,search,send,unspecified
 W|flutter.widgets.Align
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -5003,6 +5232,72 @@ void _validatePropertyRelationships(
         '$path/properties/fit',
       );
     }
+    return;
+  }
+
+  if (type == 'flutter.material.TextField') {
+    const radiusNames = ['cursorRadiusX', 'cursorRadiusY'];
+    final presentRadii = radiusNames
+        .where(properties.containsKey)
+        .toList(growable: false);
+    _expect(
+      presentRadii.isEmpty || presentRadii.length == radiusNames.length,
+      'Canvas TextField cursorRadius coordinates must be all present or all '
+      'omitted: $path/properties',
+    );
+
+    const paddingNames = [
+      'scrollPaddingLeft',
+      'scrollPaddingTop',
+      'scrollPaddingRight',
+      'scrollPaddingBottom',
+    ];
+    final presentPadding = paddingNames
+        .where(properties.containsKey)
+        .toList(growable: false);
+    _expect(
+      presentPadding.isEmpty || presentPadding.length == paddingNames.length,
+      'Canvas TextField scrollPadding coordinates must be all present or all '
+      'omitted: $path/properties',
+    );
+
+    final expands = properties['expands']?.value == true;
+    _expect(
+      !expands ||
+          (!properties.containsKey('maxLines') &&
+              !properties.containsKey('minLines')),
+      'Canvas TextField expands rejects explicit minLines and maxLines: '
+      '$path/properties',
+    );
+    final maxLines = properties['maxLines']?.value as int? ?? 1;
+    final minLines = properties['minLines']?.value as int?;
+    _expect(
+      minLines == null || minLines <= maxLines,
+      'Canvas TextField minLines cannot exceed the effective maxLines: '
+      '$path/properties/minLines',
+    );
+    final obscureText = properties['obscureText']?.value == true;
+    _expect(
+      !obscureText || (!expands && maxLines == 1),
+      'Canvas TextField obscureText requires a non-expanding single line: '
+      '$path/properties/obscureText',
+    );
+    final maxLength = properties['maxLength']?.value as int?;
+    _expect(
+      maxLength == null || maxLength == -1 || maxLength > 0,
+      'Canvas TextField maxLength must be -1 or positive: '
+      '$path/properties/maxLength',
+    );
+    final inputAction = properties['textInputAction']?.value;
+    final effectiveMultiline = expands || maxLines != 1;
+    _expect(
+      inputAction is! CanvasEnumValue ||
+          inputAction.value != 'newline' ||
+          !effectiveMultiline ||
+          properties['keyboardType']?.value != 'text',
+      'Canvas TextField multiline newline action rejects the explicit text '
+      'keyboard type: $path/properties/keyboardType',
+    );
     return;
   }
 

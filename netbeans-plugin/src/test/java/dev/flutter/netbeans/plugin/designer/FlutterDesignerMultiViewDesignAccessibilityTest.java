@@ -749,6 +749,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.Scaffold",
                     "flutter.material.AppBar",
                     "flutter.material.ElevatedButton",
+                    "flutter.material.TextField",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Padding",

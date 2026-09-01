@@ -19,7 +19,9 @@ public final class BuiltInWidgetCatalog {
 
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
+    private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String DART_UI_IMPORT = "dart:ui";
     private static final SlotAcceptance ANY_WIDGET = new SlotAcceptance.AnyWidget();
     private static final WidgetCatalog INSTANCE = WidgetCatalog.strict(List.of(
             scaffold(),
@@ -39,7 +41,8 @@ public final class BuiltInWidgetCatalog {
             stack(),
             expanded(),
             image(),
-            elevatedButton()));
+            elevatedButton(),
+            textField()));
 
     private BuiltInWidgetCatalog() {
     }
@@ -778,6 +781,142 @@ public final class BuiltInWidgetCatalog {
                 List.of());
     }
 
+    private static WidgetDefinition textField() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        int order = 0;
+        properties.add(namedProperty("keyboardType", order++, false, stringPattern(
+                "(?:text|multiline|number|numberSigned|numberDecimal|numberSignedDecimal|phone|datetime|emailAddress|url|visiblePassword|name|streetAddress|none|webSearch|twitter)",
+                "reviewed TextInputType preset")));
+        properties.add(namedProperty("textInputAction", order++, false,
+                servicesEnumValues("TextInputAction",
+                        "none", "unspecified", "done", "go", "search", "send",
+                        "next", "previous", "continueAction", "join", "route",
+                        "emergencyCall", "newline")));
+        properties.add(namedProperty("textCapitalization", order++, false,
+                servicesEnumValues("TextCapitalization",
+                        "words", "sentences", "characters", "none")));
+        properties.add(namedProperty("textAlign", order++, false,
+                enumValues("TextAlign", "left", "right", "center", "justify",
+                        "start", "end")));
+        properties.add(namedProperty("textAlignVertical", order++, false, stringPattern(
+                "(?:top|center|bottom)", "reviewed TextAlignVertical static preset")));
+        properties.add(namedProperty("textDirection", order++, false,
+                enumValues("TextDirection", "rtl", "ltr")));
+        properties.add(namedProperty("readOnly", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("showCursor", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("autofocus", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("obscuringCharacter", order++, false, stringPattern(
+                "[\\u0000-\\uD7FF\\uE000-\\uFFFF]",
+                "one BMP Unicode scalar (one UTF-16 code unit)")));
+        properties.add(namedProperty("obscureText", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("autocorrect", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("smartDashesType", order++, false,
+                servicesEnumValues("SmartDashesType", "disabled", "enabled")));
+        properties.add(namedProperty("smartQuotesType", order++, false,
+                servicesEnumValues("SmartQuotesType", "disabled", "enabled")));
+        properties.add(namedProperty("enableSuggestions", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("maxLines", order++, false, positiveIntegers()));
+        properties.add(namedProperty("minLines", order++, false, positiveIntegers()));
+        properties.add(namedProperty("expands", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("maxLength", order++, false, maxLengthIntegers()));
+        properties.add(namedProperty("maxLengthEnforcement", order++, false,
+                servicesEnumValues("MaxLengthEnforcement",
+                        "none", "enforced", "truncateAfterCompositionEnds")));
+        for (String callback : List.of(
+                "onChanged", "onEditingComplete", "onSubmitted",
+                "onAppPrivateCommand")) {
+            properties.add(namedProperty(callback, order++, false,
+                    List.of(new PropertyValueConstraint.CallbackReference())));
+        }
+        properties.add(namedProperty("enabled", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("ignorePointers", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("cursorWidth", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty("cursorHeight", order++, false,
+                nonNegativeNumbers()));
+        properties.add(namedProperty("cursorRadiusX", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("cursorRadiusY", order++, false,
+                nonNegativeDoubles()));
+        properties.add(namedProperty("cursorOpacityAnimates", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("cursorColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("cursorErrorColor", order++, false, colorOrTheme()));
+        properties.add(namedProperty("selectionHeightStyle", order++, false,
+                dartUiEnumValues("BoxHeightStyle",
+                        "tight", "max", "includeLineSpacingMiddle",
+                        "includeLineSpacingTop", "includeLineSpacingBottom", "strut")));
+        properties.add(namedProperty("selectionWidthStyle", order++, false,
+                dartUiEnumValues("BoxWidthStyle", "tight", "max")));
+        properties.add(namedProperty("keyboardAppearance", order++, false,
+                enumValues("Brightness", "dark", "light")));
+        for (String edge : List.of(
+                "scrollPaddingLeft", "scrollPaddingTop",
+                "scrollPaddingRight", "scrollPaddingBottom")) {
+            properties.add(namedProperty(edge, order++, false, nonNegativeDoubles()));
+        }
+        properties.add(namedProperty("dragStartBehavior", order++, false,
+                gesturesEnumValues("DragStartBehavior", "down", "start")));
+        properties.add(namedProperty("enableInteractiveSelection", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("selectAllOnFocus", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("onTap", order++, false,
+                List.of(new PropertyValueConstraint.CallbackReference())));
+        properties.add(namedProperty("onTapAlwaysCalled", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        for (String callback : List.of("onTapOutside", "onTapUpOutside")) {
+            properties.add(namedProperty(callback, order++, false,
+                    List.of(new PropertyValueConstraint.CallbackReference())));
+        }
+        properties.add(namedProperty("mouseCursor", order++, false, stringPattern(
+                "(?:none|basic|click|forbidden|wait|progress|contextMenu|help|text|verticalText|cell|precise|move|grab|grabbing|noDrop|alias|copy|disappearing|allScroll|resizeLeftRight|resizeUpDown|resizeUpLeftDownRight|resizeUpRightDownLeft|resizeUp|resizeDown|resizeLeft|resizeRight|resizeUpLeft|resizeUpRight|resizeDownLeft|resizeDownRight|resizeColumn|resizeRow|zoomIn|zoomOut)",
+                "reviewed SystemMouseCursors preset")));
+        properties.add(namedProperty("clipBehavior", order++, false,
+                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer")));
+        properties.add(namedProperty("restorationId", order++, false,
+                stringLength(1, 256)));
+        properties.add(namedProperty("stylusHandwritingEnabled", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("enableIMEPersonalizedLearning", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("enableInlinePrediction", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("canRequestFocus", order++, false,
+                any(PropertyValueKind.BOOLEAN)));
+
+        List<String> names = properties.stream()
+                .map(property -> property.name().value())
+                .toList();
+        if (properties.size() != TextFieldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT
+                || !names.equals(List.copyOf(
+                        TextFieldWidgetPropertySchema.definitions().keySet()))) {
+            throw new ExceptionInInitializerError(
+                    "TextField catalog/property schema mismatch; actual=" + names);
+        }
+        return widget(
+                TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.value(),
+                "TextField",
+                true,
+                MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, SERVICES_IMPORT,
+                        GESTURES_IMPORT, DART_UI_IMPORT),
+                Set.of(),
+                palette("flutter.material", 100, 40, "Text Field"),
+                List.copyOf(properties),
+                List.of());
+    }
+
     private static WidgetDefinition elevatedButton() {
         List<PropertyDefinition> properties = new ArrayList<>();
         int order = 0;
@@ -1086,6 +1225,16 @@ public final class BuiltInWidgetCatalog {
                 BigInteger.ZERO, DartNumericLiterals.MAX_PORTABLE_INTEGER));
     }
 
+    private static List<PropertyValueConstraint> positiveIntegers() {
+        return List.of(new PropertyValueConstraint.IntegerRange(
+                BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER));
+    }
+
+    private static List<PropertyValueConstraint> maxLengthIntegers() {
+        return List.of(new PropertyValueConstraint.IntegerRange(
+                BigInteger.valueOf(-1), DartNumericLiterals.MAX_PORTABLE_INTEGER));
+    }
+
     private static List<PropertyValueConstraint> nonNegativeDoubles() {
         return List.of(new PropertyValueConstraint.DoubleRange(
                 BigDecimal.ZERO, true, null, true));
@@ -1166,5 +1315,17 @@ public final class BuiltInWidgetCatalog {
             String type, String... values) {
         return List.of(new PropertyValueConstraint.EnumValues(
                 new DartSymbolReference(GESTURES_IMPORT, type), List.of(values)));
+    }
+
+    private static List<PropertyValueConstraint> servicesEnumValues(
+            String type, String... values) {
+        return List.of(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference(SERVICES_IMPORT, type), List.of(values)));
+    }
+
+    private static List<PropertyValueConstraint> dartUiEnumValues(
+            String type, String... values) {
+        return List.of(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference(DART_UI_IMPORT, type), List.of(values)));
     }
 }

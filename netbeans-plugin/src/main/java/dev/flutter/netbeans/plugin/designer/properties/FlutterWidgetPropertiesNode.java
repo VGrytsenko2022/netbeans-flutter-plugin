@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -91,6 +92,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
     private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
+    private static final java.util.List<PropertyName> TEXT_FIELD_CURSOR_RADIUS =
+            java.util.List.of(
+                    new PropertyName("cursorRadiusX"),
+                    new PropertyName("cursorRadiusY"));
+    private static final java.util.List<PropertyName> TEXT_FIELD_SCROLL_PADDING =
+            java.util.List.of(
+                    new PropertyName("scrollPaddingLeft"),
+                    new PropertyName("scrollPaddingTop"),
+                    new PropertyName("scrollPaddingRight"),
+                    new PropertyName("scrollPaddingBottom"));
 
     private final WidgetNode widget;
     private final WidgetDefinition definition;
@@ -200,7 +211,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String displayName = definition.palette().displayName();
         setName(widget.id().toString());
         setDisplayName(displayName);
-        setShortDescription(displayName + " — " + widget.id());
+        if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
+            setShortDescription(
+                    displayName + " — " + widget.id()
+                    + ". Runtime typed text, selection, controller state, and focus "
+                    + "state are not stored by Designer.");
+        } else {
+            setShortDescription(displayName + " — " + widget.id());
+        }
         FlutterWidgetIconRegistry.findIconPath(widget.type())
                 .ifPresent(this::setIconBaseWithExtension);
     }
@@ -238,6 +256,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.equals(
                 widget.type())) {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
+        } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
+            addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -877,6 +897,34 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addTextFieldPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<TextFieldWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(TextFieldWidgetPropertySchema.Group.class);
+        for (TextFieldWidgetPropertySchema.Group group
+                : TextFieldWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            TextFieldWidgetPropertySchema.Definition schema =
+                    TextFieldWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in TextField property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    false,
+                    textFieldStringPresets(schema)));
+        }
+    }
+
     private static java.util.List<String> elevatedButtonStringPresets(
             PropertyName propertyName) {
         String name = propertyName.value();
@@ -886,16 +934,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     "circle", "beveledRectangle", "continuousRectangle");
         }
         if (name.endsWith("MouseCursor")) {
-            return java.util.List.of(
-                    "none", "basic", "click", "forbidden", "wait", "progress",
-                    "contextMenu", "help", "text", "verticalText", "cell",
-                    "precise", "move", "grab", "grabbing", "noDrop", "alias",
-                    "copy", "disappearing", "allScroll", "resizeLeftRight",
-                    "resizeUpDown", "resizeUpLeftDownRight",
-                    "resizeUpRightDownLeft", "resizeUp", "resizeDown",
-                    "resizeLeft", "resizeRight", "resizeUpLeft", "resizeUpRight",
-                    "resizeDownLeft", "resizeDownRight", "resizeColumn",
-                    "resizeRow", "zoomIn", "zoomOut");
+            return systemMouseCursorPresets();
         }
         return switch (name) {
             case "styleAlignmentKind" ->
@@ -904,6 +943,34 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     "inkSplash", "inkRipple", "inkSparkle", "noSplash");
             default -> java.util.List.of();
         };
+    }
+
+    private static java.util.List<String> textFieldStringPresets(
+            TextFieldWidgetPropertySchema.Definition schema) {
+        return switch (schema.target()) {
+            case KEYBOARD_TYPE_PRESET -> java.util.List.of(
+                    "text", "multiline", "number", "numberSigned",
+                    "numberDecimal", "numberSignedDecimal", "phone", "datetime",
+                    "emailAddress", "url", "visiblePassword", "name",
+                    "streetAddress", "none", "webSearch", "twitter");
+            case TEXT_ALIGN_VERTICAL_PRESET ->
+                java.util.List.of("top", "center", "bottom");
+            case MOUSE_CURSOR_PRESET -> systemMouseCursorPresets();
+            default -> java.util.List.of();
+        };
+    }
+
+    private static java.util.List<String> systemMouseCursorPresets() {
+        return java.util.List.of(
+                "none", "basic", "click", "forbidden", "wait", "progress",
+                "contextMenu", "help", "text", "verticalText", "cell",
+                "precise", "move", "grab", "grabbing", "noDrop", "alias",
+                "copy", "disappearing", "allScroll", "resizeLeftRight",
+                "resizeUpDown", "resizeUpLeftDownRight",
+                "resizeUpRightDownLeft", "resizeUp", "resizeDown",
+                "resizeLeft", "resizeRight", "resizeUpLeft", "resizeUpRight",
+                "resizeDownLeft", "resizeDownRight", "resizeColumn",
+                "resizeRow", "zoomIn", "zoomOut");
     }
 
     private Node.Property<?> projectProperty(
@@ -1055,6 +1122,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private DesignerCommand propertyMutationCommand(
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
+            java.util.List<PropertyName> compound =
+                    textFieldCompoundProperties(propertyName);
+            if (!compound.isEmpty()) {
+                return textFieldCompoundPropertyCommand(
+                        compound, propertyName, accepted);
+            }
+        }
         if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             return ordinaryPropertyCommand(propertyName, accepted);
         }
@@ -1093,6 +1168,43 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return patches.size() == 1
                 ? ordinaryPropertyCommand(propertyName, accepted)
                 : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand textFieldCompoundPropertyCommand(
+            java.util.List<PropertyName> compound,
+            PropertyName editedProperty,
+            FlutterPropertyCellValue accepted) {
+        java.util.ArrayList<PatchProperties.Patch> patches =
+                new java.util.ArrayList<>(compound.size());
+        Optional<PropertyValue> explicit = accepted.explicitValue();
+        if (explicit.isEmpty()) {
+            compound.forEach(property ->
+                patches.add(new PatchProperties.ResetPatch(property)));
+        } else {
+            PropertyValue entered = explicit.orElseThrow();
+            for (PropertyName property : compound) {
+                // A first direct-cell edit has no peer values to preserve. Seed
+                // the complete Flutter value from the user's entered scalar;
+                // never fabricate a numeric zero or constructor default.
+                PropertyValue value = property.equals(editedProperty)
+                        ? entered
+                        : widget.properties().getOrDefault(property, entered);
+                patches.add(new PatchProperties.SetPatch(property, value));
+            }
+        }
+        return new PatchProperties(widget.id(), patches);
+    }
+
+    private static java.util.List<PropertyName> textFieldCompoundProperties(
+            PropertyName propertyName) {
+        return TextFieldWidgetPropertySchema.find(propertyName)
+                .map(TextFieldWidgetPropertySchema.Definition::target)
+                .map(target -> switch (target) {
+                    case CURSOR_RADIUS -> TEXT_FIELD_CURSOR_RADIUS;
+                    case SCROLL_PADDING -> TEXT_FIELD_SCROLL_PADDING;
+                    default -> java.util.List.<PropertyName>of();
+                })
+                .orElseGet(java.util.List::of);
     }
 
     private DesignerCommand ordinaryPropertyCommand(
@@ -1160,16 +1272,35 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result.toString();
     }
 
-    private static String propertyDescription(
+    private String propertyDescription(
             PropertyDefinition property,
             String schemaDescription) {
         String accepted = property.constraints().stream()
                 .map(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint::description)
                 .reduce((left, right) -> left + "; " + right)
                 .orElse("catalog-declared values");
-        String reset = property.parameter().required()
-                ? " This required constructor argument cannot be unset."
-                : " Restore Default removes the explicit constructor argument.";
+        String reset;
+        if (property.parameter().required()) {
+            reset = " This required constructor argument cannot be unset.";
+        } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
+            reset = TextFieldWidgetPropertySchema.find(property.name())
+                    .map(TextFieldWidgetPropertySchema.Definition::target)
+                    .map(target -> switch (target) {
+                        case CURSOR_RADIUS ->
+                            " When unset, editing either axis seeds both axes from "
+                            + "the entered value; later edits preserve the other axis. "
+                            + "Restore Default removes the complete cursorRadius value.";
+                        case SCROLL_PADDING ->
+                            " When unset, editing any edge seeds all four edges from "
+                            + "the entered value; later edits preserve the other edges. "
+                            + "Restore Default removes the complete scrollPadding value.";
+                        default ->
+                            " Restore Default removes the explicit constructor argument.";
+                    })
+                    .orElse(" Restore Default removes the explicit constructor argument.");
+        } else {
+            reset = " Restore Default removes the explicit constructor argument.";
+        }
         return schemaDescription + " Accepted: " + accepted + "." + reset;
     }
 

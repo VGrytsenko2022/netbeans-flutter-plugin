@@ -775,6 +775,199 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void textFieldAcceptsOmittedDefaultsAndACompleteReviewedMultilineSurface() {
+        WidgetNode omitted = node(
+                "textfield-omitted", "flutter.material.TextField",
+                Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> "Issues were: " + omittedResult.issues());
+
+        WidgetNode configured = node(
+                "textfield-configured", "flutter.material.TextField",
+                Map.ofEntries(
+                        Map.entry(name("keyboardType"),
+                                new PropertyValue.StringValue("multiline")),
+                        Map.entry(name("textInputAction"),
+                                new PropertyValue.EnumValue("TextInputAction", "newline")),
+                        Map.entry(name("maxLines"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(4))),
+                        Map.entry(name("minLines"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                        Map.entry(name("maxLength"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(-1))),
+                        Map.entry(name("cursorWidth"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                        Map.entry(name("cursorRadiusX"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(name("cursorRadiusY"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(3))),
+                        Map.entry(name("scrollPaddingLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(name("scrollPaddingTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(name("scrollPaddingRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(3))),
+                        Map.entry(name("scrollPaddingBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(4))),
+                        Map.entry(name("selectionHeightStyle"),
+                                new PropertyValue.EnumValue(
+                                        "BoxHeightStyle", "includeLineSpacingMiddle")),
+                        Map.entry(name("dragStartBehavior"),
+                                new PropertyValue.EnumValue("DragStartBehavior", "down")),
+                        Map.entry(name("mouseCursor"),
+                                new PropertyValue.StringValue("text"))),
+                Map.of());
+        ValidationResult configuredResult = validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault());
+        assertTrue(configuredResult.valid(),
+                () -> "Issues were: " + configuredResult.issues());
+    }
+
+    @Test
+    void textFieldRequiresCompleteRadiusAndScrollPaddingCompounds() {
+        WidgetNode radius = node(
+                "textfield-radius", "flutter.material.TextField",
+                Map.of(name("cursorRadiusX"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationIssue radiusIssue = onlyIssue(
+                validator().validate(document(radius), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/cursorRadiusY", radiusIssue.path());
+        assertEquals(
+                "TextField cursorRadius requires cursorRadiusX and cursorRadiusY together.",
+                radiusIssue.message());
+
+        WidgetNode padding = node(
+                "textfield-padding", "flutter.material.TextField",
+                Map.of(
+                        name("scrollPaddingLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE),
+                        name("scrollPaddingBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationIssue paddingIssue = onlyIssue(
+                validator().validate(document(padding), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/scrollPaddingTop", paddingIssue.path());
+    }
+
+    @Test
+    void textFieldMirrorsAllPinnedLineAndLengthAssertions() {
+        WidgetNode expandsWithLines = node(
+                "textfield-expands-lines", "flutter.material.TextField",
+                Map.of(
+                        name("expands"), new PropertyValue.BooleanValue(true),
+                        name("maxLines"),
+                                new PropertyValue.IntegerValue(BigInteger.ONE),
+                        name("minLines"),
+                                new PropertyValue.IntegerValue(BigInteger.ONE)),
+                Map.of());
+        ValidationResult expandsResult = validator().validate(
+                document(expandsWithLines), BuiltInWidgetCatalog.getDefault());
+        assertEquals(List.of(
+                        WidgetTreeValidator.PROPERTY_CONFLICT,
+                        WidgetTreeValidator.PROPERTY_CONFLICT),
+                codes(expandsResult));
+        assertEquals(List.of(
+                        "/root/properties/maxLines",
+                        "/root/properties/minLines"),
+                expandsResult.issues().stream().map(ValidationIssue::path).toList());
+
+        WidgetNode minAboveDefault = node(
+                "textfield-min-default", "flutter.material.TextField",
+                Map.of(name("minLines"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of());
+        assertEquals("/root/properties/minLines", onlyIssue(
+                validator().validate(document(minAboveDefault),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+
+        WidgetNode obscureMultiline = node(
+                "textfield-obscure", "flutter.material.TextField",
+                Map.of(
+                        name("obscureText"), new PropertyValue.BooleanValue(true),
+                        name("maxLines"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of());
+        assertEquals("/root/properties/obscureText", onlyIssue(
+                validator().validate(document(obscureMultiline),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT).path());
+
+        WidgetNode zeroLength = node(
+                "textfield-length", "flutter.material.TextField",
+                Map.of(name("maxLength"),
+                        new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                Map.of());
+        assertEquals("/root/properties/maxLength", onlyIssue(
+                validator().validate(document(zeroLength),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+
+        WidgetNode newlineText = node(
+                "textfield-newline", "flutter.material.TextField",
+                Map.of(
+                        name("keyboardType"), new PropertyValue.StringValue("text"),
+                        name("textInputAction"),
+                                new PropertyValue.EnumValue("TextInputAction", "newline"),
+                        name("maxLines"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of());
+        ValidationIssue newlineIssue = onlyIssue(
+                validator().validate(document(newlineText),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/keyboardType", newlineIssue.path());
+        assertEquals(
+                "Use keyboardType TextInputType.multiline when using "
+                + "TextInputAction.newline on a multiline TextField.",
+                newlineIssue.message());
+    }
+
+    @Test
+    void textFieldObscurerAcceptsBmpScalarsAndRejectsEmojiAndLoneSurrogates() {
+        for (String value : List.of(
+                "A",
+                "\u2022",
+                Character.toString(0x0000),
+                Character.toString(0xD7FF),
+                Character.toString(0xE000),
+                Character.toString(0xFFFF))) {
+            WidgetNode valid = node(
+                    "textfield-obscurer-valid-" + Integer.toHexString(value.charAt(0)),
+                    "flutter.material.TextField",
+                    Map.of(name("obscuringCharacter"),
+                            new PropertyValue.StringValue(value)),
+                    Map.of());
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(),
+                    () -> Integer.toHexString(value.charAt(0)) + ": "
+                    + result.issues());
+        }
+
+        for (String value : List.of(
+                new String(Character.toChars(0x1F600)),
+                Character.toString(0xD800),
+                Character.toString(0xDFFF))) {
+            WidgetNode invalid = node(
+                    "textfield-obscurer-" + value.length(),
+                    "flutter.material.TextField",
+                    Map.of(name("obscuringCharacter"),
+                            new PropertyValue.StringValue(value)),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(document(invalid),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/obscuringCharacter", issue.path());
+        }
+    }
+
+    @Test
     void imageRequiresAProviderAndAcceptsACompletePositiveCenterSlice() {
         WidgetNode missingProvider = node(
                 "image-missing", "flutter.widgets.Image", Map.of(), Map.of());

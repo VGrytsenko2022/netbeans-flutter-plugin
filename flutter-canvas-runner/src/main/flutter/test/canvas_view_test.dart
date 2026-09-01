@@ -122,9 +122,26 @@ void main() {
     );
     expect(canvasChildrenAppendDropSlot.modelSlotKind, 'list');
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
+    expect(canvasExpandedWrapDropSlot.wrapsExistingChild, isTrue);
+    expect(canvasExpandedWrapDropSlot.insertionIndexFor(2), isNull);
+    expect(
+      canvasExpandedWrapDropSlot.accepts(
+        currentChildCount: 2,
+        insertionIndex: 1,
+      ),
+      isTrue,
+    );
+    expect(
+      canvasExpandedWrapDropSlot.accepts(
+        currentChildCount: 2,
+        insertionIndex: 2,
+      ),
+      isFalse,
+    );
+    expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
   });
 
-  test('closes the 16-source by 20-destination compatibility matrix', () {
+  test('closes the 17-source by 20-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -136,6 +153,7 @@ void main() {
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
       'flutter.widgets.Container',
+      'flutter.widgets.Expanded',
       'flutter.widgets.FractionallySizedBox',
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
@@ -143,11 +161,15 @@ void main() {
       'flutter.widgets.Stack',
       'flutter.widgets.Text',
     };
-    final destinations = <CanvasDropSlotSemantics>[];
+    final destinations =
+        <({String parentType, CanvasDropSlotSemantics slot})>[];
     for (final type in sourceTypes) {
-      destinations.addAll(canvasDropSlotsForWidgetType(type));
+      destinations.addAll([
+        for (final slot in canvasDropSlotsForWidgetType(type))
+          (parentType: type, slot: slot),
+      ]);
     }
-    expect(sourceTypes, hasLength(16));
+    expect(sourceTypes, hasLength(17));
     expect(destinations, hasLength(20));
 
     var accepted = 0;
@@ -159,16 +181,22 @@ void main() {
         traits: canvasWidgetTraitsForType(widgetType),
       );
       for (final destination in destinations) {
-        if (destination.acceptsSource(source)) {
+        if (canvasDropTargetAcceptsSource(
+          parentWidgetType: destination.parentType,
+          slotName: destination.slot.slotName,
+          currentChildCount: widgetType == canvasExpandedWidgetType ? 1 : 0,
+          insertionIndex: 0,
+          source: source,
+        )) {
           accepted++;
         } else {
           rejected++;
         }
       }
     }
-    expect(accepted, 290);
-    expect(rejected, 30);
-    expect(accepted + rejected, 320);
+    expect(accepted, 292);
+    expect(rejected, 48);
+    expect(accepted + rejected, 340);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2348,6 +2376,228 @@ void main() {
       expect(tester.getSize(target), const Size(36, 36));
     },
   );
+
+  testWidgets(
+    'renders real Expanded as the direct ParentDataWidget in Row and Column',
+    (tester) async {
+      const firstId = '6ab52421-f234-4443-978f-bb57b9926f2e';
+      const secondId = 'a17cb29f-3784-4ab8-a590-1233dd3e5731';
+      final first = _viewExpandedNode(
+        firstId,
+        child: _viewSizedBoxNode(
+          '0e991cf4-2481-4527-b608-c5c6244376f2',
+          width: 30,
+          height: 20,
+        ),
+      );
+      final second = _viewExpandedNode(
+        secondId,
+        flex: 2,
+        child: _viewSizedBoxNode(
+          '1809f65f-03a7-4aba-8c23-10fe3020b364',
+          width: 30,
+          height: 20,
+        ),
+      );
+
+      Future<void> pump(String parentType) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithFixedFlex(
+                  parentType: parentType,
+                  children: [first, second],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+
+      await pump('flutter.widgets.Row');
+      var expanded = tester
+          .widgetList<Expanded>(find.byType(Expanded))
+          .toList();
+      expect(expanded.map((widget) => widget.flex), [1, 2]);
+      final firstRowSize = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$firstId')),
+      );
+      final secondRowSize = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      expect(firstRowSize.width, closeTo(100, 0.01));
+      expect(secondRowSize.width, closeTo(200, 0.01));
+
+      final zeroModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithFixedFlex(
+                parentType: 'flutter.widgets.Row',
+                children: [
+                  _viewExpandedNode(
+                    firstId,
+                    flex: 0,
+                    child: _viewSizedBoxNode(
+                      '0e991cf4-2481-4527-b608-c5c6244376f2',
+                      width: 30,
+                      height: 20,
+                    ),
+                  ),
+                  _viewExpandedNode(
+                    secondId,
+                    child: _viewSizedBoxNode(
+                      '1809f65f-03a7-4aba-8c23-10fe3020b364',
+                      width: 30,
+                      height: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: zeroModel,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$firstId')))
+            .width,
+        closeTo(30, 0.01),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$secondId')))
+            .width,
+        closeTo(270, 0.01),
+      );
+      expect(tester.takeException(), isNull);
+
+      await pump('flutter.widgets.Column');
+      expanded = tester.widgetList<Expanded>(find.byType(Expanded)).toList();
+      expect(expanded.map((widget) => widget.flex), [1, 2]);
+      final firstColumnSize = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$firstId')),
+      );
+      final secondColumnSize = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      expect(firstColumnSize.height, closeTo(40, 0.01));
+      expect(secondColumnSize.height, closeTo(80, 0.01));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('offers Expanded wrap zones on existing Row children only', (
+    tester,
+  ) async {
+    const rowId = 'be4b446d-12b9-42c3-a427-03fb2fd472bd';
+    const firstId = '2c65ab83-02e9-4100-b116-2485762440d9';
+    const secondId = '294cdd5d-c142-4b93-9856-1b8497cc6bc7';
+    CanvasDropResolver? resolver;
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithFixedFlex(
+              parentType: 'flutter.widgets.Row',
+              parentId: rowId,
+              children: [
+                _viewSizedBoxNode(firstId, width: 80, height: 30),
+                _viewSizedBoxNode(secondId, width: 60, height: 30),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: (_) {},
+        onDropResolverChanged: (value) => resolver = value,
+      ),
+    );
+    await tester.pump();
+
+    final source = CanvasPaletteDragSource(
+      token: 'expanded-source',
+      widgetType: canvasExpandedWidgetType,
+      traits: const {},
+    );
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    CanvasDropTarget? resolveAt(String widgetId) {
+      final point = tester
+          .getRect(find.byKey(ValueKey('canvas-widget-$widgetId')))
+          .center;
+      return resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+        source,
+      );
+    }
+
+    final first = resolveAt(firstId);
+    expect(first?.parentWidgetId, rowId);
+    expect(first?.slotName, 'children');
+    expect(first?.insertionIndex, 0);
+    expect(first?.zone?.isEmpty, isFalse);
+
+    final second = resolveAt(secondId);
+    expect(second?.parentWidgetId, rowId);
+    expect(second?.slotName, 'children');
+    expect(second?.insertionIndex, 1);
+    expect(second?.zone?.isEmpty, isFalse);
+
+    final normalSource = CanvasPaletteDragSource(
+      token: 'text-source',
+      widgetType: 'flutter.widgets.Text',
+      traits: const {},
+    );
+    final normal = resolver!(
+      ((tester
+                      .getRect(
+                        find.byKey(const ValueKey('canvas-widget-$rowId')),
+                      )
+                      .right -
+                  2 -
+                  surface.left) /
+              surface.width *
+              1000000)
+          .round(),
+      ((tester
+                      .getRect(
+                        find.byKey(const ValueKey('canvas-widget-$rowId')),
+                      )
+                      .center
+                      .dy -
+                  surface.top) /
+              surface.height *
+              1000000)
+          .round(),
+      normalSource,
+    );
+    expect(normal?.parentWidgetId, rowId);
+    expect(normal?.insertionIndex, 2);
+  });
 
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
@@ -5179,6 +5429,62 @@ Map<String, Object?> _modelWithConstrainedStack({
     'properties': <String, Object?>{},
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': constrained},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _viewExpandedNode(
+  String id, {
+  int? flex,
+  required Map<String, Object?> child,
+}) => <String, Object?>{
+  'id': id,
+  'type': 'flutter.widgets.Expanded',
+  'properties': <String, Object?>{
+    if (flex != null) 'flex': {'kind': 'integer', 'value': flex},
+  },
+  'slots': <String, Object?>{
+    'child': <String, Object?>{'kind': 'single', 'child': child},
+  },
+};
+
+Map<String, Object?> _modelWithFixedFlex({
+  required String parentType,
+  String parentId = 'be4b446d-12b9-42c3-a427-03fb2fd472bd',
+  required List<Map<String, Object?>> children,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final flex = <String, Object?>{
+    'id': parentId,
+    'type': parentType,
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  body['child'] = <String, Object?>{
+    'id': '384718a1-ddea-40a0-82ca-d7cb4ebaf865',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '63657b7c-9c7b-4e7c-a200-c4ae1d37326a',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 120},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': flex},
+          },
+        },
+      },
     },
   };
   return model;

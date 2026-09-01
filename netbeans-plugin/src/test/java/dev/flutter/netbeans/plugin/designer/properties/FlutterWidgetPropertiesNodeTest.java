@@ -413,6 +413,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Stack",
+                "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -444,10 +445,10 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(540, writableCount,
+        assertEquals(541, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, Align, "
-                + "FractionallySizedBox, and Stack leaves");
+                + "FractionallySizedBox, Stack, and Expanded leaves");
     }
 
     @Test
@@ -1009,6 +1010,60 @@ class FlutterWidgetPropertiesNodeTest {
                         + "(LTR/RTL), not from the theme. Occupancy: 0/10000; minimum: 0. "
                         + "Open the custom editor to add, move, reorder, or remove a widget.",
                         children.getShortDescription()));
+    }
+
+    @Test
+    void expandedProjectsExactFlexAndRequiredReplacementOnlyChildContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Expanded");
+        WidgetDefinition textDefinition = definition("flutter.widgets.Text");
+        WidgetNode text = WidgetNodePrototypeFactory.create(
+                textDefinition,
+                StableId.parse("438ab773-e3bd-4a42-865d-dd4d4f6f5370"));
+        WidgetNode widget = new WidgetNode(
+                StableId.parse("407eb327-daf5-4720-bf24-0060ee7f63b8"),
+                definition.typeId(),
+                Map.of(new PropertyName("flex"),
+                        new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(2))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text)),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("flex"), names(properties.getProperties()));
+        assertEquals(
+                "Remaining-space allocation and required child contract for the "
+                + "selected direct Row or Column Expanded widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> flex = cellProperty(
+                property(node, "flex"));
+        assertEquals("Flex", flex.getDisplayName());
+        assertTrue(flex.getShortDescription().startsWith(
+                "Non-negative integer share of remaining Row or Column main-axis "
+                + "space. Flutter defaults to 1; zero is valid but makes the child "
+                + "inflexible. Positive flex requires bounded width in Row or bounded "
+                + "height in Column."));
+        PropertyEditor flexEditor = flex.getPropertyEditor();
+        flexEditor.setAsText("0");
+        assertEquals(
+                new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
+                cell(flexEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> flexEditor.setAsText("-1"));
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Text", child.getValue()),
+                () -> assertEquals(
+                        "Required child expanded with FlexFit.tight along the direct Row or "
+                        + "Column main axis. Occupancy: 1/1; minimum: 1. Open the custom "
+                        + "editor to replace the child atomically; it cannot be removed "
+                        + "or cleared.",
+                        child.getShortDescription()));
     }
 
     @Test
@@ -1669,7 +1724,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void sixteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void seventeenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1686,6 +1741,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Stack",
+                "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1705,7 +1761,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(16, iconPaths.size(),
+        assertEquals(17, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

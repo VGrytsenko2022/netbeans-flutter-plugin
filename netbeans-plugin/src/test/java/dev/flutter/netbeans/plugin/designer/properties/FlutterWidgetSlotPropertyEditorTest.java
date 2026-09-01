@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JList;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 import org.openide.explorer.propertysheet.ExPropertyEditor;
@@ -892,6 +893,91 @@ class FlutterWidgetSlotPropertyEditorTest {
                         new FlutterWidgetSlotMutation.Replace.NewWidget(
                                 type("flutter.widgets.Text"))));
         assertThrows(IllegalArgumentException.class, () -> editor.setValue(stale));
+    }
+
+    @Test
+    void expandedChildIsReplacementOnlyAndDirectFlexSlotsNeverOfferAddExpanded()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition expandedDefinition = definition("flutter.widgets.Expanded");
+        WidgetNode current = text(
+                id("9b1b7481-02a1-45aa-a326-8e5669820aae"), "current");
+        WidgetNode replacement = text(
+                id("7ad5fe4d-ff0d-46ae-b52e-5a69d41081bd"), "replacement");
+        WidgetNode expanded = new WidgetNode(
+                id("ba78e2c7-2b67-4769-9b52-843585d73d74"),
+                expandedDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("6d4d53ee-780d-4d38-a12a-1934494350d2"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN,
+                        new WidgetSlot.ListSlot(List.of(expanded, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"),
+                        type("flutter.widgets.Expanded")));
+
+        FlutterWidgetSlotPropertyEditor columnEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        column,
+                        columnDefinition,
+                        columnDefinition.slot(CHILDREN).orElseThrow(),
+                        context);
+        PropertyEnv columnEnvironment = PropertyEnv.create(descriptor("Children"));
+        columnEditor.attachEnv(columnEnvironment);
+        onEdt(() -> {
+            Component custom = columnEditor.getCustomEditor();
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            assertEquals(List.of("Text"), labels(addType),
+                    "Expanded is a wrapper affordance and must never appear as a "
+                    + "terminal Add new widget choice.");
+            return null;
+        });
+
+        FlutterWidgetSlotPropertyEditor expandedEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        expanded,
+                        expandedDefinition,
+                        expandedDefinition.slot(CHILD).orElseThrow(),
+                        context);
+        PropertyEnv expandedEnvironment = PropertyEnv.create(descriptor("Child"));
+        expandedEditor.attachEnv(expandedEnvironment);
+        onEdt(() -> {
+            Component custom = expandedEditor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "Expanded.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> expandedEditor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                expanded.id(), CHILD, current.id()))));
     }
 
     @Test

@@ -850,6 +850,177 @@ void main() {
     );
   });
 
+  test(
+    'decodes exact Expanded contract only in direct Row or Column slots',
+    () {
+      final text = _node(
+        'c44e7670-369d-4f25-93cb-0c6ee0e506c4',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Expanded child'},
+        },
+      );
+      Map<String, Object?> expanded({int? flex}) => _node(
+        '22929511-43bf-492c-a1f8-b9de57b0dc8e',
+        'flutter.widgets.Expanded',
+        properties: {
+          if (flex != null) 'flex': {'kind': 'integer', 'value': flex},
+        },
+        slots: {'child': _single(text)},
+      );
+      Map<String, Object?> flexParent(String type, {int? flex}) {
+        final json = _modelJson();
+        json['root'] = _node(
+          'b0e7cb42-7ca5-45db-9fc6-c457a3a5acb6',
+          type,
+          slots: {
+            'children': _list([expanded(flex: flex)]),
+          },
+        );
+        return json;
+      }
+
+      final omitted = _decode(flexParent('flutter.widgets.Row')).root;
+      final omittedExpanded = omitted.slot('children')!.child!;
+      expect(omittedExpanded.type, 'flutter.widgets.Expanded');
+      expect(omittedExpanded.properties, isEmpty);
+      expect(
+        omittedExpanded.slot('child')!.child!.type,
+        'flutter.widgets.Text',
+      );
+
+      final explicit = _decode(
+        flexParent('flutter.widgets.Column', flex: 0),
+      ).root.slot('children')!.child!;
+      expect(explicit.properties['flex']!.value, 0);
+
+      final maximum = _decode(
+        flexParent('flutter.widgets.Row', flex: maxCanvasSequence),
+      ).root.slot('children')!.child!;
+      expect(maximum.properties['flex']!.value, maxCanvasSequence);
+    },
+  );
+
+  test('rejects invalid Expanded flex, child, root, and parent placement', () {
+    final text = _node(
+      'c44e7670-369d-4f25-93cb-0c6ee0e506c4',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Child'},
+      },
+    );
+    Map<String, Object?> expanded({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      '22929511-43bf-492c-a1f8-b9de57b0dc8e',
+      'flutter.widgets.Expanded',
+      properties: properties,
+      slots: slots,
+    );
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    Map<String, Object?> rowWith(Map<String, Object?> child) => rootWith(
+      _node(
+        'b0e7cb42-7ca5-45db-9fc6-c457a3a5acb6',
+        'flutter.widgets.Row',
+        slots: {
+          'children': _list([child]),
+        },
+      ),
+    );
+
+    expect(
+      () => _decode(rootWith(expanded(slots: {'child': _single(text)}))),
+      throwsFormatException,
+    );
+    expect(() => _decode(rowWith(expanded())), throwsFormatException);
+    expect(
+      () => _decode(rowWith(expanded(slots: {'child': _single(null)}))),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        rowWith(
+          expanded(
+            properties: const {
+              'flex': {'kind': 'integer', 'value': -1},
+            },
+            slots: {'child': _single(text)},
+          ),
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        rowWith(
+          expanded(
+            properties: const {
+              'flex': {'kind': 'double', 'value': 1.0},
+            },
+            slots: {'child': _single(text)},
+          ),
+        ),
+      ),
+      throwsFormatException,
+    );
+
+    final invalidStack = _node(
+      '891585b6-df15-43d5-a046-4f34f23228dd',
+      'flutter.widgets.Stack',
+      slots: {
+        'children': _list([
+          expanded(slots: {'child': _single(text)}),
+        ]),
+      },
+    );
+    expect(() => _decode(rootWith(invalidStack)), throwsFormatException);
+
+    final nested = expanded(
+      slots: {
+        'child': _single(
+          _node(
+            '67b222c1-a2d8-4f36-8650-e19c95cf8660',
+            'flutter.widgets.Expanded',
+            slots: {'child': _single(text)},
+          ),
+        ),
+      },
+    );
+    expect(() => _decode(rowWith(nested)), throwsFormatException);
+  });
+
+  test(
+    'Expanded reviewed schema, placement, and creation contract is exact',
+    () {
+      final contract = canvasRuntimeWidgetSchemaContractForTesting();
+      final start = contract.indexOf('W|flutter.widgets.Expanded\n');
+      final end = contract.indexOf(
+        'W|flutter.widgets.FractionallySizedBox\n',
+        start,
+      );
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      expect(
+        contract.substring(start, end),
+        'W|flutter.widgets.Expanded\n'
+        'P|flex|integer|0|-|integer:0:1:9007199254740991:1|'
+        'integer:range:0:1:9007199254740991:1\n'
+        'S|child|single|1|1|1|any\n'
+        'R|flutter.widgets.Expanded|directParentSlot|'
+        'flutter.widgets.Column|children\n'
+        'R|flutter.widgets.Expanded|directParentSlot|'
+        'flutter.widgets.Row|children\n'
+        'C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child\n',
+      );
+    },
+  );
+
   test('decodes the exact AspectRatio contract and optional child slot', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,
@@ -1631,10 +1802,7 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf(
-      'W|flutter.widgets.FractionallySizedBox\n',
-      start,
-    );
+    final end = contract.indexOf('W|flutter.widgets.Expanded\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

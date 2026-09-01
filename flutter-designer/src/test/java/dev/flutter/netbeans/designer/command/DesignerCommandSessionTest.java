@@ -1071,6 +1071,112 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void expandedUsesAtomicWrapCreationWhileEmptyAddAndInvalidWrapsFailClosed()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture(text(FIRST_ID, "first")));
+        WidgetDefinition expandedDefinition = CATALOG.find(
+                type("flutter.widgets.Expanded")).orElseThrow();
+        WidgetNode detachedWrapper = WidgetNodePrototypeFactory.create(
+                expandedDefinition, WRAPPER_ID);
+
+        DesignerCommandSession wrapped = applied(initial, new WrapWidget(
+                FIRST_ID, detachedWrapper, CHILD, 0));
+        WidgetNode expanded = rootChildren(wrapped).getFirst();
+        assertEquals(WRAPPER_ID, expanded.id());
+        assertTrue(expanded.properties().isEmpty());
+        assertEquals(FIRST_ID, singleChild(expanded, CHILD).id());
+        String dart = new String(
+                wrapped.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("Expanded("), dart);
+        assertTrue(dart.contains("child: const Text('first')"), dart);
+
+        assertRejectedUnchanged(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1),
+                WidgetNodePrototypeFactory.create(expandedDefinition, THIRD_ID)),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        DesignerCommandSessionResult rootWrap = initial.apply(new WrapWidget(
+                ROOT_ID,
+                WidgetNodePrototypeFactory.create(expandedDefinition, WRAPPER_ID),
+                CHILD,
+                0));
+        assertEquals(DesignerCommandStatus.REJECTED, rootWrap.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                rootWrap.diagnostics().getFirst().code());
+        assertTrue(rootWrap.diagnostics().getFirst().message()
+                .contains("cannot be the Designer root"));
+
+        DesignerCommandSessionResult nestedExpanded = wrapped.apply(new WrapWidget(
+                WRAPPER_ID,
+                WidgetNodePrototypeFactory.create(expandedDefinition, THIRD_ID),
+                CHILD,
+                0));
+        assertEquals(DesignerCommandStatus.REJECTED, nestedExpanded.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                nestedExpanded.diagnostics().getFirst().code());
+        assertTrue(nestedExpanded.diagnostics().getFirst().message()
+                .contains("flutter.widgets.Expanded.child"));
+    }
+
+    @Test
+    void expandedMoveAndReplacePathsUseTheSameDirectFlexPlacementGate()
+            throws Exception {
+        WidgetNode stack = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Stack")).orElseThrow(),
+                SECOND_ID);
+        WidgetNode row = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Row")).orElseThrow(),
+                THIRD_ID);
+        DesignerCommandSession initial = session(fixture(
+                text(FIRST_ID, "move"), stack, row));
+        WidgetDefinition expandedDefinition = CATALOG.find(
+                type("flutter.widgets.Expanded")).orElseThrow();
+        DesignerCommandSession wrapped = applied(initial, new WrapWidget(
+                FIRST_ID,
+                WidgetNodePrototypeFactory.create(expandedDefinition, WRAPPER_ID),
+                CHILD,
+                0));
+
+        DesignerCommandSessionResult wrongMove = wrapped.apply(new MoveWidget(
+                WRAPPER_ID, new WidgetPlacement(SECOND_ID, CHILDREN, 0)));
+        assertEquals(DesignerCommandStatus.REJECTED, wrongMove.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                wrongMove.diagnostics().getFirst().code());
+        assertTrue(wrongMove.diagnostics().getFirst().message()
+                .contains("flutter.widgets.Stack.children"));
+
+        DesignerCommandSession moved = applied(wrapped, new MoveWidget(
+                WRAPPER_ID, new WidgetPlacement(THIRD_ID, CHILDREN, 0)));
+        WidgetNode movedRow = find(moved.current().document().root(), THIRD_ID);
+        assertEquals(List.of(WRAPPER_ID),
+                ((WidgetSlot.ListSlot) movedRow.slots().get(CHILDREN))
+                        .children().stream().map(WidgetNode::id).toList());
+
+        WidgetNode center = singleChild(
+                WRAPPER_ID,
+                "flutter.widgets.Center",
+                CHILD,
+                text(FIRST_ID, "replace"));
+        DesignerCommandSession replaceSession = session(fixture(center));
+        WidgetNode replacement = singleChild(
+                SECOND_ID,
+                "flutter.widgets.Expanded",
+                CHILD,
+                text(THIRD_ID, "replacement"));
+        DesignerCommandSessionResult wrongReplace = replaceSession.apply(
+                new ReplaceSlotChild(
+                        WRAPPER_ID,
+                        CHILD,
+                        FIRST_ID,
+                        new ReplaceSlotChild.NewSubtree(replacement)));
+        assertEquals(DesignerCommandStatus.REJECTED, wrongReplace.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                wrongReplace.diagnostics().getFirst().code());
+        assertTrue(wrongReplace.diagnostics().getFirst().message()
+                .contains("flutter.widgets.Center.child"));
+    }
+
+    @Test
     void removeFromCatalogRequiredSlotHasSpecificStableDiagnostic() {
         WidgetDefinition requiredParent = new WidgetDefinition(
                 type("test.RequiredParent"),

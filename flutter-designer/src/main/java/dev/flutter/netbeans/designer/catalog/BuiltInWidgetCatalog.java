@@ -37,6 +37,7 @@ public final class BuiltInWidgetCatalog {
             align(),
             fractionallySizedBox(),
             stack(),
+            expanded(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -706,6 +707,19 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("Clip", "none", "hardEdge", "antiAlias",
                                         "antiAliasWithSaveLayer"))),
                 List.of(listSlot("children", 4, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition expanded() {
+        return widget(
+                WidgetPlacementRules.EXPANDED_TYPE,
+                "Expanded",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 120, "Expanded"),
+                List.of(namedProperty("flex", 0, false, nonNegativeIntegers())),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

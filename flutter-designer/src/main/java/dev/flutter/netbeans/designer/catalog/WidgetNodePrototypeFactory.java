@@ -21,7 +21,10 @@ public final class WidgetNodePrototypeFactory {
      *
      * <p>Only explicit catalog creation defaults are materialized. Every
      * declared slot is present and empty with the cardinality declared by its
-     * {@link SlotDefinition}.</p>
+     * {@link SlotDefinition}. A required slot with a positive minimum therefore
+     * remains intentionally incomplete: the detached value is suitable as an
+     * atomic wrapper payload, while document validation still rejects inserting
+     * it without its required child.</p>
      *
      * @param definition exact immutable catalog definition
      * @param id stable identifier for the new widget

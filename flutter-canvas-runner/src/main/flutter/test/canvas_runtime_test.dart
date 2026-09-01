@@ -3151,6 +3151,105 @@ void main() {
     timeout: const Timeout(Duration(seconds: 15)),
   );
 
+  testWidgets(
+    'authoritatively admits Expanded only as an existing Row child wrap',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, fixture.modelBytesForViewTest());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.model, isNotNull);
+      await tester.pump();
+
+      const token =
+          'nbfdnd:v1:116980cc-4300-4b18-ab2c-b276a1c073a4:'
+          'ab25fc0a-fb8b-4a49-91fc-577356325f06';
+      Map<String, Object?> request(int probeId) => {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 0,
+        'probeId': probeId,
+      };
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(0),
+          widgetType: canvasExpandedWidgetType,
+        ),
+        isTrue,
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 1,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(1),
+          widgetType: canvasExpandedWidgetType,
+        ),
+        isFalse,
+        reason: 'Expanded wraps an existing child, never terminal-appends',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '6e88bff4-8d73-48aa-92b5-87aa3344f6a7',
+          slotName: 'body',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(2),
+          widgetType: canvasExpandedWidgetType,
+        ),
+        isFalse,
+        reason: 'Scaffold.body is not a reviewed Flex ParentData location',
+      );
+
+      await input.close();
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(
+        _decodeControlMessages(
+          output,
+        ).where((message) => message['type'] == 'runner.paletteDrop'),
+        isEmpty,
+      );
+    },
+  );
+
   test('rejects malformed, unsupported and non-terminal native drops', () async {
     final runtime = CanvasRuntimeController(
       input: const Stream<List<int>>.empty(),
@@ -3313,6 +3412,7 @@ Future<(int, int)> _decodeNativeResize({
       }
     },
   );
+
   stream.addListener(listener);
   try {
     return await decoded.future.timeout(const Duration(seconds: 5));

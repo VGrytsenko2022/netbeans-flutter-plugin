@@ -59,6 +59,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -77,6 +78,7 @@ import dev.flutter.netbeans.designer.command.RemoveWidget;
 import dev.flutter.netbeans.designer.command.ReplaceSlotChild;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
+import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.PropertyName;
@@ -3459,8 +3461,13 @@ public final class FlutterDesignerMultiViewDesign
                 if (planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected) {
                     throw new IllegalArgumentException(rejected.reason());
                 }
-                AddWidget command = ((FlutterDesignerPaletteDropPlanner.Accepted) planned)
-                        .command();
+                if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
+                    throw new IllegalArgumentException(
+                            "Expanded cannot be added as a terminal slot child; drop it "
+                            + "on an existing direct Row.children or Column.children "
+                            + "widget to wrap that child.");
+                }
+                AddWidget command = accepted.command();
                 String displayName = catalog.find(add.widgetType()).orElseThrow()
                         .palette().displayName();
                 yield new SlotMutationPlan(
@@ -3545,10 +3552,16 @@ public final class FlutterDesignerMultiViewDesign
                             .orElseThrow(() -> new IllegalArgumentException(
                             "Catalog has no definition for replacement widget type '"
                             + fresh.widgetType().value() + "'."));
-                    if (!slot.definition().acceptance().accepts(definition)) {
+                    WidgetPlacementRules.Decision placement =
+                            WidgetPlacementRules.evaluate(
+                                    slot.ownerDefinition(),
+                                    slot.definition(),
+                                    definition);
+                    if (!placement.accepted()) {
                         throw new IllegalArgumentException(
-                                "Slot '" + exactSlot + "' does not accept widget type '"
-                                + fresh.widgetType().value() + "'.");
+                                "Cannot replace the child in slot '" + exactSlot
+                                + "' with widget type '" + fresh.widgetType().value()
+                                + "': " + placement.reason());
                     }
                     WidgetNode prototype = WidgetNodePrototypeFactory.create(
                             definition, StableId.random());
@@ -3577,10 +3590,16 @@ public final class FlutterDesignerMultiViewDesign
                             .orElseThrow(() -> new IllegalArgumentException(
                             "Catalog has no definition for replacement widget type '"
                             + source.type().value() + "'."));
-                    if (!slot.definition().acceptance().accepts(definition)) {
+                    WidgetPlacementRules.Decision placement =
+                            WidgetPlacementRules.evaluate(
+                                    slot.ownerDefinition(),
+                                    slot.definition(),
+                                    definition);
+                    if (!placement.accepted()) {
                         throw new IllegalArgumentException(
-                                "Slot '" + exactSlot + "' does not accept widget type '"
-                                + source.type().value() + "'.");
+                                "Cannot replace the child in slot '" + exactSlot
+                                + "' with widget type '" + source.type().value()
+                                + "': " + placement.reason());
                     }
                     if (containsWidget(source, replace.ownerId())) {
                         throw new IllegalArgumentException(
@@ -3665,6 +3684,7 @@ public final class FlutterDesignerMultiViewDesign
                 + "' has no slot '" + slotName.value() + "'."));
         WidgetSlot value = owner.slots().get(slotName);
         return new RevisionSlot(
+                ownerDefinition,
                 definition,
                 value,
                 value == null ? List.of() : directSlotChildren(value));
@@ -3752,10 +3772,12 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     private record RevisionSlot(
+            WidgetDefinition ownerDefinition,
             SlotDefinition definition,
             WidgetSlot value,
             List<WidgetNode> children) {
         private RevisionSlot {
+            Objects.requireNonNull(ownerDefinition, "ownerDefinition");
             Objects.requireNonNull(definition, "definition");
             children = List.copyOf(children);
         }
@@ -4236,6 +4258,14 @@ public final class FlutterDesignerMultiViewDesign
                 (FlutterDesignerPaletteTreeDropAdapter.PreparedDrop) result;
         String widgetDisplayName = catalog.find(prepared.widgetType())
                 .orElseThrow().palette().displayName();
+        if (prepared.wrapTargetId().isPresent()) {
+            return FlutterDesignerWidgetTreeDropSupport.Preview.accepted(
+                    prepared,
+                    "Wrap widget " + prepared.wrapTargetId().orElseThrow()
+                    + " with " + widgetDisplayName + " as a direct child of "
+                    + prepared.parentId() + '.' + prepared.slotName().value()
+                    + " at index " + prepared.insertionIndex() + '.');
+        }
         return FlutterDesignerWidgetTreeDropSupport.Preview.accepted(
                 prepared,
                 "Drop " + widgetDisplayName + " on widget " + targetId + "."
@@ -4249,10 +4279,10 @@ public final class FlutterDesignerMultiViewDesign
                     java.awt.datatransfer.Transferable transferable,
                     int action,
                     StableId targetId) {
-        if (!prepared.parentId().equals(targetId)) {
+        if (!prepared.treeTargetId().equals(targetId)) {
             return FlutterDesignerWidgetTreeDropSupport.Decision.rejected(
                     "Widget-tree drop target changed after preview; expected "
-                    + prepared.parentId() + " but received " + targetId + '.');
+                    + prepared.treeTargetId() + " but received " + targetId + '.');
         }
         if (!isPaletteCatalogInsertDragAuthorityEnabled()) {
             return FlutterDesignerWidgetTreeDropSupport.Decision.rejected(
@@ -4275,10 +4305,28 @@ public final class FlutterDesignerMultiViewDesign
             return FlutterDesignerWidgetTreeDropSupport.Decision.rejected(
                     rejected.reason());
         }
-        FlutterDesignerPaletteTreeDropAdapter.Committed committed =
-                (FlutterDesignerPaletteTreeDropAdapter.Committed) result;
         String widgetDisplayName = catalog.find(prepared.widgetType())
                 .orElseThrow().palette().displayName();
+        if (result instanceof FlutterDesignerPaletteTreeDropAdapter.Wrapped wrapped) {
+            WrapWidget command = wrapped.command();
+            String target = modelName + " — wrap widget " + command.widgetId()
+                    + " with " + widgetDisplayName + " in "
+                    + prepared.parentId() + '.' + prepared.slotName().value()
+                    + " at index " + prepared.insertionIndex();
+            submitDesignerMutation(
+                    controllerForEdit,
+                    candidate.token().orElseThrow(),
+                    command,
+                    "Wrap Flutter child with " + widgetDisplayName,
+                    target);
+            return FlutterDesignerWidgetTreeDropSupport.Decision.accepted(
+                    "Wrapping widget " + command.widgetId() + " with "
+                    + widgetDisplayName + " in " + prepared.parentId() + '.'
+                    + prepared.slotName().value() + " at index "
+                    + prepared.insertionIndex() + '.');
+        }
+        FlutterDesignerPaletteTreeDropAdapter.Committed committed =
+                (FlutterDesignerPaletteTreeDropAdapter.Committed) result;
         String target = modelName + " — add " + widgetDisplayName + " to widget "
                 + committed.command().destination().parentId() + "."
                 + committed.command().destination().slotName().value()
@@ -4708,6 +4756,22 @@ public final class FlutterDesignerMultiViewDesign
                 drop.slotName(),
                 drop.insertionIndex(),
                 StableId::random);
+        if (planned instanceof FlutterDesignerPaletteDropPlanner.Wrapped wrapped) {
+            String widgetDisplayName = catalog.find(widgetType).orElseThrow()
+                    .palette().displayName();
+            WrapWidget command = wrapped.command();
+            String target = modelName + " — wrap widget " + command.widgetId()
+                    + " with " + widgetDisplayName + " in "
+                    + drop.parentWidgetId() + '.' + drop.slotName().value()
+                    + " at index " + drop.insertionIndex();
+            submitDesignerMutation(
+                    controllerForEdit,
+                    candidate.token().orElseThrow(),
+                    command,
+                    "Wrap Flutter child with " + widgetDisplayName,
+                    target);
+            return;
+        }
         if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
             return;
         }

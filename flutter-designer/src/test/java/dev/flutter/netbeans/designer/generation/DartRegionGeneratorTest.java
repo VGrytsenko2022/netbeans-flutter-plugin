@@ -956,6 +956,87 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsExpandedOnlyInsideValidFlexTreeWithDefaultOrExplicitFlex() {
+        WidgetNode defaultFlex = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Expanded"),
+                Map.of(),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Default"))),
+                Extensions.empty());
+        WidgetNode explicitFlex = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Expanded"),
+                Map.of(property("flex"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Explicit"))),
+                Extensions.empty());
+        WidgetNode row = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Row"),
+                Map.of(),
+                Map.of(slot("children"), new WidgetSlot.ListSlot(List.of(
+                        defaultFlex, explicitFlex))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(row, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                result.generated().orElseThrow().imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Row(
+                      children: [
+                        const Expanded(
+                          child: const Text('Default'),
+                        ),
+                        const Expanded(
+                          flex: 2,
+                          child: const Text('Explicit'),
+                        ),
+                      ],
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
+    void rejectsExpandedRootAndWrongParentBeforeDartGeneration() {
+        WidgetNode expanded = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Expanded"),
+                Map.of(),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+        DartGenerationResult rootResult = new DartRegionGenerator().generate(
+                document(expanded, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+        assertFalse(rootResult.successful());
+        assertTrue(rootResult.generated().isEmpty());
+        assertEquals(DartGenerationDiagnosticCode.MODEL_INVALID,
+                rootResult.diagnostics().getFirst().code());
+        assertTrue(rootResult.diagnostics().getFirst().message().contains(
+                WidgetTreeValidator.WIDGET_PLACEMENT));
+
+        WidgetNode stack = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Stack"),
+                Map.of(),
+                Map.of(slot("children"), new WidgetSlot.ListSlot(List.of(expanded))),
+                Extensions.empty());
+        DartGenerationResult stackResult = new DartRegionGenerator().generate(
+                document(stack, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+        assertFalse(stackResult.successful());
+        assertTrue(stackResult.generated().isEmpty());
+        assertTrue(stackResult.diagnostics().getFirst().message().contains(
+                WidgetTreeValidator.WIDGET_PLACEMENT));
+    }
+
+    @Test
     void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
         PropertyValue.AlignmentGeometryValue begin = alignment(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,

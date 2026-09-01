@@ -25,14 +25,15 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(16, javaTypes.size(),
-                "the reviewed Canvas source set includes Stack");
+        assertEquals(17, javaTypes.size(),
+                "the reviewed Canvas source set includes Expanded");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
         assertTrue(javaTypes.contains("flutter.widgets.Align"));
         assertTrue(javaTypes.contains("flutter.widgets.FractionallySizedBox"));
         assertTrue(javaTypes.contains("flutter.widgets.Stack"));
+        assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),
@@ -61,7 +62,8 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaContainers =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND).stream()
-                        .filter(definition -> !definition.slots().isEmpty())
+                        .filter(definition -> definition.slots().stream()
+                                .anyMatch(slot -> slot.minChildren() == 0))
                         .map(definition -> definition.typeId().value())
                         .collect(Collectors.toUnmodifiableSet());
         String drop = runnerSource("lib/src/canvas_drop.dart");
@@ -75,6 +77,8 @@ class FlutterWidgetCapabilityParityTest {
                 "FractionallySizedBox.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Stack"),
                 "Stack.children must remain a Java-admitted DnD target");
+        assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
+                "Expanded.child is required replacement-only, not an insertion target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

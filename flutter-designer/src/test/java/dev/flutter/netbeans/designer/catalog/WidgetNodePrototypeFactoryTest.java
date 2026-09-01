@@ -136,6 +136,26 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsExpandedOnlyAsAnIncompleteDetachedAtomicWrapperPayload() {
+        WidgetDefinition definition = definition("flutter.widgets.Expanded");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Expanded"), prototype.type());
+        assertTrue(prototype.properties().isEmpty(),
+                "Flutter's flex default is intentionally not materialized");
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(1, definition.slot(new SlotName("child"))
+                .orElseThrow().minChildren());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD,
+                WidgetPlacementRules.creationMode(definition));
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

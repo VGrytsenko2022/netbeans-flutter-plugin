@@ -34,12 +34,14 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetCatalog BUILT_INS = BuiltInWidgetCatalog.getDefault();
     private static final WidgetTypeId SCAFFOLD = type("flutter.material.Scaffold");
     private static final WidgetTypeId APP_BAR = type("flutter.material.AppBar");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
+    private static final WidgetTypeId ROW = type("flutter.widgets.Row");
     private static final WidgetTypeId CENTER = type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
     private static final WidgetTypeId ASPECT_RATIO =
@@ -49,6 +51,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
+    private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -145,6 +148,81 @@ class FlutterDesignerWidgetMovePlannerTest {
                 BUILT_INS,
                 source,
                 result);
+    }
+
+    @Test
+    void expandedMovesOnlyBetweenDirectRowAndColumnChildrenAndKeepsItsSubtree() {
+        WidgetNode nested = validText(D_ID, "expanded child");
+        WidgetNode source = expanded(A_ID, nested);
+        WidgetNode row = listParent(B_ID, ROW, CHILDREN, List.of());
+        WidgetNode stack = listParent(C_ID, STACK, CHILDREN, List.of());
+        StableId targetExpandedId = id(
+                "f33a0092-c584-4839-ad77-9b157369d48e");
+        StableId targetTextId = id(
+                "f5941d9a-3bf4-41bb-b696-110e8a08fbaa");
+        WidgetNode targetExpanded = expanded(
+                targetExpandedId,
+                validText(targetTextId, "target child"));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, row, stack, targetExpanded)));
+
+        FlutterDesignerWidgetMovePlanner.Result rowMove = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(row.id()));
+        MoveWidget rowCommand = accepted(rowMove).command();
+        assertEquals(
+                new WidgetPlacement(row.id(), CHILDREN, 0),
+                rowCommand.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, rowMove);
+
+        FlutterDesignerWidgetMovePlanner.Result columnReorder = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.Insert(ROOT_ID, 4));
+        assertEquals(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 3),
+                accepted(columnReorder).command().destination());
+        assertAcceptedCommandApplies(
+                document, BUILT_INS, source, columnReorder);
+
+        FlutterDesignerWidgetMovePlanner.Rejected stackFailure =
+                assertInstanceOf(
+                        FlutterDesignerWidgetMovePlanner.Rejected.class,
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                source.id(),
+                                new FlutterDesignerWidgetMovePlanner.On(stack.id())));
+        FlutterDesignerWidgetMovePlanner.Rejected childFailure =
+                assertInstanceOf(
+                        FlutterDesignerWidgetMovePlanner.Rejected.class,
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                source.id(),
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        targetExpanded.id(), CHILD, 0)));
+        assertAll(
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .NO_COMPATIBLE_DESTINATION,
+                        stackFailure.code()),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "Expanded '" + source.id() + "'")),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "direct child of Row.children or Column.children")),
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        childFailure.code()),
+                () -> assertTrue(childFailure.reason().contains(
+                        "flutter.widgets.Expanded.child")));
     }
 
     @Test
@@ -894,6 +972,16 @@ class FlutterDesignerWidgetMovePlannerTest {
             }
         }
         return null;
+    }
+
+    private static WidgetNode expanded(StableId id, WidgetNode child) {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition(EXPANDED), id);
+        return new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
     }
 
     private static FlutterDesignerWidgetMovePlanner.Accepted accepted(

@@ -255,6 +255,11 @@ class CanvasModel {
     final profile = CanvasProfile.decode(object['profile']);
     final budget = _NodeBudget();
     final root = CanvasNode._decode(object['root'], budget, 0, r'$/root');
+    _expect(
+      root.type != 'flutter.widgets.Expanded',
+      'Canvas Expanded must be a direct child of Row.children or '
+      'Column.children: \$/root',
+    );
     return CanvasModel(
       sessionId: sessionId,
       presentationSequence: presentationSequence,
@@ -793,6 +798,11 @@ class CanvasNode {
           ),
           'Canvas slot rejects child type ${child.type}: '
           '$path/slots/${entry.key}',
+        );
+        _expect(
+          _placementAccepts(type, entry.key, child.type),
+          'Canvas Expanded must be a direct child of Row.children or '
+          'Column.children: $path/slots/${entry.key}',
         );
       }
     }
@@ -3051,6 +3061,12 @@ const _requiredEmptySingleSlot = _SlotSpec(
   minimumChildren: 0,
   maximumChildren: 1,
 );
+const _requiredSingleSlot = _SlotSpec(
+  cardinality: 'single',
+  required: true,
+  minimumChildren: 1,
+  maximumChildren: 1,
+);
 const _optionalListSlot = _SlotSpec(
   cardinality: 'list',
   required: false,
@@ -3094,6 +3110,9 @@ const _zeroToOneDoubleBounds = <String, _NumericBounds>{
 const _nonNegativeNumberBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
   'double': _NumericBounds(minimum: 0),
+};
+const _nonNegativeIntegerBounds = <String, _NumericBounds>{
+  'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
 };
 const _positiveIntegerBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(
@@ -3619,6 +3638,14 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       }, numericBounds: _nonNegativeNumberBounds),
     },
     {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.Expanded': _WidgetSpec(
+    {
+      'flex': _PropertySpec({
+        'integer',
+      }, numericBounds: _nonNegativeIntegerBounds),
+    },
+    {'child': _requiredSingleSlot},
   ),
   'flutter.widgets.AspectRatio': _WidgetSpec(
     {
@@ -4490,6 +4517,12 @@ P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.Expanded
+P|flex|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
+S|child|single|1|1|1|any
+R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Column|children
+R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Row|children
+C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.FractionallySizedBox
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -4638,8 +4671,35 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
         '${slot.acceptance.fingerprint()}',
       );
     }
+    if (widgetType == 'flutter.widgets.Expanded') {
+      result
+        ..writeln(
+          'R|flutter.widgets.Expanded|directParentSlot|'
+          'flutter.widgets.Column|children',
+        )
+        ..writeln(
+          'R|flutter.widgets.Expanded|directParentSlot|'
+          'flutter.widgets.Row|children',
+        )
+        ..writeln(
+          'C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child',
+        );
+    }
   }
   return result.toString();
+}
+
+bool _placementAccepts(
+  String parentWidgetType,
+  String slotName,
+  String childWidgetType,
+) {
+  if (childWidgetType != 'flutter.widgets.Expanded') {
+    return true;
+  }
+  return slotName == 'children' &&
+      (parentWidgetType == 'flutter.widgets.Row' ||
+          parentWidgetType == 'flutter.widgets.Column');
 }
 
 bool isCanvasReviewedWidgetType(String widgetType) =>

@@ -68,6 +68,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.FractionallySizedBox");
     private static final WidgetTypeId STACK_TYPE =
             new WidgetTypeId("flutter.widgets.Stack");
+    private static final WidgetTypeId EXPANDED_TYPE =
+            new WidgetTypeId("flutter.widgets.Expanded");
     private static final PropertyName ALIGNMENT_PROPERTY =
             new PropertyName("alignment");
     private static final PropertyName WIDTH_FACTOR_PROPERTY =
@@ -82,6 +84,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("fit");
     private static final PropertyName STACK_CLIP_BEHAVIOR_PROPERTY =
             new PropertyName("clipBehavior");
+    private static final PropertyName FLEX_PROPERTY =
+            new PropertyName("flex");
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
     private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
@@ -412,6 +416,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
+        if (EXPANDED_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child expanded with FlexFit.tight along the direct Row or "
+                    + "Column main axis. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to replace the child atomically; "
+                    + "it cannot be removed or cleared.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -432,6 +444,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
         boolean stack = STACK_TYPE.equals(widget.type());
+        boolean expanded = EXPANDED_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
@@ -452,6 +465,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : stack
                                 ? "Layer alignment, direction, sizing, clipping, and ordered "
                                         + "non-Positioned children for the selected Stack widget."
+                        : expanded
+                                ? "Remaining-space allocation and required child contract for "
+                                        + "the selected direct Row or Column Expanded widget."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
@@ -572,6 +588,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "of a non-Positioned child does not set that flag, so it is not "
                                 + "clipped; descendant or paint-only overflow is not clipped "
                                 + "either."));
+            } else if (expanded && FLEX_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Flex",
+                        "Non-negative integer share of remaining Row or Column main-axis "
+                                + "space. Flutter defaults to 1; zero is valid but makes the "
+                                + "child inflexible. Positive flex requires bounded width in "
+                                + "Row or bounded height in Column."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

@@ -316,6 +316,37 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(dark16.paint(), dark32.paint());
     }
 
+    @Test
+    void expandedFamilyUsesExactReviewedTightFlexGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "expanded.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=11, rx=1.5, stroke-width=1, width=13, x=1.5, y=2.5]",
+                "rect[height=9, rx=1, stroke-width=1, width=6, x=5, y=3.5]",
+                "path[d=M4.5 8H2.75M3.75 6.75 2.5 8l1.25 1.25M11.5 8h1.75m-1-1.25L13.5 8l-1.25 1.25, stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=22, rx=3, stroke-width=2, width=26, x=3, y=5]",
+                "rect[height=18, rx=2, stroke-width=2, width=12, x=10, y=7]",
+                "path[d=M9 16H5.5m2-2.5L5 16l2.5 2.5M23 16h3.5m-2-2.5L27 16l-2.5 2.5, stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#80DEEA, stroke=#1565C0]",
+                "path[fill=none, stroke=#42A5F5]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#4DD0E1, stroke=#90CAF9]",
+                "path[fill=none, stroke=#64B5F6]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
     private static SvgResource readSvg(String resource, int expectedSize) throws Exception {
         byte[] bytes = readResource(resource);
         String source = new String(bytes, StandardCharsets.UTF_8);
@@ -476,6 +507,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.FractionallySizedBox",
                 ICON_ROOT + "fractionallysizedbox.svg");
         expected.put("flutter.widgets.Stack", ICON_ROOT + "stack.svg");
+        expected.put("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

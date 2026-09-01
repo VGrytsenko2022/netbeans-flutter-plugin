@@ -515,6 +515,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
+        node.type == 'flutter.widgets.Expanded' ||
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
@@ -1026,53 +1027,87 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     List<_DropCandidate> result,
     CanvasPaletteDragSource source,
   ) {
-    for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
-      if (!dropSlot.acceptsSource(source)) {
-        continue;
+    if (source.widgetType == canvasExpandedWidgetType &&
+        (node.type == 'flutter.widgets.Row' ||
+            node.type == 'flutter.widgets.Column')) {
+      final modelSlot = node.slot('children');
+      if (modelSlot?.kind == 'list') {
+        for (var index = 0; index < modelSlot!.children.length; index++) {
+          final child = modelSlot.children[index];
+          if (child.type == canvasExpandedWidgetType) {
+            continue;
+          }
+          final box = _renderBox(_nodeKeys[child.id]);
+          if (box == null) {
+            continue;
+          }
+          final zone = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
+          if (!zone.isEmpty && zone.contains(point)) {
+            result.add(
+              _DropCandidate(
+                node,
+                depth + 1,
+                zone.width * zone.height,
+                canvasExpandedWrapDropSlot,
+                index,
+                zone,
+              ),
+            );
+          }
+        }
       }
-      final modelSlot = node.slot(dropSlot.slotName);
-      if (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind) {
-        continue;
-      }
-      final currentChildCount = modelSlot?.children.length ?? 0;
-      final insertionIndex = dropSlot.insertionIndexFor(currentChildCount);
-      final box = _renderBox(_nodeKeys[node.id]);
-      if (insertionIndex != null && box != null) {
-        final rect = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
-        final zone = switch (dropSlot.zonePlacement) {
-          CanvasDropZonePlacement.fullNode => rect,
-          CanvasDropZonePlacement.terminalList => _terminalZone(
-            node,
-            rect,
-            dropSlot.slotName,
-          ),
-          CanvasDropZonePlacement.bottomRightCompact => _bottomRightCompactZone(
-            rect,
-          ),
-          CanvasDropZonePlacement.appBarLeading => _appBarLeadingZone(
-            node,
-            rect,
-          ),
-          CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(node, rect),
-          CanvasDropZonePlacement.appBarActions => _terminalZone(
-            node,
-            _appBarToolbarZone(node, rect),
-            dropSlot.slotName,
-          ),
-          CanvasDropZonePlacement.appBarFlexibleSpace => rect,
-          CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(node, rect),
-        };
-        if (!zone.isEmpty && zone.contains(point)) {
-          result.add(
-            _DropCandidate(
+    } else {
+      for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
+        if (!dropSlot.acceptsSource(source)) {
+          continue;
+        }
+        final modelSlot = node.slot(dropSlot.slotName);
+        if (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind) {
+          continue;
+        }
+        final currentChildCount = modelSlot?.children.length ?? 0;
+        final insertionIndex = dropSlot.insertionIndexFor(currentChildCount);
+        final box = _renderBox(_nodeKeys[node.id]);
+        if (insertionIndex != null && box != null) {
+          final rect = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
+          final zone = switch (dropSlot.zonePlacement) {
+            CanvasDropZonePlacement.fullNode => rect,
+            CanvasDropZonePlacement.terminalList => _terminalZone(
               node,
-              depth,
-              zone.width * zone.height,
-              dropSlot,
-              insertionIndex,
-              zone,
+              rect,
+              dropSlot.slotName,
             ),
-          );
+            CanvasDropZonePlacement.existingChild => Rect.zero,
+            CanvasDropZonePlacement.bottomRightCompact =>
+              _bottomRightCompactZone(rect),
+            CanvasDropZonePlacement.appBarLeading => _appBarLeadingZone(
+              node,
+              rect,
+            ),
+            CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(node, rect),
+            CanvasDropZonePlacement.appBarActions => _terminalZone(
+              node,
+              _appBarToolbarZone(node, rect),
+              dropSlot.slotName,
+            ),
+            CanvasDropZonePlacement.appBarFlexibleSpace => rect,
+            CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(
+              node,
+              rect,
+            ),
+          };
+          if (!zone.isEmpty && zone.contains(point)) {
+            result.add(
+              _DropCandidate(
+                node,
+                depth,
+                zone.width * zone.height,
+                dropSlot,
+                insertionIndex,
+                zone,
+              ),
+            );
+          }
         }
       }
     }
@@ -1773,6 +1808,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Stack' => _stack(),
+      'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
@@ -1833,7 +1869,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       child: guidedChild,
     );
-    return Semantics(
+    final instrumented = Semantics(
       label: '${_displayType(node.type)} ${node.id}${_imageStatusSemantics()}',
       selected: selected,
       child: MouseRegion(
@@ -1863,6 +1899,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
     );
+    return node.type == canvasExpandedWidgetType
+        ? Expanded(flex: _integer('flex') ?? 1, child: instrumented)
+        : instrumented;
   }
 
   Widget _scaffold(BuildContext context) {

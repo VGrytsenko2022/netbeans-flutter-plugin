@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
@@ -380,6 +381,32 @@ final class DesignerCommandTransformer {
             return failure(type.orElseThrow());
         }
 
+        WidgetDefinition wrapperDefinition = catalog.find(
+                command.wrapper().type()).orElseThrow();
+        WidgetPlacementRules.Decision outerPlacement;
+        String outerPlacementPath;
+        if (target.parentId().isEmpty()) {
+            outerPlacement = WidgetPlacementRules.evaluateRoot(wrapperDefinition);
+            outerPlacementPath = "/root";
+        } else {
+            NodeRef parent = index.nodes().get(target.parentId().orElseThrow());
+            WidgetDefinition parentDefinition = catalog.find(
+                    parent.node().type()).orElseThrow();
+            SlotName parentSlotName = target.parentSlot().orElseThrow();
+            SlotDefinition parentSlot = parentDefinition.slot(parentSlotName)
+                    .orElseThrow();
+            outerPlacement = WidgetPlacementRules.evaluate(
+                    parentDefinition, parentSlot, wrapperDefinition);
+            outerPlacementPath = parent.path() + "/slots/"
+                    + pointer(parentSlotName.value());
+        }
+        if (!outerPlacement.accepted()) {
+            return failure(placementDiagnostic(
+                    outerPlacement,
+                    outerPlacementPath,
+                    command.wrapper().id()));
+        }
+
         WidgetPlacement placement = new WidgetPlacement(
                 command.wrapper().id(),
                 command.wrapperSlot(),
@@ -542,15 +569,15 @@ final class DesignerCommandTransformer {
                     "Widget type '" + child.type().value()
                     + "' is not present in the bound catalog."));
         }
-        if (!slot.definition().acceptance().accepts(
-                childDefinition.orElseThrow())) {
-            return Optional.of(diagnostic(
-                    DesignerCommandDiagnosticCode.SLOT_REJECTS_WIDGET,
-                    slot.path(),
-                    Optional.of(child.id()),
-                    "Slot '" + slot.definition().name().value()
-                    + "' does not accept widget type '"
-                    + child.type().value() + "'."));
+        WidgetDefinition ownerDefinition = catalog.find(
+                slot.owner().node().type()).orElseThrow();
+        WidgetPlacementRules.Decision placement = WidgetPlacementRules.evaluate(
+                ownerDefinition,
+                slot.definition(),
+                childDefinition.orElseThrow());
+        if (!placement.accepted()) {
+            return Optional.of(placementDiagnostic(
+                    placement, slot.path(), child.id()));
         }
         return Optional.empty();
     }
@@ -629,13 +656,13 @@ final class DesignerCommandTransformer {
                     + "' is not present in the bound catalog."));
         }
         SlotDefinition slotDefinition = declaredSlot.orElseThrow();
-        if (!slotDefinition.acceptance().accepts(childDefinition.orElseThrow())) {
-            return Insertion.failure(diagnostic(
-                    DesignerCommandDiagnosticCode.SLOT_REJECTS_WIDGET,
-                    slotPath,
-                    Optional.of(child.id()),
-                    "Slot '" + destination.slotName().value()
-                    + "' does not accept widget type '" + child.type().value() + "'."));
+        WidgetPlacementRules.Decision placement = WidgetPlacementRules.evaluate(
+                parentDefinition,
+                slotDefinition,
+                childDefinition.orElseThrow());
+        if (!placement.accepted()) {
+            return Insertion.failure(placementDiagnostic(
+                    placement, slotPath, child.id()));
         }
 
         WidgetSlot existing = parent.node().slots().get(destination.slotName());
@@ -1010,6 +1037,17 @@ final class DesignerCommandTransformer {
             Optional<StableId> widgetId,
             String message) {
         return new DesignerCommandDiagnostic(code, path, widgetId, message);
+    }
+
+    private static DesignerCommandDiagnostic placementDiagnostic(
+            WidgetPlacementRules.Decision decision,
+            String path,
+            StableId widgetId) {
+        DesignerCommandDiagnosticCode code = decision.rejectionKind().orElseThrow()
+                        == WidgetPlacementRules.RejectionKind.SLOT_ACCEPTANCE
+                ? DesignerCommandDiagnosticCode.SLOT_REJECTS_WIDGET
+                : DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED;
+        return diagnostic(code, path, Optional.of(widgetId), decision.reason());
     }
 
     private static String pointer(String value) {

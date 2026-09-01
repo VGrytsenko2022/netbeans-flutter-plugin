@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.command.MoveWidget;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
@@ -35,6 +36,9 @@ import java.util.stream.Collectors;
  * The planner performs no Swing, session, persistence or model mutation.</p>
  */
 public final class FlutterDesignerWidgetMovePlanner {
+    private static final dev.flutter.netbeans.designer.model.WidgetTypeId EXPANDED_TYPE =
+            new dev.flutter.netbeans.designer.model.WidgetTypeId(
+                    "flutter.widgets.Expanded");
     /** Plans one move against an immutable document snapshot. */
     public Result plan(
             DesignerDocument document,
@@ -132,9 +136,18 @@ public final class FlutterDesignerWidgetMovePlanner {
 
         WidgetDefinition parentDefinition = context.definition();
         List<SlotDefinition> compatible = parentDefinition.slots().stream()
-                .filter(slot -> slot.acceptance().accepts(sourceDefinition))
+                .filter(slot -> WidgetPlacementRules.accepts(
+                        parentDefinition, slot, sourceDefinition))
                 .toList();
         if (compatible.isEmpty()) {
+            if (EXPANDED_TYPE.equals(sourceDefinition.typeId())) {
+                return rejected(
+                        RejectionCode.NO_COMPATIBLE_DESTINATION,
+                        "Cannot move Expanded '" + source.node().id() + "' onto '"
+                        + parentDefinition.typeId().value()
+                        + "': Expanded must remain a direct child of Row.children "
+                        + "or Column.children.");
+            }
             return rejected(
                     RejectionCode.NO_COMPATIBLE_DESTINATION,
                     "Widget '" + target.containerId()
@@ -286,7 +299,16 @@ public final class FlutterDesignerWidgetMovePlanner {
             WidgetDefinition parentDefinition,
             SlotDefinition slot,
             int destinationIndex) {
-        if (!slot.acceptance().accepts(sourceDefinition)) {
+        if (!WidgetPlacementRules.accepts(
+                parentDefinition, slot, sourceDefinition)) {
+            if (EXPANDED_TYPE.equals(sourceDefinition.typeId())) {
+                return rejected(
+                        RejectionCode.SLOT_REJECTS_WIDGET,
+                        "Cannot move Expanded '" + source.node().id() + "' to '"
+                        + parentDefinition.typeId().value() + '.'
+                        + slot.name().value() + "': Expanded must remain a direct "
+                        + "child of Row.children or Column.children.");
+            }
             return rejected(
                     RejectionCode.SLOT_REJECTS_WIDGET,
                     "Catalog slot '" + parentDefinition.typeId().value() + '.'

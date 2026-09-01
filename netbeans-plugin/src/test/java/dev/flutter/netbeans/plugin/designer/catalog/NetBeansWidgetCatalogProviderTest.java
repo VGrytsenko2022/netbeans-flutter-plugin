@@ -43,6 +43,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.Align"));
         assertTrue(typeIds(result).contains("flutter.widgets.FractionallySizedBox"));
         assertTrue(typeIds(result).contains("flutter.widgets.Stack"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Expanded"));
     }
 
     @Test
@@ -130,7 +131,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(16, result.catalog().definitions().size());
+        assertEquals(17, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -163,7 +164,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(16, result.catalog().definitions().size());
+        assertEquals(17, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

@@ -1423,22 +1423,32 @@ class CanvasRuntimeController extends ChangeNotifier
     if (parent == null) {
       return null;
     }
-    final dropSlot = canvasDropSlotForWidgetSlot(parent.type, target.slotName);
-    if (dropSlot == null) {
-      return null;
-    }
-    final modelSlot = parent.slot(dropSlot.slotName);
-    if (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind) {
-      return null;
+    final modelSlot = parent.slot(target.slotName);
+    if (authority.source.widgetType != canvasExpandedWidgetType) {
+      final dropSlot = canvasDropSlotForWidgetSlot(
+        parent.type,
+        target.slotName,
+      );
+      if (dropSlot == null ||
+          (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind)) {
+        return null;
+      }
     }
     final currentChildCount = modelSlot?.children.length ?? 0;
-    if (!dropSlot.accepts(
+    if (!canvasDropTargetAcceptsSource(
+      parentWidgetType: parent.type,
+      slotName: target.slotName,
       currentChildCount: currentChildCount,
       insertionIndex: target.insertionIndex,
+      source: authority.source,
     )) {
       return null;
     }
-    if (!dropSlot.acceptsSource(authority.source)) {
+    if (authority.source.widgetType == canvasExpandedWidgetType &&
+        (modelSlot == null ||
+            modelSlot.kind != 'list' ||
+            modelSlot.children[target.insertionIndex].type ==
+                canvasExpandedWidgetType)) {
       return null;
     }
     return target;

@@ -9,6 +9,7 @@ import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
@@ -51,6 +52,7 @@ public final class WidgetTreeValidator {
     public static final String SLOT_CARDINALITY = "designer.slot.cardinality";
     public static final String SLOT_NULL = "designer.slot.null";
     public static final String SLOT_ACCEPTANCE = "designer.slot.acceptance";
+    public static final String WIDGET_PLACEMENT = "designer.widget.placement";
     public static final String POSITIONAL_GAP = "designer.parameter.positional.gap";
     public static final String DEPTH_LIMIT = "designer.tree.depth.limit";
     public static final String NODE_LIMIT = "designer.tree.nodes.limit";
@@ -83,7 +85,7 @@ public final class WidgetTreeValidator {
         Map<String, String> firstSemanticsIdentifierPaths = new HashMap<>();
         Deque<NodeFrame> pending = new ArrayDeque<>();
         TraversalFrontier frontier = new TraversalFrontier(limits.maxNodes());
-        pending.push(new NodeFrame(document.root(), ROOT_PATH, 1, null));
+        pending.push(new NodeFrame(document.root(), ROOT_PATH, 1, null, null));
 
         while (!pending.isEmpty() && !issues.truncated()) {
             NodeFrame frame = pending.pop();
@@ -120,14 +122,26 @@ public final class WidgetTreeValidator {
                         node.id(),
                         "Widget '" + node.id() + "' at '" + frame.path()
                         + "' uses unregistered catalog type '" + node.type().value() + "'."));
-            } else if (frame.parentSlot() != null
-                    && !frame.parentSlot().acceptance().accepts(definition.orElseThrow())) {
-                issues.add(issue(
-                        SLOT_ACCEPTANCE,
-                        frame.path(),
-                        node.id(),
-                        "Slot '" + frame.parentSlot().name().value() + "' does not accept widget type '"
-                        + node.type().value() + "' at '" + frame.path() + "'."));
+            } else {
+                WidgetPlacementRules.Decision placement = frame.depth() == 1
+                        ? WidgetPlacementRules.evaluateRoot(definition.orElseThrow())
+                        : frame.parentDefinition() != null && frame.parentSlot() != null
+                                ? WidgetPlacementRules.evaluate(
+                                        frame.parentDefinition(),
+                                        frame.parentSlot(),
+                                        definition.orElseThrow())
+                                : null;
+                if (placement != null && !placement.accepted()) {
+                    String issueCode = placement.rejectionKind().orElseThrow()
+                                    == WidgetPlacementRules.RejectionKind.SLOT_ACCEPTANCE
+                            ? SLOT_ACCEPTANCE
+                            : WIDGET_PLACEMENT;
+                    issues.add(issue(
+                            issueCode,
+                            frame.path(),
+                            node.id(),
+                            placement.reason() + " Model path: '" + frame.path() + "'."));
+                }
             }
             if (issues.truncated()) {
                 break;
@@ -995,6 +1009,7 @@ public final class WidgetTreeValidator {
                 if (inspected++ < limits.maxSlotsPerWidget()) {
                     inspectSlot(
                             node,
+                            definition,
                             value,
                             slot,
                             slotsPath,
@@ -1029,7 +1044,15 @@ public final class WidgetTreeValidator {
                         "Widget '" + node.type().value() + "' at '" + nodePath
                         + "' declares unknown slot '" + name.value() + "'."));
             }
-            collectChildren(value, null, slotPath, depth, children, issues, frontier);
+            collectChildren(
+                    value,
+                    definition,
+                    null,
+                    slotPath,
+                    depth,
+                    children,
+                    issues,
+                    frontier);
             if (issues.truncated() || frontier.limitReached()) {
                 return children;
             }
@@ -1039,22 +1062,23 @@ public final class WidgetTreeValidator {
 
     private static void inspectSlot(
             WidgetNode owner,
+            WidgetDefinition ownerDefinition,
             WidgetSlot value,
-            SlotDefinition definition,
+            SlotDefinition slotDefinition,
             String slotsPath,
             int depth,
             List<NodeFrame> children,
             IssueCollector issues,
             TraversalFrontier frontier) {
-        String slotPath = slotsPath + "/" + pointer(definition.name().value());
-        if (value.cardinality() != definition.cardinality()) {
+        String slotPath = slotsPath + "/" + pointer(slotDefinition.name().value());
+        if (value.cardinality() != slotDefinition.cardinality()) {
             issues.add(issue(
                     SLOT_KIND,
                     slotPath,
                     owner.id(),
-                    "Slot '" + definition.name().value() + "' on widget '"
+                    "Slot '" + slotDefinition.name().value() + "' on widget '"
                     + owner.type().value() + "' has kind '" + value.cardinality().wireName()
-                    + "'; expected '" + definition.cardinality().wireName() + "'."));
+                    + "'; expected '" + slotDefinition.cardinality().wireName() + "'."));
         }
         if (issues.truncated()) {
             return;
@@ -1063,30 +1087,31 @@ public final class WidgetTreeValidator {
         int childCount = childCount(value);
         if (value instanceof WidgetSlot.SingleSlot single
                 && single.child().isEmpty()
-                && definition.minChildren() > 0) {
+                && slotDefinition.minChildren() > 0) {
             issues.add(issue(
                     SLOT_NULL,
                     slotPath + "/child",
                     owner.id(),
-                    "Slot '" + definition.name().value() + "' on widget '"
+                    "Slot '" + slotDefinition.name().value() + "' on widget '"
                     + owner.type().value() + "' cannot contain an explicit null child."));
-        } else if (childCount < definition.minChildren()
-                || childCount > definition.maxChildren()) {
+        } else if (childCount < slotDefinition.minChildren()
+                || childCount > slotDefinition.maxChildren()) {
             issues.add(issue(
                     SLOT_CARDINALITY,
                     slotPath,
                     owner.id(),
-                    "Slot '" + definition.name().value() + "' on widget '"
+                    "Slot '" + slotDefinition.name().value() + "' on widget '"
                     + owner.type().value() + "' contains " + childCount
-                    + " children; expected between " + definition.minChildren()
-                    + " and " + definition.maxChildren() + "."));
+                    + " children; expected between " + slotDefinition.minChildren()
+                    + " and " + slotDefinition.maxChildren() + "."));
         }
         if (issues.truncated()) {
             return;
         }
         collectChildren(
                 value,
-                definition,
+                ownerDefinition,
+                slotDefinition,
                 slotPath,
                 depth,
                 children,
@@ -1096,7 +1121,8 @@ public final class WidgetTreeValidator {
 
     private static void collectChildren(
             WidgetSlot value,
-            SlotDefinition definition,
+            WidgetDefinition parentDefinition,
+            SlotDefinition parentSlot,
             String slotPath,
             int depth,
             List<NodeFrame> children,
@@ -1106,7 +1132,12 @@ public final class WidgetTreeValidator {
             if (single.child().isPresent()) {
                 WidgetNode child = single.child().orElseThrow();
                 frontier.discover(
-                        new NodeFrame(child, slotPath + "/child", depth + 1, definition),
+                        new NodeFrame(
+                                child,
+                                slotPath + "/child",
+                                depth + 1,
+                                parentDefinition,
+                                parentSlot),
                         children,
                         issues);
             }
@@ -1116,7 +1147,8 @@ public final class WidgetTreeValidator {
                         list.children().get(index),
                         slotPath + "/children/" + index,
                         depth + 1,
-                        definition), children, issues)) {
+                        parentDefinition,
+                        parentSlot), children, issues)) {
                     return;
                 }
             }
@@ -1207,6 +1239,7 @@ public final class WidgetTreeValidator {
             WidgetNode node,
             String path,
             int depth,
+            WidgetDefinition parentDefinition,
             SlotDefinition parentSlot) {
     }
 

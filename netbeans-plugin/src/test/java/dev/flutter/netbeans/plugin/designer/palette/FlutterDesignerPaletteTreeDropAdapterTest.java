@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.command.AddWidget;
+import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
@@ -40,6 +41,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.material.Scaffold");
     private static final WidgetTypeId COLUMN =
             type("flutter.widgets.Column");
+    private static final WidgetTypeId ROW =
+            type("flutter.widgets.Row");
     private static final WidgetTypeId CENTER =
             type("flutter.widgets.Center");
     private static final WidgetTypeId SIZED_BOX =
@@ -51,6 +54,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
+    private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -541,6 +545,154 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void expandedTreeDropWrapsTheExactDirectFlexChildWithOneNewId() {
+        for (WidgetTypeId flexType : List.of(COLUMN, ROW)) {
+            Fixture fixture = fixture(EXPANDED);
+            StringSelection transferable = new StringSelection(fixture.token());
+            WidgetNode target = text(FIRST_ID, "target");
+            DesignerDocument document = document(flexParent(flexType, List.of(target)));
+            AtomicInteger allocations = new AtomicInteger();
+
+            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                            fixture.adapter().preview(
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    document,
+                                    CATALOG,
+                                    FIRST_ID),
+                            flexType.value());
+            assertAll(
+                    () -> assertEquals(EXPANDED, prepared.widgetType()),
+                    () -> assertEquals(ROOT_ID, prepared.parentId()),
+                    () -> assertEquals(CHILDREN, prepared.slotName()),
+                    () -> assertEquals(0, prepared.insertionIndex()),
+                    () -> assertEquals(FIRST_ID, prepared.treeTargetId()),
+                    () -> assertEquals(Optional.of(FIRST_ID),
+                            prepared.wrapTargetId()),
+                    () -> assertTrue(fixture.lifecycle()
+                            .resolve(transferable).isPresent()));
+
+            FlutterDesignerPaletteTreeDropAdapter.Wrapped committed =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                            fixture.adapter().commit(
+                                    prepared,
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    document,
+                                    CATALOG,
+                                    () -> {
+                                        allocations.incrementAndGet();
+                                        return NEW_ID;
+                                    }));
+            WrapWidget command = committed.command();
+            assertAll(
+                    () -> assertEquals(FIRST_ID, command.widgetId()),
+                    () -> assertEquals(NEW_ID, command.wrapper().id()),
+                    () -> assertEquals(EXPANDED, command.wrapper().type()),
+                    () -> assertTrue(command.wrapper().properties().isEmpty(),
+                            "omitted flex preserves Flutter's constructor default of 1"),
+                    () -> assertEquals(CHILD, command.wrapperSlot()),
+                    () -> assertEquals(0, command.wrapperIndex()),
+                    () -> assertEquals(1, allocations.get()),
+                    () -> assertTrue(fixture.lifecycle()
+                            .resolve(transferable).isEmpty()));
+        }
+    }
+
+    @Test
+    void expandedTreeDropBurnsStaleTargetAndRejectsInvalidParentsConcretely() {
+        StableId secondId = id("305af782-f541-44c5-b9a7-78b133a7e0e2");
+        WidgetNode first = text(FIRST_ID, "first");
+        WidgetNode second = text(secondId, "second");
+        Fixture staleFixture = fixture(EXPANDED);
+        StringSelection staleTransfer = new StringSelection(staleFixture.token());
+        DesignerDocument original = document(column(List.of(first, second)));
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared =
+                assertInstanceOf(
+                        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                        staleFixture.adapter().preview(
+                                staleTransfer,
+                                DnDConstants.ACTION_MOVE,
+                                original,
+                                CATALOG,
+                                FIRST_ID));
+        AtomicInteger allocations = new AtomicInteger();
+        FlutterDesignerPaletteTreeDropAdapter.Rejected stale = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                staleFixture.adapter().commit(
+                        prepared,
+                        staleTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of(second, first))),
+                        CATALOG,
+                        () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        }));
+        assertAll(
+                () -> assertEquals(
+                        FlutterDesignerPaletteTreeDropAdapter.RejectionCode
+                                .TARGET_CHANGED,
+                        stale.code()),
+                () -> assertTrue(stale.reason().contains(
+                        "changed parent, slot or child index")),
+                () -> assertEquals(0, allocations.get()),
+                () -> assertTrue(staleFixture.lifecycle()
+                        .resolve(staleTransfer).isEmpty()));
+
+        List<InvalidExpandedTarget> invalid = List.of(
+                new InvalidExpandedTarget(
+                        "root Row",
+                        document(flexParent(ROW, List.of())),
+                        ROOT_ID,
+                        "direct child of Row.children or Column.children"),
+                new InvalidExpandedTarget(
+                        "Stack child",
+                        document(stack(List.of(first))),
+                        FIRST_ID,
+                        "flutter.widgets.Stack.children"),
+                new InvalidExpandedTarget(
+                        "Center child",
+                        document(center(first)),
+                        FIRST_ID,
+                        "flutter.widgets.Center.child"),
+                new InvalidExpandedTarget(
+                        "nested Expanded",
+                        document(flexParent(ROW, List.of(expanded(
+                                FIRST_ID,
+                                text(id("57984d01-8905-4664-b286-82c11af6197c"),
+                                        "inner child"))))),
+                        FIRST_ID,
+                        "Cannot wrap Expanded '" + FIRST_ID + "' with Expanded"));
+        assertAll(invalid.stream().map(testCase -> () -> {
+            Fixture fixture = fixture(EXPANDED);
+            StringSelection transferable = new StringSelection(fixture.token());
+            FlutterDesignerPaletteTreeDropAdapter.Rejected failure =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                            fixture.adapter().preview(
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    testCase.document(),
+                                    CATALOG,
+                                    testCase.targetId()),
+                            testCase.name());
+            assertEquals(
+                    FlutterDesignerPaletteTreeDropAdapter.RejectionCode
+                            .NO_COMPATIBLE_DESTINATION,
+                    failure.code(),
+                    testCase.name());
+            assertTrue(failure.reason().contains(testCase.reasonFragment()),
+                    failure.reason());
+            assertTrue(fixture.lifecycle().resolve(transferable).isPresent(),
+                    "preview rejection must not consume authority");
+        }));
+    }
+
+    @Test
     void unsupportedAndHostilePreviewsFailWithoutConsumingAuthority() {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -663,6 +815,15 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new WidgetSlot.ListSlot(children));
     }
 
+    private static WidgetNode flexParent(
+            WidgetTypeId type,
+            List<WidgetNode> children) {
+        return withSlot(
+                prototype(type),
+                CHILDREN,
+                new WidgetSlot.ListSlot(children));
+    }
+
     private static WidgetNode center(WidgetNode child) {
         return withSlot(
                 prototype(CENTER),
@@ -697,6 +858,16 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 Map.of());
     }
 
+    private static WidgetNode expanded(StableId id, WidgetNode child) {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(EXPANDED).orElseThrow(), id);
+        return new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+    }
+
     private static WidgetTypeId type(String value) {
         return new WidgetTypeId(value);
     }
@@ -722,5 +893,12 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             String name,
             DesignerDocument document,
             FlutterDesignerPaletteTreeDropAdapter.RejectionCode code) {
+    }
+
+    private record InvalidExpandedTarget(
+            String name,
+            DesignerDocument document,
+            StableId targetId,
+            String reasonFragment) {
     }
 }

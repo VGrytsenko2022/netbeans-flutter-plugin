@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -245,6 +246,14 @@ public final class FlutterDesignerPalette {
             super(Children.LEAF, Lookups.fixed(item, definition));
             setName(item.typeId().value());
             setDisplayName(item.displayName());
+            if (WidgetPlacementRules.creationMode(definition)
+                    == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
+                setShortDescription(
+                        "Wrap an existing direct child of Row.children or Column.children "
+                        + "with Expanded. Drop Expanded on that child; terminal insertion "
+                        + "and empty placeholders are unavailable because Expanded.child "
+                        + "is required.");
+            }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);
         }

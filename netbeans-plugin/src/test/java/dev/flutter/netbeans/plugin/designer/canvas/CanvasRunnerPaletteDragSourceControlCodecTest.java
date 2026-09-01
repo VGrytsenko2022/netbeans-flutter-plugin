@@ -55,6 +55,28 @@ class CanvasRunnerPaletteDragSourceControlCodecTest {
     }
 
     @Test
+    void encodesExpandedWrapperSourceIdentityWithNoSyntheticTraits()
+            throws Exception {
+        String json = new String(codec.encodePaletteDragSource(
+                LAYOUT,
+                TOKEN,
+                new WidgetTypeId("flutter.widgets.Expanded"),
+                Set.of()), StandardCharsets.UTF_8);
+
+        assertEquals("{\"format\":\"netbeans-flutter-canvas-runtime\","
+                + "\"protocolVersion\":1,"
+                + "\"sessionId\":\"80ef60ed-b108-4674-99a6-c1f3102f01ab\","
+                + "\"type\":\"host.paletteDragSource\",\"body\":{"
+                + "\"presentationSequence\":7,"
+                + "\"documentId\":\"a4b202a7-060a-4d07-ba52-54340b6a80ea\","
+                + "\"logicalRevisionId\":11,"
+                + "\"frameSequence\":3,\"layoutSequence\":5,"
+                + "\"token\":\"" + TOKEN + "\","
+                + "\"widgetType\":\"flutter.widgets.Expanded\","
+                + "\"traits\":[]}}", json);
+    }
+
+    @Test
     void rejectsMalformedTokenInvalidTraitAndUnboundedTraitSet() {
         WidgetTypeId appBar = new WidgetTypeId("flutter.material.AppBar");
         assertThrows(IllegalArgumentException.class,

@@ -36,6 +36,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
             "flutter.widgets.Stack",
+            "flutter.widgets.Expanded",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -54,6 +55,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
             "flutter.widgets.Stack",
+            "flutter.widgets.Expanded",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -66,39 +68,42 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasSixteenSourcesAndTwentyDestinations() {
+    void exactDndCapabilityMatrixHasSeventeenSourcesAndTwentyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
-        List<SlotDefinition> destinations =
+        List<Destination> destinations =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                                 WidgetCapability.DND).stream()
-                        .flatMap(definition -> definition.slots().stream())
+                        .flatMap(definition -> definition.slots().stream()
+                                .filter(slot -> slot.minChildren() == 0)
+                                .map(slot -> new Destination(definition, slot)))
                         .toList();
 
         long accepted = 0;
         for (WidgetDefinition source : sources) {
-            for (SlotDefinition destination : destinations) {
-                if (destination.acceptance().accepts(source)) {
+            for (Destination destination : destinations) {
+                if (WidgetPlacementRules.accepts(
+                        destination.owner(), destination.slot(), source)) {
                     accepted++;
                 }
             }
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(16, sources.size());
+        assertEquals(17, sources.size());
         assertEquals(20, destinations.size());
         assertEquals(18, destinations.stream()
-                .filter(destination -> destination.acceptance()
+                .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
         assertEquals(2, destinations.stream()
-                .filter(destination -> destination.acceptance()
+                .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(320, candidates);
-        assertEquals(290, accepted);
-        assertEquals(30, candidates - accepted);
+        assertEquals(340, candidates);
+        assertEquals(292, accepted);
+        assertEquals(48, candidates - accepted);
     }
 
     @Test
@@ -369,6 +374,35 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.LIST, false, 0, 10_000),
                 projection.slotContracts().get(new SlotName("children")));
+    }
+
+    @Test
+    void expandedHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Expanded");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("flex")), projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var flex = projection.propertyContracts().get(new PropertyName("flex"));
+        assertFalse(flex.required());
+        assertEquals(Set.of(PropertyValueKind.INTEGER), flex.acceptedKinds());
+        assertTrue(flex.creationDefaultFingerprint().isEmpty());
+        assertEquals("0:1:9007199254740991:1", flex.numericBounds()
+                .get(PropertyValueKind.INTEGER).fingerprint());
+        assertEquals("range:0:1:9007199254740991:1",
+                flex.constraintFingerprints().get(PropertyValueKind.INTEGER));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, true, 1, 1),
+                projection.slotContracts().get(new SlotName("child")));
     }
 
     @Test
@@ -663,6 +697,17 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
                 + "TextDirection:ltr,rtl\n"
                 + "S|children|list|0|0|10000|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Expanded\n"
+                + "P|flex|integer|0|-|integer:0:1:9007199254740991:1|"
+                + "integer:range:0:1:9007199254740991:1\n"
+                + "S|child|single|1|1|1|any\n"
+                + "R|flutter.widgets.Expanded|directParentSlot|"
+                + "flutter.widgets.Column|children\n"
+                + "R|flutter.widgets.Expanded|directParentSlot|"
+                + "flutter.widgets.Row|children\n"
+                + "C|flutter.widgets.Expanded|paletteCreate|"
+                + "wrapExistingChild|child\n"));
     }
 
     @Test
@@ -818,5 +863,10 @@ class BuiltInWidgetCapabilityCatalogTest {
     private static List<String> types(WidgetCapability capability) {
         return BuiltInWidgetCapabilityCatalog.definitionsSupporting(capability)
                 .stream().map(definition -> definition.typeId().value()).toList();
+    }
+
+    private record Destination(
+            WidgetDefinition owner,
+            SlotDefinition slot) {
     }
 }

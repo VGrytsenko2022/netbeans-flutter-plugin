@@ -2,10 +2,13 @@ package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
+import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerWidgetMovePlanner;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import java.awt.BorderLayout;
@@ -40,6 +43,9 @@ import org.openide.util.ImageUtilities;
 /** Transactional native NetBeans custom editor for one exact named slot. */
 final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         implements ExPropertyEditor {
+    private static final WidgetTypeId EXPANDED_TYPE =
+            new WidgetTypeId("flutter.widgets.Expanded");
+    private static final SlotName CHILD_SLOT = new SlotName("child");
     static final String CURRENT_LIST_NAME = "flutter.slot.current";
     static final String ACTION_NAME = "flutter.slot.action";
     static final String ADD_TYPE_NAME = "flutter.slot.addType";
@@ -251,6 +257,12 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             if (structuralProblem.isPresent()) {
                 return structuralProblem.orElseThrow();
             }
+            if (EXPANDED_TYPE.equals(owner.type())
+                    && CHILD_SLOT.equals(slot.name())
+                    && occupiedSingle()) {
+                return "Expanded.child is required and cannot be removed or cleared; "
+                        + "choose Replace with new widget or Replace with existing widget.";
+            }
             if (currentChildren.isEmpty() && addChoices.isEmpty()
                     && moveChoices.isEmpty()) {
                 return "No available Palette or existing widget is compatible with this slot.";
@@ -334,7 +346,9 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             ArrayList<DefinitionChoice> choices = new ArrayList<>();
             for (var type : context.insertableWidgetTypes()) {
                 WidgetDefinition definition = context.catalog().find(type).orElseThrow();
-                if (slot.acceptance().accepts(definition)) {
+                if (WidgetPlacementRules.supportsDirectPrototypeInsertion(definition)
+                        && WidgetPlacementRules.accepts(
+                                ownerDefinition, slot, definition)) {
                     choices.add(new DefinitionChoice(definition));
                 }
             }
@@ -359,7 +373,8 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                     continue;
                 }
                 WidgetDefinition candidateDefinition = definition(candidate);
-                if (!slot.acceptance().accepts(candidateDefinition)) {
+                if (!WidgetPlacementRules.accepts(
+                        ownerDefinition, slot, candidateDefinition)) {
                     continue;
                 }
                 boolean alreadyInTargetSlot = currentChildren.stream()
@@ -401,7 +416,8 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 if (candidate.id().equals(context.document().root().id())
                         || candidate.id().equals(currentId)
                         || contains(candidate, owner.id())
-                        || !slot.acceptance().accepts(definition(candidate))
+                        || !WidgetPlacementRules.accepts(
+                                ownerDefinition, slot, definition(candidate))
                         || !canDetach(candidate.id())) {
                     continue;
                 }

@@ -3,7 +3,9 @@ package dev.flutter.netbeans.plugin.designer.palette;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.command.AddWidget;
+import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
@@ -16,6 +18,8 @@ import java.awt.dnd.DnDConstants;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -36,9 +40,13 @@ import java.util.stream.Collectors;
  * re-reads the exact Transferable, consumes its local token once, resolves the
  * destination again against the latest immutable snapshot, and delegates the
  * final command to {@link FlutterDesignerPaletteDropPlanner}. No Swing view or
- * painting policy lives here.</p>
+ * painting policy lives here. Expanded is the one wrapper affordance: its tree
+ * target is the existing direct Row/Column child, while the prepared semantic
+ * destination stores that child's exact parent, slot and index.</p>
  */
 public final class FlutterDesignerPaletteTreeDropAdapter {
+    private static final WidgetTypeId EXPANDED_TYPE =
+            new WidgetTypeId("flutter.widgets.Expanded");
     private final FlutterDesignerPaletteDragLifecycle lifecycle;
     private final FlutterDesignerPaletteDropPlanner planner;
 
@@ -84,8 +92,11 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         }
         FlutterDesignerPaletteDragLifecycle.ResolvedDrag drag =
                 resolved.orElseThrow();
-        DestinationResult destination = resolveUniqueDestination(
-                document, catalog, drag.widgetType(), parentId);
+        DestinationResult destination = EXPANDED_TYPE.equals(drag.widgetType())
+                ? resolveExpandedWrapDestination(
+                        document, catalog, drag.widgetType(), parentId)
+                : resolveUniqueDestination(
+                        document, catalog, drag.widgetType(), parentId);
         if (destination instanceof DestinationRejected failure) {
             return failure.rejection();
         }
@@ -93,9 +104,11 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         return new PreparedDrop(
                 drag.token(),
                 drag.widgetType(),
-                parentId,
+                accepted.parentId(),
                 accepted.slotName(),
-                accepted.insertionIndex());
+                accepted.insertionIndex(),
+                parentId,
+                accepted.wrapTargetId());
     }
 
     /**
@@ -151,25 +164,44 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                     "The prepared Palette token is expired, revoked or already consumed.");
         }
 
-        DestinationResult latestDestination = resolveUniqueDestination(
-                latestDocument,
-                latestCatalog,
-                prepared.widgetType(),
-                prepared.parentId());
+        DestinationResult latestDestination = prepared.wrapTargetId().isPresent()
+                ? resolveExpandedWrapDestination(
+                        latestDocument,
+                        latestCatalog,
+                        prepared.widgetType(),
+                        prepared.wrapTargetId().orElseThrow())
+                : resolveUniqueDestination(
+                        latestDocument,
+                        latestCatalog,
+                        prepared.widgetType(),
+                        prepared.parentId());
         if (latestDestination instanceof DestinationRejected failure) {
             return failure.rejection();
         }
         Destination destination = (Destination) latestDestination;
+        if (prepared.wrapTargetId().isPresent()
+                && (!prepared.parentId().equals(destination.parentId())
+                || !prepared.slotName().equals(destination.slotName())
+                || prepared.insertionIndex() != destination.insertionIndex()
+                || !prepared.wrapTargetId().equals(destination.wrapTargetId()))) {
+            return rejected(
+                    RejectionCode.TARGET_CHANGED,
+                    "The prepared Expanded wrap target changed parent, slot or child index; "
+                    + "retry against the current widget tree.");
+        }
         FlutterDesignerPaletteDropPlanner.Result planned = planner.plan(
                 latestDocument,
                 latestCatalog,
                 prepared.widgetType(),
-                prepared.parentId(),
+                destination.parentId(),
                 destination.slotName(),
                 destination.insertionIndex(),
                 stableIdSupplier);
         if (planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted) {
             return new Committed(accepted.command());
+        }
+        if (planned instanceof FlutterDesignerPaletteDropPlanner.Wrapped wrapped) {
+            return new Wrapped(wrapped.command());
         }
         FlutterDesignerPaletteDropPlanner.Rejected failure =
                 (FlutterDesignerPaletteDropPlanner.Rejected) planned;
@@ -231,7 +263,8 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         }
 
         List<SlotDefinition> compatibleSlots = parentDefinition.slots().stream()
-                .filter(slot -> slot.acceptance().accepts(source))
+                .filter(slot -> WidgetPlacementRules.accepts(
+                        parentDefinition, slot, source))
                 .toList();
         if (compatibleSlots.isEmpty()) {
             return destinationRejected(
@@ -264,7 +297,8 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             boolean occupied = modelSlot instanceof WidgetSlot.SingleSlot single
                     && single.child().isPresent();
             if (!occupied && slot.maxChildren() >= 1) {
-                return new Destination(slot.name(), 0);
+                return new Destination(
+                        parent.id(), slot.name(), 0, Optional.empty());
             }
         } else {
             int childCount = modelSlot instanceof WidgetSlot.ListSlot list
@@ -272,7 +306,8 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             int maximum = Math.min(
                     slot.maxChildren(), WidgetSlot.MAX_LIST_CHILDREN);
             if (childCount < maximum) {
-                return new Destination(slot.name(), childCount);
+                return new Destination(
+                        parent.id(), slot.name(), childCount, Optional.empty());
             }
         }
         return destinationRejected(
@@ -280,6 +315,105 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 "Widget '" + parentId + "' has no empty single slot or "
                 + "terminal list position available for Palette type '"
                 + widgetType.value() + "'.");
+    }
+
+    private static DestinationResult resolveExpandedWrapDestination(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            WidgetTypeId widgetType,
+            StableId targetChildId) {
+        Optional<WidgetDefinition> sourceLookup = catalog.find(widgetType);
+        if (sourceLookup.isEmpty()) {
+            return destinationRejected(
+                    RejectionCode.SOURCE_DEFINITION_MISSING,
+                    "The current catalog has no definition for Palette widget type '"
+                    + widgetType.value() + "'.");
+        }
+        WidgetDefinition source = sourceLookup.orElseThrow();
+        if (!EXPANDED_TYPE.equals(source.typeId())) {
+            return destinationRejected(
+                    RejectionCode.TARGET_STATE_INVALID,
+                    "Expanded wrapper admission received inconsistent Palette type '"
+                    + source.typeId().value() + "'.");
+        }
+
+        NodeInventory inventory = nodeInventory(document.root());
+        if (inventory.duplicateId().isPresent()) {
+            return destinationRejected(
+                    RejectionCode.TARGET_STATE_INVALID,
+                    "The Designer document contains duplicate widget id '"
+                    + inventory.duplicateId().orElseThrow() + "'.");
+        }
+        NodeRef target = inventory.nodes().get(targetChildId);
+        if (target == null) {
+            return destinationRejected(
+                    RejectionCode.TARGET_NOT_FOUND,
+                    "Expanded wrap target '" + targetChildId
+                    + "' is absent from the current Designer document.");
+        }
+        if (target.parentId() == null) {
+            return destinationRejected(
+                    RejectionCode.NO_COMPATIBLE_DESTINATION,
+                    "Cannot wrap root widget '" + targetChildId
+                    + "' with Expanded: Expanded must be a direct child of "
+                    + "Row.children or Column.children.");
+        }
+        if (EXPANDED_TYPE.equals(target.node().type())) {
+            return destinationRejected(
+                    RejectionCode.NO_COMPATIBLE_DESTINATION,
+                    "Cannot wrap Expanded '" + targetChildId
+                    + "' with Expanded: nesting would move the inner Expanded out "
+                    + "of its required direct Row.children or Column.children parent.");
+        }
+        NodeRef parent = inventory.nodes().get(target.parentId());
+        if (parent == null || target.slotName() == null) {
+            return destinationRejected(
+                    RejectionCode.TARGET_STATE_INVALID,
+                    "Cannot resolve the direct model parent of Expanded wrap target '"
+                    + targetChildId + "'.");
+        }
+        Optional<WidgetDefinition> parentLookup = catalog.find(parent.node().type());
+        if (parentLookup.isEmpty()) {
+            return destinationRejected(
+                    RejectionCode.TARGET_DEFINITION_MISSING,
+                    "The current catalog has no definition for direct parent type '"
+                    + parent.node().type().value() + "'.");
+        }
+        WidgetDefinition parentDefinition = parentLookup.orElseThrow();
+        Optional<SlotDefinition> slotLookup = parentDefinition.slot(target.slotName());
+        if (slotLookup.isEmpty()) {
+            return destinationRejected(
+                    RejectionCode.TARGET_STATE_INVALID,
+                    "Catalog definition '" + parentDefinition.typeId().value()
+                    + "' has no direct slot '" + target.slotName().value() + "'.");
+        }
+        SlotDefinition slot = slotLookup.orElseThrow();
+        if (!WidgetPlacementRules.accepts(parentDefinition, slot, source)) {
+            return destinationRejected(
+                    RejectionCode.NO_COMPATIBLE_DESTINATION,
+                    "Cannot wrap '" + target.node().type().value() + "' ('"
+                    + targetChildId + ") with Expanded: its direct model parent is '"
+                    + parentDefinition.typeId().value() + '.'
+                    + target.slotName().value() + "', not Row.children or Column.children.");
+        }
+        WidgetSlot modelSlot = parent.node().slots().get(target.slotName());
+        if (!(modelSlot instanceof WidgetSlot.ListSlot list)
+                || slot.cardinality() != SlotCardinality.LIST
+                || target.slotIndex() < 0
+                || target.slotIndex() >= list.children().size()
+                || !list.children().get(target.slotIndex()).id().equals(targetChildId)) {
+            return destinationRejected(
+                    RejectionCode.TARGET_STATE_INVALID,
+                    "Expanded wrap target '" + targetChildId
+                    + "' is not the exact direct list child at '"
+                    + parent.node().id() + '.' + target.slotName().value()
+                    + "' index " + target.slotIndex() + '.');
+        }
+        return new Destination(
+                parent.node().id(),
+                target.slotName(),
+                target.slotIndex(),
+                Optional.of(targetChildId));
     }
 
     private static TreeInventory inventory(WidgetNode root, StableId parentId) {
@@ -342,7 +476,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
     }
 
     /** Result of one consuming tree drop commit. */
-    public sealed interface CommitResult permits Committed, Rejected {
+    public sealed interface CommitResult permits Committed, Wrapped, Rejected {
     }
 
     /** Exact preview authority captured before NetBeans creates a PasteType. */
@@ -351,12 +485,16 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             WidgetTypeId widgetType,
             StableId parentId,
             SlotName slotName,
-            int insertionIndex) implements PreviewResult {
+            int insertionIndex,
+            StableId treeTargetId,
+            Optional<StableId> wrapTargetId) implements PreviewResult {
         public PreparedDrop {
             Objects.requireNonNull(token, "token");
             Objects.requireNonNull(widgetType, "widgetType");
             Objects.requireNonNull(parentId, "parentId");
             Objects.requireNonNull(slotName, "slotName");
+            Objects.requireNonNull(treeTargetId, "treeTargetId");
+            Objects.requireNonNull(wrapTargetId, "wrapTargetId");
             if (token.isBlank()
                     || token.length()
                     != FlutterDesignerPaletteDragRegistry.TOKEN_LENGTH) {
@@ -368,12 +506,24 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 throw new IllegalArgumentException(
                         "prepared insertionIndex is outside its bound");
             }
+            if (wrapTargetId.isPresent()
+                    && !wrapTargetId.orElseThrow().equals(treeTargetId)) {
+                throw new IllegalArgumentException(
+                        "prepared wrap target must equal the exact tree target");
+            }
         }
     }
 
     /** Exact AddWidget command admitted after latest-snapshot replanning. */
     public record Committed(AddWidget command) implements CommitResult {
         public Committed {
+            Objects.requireNonNull(command, "command");
+        }
+    }
+
+    /** Exact atomic Expanded wrapper command admitted after replanning. */
+    public record Wrapped(WrapWidget command) implements CommitResult {
+        public Wrapped {
             Objects.requireNonNull(command, "command");
         }
     }
@@ -401,6 +551,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         TARGET_NOT_FOUND,
         TARGET_DEFINITION_MISSING,
         TARGET_STATE_INVALID,
+        TARGET_CHANGED,
         NO_COMPATIBLE_DESTINATION,
         AMBIGUOUS_DESTINATION,
         PLANNER_REJECTED
@@ -411,10 +562,14 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
     }
 
     private record Destination(
+            StableId parentId,
             SlotName slotName,
-            int insertionIndex) implements DestinationResult {
+            int insertionIndex,
+            Optional<StableId> wrapTargetId) implements DestinationResult {
         private Destination {
+            Objects.requireNonNull(parentId, "parentId");
             Objects.requireNonNull(slotName, "slotName");
+            Objects.requireNonNull(wrapTargetId, "wrapTargetId");
         }
     }
 
@@ -431,5 +586,51 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         private TreeInventory {
             Objects.requireNonNull(duplicateId, "duplicateId");
         }
+    }
+
+    private static NodeInventory nodeInventory(WidgetNode root) {
+        HashMap<StableId, NodeRef> nodes = new HashMap<>();
+        Set<StableId> expanded = new HashSet<>();
+        StableId duplicate = null;
+        ArrayDeque<NodeRef> pending = new ArrayDeque<>();
+        pending.push(new NodeRef(root, null, null, -1));
+        while (!pending.isEmpty()) {
+            NodeRef ref = pending.pop();
+            if (nodes.putIfAbsent(ref.node().id(), ref) != null
+                    && duplicate == null) {
+                duplicate = ref.node().id();
+            }
+            if (!expanded.add(ref.node().id())) {
+                continue;
+            }
+            for (Map.Entry<SlotName, WidgetSlot> entry
+                    : ref.node().slots().entrySet()) {
+                if (entry.getValue() instanceof WidgetSlot.SingleSlot single) {
+                    single.child().ifPresent(child -> pending.push(new NodeRef(
+                            child, ref.node().id(), entry.getKey(), 0)));
+                } else {
+                    List<WidgetNode> children = ((WidgetSlot.ListSlot) entry.getValue())
+                            .children();
+                    for (int index = children.size() - 1; index >= 0; index--) {
+                        pending.push(new NodeRef(
+                                children.get(index), ref.node().id(), entry.getKey(), index));
+                    }
+                }
+            }
+        }
+        return new NodeInventory(
+                Map.copyOf(nodes), Optional.ofNullable(duplicate));
+    }
+
+    private record NodeRef(
+            WidgetNode node,
+            StableId parentId,
+            SlotName slotName,
+            int slotIndex) {
+    }
+
+    private record NodeInventory(
+            Map<StableId, NodeRef> nodes,
+            Optional<StableId> duplicateId) {
     }
 }

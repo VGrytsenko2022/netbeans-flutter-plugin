@@ -88,6 +88,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Stack",
+                "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -97,7 +98,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactSixteenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactSeventeenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 

@@ -93,6 +93,7 @@ class CanvasDropSlotSemantics {
     this.overlapPriority = 0,
     this.acceptance = canvasAnyDropAcceptance,
     this.zonePlacement = CanvasDropZonePlacement.terminalList,
+    this.wrapsExistingChild = false,
   }) : cardinality = CanvasDropSlotCardinality.list,
        assert(maximumChildren > 0);
 
@@ -101,8 +102,18 @@ class CanvasDropSlotSemantics {
     this.zonePlacement = CanvasDropZonePlacement.fullNode,
     this.overlapPriority = 0,
     this.acceptance = canvasAnyDropAcceptance,
+    this.wrapsExistingChild = false,
   }) : maximumChildren = 1,
        cardinality = CanvasDropSlotCardinality.single;
+
+  const CanvasDropSlotSemantics.wrapExisting({
+    required this.slotName,
+    this.overlapPriority = 0,
+  }) : maximumChildren = 10000,
+       cardinality = CanvasDropSlotCardinality.list,
+       zonePlacement = CanvasDropZonePlacement.existingChild,
+       acceptance = canvasAnyDropAcceptance,
+       wrapsExistingChild = true;
 
   final String slotName;
   final int maximumChildren;
@@ -110,6 +121,7 @@ class CanvasDropSlotSemantics {
   final CanvasDropZonePlacement zonePlacement;
   final int overlapPriority;
   final CanvasDropAcceptance acceptance;
+  final bool wrapsExistingChild;
 
   bool get fillsEmptySingleChild =>
       cardinality == CanvasDropSlotCardinality.single;
@@ -120,6 +132,9 @@ class CanvasDropSlotSemantics {
   };
 
   int? insertionIndexFor(int currentChildCount) {
+    if (wrapsExistingChild) {
+      return null;
+    }
     if (currentChildCount < 0 || currentChildCount >= maximumChildren) {
       return null;
     }
@@ -130,7 +145,9 @@ class CanvasDropSlotSemantics {
   }
 
   bool accepts({required int currentChildCount, required int insertionIndex}) =>
-      insertionIndexFor(currentChildCount) == insertionIndex;
+      wrapsExistingChild
+      ? insertionIndex >= 0 && insertionIndex < currentChildCount
+      : insertionIndexFor(currentChildCount) == insertionIndex;
 
   bool acceptsSource(CanvasPaletteDragSource source) =>
       acceptance.accepts(source);
@@ -145,6 +162,9 @@ enum CanvasDropZonePlacement {
 
   /// Only the visual terminal edge of a Row or Column is exposed.
   terminalList,
+
+  /// The rendered bounds of one existing direct list child.
+  existingChild,
 
   /// A concise lower-right target reserved for Scaffold's FAB slot.
   bottomRightCompact,
@@ -169,6 +189,13 @@ const canvasChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
   maximumChildren: 10000,
 );
+
+const canvasExpandedWrapDropSlot = CanvasDropSlotSemantics.wrapExisting(
+  slotName: 'children',
+  overlapPriority: 6,
+);
+
+const canvasExpandedWidgetType = 'flutter.widgets.Expanded';
 
 const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
@@ -272,6 +299,33 @@ CanvasDropSlotSemantics? canvasDropSlotForWidgetSlot(
     }
   }
   return null;
+}
+
+/// Revalidates the complete source-aware semantic target independently of
+/// rendered hit-test geometry.
+bool canvasDropTargetAcceptsSource({
+  required String parentWidgetType,
+  required String slotName,
+  required int currentChildCount,
+  required int insertionIndex,
+  required CanvasPaletteDragSource source,
+}) {
+  if (source.widgetType == canvasExpandedWidgetType) {
+    return slotName == 'children' &&
+        (parentWidgetType == 'flutter.widgets.Row' ||
+            parentWidgetType == 'flutter.widgets.Column') &&
+        canvasExpandedWrapDropSlot.accepts(
+          currentChildCount: currentChildCount,
+          insertionIndex: insertionIndex,
+        );
+  }
+  final slot = canvasDropSlotForWidgetSlot(parentWidgetType, slotName);
+  return slot != null &&
+      slot.accepts(
+        currentChildCount: currentChildCount,
+        insertionIndex: insertionIndex,
+      ) &&
+      slot.acceptsSource(source);
 }
 
 /// A read-only semantic intent produced by Flutter hit testing.

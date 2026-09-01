@@ -8,9 +8,11 @@ import dev.flutter.netbeans.designer.canvas.CanvasImageResource;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
 import dev.flutter.netbeans.designer.canvas.CanvasImageVariant;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,9 @@ import java.util.regex.Pattern;
  * strict, content-addressed Canvas snapshot.
  */
 public final class FlutterDesignerCanvasImageProjector {
+    private static final WidgetTypeId IMAGE_WIDGET_TYPE =
+            new WidgetTypeId("flutter.widgets.Image");
+    private static final PropertyName IMAGE_PROPERTY = new PropertyName("image");
     private static final Pattern SHA_256 = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern FILE_URI = Pattern.compile(
             "(?i)(?<![A-Za-z0-9_])file:/+[^\\s,;]+");
@@ -210,6 +215,7 @@ public final class FlutterDesignerCanvasImageProjector {
                             decoration.image().orElseThrow());
                 }
             }
+            addDirectImageCenterSlice(referenced, node);
             for (WidgetSlot slot : node.slots().values()) {
                 switch (slot) {
                     case WidgetSlot.SingleSlot single ->
@@ -248,6 +254,50 @@ public final class FlutterDesignerCanvasImageProjector {
                         provider,
                         decorationImage.centerSlice().orElseThrow(),
                         decorationImage.scale())));
+    }
+
+    private static void addDirectImageCenterSlice(
+            TreeMap<CanvasImageAssetId, ProviderUse> referenced,
+            WidgetNode node) {
+        if (!IMAGE_WIDGET_TYPE.equals(node.type())
+                || !(node.properties().get(IMAGE_PROPERTY)
+                instanceof PropertyValue.ImageProviderValue provider)) {
+            return;
+        }
+        Optional<BigDecimal> left = numericProperty(node, "centerSliceLeft");
+        Optional<BigDecimal> top = numericProperty(node, "centerSliceTop");
+        Optional<BigDecimal> right = numericProperty(node, "centerSliceRight");
+        Optional<BigDecimal> bottom = numericProperty(node, "centerSliceBottom");
+        if (left.isEmpty() || top.isEmpty() || right.isEmpty() || bottom.isEmpty()) {
+            return;
+        }
+        PropertyValue.DecorationImageValue.Rect slice =
+                new PropertyValue.DecorationImageValue.Rect(
+                        left.orElseThrow(),
+                        top.orElseThrow(),
+                        right.orElseThrow(),
+                        bottom.orElseThrow());
+        CanvasImageAssetId id = new CanvasImageAssetId(
+                provider.packageName(), provider.assetName());
+        referenced.computeIfPresent(id, (ignored, current) ->
+                current.withCenterSlice(new CenterSliceUse(
+                        provider, slice, BigDecimal.ONE)));
+    }
+
+    private static Optional<BigDecimal> numericProperty(
+            WidgetNode node,
+            String name) {
+        PropertyValue value = node.properties().get(
+                new PropertyName(name));
+        if (value == null) {
+            return Optional.empty();
+        }
+        return switch (value) {
+            case PropertyValue.DoubleValue number -> Optional.of(number.value());
+            case PropertyValue.IntegerValue number ->
+                Optional.of(new BigDecimal(number.value()));
+            default -> Optional.empty();
+        };
     }
 
     private static Resolution resolve(

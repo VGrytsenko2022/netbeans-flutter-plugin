@@ -18,6 +18,7 @@ import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.DnDConstants;
 import java.math.BigDecimal;
@@ -55,6 +56,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.FractionallySizedBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
+    private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -71,6 +73,64 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             id("939d0528-5cea-4550-a620-ff943214a7a2");
     private static final StableId NEW_ID =
             id("cce2050f-8846-4378-843e-58371d52d1c5");
+
+    @Test
+    void imagePreviewAndCommitFailClosedWhenDeclaredInventoryIsUnavailable() {
+        Fixture previewFixture = fixture(IMAGE);
+        StringSelection previewTransfer = new StringSelection(previewFixture.token());
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(), Optional.of("the current pubspec declares no safe image asset."));
+
+        var previewRejected = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                previewFixture.adapter().preview(
+                        previewTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        ROOT_ID,
+                        unavailable));
+        assertEquals(
+                FlutterDesignerPaletteTreeDropAdapter.RejectionCode
+                        .REQUIRED_CREATION_VALUE_UNAVAILABLE,
+                previewRejected.code());
+        assertTrue(previewRejected.reason().contains("required property 'image'"));
+
+        Fixture commitFixture = fixture(IMAGE);
+        StringSelection commitTransfer = new StringSelection(commitFixture.token());
+        FlutterImageAssetChoices available = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/a.png", "App: assets/a.png")),
+                Optional.empty());
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                commitFixture.adapter().preview(
+                        commitTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        ROOT_ID,
+                        available));
+        AtomicInteger allocations = new AtomicInteger();
+        var commitRejected = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                commitFixture.adapter().commit(
+                        prepared,
+                        commitTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        unavailable,
+                        () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        }));
+        assertEquals(
+                FlutterDesignerPaletteTreeDropAdapter.RejectionCode.PLANNER_REJECTED,
+                commitRejected.code());
+        assertTrue(commitRejected.reason().contains("required property 'image'"));
+        assertEquals(0, allocations.get());
+    }
 
     @Test
     void previewIsRepeatableNonConsumingAndCommitReplansTerminalIndex() {

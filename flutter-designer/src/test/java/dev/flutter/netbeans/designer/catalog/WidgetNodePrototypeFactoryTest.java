@@ -156,6 +156,73 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
+        WidgetDefinition image = definition("flutter.widgets.Image");
+
+        IllegalArgumentException missing = assertThrows(
+                IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(image, ID));
+        assertTrue(missing.getMessage().contains(
+                "Required creation property 'image' is missing"));
+        AtomicInteger allocations = new AtomicInteger();
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(image, () -> {
+                    allocations.incrementAndGet();
+                    return ID;
+                }));
+        assertEquals(0, allocations.get(),
+                "required creation values are validated before id allocation");
+
+        PropertyValue.ImageProviderValue provider =
+                PropertyValue.ImageProviderValue.asset("assets/photo.png");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                image,
+                ID,
+                Map.of(
+                        new PropertyName("image"), provider,
+                        new PropertyName("semanticLabel"),
+                                new PropertyValue.StringValue("Photo")));
+
+        assertEquals(Map.of(
+                        new PropertyName("image"), provider,
+                        new PropertyName("semanticLabel"),
+                                new PropertyValue.StringValue("Photo")),
+                prototype.properties());
+        assertTrue(prototype.slots().isEmpty());
+    }
+
+    @Test
+    void explicitCreationValuesAreGenericValidatedAndOverrideCatalogDefaults() {
+        WidgetDefinition ratio = definition("flutter.widgets.AspectRatio");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                ratio,
+                ID,
+                Map.of(new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(new BigDecimal("1.5"))));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("1.5")),
+                prototype.properties().get(new PropertyName("aspectRatio")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        ratio,
+                        ID,
+                        Map.of(new PropertyName("unknown"),
+                                new PropertyValue.BooleanValue(true))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        ratio,
+                        ID,
+                        Map.of(new PropertyName("aspectRatio"),
+                                new PropertyValue.BooleanValue(true))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        ratio,
+                        ID,
+                        Map.of(new PropertyName("aspectRatio"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO))));
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

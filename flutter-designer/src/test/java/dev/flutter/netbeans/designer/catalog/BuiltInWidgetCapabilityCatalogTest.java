@@ -38,7 +38,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
             "flutter.widgets.Text",
-            "flutter.widgets.Icon");
+            "flutter.widgets.Icon",
+            "flutter.widgets.Image");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -57,7 +58,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
             "flutter.widgets.Text",
-            "flutter.widgets.Icon");
+            "flutter.widgets.Icon",
+            "flutter.widgets.Image");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -68,7 +70,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasSeventeenSourcesAndTwentyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasEighteenSourcesAndTwentyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -91,7 +93,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(17, sources.size());
+        assertEquals(18, sources.size());
         assertEquals(20, destinations.size());
         assertEquals(18, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -101,9 +103,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(340, candidates);
-        assertEquals(292, accepted);
-        assertEquals(48, candidates - accepted);
+        assertEquals(360, candidates);
+        assertEquals(310, accepted);
+        assertEquals(50, candidates - accepted);
     }
 
     @Test
@@ -403,6 +405,56 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, true, 1, 1),
                 projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void imageHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Image");
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(22, projection.propertyContracts().size());
+        assertTrue(projection.slots().isEmpty());
+
+        var provider = projection.propertyContracts().get(new PropertyName("image"));
+        assertTrue(provider.required());
+        assertEquals(Set.of(PropertyValueKind.IMAGE_PROVIDER), provider.acceptedKinds());
+        assertTrue(provider.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "imageProvider:v1:asset,exactAsset:package:exactScale:"
+                + "resize(1..16384,exact,fit,allowUpscaling)",
+                provider.constraintFingerprints().get(PropertyValueKind.IMAGE_PROVIDER));
+
+        for (String name : List.of("frameBuilder", "loadingBuilder", "errorBuilder")) {
+            assertEquals("callbackReference", projection.propertyContracts()
+                    .get(new PropertyName(name)).constraintFingerprints()
+                    .get(PropertyValueKind.CALLBACK), name);
+        }
+        assertEquals("0:1:1:1", projection.propertyContracts()
+                .get(new PropertyName("opacity")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        for (String name : List.of(
+                "centerSliceLeft", "centerSliceTop",
+                "centerSliceRight", "centerSliceBottom")) {
+            assertEquals("0:1:*:1", projection.propertyContracts()
+                    .get(new PropertyName(name)).numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+        }
+        assertTrue(projection.propertyContracts().get(new PropertyName("fit"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .endsWith(":BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown"));
+        assertTrue(projection.propertyContracts().get(new PropertyName("repeat"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .endsWith(":ImageRepeat:noRepeat,repeat,repeatX,repeatY"));
+        assertTrue(projection.propertyContracts().get(new PropertyName("filterQuality"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .endsWith(":FilterQuality:high,low,medium,none"));
     }
 
     @Test
@@ -722,6 +774,23 @@ class BuiltInWidgetCapabilityCatalogTest {
                 "efcbcdee37b660a8ec4f8cb85b152aa92009033b6ae498b6c25861d7efbdb3be",
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(appBar.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void imageFullReviewedProjectionHasStableFingerprintWithoutSyntheticRelationLines()
+            throws Exception {
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.widgets.Image\n");
+        int end = contract.indexOf("W|", start + 2);
+        String image = contract.substring(start, end);
+
+        assertEquals(3_583, image.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(
+                "e3e0b2b0fbc7b678814d51a257191381fb872a39e797ac46c861954f3eee7b1a",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(image.getBytes(StandardCharsets.UTF_8))));
+        assertFalse(image.contains("\nR|"), image);
+        assertFalse(image.contains("\nC|"), image);
     }
 
     @Test

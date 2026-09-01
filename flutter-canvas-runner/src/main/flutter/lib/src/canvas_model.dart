@@ -1074,6 +1074,12 @@ class CanvasValue {
         return CanvasValue(kind as String, _decodeBoxConstraints(object, path));
       case 'matrix4':
         return CanvasValue(kind as String, _decodeMatrix4(object, path));
+      case 'imageProvider':
+        _exactKeys(object, path, const {'kind', 'value'});
+        return CanvasValue(
+          kind as String,
+          _decodeImageProvider(object['value'], '$path/value'),
+        );
       case 'boxDecoration':
         return CanvasValue(
           kind as String,
@@ -3894,6 +3900,72 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     ),
     'fontWeight': _fontWeightProperty,
   }, {}),
+  'flutter.widgets.Image': _WidgetSpec({
+    'image': _PropertySpec({'imageProvider'}, required: true),
+    'frameBuilder': _PropertySpec({'callback'}),
+    'loadingBuilder': _PropertySpec({'callback'}),
+    'errorBuilder': _PropertySpec({'callback'}),
+    'semanticLabel': _PropertySpec({'string'}),
+    'excludeFromSemantics': _PropertySpec({'boolean'}),
+    'width': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'height': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'color': _themeAwareColorProperty,
+    'opacity': _PropertySpec({'double'}, numericBounds: _zeroToOneDoubleBounds),
+    'colorBlendMode': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'BlendMode',
+      enumValues: _blendModes,
+    ),
+    'fit': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'BoxFit',
+      enumValues: {
+        'fill',
+        'contain',
+        'cover',
+        'fitWidth',
+        'fitHeight',
+        'none',
+        'scaleDown',
+      },
+    ),
+    'alignment': _PropertySpec({'alignmentGeometry'}),
+    'repeat': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'ImageRepeat',
+      enumValues: {'repeat', 'repeatX', 'repeatY', 'noRepeat'},
+    ),
+    'centerSliceLeft': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'centerSliceTop': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'centerSliceRight': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'centerSliceBottom': _PropertySpec({
+      'double',
+    }, numericBounds: _nonNegativeDoubleBounds),
+    'matchTextDirection': _PropertySpec({'boolean'}),
+    'gaplessPlayback': _PropertySpec({'boolean'}),
+    'isAntiAlias': _PropertySpec({'boolean'}),
+    'filterQuality': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'FilterQuality',
+      enumValues: {'none', 'low', 'medium', 'high'},
+    ),
+  }, {}),
   'flutter.widgets.SizedBox': _WidgetSpec(
     {
       'width': _PropertySpec({
@@ -4542,6 +4614,29 @@ P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,ma
 P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+W|flutter.widgets.Image
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|centerSliceBottom|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|centerSliceLeft|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|centerSliceRight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|centerSliceTop|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|colorBlendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|errorBuilder|callback|0|-|-|callback:callbackReference
+P|excludeFromSemantics|boolean|0|-|-|boolean:any
+P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none
+P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown
+P|frameBuilder|callback|0|-|-|callback:callbackReference
+P|gaplessPlayback|boolean|0|-|-|boolean:any
+P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|image|imageProvider|1|-|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling)
+P|isAntiAlias|boolean|0|-|-|boolean:any
+P|loadingBuilder|callback|0|-|-|callback:callbackReference
+P|matchTextDirection|boolean|0|-|-|boolean:any
+P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
+P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
+P|semanticLabel|string|0|-|-|string:any
+P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 W|flutter.widgets.Opacity
 P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
 P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1
@@ -4763,6 +4858,10 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
       kind == 'matrix4') {
     return kind;
   }
+  if (kind == 'imageProvider') {
+    return 'imageProvider:v1:asset,exactAsset:package:exactScale:'
+        'resize(1..16384,exact,fit,allowUpscaling)';
+  }
   if (kind == 'boxDecoration') {
     final tokens = spec.themeTokens.toList()..sort();
     _expect(tokens.isNotEmpty, 'Canvas BoxDecoration token schema is empty.');
@@ -4857,6 +4956,52 @@ void _validatePropertyRelationships(
       if (resolution is CanvasResolvedImageValue) {
         budget.imageResourceIds.add(resolution.resourceId);
       }
+    }
+    return;
+  }
+
+  if (type == 'flutter.widgets.Image') {
+    final provider = properties['image']?.value;
+    _expect(
+      provider is CanvasImageProviderValue,
+      'Canvas Image requires a direct image provider: $path/properties/image',
+    );
+    final resolution = (provider! as CanvasImageProviderValue).resolution;
+    if (resolution is CanvasResolvedImageValue) {
+      budget.imageResourceIds.add(resolution.resourceId);
+    }
+
+    const sliceNames = [
+      'centerSliceLeft',
+      'centerSliceTop',
+      'centerSliceRight',
+      'centerSliceBottom',
+    ];
+    final presentSlices = sliceNames
+        .where(properties.containsKey)
+        .toList(growable: false);
+    _expect(
+      presentSlices.isEmpty || presentSlices.length == sliceNames.length,
+      'Canvas Image centerSlice coordinates must be all present or all '
+      'omitted: $path/properties',
+    );
+    if (presentSlices.isNotEmpty) {
+      final left = properties['centerSliceLeft']!.value as double;
+      final top = properties['centerSliceTop']!.value as double;
+      final right = properties['centerSliceRight']!.value as double;
+      final bottom = properties['centerSliceBottom']!.value as double;
+      _expect(
+        left < right && top < bottom,
+        'Canvas Image centerSlice must have positive width and height: '
+        '$path/properties',
+      );
+      final fit = properties['fit']?.value;
+      _expect(
+        fit is! CanvasEnumValue ||
+            (fit.value != 'cover' && fit.value != 'none'),
+        'Canvas Image centerSlice rejects cover and none fits: '
+        '$path/properties/fit',
+      );
     }
     return;
   }

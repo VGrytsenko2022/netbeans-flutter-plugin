@@ -253,6 +253,13 @@ public final class FlutterDesignerPalette {
                         + "with Expanded. Drop Expanded on that child; terminal insertion "
                         + "and empty placeholders are unavailable because Expanded.child "
                         + "is required.");
+            } else if (FlutterImageWidgetCreationValues.IMAGE_TYPE.equals(
+                    definition.typeId())) {
+                setShortDescription(
+                        "Display a declared Flutter image asset. Creation selects the "
+                        + "deterministic first sorted asset and sets required Image.image; "
+                        + "Palette, tree, Canvas, and slot Add are unavailable when the "
+                        + "current project asset inventory has no safe declared image.");
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

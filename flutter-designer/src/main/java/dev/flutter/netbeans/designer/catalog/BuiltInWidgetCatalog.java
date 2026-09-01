@@ -38,6 +38,7 @@ public final class BuiltInWidgetCatalog {
             fractionallySizedBox(),
             stack(),
             expanded(),
+            image(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -720,6 +721,61 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 120, "Expanded"),
                 List.of(namedProperty("flex", 0, false, nonNegativeIntegers())),
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition image() {
+        return widget(
+                "flutter.widgets.Image",
+                "Image",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 30, "Image"),
+                List.of(
+                        namedProperty("image", 0, true,
+                                List.of(new PropertyValueConstraint.ImageProviderValues())),
+                        namedProperty("frameBuilder", 1, false,
+                                List.of(new PropertyValueConstraint.CallbackReference())),
+                        namedProperty("loadingBuilder", 2, false,
+                                List.of(new PropertyValueConstraint.CallbackReference())),
+                        namedProperty("errorBuilder", 3, false,
+                                List.of(new PropertyValueConstraint.CallbackReference())),
+                        namedProperty("semanticLabel", 4, false,
+                                any(PropertyValueKind.STRING)),
+                        namedProperty("excludeFromSemantics", 5, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("width", 6, false, nonNegativeNumbers()),
+                        namedProperty("height", 7, false, nonNegativeNumbers()),
+                        namedProperty("color", 8, false, colorOrTheme()),
+                        namedProperty("opacity", 9, false, zeroToOneDoubles()),
+                        namedProperty("colorBlendMode", 10, false, enumValues(
+                                "BlendMode", "clear", "src", "dst", "srcOver", "dstOver",
+                                "srcIn", "dstIn", "srcOut", "dstOut", "srcATop", "dstATop",
+                                "xor", "plus", "modulate", "screen", "overlay", "darken",
+                                "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
+                                "difference", "exclusion", "multiply", "hue", "saturation",
+                                "color", "luminosity")),
+                        namedProperty("fit", 11, false, enumValues(
+                                "BoxFit", "fill", "contain", "cover", "fitWidth",
+                                "fitHeight", "none", "scaleDown")),
+                        namedProperty("alignment", 12, false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty("repeat", 13, false, enumValues(
+                                "ImageRepeat", "repeat", "repeatX", "repeatY", "noRepeat")),
+                        namedProperty("centerSliceLeft", 14, false, nonNegativeDoubles()),
+                        namedProperty("centerSliceTop", 15, false, nonNegativeDoubles()),
+                        namedProperty("centerSliceRight", 16, false, nonNegativeDoubles()),
+                        namedProperty("centerSliceBottom", 17, false, nonNegativeDoubles()),
+                        namedProperty("matchTextDirection", 18, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("gaplessPlayback", 19, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("isAntiAlias", 20, false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("filterQuality", 21, false, enumValues(
+                                "FilterQuality", "none", "low", "medium", "high"))),
+                List.of());
     }
 
     private static WidgetDefinition elevatedButton() {

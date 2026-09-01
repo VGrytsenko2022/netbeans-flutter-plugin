@@ -775,6 +775,105 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void imageRequiresAProviderAndAcceptsACompletePositiveCenterSlice() {
+        WidgetNode missingProvider = node(
+                "image-missing", "flutter.widgets.Image", Map.of(), Map.of());
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(missingProvider), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/image", missing.path());
+
+        WidgetNode valid = node(
+                "image-valid",
+                "flutter.widgets.Image",
+                Map.ofEntries(
+                        Map.entry(name("image"), imageProvider()),
+                        Map.entry(name("opacity"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.75"))),
+                        Map.entry(name("centerSliceLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(name("centerSliceTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(name("centerSliceRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(20))),
+                        Map.entry(name("centerSliceBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(30)))),
+                Map.of());
+        ValidationResult validResult = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(validResult.valid(), () -> "Issues were: " + validResult.issues());
+    }
+
+    @Test
+    void imageCenterSliceIsAllOrNoneWithStrictGeometryAndCompatibleFit() {
+        WidgetNode partial = node(
+                "image-partial",
+                "flutter.widgets.Image",
+                Map.of(
+                        name("image"), imageProvider(),
+                        name("centerSliceLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of());
+        ValidationIssue dependency = onlyIssue(
+                validator().validate(
+                        document(partial), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/centerSliceTop", dependency.path());
+
+        WidgetNode invalid = node(
+                "image-invalid-slice",
+                "flutter.widgets.Image",
+                Map.ofEntries(
+                        Map.entry(name("image"), imageProvider()),
+                        Map.entry(name("centerSliceLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                        Map.entry(name("centerSliceTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                        Map.entry(name("centerSliceRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                        Map.entry(name("centerSliceBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(name("fit"),
+                                new PropertyValue.EnumValue("BoxFit", "cover"))),
+                Map.of());
+        ValidationResult result = validator().validate(
+                document(invalid), BuiltInWidgetCatalog.getDefault());
+        assertEquals(List.of(
+                        WidgetTreeValidator.PROPERTY_CONSTRAINT,
+                        WidgetTreeValidator.PROPERTY_CONSTRAINT,
+                        WidgetTreeValidator.PROPERTY_CONFLICT),
+                codes(result));
+        assertEquals(List.of(
+                        "/root/properties/centerSliceRight",
+                        "/root/properties/centerSliceBottom",
+                        "/root/properties/fit"),
+                result.issues().stream().map(ValidationIssue::path).toList());
+
+        WidgetNode noneFit = node(
+                "image-none-fit",
+                "flutter.widgets.Image",
+                Map.ofEntries(
+                        Map.entry(name("image"), imageProvider()),
+                        Map.entry(name("centerSliceLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                        Map.entry(name("centerSliceTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                        Map.entry(name("centerSliceRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(name("centerSliceBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(name("fit"),
+                                new PropertyValue.EnumValue("BoxFit", "none"))),
+                Map.of());
+        ValidationIssue conflict = onlyIssue(
+                validator().validate(
+                        document(noneFit), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/fit", conflict.path());
+    }
+
+    @Test
     void containerEnforcesBackgroundAndClipRelationshipsAfterNestedValidation() {
         PropertyValue.BoxDecorationValue decoration = boxDecoration(
                 new ColorSource.Literal(0xFF102030L));
@@ -1268,6 +1367,10 @@ class WidgetTreeValidatorTest {
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Expanded", properties, Map.of(
                 slotName("child"), WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static PropertyValue.ImageProviderValue imageProvider() {
+        return PropertyValue.ImageProviderValue.asset("assets/image.png");
     }
 
     private static WidgetNode node(

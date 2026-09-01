@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
@@ -24,12 +25,17 @@ import dev.flutter.netbeans.designer.generation.DartGenerationDiagnosticCode;
 import dev.flutter.netbeans.designer.generation.DartGenerationResult;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityGate;
 import dev.flutter.netbeans.designer.validation.ValidationResult;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteItem;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
 import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
@@ -42,7 +48,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.accessibility.AccessibleContext;
 import javax.swing.Action;
@@ -754,7 +762,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Stack",
                     "flutter.widgets.Expanded",
                     "flutter.widgets.Text",
-                    "flutter.widgets.Icon"),
+                    "flutter.widgets.Icon",
+                    "flutter.widgets.Image"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(
                                     category.getChildren().getNodes(true)))
@@ -787,6 +796,57 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 assertFalse(property.canWrite());
             }
         });
+    }
+
+    @Test
+    void imageSlotReplacementResolvesRequiredAssetBeforeStableIdAllocation() {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.Image"))
+                .orElseThrow();
+        StableId expectedId = StableId.parse(
+                "23655e27-aa73-430f-9967-5344076c4fa2");
+        AtomicInteger availableAllocations = new AtomicInteger();
+        FlutterImageAssetChoices available = new FlutterImageAssetChoices(
+                List.of(
+                        new FlutterImageAssetChoices.Choice(
+                                Optional.empty(), "assets/z.png", "Z"),
+                        new FlutterImageAssetChoices.Choice(
+                                Optional.empty(), "assets/a.png", "A")),
+                Optional.empty());
+
+        WidgetNode prototype = FlutterDesignerMultiViewDesign
+                .createSlotReplacementPrototype(
+                        definition,
+                        available,
+                        () -> {
+                            availableAllocations.incrementAndGet();
+                            return expectedId;
+                        });
+
+        PropertyValue.ImageProviderValue image = assertInstanceOf(
+                PropertyValue.ImageProviderValue.class,
+                prototype.properties().get(new PropertyName("image")));
+        assertEquals(expectedId, prototype.id());
+        assertEquals("assets/a.png", image.assetName());
+        assertEquals(1, availableAllocations.get());
+
+        AtomicInteger unavailableAllocations = new AtomicInteger();
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(),
+                Optional.of("the current pubspec declares no safe image asset."));
+        IllegalArgumentException rejected = assertThrows(
+                IllegalArgumentException.class,
+                () -> FlutterDesignerMultiViewDesign
+                        .createSlotReplacementPrototype(
+                                definition,
+                                unavailable,
+                                () -> {
+                                    unavailableAllocations.incrementAndGet();
+                                    return expectedId;
+                                }));
+        assertTrue(rejected.getMessage().contains("required property 'image'"));
+        assertTrue(rejected.getMessage().contains("pubspec"));
+        assertEquals(0, unavailableAllocations.get());
     }
 
     @Test

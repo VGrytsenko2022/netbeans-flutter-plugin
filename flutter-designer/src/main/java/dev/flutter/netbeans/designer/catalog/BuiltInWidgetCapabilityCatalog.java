@@ -155,7 +155,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Align", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FractionallySizedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Stack", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -312,6 +313,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                             NON_NEGATIVE_INTEGER_BOUNDS,
                             PropertyValueKind.INTEGER)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
@@ -527,6 +529,65 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "clipBehavior", "Clip", "none", "hardEdge",
                         "antiAlias", "antiAliasWithSaveLayer")),
                 Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection imageProjection() {
+        return projection(Map.ofEntries(
+                requiredConstrainedProperty(
+                        "image",
+                        PropertyValueKind.IMAGE_PROVIDER,
+                        IMAGE_PROVIDER_CONTRACT_FINGERPRINT),
+                callbackProperty("frameBuilder"),
+                callbackProperty("loadingBuilder"),
+                callbackProperty("errorBuilder"),
+                property("semanticLabel", PropertyValueKind.STRING),
+                property("excludeFromSemantics", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "width", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "height", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                colorOrThemeProperty("color"),
+                numericProperty(
+                        "opacity", ZERO_TO_ONE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                enumProperty(
+                        "colorBlendMode", "BlendMode",
+                        "clear", "src", "dst", "srcOver", "dstOver",
+                        "srcIn", "dstIn", "srcOut", "dstOut", "srcATop", "dstATop",
+                        "xor", "plus", "modulate", "screen", "overlay", "darken",
+                        "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
+                        "difference", "exclusion", "multiply", "hue", "saturation",
+                        "color", "luminosity"),
+                enumProperty(
+                        "fit", "BoxFit", "fill", "contain", "cover", "fitWidth",
+                        "fitHeight", "none", "scaleDown"),
+                Map.entry("alignment", constrainedSchema(
+                        PropertyValueKind.ALIGNMENT_GEOMETRY,
+                        "alignmentGeometry")),
+                enumProperty(
+                        "repeat", "ImageRepeat", "repeat", "repeatX", "repeatY",
+                        "noRepeat"),
+                numericProperty(
+                        "centerSliceLeft", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "centerSliceTop", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "centerSliceRight", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "centerSliceBottom", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                property("matchTextDirection", PropertyValueKind.BOOLEAN),
+                property("gaplessPlayback", PropertyValueKind.BOOLEAN),
+                property("isAntiAlias", PropertyValueKind.BOOLEAN),
+                enumProperty(
+                        "filterQuality", "FilterQuality", "none", "low", "medium",
+                        "high")),
+                Map.of());
     }
 
     private static CanvasProjection scaffoldProjection() {
@@ -1317,6 +1378,19 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Set.of(kind),
                 true,
                 Optional.of(creationDefaultFingerprint),
+                Map.of(),
+                Map.of(kind, constraintFingerprint)));
+    }
+
+    private static Map.Entry<String, CanvasPropertyContract>
+            requiredConstrainedProperty(
+                    String name,
+                    PropertyValueKind kind,
+                    String constraintFingerprint) {
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(kind),
+                true,
+                Optional.empty(),
                 Map.of(),
                 Map.of(kind, constraintFingerprint)));
     }

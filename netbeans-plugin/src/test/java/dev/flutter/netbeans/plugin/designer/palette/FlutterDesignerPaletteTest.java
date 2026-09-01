@@ -42,6 +42,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Row",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
+            "flutter.widgets.Image",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -71,7 +72,7 @@ class FlutterDesignerPaletteTest {
                 "Container", "Opacity", "Align", "FractionallySizedBox", "Stack",
                 "Expanded"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
+        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[2]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
                 .lookup(FlutterDesignerPaletteCategory.class);
@@ -95,7 +96,7 @@ class FlutterDesignerPaletteTest {
                 "Container", "Opacity", "Align", "FractionallySizedBox", "Stack",
                 "Expanded"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
+        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[2]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
                 CATALOG,
@@ -275,6 +276,35 @@ class FlutterDesignerPaletteTest {
                 + "Expanded. Drop Expanded on that child; terminal insertion and empty "
                 + "placeholders are unavailable because Expanded.child is required.",
                 node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Image";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.basic",
+                        300,
+                        30,
+                        "Image"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertTrue(node.getShortDescription().contains(
+                "deterministic first sorted asset"));
+        assertTrue(node.getShortDescription().contains(
+                "required Image.image"));
+        assertTrue(node.getShortDescription().contains(
+                "unavailable"));
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
@@ -552,7 +582,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void seventeenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void eighteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -571,7 +601,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(17, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(18, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

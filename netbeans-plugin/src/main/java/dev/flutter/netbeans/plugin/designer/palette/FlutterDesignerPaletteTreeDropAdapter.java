@@ -13,6 +13,7 @@ import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DnDConstants;
 import java.util.ArrayDeque;
@@ -73,8 +74,25 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             DesignerDocument document,
             WidgetCatalog catalog,
             StableId parentId) {
+        return preview(
+                transferable,
+                action,
+                document,
+                catalog,
+                parentId,
+                FlutterImageAssetChoices.empty());
+    }
+
+    /** Previews against the current declared image inventory. */
+    public PreviewResult preview(
+            Transferable transferable,
+            int action,
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            StableId parentId,
+            FlutterImageAssetChoices imageAssetChoices) {
         Optional<Rejected> invalid = invalidRequest(
-                document, catalog, parentId);
+                document, catalog, parentId, imageAssetChoices);
         if (invalid.isPresent()) {
             return invalid.orElseThrow();
         }
@@ -92,6 +110,19 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         }
         FlutterDesignerPaletteDragLifecycle.ResolvedDrag drag =
                 resolved.orElseThrow();
+        Optional<WidgetDefinition> resolvedSource = catalog.find(drag.widgetType())
+                .filter(definition -> drag.widgetType().equals(definition.typeId()));
+        if (resolvedSource.isPresent()) {
+            FlutterImageWidgetCreationValues.Result creationValues =
+                    FlutterImageWidgetCreationValues.resolve(
+                            resolvedSource.orElseThrow(), imageAssetChoices);
+            if (creationValues
+                    instanceof FlutterImageWidgetCreationValues.Unavailable unavailable) {
+                return rejected(
+                        RejectionCode.REQUIRED_CREATION_VALUE_UNAVAILABLE,
+                        unavailable.reason() + " Tree target: widget '" + parentId + "'.");
+            }
+        }
         DestinationResult destination = EXPANDED_TYPE.equals(drag.widgetType())
                 ? resolveExpandedWrapDestination(
                         document, catalog, drag.widgetType(), parentId)
@@ -122,13 +153,34 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             DesignerDocument latestDocument,
             WidgetCatalog latestCatalog,
             Supplier<StableId> stableIdSupplier) {
+        return commit(
+                prepared,
+                transferable,
+                action,
+                latestDocument,
+                latestCatalog,
+                FlutterImageAssetChoices.empty(),
+                stableIdSupplier);
+    }
+
+    /** Commits against the latest declared image inventory. */
+    public CommitResult commit(
+            PreparedDrop prepared,
+            Transferable transferable,
+            int action,
+            DesignerDocument latestDocument,
+            WidgetCatalog latestCatalog,
+            FlutterImageAssetChoices imageAssetChoices,
+            Supplier<StableId> stableIdSupplier) {
         if (prepared == null
                 || latestDocument == null
                 || latestCatalog == null
+                || imageAssetChoices == null
                 || stableIdSupplier == null) {
             return rejected(
                     RejectionCode.INVALID_REQUEST,
-                    "Prepared drop, latest document, catalog and stable-id supplier are required.");
+                    "Prepared drop, latest document, catalog, current image asset "
+                    + "choices and stable-id supplier are required.");
         }
         if (!offersMove(action)) {
             burn(prepared.token());
@@ -196,6 +248,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 destination.parentId(),
                 destination.slotName(),
                 destination.insertionIndex(),
+                imageAssetChoices,
                 stableIdSupplier);
         if (planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted) {
             return new Committed(accepted.command());
@@ -447,11 +500,14 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
     private static Optional<Rejected> invalidRequest(
             DesignerDocument document,
             WidgetCatalog catalog,
-            StableId parentId) {
-        if (document == null || catalog == null || parentId == null) {
+            StableId parentId,
+            FlutterImageAssetChoices imageAssetChoices) {
+        if (document == null || catalog == null || parentId == null
+                || imageAssetChoices == null) {
             return Optional.of(rejected(
                     RejectionCode.INVALID_REQUEST,
-                    "Designer document, catalog and tree drop parent are required."));
+                    "Designer document, catalog, tree drop parent and current image "
+                    + "asset choices are required."));
         }
         return Optional.empty();
     }
@@ -552,6 +608,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         TARGET_DEFINITION_MISSING,
         TARGET_STATE_INVALID,
         TARGET_CHANGED,
+        REQUIRED_CREATION_VALUE_UNAVAILABLE,
         NO_COMPATIBLE_DESTINATION,
         AMBIGUOUS_DESTINATION,
         PLANNER_REJECTED

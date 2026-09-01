@@ -1021,6 +1021,186 @@ void main() {
     },
   );
 
+  test('decodes the exact direct Image contract and resolved provider', () {
+    const resourceId =
+        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    final json = _modelJson();
+    json['root'] = _node(
+      '2ee0f071-2884-4105-b5c5-190654025c39',
+      'flutter.widgets.Image',
+      properties: {
+        'image': _canvasDirectImageProvider(
+          provider: _canvasImageProvider(
+            kind: 'exactAsset',
+            assetName: 'assets/images/hero.png',
+            packageName: 'image_package',
+            exactScale: 2,
+            resize: {
+              'width': 320,
+              'height': 180,
+              'policy': 'fit',
+              'allowUpscaling': false,
+            },
+            resolution: {
+              'kind': 'resolved',
+              'resourceId': resourceId,
+              'resolvedScale': 2,
+            },
+          ),
+        ),
+        'frameBuilder': {'kind': 'callbackPresence'},
+        'loadingBuilder': {'kind': 'callbackPresence'},
+        'errorBuilder': {'kind': 'callbackPresence'},
+        'semanticLabel': {'kind': 'string', 'value': 'Hero image'},
+        'excludeFromSemantics': {'kind': 'boolean', 'value': false},
+        'width': {'kind': 'integer', 'value': 320},
+        'height': {'kind': 'double', 'value': 180.5},
+        'color': {
+          'kind': 'themeToken',
+          'token': 'material.colorScheme.primary',
+        },
+        'opacity': {'kind': 'double', 'value': 0.75},
+        'colorBlendMode': {
+          'kind': 'enum',
+          'type': 'BlendMode',
+          'value': 'multiply',
+        },
+        'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'fill'},
+        'alignment': _canvasAlignment(
+          basis: 'directional',
+          horizontal: 1,
+          vertical: -1,
+        ),
+        'repeat': {'kind': 'enum', 'type': 'ImageRepeat', 'value': 'repeatX'},
+        'centerSliceLeft': {'kind': 'double', 'value': 1.0},
+        'centerSliceTop': {'kind': 'double', 'value': 2.0},
+        'centerSliceRight': {'kind': 'double', 'value': 20.0},
+        'centerSliceBottom': {'kind': 'double', 'value': 30.0},
+        'matchTextDirection': {'kind': 'boolean', 'value': true},
+        'gaplessPlayback': {'kind': 'boolean', 'value': true},
+        'isAntiAlias': {'kind': 'boolean', 'value': true},
+        'filterQuality': {
+          'kind': 'enum',
+          'type': 'FilterQuality',
+          'value': 'high',
+        },
+      },
+    );
+
+    final decoded = _decode(json);
+    final image = decoded.root;
+    expect(image.type, 'flutter.widgets.Image');
+    expect(image.properties, hasLength(22));
+    final provider =
+        image.properties['image']!.value as CanvasImageProviderValue;
+    expect(provider.providerKind, 'exactAsset');
+    expect(provider.assetName, 'assets/images/hero.png');
+    expect(provider.packageName, 'image_package');
+    expect(provider.exactScale, 2);
+    expect(provider.resize!.width, 320);
+    expect(provider.resize!.height, 180);
+    expect(provider.resize!.policy, 'fit');
+    expect(provider.resize!.allowUpscaling, isFalse);
+    expect(provider.resolution, isA<CanvasResolvedImageValue>());
+    expect(decoded.imageResourceIds, {resourceId});
+    expect(image.properties['frameBuilder']!.value, isTrue);
+    expect(image.properties['opacity']!.value, 0.75);
+  });
+
+  test('rejects incomplete or invalid direct Image values', () {
+    Map<String, Object?> model(Map<String, Object?> properties) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '2ee0f071-2884-4105-b5c5-190654025c39',
+        'flutter.widgets.Image',
+        properties: properties,
+      );
+      return json;
+    }
+
+    final image = _canvasDirectImageProvider();
+    for (final properties in <Map<String, Object?>>[
+      const {},
+      {
+        'image': image,
+        'centerSliceLeft': {'kind': 'double', 'value': 0.0},
+      },
+      {
+        'image': image,
+        'centerSliceLeft': {'kind': 'double', 'value': -1.0},
+        'centerSliceTop': {'kind': 'double', 'value': 0.0},
+        'centerSliceRight': {'kind': 'double', 'value': 2.0},
+        'centerSliceBottom': {'kind': 'double', 'value': 2.0},
+      },
+      {
+        'image': image,
+        'centerSliceLeft': {'kind': 'double', 'value': 1.0},
+        'centerSliceTop': {'kind': 'double', 'value': 0.0},
+        'centerSliceRight': {'kind': 'double', 'value': 1.0},
+        'centerSliceBottom': {'kind': 'double', 'value': 2.0},
+      },
+      {
+        'image': image,
+        'centerSliceLeft': {'kind': 'double', 'value': 0.0},
+        'centerSliceTop': {'kind': 'double', 'value': 0.0},
+        'centerSliceRight': {'kind': 'double', 'value': 2.0},
+        'centerSliceBottom': {'kind': 'double', 'value': 2.0},
+        'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'cover'},
+      },
+      {
+        'image': image,
+        'opacity': {'kind': 'integer', 'value': 1},
+      },
+      {
+        'image': image,
+        'opacity': {'kind': 'double', 'value': 1.01},
+      },
+      {
+        'image': image,
+        'width': {'kind': 'integer', 'value': -1},
+      },
+      {
+        'image': {
+          'kind': 'imageProvider',
+          'assetName': 'assets/images/hero.png',
+        },
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+
+    final unavailable = _decode(model({'image': _canvasDirectImageProvider()}));
+    expect(unavailable.imageResourceIds, isEmpty);
+  });
+
+  test('Image reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Image\n');
+    final end = contract.indexOf('W|flutter.widgets.Opacity\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final bytes = utf8.encode(contract.substring(start, end));
+    expect(bytes, hasLength(3583));
+    expect(
+      sha256Hex(bytes),
+      'e3e0b2b0fbc7b678814d51a257191381fb872a39e797ac46c861954f3eee7b1a',
+    );
+    final block = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(22));
+    expect(
+      block,
+      contains(
+        'P|image|imageProvider|1|-|-|imageProvider:imageProvider:v1:'
+        'asset,exactAsset:package:exactScale:'
+        'resize(1..16384,exact,fit,allowUpscaling)\n',
+      ),
+    );
+  });
+
   test('decodes the exact AspectRatio contract and optional child slot', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,
@@ -4080,6 +4260,10 @@ Map<String, Object?> _canvasImageProvider({
         'reason': 'The project asset is missing',
       },
 };
+
+Map<String, Object?> _canvasDirectImageProvider({
+  Map<String, Object?>? provider,
+}) => {'kind': 'imageProvider', 'value': provider ?? _canvasImageProvider()};
 
 Map<String, Object?> _canvasDecorationImage({
   Map<String, Object?>? image,

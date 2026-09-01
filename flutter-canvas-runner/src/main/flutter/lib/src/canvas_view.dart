@@ -517,6 +517,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                 node.properties['heightFactor']?.value == 0)) ||
         node.type == 'flutter.widgets.Expanded' ||
         node.type == 'flutter.widgets.Stack' ||
+        node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1818,6 +1819,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Opacity' => _opacity(),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
+      'flutter.widgets.Image' => _image(context),
       'flutter.widgets.Text' =>
         editing ? _inlineTextEditor(context) : _text(context),
       _ => const SizedBox.shrink(),
@@ -2816,29 +2818,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     BuildContext context,
     CanvasDecorationImageValue value,
   ) {
-    final resolution = value.image.resolution;
-    final resource = resolution is CanvasResolvedImageValue
-        ? imageResources[resolution.resourceId]
-        : null;
-    final placeholder =
-        resolution is! CanvasResolvedImageValue || resource == null;
-    ImageProvider<Object> provider = placeholder
-        ? MemoryImage(_unavailableImageBytes)
-        : MemoryImage(resource.encodedBytes, scale: resolution.resolvedScale);
-    final resize = value.image.resize;
-    if (!placeholder && resize != null) {
-      provider = ResizeImage(
-        provider,
-        width: resize.width,
-        height: resize.height,
-        policy: resize.policy == 'fit'
-            ? ResizeImagePolicy.fit
-            : ResizeImagePolicy.exact,
-        allowUpscaling: resize.allowUpscaling,
-      );
-    }
+    final binding = _imageProvider(value.image);
+    final resolution = binding.resolution;
     return DecorationImage(
-      image: provider,
+      image: binding.provider,
       onError: value.onError && resolution is CanvasResolvedImageValue
           ? (error, stackTrace) =>
                 onImageError?.call(resolution.resourceId, error, stackTrace)
@@ -2851,7 +2834,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       // An unavailable image has no trustworthy intrinsic dimensions. The
       // status checker remains paint-safe while preserving every other visual
       // argument; a resolved image keeps the reviewed nine-patch contract.
-      centerSlice: placeholder || value.centerSlice == null
+      centerSlice: binding.placeholder || value.centerSlice == null
           ? null
           : Rect.fromLTRB(
               value.centerSlice!.left,
@@ -2867,6 +2850,96 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       invertColors: value.invertColors,
       isAntiAlias: value.isAntiAlias,
     );
+  }
+
+  ({
+    ImageProvider<Object> provider,
+    bool placeholder,
+    CanvasImageResolutionValue resolution,
+  })
+  _imageProvider(CanvasImageProviderValue value) {
+    final resolution = value.resolution;
+    final resource = resolution is CanvasResolvedImageValue
+        ? imageResources[resolution.resourceId]
+        : null;
+    final placeholder =
+        resolution is! CanvasResolvedImageValue || resource == null;
+    ImageProvider<Object> provider = placeholder
+        ? MemoryImage(_unavailableImageBytes)
+        : MemoryImage(resource.encodedBytes, scale: resolution.resolvedScale);
+    final resize = value.resize;
+    if (!placeholder && resize != null) {
+      provider = ResizeImage(
+        provider,
+        width: resize.width,
+        height: resize.height,
+        policy: resize.policy == 'fit'
+            ? ResizeImagePolicy.fit
+            : ResizeImagePolicy.exact,
+        allowUpscaling: resize.allowUpscaling,
+      );
+    }
+    return (
+      provider: provider,
+      placeholder: placeholder,
+      resolution: resolution,
+    );
+  }
+
+  Widget _image(BuildContext context) {
+    final provider = node.properties['image']!.value;
+    if (provider is! CanvasImageProviderValue) {
+      throw StateError('Canvas Image has no decoded image provider.');
+    }
+    final binding = _imageProvider(provider);
+    final resolution = binding.resolution;
+    final centerSlice = binding.placeholder ? null : _imageCenterSlice();
+    final opacity = _number('opacity');
+    return Image(
+      image: binding.provider,
+      frameBuilder: _callbackPresent('frameBuilder')
+          ? (context, child, frame, wasSynchronouslyLoaded) => child
+          : null,
+      loadingBuilder: _callbackPresent('loadingBuilder')
+          ? (context, child, loadingProgress) => child
+          : null,
+      errorBuilder: _callbackPresent('errorBuilder')
+          ? (context, error, stackTrace) {
+              if (resolution is CanvasResolvedImageValue) {
+                onImageError?.call(resolution.resourceId, error, stackTrace);
+              }
+              return const SizedBox.shrink();
+            }
+          : null,
+      semanticLabel: _string('semanticLabel'),
+      excludeFromSemantics: _boolean('excludeFromSemantics') ?? false,
+      width: _number('width'),
+      height: _number('height'),
+      color: _resolvedColor(context, 'color'),
+      opacity: opacity == null ? null : AlwaysStoppedAnimation<double>(opacity),
+      colorBlendMode: _enum('colorBlendMode') == null
+          ? null
+          : _blendMode(_enum('colorBlendMode')!),
+      fit: _enum('fit') == null ? null : _boxFit(_enum('fit')!),
+      alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+      repeat: _imageRepeat(_enum('repeat') ?? 'noRepeat'),
+      centerSlice: centerSlice,
+      matchTextDirection: _boolean('matchTextDirection') ?? false,
+      gaplessPlayback: _boolean('gaplessPlayback') ?? false,
+      isAntiAlias: _boolean('isAntiAlias') ?? false,
+      filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
+    );
+  }
+
+  Rect? _imageCenterSlice() {
+    final left = _number('centerSliceLeft');
+    final top = _number('centerSliceTop');
+    final right = _number('centerSliceRight');
+    final bottom = _number('centerSliceBottom');
+    if (left == null || top == null || right == null || bottom == null) {
+      return null;
+    }
+    return Rect.fromLTRB(left, top, right, bottom);
   }
 
   ColorFilter _colorFilter(
@@ -2911,30 +2984,40 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   String _imageStatusSemantics() {
     final statuses = <String>[];
+    final directProvider = node.properties['image']?.value;
+    if (directProvider is CanvasImageProviderValue) {
+      _appendImageStatus(statuses, directProvider);
+    }
     for (final name in const ['decoration', 'foregroundDecoration']) {
       final decoration = node.properties[name]?.value;
       if (decoration is! CanvasBoxDecorationValue || decoration.image == null) {
         continue;
       }
-      final provider = decoration.image!.image;
-      final resolution = provider.resolution;
-      final identity = _imageProviderIdentity(provider);
-      if (resolution is CanvasUnavailableImageValue) {
-        statuses.add(
-          'Image preview unavailable for $identity. '
-          'Status ${resolution.code}. Reason: ${resolution.reason}',
-        );
-      } else if (resolution is CanvasResolvedImageValue &&
-          imageResources[resolution.resourceId] == null) {
-        final rejection = imageResources.rejection(resolution.resourceId);
-        statuses.add(
-          'Image preview unavailable for $identity. '
-          'Status ${rejection?.code ?? 'missing'}. Reason: '
-          '${rejection?.reason ?? 'the content-addressed resource is not bound to this revision'}',
-        );
-      }
+      _appendImageStatus(statuses, decoration.image!.image);
     }
     return statuses.isEmpty ? '' : '. ${statuses.join('. ')}';
+  }
+
+  void _appendImageStatus(
+    List<String> statuses,
+    CanvasImageProviderValue provider,
+  ) {
+    final resolution = provider.resolution;
+    final identity = _imageProviderIdentity(provider);
+    if (resolution is CanvasUnavailableImageValue) {
+      statuses.add(
+        'Image preview unavailable for $identity. '
+        'Status ${resolution.code}. Reason: ${resolution.reason}',
+      );
+    } else if (resolution is CanvasResolvedImageValue &&
+        imageResources[resolution.resourceId] == null) {
+      final rejection = imageResources.rejection(resolution.resourceId);
+      statuses.add(
+        'Image preview unavailable for $identity. '
+        'Status ${rejection?.code ?? 'missing'}. Reason: '
+        '${rejection?.reason ?? 'the content-addressed resource is not bound to this revision'}',
+      );
+    }
   }
 
   String _imageProviderIdentity(CanvasImageProviderValue provider) {

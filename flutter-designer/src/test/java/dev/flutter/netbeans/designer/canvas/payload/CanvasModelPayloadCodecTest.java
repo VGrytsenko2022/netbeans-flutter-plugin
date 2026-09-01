@@ -90,7 +90,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
-                "flutter.widgets.Icon"),
+                "flutter.widgets.Icon",
+                "flutter.widgets.Image"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -98,7 +99,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactSeventeenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheReviewedWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -531,6 +532,43 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"fit\":\"cover\""), json);
         assertTrue(json.contains("\"repeat\":\"repeatX\""), json);
         assertTrue(json.contains("\"opacity\":0.75"), json);
+    }
+
+    @Test
+    void projectsDirectImageProviderWithOneCanonicalOuterKindAndNestedValue()
+            throws Exception {
+        PropertyValue.ImageProviderValue provider =
+                PropertyValue.ImageProviderValue.asset("assets/photo.png");
+        WidgetNode image = new WidgetNode(
+                id("b41a10da-1350-4689-9b4b-eaa6b41ac0cc"),
+                type("flutter.widgets.Image"),
+                Map.of(new PropertyName("image"), provider),
+                Map.of());
+        DesignerDocument document = new DesignerDocument(
+                DOCUMENT_ID, source(), image);
+        CanvasImageResource resource = CanvasImageResource.create(
+                CanvasImageFormat.PNG, 40, 30, new byte[]{4, 3, 2, 1});
+        CanvasImageAssetId assetId = CanvasImageAssetId.application(
+                "assets/photo.png");
+        CanvasImageResourceBundle bundle = new CanvasImageResourceBundle(
+                List.of(new CanvasImageAsset(
+                        assetId,
+                        resource.resourceId(),
+                        List.of(new CanvasImageVariant(
+                                BigDecimal.ONE, resource.resourceId())))),
+                List.of(resource));
+
+        String json = new String(
+                new CanvasModelPayloadCodec().encode(request(
+                        PROFILE, document, bundle)),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains(
+                "\"image\":{\"kind\":\"imageProvider\",\"value\":{"
+                + "\"kind\":\"asset\",\"assetName\":\"assets/photo.png\""), json);
+        assertTrue(json.contains("\"resolution\":{\"kind\":\"resolved\""), json);
+        assertFalse(json.contains(
+                "\"kind\":\"imageProvider\",\"kind\":\"asset\""), json);
     }
 
     private static void assertCanvasAdmissionRejects(

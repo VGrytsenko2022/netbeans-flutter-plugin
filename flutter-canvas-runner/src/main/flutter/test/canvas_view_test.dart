@@ -115,6 +115,7 @@ void main() {
       const [canvasEmptyChildDropSlot],
     );
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Icon'), isEmpty);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Image'), isEmpty);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Text'), isEmpty);
     expect(
       canvasEmptyChildDropSlot.accepts(currentChildCount: 0, insertionIndex: 1),
@@ -141,7 +142,7 @@ void main() {
     expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
   });
 
-  test('closes the 17-source by 20-destination compatibility matrix', () {
+  test('closes the 18-source by 20-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -157,6 +158,7 @@ void main() {
       'flutter.widgets.FractionallySizedBox',
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
+      'flutter.widgets.Image',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
       'flutter.widgets.Text',
@@ -169,7 +171,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(17));
+    expect(sourceTypes, hasLength(18));
     expect(destinations, hasLength(20));
 
     var accepted = 0;
@@ -194,9 +196,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 292);
-    expect(rejected, 48);
-    expect(accepted + rejected, 340);
+    expect(accepted, 310);
+    expect(rejected, 50);
+    expect(accepted + rejected, 360);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2598,6 +2600,208 @@ void main() {
     expect(normal?.parentWidgetId, rowId);
     expect(normal?.insertionIndex, 2);
   });
+
+  testWidgets(
+    'renders every reviewed direct Image argument with real Flutter',
+    (tester) async {
+      const imageId = '93e0b32e-cefa-43ea-8b73-209f9434980c';
+      final resourceId = sha256Hex(_viewPng8);
+      final resources = CanvasImageResourceBundle.fromResources([
+        CanvasImageResource(
+          resourceId: resourceId,
+          mediaType: 'image/png',
+          pixelWidth: 8,
+          pixelHeight: 8,
+          encodedBytes: _viewPng8,
+        ),
+      ]);
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredImage(
+                id: imageId,
+                properties: {
+                  'image': _viewDirectImageProvider(
+                    provider: _viewImageProvider(
+                      kind: 'exactAsset',
+                      assetName: 'assets/images/hero.png',
+                      exactScale: 2,
+                      resize: {
+                        'width': 8,
+                        'height': 8,
+                        'policy': 'exact',
+                        'allowUpscaling': false,
+                      },
+                      resolution: {
+                        'kind': 'resolved',
+                        'resourceId': resourceId,
+                        'resolvedScale': 2,
+                      },
+                    ),
+                  ),
+                  'frameBuilder': {'kind': 'callbackPresence'},
+                  'loadingBuilder': {'kind': 'callbackPresence'},
+                  'errorBuilder': {'kind': 'callbackPresence'},
+                  'semanticLabel': {'kind': 'string', 'value': 'Hero image'},
+                  'excludeFromSemantics': {'kind': 'boolean', 'value': true},
+                  'width': {'kind': 'integer', 'value': 120},
+                  'height': {'kind': 'double', 'value': 80.0},
+                  'color': {
+                    'kind': 'themeToken',
+                    'token': 'material.colorScheme.primary',
+                  },
+                  'opacity': {'kind': 'double', 'value': 0.6},
+                  'colorBlendMode': {
+                    'kind': 'enum',
+                    'type': 'BlendMode',
+                    'value': 'multiply',
+                  },
+                  'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'fill'},
+                  'alignment': _viewAlignment(
+                    basis: 'directional',
+                    horizontal: -1,
+                    vertical: 0.25,
+                  ),
+                  'repeat': {
+                    'kind': 'enum',
+                    'type': 'ImageRepeat',
+                    'value': 'repeatX',
+                  },
+                  'centerSliceLeft': {'kind': 'double', 'value': 1.0},
+                  'centerSliceTop': {'kind': 'double', 'value': 1.0},
+                  'centerSliceRight': {'kind': 'double', 'value': 3.0},
+                  'centerSliceBottom': {'kind': 'double', 'value': 3.0},
+                  'matchTextDirection': {'kind': 'boolean', 'value': true},
+                  'gaplessPlayback': {'kind': 'boolean', 'value': true},
+                  'isAntiAlias': {'kind': 'boolean', 'value': true},
+                  'filterQuality': {
+                    'kind': 'enum',
+                    'type': 'FilterQuality',
+                    'value': 'high',
+                  },
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      String? selected;
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          imageResources: resources,
+          selectedWidgetId: imageId,
+          onSelected: (value) => selected = value,
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(const ValueKey('canvas-widget-$imageId'));
+      final image = tester.widget<Image>(
+        find.descendant(of: node, matching: find.byType(Image)).first,
+      );
+      expect(image.image, isA<ResizeImage>());
+      final resized = image.image as ResizeImage;
+      expect(resized.width, 8);
+      expect(resized.height, 8);
+      expect(resized.policy, ResizeImagePolicy.exact);
+      expect(resized.allowUpscaling, isFalse);
+      expect((resized.imageProvider as MemoryImage).scale, 2);
+      expect(image.frameBuilder, isNotNull);
+      expect(image.loadingBuilder, isNotNull);
+      expect(image.errorBuilder, isNotNull);
+      expect(image.semanticLabel, 'Hero image');
+      expect(image.excludeFromSemantics, isTrue);
+      expect(image.width, 120);
+      expect(image.height, 80);
+      expect(image.color, Theme.of(tester.element(node)).colorScheme.primary);
+      expect(image.opacity!.value, 0.6);
+      expect(image.colorBlendMode, BlendMode.multiply);
+      expect(image.fit, BoxFit.fill);
+      expect(image.alignment, const AlignmentDirectional(-1, 0.25));
+      expect(image.repeat, ImageRepeat.repeatX);
+      expect(image.centerSlice, const Rect.fromLTRB(1, 1, 3, 3));
+      expect(image.matchTextDirection, isTrue);
+      expect(image.gaplessPlayback, isTrue);
+      expect(image.isAntiAlias, isTrue);
+      expect(image.filterQuality, FilterQuality.high);
+      expect(
+        find.byKey(const ValueKey('canvas-selection-outline-$imageId')),
+        findsOneWidget,
+      );
+      await tester.tap(node);
+      expect(selected, imageId);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'renders direct Image unavailable placeholder without an unsafe centerSlice',
+    (tester) async {
+      const imageId = '93e0b32e-cefa-43ea-8b73-209f9434980c';
+      const reason = 'The declared project image does not exist';
+      final semantics = tester.ensureSemantics();
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredImage(
+                id: imageId,
+                properties: {
+                  'image': _viewDirectImageProvider(
+                    provider: _viewImageProvider(
+                      assetName: 'assets/images/missing.png',
+                      packageName: 'image_pack',
+                      resolution: {
+                        'kind': 'unavailable',
+                        'code': 'missing',
+                        'reason': reason,
+                      },
+                    ),
+                  ),
+                  'width': {'kind': 'integer', 'value': 120},
+                  'height': {'kind': 'integer', 'value': 80},
+                  'centerSliceLeft': {'kind': 'double', 'value': 1.0},
+                  'centerSliceTop': {'kind': 'double', 'value': 1.0},
+                  'centerSliceRight': {'kind': 'double', 'value': 3.0},
+                  'centerSliceBottom': {'kind': 'double', 'value': 3.0},
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(const ValueKey('canvas-widget-$imageId'));
+      final image = tester.widget<Image>(
+        find.descendant(of: node, matching: find.byType(Image)).first,
+      );
+      expect(image.image, isA<MemoryImage>());
+      expect(image.centerSlice, isNull);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Image preview unavailable for '
+            'package:image_pack:assets/images/missing.png.*'
+            'Status missing.*Reason: ${RegExp.escape(reason)}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
 
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
@@ -5574,6 +5778,33 @@ Map<String, Object?> _modelWithCenteredContainer({
   return model;
 }
 
+Map<String, Object?> _modelWithCenteredImage({
+  required String id,
+  required Map<String, Object?> properties,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': id,
+          'type': 'flutter.widgets.Image',
+          'properties': properties,
+          'slots': <String, Object?>{},
+        },
+      },
+    },
+  };
+  return model;
+}
+
 Map<String, Object?> _modelWithEmptyContainerInRow() {
   final model = _modelJsonForView();
   final root = model['root']! as Map<String, Object?>;
@@ -5767,6 +5998,10 @@ Map<String, Object?> _viewImageProvider({
   'resize': resize,
   'resolution': resolution,
 };
+
+Map<String, Object?> _viewDirectImageProvider({
+  required Map<String, Object?> provider,
+}) => {'kind': 'imageProvider', 'value': provider};
 
 Map<String, Object?> _viewDecorationImage({
   required Map<String, Object?> image,

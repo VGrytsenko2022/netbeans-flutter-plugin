@@ -353,6 +353,41 @@ class FlutterDesignerCanvasImageProjectorTest {
     }
 
     @Test
+    void directImageCenterSliceUsesProviderResizeDecodeBounds()
+            throws Exception {
+        Path project = newProject("direct-image-center-slice", "direct_slice_app", """
+                  assets:
+                    - assets/panel.png
+                """);
+        write(project, "assets/panel.png", png(4, 3));
+        writePackageConfig(project,
+                List.of(new PackageEntry("direct_slice_app", "../")));
+        FlutterAssetInventory inventory = resolver.resolve(project);
+        PropertyValue.ImageProviderValue provider = resizedAsset(
+                "assets/panel.png",
+                Optional.of(2),
+                Optional.empty(),
+                PropertyValue.ImageProviderValue.ResizePolicy.EXACT,
+                false);
+
+        var rejected = projector.project(
+                document(imageNode(provider, "0", "0", "2", "1.1")),
+                inventory,
+                1.0);
+        assertEquals(CanvasImageResolutionIssue.Code.CORRUPT,
+                rejected.bundle().issues().getFirst().code());
+        assertTrue(rejected.bundle().resources().isEmpty());
+
+        var accepted = projector.project(
+                document(imageNode(provider, "0", "0", "2", "1")),
+                inventory,
+                1.0);
+        assertTrue(accepted.bundle().issues().isEmpty(),
+                accepted.bundle().issues().toString());
+        assertEquals(1, accepted.bundle().resources().size());
+    }
+
+    @Test
     void centerSliceRejectsResizeThatDerivesAZeroTargetDimension()
             throws Exception {
         Path project = newProject("center-slice-zero", "slice_zero_app", """
@@ -682,6 +717,28 @@ class FlutterDesignerCanvasImageProjectorTest {
                 new WidgetTypeId("flutter.widgets.Container"),
                 properties,
                 slots);
+    }
+
+    private static WidgetNode imageNode(
+            PropertyValue.ImageProviderValue provider,
+            String left,
+            String top,
+            String right,
+            String bottom) {
+        return new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Image"),
+                Map.of(
+                        new PropertyName("image"), provider,
+                        new PropertyName("centerSliceLeft"),
+                        new PropertyValue.DoubleValue(new BigDecimal(left)),
+                        new PropertyName("centerSliceTop"),
+                        new PropertyValue.DoubleValue(new BigDecimal(top)),
+                        new PropertyName("centerSliceRight"),
+                        new PropertyValue.DoubleValue(new BigDecimal(right)),
+                        new PropertyName("centerSliceBottom"),
+                        new PropertyValue.DoubleValue(new BigDecimal(bottom))),
+                Map.of());
     }
 
     private static DesignerDocument document(WidgetNode root) {

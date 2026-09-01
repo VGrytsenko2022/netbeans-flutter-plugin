@@ -592,21 +592,7 @@ final class FlutterContainerPropertyEditorComponents {
         private final FlutterImageAssetChoices assetChoices;
         private final JCheckBox imageEnabled = new JCheckBox(
                 "Enable DecorationImage");
-        private final JComboBox<FlutterImageAssetChoices.Choice> imageAsset =
-                new JComboBox<>();
-        private final JComboBox<PropertyValue.ImageProviderValue.ProviderKind>
-                imageProvider = new JComboBox<>(
-                        PropertyValue.ImageProviderValue.ProviderKind.values());
-        private final JTextField imageExactScale = new JTextField("1", 8);
-        private final JCheckBox imageResizeEnabled = new JCheckBox(
-                "Wrap with ResizeImage");
-        private final JTextField imageResizeWidth = new JTextField(8);
-        private final JTextField imageResizeHeight = new JTextField(8);
-        private final JComboBox<PropertyValue.ImageProviderValue.ResizePolicy>
-                imageResizePolicy = new JComboBox<>(
-                        PropertyValue.ImageProviderValue.ResizePolicy.values());
-        private final JCheckBox imageAllowUpscaling = new JCheckBox(
-                "Allow upscaling");
+        private final FlutterImageProviderEditorComponent imageProviderEditor;
         private final JCheckBox imageOnErrorEnabled = new JCheckBox(
                 "Use typed image-error handler");
         private final JTextField imageOnError = new JTextField(18);
@@ -699,6 +685,11 @@ final class FlutterContainerPropertyEditorComponents {
                 PropertyEnv environment) {
             super(editor, binding, environment);
             assetChoices = assetChoices(environment);
+            imageProviderEditor = new FlutterImageProviderEditorComponent(
+                    assetChoices,
+                    "DecorationImage.image",
+                    "flutter.container.decoration.image",
+                    this::refresh);
             configureImageRenderers();
             imageFilterColor = new ColorSourceEditor(
                     binding.allowedColorSourceTokens(), false, this::refresh);
@@ -740,14 +731,6 @@ final class FlutterContainerPropertyEditorComponents {
         }
 
         private void configureImageRenderers() {
-            displayWith(imageProvider, value -> switch (value) {
-                case ASSET -> "AssetImage (DPR-aware)";
-                case EXACT_ASSET -> "ExactAssetImage";
-            });
-            displayWith(imageResizePolicy, value -> switch (value) {
-                case EXACT -> "Exact dimensions";
-                case FIT -> "Fit within dimensions";
-            });
             displayWith(imageAlignmentBasis, value -> switch (value) {
                 case PHYSICAL -> "Physical (left/right)";
                 case DIRECTIONAL -> "Directional (start/end)";
@@ -785,35 +768,9 @@ final class FlutterContainerPropertyEditorComponents {
 
         private JPanel imagePanel() {
             imageEnabled.setName(DECORATION_IMAGE_ENABLED_NAME);
-            imageAsset.setName(DECORATION_IMAGE_ASSET_NAME);
-            imageProvider.setName(DECORATION_IMAGE_PROVIDER_NAME);
             imageColorFilter.setName(DECORATION_IMAGE_FILTER_NAME);
             imageEnabled.getAccessibleContext().setAccessibleDescription(
                     "Adds or removes the typed DecorationImage from this BoxDecoration draft.");
-            imageAsset.getAccessibleContext().setAccessibleName(
-                    "Declared Flutter image asset");
-            imageAsset.getAccessibleContext().setAccessibleDescription(
-                    "Chooses a concrete image declared by the application or a resolved Dart package; arbitrary paths are not accepted.");
-            imageProvider.getAccessibleContext().setAccessibleName(
-                    "Flutter image provider kind");
-            imageExactScale.getAccessibleContext().setAccessibleName(
-                    "ExactAssetImage scale");
-            imageExactScale.getAccessibleContext().setAccessibleDescription(
-                    "Positive logical scale used only by ExactAssetImage.");
-            imageResizeEnabled.getAccessibleContext().setAccessibleDescription(
-                    "Adds one typed ResizeImage wrapper around the selected asset provider.");
-            imageResizeWidth.getAccessibleContext().setAccessibleName(
-                    "ResizeImage cache width");
-            imageResizeWidth.getAccessibleContext().setAccessibleDescription(
-                    "Optional positive decoded width in pixels, at most 16384.");
-            imageResizeHeight.getAccessibleContext().setAccessibleName(
-                    "ResizeImage cache height");
-            imageResizeHeight.getAccessibleContext().setAccessibleDescription(
-                    "Optional positive decoded height in pixels, at most 16384.");
-            imageResizePolicy.getAccessibleContext().setAccessibleName(
-                    "ResizeImage policy");
-            imageAllowUpscaling.getAccessibleContext().setAccessibleDescription(
-                    "Allows ResizeImage to decode larger than the source dimensions.");
             imageOnErrorEnabled.getAccessibleContext().setAccessibleDescription(
                     "Enables a validated two-argument Flutter image-error callback identifier.");
             imageOnError.getAccessibleContext().setAccessibleName(
@@ -862,9 +819,6 @@ final class FlutterContainerPropertyEditorComponents {
             imageAntiAlias.getAccessibleContext().setAccessibleDescription(
                     "Anti-aliases image edges while painting.");
 
-            for (FlutterImageAssetChoices.Choice choice : assetChoices.choices()) {
-                imageAsset.addItem(choice);
-            }
             imageFit.addItem(NOT_SET);
             Arrays.stream(PropertyValue.DecorationImageValue.BoxFit.values())
                     .map(PropertyValue.DecorationImageValue.BoxFit::wireName)
@@ -875,13 +829,7 @@ final class FlutterContainerPropertyEditorComponents {
             JPanel form = new JPanel(new GridBagLayout());
             int row = 0;
             addWideRow(form, row++, imageEnabled);
-            addRow(form, row++, "Declared asset:", imageAsset);
-            addRow(form, row++, "Provider:", imageProvider, imageExactScale);
-            addWideRow(form, row++, imageResizeEnabled);
-            addRow(form, row++, "Resize width / height:",
-                    flow(imageResizeWidth, new JLabel("×"), imageResizeHeight));
-            addRow(form, row++, "Resize policy:", imageResizePolicy,
-                    imageAllowUpscaling);
+            addWideRow(form, row++, imageProviderEditor);
             addRow(form, row++, "onError:", imageOnErrorEnabled, imageOnError);
             addRow(form, row++, "Color filter:", imageColorFilter);
             addRow(form, row++, "Filter color / blend:", imageFilterColor,
@@ -905,19 +853,7 @@ final class FlutterContainerPropertyEditorComponents {
             addRow(form, row++, "Filter quality:", imageFilterQuality);
             addWideRow(form, row++, flow(imageInvertColors, imageAntiAlias));
 
-            String inventoryStatus = assetChoices.choices().isEmpty()
-                    ? "Asset selection unavailable: "
-                    + assetChoices.unavailableReason().orElse(
-                            "no declared image assets were found.")
-                    : assetChoices.choices().size()
-                    + " declared image asset choice(s) are available.";
-            JLabel status = new JLabel(inventoryStatus);
-            status.setName("flutter.container.decoration.image.assetStatus");
-            status.getAccessibleContext().setAccessibleName(
-                    "Declared image asset inventory status");
-            status.getAccessibleContext().setAccessibleDescription(inventoryStatus);
-            addWideRow(form, row, status);
-            addVerticalGlue(form, row + 1);
+            addVerticalGlue(form, row);
 
             JPanel panel = new JPanel(new BorderLayout());
             panel.add(form, BorderLayout.NORTH);
@@ -1049,48 +985,11 @@ final class FlutterContainerPropertyEditorComponents {
                                     assetChoices.choices().isEmpty()
                                     ? "assets/image.png"
                                     : assetChoices.choices().getFirst().assetName())));
-            PropertyValue.ImageProviderValue provider = image.image();
-            FlutterImageAssetChoices.Choice choice = assetChoices.find(
-                    provider.packageName(), provider.assetName())
-                    .orElseGet(() -> new FlutterImageAssetChoices.Choice(
-                            provider.packageName(),
-                            provider.assetName(),
-                            provider.packageName()
-                                    .map(name -> "Package " + name + ": "
-                                    + provider.assetName() + " (stored; unavailable)")
-                                    .orElseGet(() -> "App: " + provider.assetName()
-                                    + " (stored; unavailable)")));
-            boolean present = false;
-            for (int index = 0; index < imageAsset.getItemCount(); index++) {
-                if (imageAsset.getItemAt(index).equals(choice)) {
-                    present = true;
-                    break;
-                }
+            if (value.isPresent()) {
+                imageProviderEditor.populate(image.image());
+            } else {
+                imageProviderEditor.selectFirstDeclaredAsset();
             }
-            if (!present && value.isPresent()) {
-                imageAsset.addItem(choice);
-            }
-            imageAsset.setSelectedItem(value.isPresent() ? choice
-                    : imageAsset.getItemCount() == 0
-                            ? null : imageAsset.getItemAt(0));
-            imageProvider.setSelectedItem(provider.providerKind());
-            imageExactScale.setText(provider.exactScale()
-                    .map(BigDecimal::toPlainString).orElse("1"));
-            imageResizeEnabled.setSelected(provider.resize().isPresent());
-            provider.resize().ifPresentOrElse(resize -> {
-                imageResizeWidth.setText(
-                        resize.width().map(Object::toString).orElse(""));
-                imageResizeHeight.setText(
-                        resize.height().map(Object::toString).orElse(""));
-                imageResizePolicy.setSelectedItem(resize.policy());
-                imageAllowUpscaling.setSelected(resize.allowUpscaling());
-            }, () -> {
-                imageResizeWidth.setText("");
-                imageResizeHeight.setText("");
-                imageResizePolicy.setSelectedItem(
-                        PropertyValue.ImageProviderValue.ResizePolicy.EXACT);
-                imageAllowUpscaling.setSelected(false);
-            });
             imageOnErrorEnabled.setSelected(image.onError().isPresent());
             imageOnError.setText(image.onError()
                     .map(PropertyValue.CallbackValue::handler).orElse(""));
@@ -1262,9 +1161,6 @@ final class FlutterContainerPropertyEditorComponents {
             shape.addActionListener(ignored -> refresh());
             blend.addActionListener(ignored -> refresh());
             for (JComboBox<?> combo : List.of(
-                    imageAsset,
-                    imageProvider,
-                    imageResizePolicy,
                     imageColorFilter,
                     imageFilterBlend,
                     imageFit,
@@ -1275,8 +1171,6 @@ final class FlutterContainerPropertyEditorComponents {
             }
             for (JCheckBox check : List.of(
                     imageEnabled,
-                    imageResizeEnabled,
-                    imageAllowUpscaling,
                     imageOnErrorEnabled,
                     imageCenterSliceEnabled,
                     imageMatchTextDirection,
@@ -1285,9 +1179,6 @@ final class FlutterContainerPropertyEditorComponents {
                 check.addActionListener(ignored -> refresh());
             }
             for (JTextField field : List.of(
-                    imageExactScale,
-                    imageResizeWidth,
-                    imageResizeHeight,
                     imageOnError,
                     imageFilterMatrix,
                     imageFilterSaturation,
@@ -1402,37 +1293,7 @@ final class FlutterContainerPropertyEditorComponents {
             if (!imageEnabled.isSelected()) {
                 return Optional.empty();
             }
-            FlutterImageAssetChoices.Choice choice =
-                    (FlutterImageAssetChoices.Choice) imageAsset.getSelectedItem();
-            if (choice == null) {
-                throw new IllegalArgumentException(
-                        "Choose a declared Flutter image asset. Target: DecorationImage.image. "
-                        + "Reason: " + assetChoices.unavailableReason().orElse(
-                                "no declared image asset is available."));
-            }
-            PropertyValue.ImageProviderValue.ProviderKind providerKind =
-                    (PropertyValue.ImageProviderValue.ProviderKind)
-                    imageProvider.getSelectedItem();
-            Optional<BigDecimal> exactScale = providerKind
-                    == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET
-                    ? Optional.of(decimal(imageExactScale, "Exact asset scale"))
-                    : Optional.empty();
-            Optional<PropertyValue.ImageProviderValue.ResizeImageConfig> resize =
-                    imageResizeEnabled.isSelected()
-                    ? Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig(
-                            optionalInteger(imageResizeWidth, "Resize width"),
-                            optionalInteger(imageResizeHeight, "Resize height"),
-                            (PropertyValue.ImageProviderValue.ResizePolicy)
-                            imageResizePolicy.getSelectedItem(),
-                            imageAllowUpscaling.isSelected()))
-                    : Optional.empty();
-            PropertyValue.ImageProviderValue provider =
-                    new PropertyValue.ImageProviderValue(
-                            providerKind,
-                            choice.assetName(),
-                            choice.packageName(),
-                            exactScale,
-                            resize);
+            PropertyValue.ImageProviderValue provider = imageProviderEditor.value();
             Optional<PropertyValue.CallbackValue> onError =
                     imageOnErrorEnabled.isSelected()
                     ? Optional.of(new PropertyValue.CallbackValue(
@@ -1645,9 +1506,6 @@ final class FlutterContainerPropertyEditorComponents {
             }
             boolean hasImage = imageEnabled.isSelected();
             for (JComponent component : List.of(
-                    imageAsset,
-                    imageProvider,
-                    imageResizeEnabled,
                     imageOnErrorEnabled,
                     imageColorFilter,
                     imageFit,
@@ -1664,14 +1522,7 @@ final class FlutterContainerPropertyEditorComponents {
                     imageAntiAlias)) {
                 component.setEnabled(hasImage);
             }
-            imageExactScale.setEnabled(hasImage
-                    && imageProvider.getSelectedItem()
-                    == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
-            boolean resizeImage = hasImage && imageResizeEnabled.isSelected();
-            imageResizeWidth.setEnabled(resizeImage);
-            imageResizeHeight.setEnabled(resizeImage);
-            imageResizePolicy.setEnabled(resizeImage);
-            imageAllowUpscaling.setEnabled(resizeImage);
+            imageProviderEditor.updateEnabledState(hasImage);
             imageOnError.setEnabled(
                     hasImage && imageOnErrorEnabled.isSelected());
             String colorFilter = Objects.toString(

@@ -96,7 +96,8 @@ final class FlutterPropertyEditorComponents {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
-                    BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION -> true;
+                    BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
+                    BOX_DECORATION -> true;
             default -> false;
         };
     }
@@ -124,6 +125,8 @@ final class FlutterPropertyEditorComponents {
             case ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION ->
                 FlutterContainerPropertyEditorComponents.customEditor(
                         editor, binding, environment);
+            case IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.customEditor(
+                    editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No custom editor for " + binding.editorKind());
         };

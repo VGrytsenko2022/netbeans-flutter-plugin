@@ -29,7 +29,7 @@ class BuiltInWidgetCatalogTest {
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
 
     @Test
-    void containsExactlyTheReviewedSeventeenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedEighteenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -42,6 +42,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Expanded",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Icon",
+                "flutter.widgets.Image",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Row",
@@ -52,8 +53,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(17, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(14, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(18, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(15, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -64,10 +65,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(541, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(563, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(524, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(546, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -88,6 +89,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FractionallySizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
@@ -125,12 +127,15 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(
                 new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BorderStyle"),
+                new DartSymbolReference(WIDGETS_IMPORT, "BoxFit"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
                 new DartSymbolReference(GESTURES_IMPORT, "DragStartBehavior"),
+                new DartSymbolReference(WIDGETS_IMPORT, "FilterQuality"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
+                new DartSymbolReference(WIDGETS_IMPORT, "ImageRepeat"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
@@ -164,7 +169,8 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
-                "flutter.widgets.Icon"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
+                "flutter.widgets.Icon",
+                "flutter.widgets.Image"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
     }
 
     @Test
@@ -854,6 +860,92 @@ class BuiltInWidgetCatalogTest {
         assertEquals(1, child.maxChildren());
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
         assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void imageExposesExactUnnamedConstFlutter344SurfaceWithoutFabricatedProvider() {
+        WidgetDefinition image = definition("flutter.widgets.Image");
+
+        assertEquals("Image", image.dartClassName());
+        assertTrue(image.namedConstructor().isEmpty());
+        assertTrue(image.constConstructor());
+        assertEquals(WIDGETS_IMPORT, image.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), image.importUris());
+        assertTrue(image.traits().isEmpty());
+        assertEquals(new PaletteMetadata("flutter.basic", 300, 30, "Image"),
+                image.palette());
+        assertTrue(image.slots().isEmpty());
+        assertEquals(List.of(
+                "image", "frameBuilder", "loadingBuilder", "errorBuilder",
+                "semanticLabel", "excludeFromSemantics", "width", "height",
+                "color", "opacity", "colorBlendMode", "fit", "alignment",
+                "repeat", "centerSliceLeft", "centerSliceTop",
+                "centerSliceRight", "centerSliceBottom", "matchTextDirection",
+                "gaplessPlayback", "isAntiAlias", "filterQuality"),
+                image.properties().stream().map(value -> value.name().value()).toList());
+        assertEquals(22, image.properties().size());
+        for (int order = 0; order < image.properties().size(); order++) {
+            PropertyDefinition property = image.properties().get(order);
+            assertEquals(DartParameter.named(order, order == 0), property.parameter(),
+                    property.name().value());
+            assertTrue(property.creationDefault().isEmpty(), property.name().value());
+        }
+
+        assertInstanceOf(PropertyValueConstraint.ImageProviderValues.class,
+                image.properties().getFirst().constraints().getFirst());
+        for (String name : List.of("frameBuilder", "loadingBuilder", "errorBuilder")) {
+            assertInstanceOf(PropertyValueConstraint.CallbackReference.class,
+                    property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), name)
+                            .constraints().getFirst());
+        }
+        for (String name : List.of("width", "height")) {
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), name)
+                            .acceptedKinds());
+        }
+        assertEquals(Set.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), "color")
+                        .acceptedKinds());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE),
+                property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), "opacity")
+                        .acceptedKinds());
+
+        for (String name : List.of(
+                "centerSliceLeft", "centerSliceTop",
+                "centerSliceRight", "centerSliceBottom")) {
+            PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                    PropertyValueConstraint.DoubleRange.class,
+                    property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), name)
+                            .constraints().getFirst());
+            assertEquals(BigDecimal.ZERO, range.minimum(), name);
+            assertTrue(range.minimumInclusive(), name);
+            assertNull(range.maximum(), name);
+        }
+
+        Map<String, List<String>> enums = Map.of(
+                "fit", List.of("fill", "contain", "cover", "fitWidth",
+                        "fitHeight", "none", "scaleDown"),
+                "repeat", List.of("repeat", "repeatX", "repeatY", "noRepeat"),
+                "filterQuality", List.of("none", "low", "medium", "high"));
+        Map<String, String> enumTypes = Map.of(
+                "fit", "BoxFit",
+                "repeat", "ImageRepeat",
+                "filterQuality", "FilterQuality");
+        enums.forEach((name, values) -> {
+            PropertyValueConstraint.EnumValues constraint = assertInstanceOf(
+                    PropertyValueConstraint.EnumValues.class,
+                    property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(), name)
+                            .constraints().getFirst());
+            assertEquals(new DartSymbolReference(
+                    WIDGETS_IMPORT, enumTypes.get(name)), constraint.dartType());
+            assertEquals(values, constraint.values());
+        });
+        PropertyValueConstraint.EnumValues blend = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                property(BuiltInWidgetCatalog.getDefault(), image.typeId().value(),
+                        "colorBlendMode").constraints().getFirst());
+        assertEquals(new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"), blend.dartType());
+        assertEquals(29, blend.values().size());
     }
 
     @Test

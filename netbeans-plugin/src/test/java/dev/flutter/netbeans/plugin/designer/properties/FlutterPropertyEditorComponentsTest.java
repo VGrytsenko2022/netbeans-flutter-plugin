@@ -638,6 +638,72 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void directImageProviderEditorReusesDeclaredAssetProviderControls()
+            throws Exception {
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.empty(),
+                                "assets/a.png",
+                                "App: assets/a.png"),
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.of("ui_kit"),
+                                "assets/panel.webp",
+                                "Package ui_kit: assets/panel.webp")),
+                java.util.Optional.empty());
+        PropertyEditor editor = binding(
+                property("flutter.widgets.Image", "image")).createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(
+                PropertyValue.ImageProviderValue.asset("assets/a.png")));
+        FeatureDescriptor descriptor = descriptor(
+                "Image", "Required Image.image provider editor.");
+        descriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, choices);
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("required Image.image"));
+            JComboBox<?> asset = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".asset");
+            JComboBox<?> provider = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".provider");
+            assertNotNull(asset);
+            assertNotNull(provider);
+            assertFalse(asset.isEditable());
+            assertEquals(2, asset.getItemCount());
+
+            asset.setSelectedIndex(1);
+            provider.setSelectedItem(
+                    PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
+            findAccessibleName(panel, JTextField.class,
+                    "ExactAssetImage scale").setText("2");
+            findByText(panel, JCheckBox.class,
+                    "Wrap with ResizeImage").doClick();
+            findAccessibleName(panel, JTextField.class,
+                    "ResizeImage cache width").setText("320");
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.ImageProviderValue committed = assertInstanceOf(
+                    PropertyValue.ImageProviderValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            assertEquals("assets/panel.webp", committed.assetName());
+            assertEquals(java.util.Optional.of("ui_kit"), committed.packageName());
+            assertEquals(java.util.Optional.of(new BigDecimal("2")),
+                    committed.exactScale());
+            assertEquals(java.util.Optional.of(320),
+                    committed.resize().orElseThrow().width());
+            return null;
+        });
+    }
+
+    @Test
     void realNetBeansPropertyPanelInstallsTheTriStateCheckbox()
             throws Exception {
         WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()

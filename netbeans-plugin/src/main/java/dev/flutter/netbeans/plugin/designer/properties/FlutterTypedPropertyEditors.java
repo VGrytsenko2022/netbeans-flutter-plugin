@@ -131,6 +131,10 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.Matrix4Values.class::isInstance)) {
             editorKind = EditorKind.MATRIX4;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.IMAGE_PROVIDER))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.ImageProviderValues.class::isInstance)) {
+            editorKind = EditorKind.IMAGE_PROVIDER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxDecorationValues.class::isInstance)) {
@@ -164,6 +168,7 @@ final class FlutterTypedPropertyEditors {
         ALIGNMENT_GEOMETRY,
         BOX_CONSTRAINTS,
         MATRIX4,
+        IMAGE_PROVIDER,
         BOX_DECORATION
     }
 
@@ -252,7 +257,7 @@ final class FlutterTypedPropertyEditors {
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4,
-                        BOX_DECORATION ->
+                        IMAGE_PROVIDER, BOX_DECORATION ->
                     new StructuredEditor(this);
             };
         }

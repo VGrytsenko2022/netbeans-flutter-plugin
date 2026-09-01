@@ -2716,13 +2716,8 @@ CanvasImageResourceBundle _validateImageResourceReferences(
   }
   final rejections = <String, CanvasImageResourceRejection>{};
   for (final node in _canvasNodes(model.root)) {
-    for (final property in node.properties.values) {
-      final decoration = property.value;
-      if (decoration is! CanvasBoxDecorationValue || decoration.image == null) {
-        continue;
-      }
-      final image = decoration.image!;
-      final provider = image.image;
+    for (final use in _canvasImageUses(node)) {
+      final provider = use.provider;
       final resolution = provider.resolution;
       if (resolution is! CanvasResolvedImageValue) {
         continue;
@@ -2738,7 +2733,7 @@ CanvasImageResourceBundle _validateImageResourceReferences(
         continue;
       }
       final resource = resources[resolution.resourceId]!;
-      final centerSlice = image.centerSlice;
+      final centerSlice = use.centerSlice;
       final resize = provider.resize;
       if (resize == null && centerSlice == null) {
         continue;
@@ -2758,7 +2753,7 @@ CanvasImageResourceBundle _validateImageResourceReferences(
       if (centerSlice == null) {
         continue;
       }
-      final combinedScale = resolution.resolvedScale * image.scale;
+      final combinedScale = resolution.resolvedScale * use.scale;
       if (centerSlice.right * combinedScale > decodedSize.$1 + 1e-9 ||
           centerSlice.bottom * combinedScale > decodedSize.$2 + 1e-9) {
         rejections[resolution.resourceId] =
@@ -2771,6 +2766,52 @@ CanvasImageResourceBundle _validateImageResourceReferences(
   return rejections.isEmpty
       ? resources
       : resources._rejectResources(rejections.values);
+}
+
+Iterable<
+  ({
+    CanvasImageProviderValue provider,
+    CanvasRectValue? centerSlice,
+    double scale,
+  })
+>
+_canvasImageUses(CanvasNode node) sync* {
+  if (node.type == 'flutter.widgets.Image') {
+    final provider = node.properties['image']?.value;
+    if (provider is CanvasImageProviderValue) {
+      final left = node.properties['centerSliceLeft']?.value;
+      final top = node.properties['centerSliceTop']?.value;
+      final right = node.properties['centerSliceRight']?.value;
+      final bottom = node.properties['centerSliceBottom']?.value;
+      yield (
+        provider: provider,
+        centerSlice:
+            left is double &&
+                top is double &&
+                right is double &&
+                bottom is double
+            ? CanvasRectValue(
+                left: left,
+                top: top,
+                right: right,
+                bottom: bottom,
+              )
+            : null,
+        scale: 1,
+      );
+    }
+  }
+  for (final property in node.properties.values) {
+    final decoration = property.value;
+    if (decoration is CanvasBoxDecorationValue && decoration.image != null) {
+      final image = decoration.image!;
+      yield (
+        provider: image.image,
+        centerSlice: image.centerSlice,
+        scale: image.scale,
+      );
+    }
+  }
 }
 
 Iterable<CanvasNode> _canvasNodes(CanvasNode root) sync* {

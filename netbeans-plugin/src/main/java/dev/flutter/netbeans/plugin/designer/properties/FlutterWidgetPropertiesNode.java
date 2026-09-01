@@ -70,6 +70,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED_TYPE =
             new WidgetTypeId("flutter.widgets.Expanded");
+    private static final WidgetTypeId IMAGE_TYPE =
+            new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName ALIGNMENT_PROPERTY =
             new PropertyName("alignment");
     private static final PropertyName WIDTH_FACTOR_PROPERTY =
@@ -445,6 +447,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
         boolean stack = STACK_TYPE.equals(widget.type());
         boolean expanded = EXPANDED_TYPE.equals(widget.type());
+        boolean image = IMAGE_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
@@ -468,10 +471,19 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : expanded
                                 ? "Remaining-space allocation and required child contract for "
                                         + "the selected direct Row or Column Expanded widget."
+                        : image
+                                ? "Declared asset provider, layout, paint, nine-patch, callback, "
+                                        + "and semantics settings for the selected Image widget."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
-            if (aspectRatio && ASPECT_RATIO_PROPERTY.equals(property.name())) {
+            if (image) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        displayName(property.name()),
+                        imagePropertyDescription(property.name())));
+            } else if (aspectRatio && ASPECT_RATIO_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
                         Optional.empty(),
@@ -602,6 +614,82 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             }
         }
         return properties;
+    }
+
+    private static String imagePropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "image" ->
+                "Required asset-only ImageProvider. Choose a concrete asset declared by "
+                + "the app or a resolved package, then configure DPR-aware AssetImage or "
+                + "ExactAssetImage and an optional bounded ResizeImage decode request; "
+                + "arbitrary paths and network providers are unavailable.";
+            case "frameBuilder" ->
+                "Optional validated ImageFrameBuilder function identifier used to wrap "
+                + "each available image frame; omission paints the first frame directly.";
+            case "loadingBuilder" ->
+                "Optional validated ImageLoadingBuilder function identifier invoked while "
+                + "incremental image bytes load; it can rebuild on each rendering frame.";
+            case "errorBuilder" ->
+                "Optional validated ImageErrorWidgetBuilder function identifier invoked "
+                + "for image loading failures; omission reports the failure to FlutterError.";
+            case "semanticLabel" ->
+                "Optional semantic description announced by accessibility services unless "
+                + "Exclude from semantics is true.";
+            case "excludeFromSemantics" ->
+                "Whether to omit this image from the semantics tree. Flutter defaults to "
+                + "false; when true, Semantic label is ignored.";
+            case "width" ->
+                "Optional finite non-negative logical-pixel width. Specify width and height "
+                + "together, or use tight parent constraints, to avoid layout changes while loading.";
+            case "height" ->
+                "Optional finite non-negative logical-pixel height. Specify width and height "
+                + "together, or use tight parent constraints, to avoid layout changes while loading.";
+            case "color" ->
+                "Optional literal or reviewed Material theme color blended with every image "
+                + "pixel using Color blend mode.";
+            case "opacity" ->
+                "Optional finite multiplier from 0 through 1, emitted as a constant "
+                + "AlwaysStoppedAnimation<double> for Image.opacity.";
+            case "colorBlendMode" ->
+                "Optional pinned Flutter BlendMode used to combine Color with the image. "
+                + "When omitted, Flutter uses srcIn for a supplied color.";
+            case "fit" ->
+                "Optional pinned Flutter BoxFit describing how the image is inscribed in its "
+                + "layout bounds. cover and none are incompatible with an enabled center slice.";
+            case "alignment" ->
+                "Physical position or directional position within the image bounds. Flutter "
+                + "defaults to center; directional values require ambient LTR/RTL Directionality.";
+            case "repeat" ->
+                "Pinned Flutter ImageRepeat used for uncovered layout bounds. Flutter defaults "
+                + "to noRepeat.";
+            case "centerSliceLeft" ->
+                "Optional non-negative left edge of Rect.fromLTRB for nine-patch painting. All "
+                + "four center-slice edges must be set together, with left strictly below right.";
+            case "centerSliceTop" ->
+                "Optional non-negative top edge of Rect.fromLTRB for nine-patch painting. All "
+                + "four center-slice edges must be set together, with top strictly below bottom.";
+            case "centerSliceRight" ->
+                "Optional non-negative right edge of Rect.fromLTRB for nine-patch painting. All "
+                + "four edges are atomic; right must exceed left and fit decoded image bounds.";
+            case "centerSliceBottom" ->
+                "Optional non-negative bottom edge of Rect.fromLTRB for nine-patch painting. All "
+                + "four edges are atomic; bottom must exceed top and fit decoded image bounds.";
+            case "matchTextDirection" ->
+                "Whether RTL Directionality mirrors the image horizontally. Flutter defaults "
+                + "to false; do not mirror imagery containing text or directional shadows.";
+            case "gaplessPlayback" ->
+                "Whether a previous image remains visible while the provider changes. Flutter "
+                + "defaults to false to avoid pairing stale imagery with new content.";
+            case "isAntiAlias" ->
+                "Whether Flutter anti-aliases image edges, useful for rotated imagery. Flutter "
+                + "defaults to false.";
+            case "filterQuality" ->
+                "Pinned Flutter FilterQuality used while sampling misaligned or scaled pixels. "
+                + "Flutter defaults to medium.";
+            default -> throw new IllegalStateException(
+                    "Built-in Image property is missing reviewed help: "
+                    + propertyName.value());
+        };
     }
 
     private void addTextPropertySets(Sheet sheet, boolean hasSlotTab) {

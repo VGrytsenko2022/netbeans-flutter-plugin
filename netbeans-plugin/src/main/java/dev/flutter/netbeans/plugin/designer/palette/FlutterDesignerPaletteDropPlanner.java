@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Objects;
@@ -47,6 +48,27 @@ public final class FlutterDesignerPaletteDropPlanner {
             SlotName slotName,
             int insertionIndex,
             Supplier<StableId> stableIdSupplier) {
+        return plan(
+                document,
+                catalog,
+                authoritativeWidgetType,
+                parentId,
+                slotName,
+                insertionIndex,
+                FlutterImageAssetChoices.empty(),
+                stableIdSupplier);
+    }
+
+    /** Plans one Palette drop using the current declared image inventory. */
+    public Result plan(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            WidgetTypeId authoritativeWidgetType,
+            StableId parentId,
+            SlotName slotName,
+            int insertionIndex,
+            FlutterImageAssetChoices imageAssetChoices,
+            Supplier<StableId> stableIdSupplier) {
         Optional<Rejected> invalid = invalidInput(
                 document,
                 catalog,
@@ -54,6 +76,7 @@ public final class FlutterDesignerPaletteDropPlanner {
                 parentId,
                 slotName,
                 insertionIndex,
+                imageAssetChoices,
                 stableIdSupplier);
         if (invalid.isPresent()) {
             return invalid.orElseThrow();
@@ -181,6 +204,19 @@ public final class FlutterDesignerPaletteDropPlanner {
             }
         }
 
+        FlutterImageWidgetCreationValues.Result resolvedCreationValues =
+                FlutterImageWidgetCreationValues.resolve(
+                        sourceDefinition, imageAssetChoices);
+        if (resolvedCreationValues
+                instanceof FlutterImageWidgetCreationValues.Unavailable unavailable) {
+            return rejected(
+                    RejectionCode.REQUIRED_CREATION_VALUE_UNAVAILABLE,
+                    unavailable.reason() + " Target: '" + parent.id() + '.'
+                    + slotName.value() + "' at index " + insertionIndex + '.');
+        }
+        FlutterImageWidgetCreationValues.Available creationValues =
+                (FlutterImageWidgetCreationValues.Available) resolvedCreationValues;
+
         StableId newId;
         try {
             newId = stableIdSupplier.get();
@@ -206,7 +242,8 @@ public final class FlutterDesignerPaletteDropPlanner {
 
         WidgetNode child;
         try {
-            child = WidgetNodePrototypeFactory.create(sourceDefinition, newId);
+            child = WidgetNodePrototypeFactory.create(
+                    sourceDefinition, newId, creationValues.creationValues());
         } catch (RuntimeException invalidDefinition) {
             return rejected(
                     RejectionCode.CATALOG_DEFINITION_MISMATCH,
@@ -315,6 +352,7 @@ public final class FlutterDesignerPaletteDropPlanner {
             StableId parentId,
             SlotName slotName,
             int insertionIndex,
+            FlutterImageAssetChoices imageAssetChoices,
             Supplier<StableId> stableIdSupplier) {
         if (document == null) {
             return Optional.of(invalid("Designer document is null."));
@@ -335,6 +373,10 @@ public final class FlutterDesignerPaletteDropPlanner {
             return Optional.of(invalid(
                     "Drop insertion index must be non-negative; received "
                     + insertionIndex + '.'));
+        }
+        if (imageAssetChoices == null) {
+            return Optional.of(invalid(
+                    "Current Flutter image asset choices are null."));
         }
         if (stableIdSupplier == null) {
             return Optional.of(invalid("Stable id supplier is null."));
@@ -425,6 +467,7 @@ public final class FlutterDesignerPaletteDropPlanner {
         WRAP_TARGET_REJECTED,
         NON_TERMINAL_INSERTION,
         SLOT_FULL,
+        REQUIRED_CREATION_VALUE_UNAVAILABLE,
         DOCUMENT_ID_CONFLICT,
         STABLE_ID_ALLOCATION_FAILED,
         STABLE_ID_CONFLICT,

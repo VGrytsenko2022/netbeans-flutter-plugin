@@ -1037,6 +1037,91 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsImageWithScalarOpacityAnimationAndSynthesizedCenterSlice() {
+        WidgetNode image = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Image"),
+                Map.ofEntries(
+                        Map.entry(property("image"),
+                                PropertyValue.ImageProviderValue.asset("assets/photo.png")),
+                        Map.entry(property("semanticLabel"),
+                                new PropertyValue.StringValue("Photo")),
+                        Map.entry(property("excludeFromSemantics"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(property("width"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(120))),
+                        Map.entry(property("height"),
+                                new PropertyValue.DoubleValue(new BigDecimal("80.5"))),
+                        Map.entry(property("color"),
+                                new PropertyValue.ColorValue(0xFFAABBCCL)),
+                        Map.entry(property("opacity"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.75"))),
+                        Map.entry(property("colorBlendMode"),
+                                new PropertyValue.EnumValue("BlendMode", "srcIn")),
+                        Map.entry(property("fit"),
+                                new PropertyValue.EnumValue("BoxFit", "contain")),
+                        Map.entry(property("alignment"), alignment(
+                                PropertyValue.AlignmentGeometryValue
+                                        .HorizontalBasis.PHYSICAL,
+                                "0", "0")),
+                        Map.entry(property("repeat"),
+                                new PropertyValue.EnumValue("ImageRepeat", "repeatX")),
+                        Map.entry(property("centerSliceLeft"),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.entry(property("centerSliceTop"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(2))),
+                        Map.entry(property("centerSliceRight"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(20))),
+                        Map.entry(property("centerSliceBottom"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(30))),
+                        Map.entry(property("matchTextDirection"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(property("gaplessPlayback"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(property("isAntiAlias"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(property("filterQuality"),
+                                new PropertyValue.EnumValue("FilterQuality", "high"))),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(image, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                result.generated().orElseThrow().imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Image(
+                      image: const AssetImage('assets/photo.png'),
+                      semanticLabel: 'Photo',
+                      excludeFromSemantics: false,
+                      width: 120,
+                      height: 80.5,
+                      color: const Color(0xFFAABBCC),
+                      opacity: const AlwaysStoppedAnimation<double>(0.75),
+                      colorBlendMode: BlendMode.srcIn,
+                      fit: BoxFit.contain,
+                      alignment: const Alignment(0.0, 0.0),
+                      repeat: ImageRepeat.repeatX,
+                      centerSlice: const Rect.fromLTRB(1.0, 2.0, 20.0, 30.0),
+                      matchTextDirection: true,
+                      gaplessPlayback: true,
+                      isAntiAlias: true,
+                      filterQuality: FilterQuality.high,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+        assertTrue(result.generated().orElseThrow().symbolOccurrences().stream()
+                .anyMatch(value -> value.symbolName().equals("AlwaysStoppedAnimation")));
+        assertTrue(result.generated().orElseThrow().symbolOccurrences().stream()
+                .anyMatch(value -> value.symbolName().equals("Rect")));
+    }
+
+    @Test
     void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
         PropertyValue.AlignmentGeometryValue begin = alignment(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,

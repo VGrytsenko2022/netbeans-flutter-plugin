@@ -311,6 +311,10 @@ public final class DartRegionGenerator {
                     && ElevatedButtonWidgetPropertySchema.isCompound(property.name())) {
                 continue;
             }
+            if (node.type().value().equals("flutter.widgets.Image")
+                    && isImageSynthesizedProperty(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
@@ -349,6 +353,10 @@ public final class DartRegionGenerator {
         if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)) {
             appendElevatedButtonCompoundArguments(
                     node, definition, path, baseIndent + 2, context, arguments);
+        }
+        if (node.type().value().equals("flutter.widgets.Image")) {
+            appendImageSynthesizedArguments(
+                    node, definition, path, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
 
@@ -4433,6 +4441,84 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(baseIndent) + ']');
         return lines.build(constant);
+    }
+
+    private static boolean isImageSynthesizedProperty(PropertyName name) {
+        return switch (name.value()) {
+            case "opacity", "centerSliceLeft", "centerSliceTop",
+                    "centerSliceRight", "centerSliceBottom" -> true;
+            default -> false;
+        };
+    }
+
+    private void appendImageSynthesizedArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition opacityDefinition = definition
+                .property(new PropertyName("opacity")).orElseThrow();
+        PropertyValue opacityValue = node.properties().get(opacityDefinition.name());
+        if (opacityValue instanceof PropertyValue.DoubleValue opacity) {
+            String propertyPath = path + "/properties/opacity";
+            RenderedSymbol animation = context.planner().renderedSymbol(
+                    WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+            String rendered = "const " + animation.text() + "<double>("
+                    + dartDouble(opacity.value()) + ')';
+            arguments.add(new ConstructorArgument(
+                    opacityDefinition.parameter(),
+                    "opacity",
+                    false,
+                    scalar(
+                            rendered,
+                            true,
+                            propertyPath,
+                            node.id(),
+                            context,
+                            List.of(occurrence(
+                                    "widget:" + node.id()
+                                    + ":image-opacity-animation",
+                                    "const ".length() + animation.nameOffset(),
+                                    animation.name(),
+                                    animation.libraryUri(),
+                                    propertyPath,
+                                    Optional.of(node.id()))))));
+        }
+
+        PropertyDefinition leftDefinition = definition
+                .property(new PropertyName("centerSliceLeft")).orElseThrow();
+        PropertyValue leftValue = node.properties().get(leftDefinition.name());
+        if (!(leftValue instanceof PropertyValue.DoubleValue left)) {
+            return;
+        }
+        PropertyValue.DoubleValue top = (PropertyValue.DoubleValue) node.properties().get(
+                new PropertyName("centerSliceTop"));
+        PropertyValue.DoubleValue right = (PropertyValue.DoubleValue) node.properties().get(
+                new PropertyName("centerSliceRight"));
+        PropertyValue.DoubleValue bottom = (PropertyValue.DoubleValue) node.properties().get(
+                new PropertyName("centerSliceBottom"));
+        String centerPath = path + "/properties/centerSliceLeft";
+        RenderedValue centerSlice = renderPositionalCompositeValues(
+                "Rect",
+                Optional.of("fromLTRB"),
+                List.of(
+                        scalar(dartDouble(left.value()), true,
+                                centerPath, node.id(), context),
+                        scalar(dartDouble(top.value()), true,
+                                path + "/properties/centerSliceTop", node.id(), context),
+                        scalar(dartDouble(right.value()), true,
+                                path + "/properties/centerSliceRight", node.id(), context),
+                        scalar(dartDouble(bottom.value()), true,
+                                path + "/properties/centerSliceBottom", node.id(), context)),
+                centerPath,
+                node.id(),
+                context);
+        arguments.add(new ConstructorArgument(
+                leftDefinition.parameter(),
+                "centerSlice",
+                false,
+                centerSlice));
     }
 
     private RenderedValue renderProperty(

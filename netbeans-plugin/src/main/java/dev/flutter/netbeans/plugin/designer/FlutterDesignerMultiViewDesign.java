@@ -58,7 +58,6 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
-import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
@@ -103,6 +102,7 @@ import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragLi
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragRegistry;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPlanner;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteTreeDropAdapter;
+import dev.flutter.netbeans.plugin.designer.palette.FlutterImageWidgetCreationValues;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotEditorContext;
@@ -3457,6 +3457,7 @@ public final class FlutterDesignerMultiViewDesign
                                 add.ownerId(),
                                 add.slotName(),
                                 add.index(),
+                                currentImageAssetChoices,
                                 StableId::random);
                 if (planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected) {
                     throw new IllegalArgumentException(rejected.reason());
@@ -3563,8 +3564,8 @@ public final class FlutterDesignerMultiViewDesign
                                 + "' with widget type '" + fresh.widgetType().value()
                                 + "': " + placement.reason());
                     }
-                    WidgetNode prototype = WidgetNodePrototypeFactory.create(
-                            definition, StableId.random());
+                    WidgetNode prototype = createSlotReplacementPrototype(
+                            definition, currentImageAssetChoices, StableId::random);
                     replacement = new ReplaceSlotChild.NewSubtree(prototype);
                     selection = prototype.id();
                     replacementLabel = "new " + definition.palette().displayName()
@@ -4249,7 +4250,12 @@ public final class FlutterDesignerMultiViewDesign
         WidgetCatalog catalog = candidate.catalog().orElseThrow();
         FlutterDesignerPaletteTreeDropAdapter.PreviewResult result =
                 paletteTreeDropAdapter.preview(
-                        transferable, action, document, catalog, targetId);
+                        transferable,
+                        action,
+                        document,
+                        catalog,
+                        targetId,
+                        currentImageAssetChoices);
         if (result instanceof FlutterDesignerPaletteTreeDropAdapter.Rejected rejected) {
             return FlutterDesignerWidgetTreeDropSupport.Preview.rejected(
                     rejected.reason());
@@ -4300,6 +4306,7 @@ public final class FlutterDesignerMultiViewDesign
                         action,
                         document,
                         catalog,
+                        currentImageAssetChoices,
                         StableId::random);
         if (result instanceof FlutterDesignerPaletteTreeDropAdapter.Rejected rejected) {
             return FlutterDesignerWidgetTreeDropSupport.Decision.rejected(
@@ -4755,6 +4762,7 @@ public final class FlutterDesignerMultiViewDesign
                 drop.parentWidgetId(),
                 drop.slotName(),
                 drop.insertionIndex(),
+                currentImageAssetChoices,
                 StableId::random);
         if (planned instanceof FlutterDesignerPaletteDropPlanner.Wrapped wrapped) {
             String widgetDisplayName = catalog.find(widgetType).orElseThrow()
@@ -4770,6 +4778,16 @@ public final class FlutterDesignerMultiViewDesign
                     command,
                     "Wrap Flutter child with " + widgetDisplayName,
                     target);
+            return;
+        }
+        if (planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected) {
+            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                    FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
+                    "Flutter Palette drop was not applied.",
+                    "Target: widget " + drop.parentWidgetId() + '.'
+                    + drop.slotName().value() + " at index "
+                    + drop.insertionIndex() + ". Reason: " + rejected.reason(),
+                    lastCanvasStatus != null && lastCanvasStatus.rendered()));
             return;
         }
         if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
@@ -5282,6 +5300,14 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasTarget = null;
         presentedCanvasTheme = null;
         presentedCanvasImageFingerprint = null;
+    }
+
+    static WidgetNode createSlotReplacementPrototype(
+            WidgetDefinition definition,
+            FlutterImageAssetChoices imageAssetChoices,
+            java.util.function.Supplier<StableId> idSupplier) {
+        return FlutterImageWidgetCreationValues.createPrototype(
+                definition, imageAssetChoices, idSupplier);
     }
 
     private enum CanvasCloseGateState {

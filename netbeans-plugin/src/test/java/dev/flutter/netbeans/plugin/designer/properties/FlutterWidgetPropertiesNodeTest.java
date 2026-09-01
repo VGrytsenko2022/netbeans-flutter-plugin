@@ -172,6 +172,75 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void imageProjectsExactTwentyTwoRowsWithRequiredProviderChoicesAndReviewedHelp()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Image");
+        PropertyValue.ImageProviderValue provider =
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        "assets/hero.png",
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty());
+        WidgetNode widget = new WidgetNode(
+                StableId.parse("668d4d7d-6b1f-4098-a41b-b5acd472ed3a"),
+                definition.typeId(),
+                Map.of(new PropertyName("image"), provider),
+                Map.of(),
+                Extensions.empty());
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/hero.png", "App: assets/hero.png")),
+                Optional.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                widget,
+                definition,
+                ignored -> { },
+                null,
+                null,
+                choices);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                "image", "frameBuilder", "loadingBuilder", "errorBuilder",
+                "semanticLabel", "excludeFromSemantics", "width", "height",
+                "color", "opacity", "colorBlendMode", "fit", "alignment",
+                "repeat", "centerSliceLeft", "centerSliceTop",
+                "centerSliceRight", "centerSliceBottom", "matchTextDirection",
+                "gaplessPlayback", "isAntiAlias", "filterQuality"),
+                names(properties.getProperties()));
+        assertEquals(22, properties.getProperties().length);
+        assertTrue(properties.getShortDescription().contains("nine-patch"));
+
+        Node.Property<?> image = property(node, "image");
+        assertSame(choices, image.getValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE));
+        assertTrue(image.canWrite());
+        assertTrue(image.getShortDescription().startsWith(
+                "Required asset-only ImageProvider"));
+        assertTrue(image.getShortDescription().contains("declared by the app"));
+        assertTrue(image.getShortDescription().contains("arbitrary paths"));
+
+        assertAll(Arrays.stream(properties.getProperties())
+                .map(projected -> () -> {
+                    assertFalse(projected.getShortDescription().isBlank(),
+                            projected.getName());
+                    assertFalse(projected.getShortDescription().startsWith(
+                            "Explicit model value for"), projected.getName());
+                }));
+        assertTrue(property(node, "opacity").getShortDescription()
+                .contains("0 through 1"));
+        assertTrue(property(node, "fit").getShortDescription()
+                .contains("cover and none are incompatible"));
+        assertTrue(property(node, "centerSliceLeft").getShortDescription()
+                .contains("All four center-slice edges must be set together"));
+        assertTrue(property(node, "centerSliceRight").getShortDescription()
+                .contains("fit decoded image bounds"));
+    }
+
+    @Test
     void exposesStandardLookupIdentityAndPaletteDisplayName() {
         WidgetDefinition definition = definition("flutter.widgets.Text");
         StableId id = StableId.parse("86bb276e-44b6-4c55-9fdb-aea8ec62ab90");
@@ -397,7 +466,13 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.DoubleValue(BigDecimal.ONE)),
                 "flutter.widgets.Opacity", Map.of(
                         new PropertyName("opacity"),
-                        new PropertyValue.DoubleValue(BigDecimal.ONE)));
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                "flutter.widgets.Image", Map.of(
+                        new PropertyName("image"),
+                        new PropertyValue.ImageProviderValue(
+                                PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                                "assets/image.png",
+                                Optional.empty(), Optional.empty(), Optional.empty())));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -415,7 +490,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
-                "flutter.widgets.Icon");
+                "flutter.widgets.Icon",
+                "flutter.widgets.Image");
 
         int writableCount = 0;
         for (String type : types) {
@@ -445,10 +521,10 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(541, writableCount,
+        assertEquals(563, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, Text, Icon, AspectRatio, Container, Opacity, Align, "
-                + "FractionallySizedBox, Stack, and Expanded leaves");
+                + "FractionallySizedBox, Stack, Expanded, and Image leaves");
     }
 
     @Test
@@ -1724,7 +1800,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void seventeenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void eighteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1743,14 +1819,25 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Text",
-                "flutter.widgets.Icon");
+                "flutter.widgets.Icon",
+                "flutter.widgets.Image");
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
+            Map<PropertyName, PropertyValue> creationValues =
+                    "flutter.widgets.Image".equals(typeId)
+                            ? Map.of(
+                                    new PropertyName("image"),
+                                    new PropertyValue.ImageProviderValue(
+                                            PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                                            "assets/image.png",
+                                            Optional.empty(), Optional.empty(), Optional.empty()))
+                            : Map.of();
             WidgetNode widget = WidgetNodePrototypeFactory.create(
                     definition,
-                    StableId.parse("5cf3483b-d627-41b4-bb1d-4a321aa36da4"));
+                    StableId.parse("5cf3483b-d627-41b4-bb1d-4a321aa36da4"),
+                    creationValues);
             FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
                     Children.LEAF, widget, definition);
             String expectedIcon = FlutterWidgetIconRegistry
@@ -1761,7 +1848,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(17, iconPaths.size(),
+        assertEquals(18, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

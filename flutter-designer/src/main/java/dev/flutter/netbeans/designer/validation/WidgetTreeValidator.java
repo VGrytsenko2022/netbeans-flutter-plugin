@@ -330,6 +330,11 @@ public final class WidgetTreeValidator {
             }
         }
 
+        if (type.equals("flutter.widgets.Image")) {
+            validateImageCenterSlice(node, propertiesPath, issues);
+            return;
+        }
+
         if (type.equals("flutter.widgets.Icon")) {
             if (node.properties().containsKey(new PropertyName("weight"))
                     && node.properties().containsKey(new PropertyName("fontWeight"))) {
@@ -435,6 +440,73 @@ public final class WidgetTreeValidator {
                         "Text semanticsIdentifier '" + identifier.value() + "' at '" + propertyPath
                         + "' duplicates the identifier first declared at '" + firstPath + "'."));
             }
+        }
+    }
+
+    private static void validateImageCenterSlice(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        List<String> componentNames = List.of(
+                "centerSliceLeft",
+                "centerSliceTop",
+                "centerSliceRight",
+                "centerSliceBottom");
+        List<String> present = componentNames.stream()
+                .filter(name -> node.properties().containsKey(new PropertyName(name)))
+                .toList();
+        if (!present.isEmpty() && present.size() != componentNames.size()) {
+            String firstMissing = componentNames.stream()
+                    .filter(name -> !present.contains(name))
+                    .findFirst()
+                    .orElseThrow();
+            issues.add(issue(
+                    PROPERTY_DEPENDENCY,
+                    propertiesPath + '/' + firstMissing,
+                    node.id(),
+                    "Image centerSlice requires centerSliceLeft, centerSliceTop, "
+                    + "centerSliceRight, and centerSliceBottom together."));
+            return;
+        }
+        if (present.isEmpty()) {
+            return;
+        }
+
+        PropertyValue leftValue = node.properties().get(new PropertyName("centerSliceLeft"));
+        PropertyValue topValue = node.properties().get(new PropertyName("centerSliceTop"));
+        PropertyValue rightValue = node.properties().get(new PropertyName("centerSliceRight"));
+        PropertyValue bottomValue = node.properties().get(new PropertyName("centerSliceBottom"));
+        if (leftValue instanceof PropertyValue.DoubleValue left
+                && topValue instanceof PropertyValue.DoubleValue top
+                && rightValue instanceof PropertyValue.DoubleValue right
+                && bottomValue instanceof PropertyValue.DoubleValue bottom) {
+            if (left.value().compareTo(right.value()) >= 0) {
+                issues.add(issue(
+                        PROPERTY_CONSTRAINT,
+                        propertiesPath + "/centerSliceRight",
+                        node.id(),
+                        "Image centerSlice requires centerSliceLeft to be strictly less than "
+                        + "centerSliceRight."));
+            }
+            if (top.value().compareTo(bottom.value()) >= 0) {
+                issues.add(issue(
+                        PROPERTY_CONSTRAINT,
+                        propertiesPath + "/centerSliceBottom",
+                        node.id(),
+                        "Image centerSlice requires centerSliceTop to be strictly less than "
+                        + "centerSliceBottom."));
+            }
+        }
+
+        PropertyValue fitValue = node.properties().get(new PropertyName("fit"));
+        if (fitValue instanceof PropertyValue.EnumValue fit
+                && fit.type().equals("BoxFit")
+                && (fit.value().equals("cover") || fit.value().equals("none"))) {
+            issues.add(issue(
+                    PROPERTY_CONFLICT,
+                    propertiesPath + "/fit",
+                    node.id(),
+                    "Image centerSlice does not allow BoxFit.cover or BoxFit.none."));
         }
     }
 

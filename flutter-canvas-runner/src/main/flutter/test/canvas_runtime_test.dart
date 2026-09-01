@@ -834,6 +834,67 @@ void main() {
     },
   );
 
+  test(
+    'binds direct Image resources and applies provider-scale centerSlice bounds',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+
+      for (final testCase in const <(num, bool)>[(3, true), (5, false)]) {
+        final input = StreamController<List<int>>();
+        final output = <List<int>>[];
+        final diagnostics = <String>[];
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (bytes) => output.add(List<int>.from(bytes)),
+          flush: () async {},
+          diagnostic: diagnostics.add,
+        );
+        final model = _directImageModel(
+          resolution: {
+            'kind': 'resolved',
+            'resourceId': image.resourceId,
+            'resolvedScale': 2,
+          },
+          centerSlice: {'left': 1, 'top': 1, 'right': testCase.$1, 'bottom': 3},
+        );
+
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(
+            nbfcControlJson,
+            utf8.encode(jsonEncode(_hello(imageBytes: true))),
+          ),
+        );
+        _addRender(input, model, images: [image]);
+        await _waitUntil(() => runtime.model != null || runtime.closed);
+
+        expect(runtime.closed, isFalse);
+        expect(runtime.model!.imageResourceIds, {image.resourceId});
+        if (testCase.$2) {
+          expect(runtime.imageResources[image.resourceId], isNotNull);
+          expect(runtime.imageResources.rejection(image.resourceId), isNull);
+        } else {
+          expect(runtime.imageResources[image.resourceId], isNull);
+          expect(
+            runtime.imageResources.rejection(image.resourceId)!.kind,
+            CanvasImageResourceRejectionKind.centerSliceOutOfBounds,
+          );
+        }
+
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+        );
+        await input.close();
+        await running;
+        expect(diagnostics, isEmpty);
+      }
+    },
+  );
+
   test('image rejection bundles validate ids and declared-id uniqueness', () {
     final resourceId = sha256Hex(_testPng8);
     final rejection = CanvasImageResourceRejection.encodedContent(resourceId);
@@ -3544,6 +3605,45 @@ Uint8List _imageContainerModel({
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': null},
     },
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+Uint8List _directImageModel({
+  required Map<String, Object?> resolution,
+  required Map<String, Object?> centerSlice,
+  Map<String, Object?>? resize,
+}) {
+  final model =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '49e9c744-18ec-4448-849c-5c24ace2548c',
+    'type': 'flutter.widgets.Image',
+    'properties': <String, Object?>{
+      'image': {
+        'kind': 'imageProvider',
+        'value': {
+          'kind': 'asset',
+          'assetName': 'assets/images/direct.png',
+          'packageName': null,
+          'exactScale': null,
+          'resize': resize,
+          'resolution': resolution,
+        },
+      },
+      'width': {'kind': 'double', 'value': 120},
+      'height': {'kind': 'double', 'value': 80},
+      'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'fill'},
+      'centerSliceLeft': {'kind': 'double', 'value': centerSlice['left']},
+      'centerSliceTop': {'kind': 'double', 'value': centerSlice['top']},
+      'centerSliceRight': {'kind': 'double', 'value': centerSlice['right']},
+      'centerSliceBottom': {'kind': 'double', 'value': centerSlice['bottom']},
+    },
+    'slots': <String, Object?>{},
   };
   return Uint8List.fromList(utf8.encode(jsonEncode(model)));
 }

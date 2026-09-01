@@ -383,7 +383,9 @@ public final class CanvasModelPayloadCodec {
             case PropertyValue.Matrix4Value matrix -> writeMatrix4(json, matrix);
             case PropertyValue.ImageProviderValue provider -> {
                 json.writeStringField("kind", "imageProvider");
+                json.writeObjectFieldStart("value");
                 writeImageProviderFields(json, provider, context);
+                json.writeEndObject();
             }
             case PropertyValue.BoxDecorationValue decoration ->
                 writeBoxDecoration(json, decoration, context);

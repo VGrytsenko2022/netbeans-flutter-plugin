@@ -286,6 +286,37 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void imageFamilyUsesExactReviewedRasterFrameGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "image.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=11, rx=1.5, stroke-width=1, width=13, x=1.5, y=2.5]",
+                "circle[cx=11.5, cy=5.5, r=1.4, stroke-width=.7]",
+                "path[d=M2.5 11l3.2-3 2.2 2 2.2-2.4 3.4 3.4v1.5h-11z, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=22, rx=3, stroke-width=2, width=26, x=3, y=5]",
+                "circle[cx=23, cy=11, r=2.8, stroke-width=1.4]",
+                "path[d=M5 22l6.4-6 4.4 4 4.4-4.8L27 22v3H5z, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "circle[fill=#FFB74D, stroke=#D97706]",
+                "path[fill=#80DEEA, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "circle[fill=#FFCC80, stroke=#FFB74D]",
+                "path[fill=#4DD0E1, stroke=#90CAF9]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void stackFamilyUsesExactReviewedLayerGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "stack.svg";
@@ -497,6 +528,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Center", ICON_ROOT + "center.svg");
         expected.put("flutter.widgets.Column", ICON_ROOT + "column.svg");
         expected.put("flutter.widgets.Icon", ICON_ROOT + "icon.svg");
+        expected.put("flutter.widgets.Image", ICON_ROOT + "image.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");

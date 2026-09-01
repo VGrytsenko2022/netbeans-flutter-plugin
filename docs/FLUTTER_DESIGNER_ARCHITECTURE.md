@@ -121,7 +121,7 @@ optional `canvas.themeMode` is only a local preview override (`system`, `light`
 or `dark`); when absent, Canvas follows the project default. The Canvas reads
 the validated project descriptor and the verified generated-artifact hash,
 then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme/
-component override tables and revision digest through model protocol v9 to the isolated
+component override tables and revision digest through model protocol v10 to the isolated
 Flutter runner. It never executes project Dart. The runner applies the same
 construction order as generated Dart before form-local widget overrides. Projects
 without a descriptor keep the legacy Material preview; a present but invalid
@@ -372,11 +372,11 @@ may still format the complete Dart document.
 ## `.fd` document contract
 
 `.fd` is UTF-8 JSON and current documents conform to
-[`flutter-designer/fd-v4.schema.json`](flutter-designer/fd-v4.schema.json).
+[`flutter-designer/fd-v5.schema.json`](flutter-designer/fd-v5.schema.json).
 The stable format name is `netbeans-flutter-designer`, and the integer
-`schemaVersion` makes migrations explicit. Versions 1 through 3 remain readable
+`schemaVersion` makes migrations explicit. Versions 1 through 4 remain readable
 through in-memory migrations; opening alone does not rewrite the file, while
-the next admitted Designer edit emits canonical version 4.
+the next admitted Designer edit emits canonical version 5.
 
 The checked-in version-1 [`home_page.fd`](flutter-designer/examples/home_page.fd)
 and [`home_page.dart`](flutter-designer/examples/home_page.dart) pair remains the
@@ -412,6 +412,18 @@ distinguishes physical and directional edge insets. Version 4 adds a closed
 nullable `IconData` value with a Unicode-scalar code point and validated font
 metadata. An icon never uses the arbitrary-Dart-expression kind, so the model,
 generator and Canvas all consume the same typed value.
+
+Version 5 adds closed `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and
+image-free `BoxDecoration` values. These are structural model types rather than
+escaped Dart fragments: codec, validator, generator, Properties and Canvas
+therefore share the same discriminated records and exact invariants. The
+`BoxDecoration` subset covers semantic-theme or literal colors, physical or
+directional borders with complete `BorderSide` values, physical or directional
+elliptical radii, ordered stable-ID shadows, linear/radial/sweep gradients with
+ordered color stops and `GradientRotation`, blend mode and shape. It deliberately
+excludes `DecorationImage`; image selection, pubspec declaration and asset
+lifecycle require one shared asset-infrastructure slice before that constructor
+branch can be admitted safely.
 
 Version 1 represents an asset value as one deterministically escaped Dart
 string literal containing its path. That path is relative to the Flutter
@@ -471,7 +483,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v9 projection for the eleven exact built-ins carrying the
+  canonical protocol-v10 projection for the twelve exact built-ins carrying the
   Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control, model and catalog JSON channels.
@@ -541,8 +553,8 @@ types are omitted with diagnostics. The NetBeans edge discovers contributors
 and passes them explicitly to the domain composer, avoiding a global
 class-loader policy in this module.
 
-The current version 3 contributor SPI requires a reverse-DNS contributor id,
-catalog `API_VERSION == 3`, and every contributed widget type id to start with
+The current version 4 contributor SPI requires a reverse-DNS contributor id,
+catalog `API_VERSION == 4`, and every contributed widget type id to start with
 `<contributorId>.`. A malformed definition, duplicate local type, foreign or
 reserved namespace, or unsupported API version rejects that contributor as one
 atomic unit.
@@ -622,13 +634,15 @@ The NetBeans module exports only `dev.flutter.netbeans.designer.catalog` and
 depends on this plugin's NetBeans module and reuses its packaged
 `flutter-designer.jar`; bundling another copy would split SPI class identity.
 Codec, validation and NetBeans edge packages remain private. If the contributor
-API must evolve independently after version 3, it moves to a dedicated SPI NBM
+API must evolve independently after version 4, it moves to a dedicated SPI NBM
 or new package boundary instead of silently breaking this module's public
 surface. `API_VERSION == 2` was the incompatible boundary introduced for
-direction-aware edge-insets values. Typed `IconData` establishes the next
-explicit boundary at `API_VERSION == 3`; API-1 and API-2 contributors are
-rejected rather than loaded with a changed sealed model contract. This is not
-yet a permanent 1.0 compatibility promise. A runtime fixture NBM verifies the specification dependency, default
+direction-aware edge-insets values. Typed `IconData` established the next
+explicit boundary at `API_VERSION == 3`. The four structured Container values
+establish the current boundary at `API_VERSION == 4`; API-1, API-2 and API-3
+contributors are rejected rather than loaded with a changed sealed model
+contract. This is not yet a permanent 1.0 compatibility promise. A runtime
+fixture NBM verifies the specification dependency, default
 Lookup discovery, composed widget, shared API class identity and absence of a
 second packaged `flutter-designer.jar`.
 
@@ -998,9 +1012,10 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   target, and the first Windows native host slice is implemented. It builds
   a versioned isolated runner, creates the real Flutter child window inside a
   heavyweight AWT host in the Design MultiView, validates the exact HWND/PID
-  hierarchy and publishes one bounded validated protocol-v9 revision restricted
+  hierarchy and publishes one bounded validated protocol-v10 revision restricted
   by the exact capability gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-  `Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`. The owning
+  `Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `ElevatedButton` and
+  `Container`. The owning
   project's observable platform snapshot limits the toolbar to exact
   mode/target pairs: Android Phone/Tablet, iPhone/iPad, named Windows/macOS/Linux
   Desktop targets, and Web. Canonical platform-folder changes reconcile every
@@ -1020,12 +1035,12 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop and the broader unreviewed Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 515 reviewed fields of
+  read/write Properties are enabled only for the 528 reviewed fields of
   `Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-  `SizedBox`, `AspectRatio`, `Text` and `Icon`; 17 are Scaffold leaves, 286 are ElevatedButton
+  `SizedBox`, `AspectRatio`, `Text`, `Icon` and `Container`; 17 are Scaffold leaves, 286 are ElevatedButton
   leaves, 120 are grouped AppBar leaves, 59 are typed Text leaves, 13 are
-  typed Icon constructor properties and one is `AspectRatio.aspectRatio` as
-  described below.
+  typed Icon constructor properties, one is `AspectRatio.aspectRatio` and 13
+  form the complete reviewed Container surface described below.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1033,16 +1048,16 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. All eleven current definitions publish typed read/write catalog
+property sheet. All twelve current definitions publish typed read/write catalog
 properties. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the eleven
+context-sensitive standard NetBeans Palette containing exactly the twelve
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative eleven-source, 165-candidate insertion matrix with 145
-accepted and 20 rejected cells. Palette, Explorer/Nodes,
+host-authoritative twelve-source, 192-candidate insertion matrix with 170
+accepted and 22 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (515 fields)
+### Writable Properties API contract (528 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 unreviewed constructor graphs. Scaffold contributes exactly 17 independently
@@ -1107,14 +1122,15 @@ child unchanged. Runtime object references—`key`, `focusNode`, `statesControll
 `backgroundBuilder` and `foregroundBuilder`—are not serialized.
 
 Callback values are strict Dart identifiers rather than arbitrary expressions.
-Generated source may bind them, but Canvas model payload protocol v9 projects only
+Generated source may bind them, but Canvas model payload protocol v10 projects only
 `callbackPresence`; the runner creates inert typed closures and cannot receive
 or execute a project handler. Disabling the button emits null press callbacks;
 an enabled button without a press binding gets a generator-owned empty
 `onPressed` closure so its enabled state remains truthful. Its `child` is an
 optional-single, required-named-but-nullable catalog slot. The empty prototype
-is valid and emits `child: null`. No new value kind is required, so `.fd`
-remains schema v4.
+is valid and emits `child: null`. No new value kind was required for that
+milestone, so `.fd` remained schema v4; the current Container slice raises the
+aggregate document contract to schema v5.
 
 | Widget(s) | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
 | --- | --- | --- | --- | --- |
@@ -1236,7 +1252,55 @@ AspectRatio reads neither Theme nor Directionality, so its value remains local
 layout data. The native Canvas renders the real widget and retains an IDE-owned
 outline/drop target when the child slot is empty.
 
-These 515 fields use catalog constraints for editor selection, value admission,
+[`Container`](https://api.flutter.dev/flutter/widgets/Container/Container.html)
+adds its complete reviewed non-widget constructor surface. Its optional single
+`child` remains an any-widget slot at constructor position 12 and is not counted
+as a property row.
+
+| `Container` property | Flutter argument | Reviewed contract and editor |
+| --- | --- | --- |
+| `alignment` | `AlignmentGeometry?` | Transactional presets or finite physical/directional coordinates; omission preserves Flutter layout behavior. |
+| `padding` | `EdgeInsetsGeometry?` | Physical/directional finite non-negative insets editor. |
+| `color` | `Color?` | Literal ARGB or reviewed `ColorScheme` role; mutually exclusive with `decoration`. |
+| `isAntiAlias` | `bool?` | Accessible optional checkbox; omission preserves Flutter's `true` constructor default. |
+| `decoration` | `Decoration?` | Transactional reviewed image-free `BoxDecoration` behind the child. |
+| `foregroundDecoration` | `Decoration?` | The same reviewed `BoxDecoration` domain in front of the child. |
+| `width` | `double?` | Exact finite non-negative decimal. |
+| `height` | `double?` | Exact finite non-negative decimal. |
+| `constraints` | `BoxConstraints?` | Presets or exact non-negative minima and finite/unbounded maxima, each maximum at least its minimum. |
+| `margin` | `EdgeInsetsGeometry?` | Physical/directional finite non-negative insets editor, matching Flutter's constructor assertion. |
+| `transform` | `Matrix4?` | Visual 4×4 column-major editor with exactly 16 finite entries and identity/translation/scale/Z-rotation helpers. |
+| `transformAlignment` | `AlignmentGeometry?` | Transactional presets or finite physical/directional transform-origin coordinates. |
+| `clipBehavior` | `Clip` | Closed enum; any value other than `none` requires `decoration`. |
+
+The structured decoration union covers a literal or semantic-theme fill,
+physical or directional borders with complete `BorderSide` fields, physical or
+directional elliptical radii, ordered stable-ID shadows, linear/radial/sweep
+gradients with ordered stable-ID theme/literal color stops, every `TileMode`,
+optional `GradientRotation`, background blend mode and rectangle/circle shape.
+It rejects Flutter layout and paint hazards at the model, codec, command,
+generator and runner boundaries: non-negative sizes/insets/radii/shadow blur,
+finite-or-infinite constraint ordering, blend without a fill, radius on a
+circle, unsafe non-uniform border combinations, unordered or duplicate gradient
+stops, invalid sweep angles, a negative focal radius or a nonzero focal radius
+without a focal alignment. The paint-rect-dependent degenerate conical case is
+not guessed from abstract alignments. Changes that must update
+dependent fields use one revision-bound `PatchProperties` command and one
+Undo/Redo unit, so an intermediate invalid graph never reaches persistence.
+
+Top-level `color` and every nested decoration color use the same reviewed
+`material.colorScheme.*` allowlist. Project light, dark and custom themes
+therefore resolve identically in generated Dart and Canvas; explicit literals
+remain local overrides. The native runner builds the real `Container`, keeps
+its IDE-owned layout/selection frame outside the paint transform, draws distinct
+padding and margin guides, and supplies an IDE-only selectable/drop target for
+an empty zero-size container without changing its Flutter layout size.
+`DecorationImage` remains deferred until a shared typed asset identity,
+pubspec/package resolution, Dart asset emission, cache/error behavior and Canvas
+decoder can serve every image-bearing widget; an opaque path, URL or Dart
+expression is not an acceptable shortcut.
+
+These 528 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
 font fallbacks use a dedicated multiline one-family-per-line editor; optional
 booleans use an accessible `<not set>`/checked/unchecked checkbox; integer and
@@ -1247,6 +1311,10 @@ Shadow/OpenType editors with Add/Remove/Up/Down controls. ElevatedButton adds
 strict callback-ID fields and the same typed state-aware color, numeric, enum,
 insets, typography and shape editors. Built-in Icon data uses
 the searchable reviewed Material registry plus an explicit **None** choice.
+Container adds the transactional alignment, constraints, matrix and tabbed
+decoration editors described above; every optional structured editor has an
+explicit inherited/default state, includes an active table cell before OK and
+cannot publish an invalid draft.
 In particular, `aspectRatio > 0`, `maxLines > 0`, `textScalerFactor >= 0`, `styleFontSize >= 0`,
 `strutFontSize > 0` and `strutLeading >= 0`; the remaining admitted Text
 style/strut doubles are finite without inventing undocumented constructor
@@ -1466,8 +1534,8 @@ the runner continues to build with the fixed logical `MediaQuery`. The
 DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
 token to the exact current canonical type and traits for hover filtering;
 negotiating or decoding either capability does not by itself enable Palette
-mutation. `host.render` describes one canonical bounded protocol-v9 model
-frame. The runner decodes only the ten reviewed
+mutation. `host.render` describes one canonical bounded protocol-v10 model
+frame. The runner decodes only the twelve reviewed
 Canvas-capable built-in widget contracts and never loads project code.
 `CATALOG_JSON` remains reserved for a future versioned catalog contract. There
 is no image or pixel-transfer frame kind; the current Windows path renders the
@@ -1498,15 +1566,17 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the eleven exact DnD-capable Palette definitions: `Scaffold`, `AppBar`, `Column`,
-`Row`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Text`, `Icon` and `ElevatedButton`.
-Thirteen any-widget slots admit all eleven sources: `Scaffold.body`, `Scaffold.floatingActionButton`,
+the twelve exact DnD-capable Palette definitions: `Scaffold`, `AppBar`, `Column`,
+`Row`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Text`, `Icon`,
+`ElevatedButton` and `Container`.
+Fourteen any-widget slots admit all twelve sources: `Scaffold.body`, `Scaffold.floatingActionButton`,
 `Column.children`, `Row.children`, `Padding.child`, `Center.child`,
-`SizedBox.child`, `AspectRatio.child`, `ElevatedButton.child`, `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
+`SizedBox.child`, `AspectRatio.child`, `ElevatedButton.child`, `Container.child`,
+`AppBar.leading`, `AppBar.title`, `AppBar.actions` and
 `AppBar.flexibleSpace`. The two trait-bound slots, `Scaffold.appBar` and
 `AppBar.bottom`, admit only AppBar through its canonical
-`PreferredSizeWidget` trait. This yields 165 candidate cells: exactly 145
-admitted and 20 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
+`PreferredSizeWidget` trait. This yields 192 candidate cells: exactly 170
+admitted and 22 rejected. An empty Row, Column or AppBar actions list has no ordering ambiguity, so
 its complete bounded visible design-time rectangle resolves insertion index
 zero; after the first child, only the terminal append zone is exposed.
 The slice does not support an arbitrary list index, a definition without the
@@ -1597,8 +1667,8 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current eleven-definition,
-165-candidate matrix with 145 accepted and 20 rejected cells described above,
+`Center.child[0]`. It is superseded by the current twelve-definition,
+192-candidate matrix with 170 accepted and 22 rejected cells described above,
 whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
@@ -1754,16 +1824,17 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v9 projection intentionally contains exactly the eleven
+The current protocol-v10 projection intentionally contains exactly the twelve
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio` and `ElevatedButton`. It proves native hosting, bounded model publication,
+`Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `ElevatedButton` and
+`Container`. It proves native hosting, bounded model publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the eleven widget types and 515
+Host-side property mutation is admitted only for the twelve widget types and 528
 properties listed above, including the 17-leaf Scaffold, 286-leaf
-ElevatedButton, 120-leaf AppBar, 59-leaf Text and 13-property Icon projections;
-the runner still receives no persistence authority.
+ElevatedButton, 120-leaf AppBar, 59-leaf Text, 13-property Icon and 13-property
+Container projections; the runner still receives no persistence authority.
 
-This eleven-widget slice is complete across create, open, edit, save, reopen,
+This twelve-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
 same-tree move and exact-slot management. Unreviewed widget definitions remain
 fail-closed until each receives an equally complete independently reviewed
@@ -1780,7 +1851,7 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current Windows eleven-widget slice complete] Embed the isolated Flutter runner,
+4. [Current Windows twelve-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with no image-transfer path. The separately compiled browser runner
@@ -1788,21 +1859,22 @@ Implementation proceeds through explicit gates:
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact eleven-item Palette and
-   expose selected-node Properties. Enable catalog-driven Set/Reset for the 515
+   with the Explorer/Nodes widget tree, publish the exact twelve-item Palette and
+   expose selected-node Properties. Enable catalog-driven Set/Reset/Patch for the 528
    reviewed fields, including all 17 Scaffold leaves, all 286 ElevatedButton leaves,
    all 120 reviewed AppBar leaves,
    all 59 reviewed Text leaves, both
    nullable non-negative `SizedBox` dimensions, the required positive
-   `AspectRatio.aspectRatio` value and all 13 typed Icon constructor properties,
-   through one-shot revision-bound pair-save.
+   `AspectRatio.aspectRatio` value, all 13 typed Icon constructor properties and
+   all 13 typed Container constructor properties, through one-shot
+   revision-bound pair-save.
 6. [Complete; historical Text-only slice superseded] Implement the Windows
    native OLE Palette drag → Flutter hit-test and two-phase prepare/commit →
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the eleven-source, 165-candidate
-   compatibility matrix with 145 accepted and 20 rejected cells. Its live
+   `Center.child[0]`; the current contract is the twelve-source, 192-candidate
+   compatibility matrix with 170 accepted and 22 rejected cells. Its live
    assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
    Undo → Save cycle.
@@ -1858,17 +1930,18 @@ infrastructure.
 2. Structured property-editor/model contracts for contributed widgets and the
    remaining unreviewed Flutter graphs/callback shapes, plus localized
    presentation. Strict callback identifiers are implemented for Scaffold and
-   ElevatedButton. The catalog-driven provider for the current eleven-widget
+   ElevatedButton. The catalog-driven provider for the current twelve-widget
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
-   state composites, AppBar composites, Text
-   composites, a closed Paint subset,
-   shadows, font features, font variations, IconData and semantic theme roles; built-in
+   state composites, AppBar composites, Text composites, a closed Paint subset,
+   shadows, font features, font variations, IconData, semantic theme roles and
+   Container's structured AlignmentGeometry/BoxConstraints/Matrix4/image-free
+   BoxDecoration graphs; built-in
    domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
-   intent validation required by ADR-021. The bounded protocol-v9 capability-gated model payload,
+   intent validation required by ADR-021. The bounded protocol-v10 capability-gated model payload,
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Windows inline Text product
    slice is also implemented under ADR-036, while physical CJK IME acceptance

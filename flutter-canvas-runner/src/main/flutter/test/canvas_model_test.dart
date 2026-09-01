@@ -521,6 +521,289 @@ void main() {
     );
   });
 
+  test('decodes the complete strict Container contract and nested unions', () {
+    final child = _node(
+      'e1c67a19-d25c-4675-92c4-cab1772bf571',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Container child'},
+      },
+    );
+    final properties = <String, Object?>{
+      'alignment': _canvasAlignment(
+        basis: 'directional',
+        horizontal: -0.5,
+        vertical: 0.25,
+      ),
+      'padding': {
+        'kind': 'edgeInsetsDirectional',
+        'start': 12,
+        'top': 8,
+        'end': 16,
+        'bottom': 10,
+      },
+      'isAntiAlias': {'kind': 'boolean', 'value': false},
+      'decoration': _canvasBoxDecoration(
+        color: _canvasThemeColor('material.colorScheme.primaryContainer'),
+        border: _canvasPhysicalBorder(),
+        borderRadius: _canvasPhysicalRadius(),
+        boxShadow: [_canvasBoxShadow()],
+        gradient: _canvasLinearGradient(),
+        backgroundBlendMode: 'multiply',
+      ),
+      'foregroundDecoration': _canvasBoxDecoration(
+        border: _canvasDirectionalBorder(),
+        gradient: _canvasRadialGradient(),
+      ),
+      'width': {'kind': 'integer', 'value': 160},
+      'height': {'kind': 'double', 'value': 80.5},
+      'constraints': {
+        'kind': 'boxConstraints',
+        'minWidth': 100,
+        'maxWidth': 200,
+        'minHeight': 40,
+        'maxHeight': null,
+      },
+      'margin': {
+        'kind': 'edgeInsets',
+        'left': 4,
+        'top': 2,
+        'right': 6,
+        'bottom': 8,
+      },
+      'transform': {
+        'kind': 'matrix4',
+        'storage': <Object?>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 14, -6, 0, 1],
+      },
+      'transformAlignment': _canvasAlignment(
+        basis: 'physical',
+        horizontal: 1,
+        vertical: -1,
+      ),
+      'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'hardEdge'},
+    };
+    final decoded = _decode(
+      _containerModel(properties: properties, child: child),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.Container');
+    expect(decoded.properties, hasLength(12));
+    final alignment =
+        decoded.properties['alignment']!.value as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, -0.5);
+    expect(alignment.vertical, 0.25);
+    final constraints =
+        decoded.properties['constraints']!.value as CanvasBoxConstraintsValue;
+    expect(constraints.minWidth, 100);
+    expect(constraints.maxWidth, 200);
+    expect(constraints.minHeight, 40);
+    expect(constraints.maxHeight, isNull);
+    final matrix = decoded.properties['transform']!.value as CanvasMatrix4Value;
+    expect(matrix.storage, hasLength(16));
+    expect(matrix.storage[12], 14);
+    expect(matrix.storage[13], -6);
+    final decoration =
+        decoded.properties['decoration']!.value as CanvasBoxDecorationValue;
+    expect(decoration.color, isA<CanvasThemeColor>());
+    expect(decoration.border, isA<CanvasPhysicalBoxBorderValue>());
+    expect(decoration.borderRadius, isA<CanvasPhysicalBorderRadiusValue>());
+    expect(decoration.boxShadow.single.blurStyle, 'outer');
+    expect(decoration.gradient, isA<CanvasLinearGradientValue>());
+    expect(decoration.backgroundBlendMode, 'multiply');
+    final foreground =
+        decoded.properties['foregroundDecoration']!.value
+            as CanvasBoxDecorationValue;
+    expect(foreground.border, isA<CanvasDirectionalBoxBorderValue>());
+    expect(foreground.gradient, isA<CanvasRadialGradientValue>());
+    expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final literal = _decode(
+      _containerModel(
+        properties: {
+          'color': {'kind': 'color', 'argb': '0x7F123456'},
+        },
+      ),
+    ).root;
+    expect(literal.properties['color']!.value, 0x7f123456);
+  });
+
+  test('decodes every reviewed Container gradient and directional union', () {
+    for (final gradient in <Map<String, Object?>>[
+      _canvasLinearGradient(),
+      _canvasRadialGradient(),
+      _canvasRadialGradient(radius: 0),
+      _canvasSweepGradient(),
+    ]) {
+      final decoded = _decode(
+        _containerModel(
+          properties: {
+            'decoration': _canvasBoxDecoration(
+              border: _canvasDirectionalBorder(),
+              borderRadius: _canvasDirectionalRadius(),
+              gradient: gradient,
+            ),
+          },
+        ),
+      ).root;
+      final value =
+          decoded.properties['decoration']!.value as CanvasBoxDecorationValue;
+      expect(value.border, isA<CanvasDirectionalBoxBorderValue>());
+      expect(value.borderRadius, isA<CanvasDirectionalBorderRadiusValue>());
+      expect(value.gradient, switch (gradient['kind']) {
+        'linear' => isA<CanvasLinearGradientValue>(),
+        'radial' => isA<CanvasRadialGradientValue>(),
+        _ => isA<CanvasSweepGradientValue>(),
+      });
+    }
+  });
+
+  test('rejects unsafe or non-canonical Container structured values', () {
+    void rejects(Map<String, Object?> properties, String reason) {
+      expect(
+        () => _decode(_containerModel(properties: properties)),
+        throwsFormatException,
+        reason: reason,
+      );
+    }
+
+    rejects({
+      'alignment': _canvasAlignment(basis: 'absolute'),
+    }, 'unknown alignment basis');
+    rejects({
+      'constraints': {
+        'kind': 'boxConstraints',
+        'minWidth': 10,
+        'maxWidth': 9,
+        'minHeight': 0,
+        'maxHeight': null,
+      },
+    }, 'maximum below minimum');
+    rejects({
+      'transform': {'kind': 'matrix4', 'storage': List<Object?>.filled(15, 0)},
+    }, 'matrix length');
+    rejects({
+      'padding': {
+        'kind': 'edgeInsets',
+        'left': -1,
+        'top': 0,
+        'right': 0,
+        'bottom': 0,
+      },
+    }, 'negative padding');
+    rejects({
+      'margin': {
+        'kind': 'edgeInsetsDirectional',
+        'start': 0,
+        'top': -1,
+        'end': 0,
+        'bottom': 0,
+      },
+    }, 'negative margin');
+    rejects({
+      'color': {'kind': 'color', 'argb': '0xFF000000'},
+      'decoration': _canvasBoxDecoration(),
+    }, 'color and decoration');
+    rejects({
+      'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+    }, 'clip without decoration');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        borderRadius: _canvasPhysicalRadius(),
+        shape: 'circle',
+      ),
+    }, 'circle radius');
+    rejects({
+      'decoration': _canvasBoxDecoration(backgroundBlendMode: 'multiply'),
+    }, 'blend without color or gradient');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        gradient: _canvasLinearGradient(
+          stops: [
+            _canvasGradientStop('3501a21a-29f2-48e5-9f03-1bf08f93ac00', 0.8),
+            _canvasGradientStop('e2ca03a9-2f55-418b-835f-426766679dc5', 0.2),
+          ],
+        ),
+      ),
+    }, 'decreasing stops');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        gradient: _canvasRadialGradient(focal: null, focalRadius: 0.2),
+      ),
+    }, 'focal radius without focal');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        gradient: _canvasRadialGradient(radius: -0.1),
+      ),
+    }, 'negative radial radius');
+    final concentric = _decode(
+      _containerModel(
+        properties: {
+          'decoration': _canvasBoxDecoration(
+            gradient: _canvasRadialGradient(
+              focal: _canvasNestedAlignment(
+                basis: 'directional',
+                horizontal: 0.25,
+                vertical: 0,
+              ),
+              center: _canvasNestedAlignment(horizontal: -0.25, vertical: 0),
+            ),
+          ),
+        },
+      ),
+    );
+    expect(
+      (concentric.root.properties['decoration']!.value
+              as CanvasBoxDecorationValue)
+          .gradient,
+      isA<CanvasRadialGradientValue>(),
+    );
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        gradient: _canvasSweepGradient(startAngle: 2, endAngle: 1),
+      ),
+    }, 'sweep angle order');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        color: _canvasThemeColor('material.colorScheme.notReviewed'),
+      ),
+    }, 'unknown theme token');
+    rejects({
+      'decoration': _canvasBoxDecoration(
+        border: _canvasPhysicalBorder(
+          left: _canvasBorderSide(
+            color: _canvasLiteralColor('0xFF445566'),
+            strokeAlign: 0,
+          ),
+        ),
+      ),
+    }, 'unsafe nonuniform rectangular border');
+  });
+
+  test('Container reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Container\n');
+    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final slice = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(slice), hasLength(13));
+    expect(RegExp(r'^S\|', multiLine: true).allMatches(slice), hasLength(1));
+    expect(slice, contains('P|alignment|alignmentGeometry|'));
+    expect(slice, contains('P|constraints|boxConstraints|'));
+    expect(slice, contains('P|transform|matrix4|'));
+    expect(slice, contains('P|decoration|boxDecoration|'));
+    expect(slice, contains('P|foregroundDecoration|boxDecoration|'));
+    expect(
+      slice,
+      contains(
+        'P|margin|edgeInsets,edgeInsetsDirectional|0|-|'
+        'edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|',
+      ),
+    );
+    expect(slice, contains('S|child|single|0|0|1|any\n'));
+  });
+
   test('decodes strict nullable SizedBox dimensions and its single child', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},
@@ -1493,7 +1776,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 4;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 9;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -2579,6 +2862,203 @@ Map<String, Object?> _elevatedButtonStatePropertiesForViewTest(
   };
 }
 
+Map<String, Object?> _containerModel({
+  required Map<String, Object?> properties,
+  Map<String, Object?>? child,
+}) {
+  final model = _modelJson();
+  model['root'] = _node(
+    '97c8e20f-d895-42d0-a968-dc8cc0306327',
+    'flutter.widgets.Container',
+    properties: properties,
+    slots: {'child': _single(child)},
+  );
+  return model;
+}
+
+Map<String, Object?> _canvasAlignment({
+  String basis = 'physical',
+  num horizontal = 0,
+  num vertical = 0,
+}) => {
+  'kind': 'alignmentGeometry',
+  ..._canvasNestedAlignment(
+    basis: basis,
+    horizontal: horizontal,
+    vertical: vertical,
+  ),
+};
+
+Map<String, Object?> _canvasNestedAlignment({
+  String basis = 'physical',
+  num horizontal = 0,
+  num vertical = 0,
+}) => {'basis': basis, 'horizontal': horizontal, 'vertical': vertical};
+
+Map<String, Object?> _canvasLiteralColor([String argb = '0xFF112233']) => {
+  'kind': 'literal',
+  'argb': argb,
+};
+
+Map<String, Object?> _canvasThemeColor(String token) => {
+  'kind': 'theme',
+  'token': token,
+};
+
+Map<String, Object?> _canvasBorderSide({
+  Map<String, Object?>? color,
+  num width = 2,
+  String style = 'solid',
+  num strokeAlign = -1,
+}) => {
+  'color': color ?? _canvasLiteralColor(),
+  'width': width,
+  'style': style,
+  'strokeAlign': strokeAlign,
+};
+
+Map<String, Object?> _canvasPhysicalBorder({
+  Map<String, Object?>? top,
+  Map<String, Object?>? right,
+  Map<String, Object?>? bottom,
+  Map<String, Object?>? left,
+}) {
+  final common = _canvasBorderSide();
+  return {
+    'kind': 'physical',
+    'top': top ?? Map<String, Object?>.from(common),
+    'right': right ?? Map<String, Object?>.from(common),
+    'bottom': bottom ?? Map<String, Object?>.from(common),
+    'left': left ?? Map<String, Object?>.from(common),
+  };
+}
+
+Map<String, Object?> _canvasDirectionalBorder() {
+  final common = _canvasBorderSide(
+    color: _canvasThemeColor('material.colorScheme.outline'),
+    width: 1,
+  );
+  return {
+    'kind': 'directional',
+    'top': Map<String, Object?>.from(common),
+    'start': Map<String, Object?>.from(common),
+    'end': Map<String, Object?>.from(common),
+    'bottom': Map<String, Object?>.from(common),
+  };
+}
+
+Map<String, Object?> _canvasRadius([num x = 8, num y = 6]) => {'x': x, 'y': y};
+
+Map<String, Object?> _canvasPhysicalRadius() => {
+  'kind': 'physical',
+  'topLeft': _canvasRadius(8, 6),
+  'topRight': _canvasRadius(10, 7),
+  'bottomRight': _canvasRadius(12, 8),
+  'bottomLeft': _canvasRadius(14, 9),
+};
+
+Map<String, Object?> _canvasDirectionalRadius() => {
+  'kind': 'directional',
+  'topStart': _canvasRadius(8, 6),
+  'topEnd': _canvasRadius(10, 7),
+  'bottomEnd': _canvasRadius(12, 8),
+  'bottomStart': _canvasRadius(14, 9),
+};
+
+Map<String, Object?> _canvasBoxShadow() => {
+  'id': '7984f84c-7cd3-4404-a030-efc29410a3e8',
+  'color': _canvasThemeColor('material.colorScheme.shadow'),
+  'offsetX': 3,
+  'offsetY': 4,
+  'blurRadius': 5,
+  'spreadRadius': -1,
+  'blurStyle': 'outer',
+};
+
+Map<String, Object?> _canvasGradientStop(String id, num stop) => {
+  'id': id,
+  'color': stop == 0
+      ? _canvasLiteralColor('0xFF102030')
+      : _canvasThemeColor('material.colorScheme.primary'),
+  'stop': stop,
+};
+
+List<Map<String, Object?>> _canvasGradientStops() => [
+  _canvasGradientStop('3501a21a-29f2-48e5-9f03-1bf08f93ac00', 0),
+  _canvasGradientStop('e2ca03a9-2f55-418b-835f-426766679dc5', 1),
+];
+
+Map<String, Object?> _canvasLinearGradient({
+  List<Map<String, Object?>>? stops,
+}) => {
+  'kind': 'linear',
+  'begin': _canvasNestedAlignment(horizontal: -1, vertical: -1),
+  'end': _canvasNestedAlignment(
+    basis: 'directional',
+    horizontal: 1,
+    vertical: 1,
+  ),
+  'stops': stops ?? _canvasGradientStops(),
+  'tileMode': 'mirror',
+  'rotationRadians': 0.25,
+};
+
+Map<String, Object?> _canvasRadialGradient({
+  Map<String, Object?>? center,
+  Map<String, Object?>? focal = const {
+    'basis': 'physical',
+    'horizontal': 0.25,
+    'vertical': -0.25,
+  },
+  num focalRadius = 0.1,
+  num radius = 0.75,
+}) => {
+  'kind': 'radial',
+  'center': center ?? _canvasNestedAlignment(),
+  'radius': radius,
+  'focal': focal,
+  'focalRadius': focalRadius,
+  'stops': _canvasGradientStops(),
+  'tileMode': 'clamp',
+  'rotationRadians': null,
+};
+
+Map<String, Object?> _canvasSweepGradient({
+  num startAngle = 0,
+  num endAngle = 6.28,
+}) => {
+  'kind': 'sweep',
+  'center': _canvasNestedAlignment(
+    basis: 'directional',
+    horizontal: 0.1,
+    vertical: 0.2,
+  ),
+  'startAngle': startAngle,
+  'endAngle': endAngle,
+  'stops': _canvasGradientStops(),
+  'tileMode': 'decal',
+  'rotationRadians': -0.5,
+};
+
+Map<String, Object?> _canvasBoxDecoration({
+  Map<String, Object?>? color,
+  Map<String, Object?>? border,
+  Map<String, Object?>? borderRadius,
+  List<Map<String, Object?>> boxShadow = const [],
+  Map<String, Object?>? gradient,
+  String? backgroundBlendMode,
+  String shape = 'rectangle',
+}) => {
+  'kind': 'boxDecoration',
+  'color': color,
+  'border': border,
+  'borderRadius': borderRadius,
+  'boxShadow': boxShadow,
+  'gradient': gradient,
+  'backgroundBlendMode': backgroundBlendMode,
+  'shape': shape,
+};
+
 Map<String, Object?> _elevatedButtonModel({
   required Map<String, Object?> properties,
   bool withChild = true,
@@ -2619,7 +3099,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 9,
+  'protocolVersion': 10,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

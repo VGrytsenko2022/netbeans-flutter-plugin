@@ -14,7 +14,8 @@ class CatalogSchemaContractTest {
                 "string", "boolean", "integer", "double", "enum", "color",
                 "edgeInsets", "asset", "callback", "dartExpression", "iconData",
                 "themeToken",
-                "paint", "shadowList", "fontFeatureList", "fontVariationList"),
+                "paint", "shadowList", "fontFeatureList", "fontVariationList",
+                "alignmentGeometry", "boxConstraints", "matrix4", "boxDecoration"),
                 List.of(PropertyValueKind.values()).stream().map(PropertyValueKind::wireName).toList());
     }
 

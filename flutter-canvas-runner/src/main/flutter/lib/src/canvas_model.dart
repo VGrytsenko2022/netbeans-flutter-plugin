@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 9;
+const canvasModelProtocolVersion = 10;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -1052,6 +1052,20 @@ class CanvasValue {
         return CanvasValue(kind as String, _decodeFontFeatures(object, path));
       case 'fontVariationList':
         return CanvasValue(kind as String, _decodeFontVariations(object, path));
+      case 'alignmentGeometry':
+        return CanvasValue(
+          kind as String,
+          _decodeAlignmentGeometry(object, path),
+        );
+      case 'boxConstraints':
+        return CanvasValue(kind as String, _decodeBoxConstraints(object, path));
+      case 'matrix4':
+        return CanvasValue(kind as String, _decodeMatrix4(object, path));
+      case 'boxDecoration':
+        return CanvasValue(
+          kind as String,
+          _decodeBoxDecoration(object, spec, path),
+        );
       default:
         throw FormatException('Unsupported Canvas property kind at $path.');
     }
@@ -1215,6 +1229,259 @@ class CanvasFontVariationValue {
   final String id;
   final String axis;
   final double value;
+}
+
+class CanvasAlignmentGeometryValue {
+  const CanvasAlignmentGeometryValue({
+    required this.basis,
+    required this.horizontal,
+    required this.vertical,
+  });
+
+  final String basis;
+  final double horizontal;
+  final double vertical;
+}
+
+class CanvasBoxConstraintsValue {
+  const CanvasBoxConstraintsValue({
+    required this.minWidth,
+    required this.maxWidth,
+    required this.minHeight,
+    required this.maxHeight,
+  });
+
+  final double minWidth;
+  final double? maxWidth;
+  final double minHeight;
+  final double? maxHeight;
+}
+
+class CanvasMatrix4Value {
+  const CanvasMatrix4Value(this.storage);
+
+  final List<double> storage;
+}
+
+class CanvasBoxDecorationValue {
+  const CanvasBoxDecorationValue({
+    required this.color,
+    required this.border,
+    required this.borderRadius,
+    required this.boxShadow,
+    required this.gradient,
+    required this.backgroundBlendMode,
+    required this.shape,
+  });
+
+  final CanvasColorSource? color;
+  final CanvasBoxBorderValue? border;
+  final CanvasBorderRadiusGeometryValue? borderRadius;
+  final List<CanvasBoxShadowValue> boxShadow;
+  final CanvasBoxGradientValue? gradient;
+  final String? backgroundBlendMode;
+  final String shape;
+}
+
+sealed class CanvasBoxBorderValue {
+  const CanvasBoxBorderValue();
+
+  List<CanvasBorderSideValue> get sides;
+}
+
+class CanvasPhysicalBoxBorderValue extends CanvasBoxBorderValue {
+  const CanvasPhysicalBoxBorderValue({
+    required this.top,
+    required this.right,
+    required this.bottom,
+    required this.left,
+  });
+
+  final CanvasBorderSideValue top;
+  final CanvasBorderSideValue right;
+  final CanvasBorderSideValue bottom;
+  final CanvasBorderSideValue left;
+
+  @override
+  List<CanvasBorderSideValue> get sides => [top, right, bottom, left];
+}
+
+class CanvasDirectionalBoxBorderValue extends CanvasBoxBorderValue {
+  const CanvasDirectionalBoxBorderValue({
+    required this.top,
+    required this.start,
+    required this.end,
+    required this.bottom,
+  });
+
+  final CanvasBorderSideValue top;
+  final CanvasBorderSideValue start;
+  final CanvasBorderSideValue end;
+  final CanvasBorderSideValue bottom;
+
+  @override
+  List<CanvasBorderSideValue> get sides => [top, start, end, bottom];
+}
+
+class CanvasBorderSideValue {
+  const CanvasBorderSideValue({
+    required this.color,
+    required this.width,
+    required this.style,
+    required this.strokeAlign,
+  });
+
+  final CanvasColorSource color;
+  final double width;
+  final String style;
+  final double strokeAlign;
+}
+
+sealed class CanvasBorderRadiusGeometryValue {
+  const CanvasBorderRadiusGeometryValue();
+
+  List<CanvasRadiusValue> get radii;
+}
+
+class CanvasPhysicalBorderRadiusValue extends CanvasBorderRadiusGeometryValue {
+  const CanvasPhysicalBorderRadiusValue({
+    required this.topLeft,
+    required this.topRight,
+    required this.bottomRight,
+    required this.bottomLeft,
+  });
+
+  final CanvasRadiusValue topLeft;
+  final CanvasRadiusValue topRight;
+  final CanvasRadiusValue bottomRight;
+  final CanvasRadiusValue bottomLeft;
+
+  @override
+  List<CanvasRadiusValue> get radii => [
+    topLeft,
+    topRight,
+    bottomRight,
+    bottomLeft,
+  ];
+}
+
+class CanvasDirectionalBorderRadiusValue
+    extends CanvasBorderRadiusGeometryValue {
+  const CanvasDirectionalBorderRadiusValue({
+    required this.topStart,
+    required this.topEnd,
+    required this.bottomEnd,
+    required this.bottomStart,
+  });
+
+  final CanvasRadiusValue topStart;
+  final CanvasRadiusValue topEnd;
+  final CanvasRadiusValue bottomEnd;
+  final CanvasRadiusValue bottomStart;
+
+  @override
+  List<CanvasRadiusValue> get radii => [
+    topStart,
+    topEnd,
+    bottomEnd,
+    bottomStart,
+  ];
+}
+
+class CanvasRadiusValue {
+  const CanvasRadiusValue(this.x, this.y);
+
+  final double x;
+  final double y;
+}
+
+class CanvasBoxShadowValue {
+  const CanvasBoxShadowValue({
+    required this.id,
+    required this.color,
+    required this.offsetX,
+    required this.offsetY,
+    required this.blurRadius,
+    required this.spreadRadius,
+    required this.blurStyle,
+  });
+
+  final String id;
+  final CanvasColorSource color;
+  final double offsetX;
+  final double offsetY;
+  final double blurRadius;
+  final double spreadRadius;
+  final String blurStyle;
+}
+
+sealed class CanvasBoxGradientValue {
+  const CanvasBoxGradientValue({
+    required this.stops,
+    required this.tileMode,
+    required this.rotationRadians,
+  });
+
+  final List<CanvasGradientStopValue> stops;
+  final String tileMode;
+  final double? rotationRadians;
+}
+
+class CanvasLinearGradientValue extends CanvasBoxGradientValue {
+  const CanvasLinearGradientValue({
+    required this.begin,
+    required this.end,
+    required super.stops,
+    required super.tileMode,
+    required super.rotationRadians,
+  });
+
+  final CanvasAlignmentGeometryValue begin;
+  final CanvasAlignmentGeometryValue end;
+}
+
+class CanvasRadialGradientValue extends CanvasBoxGradientValue {
+  const CanvasRadialGradientValue({
+    required this.center,
+    required this.radius,
+    required this.focal,
+    required this.focalRadius,
+    required super.stops,
+    required super.tileMode,
+    required super.rotationRadians,
+  });
+
+  final CanvasAlignmentGeometryValue center;
+  final double radius;
+  final CanvasAlignmentGeometryValue? focal;
+  final double focalRadius;
+}
+
+class CanvasSweepGradientValue extends CanvasBoxGradientValue {
+  const CanvasSweepGradientValue({
+    required this.center,
+    required this.startAngle,
+    required this.endAngle,
+    required super.stops,
+    required super.tileMode,
+    required super.rotationRadians,
+  });
+
+  final CanvasAlignmentGeometryValue center;
+  final double startAngle;
+  final double endAngle;
+}
+
+class CanvasGradientStopValue {
+  const CanvasGradientStopValue({
+    required this.id,
+    required this.color,
+    required this.stop,
+  });
+
+  final String id;
+  final CanvasColorSource color;
+  final double stop;
 }
 
 CanvasIconDataValue _decodeIconData(Map<String, Object?> object, String path) {
@@ -1597,6 +1864,517 @@ CanvasColorSource _decodeColorSource(Object? value, String path) {
   return CanvasThemeColor(CanvasThemeToken(token));
 }
 
+CanvasAlignmentGeometryValue _decodeAlignmentGeometry(
+  Map<String, Object?> object,
+  String path,
+) {
+  _exactKeys(object, path, const {'kind', 'basis', 'horizontal', 'vertical'});
+  return _decodeAlignmentGeometryFields(object, path);
+}
+
+CanvasAlignmentGeometryValue _decodeNestedAlignmentGeometry(
+  Object? value,
+  String path,
+) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {'basis', 'horizontal', 'vertical'});
+  return _decodeAlignmentGeometryFields(object, path);
+}
+
+CanvasAlignmentGeometryValue _decodeAlignmentGeometryFields(
+  Map<String, Object?> object,
+  String path,
+) => CanvasAlignmentGeometryValue(
+  basis: _exactEnumText(object['basis'], '$path/basis', const {
+    'physical',
+    'directional',
+  }),
+  horizontal: _finiteNumber(object['horizontal'], '$path/horizontal'),
+  vertical: _finiteNumber(object['vertical'], '$path/vertical'),
+);
+
+CanvasBoxConstraintsValue _decodeBoxConstraints(
+  Map<String, Object?> object,
+  String path,
+) {
+  _exactKeys(object, path, const {
+    'kind',
+    'minWidth',
+    'maxWidth',
+    'minHeight',
+    'maxHeight',
+  });
+  final minWidth = _finiteNumber(
+    object['minWidth'],
+    '$path/minWidth',
+    minimum: 0,
+  );
+  final maxWidth = object['maxWidth'] == null
+      ? null
+      : _finiteNumber(object['maxWidth'], '$path/maxWidth', minimum: 0);
+  final minHeight = _finiteNumber(
+    object['minHeight'],
+    '$path/minHeight',
+    minimum: 0,
+  );
+  final maxHeight = object['maxHeight'] == null
+      ? null
+      : _finiteNumber(object['maxHeight'], '$path/maxHeight', minimum: 0);
+  _expect(
+    maxWidth == null || maxWidth >= minWidth,
+    'Canvas BoxConstraints maxWidth is less than minWidth: $path',
+  );
+  _expect(
+    maxHeight == null || maxHeight >= minHeight,
+    'Canvas BoxConstraints maxHeight is less than minHeight: $path',
+  );
+  return CanvasBoxConstraintsValue(
+    minWidth: minWidth,
+    maxWidth: maxWidth,
+    minHeight: minHeight,
+    maxHeight: maxHeight,
+  );
+}
+
+CanvasMatrix4Value _decodeMatrix4(Map<String, Object?> object, String path) {
+  _exactKeys(object, path, const {'kind', 'storage'});
+  final rawStorage = object['storage'];
+  _expect(
+    rawStorage is List<Object?>,
+    'Canvas Matrix4 storage must be an array: $path/storage',
+  );
+  final storage = rawStorage! as List<Object?>;
+  _expect(
+    storage.length == 16,
+    'Canvas Matrix4 storage must contain exactly 16 entries: $path/storage',
+  );
+  return CanvasMatrix4Value(
+    List.unmodifiable([
+      for (var index = 0; index < storage.length; index++)
+        _finiteNumber(storage[index], '$path/storage/$index'),
+    ]),
+  );
+}
+
+CanvasBoxDecorationValue _decodeBoxDecoration(
+  Map<String, Object?> object,
+  _PropertySpec spec,
+  String path,
+) {
+  _exactKeys(object, path, const {
+    'kind',
+    'color',
+    'border',
+    'borderRadius',
+    'boxShadow',
+    'gradient',
+    'backgroundBlendMode',
+    'shape',
+  });
+  final color = object['color'] == null
+      ? null
+      : _decodeBoxDecorationColor(object['color'], spec, '$path/color');
+  final border = object['border'] == null
+      ? null
+      : _decodeBoxBorder(object['border'], spec, '$path/border');
+  final borderRadius = object['borderRadius'] == null
+      ? null
+      : _decodeBorderRadius(object['borderRadius'], '$path/borderRadius');
+  final boxShadow = _decodeBoxShadows(
+    object['boxShadow'],
+    spec,
+    '$path/boxShadow',
+  );
+  final gradient = object['gradient'] == null
+      ? null
+      : _decodeBoxGradient(object['gradient'], spec, '$path/gradient');
+  final backgroundBlendMode = object['backgroundBlendMode'] == null
+      ? null
+      : _exactEnumText(
+          object['backgroundBlendMode'],
+          '$path/backgroundBlendMode',
+          _blendModes,
+        );
+  final shape = _exactEnumText(object['shape'], '$path/shape', const {
+    'rectangle',
+    'circle',
+  });
+  _expect(
+    shape != 'circle' || borderRadius == null,
+    'Canvas circular BoxDecoration cannot have a borderRadius: $path',
+  );
+  _expect(
+    backgroundBlendMode == null || color != null || gradient != null,
+    'Canvas BoxDecoration backgroundBlendMode requires color or gradient: '
+    '$path',
+  );
+  _validatePaintSafeBoxBorder(border, borderRadius, shape, path);
+  return CanvasBoxDecorationValue(
+    color: color,
+    border: border,
+    borderRadius: borderRadius,
+    boxShadow: List.unmodifiable(boxShadow),
+    gradient: gradient,
+    backgroundBlendMode: backgroundBlendMode,
+    shape: shape,
+  );
+}
+
+CanvasColorSource _decodeBoxDecorationColor(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final color = _decodeColorSource(value, path);
+  if (color is CanvasThemeColor) {
+    _expect(
+      spec.themeTokens.contains(color.token.wireId),
+      'Canvas BoxDecoration theme token is not allowed: $path/token',
+    );
+  }
+  return color;
+}
+
+CanvasBoxBorderValue _decodeBoxBorder(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final object = _object(value, path);
+  final kind = _exactEnumText(object['kind'], '$path/kind', const {
+    'physical',
+    'directional',
+  });
+  if (kind == 'physical') {
+    _exactKeys(object, path, const {'kind', 'top', 'right', 'bottom', 'left'});
+    return CanvasPhysicalBoxBorderValue(
+      top: _decodeBorderSide(object['top'], spec, '$path/top'),
+      right: _decodeBorderSide(object['right'], spec, '$path/right'),
+      bottom: _decodeBorderSide(object['bottom'], spec, '$path/bottom'),
+      left: _decodeBorderSide(object['left'], spec, '$path/left'),
+    );
+  }
+  _exactKeys(object, path, const {'kind', 'top', 'start', 'end', 'bottom'});
+  return CanvasDirectionalBoxBorderValue(
+    top: _decodeBorderSide(object['top'], spec, '$path/top'),
+    start: _decodeBorderSide(object['start'], spec, '$path/start'),
+    end: _decodeBorderSide(object['end'], spec, '$path/end'),
+    bottom: _decodeBorderSide(object['bottom'], spec, '$path/bottom'),
+  );
+}
+
+CanvasBorderSideValue _decodeBorderSide(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {'color', 'width', 'style', 'strokeAlign'});
+  return CanvasBorderSideValue(
+    color: _decodeBoxDecorationColor(object['color'], spec, '$path/color'),
+    width: _finiteNumber(object['width'], '$path/width', minimum: 0),
+    style: _exactEnumText(object['style'], '$path/style', const {
+      'none',
+      'solid',
+    }),
+    strokeAlign: _finiteNumber(object['strokeAlign'], '$path/strokeAlign'),
+  );
+}
+
+CanvasBorderRadiusGeometryValue _decodeBorderRadius(
+  Object? value,
+  String path,
+) {
+  final object = _object(value, path);
+  final kind = _exactEnumText(object['kind'], '$path/kind', const {
+    'physical',
+    'directional',
+  });
+  if (kind == 'physical') {
+    _exactKeys(object, path, const {
+      'kind',
+      'topLeft',
+      'topRight',
+      'bottomRight',
+      'bottomLeft',
+    });
+    return CanvasPhysicalBorderRadiusValue(
+      topLeft: _decodeRadius(object['topLeft'], '$path/topLeft'),
+      topRight: _decodeRadius(object['topRight'], '$path/topRight'),
+      bottomRight: _decodeRadius(object['bottomRight'], '$path/bottomRight'),
+      bottomLeft: _decodeRadius(object['bottomLeft'], '$path/bottomLeft'),
+    );
+  }
+  _exactKeys(object, path, const {
+    'kind',
+    'topStart',
+    'topEnd',
+    'bottomEnd',
+    'bottomStart',
+  });
+  return CanvasDirectionalBorderRadiusValue(
+    topStart: _decodeRadius(object['topStart'], '$path/topStart'),
+    topEnd: _decodeRadius(object['topEnd'], '$path/topEnd'),
+    bottomEnd: _decodeRadius(object['bottomEnd'], '$path/bottomEnd'),
+    bottomStart: _decodeRadius(object['bottomStart'], '$path/bottomStart'),
+  );
+}
+
+CanvasRadiusValue _decodeRadius(Object? value, String path) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {'x', 'y'});
+  return CanvasRadiusValue(
+    _finiteNumber(object['x'], '$path/x', minimum: 0),
+    _finiteNumber(object['y'], '$path/y', minimum: 0),
+  );
+}
+
+List<CanvasBoxShadowValue> _decodeBoxShadows(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final items = _boundedItems(value, path);
+  final ids = <String>{};
+  return [
+    for (var index = 0; index < items.length; index++)
+      _decodeBoxShadow(items[index], spec, '$path/$index', ids),
+  ];
+}
+
+CanvasBoxShadowValue _decodeBoxShadow(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+  Set<String> ids,
+) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {
+    'id',
+    'color',
+    'offsetX',
+    'offsetY',
+    'blurRadius',
+    'spreadRadius',
+    'blurStyle',
+  });
+  final id = _stableId(object['id'], '$path/id');
+  _expect(ids.add(id), 'Canvas BoxShadow ids must be unique: $path/id');
+  return CanvasBoxShadowValue(
+    id: id,
+    color: _decodeBoxDecorationColor(object['color'], spec, '$path/color'),
+    offsetX: _finiteNumber(object['offsetX'], '$path/offsetX'),
+    offsetY: _finiteNumber(object['offsetY'], '$path/offsetY'),
+    blurRadius: _finiteNumber(
+      object['blurRadius'],
+      '$path/blurRadius',
+      minimum: 0,
+    ),
+    spreadRadius: _finiteNumber(object['spreadRadius'], '$path/spreadRadius'),
+    blurStyle: _exactEnumText(object['blurStyle'], '$path/blurStyle', const {
+      'normal',
+      'solid',
+      'outer',
+      'inner',
+    }),
+  );
+}
+
+CanvasBoxGradientValue _decodeBoxGradient(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final object = _object(value, path);
+  final kind = _exactEnumText(object['kind'], '$path/kind', const {
+    'linear',
+    'radial',
+    'sweep',
+  });
+  final commonKeys = {'kind', 'stops', 'tileMode', 'rotationRadians'};
+  final stops = _decodeGradientStops(object['stops'], spec, '$path/stops');
+  final tileMode = _exactEnumText(object['tileMode'], '$path/tileMode', const {
+    'clamp',
+    'repeated',
+    'mirror',
+    'decal',
+  });
+  final rotationRadians = object['rotationRadians'] == null
+      ? null
+      : _finiteNumber(object['rotationRadians'], '$path/rotationRadians');
+  if (kind == 'linear') {
+    _exactKeys(object, path, {...commonKeys, 'begin', 'end'});
+    return CanvasLinearGradientValue(
+      begin: _decodeNestedAlignmentGeometry(object['begin'], '$path/begin'),
+      end: _decodeNestedAlignmentGeometry(object['end'], '$path/end'),
+      stops: List.unmodifiable(stops),
+      tileMode: tileMode,
+      rotationRadians: rotationRadians,
+    );
+  }
+  if (kind == 'radial') {
+    _exactKeys(object, path, {
+      ...commonKeys,
+      'center',
+      'radius',
+      'focal',
+      'focalRadius',
+    });
+    final center = _decodeNestedAlignmentGeometry(
+      object['center'],
+      '$path/center',
+    );
+    final focal = object['focal'] == null
+        ? null
+        : _decodeNestedAlignmentGeometry(object['focal'], '$path/focal');
+    final focalRadius = _finiteNumber(
+      object['focalRadius'],
+      '$path/focalRadius',
+      minimum: 0,
+    );
+    _expect(
+      focal != null || focalRadius == 0,
+      'Canvas RadialGradient focalRadius requires focal: $path',
+    );
+    return CanvasRadialGradientValue(
+      center: center,
+      radius: _finiteNumber(object['radius'], '$path/radius', minimum: 0),
+      focal: focal,
+      focalRadius: focalRadius,
+      stops: List.unmodifiable(stops),
+      tileMode: tileMode,
+      rotationRadians: rotationRadians,
+    );
+  }
+  _exactKeys(object, path, {...commonKeys, 'center', 'startAngle', 'endAngle'});
+  final startAngle = _finiteNumber(object['startAngle'], '$path/startAngle');
+  final endAngle = _finiteNumber(object['endAngle'], '$path/endAngle');
+  _expect(
+    startAngle < endAngle,
+    'Canvas SweepGradient startAngle must be less than endAngle: $path',
+  );
+  return CanvasSweepGradientValue(
+    center: _decodeNestedAlignmentGeometry(object['center'], '$path/center'),
+    startAngle: startAngle,
+    endAngle: endAngle,
+    stops: List.unmodifiable(stops),
+    tileMode: tileMode,
+    rotationRadians: rotationRadians,
+  );
+}
+
+List<CanvasGradientStopValue> _decodeGradientStops(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final items = _boundedItems(value, path);
+  _expect(
+    items.length >= 2,
+    'Canvas gradient must contain at least two stops: $path',
+  );
+  final ids = <String>{};
+  final result = <CanvasGradientStopValue>[];
+  double? previous;
+  for (var index = 0; index < items.length; index++) {
+    final itemPath = '$path/$index';
+    final object = _object(items[index], itemPath);
+    _exactKeys(object, itemPath, const {'id', 'color', 'stop'});
+    final id = _stableId(object['id'], '$itemPath/id');
+    _expect(
+      ids.add(id),
+      'Canvas gradient-stop ids must be unique: $itemPath/id',
+    );
+    final stop = _finiteNumber(
+      object['stop'],
+      '$itemPath/stop',
+      minimum: 0,
+      maximum: 1,
+    );
+    _expect(
+      previous == null || stop >= previous,
+      'Canvas gradient stops must be non-decreasing: $itemPath/stop',
+    );
+    previous = stop;
+    result.add(
+      CanvasGradientStopValue(
+        id: id,
+        color: _decodeBoxDecorationColor(
+          object['color'],
+          spec,
+          '$itemPath/color',
+        ),
+        stop: stop,
+      ),
+    );
+  }
+  return result;
+}
+
+void _validatePaintSafeBoxBorder(
+  CanvasBoxBorderValue? border,
+  CanvasBorderRadiusGeometryValue? borderRadius,
+  String shape,
+  String path,
+) {
+  if (border == null) {
+    return;
+  }
+  final sides = border.sides;
+  final first = sides.first;
+  if (sides.every((side) => _sameBorderSide(side, first)) ||
+      sides.every((side) => side.style == 'none')) {
+    return;
+  }
+  final nonZeroRadius =
+      borderRadius?.radii.any((radius) => radius.x != 0 || radius.y != 0) ??
+      false;
+  final visible = <CanvasBorderSideValue>[
+    for (final side in border.sides)
+      if (side.style != 'none') side,
+  ];
+  final oneVisibleColor =
+      visible.isNotEmpty &&
+      visible.every(
+        (side) => _sameColorSource(side.color, visible.first.color),
+      );
+  final hasHairline = visible.any((side) => side.width == 0);
+  if (oneVisibleColor && !hasHairline && (shape == 'circle' || nonZeroRadius)) {
+    return;
+  }
+  _expect(
+    shape == 'rectangle' && !nonZeroRadius,
+    'Canvas non-uniform border requires uniform visible colors and '
+    'non-hairline sides for circles or rounded rectangles: $path/border',
+  );
+  _expect(
+    sides.every((side) => side.strokeAlign == -1),
+    'Canvas non-uniform rectangular border requires strokeAlign -1 on every '
+    'side: $path/border',
+  );
+}
+
+bool _sameBorderSide(CanvasBorderSideValue left, CanvasBorderSideValue right) =>
+    _sameColorSource(left.color, right.color) &&
+    left.width == right.width &&
+    left.style == right.style &&
+    left.strokeAlign == right.strokeAlign;
+
+bool _sameColorSource(CanvasColorSource left, CanvasColorSource right) =>
+    switch ((left, right)) {
+      (
+        CanvasLiteralColor(:final argb),
+        CanvasLiteralColor(argb: final other),
+      ) =>
+        argb == other,
+      (
+        CanvasThemeColor(token: final token),
+        CanvasThemeColor(token: final other),
+      ) =>
+        token.wireId == other.wireId,
+      _ => false,
+    };
+
 List<Object?> _boundedItems(Object? value, String path) {
   _expect(
     value is List<Object?>,
@@ -1855,7 +2633,6 @@ const _nonNegativeEdgeInsetsBounds = <String, _NumericBounds>{
   'edgeInsets': _NumericBounds(minimum: 0),
   'edgeInsetsDirectional': _NumericBounds(minimum: 0),
 };
-
 const _widgetsLibraryUri = 'package:flutter/widgets.dart';
 const _materialLibraryUri = 'package:flutter/material.dart';
 
@@ -2477,6 +3254,42 @@ final _widgetSpecifications = <String, _WidgetSpec>{
         'integer',
         'double',
       }, numericBounds: _nonNegativeNumberBounds),
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.Container': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'padding': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
+      'color': _themeAwareColorProperty,
+      'isAntiAlias': _PropertySpec({'boolean'}),
+      'decoration': _PropertySpec({
+        'boxDecoration',
+      }, themeTokens: canvasColorSchemeThemeTokens),
+      'foregroundDecoration': _PropertySpec({
+        'boxDecoration',
+      }, themeTokens: canvasColorSchemeThemeTokens),
+      'width': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'height': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'constraints': _PropertySpec({'boxConstraints'}),
+      'margin': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
+      'transform': _PropertySpec({'matrix4'}),
+      'transformAlignment': _PropertySpec({'alignmentGeometry'}),
+      'clipBehavior': _clipBehaviorProperty,
     },
     {'child': _optionalSingleSlot},
   ),
@@ -3125,6 +3938,21 @@ P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextB
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
 S|children|list|0|0|10000|any
+W|flutter.widgets.Container
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|constraints|boxConstraints|0|-|-|boxConstraints:boxConstraints
+P|decoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|foregroundDecoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|isAntiAlias|boolean|0|-|-|boolean:any
+P|margin|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|transform|matrix4|0|-|-|matrix4:matrix4
+P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1|any
 W|flutter.widgets.Icon
 P|applyTextScaling|boolean|0|-|-|boolean:any
 P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
@@ -3318,6 +4146,16 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   if (kind == 'fontVariationList') {
     return 'fontVariationList';
   }
+  if (kind == 'alignmentGeometry' ||
+      kind == 'boxConstraints' ||
+      kind == 'matrix4') {
+    return kind;
+  }
+  if (kind == 'boxDecoration') {
+    final tokens = spec.themeTokens.toList()..sort();
+    _expect(tokens.isNotEmpty, 'Canvas BoxDecoration token schema is empty.');
+    return 'boxDecoration:${tokens.join(',')}';
+  }
   if (kind == 'callback') {
     return 'callbackReference';
   }
@@ -3372,6 +4210,24 @@ void _validatePropertyRelationships(
 
   if (type == 'flutter.material.ElevatedButton') {
     _validateElevatedButtonRelationships(properties, path);
+    return;
+  }
+
+  if (type == 'flutter.widgets.Container') {
+    _expect(
+      !(properties.containsKey('color') &&
+          properties.containsKey('decoration')),
+      'Canvas Container color and decoration are mutually exclusive: '
+      '$path/properties',
+    );
+    final clip = properties['clipBehavior']?.value;
+    _expect(
+      clip is! CanvasEnumValue ||
+          clip.value == 'none' ||
+          properties.containsKey('decoration'),
+      'Canvas Container non-none clipBehavior requires decoration: '
+      '$path/properties/clipBehavior',
+    );
     return;
   }
 

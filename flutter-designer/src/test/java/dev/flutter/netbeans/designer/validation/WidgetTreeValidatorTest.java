@@ -424,6 +424,80 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void containerEnforcesBackgroundAndClipRelationshipsAfterNestedValidation() {
+        PropertyValue.BoxDecorationValue decoration = boxDecoration(
+                new ColorSource.Literal(0xFF102030L));
+        WidgetNode conflicting = node(
+                "container-conflict", "flutter.widgets.Container",
+                Map.of(
+                        name("color"), new PropertyValue.ColorValue(0xFF000000L),
+                        name("decoration"), decoration),
+                Map.of());
+        ValidationIssue conflict = onlyIssue(
+                validator().validate(
+                        document(conflicting), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/decoration", conflict.path());
+
+        WidgetNode missingDecoration = node(
+                "container-clip", "flutter.widgets.Container",
+                Map.of(name("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of());
+        ValidationIssue dependency = onlyIssue(
+                validator().validate(
+                        document(missingDecoration), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_DEPENDENCY);
+        assertEquals("/root/properties/clipBehavior", dependency.path());
+
+        WidgetNode foregroundOnly = node(
+                "container-foreground", "flutter.widgets.Container",
+                Map.of(
+                        name("foregroundDecoration"), decoration,
+                        name("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "antiAlias")),
+                Map.of());
+        assertEquals(WidgetTreeValidator.PROPERTY_DEPENDENCY,
+                onlyIssue(
+                        validator().validate(
+                                document(foregroundOnly),
+                                BuiltInWidgetCatalog.getDefault()),
+                        WidgetTreeValidator.PROPERTY_DEPENDENCY).code());
+
+        WidgetNode valid = node(
+                "container-valid", "flutter.widgets.Container",
+                Map.of(
+                        name("decoration"), decoration,
+                        name("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "antiAlias")),
+                Map.of());
+        ValidationResult accepted = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(accepted.valid(), () -> "Issues were: " + accepted.issues());
+
+        WidgetNode nestedUnreviewedTheme = node(
+                "container-theme", "flutter.widgets.Container",
+                Map.of(name("decoration"), boxDecoration(
+                        new ColorSource.Theme(new dev.flutter.netbeans.designer.model.ThemeToken(
+                                "material.colorScheme.notReviewed")))),
+                Map.of());
+        ValidationIssue nested = onlyIssue(
+                validator().validate(
+                        document(nestedUnreviewedTheme),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/decoration", nested.path());
+    }
+
+    private static PropertyValue.BoxDecorationValue boxDecoration(
+            ColorSource color) {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.of(color), Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+    }
+
+    @Test
     void distinguishesOmittedRequiredSlotFromPresentExplicitNull() {
         Map<PropertyName, PropertyValue> properties = Map.of(
                 name("enabled"), new PropertyValue.BooleanValue(false));

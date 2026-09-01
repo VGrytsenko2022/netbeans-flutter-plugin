@@ -151,6 +151,41 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(dark16.paint(), dark32.paint());
     }
 
+    @Test
+    void containerFamilyUsesExactReviewedLayerGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "container.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "path[d=M3 14.5h10.5V4, stroke-linecap=round, stroke-width=1]",
+                "rect[height=12, rx=2, stroke-width=1, width=12, x=1.5, y=1.5]",
+                "rect[height=6, rx=1, stroke-width=1, width=6, x=4.5, y=4.5]",
+                "path[d=M2.5 5V3.5a1 1 0 0 1 1-1H5, stroke-linecap=round, stroke-width=1.2]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "path[d=M6 29h21V8, stroke-linecap=round, stroke-width=2]",
+                "rect[height=24, rx=4, stroke-width=2, width=24, x=3, y=3]",
+                "rect[height=12, rx=2, stroke-width=2, width=12, x=9, y=9]",
+                "path[d=M5 10V7a2 2 0 0 1 2-2h3, stroke-linecap=round, stroke-width=2.4]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "path[fill=none, opacity=.75, stroke=#D97706]",
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#26C6DA]"), light16.paint());
+        assertEquals(List.of(
+                "path[fill=none, opacity=.9, stroke=#FFB74D]",
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#29B6F6]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
     private static SvgResource readSvg(String resource, int expectedSize) throws Exception {
         byte[] bytes = readResource(resource);
         String source = new String(bytes, StandardCharsets.UTF_8);
@@ -305,6 +340,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");
         expected.put("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg");
+        expected.put("flutter.widgets.Container", ICON_ROOT + "container.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

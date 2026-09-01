@@ -60,7 +60,53 @@ public final class PropertyValueFormatter {
                     variations.items().size(), "axis", "axes",
                     variations.items().stream()
                             .map(item -> item.axis() + '=' + number(item.value())).toList());
+            case PropertyValue.AlignmentGeometryValue alignment ->
+                alignment.basis().wireName() + " ("
+                    + number(alignment.horizontal()) + ", "
+                    + number(alignment.vertical()) + ')';
+            case PropertyValue.BoxConstraintsValue constraints ->
+                "w=" + range(constraints.minWidth(), constraints.maxWidth())
+                    + ", h=" + range(constraints.minHeight(), constraints.maxHeight());
+            case PropertyValue.Matrix4Value matrix -> isIdentity(matrix)
+                    ? "Identity matrix"
+                    : "Custom 4×4 matrix";
+            case PropertyValue.BoxDecorationValue decoration ->
+                decoration(decoration);
         };
+    }
+
+    private static String range(
+            BigDecimal minimum, java.util.Optional<BigDecimal> maximum) {
+        return number(minimum) + "…" + maximum.map(PropertyValueFormatter::number)
+                .orElse("∞");
+    }
+
+    private static boolean isIdentity(PropertyValue.Matrix4Value value) {
+        for (int index = 0; index < PropertyValue.Matrix4Value.STORAGE_LENGTH; index++) {
+            BigDecimal expected = index % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO;
+            if (value.storage().get(index).compareTo(expected) != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String decoration(PropertyValue.BoxDecorationValue value) {
+        java.util.ArrayList<String> parts = new java.util.ArrayList<>();
+        parts.add(value.shape().wireName());
+        value.color().ifPresent(item -> parts.add(color(item)));
+        value.gradient().ifPresent(item -> parts.add(switch (item) {
+            case PropertyValue.BoxDecorationValue.LinearGradient ignored -> "linear gradient";
+            case PropertyValue.BoxDecorationValue.RadialGradient ignored -> "radial gradient";
+            case PropertyValue.BoxDecorationValue.SweepGradient ignored -> "sweep gradient";
+        }));
+        value.border().ifPresent(ignored -> parts.add("border"));
+        value.borderRadius().ifPresent(ignored -> parts.add("radius"));
+        if (!value.boxShadow().isEmpty()) {
+            parts.add(value.boxShadow().size() == 1
+                    ? "1 shadow" : value.boxShadow().size() + " shadows");
+        }
+        return "BoxDecoration(" + String.join(", ", parts) + ')';
     }
 
     private static String iconData(PropertyValue.IconDataValue value) {

@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.generation.DartGenerationLimits;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
 import dev.flutter.netbeans.designer.generation.GeneratedDartRegions;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.Extensions;
 import dev.flutter.netbeans.designer.model.ManagedRegion;
@@ -71,6 +72,9 @@ class DesignerCommandSessionTest {
     private static final PropertyName WIDTH = property("width");
     private static final PropertyName HEIGHT = property("height");
     private static final PropertyName ASPECT_RATIO = property("aspectRatio");
+    private static final PropertyName COLOR = property("color");
+    private static final PropertyName DECORATION = property("decoration");
+    private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
 
@@ -296,6 +300,103 @@ class DesignerCommandSessionTest {
         assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
         assertArrayEquals(saved.current().dartCandidateBytes(),
                 reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void patchPropertiesAtomicallyTransitionsContainerBackgroundAndClip()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode container = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Container")).orElseThrow(),
+                WRAPPER_ID);
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), container));
+        DesignerCommandSession colored = applied(added, new SetProperty(
+                WRAPPER_ID, COLOR, new PropertyValue.ColorValue(0xFF102030L)));
+
+        PropertyValue.BoxDecorationValue decoration = simpleDecoration();
+        assertRejectedUnchanged(colored, new SetProperty(
+                WRAPPER_ID, DECORATION, decoration),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        PatchProperties backgroundPatch = new PatchProperties(
+                WRAPPER_ID,
+                List.of(
+                        new PatchProperties.ResetPatch(COLOR),
+                        new PatchProperties.SetPatch(DECORATION, decoration)));
+        DesignerCommandSession decorated = applied(colored, backgroundPatch);
+        WidgetNode decoratedNode = find(
+                decorated.current().document().root(), WRAPPER_ID);
+        assertFalse(decoratedNode.properties().containsKey(COLOR));
+        assertEquals(decoration, decoratedNode.properties().get(DECORATION));
+        assertArrayEquals(colored.current().fdBytes(),
+                decorated.undo().session().current().fdBytes());
+        assertArrayEquals(decorated.current().fdBytes(),
+                decorated.undo().session().redo().session().current().fdBytes());
+
+        DesignerCommandSession clipNone = applied(added, new SetProperty(
+                WRAPPER_ID, CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "none")));
+        assertRejectedUnchanged(clipNone, new SetProperty(
+                WRAPPER_ID, CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "hardEdge")),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+        DesignerCommandSession clipped = applied(clipNone, new PatchProperties(
+                WRAPPER_ID,
+                List.of(
+                        new PatchProperties.SetPatch(
+                                CLIP_BEHAVIOR,
+                                new PropertyValue.EnumValue("Clip", "hardEdge")),
+                        new PatchProperties.SetPatch(DECORATION, decoration))));
+        WidgetNode clippedNode = find(clipped.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.EnumValue("Clip", "hardEdge"),
+                clippedNode.properties().get(CLIP_BEHAVIOR));
+        assertEquals(decoration, clippedNode.properties().get(DECORATION));
+        String dart = new String(
+                clipped.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("decoration: const BoxDecoration("), dart);
+        assertTrue(dart.contains("clipBehavior: Clip.hardEdge"), dart);
+    }
+
+    @Test
+    void patchPropertiesRejectsDuplicateEmptyOrAnyInvalidLeafBeforeMutation()
+            throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> new PatchProperties(WRAPPER_ID, List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PatchProperties(
+                        WRAPPER_ID,
+                        List.of(
+                                new PatchProperties.ResetPatch(COLOR),
+                                new PatchProperties.SetPatch(
+                                        COLOR,
+                                        new PropertyValue.ColorValue(0xFF000000L)))));
+
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode container = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Container")).orElseThrow(),
+                WRAPPER_ID);
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), container));
+        assertRejectedUnchanged(added, new PatchProperties(
+                WRAPPER_ID,
+                List.of(
+                        new PatchProperties.SetPatch(
+                                COLOR, new PropertyValue.ColorValue(0xFF000000L)),
+                        new PatchProperties.SetPatch(
+                                WIDTH, new PropertyValue.StringValue("invalid")))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+    }
+
+    private static PropertyValue.BoxDecorationValue simpleDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.of(new ColorSource.Literal(0xFF405060L)),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     @Test

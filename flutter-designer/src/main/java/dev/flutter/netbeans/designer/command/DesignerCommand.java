@@ -15,7 +15,8 @@ public sealed interface DesignerCommand permits
         ClearSlotChildren,
         WrapWidget,
         SetProperty,
-        ResetProperty {
+        ResetProperty,
+        PatchProperties {
 
     DesignerCommandKind kind();
 }

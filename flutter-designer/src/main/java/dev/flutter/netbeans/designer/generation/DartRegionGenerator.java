@@ -46,6 +46,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /** Pure deterministic generator for versioned .fd managed Dart payloads. */
 public final class DartRegionGenerator {
@@ -317,7 +318,9 @@ public final class DartRegionGenerator {
                         property.parameter(),
                         property.name().value(),
                         false,
-                        renderProperty(value, property, propertyPath, node.id(), context)));
+                        renderProperty(
+                                value, property, propertyPath, node.id(), context,
+                                baseIndent + 2)));
             }
         }
         for (SlotDefinition slot : definition.slots()) {
@@ -3451,6 +3454,419 @@ public final class DartRegionGenerator {
         };
     }
 
+    private RenderedValue renderAlignmentGeometry(
+            PropertyValue.AlignmentGeometryValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        String dartClass = value.basis()
+                == PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL
+                ? "Alignment" : "AlignmentDirectional";
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        String rendered = "const " + symbol.text() + '('
+                + dartDouble(value.horizontal()) + ", "
+                + dartDouble(value.vertical()) + ')';
+        return scalar(rendered, true, path, widgetId, context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":alignment:" + path,
+                        "const ".length() + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path,
+                        Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderBoxConstraints(
+            PropertyValue.BoxConstraintsValue value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        members.add(new CompositeMember("minWidth", 0,
+                scalar(dartDouble(value.minWidth()), true, path + "/minWidth",
+                        widgetId, context)));
+        value.maxWidth().ifPresent(maximum -> members.add(new CompositeMember(
+                "maxWidth", 1,
+                scalar(dartDouble(maximum), true, path + "/maxWidth",
+                        widgetId, context))));
+        members.add(new CompositeMember("minHeight", 2,
+                scalar(dartDouble(value.minHeight()), true, path + "/minHeight",
+                        widgetId, context)));
+        value.maxHeight().ifPresent(maximum -> members.add(new CompositeMember(
+                "maxHeight", 3,
+                scalar(dartDouble(maximum), true, path + "/maxHeight",
+                        widgetId, context))));
+        return renderNamedCompositeMembers(
+                "BoxConstraints", Optional.empty(), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderMatrix4(
+            PropertyValue.Matrix4Value value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Matrix4");
+        String storage = value.storage().stream()
+                .map(DartRegionGenerator::dartDouble)
+                .collect(Collectors.joining(", "));
+        String rendered = symbol.text() + ".fromList(<double>[" + storage + "])";
+        return scalar(rendered, false, path, widgetId, context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":matrix4:" + path,
+                        symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                        path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderBoxDecoration(
+            PropertyValue.BoxDecorationValue value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        value.color().ifPresent(color -> members.add(new CompositeMember(
+                "color", 0,
+                renderColorSource(color, path + "/color", widgetId, context))));
+        value.border().ifPresent(border -> members.add(new CompositeMember(
+                "border", 1,
+                renderBoxBorder(border, valueIndent + 2, path + "/border",
+                        widgetId, context))));
+        value.borderRadius().ifPresent(radius -> members.add(new CompositeMember(
+                "borderRadius", 2,
+                renderBorderRadius(radius, valueIndent + 2,
+                        path + "/borderRadius", widgetId, context))));
+        if (!value.boxShadow().isEmpty()) {
+            members.add(new CompositeMember(
+                    "boxShadow", 3,
+                    renderBoxShadows(value.boxShadow(), valueIndent + 2,
+                            path + "/boxShadow", widgetId, context)));
+        }
+        value.gradient().ifPresent(gradient -> members.add(new CompositeMember(
+                "gradient", 4,
+                renderBoxGradient(gradient, valueIndent + 2,
+                        path + "/gradient", widgetId, context))));
+        value.backgroundBlendMode().ifPresent(blend -> members.add(
+                new CompositeMember(
+                        "backgroundBlendMode", 5,
+                        renderEnumSymbol(
+                                "BlendMode", blend.wireName(), "background-blend-mode",
+                                path + "/backgroundBlendMode", widgetId, context))));
+        members.add(new CompositeMember(
+                "shape", 6,
+                renderEnumSymbol(
+                        "BoxShape", value.shape().wireName(), "box-shape",
+                        path + "/shape", widgetId, context)));
+        return renderNamedCompositeMembers(
+                "BoxDecoration", Optional.empty(), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderBoxBorder(
+            PropertyValue.BoxDecorationValue.BoxBorder value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        String dartClass;
+        if (value instanceof PropertyValue.BoxDecorationValue.PhysicalBorder physical) {
+            dartClass = "Border";
+            members.add(new CompositeMember("top", 0,
+                    renderBorderSide(physical.top(), valueIndent + 2,
+                            path + "/top", widgetId, context)));
+            members.add(new CompositeMember("right", 1,
+                    renderBorderSide(physical.right(), valueIndent + 2,
+                            path + "/right", widgetId, context)));
+            members.add(new CompositeMember("bottom", 2,
+                    renderBorderSide(physical.bottom(), valueIndent + 2,
+                            path + "/bottom", widgetId, context)));
+            members.add(new CompositeMember("left", 3,
+                    renderBorderSide(physical.left(), valueIndent + 2,
+                            path + "/left", widgetId, context)));
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorder directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorder) value;
+            dartClass = "BorderDirectional";
+            members.add(new CompositeMember("top", 0,
+                    renderBorderSide(directional.top(), valueIndent + 2,
+                            path + "/top", widgetId, context)));
+            members.add(new CompositeMember("start", 1,
+                    renderBorderSide(directional.start(), valueIndent + 2,
+                            path + "/start", widgetId, context)));
+            members.add(new CompositeMember("end", 2,
+                    renderBorderSide(directional.end(), valueIndent + 2,
+                            path + "/end", widgetId, context)));
+            members.add(new CompositeMember("bottom", 3,
+                    renderBorderSide(directional.bottom(), valueIndent + 2,
+                            path + "/bottom", widgetId, context)));
+        }
+        return renderNamedCompositeMembers(
+                dartClass, Optional.empty(), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderBorderSide(
+            PropertyValue.BoxDecorationValue.BorderSide value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        return renderNamedCompositeMembers(
+                "BorderSide",
+                Optional.empty(),
+                List.of(
+                        new CompositeMember("color", 0,
+                                renderColorSource(value.color(), path + "/color",
+                                        widgetId, context)),
+                        new CompositeMember("width", 1,
+                                scalar(dartDouble(value.width()), true,
+                                        path + "/width", widgetId, context)),
+                        new CompositeMember("style", 2,
+                                renderEnumSymbol(
+                                        "BorderStyle", value.style().wireName(),
+                                        "border-style", path + "/style",
+                                        widgetId, context)),
+                        new CompositeMember("strokeAlign", 3,
+                                scalar(dartDouble(value.strokeAlign()), true,
+                                        path + "/strokeAlign", widgetId, context))),
+                valueIndent, path, widgetId, context);
+    }
+
+    private RenderedValue renderBorderRadius(
+            PropertyValue.BoxDecorationValue.BorderRadiusGeometry value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        String dartClass;
+        if (value instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius physical) {
+            dartClass = "BorderRadius";
+            members.add(new CompositeMember("topLeft", 0,
+                    renderRadius(physical.topLeft(), path + "/topLeft", widgetId, context)));
+            members.add(new CompositeMember("topRight", 1,
+                    renderRadius(physical.topRight(), path + "/topRight", widgetId, context)));
+            members.add(new CompositeMember("bottomRight", 2,
+                    renderRadius(physical.bottomRight(), path + "/bottomRight", widgetId, context)));
+            members.add(new CompositeMember("bottomLeft", 3,
+                    renderRadius(physical.bottomLeft(), path + "/bottomLeft", widgetId, context)));
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) value;
+            dartClass = "BorderRadiusDirectional";
+            members.add(new CompositeMember("topStart", 0,
+                    renderRadius(directional.topStart(), path + "/topStart", widgetId, context)));
+            members.add(new CompositeMember("topEnd", 1,
+                    renderRadius(directional.topEnd(), path + "/topEnd", widgetId, context)));
+            members.add(new CompositeMember("bottomEnd", 2,
+                    renderRadius(directional.bottomEnd(), path + "/bottomEnd", widgetId, context)));
+            members.add(new CompositeMember("bottomStart", 3,
+                    renderRadius(directional.bottomStart(), path + "/bottomStart", widgetId, context)));
+        }
+        return renderNamedCompositeMembers(
+                dartClass, Optional.of("only"), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderRadius(
+            PropertyValue.BoxDecorationValue.Radius value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        return renderPositionalCompositeValues(
+                "Radius", Optional.of("elliptical"),
+                List.of(
+                        scalar(dartDouble(value.x()), true,
+                                path + "/x", widgetId, context),
+                        scalar(dartDouble(value.y()), true,
+                                path + "/y", widgetId, context)),
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderBoxShadows(
+            List<PropertyValue.BoxDecorationValue.BoxShadow> values,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol type = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "BoxShadow");
+        ArrayList<RenderedValue> rendered = new ArrayList<>();
+        for (int index = 0; index < values.size(); index++) {
+            PropertyValue.BoxDecorationValue.BoxShadow value = values.get(index);
+            String itemPath = path + '/' + index;
+            RenderedValue offset = renderPositionalCompositeValues(
+                    "Offset", Optional.empty(),
+                    List.of(
+                            scalar(dartDouble(value.offsetX()), true,
+                                    itemPath + "/offsetX", widgetId, context),
+                            scalar(dartDouble(value.offsetY()), true,
+                                    itemPath + "/offsetY", widgetId, context)),
+                    itemPath + "/offset", widgetId, context);
+            rendered.add(renderNamedCompositeMembers(
+                    "BoxShadow", Optional.empty(),
+                    List.of(
+                            new CompositeMember("color", 0,
+                                    renderColorSource(value.color(), itemPath + "/color",
+                                            widgetId, context)),
+                            new CompositeMember("offset", 1, offset),
+                            new CompositeMember("blurRadius", 2,
+                                    scalar(dartDouble(value.blurRadius()), true,
+                                            itemPath + "/blurRadius", widgetId, context)),
+                            new CompositeMember("spreadRadius", 3,
+                                    scalar(dartDouble(value.spreadRadius()), true,
+                                            itemPath + "/spreadRadius", widgetId, context)),
+                            new CompositeMember("blurStyle", 4,
+                                    renderEnumSymbol(
+                                            "BlurStyle", value.blurStyle().wireName(),
+                                            "box-shadow-blur-style", itemPath + "/blurStyle",
+                                            widgetId, context))),
+                    valueIndent, itemPath, widgetId, context));
+        }
+        return renderTypedList(
+                type, rendered, "box-shadow", path, widgetId, context);
+    }
+
+    private RenderedValue renderBoxGradient(
+            PropertyValue.BoxDecorationValue.BoxGradient value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        String dartClass;
+        if (value instanceof PropertyValue.BoxDecorationValue.LinearGradient linear) {
+            dartClass = "LinearGradient";
+            members.add(new CompositeMember("begin", 0,
+                    renderAlignmentGeometry(linear.begin(), path + "/begin", widgetId, context)));
+            members.add(new CompositeMember("end", 1,
+                    renderAlignmentGeometry(linear.end(), path + "/end", widgetId, context)));
+            appendGradientCommon(members, 2, linear, path, widgetId, context);
+        } else if (value instanceof PropertyValue.BoxDecorationValue.RadialGradient radial) {
+            dartClass = "RadialGradient";
+            members.add(new CompositeMember("center", 0,
+                    renderAlignmentGeometry(radial.center(), path + "/center", widgetId, context)));
+            members.add(new CompositeMember("radius", 1,
+                    scalar(dartDouble(radial.radius()), true,
+                            path + "/radius", widgetId, context)));
+            appendGradientCommon(members, 2, radial, path, widgetId, context);
+            radial.focal().ifPresent(focal -> members.add(new CompositeMember(
+                    "focal", 6,
+                    renderAlignmentGeometry(focal, path + "/focal", widgetId, context))));
+            members.add(new CompositeMember("focalRadius", 7,
+                    scalar(dartDouble(radial.focalRadius()), true,
+                            path + "/focalRadius", widgetId, context)));
+        } else {
+            PropertyValue.BoxDecorationValue.SweepGradient sweep =
+                    (PropertyValue.BoxDecorationValue.SweepGradient) value;
+            dartClass = "SweepGradient";
+            members.add(new CompositeMember("center", 0,
+                    renderAlignmentGeometry(sweep.center(), path + "/center", widgetId, context)));
+            members.add(new CompositeMember("startAngle", 1,
+                    scalar(dartDouble(sweep.startAngle()), true,
+                            path + "/startAngle", widgetId, context)));
+            members.add(new CompositeMember("endAngle", 2,
+                    scalar(dartDouble(sweep.endAngle()), true,
+                            path + "/endAngle", widgetId, context)));
+            appendGradientCommon(members, 3, sweep, path, widgetId, context);
+        }
+        return renderNamedCompositeMembers(
+                dartClass, Optional.empty(), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private void appendGradientCommon(
+            List<CompositeMember> members,
+            int firstOrder,
+            PropertyValue.BoxDecorationValue.BoxGradient gradient,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol colorType = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Color");
+        ArrayList<RenderedValue> colors = new ArrayList<>();
+        for (int index = 0; index < gradient.stops().size(); index++) {
+            colors.add(renderColorSource(
+                    gradient.stops().get(index).color(),
+                    path + "/stops/" + index + "/color", widgetId, context));
+        }
+        members.add(new CompositeMember(
+                "colors", firstOrder,
+                renderTypedList(colorType, colors, "gradient-color",
+                        path + "/colors", widgetId, context)));
+        String stops = gradient.stops().stream()
+                .map(PropertyValue.BoxDecorationValue.GradientStop::stop)
+                .map(DartRegionGenerator::dartDouble)
+                .collect(Collectors.joining(", "));
+        members.add(new CompositeMember(
+                "stops", firstOrder + 1,
+                scalar("const <double>[" + stops + "]", true,
+                        path + "/stops", widgetId, context)));
+        members.add(new CompositeMember(
+                "tileMode", firstOrder + 2,
+                renderEnumSymbol(
+                        "TileMode", gradient.tileMode().wireName(),
+                        "gradient-tile-mode", path + "/tileMode",
+                        widgetId, context)));
+        gradient.rotationRadians().ifPresent(rotation -> members.add(
+                new CompositeMember(
+                        "transform", firstOrder + 3,
+                        renderPositionalCompositeValues(
+                                "GradientRotation", Optional.empty(),
+                                List.of(scalar(
+                                        dartDouble(rotation), true,
+                                        path + "/rotationRadians", widgetId, context)),
+                                path + "/transform", widgetId, context))));
+    }
+
+    private RenderedValue renderEnumSymbol(
+            String dartType,
+            String value,
+            String occurrenceKind,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartType);
+        String rendered = symbol.text() + '.' + value;
+        return scalar(rendered, true, path, widgetId, context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ':' + occurrenceKind + ':' + path,
+                        symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                        path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderPositionalCompositeValues(
+            String dartClass,
+            Optional<String> namedConstructor,
+            List<RenderedValue> arguments,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        boolean constant = arguments.stream().allMatch(RenderedValue::constant);
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        String constructor = (constant ? "const " : "") + symbol.text()
+                + namedConstructor.map(value -> "." + value).orElse("");
+        StringBuilder rendered = new StringBuilder(constructor).append('(');
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":compound:" + dartClass + ':' + path,
+                (constant ? "const ".length() : 0) + symbol.nameOffset(),
+                symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId)));
+        for (int index = 0; index < arguments.size(); index++) {
+            if (index > 0) {
+                rendered.append(", ");
+            }
+            appendRendered(rendered, occurrences, arguments.get(index));
+        }
+        rendered.append(')');
+        return scalar(rendered.toString(), constant, path, widgetId, context,
+                occurrences);
+    }
+
     private RenderedValue renderPaint(
             PropertyValue.PaintValue paint,
             String path,
@@ -3690,8 +4106,45 @@ public final class DartRegionGenerator {
             case PropertyValue.PaintValue paint -> paint.color() instanceof ColorSource.Theme;
             case PropertyValue.ShadowListValue shadows -> shadows.items().stream()
                     .anyMatch(shadow -> shadow.color() instanceof ColorSource.Theme);
+            case PropertyValue.BoxDecorationValue decoration ->
+                boxDecorationRequiresMaterialTheme(decoration);
             default -> false;
         };
+    }
+
+    private static boolean boxDecorationRequiresMaterialTheme(
+            PropertyValue.BoxDecorationValue decoration) {
+        if (decoration.color().filter(ColorSource.Theme.class::isInstance).isPresent()) {
+            return true;
+        }
+        if (decoration.border().stream()
+                .flatMap(DartRegionGenerator::borderSides)
+                .map(PropertyValue.BoxDecorationValue.BorderSide::color)
+                .anyMatch(ColorSource.Theme.class::isInstance)) {
+            return true;
+        }
+        if (decoration.boxShadow().stream()
+                .map(PropertyValue.BoxDecorationValue.BoxShadow::color)
+                .anyMatch(ColorSource.Theme.class::isInstance)) {
+            return true;
+        }
+        return decoration.gradient().stream()
+                .flatMap(gradient -> gradient.stops().stream())
+                .map(PropertyValue.BoxDecorationValue.GradientStop::color)
+                .anyMatch(ColorSource.Theme.class::isInstance);
+    }
+
+    private static java.util.stream.Stream<PropertyValue.BoxDecorationValue.BorderSide>
+            borderSides(PropertyValue.BoxDecorationValue.BoxBorder border) {
+        if (border instanceof PropertyValue.BoxDecorationValue.PhysicalBorder physical) {
+            return java.util.stream.Stream.of(
+                    physical.top(), physical.right(), physical.bottom(), physical.left());
+        }
+        PropertyValue.BoxDecorationValue.DirectionalBorder directional =
+                (PropertyValue.BoxDecorationValue.DirectionalBorder) border;
+        return java.util.stream.Stream.of(
+                directional.top(), directional.start(), directional.end(),
+                directional.bottom());
     }
 
     private RenderedValue renderSlot(
@@ -3735,6 +4188,16 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
+        return renderProperty(value, definition, path, widgetId, context, 0);
+    }
+
+    private RenderedValue renderProperty(
+            PropertyValue value,
+            PropertyDefinition definition,
+            String path,
+            StableId widgetId,
+            GenerationContext context,
+            int valueIndent) {
         if (value instanceof PropertyValue.DartExpressionValue) {
             throw abort(diagnostic(
                     DartGenerationDiagnosticCode.DART_EXPRESSION_UNSUPPORTED,
@@ -3761,6 +4224,21 @@ public final class DartRegionGenerator {
         }
         if (value instanceof PropertyValue.DoubleValue decimal) {
             return scalar(dartDouble(decimal.value()), true, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
+            return renderAlignmentGeometry(
+                    alignment, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
+            return renderBoxConstraints(
+                    constraints, valueIndent, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.Matrix4Value matrix) {
+            return renderMatrix4(matrix, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.BoxDecorationValue decoration) {
+            return renderBoxDecoration(
+                    decoration, valueIndent, path, widgetId, context);
         }
         if (value instanceof PropertyValue.EnumValue enumValue) {
             PropertyValueConstraint.EnumValues binding = definition.constraints().stream()

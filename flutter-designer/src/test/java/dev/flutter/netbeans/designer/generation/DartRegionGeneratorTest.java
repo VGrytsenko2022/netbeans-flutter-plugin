@@ -626,6 +626,151 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
+        PropertyValue.AlignmentGeometryValue begin = alignment(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                "-1", "-1");
+        PropertyValue.AlignmentGeometryValue end = alignment(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                "1", "1");
+        PropertyValue.BoxDecorationValue.BorderSide side =
+                new PropertyValue.BoxDecorationValue.BorderSide(
+                        new ColorSource.Literal(0xFF112233L),
+                        new BigDecimal("2"),
+                        PropertyValue.BoxDecorationValue.BorderStyle.SOLID,
+                        new BigDecimal("-1"));
+        PropertyValue.BoxDecorationValue.Radius radius =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        new BigDecimal("8"), new BigDecimal("12"));
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(new ColorSource.Theme(new ThemeToken(
+                                "material.colorScheme.primaryContainer"))),
+                        Optional.of(new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                                side, side, side, side)),
+                        Optional.of(new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                                radius, radius, radius, radius)),
+                        List.of(new PropertyValue.BoxDecorationValue.BoxShadow(
+                                StableId.parse("00000000-0000-4000-8000-000000000101"),
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.shadow")),
+                                new BigDecimal("1"),
+                                new BigDecimal("2"),
+                                new BigDecimal("6"),
+                                new BigDecimal("-1"),
+                                PropertyValue.PaintValue.BlurStyle.NORMAL)),
+                        Optional.of(new PropertyValue.BoxDecorationValue.LinearGradient(
+                                begin,
+                                end,
+                                List.of(
+                                        new PropertyValue.BoxDecorationValue.GradientStop(
+                                                StableId.parse(
+                                                        "00000000-0000-4000-8000-000000000102"),
+                                                new ColorSource.Literal(0xFF010203L),
+                                                BigDecimal.ZERO),
+                                        new PropertyValue.BoxDecorationValue.GradientStop(
+                                                StableId.parse(
+                                                        "00000000-0000-4000-8000-000000000103"),
+                                                new ColorSource.Theme(new ThemeToken(
+                                                        "material.colorScheme.secondary")),
+                                                BigDecimal.ONE)),
+                                PropertyValue.BoxDecorationValue.TileMode.MIRROR,
+                                Optional.of(new BigDecimal("0.25")))),
+                        Optional.of(PropertyValue.PaintValue.BlendMode.SRC_OVER),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        PropertyValue.BoxDecorationValue foreground =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(new ColorSource.Literal(0x40112233L)),
+                        Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
+                        Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.CIRCLE);
+        List<BigDecimal> matrix = List.of(
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                new BigDecimal("12"), new BigDecimal("24"), BigDecimal.ZERO,
+                BigDecimal.ONE);
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(property("alignment"), end);
+        properties.put(property("padding"), new PropertyValue.EdgeInsetsValue(
+                BigDecimal.ONE, new BigDecimal("2"), new BigDecimal("3"),
+                new BigDecimal("4")));
+        properties.put(property("isAntiAlias"), new PropertyValue.BooleanValue(false));
+        properties.put(property("decoration"), decoration);
+        properties.put(property("foregroundDecoration"), foreground);
+        properties.put(property("width"), new PropertyValue.DoubleValue(
+                new BigDecimal("320")));
+        properties.put(property("height"), new PropertyValue.IntegerValue(
+                BigInteger.valueOf(180)));
+        properties.put(property("constraints"), new PropertyValue.BoxConstraintsValue(
+                new BigDecimal("100"), Optional.of(new BigDecimal("640")),
+                new BigDecimal("50"), Optional.empty()));
+        properties.put(property("margin"), new PropertyValue.EdgeInsetsDirectionalValue(
+                new BigDecimal("5"), new BigDecimal("6"), new BigDecimal("7"),
+                new BigDecimal("8")));
+        properties.put(property("transform"), new PropertyValue.Matrix4Value(matrix));
+        properties.put(property("transformAlignment"), begin);
+        properties.put(property("clipBehavior"),
+                new PropertyValue.EnumValue("Clip", "antiAlias"));
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Container"),
+                properties,
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        String build = generated.build().payload();
+        for (String expected : List.of(
+                "return Container(",
+                "alignment: const AlignmentDirectional(1.0, 1.0)",
+                "padding: const EdgeInsets.fromLTRB(1.0, 2.0, 3.0, 4.0)",
+                "isAntiAlias: false",
+                "decoration: BoxDecoration(",
+                "Theme.of(context).colorScheme.primaryContainer",
+                "border: const Border(",
+                "borderRadius: const BorderRadius.only(",
+                "const Radius.elliptical(8.0, 12.0)",
+                "boxShadow: <BoxShadow>[",
+                "Theme.of(context).colorScheme.shadow",
+                "gradient: LinearGradient(",
+                "colors: <Color>[const Color(0xFF010203), "
+                        + "Theme.of(context).colorScheme.secondary]",
+                "stops: const <double>[0.0, 1.0]",
+                "tileMode: TileMode.mirror",
+                "transform: const GradientRotation(0.25)",
+                "backgroundBlendMode: BlendMode.srcOver",
+                "shape: BoxShape.rectangle",
+                "foregroundDecoration: const BoxDecoration(",
+                "width: 320.0",
+                "height: 180",
+                "constraints: const BoxConstraints(",
+                "maxWidth: 640.0",
+                "margin: const EdgeInsetsDirectional.fromSTEB(5.0, 6.0, 7.0, 8.0)",
+                "transform: Matrix4.fromList(<double>[",
+                "transformAlignment: const Alignment(-1.0, -1.0)",
+                "child: const Text('Inside')",
+                "clipBehavior: Clip.antiAlias")) {
+            assertTrue(build.contains(expected), () -> expected + "\n" + build);
+        }
+        assertFalse(build.contains("DecorationImage"), build);
+    }
+
+    private static PropertyValue.AlignmentGeometryValue alignment(
+            PropertyValue.AlignmentGeometryValue.HorizontalBasis basis,
+            String horizontal,
+            String vertical) {
+        return new PropertyValue.AlignmentGeometryValue(
+                basis, new BigDecimal(horizontal), new BigDecimal(vertical));
+    }
+
+    @Test
     void constructorArgumentsUseGlobalPositionalThenNamedOrder() {
         WidgetDefinition definition = orderedDefinition();
         WidgetNode child = leaf("child");

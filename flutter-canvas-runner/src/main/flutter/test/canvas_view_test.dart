@@ -77,6 +77,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Center'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Container'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -97,7 +100,7 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 11-source by 15-destination compatibility matrix', () {
+  test('closes the 12-source by 16-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -107,6 +110,7 @@ void main() {
       'flutter.widgets.Row',
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
+      'flutter.widgets.Container',
       'flutter.widgets.Icon',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Text',
@@ -115,8 +119,8 @@ void main() {
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(11));
-    expect(destinations, hasLength(15));
+    expect(sourceTypes, hasLength(12));
+    expect(destinations, hasLength(16));
 
     var accepted = 0;
     var rejected = 0;
@@ -134,8 +138,8 @@ void main() {
         }
       }
     }
-    expect(accepted, 145);
-    expect(rejected, 20);
+    expect(accepted, 170);
+    expect(rejected, 22);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -1739,6 +1743,405 @@ void main() {
   );
 
   testWidgets(
+    'renders every Container argument through real Flutter objects and keeps its outline outside transform',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+      final json = _modelJsonForView();
+      final sourceRoot = json['root']! as Map<String, Object?>;
+      final text = _findNode(sourceRoot, 'flutter.widgets.Text');
+      final properties = <String, Object?>{
+        'alignment': _viewAlignment(
+          basis: 'directional',
+          horizontal: 0.5,
+          vertical: -0.25,
+        ),
+        'padding': {
+          'kind': 'edgeInsetsDirectional',
+          'start': 5,
+          'top': 6,
+          'end': 7,
+          'bottom': 8,
+        },
+        'isAntiAlias': {'kind': 'boolean', 'value': false},
+        'decoration': _viewBoxDecoration(
+          color: _viewThemeColor('material.colorScheme.primaryContainer'),
+          border: _viewPhysicalBorder(),
+          borderRadius: _viewDirectionalRadius(),
+          boxShadow: [_viewBoxShadow()],
+          gradient: _viewLinearGradient(),
+          backgroundBlendMode: 'multiply',
+        ),
+        'foregroundDecoration': _viewBoxDecoration(
+          color: _viewLiteralColor('0x22112233'),
+          shape: 'circle',
+        ),
+        'width': {'kind': 'integer', 'value': 180},
+        'height': {'kind': 'double', 'value': 100.5},
+        'constraints': {
+          'kind': 'boxConstraints',
+          'minWidth': 120,
+          'maxWidth': 240,
+          'minHeight': 80,
+          'maxHeight': null,
+        },
+        'margin': {
+          'kind': 'edgeInsets',
+          'left': 10,
+          'top': 12,
+          'right': 14,
+          'bottom': 16,
+        },
+        'transform': {
+          'kind': 'matrix4',
+          'storage': <Object?>[
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            24,
+            -12,
+            0,
+            1,
+          ],
+        },
+        'transformAlignment': _viewAlignment(horizontal: 1, vertical: -1),
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'hardEdge'},
+      };
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredContainer(properties: properties, child: text),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: containerId,
+            onSelected: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(const ValueKey('canvas-widget-$containerId'));
+      final containerFinder = find
+          .descendant(of: node, matching: find.byType(Container))
+          .first;
+      final container = tester.widget<Container>(containerFinder);
+      expect(container.alignment, const AlignmentDirectional(0.5, -0.25));
+      expect(
+        container.padding,
+        const EdgeInsetsDirectional.fromSTEB(5, 6, 7, 8),
+      );
+      expect(container.color, isNull);
+      expect(container.isAntiAlias, isFalse);
+      expect(
+        container.constraints,
+        const BoxConstraints(
+          minWidth: 180,
+          maxWidth: 180,
+          minHeight: 100.5,
+          maxHeight: 100.5,
+        ),
+        reason: 'Container folds width and height into constraints via tighten',
+      );
+      expect(container.margin, const EdgeInsets.fromLTRB(10, 12, 14, 16));
+      expect(container.transform!.storage[12], 24);
+      expect(container.transform!.storage[13], -12);
+      expect(container.transformAlignment, Alignment.topRight);
+      expect(container.clipBehavior, Clip.hardEdge);
+      expect(container.child, isNotNull);
+      expect(find.text('Hello'), findsOneWidget);
+
+      final context = tester.element(containerFinder);
+      final decoration = container.decoration! as BoxDecoration;
+      expect(decoration.color, Theme.of(context).colorScheme.primaryContainer);
+      expect(decoration.border, isA<Border>());
+      expect(decoration.borderRadius, isA<BorderRadiusDirectional>());
+      expect(decoration.boxShadow, hasLength(1));
+      expect(decoration.boxShadow!.single.blurStyle, BlurStyle.outer);
+      expect(decoration.gradient, isA<LinearGradient>());
+      final gradient = decoration.gradient! as LinearGradient;
+      expect(gradient.begin, Alignment.topLeft);
+      expect(gradient.end, AlignmentDirectional.bottomEnd);
+      expect(gradient.tileMode, TileMode.mirror);
+      expect(gradient.transform, isA<GradientRotation>());
+      expect(decoration.backgroundBlendMode, BlendMode.multiply);
+      final foreground = container.foregroundDecoration! as BoxDecoration;
+      expect(foreground.color, const Color(0x22112233));
+      expect(foreground.shape, BoxShape.circle);
+
+      final outline = find.byKey(
+        const ValueKey('canvas-widget-outline-$containerId'),
+      );
+      final guides = find.byKey(
+        const ValueKey('canvas-container-insets-guides-$containerId'),
+      );
+      expect(outline, findsOneWidget);
+      expect(guides, findsOneWidget);
+      expect(
+        find.ancestor(of: containerFinder, matching: outline),
+        findsOneWidget,
+        reason: 'the layout outline must stay outside Container.transform',
+      );
+      expect(
+        find.descendant(of: containerFinder, matching: find.byType(Transform)),
+        findsOneWidget,
+        reason: 'the actual Container keeps its framework paint transform',
+      );
+    },
+  );
+
+  testWidgets(
+    'renders every reviewed Container decoration union and constructor default',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+
+      Future<Container> render(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredContainer(
+                  properties: properties,
+                  child: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+            ),
+          ),
+        );
+        await tester.pump();
+        return tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('canvas-widget-$containerId')),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+      }
+
+      final radialContainer = await render({
+        'decoration': _viewBoxDecoration(
+          border: _viewDirectionalBorder(),
+          borderRadius: _viewPhysicalRadius(),
+          gradient: _viewRadialGradient(),
+        ),
+      });
+      final radialDecoration = radialContainer.decoration! as BoxDecoration;
+      expect(radialDecoration.border, isA<BorderDirectional>());
+      expect(radialDecoration.borderRadius, isA<BorderRadius>());
+      final radial = radialDecoration.gradient! as RadialGradient;
+      expect(radial.center, const Alignment(0.1, -0.2));
+      expect(radial.radius, 0.75);
+      expect(radial.focal, const AlignmentDirectional(0.4, 0.3));
+      expect(radial.focalRadius, 0.15);
+      expect(radial.tileMode, TileMode.decal);
+      expect(radial.transform, isNull);
+      expect(radial.colors.first, const Color(0xff102030));
+      expect(radial.stops, const [0.0, 1.0]);
+
+      final sweepContainer = await render({
+        'decoration': _viewBoxDecoration(gradient: _viewSweepGradient()),
+      });
+      final sweep =
+          (sweepContainer.decoration! as BoxDecoration).gradient!
+              as SweepGradient;
+      expect(sweep.center, const AlignmentDirectional(-0.2, 0.4));
+      expect(sweep.startAngle, 0.25);
+      expect(sweep.endAngle, 5.75);
+      expect(sweep.tileMode, TileMode.repeated);
+      expect(sweep.transform, isA<GradientRotation>());
+
+      final plain = await render({
+        'color': {'kind': 'color', 'argb': '0x7F123456'},
+      });
+      expect(plain.color, const Color(0x7f123456));
+      expect(plain.decoration, isNull);
+      expect(plain.isAntiAlias, isTrue);
+      expect(plain.clipBehavior, Clip.none);
+    },
+  );
+
+  testWidgets(
+    'resolves Container padding and margin guides with distinct stable styles',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+
+      Future<List<_RecordedLine>> lines(TextDirection direction) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredContainer(
+                  properties: {
+                    'width': {'kind': 'integer', 'value': 120},
+                    'height': {'kind': 'integer', 'value': 100},
+                    'margin': {
+                      'kind': 'edgeInsets',
+                      'left': 10,
+                      'top': 20,
+                      'right': 30,
+                      'bottom': 40,
+                    },
+                    'padding': {
+                      'kind': 'edgeInsetsDirectional',
+                      'start': 5,
+                      'top': 6,
+                      'end': 7,
+                      'bottom': 8,
+                    },
+                  },
+                  child: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: direction,
+              child: CanvasDocumentView(
+                model: model,
+                selectedWidgetId: null,
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final guide = find.byKey(
+          const ValueKey('canvas-container-insets-guides-$containerId'),
+        );
+        expect(tester.getSize(guide), const Size(160, 160));
+        return _drawLines(
+          _recordPainter(
+            _foregroundPainter(
+              tester,
+              'canvas-container-insets-guides-$containerId',
+            ),
+            const Size(160, 160),
+          ),
+        );
+      }
+
+      final ltr = await lines(TextDirection.ltr);
+      final rtl = await lines(TextDirection.rtl);
+      const paddingArgb = 0xffd97706;
+      const marginArgb = 0xff00897b;
+      List<_RecordedLine> byColor(List<_RecordedLine> all, int argb) => [
+        for (final line in all)
+          if (line.paint.color.toARGB32() == argb) line,
+      ];
+
+      final ltrPadding = byColor(ltr, paddingArgb);
+      final rtlPadding = byColor(rtl, paddingArgb);
+      final ltrMargin = byColor(ltr, marginArgb);
+      expect(ltrPadding, hasLength(12));
+      expect(rtlPadding, hasLength(12));
+      expect(ltrMargin.length, greaterThan(12));
+      expect(
+        _lineEndpoints([
+          for (var index = 0; index < ltrPadding.length; index += 3)
+            ltrPadding[index],
+        ]),
+        const [
+          (Offset(10, 69), Offset(15, 69)),
+          (Offset(123, 69), Offset(130, 69)),
+          (Offset(69, 20), Offset(69, 26)),
+          (Offset(69, 112), Offset(69, 120)),
+        ],
+      );
+      expect(
+        _lineEndpoints([
+          for (var index = 0; index < rtlPadding.length; index += 3)
+            rtlPadding[index],
+        ]),
+        const [
+          (Offset(10, 69), Offset(17, 69)),
+          (Offset(125, 69), Offset(130, 69)),
+          (Offset(71, 20), Offset(71, 26)),
+          (Offset(71, 112), Offset(71, 120)),
+        ],
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps an empty zero-size Container at zero layout while exposing its optional child target',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(jsonEncode(_modelWithEmptyContainerInRow())),
+        ),
+      );
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$containerId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$containerId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, containerId);
+      expect(tester.getSize(rendered), Size.zero);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, containerId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+    },
+  );
+
+  testWidgets(
     'keeps an empty zero-size SizedBox at zero layout while exposing a selectable target',
     (tester) async {
       const sizedBoxId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
@@ -3309,6 +3712,232 @@ Map<String, Object?> _modelWithCenteredAspectRatio({
   };
   return model;
 }
+
+Map<String, Object?> _modelWithCenteredContainer({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'd9e278fa-32f8-4ef7-a92f-4aef0867435c',
+          'type': 'flutter.widgets.Container',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithEmptyContainerInRow() {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Column',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'children': <String, Object?>{
+        'kind': 'list',
+        'children': <Object?>[
+          <String, Object?>{
+            'id': '38f49912-8e51-4e62-bd4c-2517ecad4962',
+            'type': 'flutter.widgets.Row',
+            'properties': <String, Object?>{},
+            'slots': <String, Object?>{
+              'children': <String, Object?>{
+                'kind': 'list',
+                'children': <Object?>[
+                  <String, Object?>{
+                    'id': 'd9e278fa-32f8-4ef7-a92f-4aef0867435c',
+                    'type': 'flutter.widgets.Container',
+                    'properties': <String, Object?>{},
+                    'slots': <String, Object?>{
+                      'child': <String, Object?>{
+                        'kind': 'single',
+                        'child': null,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _viewAlignment({
+  String basis = 'physical',
+  num horizontal = 0,
+  num vertical = 0,
+}) => {
+  'kind': 'alignmentGeometry',
+  'basis': basis,
+  'horizontal': horizontal,
+  'vertical': vertical,
+};
+
+Map<String, Object?> _viewNestedAlignment({
+  String basis = 'physical',
+  num horizontal = 0,
+  num vertical = 0,
+}) => {'basis': basis, 'horizontal': horizontal, 'vertical': vertical};
+
+Map<String, Object?> _viewLiteralColor(String argb) => {
+  'kind': 'literal',
+  'argb': argb,
+};
+
+Map<String, Object?> _viewThemeColor(String token) => {
+  'kind': 'theme',
+  'token': token,
+};
+
+Map<String, Object?> _viewBorderSide() => {
+  'color': _viewThemeColor('material.colorScheme.outline'),
+  'width': 2,
+  'style': 'solid',
+  'strokeAlign': -1,
+};
+
+Map<String, Object?> _viewPhysicalBorder() {
+  final side = _viewBorderSide();
+  return {
+    'kind': 'physical',
+    'top': Map<String, Object?>.from(side),
+    'right': Map<String, Object?>.from(side),
+    'bottom': Map<String, Object?>.from(side),
+    'left': Map<String, Object?>.from(side),
+  };
+}
+
+Map<String, Object?> _viewDirectionalBorder() {
+  final side = _viewBorderSide();
+  return {
+    'kind': 'directional',
+    'top': Map<String, Object?>.from(side),
+    'start': Map<String, Object?>.from(side),
+    'end': Map<String, Object?>.from(side),
+    'bottom': Map<String, Object?>.from(side),
+  };
+}
+
+Map<String, Object?> _viewRadius(num x, num y) => {'x': x, 'y': y};
+
+Map<String, Object?> _viewDirectionalRadius() => {
+  'kind': 'directional',
+  'topStart': _viewRadius(8, 4),
+  'topEnd': _viewRadius(10, 5),
+  'bottomEnd': _viewRadius(12, 6),
+  'bottomStart': _viewRadius(14, 7),
+};
+
+Map<String, Object?> _viewPhysicalRadius() => {
+  'kind': 'physical',
+  'topLeft': _viewRadius(2, 3),
+  'topRight': _viewRadius(4, 5),
+  'bottomRight': _viewRadius(6, 7),
+  'bottomLeft': _viewRadius(8, 9),
+};
+
+Map<String, Object?> _viewBoxShadow() => {
+  'id': '0980edcf-8ef3-46c1-bafb-16cf30939cb2',
+  'color': _viewThemeColor('material.colorScheme.shadow'),
+  'offsetX': 2,
+  'offsetY': 3,
+  'blurRadius': 4,
+  'spreadRadius': -1,
+  'blurStyle': 'outer',
+};
+
+List<Map<String, Object?>> _viewGradientStops() => [
+  {
+    'id': '9c979578-cfe9-4232-8768-901a9fc6c3b2',
+    'color': _viewLiteralColor('0xFF102030'),
+    'stop': 0,
+  },
+  {
+    'id': '417b70c2-566d-40f9-a7fb-9cd18dca7f3d',
+    'color': _viewThemeColor('material.colorScheme.primary'),
+    'stop': 1,
+  },
+];
+
+Map<String, Object?> _viewLinearGradient() => {
+  'kind': 'linear',
+  'begin': _viewNestedAlignment(horizontal: -1, vertical: -1),
+  'end': _viewNestedAlignment(basis: 'directional', horizontal: 1, vertical: 1),
+  'stops': _viewGradientStops(),
+  'tileMode': 'mirror',
+  'rotationRadians': 0.25,
+};
+
+Map<String, Object?> _viewRadialGradient() => {
+  'kind': 'radial',
+  'center': _viewNestedAlignment(horizontal: 0.1, vertical: -0.2),
+  'radius': 0.75,
+  'focal': _viewNestedAlignment(
+    basis: 'directional',
+    horizontal: 0.4,
+    vertical: 0.3,
+  ),
+  'focalRadius': 0.15,
+  'stops': _viewGradientStops(),
+  'tileMode': 'decal',
+  'rotationRadians': null,
+};
+
+Map<String, Object?> _viewSweepGradient() => {
+  'kind': 'sweep',
+  'center': _viewNestedAlignment(
+    basis: 'directional',
+    horizontal: -0.2,
+    vertical: 0.4,
+  ),
+  'startAngle': 0.25,
+  'endAngle': 5.75,
+  'stops': _viewGradientStops(),
+  'tileMode': 'repeated',
+  'rotationRadians': -0.3,
+};
+
+Map<String, Object?> _viewBoxDecoration({
+  Map<String, Object?>? color,
+  Map<String, Object?>? border,
+  Map<String, Object?>? borderRadius,
+  List<Map<String, Object?>> boxShadow = const [],
+  Map<String, Object?>? gradient,
+  String? backgroundBlendMode,
+  String shape = 'rectangle',
+}) => {
+  'kind': 'boxDecoration',
+  'color': color,
+  'border': border,
+  'borderRadius': borderRadius,
+  'boxShadow': boxShadow,
+  'gradient': gradient,
+  'backgroundBlendMode': backgroundBlendMode,
+  'shape': shape,
+};
 
 Map<String, Object?> _modelWithEmptySizedBoxSiblings(List<String> widgetIds) {
   final model = _modelJsonForView();

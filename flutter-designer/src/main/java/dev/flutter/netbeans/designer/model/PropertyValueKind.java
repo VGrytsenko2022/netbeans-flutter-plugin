@@ -17,7 +17,11 @@ public enum PropertyValueKind {
     PAINT("paint"),
     SHADOW_LIST("shadowList"),
     FONT_FEATURE_LIST("fontFeatureList"),
-    FONT_VARIATION_LIST("fontVariationList");
+    FONT_VARIATION_LIST("fontVariationList"),
+    ALIGNMENT_GEOMETRY("alignmentGeometry"),
+    BOX_CONSTRAINTS("boxConstraints"),
+    MATRIX4("matrix4"),
+    BOX_DECORATION("boxDecoration");
 
     private final String wireName;
 

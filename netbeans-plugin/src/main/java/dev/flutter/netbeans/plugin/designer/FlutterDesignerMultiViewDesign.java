@@ -69,6 +69,7 @@ import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.AddWidget;
 import dev.flutter.netbeans.designer.command.ClearSlotChildren;
 import dev.flutter.netbeans.designer.command.MoveWidget;
+import dev.flutter.netbeans.designer.command.PatchProperties;
 import dev.flutter.netbeans.designer.command.RemoveWidget;
 import dev.flutter.netbeans.designer.command.ReplaceSlotChild;
 import dev.flutter.netbeans.designer.command.ResetProperty;
@@ -3487,8 +3488,12 @@ public final class FlutterDesignerMultiViewDesign
                     "Set Flutter property", set.widgetId(), set.propertyName());
             case ResetProperty reset -> new PropertyMutationPresentation(
                     "Reset Flutter property", reset.widgetId(), reset.propertyName());
+            case PatchProperties patch -> new PropertyMutationPresentation(
+                    "Update Flutter properties", patch.widgetId(),
+                    patch.patches().getFirst().propertyName());
             default -> throw new IllegalArgumentException(
-                    "The Properties mutation handler accepts only SetProperty or ResetProperty; received "
+                    "The Properties mutation handler accepts only SetProperty, ResetProperty, "
+                    + "or PatchProperties; received "
                     + command.getClass().getSimpleName() + '.');
         };
     }

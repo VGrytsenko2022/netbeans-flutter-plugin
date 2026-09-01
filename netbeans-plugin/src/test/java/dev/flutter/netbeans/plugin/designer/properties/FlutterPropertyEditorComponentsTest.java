@@ -45,8 +45,10 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JSpinner;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -60,6 +62,387 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterPropertyEditorComponentsTest {
+
+    @Test
+    void containerStructuredPropertiesUseTransactionalTypedEditors()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding alignmentBinding = binding(
+                property("flutter.widgets.Container", "alignment"));
+        FlutterTypedPropertyEditors.Binding constraintsBinding = binding(
+                property("flutter.widgets.Container", "constraints"));
+        FlutterTypedPropertyEditors.Binding matrixBinding = binding(
+                property("flutter.widgets.Container", "transform"));
+        FlutterTypedPropertyEditors.Binding decorationBinding = binding(
+                property("flutter.widgets.Container", "decoration"));
+
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.ALIGNMENT_GEOMETRY,
+                alignmentBinding.editorKind());
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.BOX_CONSTRAINTS,
+                constraintsBinding.editorKind());
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.MATRIX4,
+                matrixBinding.editorKind());
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.BOX_DECORATION,
+                decorationBinding.editorKind());
+        assertTrue(alignmentBinding.createEditor().supportsCustomEditor());
+        assertTrue(constraintsBinding.createEditor().supportsCustomEditor());
+        assertTrue(matrixBinding.createEditor().supportsCustomEditor());
+        assertTrue(decorationBinding.createEditor().supportsCustomEditor());
+
+        PropertyEditor editor = alignmentBinding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Alignment", "Container child alignment."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JCheckBox useDefault = findByText(panel, JCheckBox.class,
+                    "Use inherited/default value (omit argument)");
+            JTextField horizontal = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.ALIGNMENT_HORIZONTAL_NAME);
+            JTextField vertical = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.ALIGNMENT_VERTICAL_NAME);
+            JComboBox<?> basis = findNamed(panel, JComboBox.class,
+                    FlutterContainerPropertyEditorComponents.ALIGNMENT_BASIS_NAME);
+            assertNotNull(useDefault);
+            assertNotNull(horizontal);
+            assertNotNull(vertical);
+            assertNotNull(basis);
+            assertTrue(useDefault.isSelected());
+            assertEquals("0", horizontal.getText(),
+                    "unset presentation text must never leak into the editor");
+
+            useDefault.doClick();
+            basis.setSelectedItem(
+                    PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL);
+            horizontal.setText("0.25");
+            vertical.setText("-1");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(),
+                    "structured changes remain a local draft until dialog OK");
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.AlignmentGeometryValue(
+                            PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                            new BigDecimal("0.25"), BigDecimal.ONE.negate())),
+                    editor.getValue());
+            return null;
+        });
+
+        assertStructuredEditorHasNamedComponent(
+                constraintsBinding,
+                FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_WIDTH_NAME,
+                JTextField.class);
+        assertStructuredEditorHasNamedComponent(
+                matrixBinding,
+                FlutterContainerPropertyEditorComponents.MATRIX_TABLE_NAME,
+                Component.class);
+        assertStructuredEditorHasNamedComponent(
+                decorationBinding,
+                FlutterContainerPropertyEditorComponents.DECORATION_TABS_NAME,
+                javax.swing.JTabbedPane.class);
+    }
+
+    @Test
+    void containerStructuredEditorsCanResetAnInvalidDraftAndFlushActiveTableOnOk()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding constraintsBinding = binding(
+                property("flutter.widgets.Container", "constraints"));
+        PropertyEditor constraintsEditor = constraintsBinding.createEditor();
+        constraintsEditor.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.ZERO, java.util.Optional.of(BigDecimal.valueOf(100)),
+                        BigDecimal.ZERO, java.util.Optional.of(BigDecimal.valueOf(100)))));
+        PropertyEnv constraintsEnvironment = PropertyEnv.create(descriptor(
+                "Constraints", "Container constraints."));
+        ((ExPropertyEditor) constraintsEditor).attachEnv(constraintsEnvironment);
+        onEdt(() -> {
+            Component panel = constraintsEditor.getCustomEditor();
+            JTextField minimum = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_WIDTH_NAME);
+            JCheckBox useDefault = findByText(panel, JCheckBox.class,
+                    "Use inherited/default value (omit argument)");
+            assertNotNull(minimum);
+            assertNotNull(useDefault);
+            minimum.setText("-1");
+            assertEquals(PropertyEnv.STATE_INVALID, constraintsEnvironment.getState());
+            useDefault.doClick();
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    constraintsEnvironment.getState(),
+                    "reset must not parse an obsolete invalid structured draft");
+            constraintsEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.unset(), constraintsEditor.getValue());
+            return null;
+        });
+
+        FlutterTypedPropertyEditors.Binding decorationBinding = binding(
+                property("flutter.widgets.Container", "decoration"));
+        PropertyValue.BoxDecorationValue.BorderSide side =
+                new PropertyValue.BoxDecorationValue.BorderSide(
+                        new ColorSource.Literal(0xFF000000L), BigDecimal.ONE,
+                        PropertyValue.BoxDecorationValue.BorderStyle.SOLID,
+                        BigDecimal.ONE.negate());
+        PropertyValue.BoxDecorationValue initialDecoration =
+                new PropertyValue.BoxDecorationValue(
+                        java.util.Optional.empty(),
+                        java.util.Optional.of(
+                                new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                                        side, side, side, side)),
+                        java.util.Optional.empty(), List.of(),
+                        java.util.Optional.empty(), java.util.Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        PropertyEditor decorationEditor = decorationBinding.createEditor();
+        decorationEditor.setValue(FlutterPropertyCellValue.explicit(initialDecoration));
+        PropertyEnv decorationEnvironment = PropertyEnv.create(descriptor(
+                "Decoration", "Container BoxDecoration."));
+        ((ExPropertyEditor) decorationEditor).attachEnv(decorationEnvironment);
+        onEdt(() -> {
+            Component panel = decorationEditor.getCustomEditor();
+            JTable border = findNamed(panel, JTable.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_BORDER_TABLE_NAME);
+            assertNotNull(border);
+            assertTrue(border.editCellAt(0, 2));
+            JTextField active = assertInstanceOf(
+                    JTextField.class, border.getEditorComponent());
+            active.setText("2.5");
+            assertTrue(border.isEditing());
+            assertEquals("2.5", border.getValueAt(0, 2),
+                    "the local structured draft must track the active cell immediately");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    decorationEnvironment.getState(),
+                    ((javax.swing.JComponent) panel).getToolTipText());
+
+            decorationEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertFalse(border.isEditing(), "OK must finish the active table cell");
+            assertEquals("2.5", border.getValueAt(0, 2));
+            PropertyValue.BoxDecorationValue committed = assertInstanceOf(
+                    PropertyValue.BoxDecorationValue.class,
+                    ((FlutterPropertyCellValue) decorationEditor.getValue())
+                            .explicitValue().orElseThrow());
+            PropertyValue.BoxDecorationValue.PhysicalBorder committedBorder =
+                    assertInstanceOf(
+                            PropertyValue.BoxDecorationValue.PhysicalBorder.class,
+                            committed.border().orElseThrow());
+            assertEquals(new BigDecimal("2.5"), committedBorder.top().width());
+            return null;
+        });
+    }
+
+    @Test
+    void containerDecorationBorderBasisRemapsAsymmetricSidesSemantically()
+            throws Exception {
+        PropertyValue.BoxDecorationValue.BorderSide top = borderSide("1");
+        PropertyValue.BoxDecorationValue.BorderSide right = borderSide("2");
+        PropertyValue.BoxDecorationValue.BorderSide bottom = borderSide("3");
+        PropertyValue.BoxDecorationValue.BorderSide left = borderSide("4");
+        PropertyValue.BoxDecorationValue initial = decoration(
+                java.util.Optional.of(new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                        top, right, bottom, left)),
+                java.util.Optional.empty());
+        PropertyEditor editor = decorationEditor(initial);
+        PropertyEnv environment = attachedEnvironment(editor, "Decoration");
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTable border = findNamed(panel, JTable.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_BORDER_TABLE_NAME);
+            JComboBox<?> basis = findComboWithItems(
+                    panel, "Physical: left / right", "Directional: start / end");
+            assertNotNull(border);
+            assertNotNull(basis);
+            assertTableColumn(border, 0, "Top", "Right", "Bottom", "Left");
+            assertTableColumn(border, 2, "1", "2", "3", "4");
+
+            basis.setSelectedIndex(1);
+            assertTableColumn(border, 0, "Top", "Start", "End", "Bottom");
+            assertTableColumn(border, 2, "1", "4", "2", "3");
+
+            basis.setSelectedIndex(0);
+            assertTableColumn(border, 0, "Top", "Right", "Bottom", "Left");
+            assertTableColumn(border, 2, "1", "2", "3", "4");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.BoxDecorationValue committed = committedDecoration(editor);
+            PropertyValue.BoxDecorationValue.PhysicalBorder committedBorder =
+                    assertInstanceOf(PropertyValue.BoxDecorationValue.PhysicalBorder.class,
+                            committed.border().orElseThrow());
+            assertEquals(top, committedBorder.top());
+            assertEquals(right, committedBorder.right());
+            assertEquals(bottom, committedBorder.bottom());
+            assertEquals(left, committedBorder.left());
+            return null;
+        });
+    }
+
+    @Test
+    void containerDecorationDisablingRadialFocalClearsItsRadiusOnCommit()
+            throws Exception {
+        PropertyValue.AlignmentGeometryValue center = alignment("0", "0");
+        PropertyValue.AlignmentGeometryValue focal = alignment("0.25", "-0.5");
+        PropertyValue.BoxDecorationValue.RadialGradient radial =
+                new PropertyValue.BoxDecorationValue.RadialGradient(
+                        center, new BigDecimal("0.75"), java.util.Optional.of(focal),
+                        new BigDecimal("0.2"), gradientStops(),
+                        PropertyValue.BoxDecorationValue.TileMode.CLAMP,
+                        java.util.Optional.empty());
+        PropertyEditor editor = decorationEditor(decoration(
+                java.util.Optional.empty(), java.util.Optional.of(radial)));
+        PropertyEnv environment = attachedEnvironment(editor, "Decoration");
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JCheckBox focalEnabled = findByText(
+                    panel, JCheckBox.class, "Use second alignment");
+            JTextField focalRadius = findAccessibleName(
+                    panel, JTextField.class, "Radial focal radius");
+            assertNotNull(focalEnabled);
+            assertNotNull(focalRadius);
+            assertTrue(focalEnabled.isSelected());
+            assertEquals("0.2", focalRadius.getText());
+
+            focalEnabled.doClick();
+            assertFalse(focalEnabled.isSelected());
+            assertFalse(focalRadius.isEnabled());
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.BoxDecorationValue.RadialGradient committed = assertInstanceOf(
+                    PropertyValue.BoxDecorationValue.RadialGradient.class,
+                    committedDecoration(editor).gradient().orElseThrow());
+            assertTrue(committed.focal().isEmpty());
+            assertEquals(BigDecimal.ZERO, committed.focalRadius());
+            return null;
+        });
+    }
+
+    @Test
+    void containerDecorationEnablesTopOnlyBorderFromPaintSafeDefaults()
+            throws Exception {
+        PropertyEditor editor = decorationEditor(decoration(
+                java.util.Optional.empty(), java.util.Optional.empty()));
+        PropertyEnv environment = attachedEnvironment(editor, "Decoration");
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JCheckBox enabled = findByText(panel, JCheckBox.class, "Enable border");
+            JTable border = findNamed(panel, JTable.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_BORDER_TABLE_NAME);
+            assertNotNull(enabled);
+            assertNotNull(border);
+            assertFalse(enabled.isSelected());
+
+            enabled.doClick();
+            assertTableColumn(border, 4, "-1", "-1", "-1", "-1");
+            border.setValueAt("1", 0, 2);
+            border.setValueAt("solid", 0, 3);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.BoxDecorationValue.PhysicalBorder committed = assertInstanceOf(
+                    PropertyValue.BoxDecorationValue.PhysicalBorder.class,
+                    committedDecoration(editor).border().orElseThrow());
+            assertEquals(PropertyValue.BoxDecorationValue.BorderStyle.SOLID,
+                    committed.top().style());
+            assertEquals(BigDecimal.ONE, committed.top().width());
+            for (PropertyValue.BoxDecorationValue.BorderSide side : List.of(
+                    committed.right(), committed.bottom(), committed.left())) {
+                assertEquals(PropertyValue.BoxDecorationValue.BorderStyle.NONE, side.style());
+                assertEquals(BigDecimal.ONE.negate(), side.strokeAlign());
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void containerStructuredEditorRestoresAccessibleDescriptionAfterInvalidDraft()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Container", "transform"));
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(identityMatrix()));
+        PropertyEnv environment = attachedEnvironment(editor, "Transform");
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTextField first = findNamed(panel, JTextField.class,
+                    "flutter.container.matrix.r0c0");
+            assertNotNull(first);
+            String description = panel.getAccessibleContext().getAccessibleDescription();
+            assertEquals(
+                    "Edits a 4 by 4 Matrix4; values are persisted in Flutter column-major order.",
+                    description);
+
+            first.setText("not-a-number");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .startsWith("Invalid value."));
+
+            first.setText("1");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(description,
+                    panel.getAccessibleContext().getAccessibleDescription());
+            return null;
+        });
+    }
+
+    @Test
+    void containerMatrixConvenienceNumbersRejectInvalidOrLossyDartDoubles() {
+        for (String text : List.of("NaN", "not-a-number")) {
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> FlutterContainerPropertyEditorComponents.parseConvenienceNumber(
+                            text, "X"));
+            assertTrue(failure.getMessage().contains("finite decimal number"),
+                    failure.getMessage());
+        }
+        for (String text : List.of(
+                "1e9999", "1e-9999", "0.1000000000000000000000001")) {
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> FlutterContainerPropertyEditorComponents.parseConvenienceNumber(
+                            text, "X"));
+            assertTrue(failure.getMessage().contains(
+                    "exactly representable as a finite Dart double"),
+                    failure.getMessage());
+        }
+        assertEquals(new BigDecimal("12.5"),
+                FlutterContainerPropertyEditorComponents.parseConvenienceNumber(
+                        " 12.5 ", "X"));
+    }
+
+    @Test
+    void containerDecorationBasisLabelsAreAssociatedAndAccessible()
+            throws Exception {
+        PropertyEditor editor = decorationEditor(decoration(
+                java.util.Optional.empty(), java.util.Optional.empty()));
+        attachedEnvironment(editor, "Decoration");
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTabbedPane tabs = findNamed(panel, JTabbedPane.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_TABS_NAME);
+            assertNotNull(tabs);
+
+            Component borderPanel = tabs.getComponentAt(tabs.indexOfTab("Border"));
+            JComboBox<?> borderBasis = findComboWithItems(
+                    borderPanel, "Physical: left / right", "Directional: start / end");
+            JLabel borderLabel = findLabel(borderPanel, "Basis:");
+            assertNotNull(borderBasis);
+            assertNotNull(borderLabel);
+            assertSame(borderBasis, borderLabel.getLabelFor());
+            assertAccessibleNameContains(borderBasis, "border", "basis");
+
+            Component radiusPanel = tabs.getComponentAt(tabs.indexOfTab("Radius"));
+            JComboBox<?> radiusBasis = findComboWithItems(
+                    radiusPanel, "Physical corners", "Directional corners");
+            JLabel radiusLabel = findLabel(radiusPanel, "Basis:");
+            assertNotNull(radiusBasis);
+            assertNotNull(radiusLabel);
+            assertSame(radiusBasis, radiusLabel.getLabelFor());
+            assertAccessibleNameContains(radiusBasis, "radius", "basis");
+            return null;
+        });
+    }
 
     @Test
     void realNetBeansPropertyPanelInstallsTheTriStateCheckbox()
@@ -1262,6 +1645,102 @@ class FlutterPropertyEditorComponentsTest {
                 .findFirst().orElseThrow();
     }
 
+    private static <T extends Component> void assertStructuredEditorHasNamedComponent(
+            FlutterTypedPropertyEditors.Binding binding,
+            String componentName,
+            Class<T> componentType) throws Exception {
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                binding.definition().name().value(),
+                "Typed Container structured property."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertNotNull(findNamed(panel, componentType, componentName), componentName);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            return null;
+        });
+    }
+
+    private static PropertyEditor decorationEditor(PropertyValue.BoxDecorationValue value) {
+        PropertyEditor editor = binding(
+                property("flutter.widgets.Container", "decoration")).createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(value));
+        return editor;
+    }
+
+    private static PropertyEnv attachedEnvironment(PropertyEditor editor, String displayName) {
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                displayName, "Container " + displayName + " editor."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        return environment;
+    }
+
+    private static PropertyValue.BoxDecorationValue decoration(
+            java.util.Optional<PropertyValue.BoxDecorationValue.BoxBorder> border,
+            java.util.Optional<PropertyValue.BoxDecorationValue.BoxGradient> gradient) {
+        return new PropertyValue.BoxDecorationValue(
+                java.util.Optional.empty(), border, java.util.Optional.empty(), List.of(),
+                gradient, java.util.Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+    }
+
+    private static PropertyValue.BoxDecorationValue.BorderSide borderSide(String width) {
+        return new PropertyValue.BoxDecorationValue.BorderSide(
+                new ColorSource.Literal(0xFF000000L), new BigDecimal(width),
+                PropertyValue.BoxDecorationValue.BorderStyle.SOLID,
+                BigDecimal.ONE.negate());
+    }
+
+    private static PropertyValue.AlignmentGeometryValue alignment(String x, String y) {
+        return new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                new BigDecimal(x), new BigDecimal(y));
+    }
+
+    private static List<PropertyValue.BoxDecorationValue.GradientStop> gradientStops() {
+        return List.of(
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        StableId.parse("04981217-b9cb-46b2-a532-a11509105518"),
+                        new ColorSource.Literal(0xFF000000L), BigDecimal.ZERO),
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        StableId.parse("21323221-5377-45e9-a986-c71f51c64e4b"),
+                        new ColorSource.Literal(0xFFFFFFFFL), BigDecimal.ONE));
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        java.util.ArrayList<BigDecimal> storage = new java.util.ArrayList<>(16);
+        for (int index = 0; index < 16; index++) {
+            storage.add(index % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO);
+        }
+        return new PropertyValue.Matrix4Value(storage);
+    }
+
+    private static PropertyValue.BoxDecorationValue committedDecoration(PropertyEditor editor) {
+        return assertInstanceOf(
+                PropertyValue.BoxDecorationValue.class,
+                ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+    }
+
+    private static void assertTableColumn(
+            JTable table, int column, String... expectedValues) {
+        assertEquals(expectedValues.length, table.getRowCount());
+        for (int row = 0; row < expectedValues.length; row++) {
+            assertEquals(expectedValues[row], String.valueOf(table.getValueAt(row, column)),
+                    "row " + row + ", column " + column);
+        }
+    }
+
+    private static void assertAccessibleNameContains(Component component, String... words) {
+        String name = component.getAccessibleContext().getAccessibleName();
+        assertNotNull(name);
+        String normalized = name.toLowerCase(java.util.Locale.ROOT);
+        for (String word : words) {
+            assertTrue(normalized.contains(word), name);
+        }
+    }
+
     private static Node.Property<?> findProperty(
             FlutterWidgetPropertiesNode node, String name) {
         return java.util.Arrays.stream(node.getPropertySets())
@@ -1362,6 +1841,59 @@ class FlutterPropertyEditorComponentsTest {
         if (root instanceof Container container) {
             for (Component child : container.getComponents()) {
                 T found = findFirst(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static JComboBox<?> findComboWithItems(Component root, Object... items) {
+        if (root instanceof JComboBox<?> combo && combo.getItemCount() == items.length) {
+            boolean matches = true;
+            for (int index = 0; index < items.length; index++) {
+                matches &= items[index].equals(combo.getItemAt(index));
+            }
+            if (matches) {
+                return combo;
+            }
+        }
+        if (root instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                JComboBox<?> found = findComboWithItems(child, items);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static JLabel findLabel(Component root, String text) {
+        if (root instanceof JLabel label && text.equals(label.getText())) {
+            return label;
+        }
+        if (root instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                JLabel found = findLabel(child, text);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static <T extends Component> T findAccessibleName(
+            Component root, Class<T> type, String name) {
+        if (type.isInstance(root)
+                && name.equals(root.getAccessibleContext().getAccessibleName())) {
+            return type.cast(root);
+        }
+        if (root instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                T found = findAccessibleName(child, type, name);
                 if (found != null) {
                     return found;
                 }

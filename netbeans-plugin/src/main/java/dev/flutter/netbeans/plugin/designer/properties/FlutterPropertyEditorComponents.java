@@ -95,7 +95,8 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
-                    FONT_VARIATION_LIST, ICON_DATA -> true;
+                    FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
+                    BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION -> true;
             default -> false;
         };
     }
@@ -120,6 +121,9 @@ final class FlutterPropertyEditorComponents {
                     .customEditor(editor, binding, environment);
             case ICON_DATA -> new MaterialIconDataCustomEditor(
                     editor, binding, environment);
+            case ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION ->
+                FlutterContainerPropertyEditorComponents.customEditor(
+                        editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No custom editor for " + binding.editorKind());
         };

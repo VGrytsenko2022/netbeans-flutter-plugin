@@ -31,6 +31,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
             "flutter.widgets.AspectRatio",
+            "flutter.widgets.Container",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -44,6 +45,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
             "flutter.widgets.AspectRatio",
+            "flutter.widgets.Container",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -119,6 +121,45 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .get(PropertyValueKind.DOUBLE).fingerprint());
         assertEquals("range:0:0:*:1", ratio.constraintFingerprints()
                 .get(PropertyValueKind.DOUBLE));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void containerHasExactStructuredCanvasContractsAndOptionalChild() {
+        WidgetDefinition definition = definition("flutter.widgets.Container");
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ContainerWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals("alignmentGeometry", projection.propertyContracts()
+                .get(new PropertyName("alignment"))
+                .constraintFingerprints().get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertEquals("boxConstraints", projection.propertyContracts()
+                .get(new PropertyName("constraints"))
+                .constraintFingerprints().get(PropertyValueKind.BOX_CONSTRAINTS));
+        assertEquals("matrix4", projection.propertyContracts()
+                .get(new PropertyName("transform"))
+                .constraintFingerprints().get(PropertyValueKind.MATRIX4));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("decoration"))
+                .constraintFingerprints().get(PropertyValueKind.BOX_DECORATION)
+                .startsWith("boxDecoration:material.colorScheme.error,"));
+        assertEquals("0:1:*:1", projection.propertyContracts()
+                .get(new PropertyName("margin")).numericBounds()
+                .get(PropertyValueKind.EDGE_INSETS).fingerprint());
+        assertTrue(projection.propertyContracts().values().stream()
+                .allMatch(value -> value.creationDefaultFingerprint().isEmpty()));
         assertEquals(
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),

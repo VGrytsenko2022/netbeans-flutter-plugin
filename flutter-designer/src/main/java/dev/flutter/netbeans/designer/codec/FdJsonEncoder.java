@@ -470,6 +470,31 @@ final class FdJsonEncoder {
             writeFontFeatureList(featureList, pointer, context);
         } else if (value instanceof PropertyValue.FontVariationListValue variationList) {
             writeFontVariationList(variationList, pointer, context);
+        } else if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
+            writeAlignmentFields(alignment, pointer, context);
+        } else if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
+            writeDartDoubleField("minWidth", constraints.minWidth(), pointer, context);
+            writeOptionalDartDoubleField("maxWidth", constraints.maxWidth(), pointer, context);
+            writeDartDoubleField("minHeight", constraints.minHeight(), pointer, context);
+            writeOptionalDartDoubleField("maxHeight", constraints.maxHeight(), pointer, context);
+        } else if (value instanceof PropertyValue.Matrix4Value matrix) {
+            context.fieldName("storage", pointer + "/storage");
+            context.startArray(pointer + "/storage");
+            for (int index = 0; index < matrix.storage().size(); index++) {
+                String itemPointer = pointer + "/storage/" + index;
+                BigDecimal number = matrix.storage().get(index);
+                if (!DartNumericLiterals.isRepresentableDouble(number)) {
+                    throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                            FdCodecDiagnosticCode.INVALID_VALUE, itemPointer,
+                            "The matrix entry must be exactly representable as a finite Dart double."));
+                }
+                context.numberValue(
+                        CanonicalJsonNumbers.decimal(number, context.limits(), itemPointer),
+                        itemPointer);
+            }
+            context.endArray(pointer + "/storage");
+        } else if (value instanceof PropertyValue.BoxDecorationValue decoration) {
+            writeBoxDecoration(decoration, pointer, context);
         } else {
             throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
                     FdCodecDiagnosticCode.INVALID_VALUE,
@@ -508,6 +533,252 @@ final class FdJsonEncoder {
             context.stringField("token", theme.token().wireId(), pointer + "/token");
         }
         context.endObject(pointer);
+    }
+
+    private static void writeAlignmentFields(
+            PropertyValue.AlignmentGeometryValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.stringField("basis", value.basis().wireName(), pointer + "/basis");
+        writeDartDoubleField("horizontal", value.horizontal(), pointer, context);
+        writeDartDoubleField("vertical", value.vertical(), pointer, context);
+    }
+
+    private static void writeBoxDecoration(
+            PropertyValue.BoxDecorationValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        writeOptionalColorSource("color", value.color(), pointer, context);
+        context.fieldName("border", pointer + "/border");
+        if (value.border().isPresent()) {
+            writeBoxBorder(value.border().orElseThrow(), pointer + "/border", context);
+        } else {
+            context.nullValue(pointer + "/border");
+        }
+        context.fieldName("borderRadius", pointer + "/borderRadius");
+        if (value.borderRadius().isPresent()) {
+            writeBorderRadius(value.borderRadius().orElseThrow(), pointer + "/borderRadius", context);
+        } else {
+            context.nullValue(pointer + "/borderRadius");
+        }
+        requireStructuredListSize(value.boxShadow().size(), pointer + "/boxShadow", context);
+        context.fieldName("boxShadow", pointer + "/boxShadow");
+        context.startArray(pointer + "/boxShadow");
+        for (int index = 0; index < value.boxShadow().size(); index++) {
+            PropertyValue.BoxDecorationValue.BoxShadow shadow = value.boxShadow().get(index);
+            String item = pointer + "/boxShadow/" + index;
+            context.startObject(item);
+            context.stringField("id", shadow.id().toString(), item + "/id");
+            context.fieldName("color", item + "/color");
+            writeColorSource(shadow.color(), item + "/color", context);
+            writeDartDoubleField("offsetX", shadow.offsetX(), item, context);
+            writeDartDoubleField("offsetY", shadow.offsetY(), item, context);
+            writeDartDoubleField("blurRadius", shadow.blurRadius(), item, context);
+            writeDartDoubleField("spreadRadius", shadow.spreadRadius(), item, context);
+            context.stringField("blurStyle", shadow.blurStyle().wireName(), item + "/blurStyle");
+            context.endObject(item);
+        }
+        context.endArray(pointer + "/boxShadow");
+        context.fieldName("gradient", pointer + "/gradient");
+        if (value.gradient().isPresent()) {
+            writeBoxGradient(value.gradient().orElseThrow(), pointer + "/gradient", context);
+        } else {
+            context.nullValue(pointer + "/gradient");
+        }
+        String blendPointer = pointer + "/backgroundBlendMode";
+        context.fieldName("backgroundBlendMode", blendPointer);
+        if (value.backgroundBlendMode().isPresent()) {
+            context.stringValue(value.backgroundBlendMode().orElseThrow().wireName(), blendPointer);
+        } else {
+            context.nullValue(blendPointer);
+        }
+        context.stringField("shape", value.shape().wireName(), pointer + "/shape");
+    }
+
+    private static void writeOptionalColorSource(
+            String name,
+            java.util.Optional<ColorSource> value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String fieldPointer = pointer + '/' + name;
+        context.fieldName(name, fieldPointer);
+        if (value.isPresent()) {
+            writeColorSource(value.orElseThrow(), fieldPointer, context);
+        } else {
+            context.nullValue(fieldPointer);
+        }
+    }
+
+    private static void writeBoxBorder(
+            PropertyValue.BoxDecorationValue.BoxBorder value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        if (value instanceof PropertyValue.BoxDecorationValue.PhysicalBorder border) {
+            context.stringField("kind", "physical", pointer + "/kind");
+            writeBorderSide("top", border.top(), pointer, context);
+            writeBorderSide("right", border.right(), pointer, context);
+            writeBorderSide("bottom", border.bottom(), pointer, context);
+            writeBorderSide("left", border.left(), pointer, context);
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorder border =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorder) value;
+            context.stringField("kind", "directional", pointer + "/kind");
+            writeBorderSide("top", border.top(), pointer, context);
+            writeBorderSide("start", border.start(), pointer, context);
+            writeBorderSide("end", border.end(), pointer, context);
+            writeBorderSide("bottom", border.bottom(), pointer, context);
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeBorderSide(
+            String name,
+            PropertyValue.BoxDecorationValue.BorderSide side,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String sidePointer = pointer + '/' + name;
+        context.fieldName(name, sidePointer);
+        context.startObject(sidePointer);
+        context.fieldName("color", sidePointer + "/color");
+        writeColorSource(side.color(), sidePointer + "/color", context);
+        writeDartDoubleField("width", side.width(), sidePointer, context);
+        context.stringField("style", side.style().wireName(), sidePointer + "/style");
+        writeDartDoubleField("strokeAlign", side.strokeAlign(), sidePointer, context);
+        context.endObject(sidePointer);
+    }
+
+    private static void writeBorderRadius(
+            PropertyValue.BoxDecorationValue.BorderRadiusGeometry value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        if (value instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius radius) {
+            context.stringField("kind", "physical", pointer + "/kind");
+            writeRadius("topLeft", radius.topLeft(), pointer, context);
+            writeRadius("topRight", radius.topRight(), pointer, context);
+            writeRadius("bottomRight", radius.bottomRight(), pointer, context);
+            writeRadius("bottomLeft", radius.bottomLeft(), pointer, context);
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius radius =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) value;
+            context.stringField("kind", "directional", pointer + "/kind");
+            writeRadius("topStart", radius.topStart(), pointer, context);
+            writeRadius("topEnd", radius.topEnd(), pointer, context);
+            writeRadius("bottomEnd", radius.bottomEnd(), pointer, context);
+            writeRadius("bottomStart", radius.bottomStart(), pointer, context);
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeRadius(
+            String name,
+            PropertyValue.BoxDecorationValue.Radius radius,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String radiusPointer = pointer + '/' + name;
+        context.fieldName(name, radiusPointer);
+        context.startObject(radiusPointer);
+        writeDartDoubleField("x", radius.x(), radiusPointer, context);
+        writeDartDoubleField("y", radius.y(), radiusPointer, context);
+        context.endObject(radiusPointer);
+    }
+
+    private static void writeBoxGradient(
+            PropertyValue.BoxDecorationValue.BoxGradient value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        if (value instanceof PropertyValue.BoxDecorationValue.LinearGradient gradient) {
+            context.stringField("kind", "linear", pointer + "/kind");
+            writeNestedAlignment("begin", gradient.begin(), pointer, context);
+            writeNestedAlignment("end", gradient.end(), pointer, context);
+        } else if (value instanceof PropertyValue.BoxDecorationValue.RadialGradient gradient) {
+            context.stringField("kind", "radial", pointer + "/kind");
+            writeNestedAlignment("center", gradient.center(), pointer, context);
+            writeDartDoubleField("radius", gradient.radius(), pointer, context);
+            String focalPointer = pointer + "/focal";
+            context.fieldName("focal", focalPointer);
+            if (gradient.focal().isPresent()) {
+                writeAlignmentObject(gradient.focal().orElseThrow(), focalPointer, context);
+            } else {
+                context.nullValue(focalPointer);
+            }
+            writeDartDoubleField("focalRadius", gradient.focalRadius(), pointer, context);
+        } else {
+            PropertyValue.BoxDecorationValue.SweepGradient gradient =
+                    (PropertyValue.BoxDecorationValue.SweepGradient) value;
+            context.stringField("kind", "sweep", pointer + "/kind");
+            writeNestedAlignment("center", gradient.center(), pointer, context);
+            writeDartDoubleField("startAngle", gradient.startAngle(), pointer, context);
+            writeDartDoubleField("endAngle", gradient.endAngle(), pointer, context);
+        }
+        writeGradientStops(value.stops(), pointer, context);
+        context.stringField("tileMode", value.tileMode().wireName(), pointer + "/tileMode");
+        writeOptionalDartDoubleField(
+                "rotationRadians", value.rotationRadians(), pointer, context);
+        context.endObject(pointer);
+    }
+
+    private static void writeNestedAlignment(
+            String name,
+            PropertyValue.AlignmentGeometryValue alignment,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String alignmentPointer = pointer + '/' + name;
+        context.fieldName(name, alignmentPointer);
+        writeAlignmentObject(alignment, alignmentPointer, context);
+    }
+
+    private static void writeAlignmentObject(
+            PropertyValue.AlignmentGeometryValue alignment,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        writeAlignmentFields(alignment, pointer, context);
+        context.endObject(pointer);
+    }
+
+    private static void writeGradientStops(
+            List<PropertyValue.BoxDecorationValue.GradientStop> stops,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        requireStructuredListSize(stops.size(), pointer + "/stops", context);
+        context.fieldName("stops", pointer + "/stops");
+        context.startArray(pointer + "/stops");
+        for (int index = 0; index < stops.size(); index++) {
+            PropertyValue.BoxDecorationValue.GradientStop stop = stops.get(index);
+            String item = pointer + "/stops/" + index;
+            context.startObject(item);
+            context.stringField("id", stop.id().toString(), item + "/id");
+            context.fieldName("color", item + "/color");
+            writeColorSource(stop.color(), item + "/color", context);
+            writeDartDoubleField("stop", stop.stop(), item, context);
+            context.endObject(item);
+        }
+        context.endArray(pointer + "/stops");
+    }
+
+    private static void writeOptionalDartDoubleField(
+            String name,
+            java.util.Optional<BigDecimal> value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String fieldPointer = pointer + '/' + name;
+        context.fieldName(name, fieldPointer);
+        if (value.isPresent()) {
+            BigDecimal number = value.orElseThrow();
+            if (!DartNumericLiterals.isRepresentableDouble(number)) {
+                throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                        FdCodecDiagnosticCode.INVALID_VALUE, fieldPointer,
+                        "The field must be exactly representable as a finite Dart double."));
+            }
+            context.numberValue(
+                    CanonicalJsonNumbers.decimal(number, context.limits(), fieldPointer),
+                    fieldPointer);
+        } else {
+            context.nullValue(fieldPointer);
+        }
     }
 
     private static void writeShadowList(

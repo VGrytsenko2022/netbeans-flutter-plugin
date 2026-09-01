@@ -52,7 +52,7 @@ class FdDocumentCodecContractTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV4() throws Exception {
+    void migratesTheDocumentedV1GoldenAndEncodesCanonicalV5() throws Exception {
         byte[] documented = Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT));
 
         FdDecodeResult.Current first = current(codec.decode(documented));
@@ -60,7 +60,7 @@ class FdDocumentCodecContractTest {
                 () -> assertEquals(1, first.sourceSchemaVersion()),
                 () -> assertTrue(first.migrated()),
                 () -> assertTrue(first.original().contentEquals(documented)),
-                () -> assertEquals("../fd-v4.schema.json",
+                () -> assertEquals("../fd-v5.schema.json",
                         first.document().schemaReference().orElseThrow()),
                 () -> assertEquals("home_page.dart", first.document().source().dartFile()),
                 () -> assertEquals("HomePage", first.document().source().className()),
@@ -68,13 +68,13 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(first.document());
         String encodedJson = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(encodedJson.contains("\"schemaVersion\": 4"));
-        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v4.schema.json\""));
+        assertTrue(encodedJson.contains("\"schemaVersion\": 5"));
+        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v5.schema.json\""));
         assertFalse(Arrays.equals(documented, encoded.copyBytes()));
 
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertFalse(roundTrip.migrated());
-        assertEquals(4, roundTrip.sourceSchemaVersion());
+        assertEquals(5, roundTrip.sourceSchemaVersion());
         assertEquals(first.document(), roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes(),
                 "decode/encode must reach a stable fixed point");
@@ -87,7 +87,7 @@ class FdDocumentCodecContractTest {
         byte[] versionFive = replaceAscii(
                 Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT)),
                 "\"schemaVersion\": 1",
-                "\"schemaVersion\": 5");
+                "\"schemaVersion\": 6");
         String futureJson = new String(versionFive, StandardCharsets.UTF_8);
         int closingBrace = futureJson.lastIndexOf('}');
         byte[] future = utf8(futureJson.substring(0, closingBrace)
@@ -98,7 +98,7 @@ class FdDocumentCodecContractTest {
                 FdDecodeResult.UnsupportedNewer.class,
                 codec.decode(future));
         assertAll(
-                () -> assertEquals(BigInteger.valueOf(5), result.declaredSchemaVersion()),
+                () -> assertEquals(BigInteger.valueOf(6), result.declaredSchemaVersion()),
                 () -> assertArrayEquals(future, result.original().copyBytes()));
 
         future[0] ^= 1;
@@ -180,19 +180,26 @@ class FdDocumentCodecContractTest {
             assertTrue(result.migrated(), migratedVersion);
         }
 
-        for (String currentVersion : new String[]{"4", "4.0", "4e0", "40e-1"}) {
+        for (String migratedVersion : new String[]{"4", "4.0", "4e0", "40e-1"}) {
+            FdDecodeResult.Current result = current(
+                    codec.decode(utf8(minimalDocument(migratedVersion, "{}"))));
+            assertEquals(4, result.sourceSchemaVersion(), migratedVersion);
+            assertTrue(result.migrated(), migratedVersion);
+        }
+
+        for (String currentVersion : new String[]{"5", "5.0", "5e0", "50e-1"}) {
             FdDecodeResult.Current result = current(
                     codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
-            assertEquals(4, result.sourceSchemaVersion(), currentVersion);
+            assertEquals(5, result.sourceSchemaVersion(), currentVersion);
             assertFalse(result.migrated(), currentVersion);
         }
 
-        for (String futureVersion : new String[]{"5", "5.0", "5e0", "50e-1"}) {
+        for (String futureVersion : new String[]{"6", "6.0", "6e0", "60e-1"}) {
             FdDecodeResult.UnsupportedNewer result = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(utf8(minimalDocument(futureVersion, "{}"))),
                     futureVersion);
-            assertEquals(BigInteger.valueOf(5), result.declaredSchemaVersion(), futureVersion);
+            assertEquals(BigInteger.valueOf(6), result.declaredSchemaVersion(), futureVersion);
         }
 
         FdDecodeResult.Invalid fractional = invalid(
@@ -201,20 +208,20 @@ class FdDocumentCodecContractTest {
     }
 
     @Test
-    void migratesKnownOlderSchemaReferencesToV4() throws Exception {
+    void migratesKnownOlderSchemaReferencesToV5() throws Exception {
         String canonical = minimalDocument("1", "{}").replace(
                 "{\n  \"format\"",
                 "{\n  \"$schema\": \"urn:netbeans-flutter-designer:schema:fd:1\",\n"
                 + "  \"format\"");
         FdDecodeResult.Current migrated = current(codec.decode(utf8(canonical)));
         assertEquals(
-                "urn:netbeans-flutter-designer:schema:fd:4",
+                "urn:netbeans-flutter-designer:schema:fd:5",
                 migrated.document().schemaReference().orElseThrow());
         String encoded = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
         assertTrue(encoded.contains(
-                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:4\""));
-        assertTrue(encoded.contains("\"schemaVersion\": 4"));
+                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:5\""));
+        assertTrue(encoded.contains("\"schemaVersion\": 5"));
 
         String arbitrary = canonical.replace(
                 "urn:netbeans-flutter-designer:schema:fd:1",
@@ -455,7 +462,7 @@ class FdDocumentCodecContractTest {
         OriginalFdBytes encoded = codec.encode(document);
         assertFalse(Arrays.equals(source, encoded.copyBytes()));
         assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8)
-                .contains("\"schemaVersion\": 4"));
+                .contains("\"schemaVersion\": 5"));
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertEquals(document, roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
@@ -587,7 +594,7 @@ class FdDocumentCodecContractTest {
 
         String canonical = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonical.contains("\"schemaVersion\": 4"), canonical);
+        assertTrue(canonical.contains("\"schemaVersion\": 5"), canonical);
         assertTrue(canonical.contains("\"kind\": \"iconData\""), canonical);
         assertFalse(canonical.contains("Icons.star"), canonical);
 

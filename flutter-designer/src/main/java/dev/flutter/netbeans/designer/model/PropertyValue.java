@@ -28,7 +28,11 @@ public sealed interface PropertyValue permits
         PropertyValue.PaintValue,
         PropertyValue.ShadowListValue,
         PropertyValue.FontFeatureListValue,
-        PropertyValue.FontVariationListValue {
+        PropertyValue.FontVariationListValue,
+        PropertyValue.AlignmentGeometryValue,
+        PropertyValue.BoxConstraintsValue,
+        PropertyValue.Matrix4Value,
+        PropertyValue.BoxDecorationValue {
 
     PropertyValueKind kind();
 
@@ -606,6 +610,408 @@ public sealed interface PropertyValue permits
         }
     }
 
+    /** A physical or text-direction-aware Flutter {@code AlignmentGeometry}. */
+    record AlignmentGeometryValue(
+            HorizontalBasis basis,
+            BigDecimal horizontal,
+            BigDecimal vertical) implements PropertyValue {
+
+        public AlignmentGeometryValue {
+            Objects.requireNonNull(basis, "basis");
+            horizontal = ModelConstraints.normalizedNumber(horizontal, "horizontal");
+            vertical = ModelConstraints.normalizedNumber(vertical, "vertical");
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.ALIGNMENT_GEOMETRY;
+        }
+
+        public enum HorizontalBasis {
+            PHYSICAL("physical"),
+            DIRECTIONAL("directional");
+
+            private final String wireName;
+
+            HorizontalBasis(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static HorizontalBasis fromWireName(String wireName) {
+                return enumValue(
+                        HorizontalBasis.values(), wireName,
+                        HorizontalBasis::wireName, "alignment horizontal basis");
+            }
+        }
+    }
+
+    /** Finite Flutter box-constraint bounds; empty maxima represent infinity. */
+    record BoxConstraintsValue(
+            BigDecimal minWidth,
+            Optional<BigDecimal> maxWidth,
+            BigDecimal minHeight,
+            Optional<BigDecimal> maxHeight) implements PropertyValue {
+
+        public BoxConstraintsValue {
+            minWidth = nonNegative(minWidth, "minWidth");
+            maxWidth = normalizedOptionalNonNegative(maxWidth, "maxWidth");
+            minHeight = nonNegative(minHeight, "minHeight");
+            maxHeight = normalizedOptionalNonNegative(maxHeight, "maxHeight");
+            if (maxWidth.isPresent() && maxWidth.orElseThrow().compareTo(minWidth) < 0) {
+                throw new IllegalArgumentException("maxWidth must not be less than minWidth");
+            }
+            if (maxHeight.isPresent() && maxHeight.orElseThrow().compareTo(minHeight) < 0) {
+                throw new IllegalArgumentException("maxHeight must not be less than minHeight");
+            }
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BOX_CONSTRAINTS;
+        }
+    }
+
+    /** Flutter {@code Matrix4.storage} in column-major order. */
+    record Matrix4Value(List<BigDecimal> storage) implements PropertyValue {
+        public static final int STORAGE_LENGTH = 16;
+
+        public Matrix4Value {
+            Objects.requireNonNull(storage, "storage");
+            if (storage.size() != STORAGE_LENGTH) {
+                throw new IllegalArgumentException("Matrix4 storage must contain exactly 16 values");
+            }
+            storage = storage.stream()
+                    .map(value -> ModelConstraints.normalizedNumber(value, "storage value"))
+                    .toList();
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.MATRIX4;
+        }
+    }
+
+    /**
+     * Reviewed, image-free subset of Flutter {@code BoxDecoration}. Every
+     * nested union keeps its physical versus directional semantics explicit.
+     */
+    record BoxDecorationValue(
+            Optional<ColorSource> color,
+            Optional<BoxBorder> border,
+            Optional<BorderRadiusGeometry> borderRadius,
+            List<BoxShadow> boxShadow,
+            Optional<BoxGradient> gradient,
+            Optional<PaintValue.BlendMode> backgroundBlendMode,
+            BoxShape shape) implements PropertyValue {
+        public static final int MAX_SHADOWS = 256;
+        public static final int MAX_GRADIENT_STOPS = 256;
+
+        public BoxDecorationValue {
+            color = copiedOptional(color, "color");
+            border = copiedOptional(border, "border");
+            borderRadius = copiedOptional(borderRadius, "borderRadius");
+            boxShadow = boundedItems(boxShadow, "boxShadow", MAX_SHADOWS);
+            boxShadow.forEach(value -> Objects.requireNonNull(value, "boxShadow item"));
+            uniqueIds(boxShadow.stream().map(BoxShadow::id).toList(), "box shadow");
+            gradient = copiedOptional(gradient, "gradient");
+            backgroundBlendMode = copiedOptional(backgroundBlendMode, "backgroundBlendMode");
+            Objects.requireNonNull(shape, "shape");
+            if (shape == BoxShape.CIRCLE && borderRadius.isPresent()) {
+                throw new IllegalArgumentException("A circular BoxDecoration cannot have a borderRadius");
+            }
+            if (backgroundBlendMode.isPresent() && color.isEmpty() && gradient.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "backgroundBlendMode requires a color or gradient");
+            }
+            if (border.isPresent()) {
+                validatePaintSafeBorder(border.orElseThrow(), borderRadius, shape);
+            }
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BOX_DECORATION;
+        }
+
+        public sealed interface BoxBorder permits PhysicalBorder, DirectionalBorder {
+        }
+
+        public record PhysicalBorder(
+                BorderSide top,
+                BorderSide right,
+                BorderSide bottom,
+                BorderSide left) implements BoxBorder {
+            public PhysicalBorder {
+                Objects.requireNonNull(top, "top");
+                Objects.requireNonNull(right, "right");
+                Objects.requireNonNull(bottom, "bottom");
+                Objects.requireNonNull(left, "left");
+            }
+        }
+
+        public record DirectionalBorder(
+                BorderSide top,
+                BorderSide start,
+                BorderSide end,
+                BorderSide bottom) implements BoxBorder {
+            public DirectionalBorder {
+                Objects.requireNonNull(top, "top");
+                Objects.requireNonNull(start, "start");
+                Objects.requireNonNull(end, "end");
+                Objects.requireNonNull(bottom, "bottom");
+            }
+        }
+
+        public record BorderSide(
+                ColorSource color,
+                BigDecimal width,
+                BorderStyle style,
+                BigDecimal strokeAlign) {
+            public BorderSide {
+                Objects.requireNonNull(color, "color");
+                width = nonNegative(width, "width");
+                Objects.requireNonNull(style, "style");
+                strokeAlign = ModelConstraints.normalizedNumber(strokeAlign, "strokeAlign");
+            }
+        }
+
+        public sealed interface BorderRadiusGeometry
+                permits PhysicalBorderRadius, DirectionalBorderRadius {
+        }
+
+        public record PhysicalBorderRadius(
+                Radius topLeft,
+                Radius topRight,
+                Radius bottomRight,
+                Radius bottomLeft) implements BorderRadiusGeometry {
+            public PhysicalBorderRadius {
+                Objects.requireNonNull(topLeft, "topLeft");
+                Objects.requireNonNull(topRight, "topRight");
+                Objects.requireNonNull(bottomRight, "bottomRight");
+                Objects.requireNonNull(bottomLeft, "bottomLeft");
+            }
+        }
+
+        public record DirectionalBorderRadius(
+                Radius topStart,
+                Radius topEnd,
+                Radius bottomEnd,
+                Radius bottomStart) implements BorderRadiusGeometry {
+            public DirectionalBorderRadius {
+                Objects.requireNonNull(topStart, "topStart");
+                Objects.requireNonNull(topEnd, "topEnd");
+                Objects.requireNonNull(bottomEnd, "bottomEnd");
+                Objects.requireNonNull(bottomStart, "bottomStart");
+            }
+        }
+
+        public record Radius(BigDecimal x, BigDecimal y) {
+            public Radius {
+                x = nonNegative(x, "radius x");
+                y = nonNegative(y, "radius y");
+            }
+        }
+
+        public record BoxShadow(
+                StableId id,
+                ColorSource color,
+                BigDecimal offsetX,
+                BigDecimal offsetY,
+                BigDecimal blurRadius,
+                BigDecimal spreadRadius,
+                PaintValue.BlurStyle blurStyle) {
+            public BoxShadow {
+                Objects.requireNonNull(id, "id");
+                Objects.requireNonNull(color, "color");
+                offsetX = ModelConstraints.normalizedNumber(offsetX, "offsetX");
+                offsetY = ModelConstraints.normalizedNumber(offsetY, "offsetY");
+                blurRadius = nonNegative(blurRadius, "blurRadius");
+                spreadRadius = ModelConstraints.normalizedNumber(spreadRadius, "spreadRadius");
+                Objects.requireNonNull(blurStyle, "blurStyle");
+            }
+        }
+
+        public sealed interface BoxGradient
+                permits LinearGradient, RadialGradient, SweepGradient {
+            List<GradientStop> stops();
+            TileMode tileMode();
+            Optional<BigDecimal> rotationRadians();
+        }
+
+        public record LinearGradient(
+                AlignmentGeometryValue begin,
+                AlignmentGeometryValue end,
+                List<GradientStop> stops,
+                TileMode tileMode,
+                Optional<BigDecimal> rotationRadians) implements BoxGradient {
+            public LinearGradient {
+                Objects.requireNonNull(begin, "begin");
+                Objects.requireNonNull(end, "end");
+                stops = validGradientStops(stops);
+                Objects.requireNonNull(tileMode, "tileMode");
+                rotationRadians = normalizedOptional(rotationRadians, "rotationRadians");
+            }
+        }
+
+        public record RadialGradient(
+                AlignmentGeometryValue center,
+                BigDecimal radius,
+                Optional<AlignmentGeometryValue> focal,
+                BigDecimal focalRadius,
+                List<GradientStop> stops,
+                TileMode tileMode,
+                Optional<BigDecimal> rotationRadians) implements BoxGradient {
+            public RadialGradient {
+                Objects.requireNonNull(center, "center");
+                radius = nonNegative(radius, "radius");
+                focal = copiedOptional(focal, "focal");
+                focalRadius = nonNegative(focalRadius, "focalRadius");
+                if (focal.isEmpty() && focalRadius.signum() != 0) {
+                    throw new IllegalArgumentException("focalRadius requires focal");
+                }
+                stops = validGradientStops(stops);
+                Objects.requireNonNull(tileMode, "tileMode");
+                rotationRadians = normalizedOptional(rotationRadians, "rotationRadians");
+            }
+        }
+
+        public record SweepGradient(
+                AlignmentGeometryValue center,
+                BigDecimal startAngle,
+                BigDecimal endAngle,
+                List<GradientStop> stops,
+                TileMode tileMode,
+                Optional<BigDecimal> rotationRadians) implements BoxGradient {
+            public SweepGradient {
+                Objects.requireNonNull(center, "center");
+                startAngle = ModelConstraints.normalizedNumber(startAngle, "startAngle");
+                endAngle = ModelConstraints.normalizedNumber(endAngle, "endAngle");
+                if (startAngle.compareTo(endAngle) >= 0) {
+                    throw new IllegalArgumentException("startAngle must be less than endAngle");
+                }
+                stops = validGradientStops(stops);
+                Objects.requireNonNull(tileMode, "tileMode");
+                rotationRadians = normalizedOptional(rotationRadians, "rotationRadians");
+            }
+        }
+
+        public record GradientStop(StableId id, ColorSource color, BigDecimal stop) {
+            public GradientStop {
+                Objects.requireNonNull(id, "id");
+                Objects.requireNonNull(color, "color");
+                stop = ModelConstraints.normalizedNumber(stop, "stop");
+                if (stop.signum() < 0 || stop.compareTo(BigDecimal.ONE) > 0) {
+                    throw new IllegalArgumentException("Gradient stop must be in [0, 1]");
+                }
+            }
+        }
+
+        public enum BorderStyle {
+            NONE("none"), SOLID("solid");
+            private final String wireName;
+            BorderStyle(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
+            public static BorderStyle fromWireName(String value) {
+                return enumValue(values(), value, BorderStyle::wireName, "border style");
+            }
+        }
+
+        public enum TileMode {
+            CLAMP("clamp"), REPEATED("repeated"), MIRROR("mirror"), DECAL("decal");
+            private final String wireName;
+            TileMode(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
+            public static TileMode fromWireName(String value) {
+                return enumValue(values(), value, TileMode::wireName, "tile mode");
+            }
+        }
+
+        public enum BoxShape {
+            RECTANGLE("rectangle"), CIRCLE("circle");
+            private final String wireName;
+            BoxShape(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
+            public static BoxShape fromWireName(String value) {
+                return enumValue(values(), value, BoxShape::wireName, "box shape");
+            }
+        }
+
+        private static List<GradientStop> validGradientStops(List<GradientStop> values) {
+            Objects.requireNonNull(values, "stops");
+            if (values.size() < 2 || values.size() > MAX_GRADIENT_STOPS) {
+                throw new IllegalArgumentException("Gradient stops must contain 2..256 items");
+            }
+            List<GradientStop> copied = List.copyOf(values);
+            uniqueIds(copied.stream().map(GradientStop::id).toList(), "gradient stop");
+            BigDecimal previous = null;
+            for (GradientStop stop : copied) {
+                Objects.requireNonNull(stop, "gradient stop");
+                if (previous != null && stop.stop().compareTo(previous) < 0) {
+                    throw new IllegalArgumentException("Gradient stops must be non-decreasing");
+                }
+                previous = stop.stop();
+            }
+            return copied;
+        }
+
+        private static void validatePaintSafeBorder(
+                BoxBorder border,
+                Optional<BorderRadiusGeometry> radius,
+                BoxShape shape) {
+            List<BorderSide> sides = border instanceof PhysicalBorder physical
+                    ? List.of(physical.top(), physical.right(), physical.bottom(), physical.left())
+                    : List.of(
+                            ((DirectionalBorder) border).top(),
+                            ((DirectionalBorder) border).start(),
+                            ((DirectionalBorder) border).end(),
+                            ((DirectionalBorder) border).bottom());
+            boolean uniform = sides.stream().allMatch(sides.get(0)::equals);
+            if (uniform || sides.stream().map(BorderSide::style).distinct().count() == 1
+                    && sides.get(0).style() == BorderStyle.NONE) {
+                return;
+            }
+            boolean nonZeroRadius = radius.map(BoxDecorationValue::hasNonZeroRadius)
+                    .orElse(false);
+            List<BorderSide> visible = sides.stream()
+                    .filter(side -> side.style() != BorderStyle.NONE)
+                    .toList();
+            boolean oneVisibleColor = !visible.isEmpty()
+                    && visible.stream().map(BorderSide::color).distinct().count() == 1;
+            boolean hasHairline = visible.stream().anyMatch(side -> side.width().signum() == 0);
+            if (oneVisibleColor && !hasHairline
+                    && (shape == BoxShape.CIRCLE || nonZeroRadius)) {
+                return;
+            }
+            if (shape != BoxShape.RECTANGLE || nonZeroRadius) {
+                throw new IllegalArgumentException(
+                        "A non-uniform border requires uniform visible colors and non-hairline sides for circles or rounded rectangles");
+            }
+            BigDecimal inside = BigDecimal.valueOf(-1);
+            if (sides.stream().anyMatch(side -> side.strokeAlign().compareTo(inside) != 0)) {
+                throw new IllegalArgumentException(
+                        "A non-uniform rectangular border requires strokeAlign -1 on every side");
+            }
+        }
+
+        private static boolean hasNonZeroRadius(BorderRadiusGeometry geometry) {
+            List<Radius> radii = geometry instanceof PhysicalBorderRadius physical
+                    ? List.of(
+                            physical.topLeft(), physical.topRight(),
+                            physical.bottomRight(), physical.bottomLeft())
+                    : List.of(
+                            ((DirectionalBorderRadius) geometry).topStart(),
+                            ((DirectionalBorderRadius) geometry).topEnd(),
+                            ((DirectionalBorderRadius) geometry).bottomEnd(),
+                            ((DirectionalBorderRadius) geometry).bottomStart());
+            return radii.stream().anyMatch(radius ->
+                    radius.x().signum() != 0 || radius.y().signum() != 0);
+        }
+    }
+
     private static BigDecimal nonNegative(BigDecimal value, String label) {
         value = ModelConstraints.normalizedNumber(value, label);
         if (value.signum() < 0) {
@@ -619,6 +1025,24 @@ public sealed interface PropertyValue permits
         if (value.signum() <= 0) {
             throw new IllegalArgumentException(label + " must be greater than zero");
         }
+        return value;
+    }
+
+    private static Optional<BigDecimal> normalizedOptional(
+            Optional<BigDecimal> value, String label) {
+        Objects.requireNonNull(value, label);
+        return value.map(number -> ModelConstraints.normalizedNumber(number, label));
+    }
+
+    private static Optional<BigDecimal> normalizedOptionalNonNegative(
+            Optional<BigDecimal> value, String label) {
+        Objects.requireNonNull(value, label);
+        return value.map(number -> nonNegative(number, label));
+    }
+
+    private static <T> Optional<T> copiedOptional(Optional<T> value, String label) {
+        Objects.requireNonNull(value, label);
+        value.ifPresent(item -> Objects.requireNonNull(item, label + " value"));
         return value;
     }
 

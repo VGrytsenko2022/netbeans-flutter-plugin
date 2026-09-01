@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 9;
+    public static final int VERSION = 10;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -357,6 +357,13 @@ public final class CanvasModelPayloadCodec {
             case PropertyValue.FontFeatureListValue features -> writeFontFeatures(json, features);
             case PropertyValue.FontVariationListValue variations ->
                 writeFontVariations(json, variations);
+            case PropertyValue.AlignmentGeometryValue alignment ->
+                writeAlignment(json, alignment);
+            case PropertyValue.BoxConstraintsValue constraints ->
+                writeBoxConstraints(json, constraints);
+            case PropertyValue.Matrix4Value matrix -> writeMatrix4(json, matrix);
+            case PropertyValue.BoxDecorationValue decoration ->
+                writeBoxDecoration(json, decoration);
             case PropertyValue.AssetValue ignored -> throw unsupported(value);
             case PropertyValue.CallbackValue ignored ->
                 // Executable handler identifiers never cross the Canvas
@@ -465,6 +472,235 @@ public final class CanvasModelPayloadCodec {
             json.writeEndObject();
         }
         json.writeEndArray();
+    }
+
+    private static void writeAlignment(
+            JsonGenerator json,
+            PropertyValue.AlignmentGeometryValue alignment) throws IOException {
+        json.writeStringField("kind", "alignmentGeometry");
+        writeAlignmentFields(json, alignment);
+    }
+
+    private static void writeAlignmentFields(
+            JsonGenerator json,
+            PropertyValue.AlignmentGeometryValue alignment) throws IOException {
+        json.writeStringField("basis", alignment.basis().wireName());
+        json.writeNumberField("horizontal", alignment.horizontal());
+        json.writeNumberField("vertical", alignment.vertical());
+    }
+
+    private static void writeBoxConstraints(
+            JsonGenerator json,
+            PropertyValue.BoxConstraintsValue constraints) throws IOException {
+        json.writeStringField("kind", "boxConstraints");
+        json.writeNumberField("minWidth", constraints.minWidth());
+        if (constraints.maxWidth().isPresent()) {
+            json.writeNumberField("maxWidth", constraints.maxWidth().orElseThrow());
+        } else {
+            json.writeNullField("maxWidth");
+        }
+        json.writeNumberField("minHeight", constraints.minHeight());
+        if (constraints.maxHeight().isPresent()) {
+            json.writeNumberField("maxHeight", constraints.maxHeight().orElseThrow());
+        } else {
+            json.writeNullField("maxHeight");
+        }
+    }
+
+    private static void writeMatrix4(
+            JsonGenerator json,
+            PropertyValue.Matrix4Value matrix) throws IOException {
+        json.writeStringField("kind", "matrix4");
+        json.writeArrayFieldStart("storage");
+        for (var value : matrix.storage()) {
+            json.writeNumber(value);
+        }
+        json.writeEndArray();
+    }
+
+    private static void writeBoxDecoration(
+            JsonGenerator json,
+            PropertyValue.BoxDecorationValue decoration) throws IOException {
+        json.writeStringField("kind", "boxDecoration");
+        json.writeFieldName("color");
+        if (decoration.color().isPresent()) {
+            writeColorSource(json, decoration.color().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        json.writeFieldName("border");
+        if (decoration.border().isPresent()) {
+            writeBoxBorder(json, decoration.border().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        json.writeFieldName("borderRadius");
+        if (decoration.borderRadius().isPresent()) {
+            writeBorderRadius(json, decoration.borderRadius().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        json.writeArrayFieldStart("boxShadow");
+        for (PropertyValue.BoxDecorationValue.BoxShadow shadow
+                : decoration.boxShadow()) {
+            json.writeStartObject();
+            json.writeStringField("id", shadow.id().toString());
+            json.writeFieldName("color");
+            writeColorSource(json, shadow.color());
+            json.writeNumberField("offsetX", shadow.offsetX());
+            json.writeNumberField("offsetY", shadow.offsetY());
+            json.writeNumberField("blurRadius", shadow.blurRadius());
+            json.writeNumberField("spreadRadius", shadow.spreadRadius());
+            json.writeStringField("blurStyle", shadow.blurStyle().wireName());
+            json.writeEndObject();
+        }
+        json.writeEndArray();
+        json.writeFieldName("gradient");
+        if (decoration.gradient().isPresent()) {
+            writeBoxGradient(json, decoration.gradient().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        if (decoration.backgroundBlendMode().isPresent()) {
+            json.writeStringField(
+                    "backgroundBlendMode",
+                    decoration.backgroundBlendMode().orElseThrow().wireName());
+        } else {
+            json.writeNullField("backgroundBlendMode");
+        }
+        json.writeStringField("shape", decoration.shape().wireName());
+    }
+
+    private static void writeBoxBorder(
+            JsonGenerator json,
+            PropertyValue.BoxDecorationValue.BoxBorder border) throws IOException {
+        json.writeStartObject();
+        if (border instanceof PropertyValue.BoxDecorationValue.PhysicalBorder physical) {
+            json.writeStringField("kind", "physical");
+            writeBorderSide(json, "top", physical.top());
+            writeBorderSide(json, "right", physical.right());
+            writeBorderSide(json, "bottom", physical.bottom());
+            writeBorderSide(json, "left", physical.left());
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorder directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorder) border;
+            json.writeStringField("kind", "directional");
+            writeBorderSide(json, "top", directional.top());
+            writeBorderSide(json, "start", directional.start());
+            writeBorderSide(json, "end", directional.end());
+            writeBorderSide(json, "bottom", directional.bottom());
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeBorderSide(
+            JsonGenerator json,
+            String name,
+            PropertyValue.BoxDecorationValue.BorderSide side) throws IOException {
+        json.writeObjectFieldStart(name);
+        json.writeFieldName("color");
+        writeColorSource(json, side.color());
+        json.writeNumberField("width", side.width());
+        json.writeStringField("style", side.style().wireName());
+        json.writeNumberField("strokeAlign", side.strokeAlign());
+        json.writeEndObject();
+    }
+
+    private static void writeBorderRadius(
+            JsonGenerator json,
+            PropertyValue.BoxDecorationValue.BorderRadiusGeometry radius)
+            throws IOException {
+        json.writeStartObject();
+        if (radius instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius physical) {
+            json.writeStringField("kind", "physical");
+            writeRadius(json, "topLeft", physical.topLeft());
+            writeRadius(json, "topRight", physical.topRight());
+            writeRadius(json, "bottomRight", physical.bottomRight());
+            writeRadius(json, "bottomLeft", physical.bottomLeft());
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) radius;
+            json.writeStringField("kind", "directional");
+            writeRadius(json, "topStart", directional.topStart());
+            writeRadius(json, "topEnd", directional.topEnd());
+            writeRadius(json, "bottomEnd", directional.bottomEnd());
+            writeRadius(json, "bottomStart", directional.bottomStart());
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeRadius(
+            JsonGenerator json,
+            String name,
+            PropertyValue.BoxDecorationValue.Radius radius) throws IOException {
+        json.writeObjectFieldStart(name);
+        json.writeNumberField("x", radius.x());
+        json.writeNumberField("y", radius.y());
+        json.writeEndObject();
+    }
+
+    private static void writeBoxGradient(
+            JsonGenerator json,
+            PropertyValue.BoxDecorationValue.BoxGradient gradient)
+            throws IOException {
+        json.writeStartObject();
+        if (gradient instanceof PropertyValue.BoxDecorationValue.LinearGradient linear) {
+            json.writeStringField("kind", "linear");
+            writeNestedAlignment(json, "begin", linear.begin());
+            writeNestedAlignment(json, "end", linear.end());
+        } else if (gradient instanceof PropertyValue.BoxDecorationValue.RadialGradient radial) {
+            json.writeStringField("kind", "radial");
+            writeNestedAlignment(json, "center", radial.center());
+            json.writeNumberField("radius", radial.radius());
+            json.writeFieldName("focal");
+            if (radial.focal().isPresent()) {
+                writeAlignmentObject(json, radial.focal().orElseThrow());
+            } else {
+                json.writeNull();
+            }
+            json.writeNumberField("focalRadius", radial.focalRadius());
+        } else {
+            PropertyValue.BoxDecorationValue.SweepGradient sweep =
+                    (PropertyValue.BoxDecorationValue.SweepGradient) gradient;
+            json.writeStringField("kind", "sweep");
+            writeNestedAlignment(json, "center", sweep.center());
+            json.writeNumberField("startAngle", sweep.startAngle());
+            json.writeNumberField("endAngle", sweep.endAngle());
+        }
+        json.writeArrayFieldStart("stops");
+        for (PropertyValue.BoxDecorationValue.GradientStop stop : gradient.stops()) {
+            json.writeStartObject();
+            json.writeStringField("id", stop.id().toString());
+            json.writeFieldName("color");
+            writeColorSource(json, stop.color());
+            json.writeNumberField("stop", stop.stop());
+            json.writeEndObject();
+        }
+        json.writeEndArray();
+        json.writeStringField("tileMode", gradient.tileMode().wireName());
+        if (gradient.rotationRadians().isPresent()) {
+            json.writeNumberField(
+                    "rotationRadians", gradient.rotationRadians().orElseThrow());
+        } else {
+            json.writeNullField("rotationRadians");
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeNestedAlignment(
+            JsonGenerator json,
+            String name,
+            PropertyValue.AlignmentGeometryValue alignment) throws IOException {
+        json.writeFieldName(name);
+        writeAlignmentObject(json, alignment);
+    }
+
+    private static void writeAlignmentObject(
+            JsonGenerator json,
+            PropertyValue.AlignmentGeometryValue alignment) throws IOException {
+        json.writeStartObject();
+        writeAlignmentFields(json, alignment);
+        json.writeEndObject();
     }
 
     private static void writeColorSource(JsonGenerator json, ColorSource source)

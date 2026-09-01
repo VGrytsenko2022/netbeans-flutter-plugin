@@ -46,6 +46,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.SHADOW_LIST,
                     PropertyValueKind.FONT_FEATURE_LIST,
                     PropertyValueKind.FONT_VARIATION_LIST,
+                    PropertyValueKind.ALIGNMENT_GEOMETRY,
+                    PropertyValueKind.BOX_CONSTRAINTS,
+                    PropertyValueKind.MATRIX4,
+                    PropertyValueKind.BOX_DECORATION,
                     PropertyValueKind.CALLBACK));
     private static final Set<PropertyValueKind> NUMERIC_SCHEMA_KINDS =
             Collections.unmodifiableSet(EnumSet.of(
@@ -140,7 +144,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Text", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Icon", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SizedBox", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.AspectRatio", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.AspectRatio", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Container", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -240,6 +245,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                             POSITIVE_DOUBLE_BOUNDS,
                             PropertyValueKind.DOUBLE)),
                     Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
 
@@ -416,6 +422,45 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "spacing", NON_NEGATIVE_DOUBLE_BOUNDS,
                         PropertyValueKind.DOUBLE)),
                 Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection containerProjection() {
+        String decorationFingerprint = "boxDecoration:"
+                + REVIEWED_COLOR_THEME_TOKENS.stream().sorted()
+                        .collect(Collectors.joining(","));
+        return projection(Map.ofEntries(
+                Map.entry("alignment", constrainedSchema(
+                        PropertyValueKind.ALIGNMENT_GEOMETRY,
+                        "alignmentGeometry")),
+                edgeInsetsProperty("padding", true),
+                colorOrThemeProperty("color"),
+                property("isAntiAlias", PropertyValueKind.BOOLEAN),
+                Map.entry("decoration", constrainedSchema(
+                        PropertyValueKind.BOX_DECORATION,
+                        decorationFingerprint)),
+                Map.entry("foregroundDecoration", constrainedSchema(
+                        PropertyValueKind.BOX_DECORATION,
+                        decorationFingerprint)),
+                numericProperty(
+                        "width", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "height", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                Map.entry("constraints", constrainedSchema(
+                        PropertyValueKind.BOX_CONSTRAINTS,
+                        "boxConstraints")),
+                edgeInsetsProperty("margin", true),
+                Map.entry("transform", constrainedSchema(
+                        PropertyValueKind.MATRIX4,
+                        "matrix4")),
+                Map.entry("transformAlignment", constrainedSchema(
+                        PropertyValueKind.ALIGNMENT_GEOMETRY,
+                        "alignmentGeometry")),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge",
+                        "antiAlias", "antiAliasWithSaveLayer")),
+                Map.of("child", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection scaffoldProjection() {
@@ -1334,6 +1379,20 @@ public final class BuiltInWidgetCapabilityCatalog {
                     : UNBOUNDED_NUMERIC;
             return "edgeInsets:" + (edgeInsets.nonNegative() ? '1' : '0')
                     + ':' + numeric.fingerprint();
+        }
+        if (constraint instanceof PropertyValueConstraint.AlignmentGeometryValues) {
+            return "alignmentGeometry";
+        }
+        if (constraint instanceof PropertyValueConstraint.BoxConstraintsValues) {
+            return "boxConstraints";
+        }
+        if (constraint instanceof PropertyValueConstraint.Matrix4Values) {
+            return "matrix4";
+        }
+        if (constraint instanceof PropertyValueConstraint.BoxDecorationValues values) {
+            return "boxDecoration:"
+                    + values.colorThemeTokenIds().stream().sorted()
+                            .collect(Collectors.joining(","));
         }
         if (constraint instanceof PropertyValueConstraint.StringLength length) {
             return "length:" + length.minimum() + ':' + length.maximum();

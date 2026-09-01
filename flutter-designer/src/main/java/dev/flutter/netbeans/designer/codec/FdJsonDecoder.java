@@ -603,10 +603,12 @@ final class FdJsonDecoder {
         return Optional.of(switch (reference.orElseThrow()) {
             case "urn:netbeans-flutter-designer:schema:fd:1",
                     "urn:netbeans-flutter-designer:schema:fd:2",
-                    "urn:netbeans-flutter-designer:schema:fd:3" ->
-                    "urn:netbeans-flutter-designer:schema:fd:4";
+                    "urn:netbeans-flutter-designer:schema:fd:3",
+                    "urn:netbeans-flutter-designer:schema:fd:4" ->
+                    "urn:netbeans-flutter-designer:schema:fd:5";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
-                    "../fd-v3.schema.json" -> "../fd-v4.schema.json";
+                    "../fd-v3.schema.json", "../fd-v4.schema.json" ->
+                    "../fd-v5.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1114,6 +1116,14 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Schema version 1 does not define this property kind.");
         }
+        if (sourceVersion < 5 && Set.of(
+                "alignmentGeometry", "boxConstraints", "matrix4", "boxDecoration")
+                .contains(kind)) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "This property kind requires schema version 5.");
+        }
         return switch (kind) {
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
@@ -1320,6 +1330,43 @@ final class FdJsonDecoder {
                 yield readFontVariationList(
                         requiredJson(fields, "items", base), pointer(base, "items"));
             }
+            case "alignmentGeometry" -> {
+                enforceAllowedFields(
+                        parser, fields, base,
+                        Set.of("kind", "basis", "horizontal", "vertical"));
+                yield readAlignment(fields, base);
+            }
+            case "boxConstraints" -> {
+                enforceAllowedFields(
+                        parser, fields, base,
+                        Set.of("kind", "minWidth", "maxWidth", "minHeight", "maxHeight"));
+                BigDecimal minWidth = jsonDartDouble(fields, "minWidth", base);
+                Optional<BigDecimal> maxWidth = jsonOptionalDartDouble(fields, "maxWidth", base);
+                BigDecimal minHeight = jsonDartDouble(fields, "minHeight", base);
+                Optional<BigDecimal> maxHeight = jsonOptionalDartDouble(fields, "maxHeight", base);
+                yield modelValue(base, () -> new PropertyValue.BoxConstraintsValue(
+                        minWidth, maxWidth, minHeight, maxHeight));
+            }
+            case "matrix4" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "storage"));
+                String storagePointer = pointer(base, "storage");
+                List<JsonValue> entries = jsonArray(
+                        requiredJson(fields, "storage", base), storagePointer);
+                List<BigDecimal> storage = new ArrayList<>(entries.size());
+                for (int index = 0; index < entries.size(); index++) {
+                    storage.add(jsonDartDouble(
+                            entries.get(index), pointer(storagePointer, Integer.toString(index))));
+                }
+                yield modelValue(base, () -> new PropertyValue.Matrix4Value(storage));
+            }
+            case "boxDecoration" -> {
+                enforceAllowedFields(
+                        parser, fields, base,
+                        Set.of(
+                                "kind", "color", "border", "borderRadius", "boxShadow",
+                                "gradient", "backgroundBlendMode", "shape"));
+                yield readBoxDecoration(fields, base);
+            }
             default -> throw invalidValue(parser, pointer(base, "kind"), "Unknown property kind.");
         };
     }
@@ -1471,6 +1518,250 @@ final class FdJsonDecoder {
                             id, axis, variationValue)));
         }
         return modelValue(base, () -> new PropertyValue.FontVariationListValue(items));
+    }
+
+    private PropertyValue.AlignmentGeometryValue readAlignment(
+            Map<String, JsonValue> fields, String base) throws DecodeFailure {
+        String basisName = jsonString(fields, "basis", base);
+        PropertyValue.AlignmentGeometryValue.HorizontalBasis basis = modelValue(
+                pointer(base, "basis"),
+                () -> PropertyValue.AlignmentGeometryValue.HorizontalBasis.fromWireName(
+                        basisName));
+        BigDecimal horizontal = jsonDartDouble(fields, "horizontal", base);
+        BigDecimal vertical = jsonDartDouble(fields, "vertical", base);
+        return modelValue(base, () -> new PropertyValue.AlignmentGeometryValue(
+                basis, horizontal, vertical));
+    }
+
+    private PropertyValue.AlignmentGeometryValue readAlignment(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("basis", "horizontal", "vertical"));
+        return readAlignment(fields, base);
+    }
+
+    private PropertyValue.BoxDecorationValue readBoxDecoration(
+            Map<String, JsonValue> fields, String base) throws DecodeFailure {
+        Optional<JsonValue> colorJson = optionalJson(fields, "color", base);
+        Optional<ColorSource> color = colorJson.isPresent()
+                ? Optional.of(readColorSource(colorJson.orElseThrow(), pointer(base, "color")))
+                : Optional.empty();
+        Optional<JsonValue> borderJson = optionalJson(fields, "border", base);
+        Optional<PropertyValue.BoxDecorationValue.BoxBorder> border = borderJson.isPresent()
+                ? Optional.of(readBoxBorder(borderJson.orElseThrow(), pointer(base, "border")))
+                : Optional.empty();
+        Optional<JsonValue> borderRadiusJson = optionalJson(fields, "borderRadius", base);
+        Optional<PropertyValue.BoxDecorationValue.BorderRadiusGeometry> borderRadius =
+                borderRadiusJson.isPresent()
+                        ? Optional.of(readBorderRadius(
+                                borderRadiusJson.orElseThrow(), pointer(base, "borderRadius")))
+                        : Optional.empty();
+        List<PropertyValue.BoxDecorationValue.BoxShadow> shadows = readBoxShadows(
+                requiredJson(fields, "boxShadow", base), pointer(base, "boxShadow"));
+        Optional<JsonValue> gradientJson = optionalJson(fields, "gradient", base);
+        Optional<PropertyValue.BoxDecorationValue.BoxGradient> gradient = gradientJson.isPresent()
+                ? Optional.of(readBoxGradient(
+                        gradientJson.orElseThrow(), pointer(base, "gradient")))
+                : Optional.empty();
+        Optional<String> blendName = jsonOptionalString(fields, "backgroundBlendMode", base);
+        Optional<PropertyValue.PaintValue.BlendMode> blendMode = blendName.isPresent()
+                ? Optional.of(modelValue(
+                        pointer(base, "backgroundBlendMode"),
+                        () -> PropertyValue.PaintValue.BlendMode.fromWireName(
+                                blendName.orElseThrow())))
+                : Optional.empty();
+        String shapeName = jsonString(fields, "shape", base);
+        PropertyValue.BoxDecorationValue.BoxShape shape = modelValue(
+                pointer(base, "shape"),
+                () -> PropertyValue.BoxDecorationValue.BoxShape.fromWireName(shapeName));
+        return modelValue(base, () -> new PropertyValue.BoxDecorationValue(
+                color, border, borderRadius, shadows, gradient, blendMode, shape));
+    }
+
+    private PropertyValue.BoxDecorationValue.BoxBorder readBoxBorder(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        String kind = jsonString(fields, "kind", base);
+        return switch (kind) {
+            case "physical" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "top", "right", "bottom", "left"));
+                yield new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                        readBorderSide(requiredJson(fields, "top", base), pointer(base, "top")),
+                        readBorderSide(requiredJson(fields, "right", base), pointer(base, "right")),
+                        readBorderSide(requiredJson(fields, "bottom", base), pointer(base, "bottom")),
+                        readBorderSide(requiredJson(fields, "left", base), pointer(base, "left")));
+            }
+            case "directional" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "top", "start", "end", "bottom"));
+                yield new PropertyValue.BoxDecorationValue.DirectionalBorder(
+                        readBorderSide(requiredJson(fields, "top", base), pointer(base, "top")),
+                        readBorderSide(requiredJson(fields, "start", base), pointer(base, "start")),
+                        readBorderSide(requiredJson(fields, "end", base), pointer(base, "end")),
+                        readBorderSide(requiredJson(fields, "bottom", base), pointer(base, "bottom")));
+            }
+            default -> throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE, pointer(base, "kind"),
+                    "Unknown box border kind.");
+        };
+    }
+
+    private PropertyValue.BoxDecorationValue.BorderSide readBorderSide(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("color", "width", "style", "strokeAlign"));
+        ColorSource color = readColorSource(
+                requiredJson(fields, "color", base), pointer(base, "color"));
+        BigDecimal width = jsonDartDouble(fields, "width", base);
+        String styleName = jsonString(fields, "style", base);
+        PropertyValue.BoxDecorationValue.BorderStyle style = modelValue(
+                pointer(base, "style"),
+                () -> PropertyValue.BoxDecorationValue.BorderStyle.fromWireName(styleName));
+        BigDecimal strokeAlign = jsonDartDouble(fields, "strokeAlign", base);
+        return modelValue(base, () -> new PropertyValue.BoxDecorationValue.BorderSide(
+                color, width, style, strokeAlign));
+    }
+
+    private PropertyValue.BoxDecorationValue.BorderRadiusGeometry readBorderRadius(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        String kind = jsonString(fields, "kind", base);
+        return switch (kind) {
+            case "physical" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "topLeft", "topRight", "bottomRight", "bottomLeft"));
+                yield new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        readRadius(requiredJson(fields, "topLeft", base), pointer(base, "topLeft")),
+                        readRadius(requiredJson(fields, "topRight", base), pointer(base, "topRight")),
+                        readRadius(requiredJson(fields, "bottomRight", base), pointer(base, "bottomRight")),
+                        readRadius(requiredJson(fields, "bottomLeft", base), pointer(base, "bottomLeft")));
+            }
+            case "directional" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "topStart", "topEnd", "bottomEnd", "bottomStart"));
+                yield new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                        readRadius(requiredJson(fields, "topStart", base), pointer(base, "topStart")),
+                        readRadius(requiredJson(fields, "topEnd", base), pointer(base, "topEnd")),
+                        readRadius(requiredJson(fields, "bottomEnd", base), pointer(base, "bottomEnd")),
+                        readRadius(requiredJson(fields, "bottomStart", base), pointer(base, "bottomStart")));
+            }
+            default -> throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE, pointer(base, "kind"),
+                    "Unknown border radius kind.");
+        };
+    }
+
+    private PropertyValue.BoxDecorationValue.Radius readRadius(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("x", "y"));
+        BigDecimal x = jsonDartDouble(fields, "x", base);
+        BigDecimal y = jsonDartDouble(fields, "y", base);
+        return modelValue(base, () -> new PropertyValue.BoxDecorationValue.Radius(x, y));
+    }
+
+    private List<PropertyValue.BoxDecorationValue.BoxShadow> readBoxShadows(
+            JsonValue value, String base) throws DecodeFailure {
+        List<JsonValue> values = jsonArray(value, base);
+        List<PropertyValue.BoxDecorationValue.BoxShadow> result = new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            String item = pointer(base, Integer.toString(index));
+            Map<String, JsonValue> fields = jsonObject(values.get(index), item);
+            enforceAllowedFields(fields, item, Set.of(
+                    "id", "color", "offsetX", "offsetY", "blurRadius",
+                    "spreadRadius", "blurStyle"));
+            String idText = jsonString(fields, "id", item);
+            StableId id = modelValue(pointer(item, "id"), () -> StableId.parse(idText));
+            ColorSource color = readColorSource(
+                    requiredJson(fields, "color", item), pointer(item, "color"));
+            BigDecimal offsetX = jsonDartDouble(fields, "offsetX", item);
+            BigDecimal offsetY = jsonDartDouble(fields, "offsetY", item);
+            BigDecimal blurRadius = jsonDartDouble(fields, "blurRadius", item);
+            BigDecimal spreadRadius = jsonDartDouble(fields, "spreadRadius", item);
+            String blurName = jsonString(fields, "blurStyle", item);
+            PropertyValue.PaintValue.BlurStyle blurStyle = modelValue(
+                    pointer(item, "blurStyle"),
+                    () -> PropertyValue.PaintValue.BlurStyle.fromWireName(blurName));
+            result.add(modelValue(item, () -> new PropertyValue.BoxDecorationValue.BoxShadow(
+                    id, color, offsetX, offsetY, blurRadius, spreadRadius, blurStyle)));
+        }
+        return List.copyOf(result);
+    }
+
+    private PropertyValue.BoxDecorationValue.BoxGradient readBoxGradient(
+            JsonValue value, String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        String kind = jsonString(fields, "kind", base);
+        List<PropertyValue.BoxDecorationValue.GradientStop> stops = readGradientStops(
+                requiredJson(fields, "stops", base), pointer(base, "stops"));
+        String tileName = jsonString(fields, "tileMode", base);
+        PropertyValue.BoxDecorationValue.TileMode tileMode = modelValue(
+                pointer(base, "tileMode"),
+                () -> PropertyValue.BoxDecorationValue.TileMode.fromWireName(tileName));
+        Optional<BigDecimal> rotation = jsonOptionalDartDouble(
+                fields, "rotationRadians", base);
+        return switch (kind) {
+            case "linear" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "begin", "end", "stops", "tileMode", "rotationRadians"));
+                PropertyValue.AlignmentGeometryValue begin = readAlignment(
+                        requiredJson(fields, "begin", base), pointer(base, "begin"));
+                PropertyValue.AlignmentGeometryValue end = readAlignment(
+                        requiredJson(fields, "end", base), pointer(base, "end"));
+                yield modelValue(base, () -> new PropertyValue.BoxDecorationValue.LinearGradient(
+                        begin, end, stops, tileMode, rotation));
+            }
+            case "radial" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "center", "radius", "focal", "focalRadius", "stops",
+                        "tileMode", "rotationRadians"));
+                PropertyValue.AlignmentGeometryValue center = readAlignment(
+                        requiredJson(fields, "center", base), pointer(base, "center"));
+                BigDecimal radius = jsonDartDouble(fields, "radius", base);
+                Optional<JsonValue> focalJson = optionalJson(fields, "focal", base);
+                Optional<PropertyValue.AlignmentGeometryValue> focal = focalJson.isPresent()
+                        ? Optional.of(readAlignment(
+                                focalJson.orElseThrow(), pointer(base, "focal")))
+                        : Optional.empty();
+                BigDecimal focalRadius = jsonDartDouble(fields, "focalRadius", base);
+                yield modelValue(base, () -> new PropertyValue.BoxDecorationValue.RadialGradient(
+                        center, radius, focal, focalRadius, stops, tileMode, rotation));
+            }
+            case "sweep" -> {
+                enforceAllowedFields(fields, base, Set.of(
+                        "kind", "center", "startAngle", "endAngle", "stops",
+                        "tileMode", "rotationRadians"));
+                PropertyValue.AlignmentGeometryValue center = readAlignment(
+                        requiredJson(fields, "center", base), pointer(base, "center"));
+                BigDecimal startAngle = jsonDartDouble(fields, "startAngle", base);
+                BigDecimal endAngle = jsonDartDouble(fields, "endAngle", base);
+                yield modelValue(base, () -> new PropertyValue.BoxDecorationValue.SweepGradient(
+                        center, startAngle, endAngle, stops, tileMode, rotation));
+            }
+            default -> throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE, pointer(base, "kind"),
+                    "Unknown box gradient kind.");
+        };
+    }
+
+    private List<PropertyValue.BoxDecorationValue.GradientStop> readGradientStops(
+            JsonValue value, String base) throws DecodeFailure {
+        List<JsonValue> values = jsonArray(value, base);
+        List<PropertyValue.BoxDecorationValue.GradientStop> result = new ArrayList<>(values.size());
+        for (int index = 0; index < values.size(); index++) {
+            String item = pointer(base, Integer.toString(index));
+            Map<String, JsonValue> fields = jsonObject(values.get(index), item);
+            enforceAllowedFields(fields, item, Set.of("id", "color", "stop"));
+            String idText = jsonString(fields, "id", item);
+            StableId id = modelValue(pointer(item, "id"), () -> StableId.parse(idText));
+            ColorSource color = readColorSource(
+                    requiredJson(fields, "color", item), pointer(item, "color"));
+            BigDecimal stop = jsonDartDouble(fields, "stop", item);
+            result.add(modelValue(item, () -> new PropertyValue.BoxDecorationValue.GradientStop(
+                    id, color, stop)));
+        }
+        return List.copyOf(result);
     }
 
     private Map<SlotName, WidgetSlot> readSlots(
@@ -1754,6 +2045,25 @@ final class FdJsonDecoder {
         }
     }
 
+    private Optional<JsonValue> optionalJson(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        JsonValue value = requiredJson(fields, field, base);
+        return value instanceof JsonValue.NullValue ? Optional.empty() : Optional.of(value);
+    }
+
+    private Optional<BigDecimal> jsonOptionalDartDouble(
+            Map<String, JsonValue> fields,
+            String field,
+            String base) throws DecodeFailure {
+        Optional<JsonValue> value = optionalJson(fields, field, base);
+        if (value.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(jsonDartDouble(value.orElseThrow(), pointer(base, field)));
+    }
+
     private List<String> jsonStringArray(
             Map<String, JsonValue> fields,
             String field,
@@ -1798,6 +2108,23 @@ final class FdJsonDecoder {
                     "The field must be exactly representable as a finite Dart double.");
         }
         return value;
+    }
+
+    private BigDecimal jsonDartDouble(JsonValue value, String pointer)
+            throws DecodeFailure {
+        if (!(value instanceof JsonValue.NumberValue numberValue)) {
+            throw failure(
+                    FdCodecDiagnosticCode.WRONG_VALUE_TYPE,
+                    pointer,
+                    "The field must be a number.");
+        }
+        if (!DartNumericLiterals.isRepresentableDouble(numberValue.value())) {
+            throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer,
+                    "The field must be exactly representable as a finite Dart double.");
+        }
+        return numberValue.value();
     }
 
     private BigInteger jsonInteger(Map<String, JsonValue> fields, String field, String base)

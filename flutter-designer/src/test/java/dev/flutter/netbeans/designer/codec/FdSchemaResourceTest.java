@@ -21,6 +21,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v3.schema.json");
     private static final Path V4_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v4.schema.json");
+    private static final Path V5_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v5.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -81,8 +83,6 @@ class FdSchemaResourceTest {
 
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v4 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v4");
         String schema = new String(packaged, StandardCharsets.UTF_8);
         assertFalse(schema.contains("\r"));
         assertTrue(schema.contains("\"$id\": \"urn:netbeans-flutter-designer:schema:fd:4\""));
@@ -96,6 +96,35 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\\\\u001C-\\\\u0020\\\\u1680"));
         assertTrue(schema.contains("\\\\u2000-\\\\u2006\\\\u2008-\\\\u200A"));
         assertFalse(schema.contains("(?!\\\\s)"));
+    }
+
+    @Test
+    void packagesTheCanonicalV5SchemaWithStructuredContainerValues()
+            throws IOException {
+        byte[] packaged = loadPackagedV5Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V5_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v5 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v5");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:5\""));
+        assertTrue(schema.contains("\"const\": 5"));
+        assertTrue(schema.contains("\"alignmentGeometryValue\""));
+        assertTrue(schema.contains("\"boxConstraintsValue\""));
+        assertTrue(schema.contains("\"matrix4Value\""));
+        assertTrue(schema.contains("\"boxDecorationValue\""));
+        assertTrue(schema.contains("\"minItems\": 16"));
+        assertTrue(schema.contains("\"maxItems\": 16"));
+        assertTrue(schema.contains("\"linearGradient\""));
+        assertTrue(schema.contains("\"radialGradient\""));
+        assertTrue(schema.contains("\"sweepGradient\""));
+        assertTrue(schema.contains("\"backgroundBlendMode\""));
+        assertTrue(schema.contains("\"focalRadius\": {\"const\": 0}"));
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {
@@ -134,6 +163,16 @@ class FdSchemaResourceTest {
                 "The canonical schema v4 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV4()) {
             assertNotNull(input, "The canonical schema v4 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV5Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V5_RESOURCE),
+                "The canonical schema v5 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV5()) {
+            assertNotNull(input, "The canonical schema v5 resource must be readable");
             return input.readAllBytes();
         }
     }

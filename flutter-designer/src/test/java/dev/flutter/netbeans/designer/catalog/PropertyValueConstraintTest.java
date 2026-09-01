@@ -166,7 +166,59 @@ class PropertyValueConstraintTest {
                 () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.ICON_DATA));
         assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.BOX_CONSTRAINTS));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.MATRIX4));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.BOX_DECORATION));
+        assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.CALLBACK));
+    }
+
+    @Test
+    void v5StructuredConstraintsEnforceDartNumbersAndReviewedNestedThemeColors() {
+        BigDecimal huge = BigDecimal.ONE.scaleByPowerOfTen(400);
+        PropertyValueConstraint.AlignmentGeometryValues alignments =
+                new PropertyValueConstraint.AlignmentGeometryValues();
+        assertTrue(alignments.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                BigDecimal.ZERO, BigDecimal.ONE)));
+        assertFalse(alignments.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                huge, BigDecimal.ONE)));
+
+        PropertyValueConstraint.BoxConstraintsValues constraints =
+                new PropertyValueConstraint.BoxConstraintsValues();
+        assertTrue(constraints.accepts(new PropertyValue.BoxConstraintsValue(
+                BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty())));
+        assertFalse(constraints.accepts(new PropertyValue.BoxConstraintsValue(
+                BigDecimal.ZERO, Optional.of(huge), BigDecimal.ZERO, Optional.empty())));
+
+        PropertyValueConstraint.Matrix4Values matrices =
+                new PropertyValueConstraint.Matrix4Values();
+        assertTrue(matrices.accepts(new PropertyValue.Matrix4Value(
+                java.util.Collections.nCopies(16, BigDecimal.ZERO))));
+        assertFalse(matrices.accepts(new PropertyValue.Matrix4Value(
+                java.util.Collections.nCopies(16, huge))));
+
+        PropertyValueConstraint.BoxDecorationValues decorations =
+                new PropertyValueConstraint.BoxDecorationValues(
+                        List.of("material.colorScheme.primary"));
+        assertTrue(decorations.accepts(new PropertyValue.BoxDecorationValue(
+                Optional.of(new ColorSource.Theme(
+                        new ThemeToken("material.colorScheme.primary"))),
+                Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
+                Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
+        assertFalse(decorations.accepts(new PropertyValue.BoxDecorationValue(
+                Optional.of(new ColorSource.Theme(
+                        new ThemeToken("material.colorScheme.secondary"))),
+                Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
+                Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
     }
 
     @Test

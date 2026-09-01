@@ -32,6 +32,7 @@ public final class BuiltInWidgetCatalog {
             icon(),
             sizedBox(),
             aspectRatio(),
+            container(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -540,6 +541,53 @@ public final class BuiltInWidgetCatalog {
                         positiveDoubles(),
                         new PropertyValue.DoubleValue(BigDecimal.ONE))),
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition container() {
+        List<String> reviewedColorThemeTokens = MaterialThemeTokenCatalog.colorRoles()
+                .keySet().stream().sorted().toList();
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("alignment", 0, false,
+                        List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                namedProperty("padding", 1, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("color", 2, false, colorOrTheme()),
+                namedProperty("isAntiAlias", 3, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("decoration", 4, false,
+                        List.of(new PropertyValueConstraint.BoxDecorationValues(
+                                reviewedColorThemeTokens))),
+                namedProperty("foregroundDecoration", 5, false,
+                        List.of(new PropertyValueConstraint.BoxDecorationValues(
+                                reviewedColorThemeTokens))),
+                namedProperty("width", 6, false, nonNegativeNumbers()),
+                namedProperty("height", 7, false, nonNegativeNumbers()),
+                namedProperty("constraints", 8, false,
+                        List.of(new PropertyValueConstraint.BoxConstraintsValues())),
+                namedProperty("margin", 9, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("transform", 10, false,
+                        List.of(new PropertyValueConstraint.Matrix4Values())),
+                namedProperty("transformAlignment", 11, false,
+                        List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                namedProperty("clipBehavior", 13, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
+        if (properties.size()
+                != ContainerWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "Container catalog/property schema count mismatch");
+        }
+        return widget(
+                ContainerWidgetPropertySchema.CONTAINER_TYPE.value(),
+                "Container",
+                false,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 70, "Container"),
+                properties,
+                List.of(singleSlot("child", 12, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

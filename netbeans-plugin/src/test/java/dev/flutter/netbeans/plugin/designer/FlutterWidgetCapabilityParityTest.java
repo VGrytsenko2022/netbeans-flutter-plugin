@@ -25,8 +25,9 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(11, javaTypes.size(),
-                "the reviewed Canvas source set includes AspectRatio");
+        assertEquals(12, javaTypes.size(),
+                "the reviewed Canvas source set includes Container");
+        assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
 
         assertEquals(javaTypes, widgetTypes(block(

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
@@ -11,10 +12,12 @@ import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.PatchProperties;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -54,6 +57,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private static final PropertyName ASPECT_RATIO_PROPERTY =
             new PropertyName("aspectRatio");
     private static final SlotName CHILD_SLOT = new SlotName("child");
+    private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
+    private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
+    private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
 
     private final WidgetNode widget;
     private final WidgetDefinition definition;
@@ -179,6 +185,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.equals(
                 widget.type())) {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
+        } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
+            addContainerPropertySets(sheet, hasSlotTab);
         } else {
             Sheet.Set properties = createGenericPropertySet();
             assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -315,6 +323,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out to fill the box resolved from Aspect ratio. "
                     + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out inside Container padding, alignment, and "
+                    + "constraints. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -512,6 +528,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addContainerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ContainerWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ContainerWidgetPropertySchema.Group.class);
+        for (ContainerWidgetPropertySchema.Group group
+                : ContainerWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ContainerWidgetPropertySchema.Definition schema =
+                    ContainerWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in Container property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property, Optional.empty(), schema.displayName(), schema.description()));
+        }
+    }
+
     private static java.util.List<String> elevatedButtonStringPresets(
             PropertyName propertyName) {
         String name = propertyName.value();
@@ -647,11 +685,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 if (captured.equals(accepted)) {
                     return;
                 }
-                DesignerCommand command = accepted.explicitValue()
-                        .<DesignerCommand>map(explicit -> new SetProperty(
-                                widget.id(), propertyName, explicit))
-                        .orElseGet(() -> new ResetProperty(
-                                widget.id(), propertyName));
+                DesignerCommand command = propertyMutationCommand(
+                        propertyName, accepted);
                 mutationHandler.submit(command);
             }
 
@@ -674,8 +709,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             public void restoreDefaultValue()
                     throws IllegalAccessException, InvocationTargetException {
                 if (binding.optional() && captured.isExplicit()) {
-                    mutationHandler.submit(new ResetProperty(
-                            widget.id(), propertyName));
+                    mutationHandler.submit(propertyMutationCommand(
+                            propertyName, FlutterPropertyCellValue.unset()));
                 }
             }
         };
@@ -685,6 +720,93 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         // designer's one-shot mutation lease.
         result.setValue("changeImmediate", Boolean.FALSE);
         return result;
+    }
+
+    private DesignerCommand propertyMutationCommand(
+            PropertyName propertyName,
+            FlutterPropertyCellValue accepted) {
+        if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
+            return ordinaryPropertyCommand(propertyName, accepted);
+        }
+        java.util.ArrayList<PatchProperties.Patch> patches =
+                new java.util.ArrayList<>();
+        boolean setting = accepted.explicitValue().isPresent();
+        if (CONTAINER_DECORATION.equals(propertyName)) {
+            if (setting && widget.properties().containsKey(CONTAINER_COLOR)) {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_COLOR));
+            } else if (!setting && hasNonNoneContainerClip()) {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_CLIP));
+            }
+        } else if (CONTAINER_COLOR.equals(propertyName) && setting) {
+            if (widget.properties().containsKey(CONTAINER_DECORATION)) {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_DECORATION));
+            }
+            if (hasNonNoneContainerClip()) {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_CLIP));
+            }
+        } else if (CONTAINER_CLIP.equals(propertyName)
+                && setting
+                && nonNoneClip(accepted.explicitValue().orElseThrow())
+                && !widget.properties().containsKey(CONTAINER_DECORATION)) {
+            PropertyValue backgroundColor = widget.properties().get(CONTAINER_COLOR);
+            if (backgroundColor != null) {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_COLOR));
+            }
+            patches.add(new PatchProperties.SetPatch(
+                    CONTAINER_DECORATION,
+                    emptyContainerDecoration(colorSource(backgroundColor))));
+        }
+        patches.add(accepted.explicitValue()
+                .<PatchProperties.Patch>map(value ->
+                    new PatchProperties.SetPatch(propertyName, value))
+                .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
+        return patches.size() == 1
+                ? ordinaryPropertyCommand(propertyName, accepted)
+                : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand ordinaryPropertyCommand(
+            PropertyName propertyName,
+            FlutterPropertyCellValue accepted) {
+        return accepted.explicitValue()
+                .<DesignerCommand>map(explicit ->
+                    new SetProperty(widget.id(), propertyName, explicit))
+                .orElseGet(() -> new ResetProperty(widget.id(), propertyName));
+    }
+
+    private boolean hasNonNoneContainerClip() {
+        PropertyValue value = widget.properties().get(CONTAINER_CLIP);
+        return value != null && nonNoneClip(value);
+    }
+
+    private static boolean nonNoneClip(PropertyValue value) {
+        return value instanceof PropertyValue.EnumValue clip
+                && "Clip".equals(clip.type())
+                && !"none".equals(clip.value());
+    }
+
+    private static Optional<ColorSource> colorSource(PropertyValue value) {
+        return switch (value) {
+            case null -> Optional.empty();
+            case PropertyValue.ColorValue literal ->
+                Optional.of(new ColorSource.Literal(literal.argb()));
+            case PropertyValue.ThemeTokenValue theme ->
+                Optional.of(new ColorSource.Theme(theme.token()));
+            default -> throw new IllegalStateException(
+                    "Container color uses an unsupported value kind: " + value.kind());
+        };
+    }
+
+    private static PropertyValue.BoxDecorationValue emptyContainerDecoration(
+            Optional<ColorSource> color) {
+        return new PropertyValue.BoxDecorationValue(
+                color,
+                Optional.empty(),
+                Optional.empty(),
+                java.util.List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     static String displayName(PropertyName propertyName) {

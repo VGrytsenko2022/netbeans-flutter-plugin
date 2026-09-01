@@ -9,5 +9,6 @@ public enum DesignerCommandKind {
     CLEAR_SLOT_CHILDREN,
     WRAP_WIDGET,
     SET_PROPERTY,
-    RESET_PROPERTY
+    RESET_PROPERTY,
+    PATCH_PROPERTIES
 }

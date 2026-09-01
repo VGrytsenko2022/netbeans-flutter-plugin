@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.designer.validation;
 
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -324,6 +325,25 @@ public final class WidgetTreeValidator {
                         node.id(),
                         "Icon property 'weight' emits the variable-font wght axis and "
                         + "overrides 'fontWeight' while both values are set."));
+            }
+            return;
+        }
+
+        if (type.equals(ContainerWidgetPropertySchema.CONTAINER_TYPE.value())) {
+            validateMutuallyExclusiveProperties(
+                    node, propertiesPath, issues,
+                    "color", "decoration", "Container background");
+            PropertyValue clip = node.properties().get(new PropertyName("clipBehavior"));
+            if (clip instanceof PropertyValue.EnumValue enumValue
+                    && enumValue.type().equals("Clip")
+                    && !enumValue.value().equals("none")
+                    && !node.properties().containsKey(new PropertyName("decoration"))) {
+                issues.add(issue(
+                        PROPERTY_DEPENDENCY,
+                        propertiesPath + "/clipBehavior",
+                        node.id(),
+                        "Container property 'clipBehavior' may be non-none only when "
+                        + "'decoration' is set."));
             }
             return;
         }

@@ -119,6 +119,22 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.MaterialIconValues.class::isInstance)) {
             editorKind = EditorKind.ICON_DATA;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.ALIGNMENT_GEOMETRY))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.AlignmentGeometryValues.class::isInstance)) {
+            editorKind = EditorKind.ALIGNMENT_GEOMETRY;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_CONSTRAINTS))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.BoxConstraintsValues.class::isInstance)) {
+            editorKind = EditorKind.BOX_CONSTRAINTS;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.Matrix4Values.class::isInstance)) {
+            editorKind = EditorKind.MATRIX4;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.BoxDecorationValues.class::isInstance)) {
+            editorKind = EditorKind.BOX_DECORATION;
         } else {
             return Optional.empty();
         }
@@ -144,7 +160,11 @@ final class FlutterTypedPropertyEditors {
         SHADOW_LIST,
         FONT_FEATURE_LIST,
         FONT_VARIATION_LIST,
-        ICON_DATA
+        ICON_DATA,
+        ALIGNMENT_GEOMETRY,
+        BOX_CONSTRAINTS,
+        MATRIX4,
+        BOX_DECORATION
     }
 
     record Binding(
@@ -183,6 +203,8 @@ final class FlutterTypedPropertyEditors {
                 case PropertyValueConstraint.PaintValues values ->
                     values.colorThemeTokenIds().stream();
                 case PropertyValueConstraint.ShadowListValues values ->
+                    values.colorThemeTokenIds().stream();
+                case PropertyValueConstraint.BoxDecorationValues values ->
                     values.colorThemeTokenIds().stream();
                 default -> java.util.stream.Stream.empty();
             }).distinct().map(ThemeToken::new)
@@ -229,7 +251,8 @@ final class FlutterTypedPropertyEditors {
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
-                        ICON_DATA ->
+                        ICON_DATA, ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4,
+                        BOX_DECORATION ->
                     new StructuredEditor(this);
             };
         }

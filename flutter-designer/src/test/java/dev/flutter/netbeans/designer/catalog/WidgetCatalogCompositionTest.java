@@ -65,7 +65,7 @@ class WidgetCatalogCompositionTest {
         assertEquals("Text", text.dartClassName());
         assertTrue(result.diagnostics().stream()
                 .anyMatch(value -> value.code() == CatalogDiagnosticCode.RESERVED_WIDGET_TYPE));
-        assertEquals(11, result.catalog().definitions().size());
+        assertEquals(12, result.catalog().definitions().size());
     }
 
     @Test
@@ -96,7 +96,7 @@ class WidgetCatalogCompositionTest {
         assertTrue(result.catalog().definitions().isEmpty());
         CatalogDiagnostic diagnostic = result.diagnostics().getFirst();
         assertEquals(CatalogDiagnosticCode.UNSUPPORTED_API_VERSION, diagnostic.code());
-        assertTrue(diagnostic.message().contains("Expected catalog API 3"));
+        assertTrue(diagnostic.message().contains("Expected catalog API 4"));
         assertTrue(diagnostic.message().contains("received 2"));
     }
 

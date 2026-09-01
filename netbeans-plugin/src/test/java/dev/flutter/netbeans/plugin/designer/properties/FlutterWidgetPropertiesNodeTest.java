@@ -12,6 +12,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -21,6 +22,7 @@ import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.PatchProperties;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
@@ -48,6 +50,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.openide.nodes.AbstractNode;
@@ -55,6 +58,92 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterWidgetPropertiesNodeTest {
+
+    @Test
+    void containerProjectsAllThirteenPropertiesIntoGeneralGroupsAndOneChildSlot()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Container");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("344e2731-0ddd-46d5-86b4-e190e1bbf0e2"));
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + ContainerWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME, sets[0].getName());
+        for (int index = 0;
+                index < ContainerWidgetPropertySchema.Group.values().length;
+                index++) {
+            ContainerWidgetPropertySchema.Group group =
+                    ContainerWidgetPropertySchema.Group.values()[index];
+            assertEquals(group.setName(), sets[index + 1].getName());
+            assertEquals(group.displayName(), sets[index + 1].getDisplayName());
+            assertEquals("General", sets[index + 1].getValue(
+                    FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        }
+        assertEquals(13, Arrays.stream(sets)
+                .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(set.getName()))
+                .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(set.getName()))
+                .mapToInt(set -> set.getProperties().length).sum());
+        assertTrue(property(node, "alignment").canWrite());
+        assertTrue(property(node, "constraints").canWrite());
+        assertTrue(property(node, "transform").canWrite());
+        assertTrue(property(node, "decoration").canWrite());
+        Node.PropertySet slots = propertySet(node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(List.of("child"), names(slots.getProperties()));
+        assertTrue(slots.getProperties()[0].getShortDescription().contains(
+                "inside Container padding, alignment, and constraints"));
+        assertEquals("Slots", slots.getValue(
+                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+    }
+
+    @Test
+    void containerPropertiesSubmitOneAtomicPatchAcrossFlutterInvariants()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Container");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("855e6d82-eb43-48d8-b5df-c880d889632c"));
+        WidgetNode colored = new WidgetNode(
+                prototype.id(), prototype.type(),
+                Map.of(new PropertyName("color"),
+                        PropertyValue.ColorValue.fromWireArgb("0xFF123456")),
+                prototype.slots(), prototype.extensions());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, colored, definition, commands::add);
+
+        PropertyValue.BoxDecorationValue decoration = emptyDecoration();
+        cellProperty(property(node, "decoration")).setValue(
+                FlutterPropertyCellValue.explicit(decoration));
+
+        PatchProperties patch = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(colored.id(), patch.widgetId());
+        assertEquals(List.of(
+                new PatchProperties.ResetPatch(new PropertyName("color")),
+                new PatchProperties.SetPatch(new PropertyName("decoration"), decoration)),
+                patch.patches());
+
+        commands.clear();
+        FlutterWidgetPropertiesNode clipNode = new FlutterWidgetPropertiesNode(
+                Children.LEAF, colored, definition, commands::add);
+        cellProperty(property(clipNode, "clipBehavior")).setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.EnumValue("Clip", "antiAlias")));
+        PatchProperties clipPatch = assertInstanceOf(
+                PatchProperties.class, commands.getFirst());
+        assertEquals(List.of("color", "decoration", "clipBehavior"),
+                clipPatch.patches().stream()
+                        .map(item -> item.propertyName().value()).toList());
+        PropertyValue.BoxDecorationValue migrated = assertInstanceOf(
+                PropertyValue.BoxDecorationValue.class,
+                ((PatchProperties.SetPatch) clipPatch.patches().get(1)).value());
+        assertEquals(Optional.of(new dev.flutter.netbeans.designer.model.ColorSource.Literal(
+                        0xFF123456L)), migrated.color());
+    }
 
     @Test
     void exposesStandardLookupIdentityAndPaletteDisplayName() {
@@ -290,6 +379,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
+                "flutter.widgets.Container",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -321,9 +411,9 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(515, writableCount,
+        assertEquals(528, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
-                + "ElevatedButton, Text, Icon, and AspectRatio leaves");
+                + "ElevatedButton, Text, Icon, AspectRatio, and Container leaves");
     }
 
     @Test
@@ -1211,7 +1301,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void elevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twelveCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1223,6 +1313,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
+                "flutter.widgets.Container",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1242,7 +1333,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(11, iconPaths.size(),
+        assertEquals(12, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 
@@ -1312,6 +1403,13 @@ class FlutterWidgetPropertiesNodeTest {
         return new PropertyValue.EdgeInsetsDirectionalValue(
                 new BigDecimal(start), new BigDecimal(top),
                 new BigDecimal(end), new BigDecimal(bottom));
+    }
+
+    private static PropertyValue.BoxDecorationValue emptyDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     private static Node.Property<?> property(

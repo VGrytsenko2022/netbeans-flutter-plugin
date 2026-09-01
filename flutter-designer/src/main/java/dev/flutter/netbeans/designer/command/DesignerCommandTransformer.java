@@ -70,6 +70,7 @@ final class DesignerCommandTransformer {
             case WrapWidget wrap -> wrap(current, index, wrap);
             case SetProperty set -> setProperty(current, index, set);
             case ResetProperty reset -> resetProperty(current, index, reset);
+            case PatchProperties patch -> patchProperties(current, index, patch);
         };
         if (transformed.status() != DesignerCommandStatus.APPLIED) {
             return transformed;
@@ -399,97 +400,89 @@ final class DesignerCommandTransformer {
             DesignerDocument current,
             TreeIndex index,
             SetProperty command) {
-        NodeRef target = index.nodes().get(command.widgetId());
-        if (target == null) {
-            return targetNotFound(command.widgetId());
-        }
-        WidgetDefinition definition = catalog.find(target.node().type()).orElseThrow();
-        Optional<PropertyDefinition> property = definition.property(
-                command.propertyName());
-        String path = target.path() + "/properties/" + pointer(
-                command.propertyName().value());
-        if (property.isEmpty()) {
-            return failure(
-                    DesignerCommandStatus.REJECTED,
-                    DesignerCommandDiagnosticCode.PROPERTY_UNKNOWN,
-                    path,
-                    Optional.of(command.widgetId()),
-                    "Widget type '" + target.node().type().value()
-                    + "' has no property '" + command.propertyName().value() + "'.");
-        }
-        PropertyDefinition declared = property.orElseThrow();
-        Optional<PropertyValueConstraint> constraint = declared.constraints().stream()
-                .filter(value -> value.kind() == command.value().kind())
-                .findFirst();
-        if (constraint.isEmpty()
-                || !constraint.orElseThrow().accepts(command.value())) {
-            String accepted = constraint.map(PropertyValueConstraint::description)
-                    .orElse("accepted kinds " + declared.acceptedKinds());
-            return failure(
-                    DesignerCommandStatus.REJECTED,
-                    DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED,
-                    path,
-                    Optional.of(command.widgetId()),
-                    "Property '" + command.propertyName().value()
-                    + "' rejects " + command.value().kind().wireName()
-                    + "; expected " + accepted + ".");
-        }
-        if (command.value().equals(
-                target.node().properties().get(command.propertyName()))) {
-            return noChange("Property '" + command.propertyName().value()
-                    + "' already has the requested value.");
-        }
-        LinkedHashMap<PropertyName, PropertyValue> properties =
-                new LinkedHashMap<>(target.node().properties());
-        properties.put(command.propertyName(), command.value());
-        WidgetNode replacement = new WidgetNode(
-                target.node().id(),
-                target.node().type(),
-                properties,
-                target.node().slots(),
-                target.node().extensions());
-        return applied(withRoot(
-                current, replace(current.root(), command.widgetId(), replacement)));
+        return patchProperties(current, index, new PatchProperties(
+                command.widgetId(),
+                List.of(new PatchProperties.SetPatch(
+                        command.propertyName(), command.value()))));
     }
 
     private SemanticResult resetProperty(
             DesignerDocument current,
             TreeIndex index,
             ResetProperty command) {
+        return patchProperties(current, index, new PatchProperties(
+                command.widgetId(),
+                List.of(new PatchProperties.ResetPatch(
+                        command.propertyName()))));
+    }
+
+    private SemanticResult patchProperties(
+            DesignerDocument current,
+            TreeIndex index,
+            PatchProperties command) {
         NodeRef target = index.nodes().get(command.widgetId());
         if (target == null) {
             return targetNotFound(command.widgetId());
         }
         WidgetDefinition definition = catalog.find(target.node().type()).orElseThrow();
-        Optional<PropertyDefinition> property = definition.property(
-                command.propertyName());
-        String path = target.path() + "/properties/" + pointer(
-                command.propertyName().value());
-        if (property.isEmpty()) {
-            return failure(
-                    DesignerCommandStatus.REJECTED,
-                    DesignerCommandDiagnosticCode.PROPERTY_UNKNOWN,
-                    path,
-                    Optional.of(command.widgetId()),
-                    "Widget type '" + target.node().type().value()
-                    + "' has no property '" + command.propertyName().value() + "'.");
+        for (PatchProperties.Patch patch : command.patches()) {
+            Optional<PropertyDefinition> property = definition.property(
+                    patch.propertyName());
+            String path = target.path() + "/properties/" + pointer(
+                    patch.propertyName().value());
+            if (property.isEmpty()) {
+                return failure(
+                        DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.PROPERTY_UNKNOWN,
+                        path,
+                        Optional.of(command.widgetId()),
+                        "Widget type '" + target.node().type().value()
+                        + "' has no property '" + patch.propertyName().value() + "'.");
+            }
+            PropertyDefinition declared = property.orElseThrow();
+            if (patch instanceof PatchProperties.ResetPatch) {
+                if (declared.parameter().required()) {
+                    return failure(
+                            DesignerCommandStatus.REJECTED,
+                            DesignerCommandDiagnosticCode.PROPERTY_REQUIRED,
+                            path,
+                            Optional.of(command.widgetId()),
+                            "Required property '" + patch.propertyName().value()
+                            + "' cannot be reset.");
+                }
+                continue;
+            }
+            PropertyValue requested = ((PatchProperties.SetPatch) patch).value();
+            Optional<PropertyValueConstraint> constraint = declared.constraints().stream()
+                    .filter(value -> value.kind() == requested.kind())
+                    .findFirst();
+            if (constraint.isEmpty()
+                    || !constraint.orElseThrow().accepts(requested)) {
+                String accepted = constraint.map(PropertyValueConstraint::description)
+                        .orElse("accepted kinds " + declared.acceptedKinds());
+                return failure(
+                        DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED,
+                        path,
+                        Optional.of(command.widgetId()),
+                        "Property '" + patch.propertyName().value()
+                        + "' rejects " + requested.kind().wireName()
+                        + "; expected " + accepted + ".");
+            }
         }
-        if (property.orElseThrow().parameter().required()) {
-            return failure(
-                    DesignerCommandStatus.REJECTED,
-                    DesignerCommandDiagnosticCode.PROPERTY_REQUIRED,
-                    path,
-                    Optional.of(command.widgetId()),
-                    "Required property '" + command.propertyName().value()
-                    + "' cannot be reset.");
-        }
-        if (!target.node().properties().containsKey(command.propertyName())) {
-            return noChange("Optional property '" + command.propertyName().value()
-                    + "' is already absent.");
-        }
+
         LinkedHashMap<PropertyName, PropertyValue> properties =
                 new LinkedHashMap<>(target.node().properties());
-        properties.remove(command.propertyName());
+        for (PatchProperties.Patch patch : command.patches()) {
+            if (patch instanceof PatchProperties.SetPatch set) {
+                properties.put(set.propertyName(), set.value());
+            } else {
+                properties.remove(patch.propertyName());
+            }
+        }
+        if (properties.equals(target.node().properties())) {
+            return noChange("The property patch leaves the widget unchanged.");
+        }
         WidgetNode replacement = new WidgetNode(
                 target.node().id(),
                 target.node().type(),

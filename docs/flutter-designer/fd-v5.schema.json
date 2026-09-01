@@ -1,0 +1,827 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:netbeans-flutter-designer:schema:fd:5",
+  "title": "NetBeans Flutter Designer document",
+  "description": "Version 5 JSON contract for a .fd visual Flutter form with structured Container values.",
+  "type": "object",
+  "required": ["format", "schemaVersion", "documentId", "source", "root"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "format": {"const": "netbeans-flutter-designer"},
+    "schemaVersion": {"const": 5},
+    "documentId": {"$ref": "#/$defs/stableId"},
+    "source": {"$ref": "#/$defs/source"},
+    "canvas": {"$ref": "#/$defs/canvas"},
+    "root": {"$ref": "#/$defs/widget"},
+    "extensions": {"$ref": "#/$defs/extensions"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "source": {
+      "type": "object",
+      "required": ["dartFile", "className", "widgetKind", "managedRegions"],
+      "properties": {
+        "dartFile": {"type": "string", "pattern": "^_?[a-z][a-z0-9_]*\\.dart$"},
+        "className": {
+          "type": "string",
+          "pattern": "^_?[A-Z][A-Za-z0-9]*$",
+          "not": {"const": "Function"}
+        },
+        "widgetKind": {"enum": ["stateless", "stateful"]},
+        "generatorVersion": {"type": "string", "minLength": 1, "maxLength": 64},
+        "managedRegions": {
+          "type": "object",
+          "required": ["imports", "build"],
+          "properties": {
+            "imports": {"$ref": "#/$defs/managedRegion"},
+            "build": {"$ref": "#/$defs/managedRegion"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "managedRegion": {
+      "type": "object",
+      "required": ["sha256"],
+      "properties": {"sha256": {"type": "string", "pattern": "^[0-9A-F]{64}$"}},
+      "additionalProperties": false
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "preset": {"type": "string", "minLength": 1, "maxLength": 80},
+        "logicalWidth": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
+        "logicalHeight": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
+        "devicePixelRatio": {"type": "number", "exclusiveMinimum": 0, "maximum": 10},
+        "orientation": {"enum": ["portrait", "landscape"]},
+        "themeMode": {"enum": ["system", "light", "dark"]},
+        "textScaleFactor": {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+        "locale": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{2,8})*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "widget": {
+      "type": "object",
+      "required": ["id", "type", "properties", "slots"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:/#-]{0,254}$"
+        },
+        "properties": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/propertyValue"}
+        },
+        "slots": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/slot"}
+        },
+        "extensions": {"$ref": "#/$defs/extensions"}
+      },
+      "additionalProperties": false
+    },
+    "slot": {
+      "oneOf": [
+        {"$ref": "#/$defs/singleSlot"},
+        {"$ref": "#/$defs/listSlot"}
+      ]
+    },
+    "singleSlot": {
+      "type": "object",
+      "required": ["kind", "child"],
+      "properties": {
+        "kind": {"const": "single"},
+        "child": {
+          "oneOf": [
+            {"$ref": "#/$defs/widget"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "listSlot": {
+      "type": "object",
+      "required": ["kind", "children"],
+      "properties": {
+        "kind": {"const": "list"},
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/widget"},
+          "maxItems": 10000
+        }
+      },
+      "additionalProperties": false
+    },
+    "propertyValue": {
+      "oneOf": [
+        {"$ref": "#/$defs/stringValue"},
+        {"$ref": "#/$defs/booleanValue"},
+        {"$ref": "#/$defs/integerValue"},
+        {"$ref": "#/$defs/doubleValue"},
+        {"$ref": "#/$defs/enumValue"},
+        {"$ref": "#/$defs/colorValue"},
+        {"$ref": "#/$defs/edgeInsetsValue"},
+        {"$ref": "#/$defs/edgeInsetsDirectionalValue"},
+        {"$ref": "#/$defs/assetValue"},
+        {"$ref": "#/$defs/callbackValue"},
+        {"$ref": "#/$defs/dartExpressionValue"},
+        {"$ref": "#/$defs/themeTokenValue"},
+        {"$ref": "#/$defs/paintValue"},
+        {"$ref": "#/$defs/shadowListValue"},
+        {"$ref": "#/$defs/fontFeatureListValue"},
+        {"$ref": "#/$defs/fontVariationListValue"},
+        {"$ref": "#/$defs/alignmentGeometryValue"},
+        {"$ref": "#/$defs/boxConstraintsValue"},
+        {"$ref": "#/$defs/matrix4Value"},
+        {"$ref": "#/$defs/boxDecorationValue"},
+        {"$ref": "#/$defs/iconDataValue"}
+      ]
+    },
+    "stringValue": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {"kind": {"const": "string"}, "value": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "booleanValue": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {"kind": {"const": "boolean"}, "value": {"type": "boolean"}},
+      "additionalProperties": false
+    },
+    "integerValue": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {"kind": {"const": "integer"}, "value": {"type": "integer"}},
+      "additionalProperties": false
+    },
+    "doubleValue": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {"kind": {"const": "double"}, "value": {"type": "number"}},
+      "additionalProperties": false
+    },
+    "enumValue": {
+      "type": "object",
+      "required": ["kind", "type", "value"],
+      "properties": {
+        "kind": {"const": "enum"},
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "value": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+      },
+      "additionalProperties": false
+    },
+    "colorValue": {
+      "type": "object",
+      "required": ["kind", "argb"],
+      "properties": {
+        "kind": {"const": "color"},
+        "argb": {"type": "string", "pattern": "^0x[0-9A-F]{8}$"}
+      },
+      "additionalProperties": false
+    },
+    "edgeInsetsValue": {
+      "type": "object",
+      "required": ["kind", "left", "top", "right", "bottom"],
+      "properties": {
+        "kind": {"const": "edgeInsets"},
+        "left": {"type": "number"},
+        "top": {"type": "number"},
+        "right": {"type": "number"},
+        "bottom": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "edgeInsetsDirectionalValue": {
+      "type": "object",
+      "required": ["kind", "start", "top", "end", "bottom"],
+      "properties": {
+        "kind": {"const": "edgeInsets"},
+        "start": {"type": "number"},
+        "top": {"type": "number"},
+        "end": {"type": "number"},
+        "bottom": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "assetValue": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {"const": "asset"},
+        "path": {"type": "string", "minLength": 1, "maxLength": 4096}
+      },
+      "additionalProperties": false
+    },
+    "callbackValue": {
+      "type": "object",
+      "required": ["kind", "handler"],
+      "properties": {
+        "kind": {"const": "callback"},
+        "handler": {"type": "string", "pattern": "^_?[A-Za-z][A-Za-z0-9_]*$"}
+      },
+      "additionalProperties": false
+    },
+    "dartExpressionValue": {
+      "type": "object",
+      "required": ["kind", "code"],
+      "properties": {
+        "kind": {"const": "dartExpression"},
+        "code": {"type": "string", "minLength": 1, "maxLength": 65536}
+      },
+      "additionalProperties": false
+    },
+    "themeToken": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^material\\.(?:colorScheme|textTheme)\\.[a-z][A-Za-z0-9]*$"
+    },
+    "colorThemeToken": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^material\\.colorScheme\\.[a-z][A-Za-z0-9]*$"
+    },
+    "themeTokenValue": {
+      "type": "object",
+      "required": ["kind", "token"],
+      "properties": {
+        "kind": {"const": "themeToken"},
+        "token": {"$ref": "#/$defs/themeToken"}
+      },
+      "additionalProperties": false
+    },
+    "colorSource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "argb"],
+          "properties": {
+            "kind": {"const": "literal"},
+            "argb": {"type": "string", "pattern": "^0x[0-9A-F]{8}$"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "token"],
+          "properties": {
+            "kind": {"const": "theme"},
+            "token": {"$ref": "#/$defs/colorThemeToken"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "paintValue": {
+      "type": "object",
+      "required": [
+        "kind", "color", "blendMode", "style", "strokeWidth", "strokeCap",
+        "strokeJoin", "strokeMiterLimit", "antiAlias", "filterQuality", "invertColors"
+      ],
+      "properties": {
+        "kind": {"const": "paint"},
+        "color": {"$ref": "#/$defs/colorSource"},
+        "blendMode": {
+          "enum": [
+            "clear", "src", "dst", "srcOver", "dstOver", "srcIn", "dstIn",
+            "srcOut", "dstOut", "srcATop", "dstATop", "xor", "plus", "modulate",
+            "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn",
+            "hardLight", "softLight", "difference", "exclusion", "multiply", "hue",
+            "saturation", "color", "luminosity"
+          ]
+        },
+        "style": {"enum": ["fill", "stroke"]},
+        "strokeWidth": {"type": "number", "minimum": 0},
+        "strokeCap": {"enum": ["butt", "round", "square"]},
+        "strokeJoin": {"enum": ["miter", "round", "bevel"]},
+        "strokeMiterLimit": {"type": "number", "minimum": 0},
+        "antiAlias": {"type": "boolean"},
+        "filterQuality": {"enum": ["none", "low", "medium", "high"]},
+        "invertColors": {"type": "boolean"},
+        "maskFilter": {"$ref": "#/$defs/blurMask"}
+      },
+      "additionalProperties": false
+    },
+    "blurMask": {
+      "type": "object",
+      "required": ["style", "sigma"],
+      "properties": {
+        "style": {"enum": ["normal", "solid", "outer", "inner"]},
+        "sigma": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "shadowListValue": {
+      "type": "object",
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": {"const": "shadowList"},
+        "items": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/shadow"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "shadow": {
+      "type": "object",
+      "required": ["id", "color", "offsetX", "offsetY", "blurRadius"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "color": {"$ref": "#/$defs/colorSource"},
+        "offsetX": {"type": "number"},
+        "offsetY": {"type": "number"},
+        "blurRadius": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "fontFeatureListValue": {
+      "type": "object",
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": {"const": "fontFeatureList"},
+        "items": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/fontFeature"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "fontFeature": {
+      "type": "object",
+      "required": ["id", "tag", "value"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "tag": {"type": "string", "pattern": "^[ -~]{4}$"},
+        "value": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+      },
+      "additionalProperties": false
+    },
+    "fontVariationListValue": {
+      "type": "object",
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": {"const": "fontVariationList"},
+        "items": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/fontVariation"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "fontVariation": {
+      "type": "object",
+      "required": ["id", "axis", "value"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "axis": {"type": "string", "pattern": "^[ -~]{4}$"},
+        "value": {"type": "number", "minimum": -32768, "exclusiveMaximum": 32768}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"axis": {"const": "ital"}}, "required": ["axis"]},
+          "then": {"properties": {"value": {"minimum": 0, "maximum": 1}}}
+        },
+        {
+          "if": {"properties": {"axis": {"const": "opsz"}}, "required": ["axis"]},
+          "then": {"properties": {"value": {"exclusiveMinimum": 0}}}
+        },
+        {
+          "if": {"properties": {"axis": {"const": "slnt"}}, "required": ["axis"]},
+          "then": {"properties": {"value": {"exclusiveMinimum": -90, "exclusiveMaximum": 90}}}
+        },
+        {
+          "if": {"properties": {"axis": {"const": "wdth"}}, "required": ["axis"]},
+          "then": {"properties": {"value": {"minimum": 0}}}
+        },
+        {
+          "if": {"properties": {"axis": {"const": "wght"}}, "required": ["axis"]},
+          "then": {"properties": {"value": {"minimum": 1, "maximum": 1000}}}
+        }
+      ]
+    },
+    "alignmentGeometry": {
+      "type": "object",
+      "required": ["basis", "horizontal", "vertical"],
+      "properties": {
+        "basis": {"enum": ["physical", "directional"]},
+        "horizontal": {"type": "number"},
+        "vertical": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "alignmentGeometryValue": {
+      "type": "object",
+      "required": ["kind", "basis", "horizontal", "vertical"],
+      "properties": {
+        "kind": {"const": "alignmentGeometry"},
+        "basis": {"enum": ["physical", "directional"]},
+        "horizontal": {"type": "number"},
+        "vertical": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "boxConstraintsValue": {
+      "type": "object",
+      "required": ["kind", "minWidth", "maxWidth", "minHeight", "maxHeight"],
+      "properties": {
+        "kind": {"const": "boxConstraints"},
+        "minWidth": {"type": "number", "minimum": 0},
+        "maxWidth": {
+          "oneOf": [
+            {"type": "number", "minimum": 0},
+            {"type": "null"}
+          ]
+        },
+        "minHeight": {"type": "number", "minimum": 0},
+        "maxHeight": {
+          "oneOf": [
+            {"type": "number", "minimum": 0},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "matrix4Value": {
+      "type": "object",
+      "required": ["kind", "storage"],
+      "properties": {
+        "kind": {"const": "matrix4"},
+        "storage": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": {"type": "number"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "nullableColorSource": {
+      "oneOf": [
+        {"$ref": "#/$defs/colorSource"},
+        {"type": "null"}
+      ]
+    },
+    "borderSide": {
+      "type": "object",
+      "required": ["color", "width", "style", "strokeAlign"],
+      "properties": {
+        "color": {"$ref": "#/$defs/colorSource"},
+        "width": {"type": "number", "minimum": 0},
+        "style": {"enum": ["none", "solid"]},
+        "strokeAlign": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "physicalBorder": {
+      "type": "object",
+      "required": ["kind", "top", "right", "bottom", "left"],
+      "properties": {
+        "kind": {"const": "physical"},
+        "top": {"$ref": "#/$defs/borderSide"},
+        "right": {"$ref": "#/$defs/borderSide"},
+        "bottom": {"$ref": "#/$defs/borderSide"},
+        "left": {"$ref": "#/$defs/borderSide"}
+      },
+      "additionalProperties": false
+    },
+    "directionalBorder": {
+      "type": "object",
+      "required": ["kind", "top", "start", "end", "bottom"],
+      "properties": {
+        "kind": {"const": "directional"},
+        "top": {"$ref": "#/$defs/borderSide"},
+        "start": {"$ref": "#/$defs/borderSide"},
+        "end": {"$ref": "#/$defs/borderSide"},
+        "bottom": {"$ref": "#/$defs/borderSide"}
+      },
+      "additionalProperties": false
+    },
+    "boxBorder": {
+      "oneOf": [
+        {"$ref": "#/$defs/physicalBorder"},
+        {"$ref": "#/$defs/directionalBorder"}
+      ]
+    },
+    "radius": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {"type": "number", "minimum": 0},
+        "y": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "physicalBorderRadius": {
+      "type": "object",
+      "required": ["kind", "topLeft", "topRight", "bottomRight", "bottomLeft"],
+      "properties": {
+        "kind": {"const": "physical"},
+        "topLeft": {"$ref": "#/$defs/radius"},
+        "topRight": {"$ref": "#/$defs/radius"},
+        "bottomRight": {"$ref": "#/$defs/radius"},
+        "bottomLeft": {"$ref": "#/$defs/radius"}
+      },
+      "additionalProperties": false
+    },
+    "directionalBorderRadius": {
+      "type": "object",
+      "required": ["kind", "topStart", "topEnd", "bottomEnd", "bottomStart"],
+      "properties": {
+        "kind": {"const": "directional"},
+        "topStart": {"$ref": "#/$defs/radius"},
+        "topEnd": {"$ref": "#/$defs/radius"},
+        "bottomEnd": {"$ref": "#/$defs/radius"},
+        "bottomStart": {"$ref": "#/$defs/radius"}
+      },
+      "additionalProperties": false
+    },
+    "borderRadiusGeometry": {
+      "oneOf": [
+        {"$ref": "#/$defs/physicalBorderRadius"},
+        {"$ref": "#/$defs/directionalBorderRadius"}
+      ]
+    },
+    "boxShadow": {
+      "type": "object",
+      "required": [
+        "id", "color", "offsetX", "offsetY", "blurRadius",
+        "spreadRadius", "blurStyle"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "color": {"$ref": "#/$defs/colorSource"},
+        "offsetX": {"type": "number"},
+        "offsetY": {"type": "number"},
+        "blurRadius": {"type": "number", "minimum": 0},
+        "spreadRadius": {"type": "number"},
+        "blurStyle": {"enum": ["normal", "solid", "outer", "inner"]}
+      },
+      "additionalProperties": false
+    },
+    "gradientStop": {
+      "type": "object",
+      "required": ["id", "color", "stop"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stableId"},
+        "color": {"$ref": "#/$defs/colorSource"},
+        "stop": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "gradientCommon": {
+      "type": "object",
+      "required": ["stops", "tileMode", "rotationRadians"],
+      "properties": {
+        "stops": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/gradientStop"}
+        },
+        "tileMode": {"enum": ["clamp", "repeated", "mirror", "decal"]},
+        "rotationRadians": {
+          "oneOf": [{"type": "number"}, {"type": "null"}]
+        }
+      }
+    },
+    "linearGradient": {
+      "allOf": [
+        {"$ref": "#/$defs/gradientCommon"},
+        {
+          "type": "object",
+          "required": ["kind", "begin", "end"],
+          "properties": {
+            "kind": {"const": "linear"},
+            "begin": {"$ref": "#/$defs/alignmentGeometry"},
+            "end": {"$ref": "#/$defs/alignmentGeometry"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "radialGradient": {
+      "allOf": [
+        {"$ref": "#/$defs/gradientCommon"},
+        {
+          "type": "object",
+          "required": ["kind", "center", "radius", "focal", "focalRadius"],
+          "properties": {
+            "kind": {"const": "radial"},
+            "center": {"$ref": "#/$defs/alignmentGeometry"},
+            "radius": {"type": "number", "minimum": 0},
+            "focal": {
+              "oneOf": [
+                {"$ref": "#/$defs/alignmentGeometry"},
+                {"type": "null"}
+              ]
+            },
+            "focalRadius": {"type": "number", "minimum": 0}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {"focal": {"type": "null"}},
+                "required": ["focal"]
+              },
+              "then": {
+                "properties": {"focalRadius": {"const": 0}}
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "sweepGradient": {
+      "allOf": [
+        {"$ref": "#/$defs/gradientCommon"},
+        {
+          "type": "object",
+          "required": ["kind", "center", "startAngle", "endAngle"],
+          "properties": {
+            "kind": {"const": "sweep"},
+            "center": {"$ref": "#/$defs/alignmentGeometry"},
+            "startAngle": {"type": "number"},
+            "endAngle": {"type": "number"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "boxGradient": {
+      "oneOf": [
+        {"$ref": "#/$defs/linearGradient"},
+        {"$ref": "#/$defs/radialGradient"},
+        {"$ref": "#/$defs/sweepGradient"}
+      ]
+    },
+    "boxDecorationValue": {
+      "type": "object",
+      "required": [
+        "kind", "color", "border", "borderRadius", "boxShadow",
+        "gradient", "backgroundBlendMode", "shape"
+      ],
+      "properties": {
+        "kind": {"const": "boxDecoration"},
+        "color": {"$ref": "#/$defs/nullableColorSource"},
+        "border": {
+          "oneOf": [{"$ref": "#/$defs/boxBorder"}, {"type": "null"}]
+        },
+        "borderRadius": {
+          "oneOf": [
+            {"$ref": "#/$defs/borderRadiusGeometry"},
+            {"type": "null"}
+          ]
+        },
+        "boxShadow": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {"$ref": "#/$defs/boxShadow"}
+        },
+        "gradient": {
+          "oneOf": [{"$ref": "#/$defs/boxGradient"}, {"type": "null"}]
+        },
+        "backgroundBlendMode": {
+          "oneOf": [
+            {
+              "enum": [
+                "clear", "src", "dst", "srcOver", "dstOver", "srcIn", "dstIn",
+                "srcOut", "dstOut", "srcATop", "dstATop", "xor", "plus", "modulate",
+                "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn",
+                "hardLight", "softLight", "difference", "exclusion", "multiply", "hue",
+                "saturation", "color", "luminosity"
+              ]
+            },
+            {"type": "null"}
+          ]
+        },
+        "shape": {"enum": ["rectangle", "circle"]}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {"shape": {"const": "circle"}},
+            "required": ["shape"]
+          },
+          "then": {"properties": {"borderRadius": {"type": "null"}}}
+        },
+        {
+          "if": {
+            "properties": {"backgroundBlendMode": {"not": {"type": "null"}}},
+            "required": ["backgroundBlendMode"]
+          },
+          "then": {
+            "anyOf": [
+              {"properties": {"color": {"not": {"type": "null"}}}},
+              {"properties": {"gradient": {"not": {"type": "null"}}}}
+            ]
+          }
+        }
+      ]
+    },
+    "iconDataMetadataText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?![\\u0009-\\u000D\\u001C-\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200A\\u2028\\u2029\\u205F\\u3000])(?!.*[\\u0009-\\u000D\\u001C-\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200A\\u2028\\u2029\\u205F\\u3000]$)(?!.*[\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u2028-\\u202E\\u2066-\\u2069\\uFEFF]).+$"
+    },
+    "iconDataValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "codePoint",
+        "fontFamily",
+        "fontPackage",
+        "matchTextDirection",
+        "fontFamilyFallback"
+      ],
+      "properties": {
+        "kind": {"const": "iconData"},
+        "codePoint": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1114111,
+              "not": {"minimum": 55296, "maximum": 57343}
+            },
+            {"type": "null"}
+          ]
+        },
+        "fontFamily": {
+          "oneOf": [
+            {"$ref": "#/$defs/iconDataMetadataText"},
+            {"type": "null"}
+          ]
+        },
+        "fontPackage": {
+          "oneOf": [
+            {"$ref": "#/$defs/iconDataMetadataText"},
+            {"type": "null"}
+          ]
+        },
+        "matchTextDirection": {"type": "boolean"},
+        "fontFamilyFallback": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/iconDataMetadataText"}
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {"codePoint": {"type": "null"}},
+            "required": ["codePoint"]
+          },
+          "then": {
+            "properties": {
+              "fontFamily": {"type": "null"},
+              "fontPackage": {"type": "null"},
+              "matchTextDirection": {"const": false},
+              "fontFamilyFallback": {"maxItems": 0}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"fontPackage": {"type": "string"}},
+            "required": ["fontPackage"]
+          },
+          "then": {
+            "properties": {"fontFamily": {"type": "string"}},
+            "required": ["fontFamily"]
+          }
+        }
+      ]
+    },
+    "extensions": {
+      "type": "object",
+      "patternProperties": {"^[a-z][a-z0-9.-]*:[A-Za-z0-9._-]+$": true},
+      "additionalProperties": false
+    }
+  }
+}

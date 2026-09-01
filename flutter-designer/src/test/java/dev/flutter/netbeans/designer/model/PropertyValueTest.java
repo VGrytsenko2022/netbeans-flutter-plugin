@@ -301,4 +301,111 @@ class PropertyValueTest {
                 new PropertyValue.FontVariationListValue.FontVariation(
                         secondId, "ABÇD", BigDecimal.ZERO));
     }
+
+    @Test
+    void modelsAlignmentConstraintsAndColumnMajorMatrixWithoutStringEscapes() {
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("-1.0"), BigDecimal.ONE);
+        assertEquals(PropertyValueKind.ALIGNMENT_GEOMETRY, directional.kind());
+        assertEquals(BigDecimal.ONE.negate(), directional.horizontal());
+
+        PropertyValue.BoxConstraintsValue constraints =
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.TEN, Optional.empty(), BigDecimal.ZERO,
+                        Optional.of(new BigDecimal("200.0")));
+        assertEquals(PropertyValueKind.BOX_CONSTRAINTS, constraints.kind());
+        assertTrue(constraints.maxWidth().isEmpty());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.TEN, Optional.of(BigDecimal.ONE),
+                        BigDecimal.ZERO, Optional.empty()));
+
+        List<BigDecimal> storage = java.util.stream.IntStream.range(0, 16)
+                .mapToObj(BigDecimal::valueOf).toList();
+        PropertyValue.Matrix4Value matrix = new PropertyValue.Matrix4Value(storage);
+        assertEquals(PropertyValueKind.MATRIX4, matrix.kind());
+        assertEquals(16, matrix.storage().size());
+        for (int index = 0; index < 16; index++) {
+            assertEquals(0, matrix.storage().get(index).compareTo(storage.get(index)));
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.Matrix4Value(storage.subList(0, 15)));
+    }
+
+    @Test
+    void modelsReviewedBoxDecorationUnionsAndRejectsFlutterPaintHazards() {
+        ColorSource primary = new ColorSource.Theme(
+                new ThemeToken("material.colorScheme.primary"));
+        PropertyValue.BoxDecorationValue.BorderSide side =
+                new PropertyValue.BoxDecorationValue.BorderSide(
+                        primary, BigDecimal.TWO,
+                        PropertyValue.BoxDecorationValue.BorderStyle.SOLID,
+                        BigDecimal.ONE.negate());
+        PropertyValue.BoxDecorationValue.PhysicalBorder border =
+                new PropertyValue.BoxDecorationValue.PhysicalBorder(side, side, side, side);
+        PropertyValue.BoxDecorationValue.DirectionalBorderRadius radius =
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                        new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.TWO),
+                        new PropertyValue.BoxDecorationValue.Radius(BigDecimal.TWO, BigDecimal.ONE),
+                        new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ZERO, BigDecimal.ZERO),
+                        new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ZERO, BigDecimal.ZERO));
+        PropertyValue.BoxDecorationValue.GradientStop first =
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        StableId.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                        primary, BigDecimal.ZERO);
+        PropertyValue.BoxDecorationValue.GradientStop second =
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                        new ColorSource.Literal(0xFFFFFFFFL), BigDecimal.ONE);
+        PropertyValue.AlignmentGeometryValue center = new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                BigDecimal.ZERO, BigDecimal.ZERO);
+        PropertyValue.BoxDecorationValue.LinearGradient gradient =
+                new PropertyValue.BoxDecorationValue.LinearGradient(
+                        center,
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                BigDecimal.ONE, BigDecimal.ONE),
+                        List.of(first, second),
+                        PropertyValue.BoxDecorationValue.TileMode.CLAMP,
+                        Optional.of(new BigDecimal("0.25")));
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(primary), Optional.of(border), Optional.of(radius), List.of(),
+                        Optional.of(gradient),
+                        Optional.of(PropertyValue.PaintValue.BlendMode.SRC_OVER),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        assertEquals(PropertyValueKind.BOX_DECORATION, decoration.kind());
+        assertEquals(List.of(first, second), gradient.stops());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(), Optional.empty(), Optional.of(radius), List.of(),
+                        Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.CIRCLE));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.BoxDecorationValue.LinearGradient(
+                        center, center, List.of(second, first),
+                        PropertyValue.BoxDecorationValue.TileMode.CLAMP, Optional.empty()));
+        PropertyValue.BoxDecorationValue.RadialGradient concentricGradient =
+                new PropertyValue.BoxDecorationValue.RadialGradient(
+                        center, BigDecimal.ONE, Optional.of(center), BigDecimal.ONE,
+                        List.of(first, second), PropertyValue.BoxDecorationValue.TileMode.CLAMP,
+                        Optional.empty());
+        assertEquals(center, concentricGradient.focal().orElseThrow());
+
+        PropertyValue.BoxDecorationValue.BorderSide otherColor =
+                new PropertyValue.BoxDecorationValue.BorderSide(
+                        new ColorSource.Literal(0xFF000000L), BigDecimal.ONE,
+                        PropertyValue.BoxDecorationValue.BorderStyle.SOLID, BigDecimal.ZERO);
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(), Optional.of(
+                                new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                                        side, otherColor, side, otherColor)),
+                        Optional.of(radius), List.of(), Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE));
+    }
 }

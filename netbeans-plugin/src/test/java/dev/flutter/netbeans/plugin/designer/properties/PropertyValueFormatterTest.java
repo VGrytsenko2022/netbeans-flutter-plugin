@@ -9,6 +9,8 @@ import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.ThemeToken;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PropertyValueFormatterTest {
@@ -87,10 +89,38 @@ class PropertyValueFormatterTest {
                         new PropertyValue.FontVariationListValue.FontVariation(
                                 StableId.parse("443b1525-af59-4afd-8a6a-852b919c3513"),
                                 "wght", BigDecimal.valueOf(600))))));
+        assertEquals("directional (0.25, -1)", PropertyValueFormatter.format(
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("0.25"), BigDecimal.ONE.negate())));
+        assertEquals("w=10…∞, h=20…200", PropertyValueFormatter.format(
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.TEN, Optional.empty(), BigDecimal.valueOf(20),
+                        Optional.of(BigDecimal.valueOf(200)))));
+        assertEquals("Identity matrix", PropertyValueFormatter.format(
+                new PropertyValue.Matrix4Value(List.of(
+                        BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                        BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE))));
+        assertEquals("BoxDecoration(rectangle, theme:primary, border)",
+                PropertyValueFormatter.format(new PropertyValue.BoxDecorationValue(
+                        Optional.of(new ColorSource.Theme(
+                                new ThemeToken("material.colorScheme.primary"))),
+                        Optional.of(new PropertyValue.BoxDecorationValue.PhysicalBorder(
+                                borderSide(), borderSide(), borderSide(), borderSide())),
+                        Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
     }
 
     @Test
     void rejectsNullInsteadOfConfusingItWithAnUnsetProperty() {
         assertThrows(NullPointerException.class, () -> PropertyValueFormatter.format(null));
+    }
+
+    private static PropertyValue.BoxDecorationValue.BorderSide borderSide() {
+        return new PropertyValue.BoxDecorationValue.BorderSide(
+                new ColorSource.Literal(0xFF000000L), BigDecimal.ONE,
+                PropertyValue.BoxDecorationValue.BorderStyle.SOLID, BigDecimal.ZERO);
     }
 }

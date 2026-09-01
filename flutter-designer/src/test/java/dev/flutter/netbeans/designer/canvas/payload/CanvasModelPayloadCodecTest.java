@@ -77,6 +77,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
+                "flutter.widgets.Container",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -86,7 +87,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactElevenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactTwelveWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -97,7 +98,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":9"));
+        assertTrue(json.contains("\"protocolVersion\":10"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -180,7 +181,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV9() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV10() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -220,7 +221,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":9"), json);
+        assertTrue(json.contains("\"protocolVersion\":10"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -244,7 +245,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV9Order()
+    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV10Order()
             throws Exception {
         CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
                 Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
@@ -342,6 +343,74 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"end\":3"), json);
         assertFalse(json.contains("\"left\":"), json);
         assertFalse(json.contains("\"right\":"), json);
+    }
+
+    @Test
+    void projectsStructuredContainerValuesInProtocolV10() throws Exception {
+        PropertyValue.AlignmentGeometryValue alignment =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("0.25"), new BigDecimal("-0.5"));
+        ColorSource primary = new ColorSource.Theme(
+                new ThemeToken("material.colorScheme.primary"));
+        PropertyValue.BoxDecorationValue.GradientStop first =
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        id("2e147e17-a407-40b0-a43d-ff630bf29bee"),
+                        primary, BigDecimal.ZERO);
+        PropertyValue.BoxDecorationValue.GradientStop second =
+                new PropertyValue.BoxDecorationValue.GradientStop(
+                        id("9636df3c-b0f5-4c4a-bb13-6990dc476ccd"),
+                        new ColorSource.Literal(0xFFFFFFFFL), BigDecimal.ONE);
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(primary), Optional.empty(), Optional.empty(),
+                        List.of(),
+                        Optional.of(new PropertyValue.BoxDecorationValue.LinearGradient(
+                                alignment,
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                        BigDecimal.ONE, BigDecimal.ONE),
+                                List.of(first, second),
+                                PropertyValue.BoxDecorationValue.TileMode.MIRROR,
+                                Optional.of(new BigDecimal("0.125")))),
+                        Optional.of(PropertyValue.PaintValue.BlendMode.MULTIPLY),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        WidgetNode container = new WidgetNode(
+                id("6130c00c-8568-48f5-a835-e88a01fa0e6f"),
+                type("flutter.widgets.Container"),
+                Map.ofEntries(
+                        Map.entry(new PropertyName("alignment"), alignment),
+                        Map.entry(new PropertyName("constraints"),
+                                new PropertyValue.BoxConstraintsValue(
+                                        BigDecimal.TEN, Optional.empty(),
+                                        BigDecimal.valueOf(20),
+                                        Optional.of(BigDecimal.valueOf(500)))),
+                        Map.entry(new PropertyName("transform"),
+                                new PropertyValue.Matrix4Value(
+                                        java.util.stream.IntStream.range(0, 16)
+                                                .mapToObj(BigDecimal::valueOf)
+                                                .toList())),
+                        Map.entry(new PropertyName("decoration"), decoration),
+                        Map.entry(new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "hardEdge"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(
+                request(new DesignerDocument(DOCUMENT_ID, source(), container))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":10"), json);
+        assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
+        assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
+        assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
+        assertTrue(json.contains("\"maxWidth\":null"), json);
+        assertTrue(json.contains("\"transform\":{\"kind\":\"matrix4\","), json);
+        assertTrue(json.contains("\"storage\":[0,1,2,3,4,5,6,7,8,9,1E+1,11,12,13,14,15]"), json);
+        assertTrue(json.contains("\"decoration\":{\"kind\":\"boxDecoration\","), json);
+        assertTrue(json.contains("\"token\":\"material.colorScheme.primary\""), json);
+        assertTrue(json.contains("\"gradient\":{\"kind\":\"linear\""), json);
+        assertTrue(json.contains("\"backgroundBlendMode\":\"multiply\""), json);
+        assertTrue(json.contains("\"shape\":\"rectangle\""), json);
     }
 
     private static void assertCanvasAdmissionRejects(

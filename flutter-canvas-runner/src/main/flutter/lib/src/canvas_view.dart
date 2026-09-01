@@ -454,6 +454,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   Iterable<CanvasNode> _zeroSizedDesignerTargets(CanvasNode node) sync* {
     if ((node.type == 'flutter.widgets.SizedBox' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
+        (node.type == 'flutter.widgets.Container' &&
+            (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1688,8 +1690,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paddingGeometry = node.type == 'flutter.widgets.Padding'
-        ? _paddingGeometry()
+    final paddingGeometry = switch (node.type) {
+      'flutter.widgets.Padding' => _paddingGeometry(),
+      'flutter.widgets.Container' => _edgeInsetsGeometry('padding'),
+      _ => null,
+    };
+    final marginGeometry = node.type == 'flutter.widgets.Container'
+        ? _edgeInsetsGeometry('margin')
         : null;
     final editing = inlineTextEditingWidgetId == node.id;
     final child = switch (node.type) {
@@ -1701,6 +1708,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
+      'flutter.widgets.Container' => _container(context),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Text' =>
@@ -1712,7 +1720,26 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final resolvedPadding = paddingGeometry?.resolve(
       Directionality.of(context),
     );
-    final guidedChild = resolvedPadding == null
+    final resolvedMargin = marginGeometry?.resolve(Directionality.of(context));
+    final guidedChild = node.type == 'flutter.widgets.Container'
+        ? resolvedPadding == null && resolvedMargin == null
+              ? child
+              : CustomPaint(
+                  key: ValueKey('canvas-container-insets-guides-${node.id}'),
+                  foregroundPainter: _CanvasContainerInsetsGuidesPainter(
+                    padding: resolvedPadding ?? EdgeInsets.zero,
+                    margin: resolvedMargin ?? EdgeInsets.zero,
+                    visualScale: overlayScale,
+                    paddingColor: dark
+                        ? const Color(0xffffb74d)
+                        : const Color(0xffd97706),
+                    marginColor: dark
+                        ? const Color(0xff80cbc4)
+                        : const Color(0xff00897b),
+                  ),
+                  child: child,
+                )
+        : resolvedPadding == null
         ? child
         : CustomPaint(
             key: ValueKey('canvas-padding-guides-${node.id}'),
@@ -2605,6 +2632,169 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     };
   }
 
+  AlignmentGeometry? _alignmentGeometry(String name) {
+    final value = node.properties[name]?.value;
+    if (value is! CanvasAlignmentGeometryValue) {
+      return null;
+    }
+    return value.basis == 'directional'
+        ? AlignmentDirectional(value.horizontal, value.vertical)
+        : Alignment(value.horizontal, value.vertical);
+  }
+
+  BoxConstraints? _boxConstraints(String name) {
+    final value = node.properties[name]?.value;
+    if (value is! CanvasBoxConstraintsValue) {
+      return null;
+    }
+    return BoxConstraints(
+      minWidth: value.minWidth,
+      maxWidth: value.maxWidth ?? double.infinity,
+      minHeight: value.minHeight,
+      maxHeight: value.maxHeight ?? double.infinity,
+    );
+  }
+
+  Matrix4? _matrix4(String name) {
+    final value = node.properties[name]?.value;
+    return value is CanvasMatrix4Value ? Matrix4.fromList(value.storage) : null;
+  }
+
+  BoxDecoration? _boxDecoration(BuildContext context, String name) {
+    final value = node.properties[name]?.value;
+    if (value is! CanvasBoxDecorationValue) {
+      return null;
+    }
+    return BoxDecoration(
+      color: value.color == null ? null : _colorSource(context, value.color!),
+      border: value.border == null ? null : _boxBorder(context, value.border!),
+      borderRadius: value.borderRadius == null
+          ? null
+          : _borderRadius(value.borderRadius!),
+      boxShadow: [
+        for (final shadow in value.boxShadow)
+          BoxShadow(
+            color: _colorSource(context, shadow.color),
+            offset: Offset(shadow.offsetX, shadow.offsetY),
+            blurRadius: shadow.blurRadius,
+            spreadRadius: shadow.spreadRadius,
+            blurStyle: _blurStyle(shadow.blurStyle),
+          ),
+      ],
+      gradient: value.gradient == null
+          ? null
+          : _boxGradient(context, value.gradient!),
+      backgroundBlendMode: value.backgroundBlendMode == null
+          ? null
+          : _blendMode(value.backgroundBlendMode!),
+      shape: value.shape == 'circle' ? BoxShape.circle : BoxShape.rectangle,
+    );
+  }
+
+  BoxBorder _boxBorder(BuildContext context, CanvasBoxBorderValue value) =>
+      switch (value) {
+        CanvasPhysicalBoxBorderValue() => Border(
+          top: _borderSide(context, value.top),
+          right: _borderSide(context, value.right),
+          bottom: _borderSide(context, value.bottom),
+          left: _borderSide(context, value.left),
+        ),
+        CanvasDirectionalBoxBorderValue() => BorderDirectional(
+          top: _borderSide(context, value.top),
+          start: _borderSide(context, value.start),
+          end: _borderSide(context, value.end),
+          bottom: _borderSide(context, value.bottom),
+        ),
+      };
+
+  BorderSide _borderSide(BuildContext context, CanvasBorderSideValue value) =>
+      BorderSide(
+        color: _colorSource(context, value.color),
+        width: value.width,
+        style: value.style == 'none' ? BorderStyle.none : BorderStyle.solid,
+        strokeAlign: value.strokeAlign,
+      );
+
+  BorderRadiusGeometry _borderRadius(CanvasBorderRadiusGeometryValue value) =>
+      switch (value) {
+        CanvasPhysicalBorderRadiusValue() => BorderRadius.only(
+          topLeft: _radius(value.topLeft),
+          topRight: _radius(value.topRight),
+          bottomRight: _radius(value.bottomRight),
+          bottomLeft: _radius(value.bottomLeft),
+        ),
+        CanvasDirectionalBorderRadiusValue() => BorderRadiusDirectional.only(
+          topStart: _radius(value.topStart),
+          topEnd: _radius(value.topEnd),
+          bottomEnd: _radius(value.bottomEnd),
+          bottomStart: _radius(value.bottomStart),
+        ),
+      };
+
+  Radius _radius(CanvasRadiusValue value) =>
+      Radius.elliptical(value.x, value.y);
+
+  Gradient _boxGradient(BuildContext context, CanvasBoxGradientValue value) {
+    final colors = [
+      for (final stop in value.stops) _colorSource(context, stop.color),
+    ];
+    final stops = [for (final stop in value.stops) stop.stop];
+    final transform = value.rotationRadians == null
+        ? null
+        : GradientRotation(value.rotationRadians!);
+    return switch (value) {
+      CanvasLinearGradientValue() => LinearGradient(
+        begin: _alignmentGeometryValue(value.begin),
+        end: _alignmentGeometryValue(value.end),
+        colors: colors,
+        stops: stops,
+        tileMode: _tileMode(value.tileMode),
+        transform: transform,
+      ),
+      CanvasRadialGradientValue() => RadialGradient(
+        center: _alignmentGeometryValue(value.center),
+        radius: value.radius,
+        colors: colors,
+        stops: stops,
+        tileMode: _tileMode(value.tileMode),
+        focal: value.focal == null
+            ? null
+            : _alignmentGeometryValue(value.focal!),
+        focalRadius: value.focalRadius,
+        transform: transform,
+      ),
+      CanvasSweepGradientValue() => SweepGradient(
+        center: _alignmentGeometryValue(value.center),
+        startAngle: value.startAngle,
+        endAngle: value.endAngle,
+        colors: colors,
+        stops: stops,
+        tileMode: _tileMode(value.tileMode),
+        transform: transform,
+      ),
+    };
+  }
+
+  AlignmentGeometry _alignmentGeometryValue(
+    CanvasAlignmentGeometryValue value,
+  ) => value.basis == 'directional'
+      ? AlignmentDirectional(value.horizontal, value.vertical)
+      : Alignment(value.horizontal, value.vertical);
+
+  TileMode _tileMode(String value) => switch (value) {
+    'repeated' => TileMode.repeated,
+    'mirror' => TileMode.mirror,
+    'decal' => TileMode.decal,
+    _ => TileMode.clamp,
+  };
+
+  BlurStyle _blurStyle(String value) => switch (value) {
+    'solid' => BlurStyle.solid,
+    'outer' => BlurStyle.outer,
+    'inner' => BlurStyle.inner,
+    _ => BlurStyle.normal,
+  };
+
   Widget _padding(EdgeInsetsGeometry insets) =>
       Padding(padding: insets, child: _single('child'));
 
@@ -2616,6 +2806,23 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _center() => Center(
     widthFactor: _number('widthFactor'),
     heightFactor: _number('heightFactor'),
+    child: _single('child'),
+  );
+
+  Widget _container(BuildContext context) => Container(
+    alignment: _alignmentGeometry('alignment'),
+    padding: _edgeInsetsGeometry('padding'),
+    color: _resolvedColor(context, 'color'),
+    isAntiAlias: _boolean('isAntiAlias') ?? true,
+    decoration: _boxDecoration(context, 'decoration'),
+    foregroundDecoration: _boxDecoration(context, 'foregroundDecoration'),
+    width: _number('width'),
+    height: _number('height'),
+    constraints: _boxConstraints('constraints'),
+    margin: _edgeInsetsGeometry('margin'),
+    transform: _matrix4('transform'),
+    transformAlignment: _alignmentGeometry('transformAlignment'),
+    clipBehavior: _clipBehavior() ?? Clip.none,
     child: _single('child'),
   );
 
@@ -3753,6 +3960,120 @@ class _CanvasPaddingGuidesPainter extends CustomPainter {
       color != oldDelegate.color;
 }
 
+class _CanvasContainerInsetsGuidesPainter extends CustomPainter {
+  const _CanvasContainerInsetsGuidesPainter({
+    required this.padding,
+    required this.margin,
+    required this.visualScale,
+    required this.paddingColor,
+    required this.marginColor,
+  });
+
+  final EdgeInsets padding;
+  final EdgeInsets margin;
+  final double visualScale;
+  final Color paddingColor;
+  final Color marginColor;
+
+  double get debugStrokeWidth => 1 / math.max(visualScale, 0.000001);
+
+  double get debugCapLength => 4 / math.max(visualScale, 0.000001);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if ((size.width <= 0 && size.height <= 0) ||
+        (padding == EdgeInsets.zero && margin == EdgeInsets.zero)) {
+      return;
+    }
+    final layoutBounds = Offset.zero & size;
+    final decorationBounds = _designerDeflateRect(layoutBounds, margin);
+    final contentBounds = _designerDeflateRect(decorationBounds, padding);
+    final marginPaint = Paint()
+      ..color = marginColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = debugStrokeWidth
+      ..strokeCap = StrokeCap.butt;
+    final paddingPaint = Paint()
+      ..color = paddingColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = debugStrokeWidth
+      ..strokeCap = StrokeCap.butt;
+    final safeScale = math.max(visualScale, 0.000001);
+    _drawInsetsMeasurements(
+      canvas,
+      layoutBounds,
+      decorationBounds,
+      marginPaint,
+      debugCapLength,
+      dashLength: 3 / safeScale,
+      gapLength: 2 / safeScale,
+    );
+    _drawInsetsMeasurements(
+      canvas,
+      decorationBounds,
+      contentBounds,
+      paddingPaint,
+      debugCapLength,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CanvasContainerInsetsGuidesPainter oldDelegate) =>
+      padding != oldDelegate.padding ||
+      margin != oldDelegate.margin ||
+      visualScale != oldDelegate.visualScale ||
+      paddingColor != oldDelegate.paddingColor ||
+      marginColor != oldDelegate.marginColor;
+}
+
+Rect _designerDeflateRect(Rect outer, EdgeInsets insets) {
+  final left = outer.left + insets.left;
+  final top = outer.top + insets.top;
+  final right = outer.right - insets.right;
+  final bottom = outer.bottom - insets.bottom;
+  final horizontalMiddle = (left + right) / 2;
+  final verticalMiddle = (top + bottom) / 2;
+  return Rect.fromLTRB(
+    math.min(left, horizontalMiddle),
+    math.min(top, verticalMiddle),
+    math.max(right, horizontalMiddle),
+    math.max(bottom, verticalMiddle),
+  );
+}
+
+void _drawInsetsMeasurements(
+  Canvas canvas,
+  Rect outer,
+  Rect inner,
+  Paint paint,
+  double capLength, {
+  double? dashLength,
+  double? gapLength,
+}) {
+  final guideX = (inner.left + inner.right) / 2;
+  final guideY = (inner.top + inner.bottom) / 2;
+  void draw(Offset start, Offset end) {
+    if (dashLength == null || gapLength == null) {
+      _drawMeasurement(canvas, start, end, paint, capLength);
+    } else {
+      _drawDashedMeasurement(
+        canvas,
+        start,
+        end,
+        paint,
+        capLength,
+        dashLength,
+        gapLength,
+      );
+    }
+  }
+
+  draw(Offset(outer.left, guideY), Offset(inner.left, guideY));
+  draw(Offset(inner.right, guideY), Offset(outer.right, guideY));
+  draw(Offset(guideX, outer.top), Offset(guideX, inner.top));
+  draw(Offset(guideX, inner.bottom), Offset(guideX, outer.bottom));
+}
+
 void _drawDashedRect(
   Canvas canvas,
   Rect rect,
@@ -3832,6 +4153,46 @@ void _drawMeasurement(
     return;
   }
   canvas.drawLine(start, end, paint);
+  final halfCap = capLength / 2;
+  if (delta.dx.abs() >= delta.dy.abs()) {
+    canvas.drawLine(
+      start.translate(0, -halfCap),
+      start.translate(0, halfCap),
+      paint,
+    );
+    canvas.drawLine(
+      end.translate(0, -halfCap),
+      end.translate(0, halfCap),
+      paint,
+    );
+  } else {
+    canvas.drawLine(
+      start.translate(-halfCap, 0),
+      start.translate(halfCap, 0),
+      paint,
+    );
+    canvas.drawLine(
+      end.translate(-halfCap, 0),
+      end.translate(halfCap, 0),
+      paint,
+    );
+  }
+}
+
+void _drawDashedMeasurement(
+  Canvas canvas,
+  Offset start,
+  Offset end,
+  Paint paint,
+  double capLength,
+  double dashLength,
+  double gapLength,
+) {
+  final delta = end - start;
+  if (delta.distance <= 0.000001) {
+    return;
+  }
+  _drawDashedLine(canvas, start, end, paint, dashLength, gapLength);
   final halfCap = capLength / 2;
   if (delta.dx.abs() >= delta.dy.abs()) {
     canvas.drawLine(

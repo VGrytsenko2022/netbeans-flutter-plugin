@@ -23,6 +23,10 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.PaintValues,
         PropertyValueConstraint.ShadowListValues,
         PropertyValueConstraint.FontVariationListValues,
+        PropertyValueConstraint.AlignmentGeometryValues,
+        PropertyValueConstraint.BoxConstraintsValues,
+        PropertyValueConstraint.Matrix4Values,
+        PropertyValueConstraint.BoxDecorationValues,
         PropertyValueConstraint.IntegerRange,
         PropertyValueConstraint.DoubleRange,
         PropertyValueConstraint.EnumValues,
@@ -47,6 +51,10 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.PAINT
                     || kind == PropertyValueKind.SHADOW_LIST
                     || kind == PropertyValueKind.FONT_VARIATION_LIST
+                    || kind == PropertyValueKind.ALIGNMENT_GEOMETRY
+                    || kind == PropertyValueKind.BOX_CONSTRAINTS
+                    || kind == PropertyValueKind.MATRIX4
+                    || kind == PropertyValueKind.BOX_DECORATION
                     || kind == PropertyValueKind.ICON_DATA
                     || kind == PropertyValueKind.CALLBACK) {
                 throw new IllegalArgumentException(
@@ -168,6 +176,177 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "ordered FontVariation values exactly representable as Dart doubles";
+        }
+    }
+
+    /** Accepts finite, Dart-representable physical or directional alignment coordinates. */
+    record AlignmentGeometryValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.ALIGNMENT_GEOMETRY;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.AlignmentGeometryValue alignment
+                    && DartNumericLiterals.isRepresentableDouble(alignment.horizontal())
+                    && DartNumericLiterals.isRepresentableDouble(alignment.vertical());
+        }
+
+        @Override
+        public String description() {
+            return "physical or directional AlignmentGeometry";
+        }
+    }
+
+    /** Accepts normalized, Dart-representable finite BoxConstraints bounds. */
+    record BoxConstraintsValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BOX_CONSTRAINTS;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.BoxConstraintsValue constraints
+                    && DartNumericLiterals.isRepresentableDouble(constraints.minWidth())
+                    && constraints.maxWidth().map(DartNumericLiterals::isRepresentableDouble)
+                            .orElse(true)
+                    && DartNumericLiterals.isRepresentableDouble(constraints.minHeight())
+                    && constraints.maxHeight().map(DartNumericLiterals::isRepresentableDouble)
+                            .orElse(true);
+        }
+
+        @Override
+        public String description() {
+            return "normalized BoxConstraints with optional infinite maxima";
+        }
+    }
+
+    /** Accepts a 16-entry column-major Matrix4 that survives Dart-double emission. */
+    record Matrix4Values() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.MATRIX4;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.Matrix4Value matrix
+                    && matrix.storage().stream()
+                            .allMatch(DartNumericLiterals::isRepresentableDouble);
+        }
+
+        @Override
+        public String description() {
+            return "16-entry column-major Matrix4";
+        }
+    }
+
+    /** Accepts the reviewed image-free BoxDecoration subset and theme colors. */
+    record BoxDecorationValues(List<String> colorThemeTokenIds)
+            implements PropertyValueConstraint {
+        public BoxDecorationValues {
+            colorThemeTokenIds = themeTokenIds(colorThemeTokenIds);
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BOX_DECORATION;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            if (!(value instanceof PropertyValue.BoxDecorationValue decoration)) {
+                return false;
+            }
+            return decoration.color().map(this::acceptsColor).orElse(true)
+                    && decoration.border().map(this::acceptsBorder).orElse(true)
+                    && decoration.borderRadius().map(this::acceptsRadiusGeometry).orElse(true)
+                    && decoration.boxShadow().stream().allMatch(this::acceptsShadow)
+                    && decoration.gradient().map(this::acceptsGradient).orElse(true);
+        }
+
+        @Override
+        public String description() {
+            return "image-free BoxDecoration with literal or reviewed Material theme colors";
+        }
+
+        private boolean acceptsColor(ColorSource source) {
+            return acceptsColorSource(source, colorThemeTokenIds);
+        }
+
+        private boolean acceptsBorder(PropertyValue.BoxDecorationValue.BoxBorder border) {
+            if (border instanceof PropertyValue.BoxDecorationValue.PhysicalBorder physical) {
+                return acceptsSide(physical.top()) && acceptsSide(physical.right())
+                        && acceptsSide(physical.bottom()) && acceptsSide(physical.left());
+            }
+            PropertyValue.BoxDecorationValue.DirectionalBorder directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorder) border;
+            return acceptsSide(directional.top()) && acceptsSide(directional.start())
+                    && acceptsSide(directional.end()) && acceptsSide(directional.bottom());
+        }
+
+        private boolean acceptsSide(PropertyValue.BoxDecorationValue.BorderSide side) {
+            return acceptsColor(side.color())
+                    && DartNumericLiterals.isRepresentableDouble(side.width())
+                    && DartNumericLiterals.isRepresentableDouble(side.strokeAlign());
+        }
+
+        private boolean acceptsRadiusGeometry(
+                PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry) {
+            if (geometry instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius physical) {
+                return acceptsRadius(physical.topLeft()) && acceptsRadius(physical.topRight())
+                        && acceptsRadius(physical.bottomRight()) && acceptsRadius(physical.bottomLeft());
+            }
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) geometry;
+            return acceptsRadius(directional.topStart()) && acceptsRadius(directional.topEnd())
+                    && acceptsRadius(directional.bottomEnd())
+                    && acceptsRadius(directional.bottomStart());
+        }
+
+        private boolean acceptsRadius(PropertyValue.BoxDecorationValue.Radius radius) {
+            return DartNumericLiterals.isRepresentableDouble(radius.x())
+                    && DartNumericLiterals.isRepresentableDouble(radius.y());
+        }
+
+        private boolean acceptsShadow(PropertyValue.BoxDecorationValue.BoxShadow shadow) {
+            return acceptsColor(shadow.color())
+                    && DartNumericLiterals.isRepresentableDouble(shadow.offsetX())
+                    && DartNumericLiterals.isRepresentableDouble(shadow.offsetY())
+                    && DartNumericLiterals.isRepresentableDouble(shadow.blurRadius())
+                    && DartNumericLiterals.isRepresentableDouble(shadow.spreadRadius());
+        }
+
+        private boolean acceptsGradient(PropertyValue.BoxDecorationValue.BoxGradient gradient) {
+            boolean common = gradient.stops().stream().allMatch(stop ->
+                    acceptsColor(stop.color())
+                    && DartNumericLiterals.isRepresentableDouble(stop.stop()))
+                    && gradient.rotationRadians()
+                            .map(DartNumericLiterals::isRepresentableDouble).orElse(true);
+            if (!common) {
+                return false;
+            }
+            if (gradient instanceof PropertyValue.BoxDecorationValue.LinearGradient linear) {
+                return acceptsAlignment(linear.begin()) && acceptsAlignment(linear.end());
+            }
+            if (gradient instanceof PropertyValue.BoxDecorationValue.RadialGradient radial) {
+                return acceptsAlignment(radial.center())
+                        && DartNumericLiterals.isRepresentableDouble(radial.radius())
+                        && radial.focal().map(this::acceptsAlignment).orElse(true)
+                        && DartNumericLiterals.isRepresentableDouble(radial.focalRadius());
+            }
+            PropertyValue.BoxDecorationValue.SweepGradient sweep =
+                    (PropertyValue.BoxDecorationValue.SweepGradient) gradient;
+            return acceptsAlignment(sweep.center())
+                    && DartNumericLiterals.isRepresentableDouble(sweep.startAngle())
+                    && DartNumericLiterals.isRepresentableDouble(sweep.endAngle());
+        }
+
+        private boolean acceptsAlignment(PropertyValue.AlignmentGeometryValue alignment) {
+            return DartNumericLiterals.isRepresentableDouble(alignment.horizontal())
+                    && DartNumericLiterals.isRepresentableDouble(alignment.vertical());
         }
     }
 

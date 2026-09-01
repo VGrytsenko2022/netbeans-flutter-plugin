@@ -731,6 +731,24 @@ accepted architecture is documented in
   compatibility candidates across thirteen any-widget plus two trait-bound
   destinations: exactly 145 accepted and 20 rejected. `.fd` remains v4 and the
   Canvas payload remains v9.
+- [x] Add `Container` as one complete structured Palette vertical slice. Its
+  optional single any-widget `child` slot accompanies exactly 13 reviewed
+  constructor properties in Flutter order: `alignment`, `padding`, `color`,
+  `isAntiAlias`, `decoration`, `foregroundDecoration`, `width`, `height`,
+  `constraints`, `margin`, `transform`, `transformAlignment` and
+  `clipBehavior`. AlignmentGeometry, BoxConstraints, column-major Matrix4 and
+  image-free BoxDecoration are closed typed values with transactional editors,
+  exact layout/paint invariants, semantic `ColorScheme` integration and atomic
+  dependent-property patches. Generated Dart and the real native Canvas share
+  the same contract; Canvas keeps selection outside the paint transform, draws
+  padding/margin guides and retains an IDE-only zero-size target. The active
+  surface is twelve Create/Canvas/DnD sources, 528 writable rows and 192
+  compatibility candidates across fourteen any-widget plus two trait-bound
+  destinations: exactly 170 accepted and 22 rejected. This slice raises `.fd`
+  to v5, Catalog API to 4 and Canvas payload to v10. `DecorationImage` remains
+  deferred to shared typed asset, pubspec/package, generator, cache/error and
+  Canvas-decoder infrastructure rather than accepting a path or Dart escape
+  hatch.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -750,7 +768,7 @@ accepted architecture is documented in
   current pair-save/editor-operation regression is green and Palette-expansion
   work is resumed. The dormant dedicated-shell/exact-Web product gates above
   remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all eleven admitted built-ins and does not
+  current typed Properties slice spans all twelve admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

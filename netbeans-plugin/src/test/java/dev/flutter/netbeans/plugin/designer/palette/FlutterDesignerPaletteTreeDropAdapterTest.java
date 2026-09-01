@@ -46,6 +46,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.SizedBox");
     private static final WidgetTypeId ASPECT_RATIO =
             type("flutter.widgets.AspectRatio");
+    private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -53,6 +54,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName ASPECT_RATIO_VALUE =
             new PropertyName("aspectRatio");
+    private static final PropertyName OPACITY_VALUE = new PropertyName("opacity");
     private static final StableId DOCUMENT_ID =
             id("f56a6bbb-fe08-4977-9597-a8273aa143eb");
     private static final StableId ROOT_ID =
@@ -239,6 +241,52 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit consumes the AspectRatio palette authority once"));
+    }
+
+    @Test
+    void opacityTokenPreviewsAndCommitsOpaqueDefaultAndEmptyChild() {
+        Fixture fixture = fixture(OPACITY);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(OPACITY, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(OPACITY, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(OPACITY_VALUE,
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the Opacity palette authority once"));
     }
 
     @Test

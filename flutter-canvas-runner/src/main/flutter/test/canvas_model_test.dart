@@ -521,6 +521,124 @@ void main() {
     );
   });
 
+  test('decodes the exact Opacity contract, semantics, bounds, and child', () {
+    Map<String, Object?> model({
+      required Map<String, Object?> properties,
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '99a8d608-2729-47f3-8fa0-a805d44cb8b7',
+        'flutter.widgets.Opacity',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final text = _node(
+      'f7cda0d7-7afd-4922-853c-218b698cc8f1',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Faded child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'opacity': {'kind': 'double', 'value': 0.5},
+          'alwaysIncludeSemantics': {'kind': 'boolean', 'value': true},
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+    expect(decoded.type, 'flutter.widgets.Opacity');
+    expect(decoded.properties.keys, const [
+      'opacity',
+      'alwaysIncludeSemantics',
+    ]);
+    expect(decoded.properties['opacity']!.value, 0.5);
+    expect(decoded.properties['alwaysIncludeSemantics']!.value, isTrue);
+    expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    for (final value in const [0.0, 1.0]) {
+      final endpoint = _decode(
+        model(
+          properties: {
+            'opacity': {'kind': 'double', 'value': value},
+          },
+        ),
+      ).root;
+      expect(endpoint.properties['opacity']!.value, value);
+      expect(
+        endpoint.properties.containsKey('alwaysIncludeSemantics'),
+        isFalse,
+      );
+      expect(endpoint.slot('child'), isNull);
+    }
+    final explicitFalse = _decode(
+      model(
+        properties: const {
+          'opacity': {'kind': 'double', 'value': 1.0},
+          'alwaysIncludeSemantics': {'kind': 'boolean', 'value': false},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    expect(explicitFalse.properties['alwaysIncludeSemantics']!.value, isFalse);
+    expect(explicitFalse.slot('child')!.child, isNull);
+
+    expect(
+      () => _decode(model(properties: const {})),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('flutter.widgets.Opacity.opacity'),
+        ),
+      ),
+    );
+    for (final candidate in const <Map<String, Object?>>[
+      {'kind': 'double', 'value': -0.0001},
+      {'kind': 'double', 'value': 1.0001},
+      {'kind': 'integer', 'value': 0},
+      {'kind': 'boolean', 'value': true},
+    ]) {
+      expect(
+        () => _decode(model(properties: {'opacity': candidate})),
+        throwsFormatException,
+        reason: '${candidate['kind']}:${candidate['value']}',
+      );
+    }
+    expect(
+      () => _decode(
+        model(
+          properties: const {
+            'opacity': {'kind': 'double', 'value': 0.5},
+            'alwaysIncludeSemantics': {'kind': 'double', 'value': 0.0},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('Opacity reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Opacity\n');
+    final end = contract.indexOf('W|flutter.widgets.Padding\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Opacity\n'
+      'P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any\n'
+      'P|opacity|double|1|double:1|double:0:1:1:1|'
+      'double:range:0:1:1:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes the complete strict Container contract and nested unions', () {
     final child = _node(
       'e1c67a19-d25c-4675-92c4-cab1772bf571',

@@ -33,6 +33,7 @@ public final class BuiltInWidgetCatalog {
             sizedBox(),
             aspectRatio(),
             container(),
+            opacity(),
             elevatedButton()));
 
     private BuiltInWidgetCatalog() {
@@ -588,6 +589,30 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 70, "Container"),
                 properties,
                 List.of(singleSlot("child", 12, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition opacity() {
+        return widget(
+                "flutter.widgets.Opacity",
+                "Opacity",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 80, "Opacity"),
+                List.of(
+                        namedProperty(
+                                "opacity",
+                                0,
+                                true,
+                                zeroToOneDoubles(),
+                                new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        namedProperty(
+                                "alwaysIncludeSemantics",
+                                1,
+                                false,
+                                any(PropertyValueKind.BOOLEAN))),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

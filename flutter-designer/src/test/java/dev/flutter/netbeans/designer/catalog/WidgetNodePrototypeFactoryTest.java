@@ -77,6 +77,22 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsOpacityWithOpaqueDefaultAndEmptyChildSlot() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.Opacity"), ID);
+
+        assertEquals(Map.of(
+                        new PropertyName("opacity"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                prototype.properties());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

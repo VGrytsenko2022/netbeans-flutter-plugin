@@ -771,9 +771,21 @@ accepted architecture is documented in
   selection/layout/drop overlays. File, memory, network and custom model
   providers remain deferred; there is no filesystem-path, URL or raw-Dart
   escape hatch.
-- [ ] If the user agrees, use `Opacity` as the next bounded complete vertical
-  slice. This is a proposal only: no catalog/model/UI/Canvas/generation work for
-  `Opacity` has been implemented or approved yet.
+- [x] Complete `Opacity` as the next bounded vertical slice across the catalog,
+  model validation/codecs, migration fixtures, Properties, Create,
+  Palette/tree/native-Canvas DnD, deterministic Dart generation, Save/reopen and
+  chronological Undo/Redo. The exact Flutter 3.44.8 const contract is required
+  finite named `opacity` in inclusive `[0, 1]`, optional named
+  `alwaysIncludeSemantics` with omitted default `false`, and one optional single
+  any-widget `child`; `key` and raw Dart remain excluded. New prototypes store
+  only `opacity: 1.0` plus an empty child. Native and exact-Web projections build
+  real Flutter `Opacity`; zero opacity preserves hit testing, normally suppresses
+  child semantics and retains them only when `alwaysIncludeSemantics` is true.
+  IDE-owned selection/hit/drop overlays remain outside the effect. Existing
+  double/boolean/single-slot encodings keep `.fd` schema v6, Catalog API 5,
+  Canvas model v11 and version-1 framing/control unchanged. The active surface
+  is 13 widgets and 530 writable rows. Thirteen sources across 15 any-widget plus
+  two trait-bound destinations form 221 candidates: 197 accepted and 24 rejected.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -793,7 +805,7 @@ accepted architecture is documented in
   current pair-save/editor-operation regression is green and Palette-expansion
   work is resumed. The dormant dedicated-shell/exact-Web product gates above
   remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all twelve admitted built-ins and does not
+  current typed Properties slice spans all thirteen admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

@@ -32,6 +32,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedBox",
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
+            "flutter.widgets.Opacity",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -46,6 +47,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedBox",
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
+            "flutter.widgets.Opacity",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -121,6 +123,46 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .get(PropertyValueKind.DOUBLE).fingerprint());
         assertEquals("range:0:0:*:1", ratio.constraintFingerprints()
                 .get(PropertyValueKind.DOUBLE));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void opacityHasTheExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Opacity");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("opacity"),
+                        new PropertyName("alwaysIncludeSemantics")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var alpha = projection.propertyContracts().get(new PropertyName("opacity"));
+        assertTrue(alpha.required());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE), alpha.acceptedKinds());
+        assertEquals(Optional.of("double:1"), alpha.creationDefaultFingerprint());
+        assertEquals("0:1:1:1", alpha.numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("range:0:1:1:1", alpha.constraintFingerprints()
+                .get(PropertyValueKind.DOUBLE));
+
+        var semantics = projection.propertyContracts().get(
+                new PropertyName("alwaysIncludeSemantics"));
+        assertFalse(semantics.required());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), semantics.acceptedKinds());
+        assertTrue(semantics.creationDefaultFingerprint().isEmpty());
+        assertEquals("any", semantics.constraintFingerprints()
+                .get(PropertyValueKind.BOOLEAN));
         assertEquals(
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),

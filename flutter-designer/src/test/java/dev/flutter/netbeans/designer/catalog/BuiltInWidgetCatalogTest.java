@@ -29,7 +29,7 @@ class BuiltInWidgetCatalogTest {
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
 
     @Test
-    void containsExactlyTheReviewedTwelveTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirteenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -39,6 +39,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Column",
                 "flutter.widgets.Container",
                 "flutter.widgets.Icon",
+                "flutter.widgets.Opacity",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Row",
                 "flutter.widgets.SizedBox",
@@ -47,8 +48,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(12, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(9, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(13, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(10, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -59,7 +60,7 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(528, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(530, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
     }
@@ -75,6 +76,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
@@ -142,6 +144,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Container",
+                "flutter.widgets.Opacity",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
     }
@@ -171,6 +174,11 @@ class BuiltInWidgetCatalogTest {
         assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
                 property(catalog, "flutter.widgets.AspectRatio", "aspectRatio")
                         .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                property(catalog, "flutter.widgets.Opacity", "opacity")
+                        .creationDefault().orElseThrow());
+        assertTrue(property(catalog, "flutter.widgets.Opacity", "alwaysIncludeSemantics")
+                .creationDefault().isEmpty());
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
                 .creationDefault().isEmpty());
     }
@@ -551,6 +559,55 @@ class BuiltInWidgetCatalogTest {
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
         assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
         assertTrue(child.acceptance().accepts(aspectRatio));
+    }
+
+    @Test
+    void opacityExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
+        WidgetDefinition opacity = definition("flutter.widgets.Opacity");
+
+        assertEquals("Opacity", opacity.dartClassName());
+        assertTrue(opacity.constConstructor());
+        assertEquals(WIDGETS_IMPORT, opacity.dartLibraryUri());
+        assertEquals(List.of("opacity", "alwaysIncludeSemantics"),
+                opacity.properties().stream()
+                        .map(value -> value.name().value())
+                        .toList());
+
+        PropertyDefinition alpha = opacity.property(new PropertyName("opacity"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, true), alpha.parameter());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE), alpha.acceptedKinds());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                alpha.creationDefault().orElseThrow());
+        PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                alpha.constraints().getFirst());
+        assertEquals(BigDecimal.ZERO, range.minimum());
+        assertTrue(range.minimumInclusive());
+        assertEquals(BigDecimal.ONE, range.maximum());
+        assertTrue(range.maximumInclusive());
+        assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.valueOf(0.5))));
+        assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ONE)));
+        assertFalse(range.accepts(new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(-0.001))));
+        assertFalse(range.accepts(new PropertyValue.DoubleValue(
+                BigDecimal.valueOf(1.001))));
+
+        PropertyDefinition semantics = opacity.property(
+                new PropertyName("alwaysIncludeSemantics")).orElseThrow();
+        assertEquals(DartParameter.named(1, false), semantics.parameter());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), semantics.acceptedKinds());
+        assertTrue(semantics.creationDefault().isEmpty());
+
+        SlotDefinition child = opacity.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(opacity));
     }
 
     @Test

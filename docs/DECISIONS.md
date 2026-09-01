@@ -10,16 +10,18 @@ ten-widget `ElevatedButton` milestone and its 140 candidate Palette/DnD cells,
 122 accepted and 18 rejected. ADR-034 extends exact named-slot management with
 atomic replacement and clear-all commands. ADR-035 governs the writable
 `Scaffold` slice. ADR-037 records the eleven-widget `AspectRatio` milestone.
-ADR-038 supersedes the current catalog surface with 528 typed rows across twelve
-widgets and 192 Palette/DnD candidates, including 170 accepted and 22 rejected
-cells. The total still includes the 17 closed scalar `Scaffold` fields. ADR-036
+ADR-038 records the twelve-widget `Container` milestone, and ADR-039 completes
+its shared typed-asset branch. ADR-040 establishes the current catalog surface:
+530 typed rows across thirteen widgets and 221 Palette/DnD candidates, including
+197 accepted and 24 rejected cells. The total still includes the 17 closed
+scalar `Scaffold` fields. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
 is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-038 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-040 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -261,25 +263,28 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038 and ADR-039 make 511 catalog-backed non-`Scaffold` Properties fields writable,
-including the 59-leaf Text
-projection, two `SizedBox` dimensions, 13 typed Icon constructor properties,
+ADR-038, ADR-039 and ADR-040 make 513 catalog-backed non-`Scaffold` Properties
+fields writable, including the 59-leaf Text projection, two `SizedBox`
+dimensions, 13 typed Icon constructor properties,
 120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
-`AspectRatio.aspectRatio` value and all 13 `Container` constructor properties.
+`AspectRatio.aspectRatio` value, all 13 `Container` constructor properties and
+the two Opacity properties.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
 nine-source, 117-candidate capability matrix (101 accepted and 16 rejected),
 and ADR-033 superseded it with ten sources and 140 candidates (122 accepted and
 18 rejected), ADR-037 superseded that stage with eleven sources and 165
-candidates (145 accepted and 20 rejected), and ADR-038 establishes the current
-twelve-source, 192-candidate matrix (170 accepted and 22 rejected). Same-tree
-existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
+candidates (145 accepted and 20 rejected), and ADR-038 established twelve
+sources and 192 candidates (170 accepted and 22 rejected). ADR-040 establishes
+the current thirteen-source, 221-candidate matrix (197 accepted and 24
+rejected). Same-tree existing-widget movement is separately enabled by ADR-028.
+A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
 protocol-v11 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center`,
-`SizedBox`, `AspectRatio`, `Container` and `ElevatedButton`; the
+`SizedBox`, `AspectRatio`, `Container`, `Opacity` and `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -293,12 +298,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated twelve-widget model for Mobile, Tablet, Desktop
-and Web responsive preview profiles and synchronizes selection with the
+Canvas now renders the validated thirteen-widget model for Mobile, Tablet,
+Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those twelve Create-capable definitions, and the DnD-capable set uses the reviewed
-192-cell candidate matrix across fourteen any-widget and two trait-bound
-destination slots; 170 cells are accepted and 22 rejected. Canvas model
+those thirteen Create-capable definitions, and the DnD-capable set uses the
+reviewed 221-cell candidate matrix across fifteen any-widget and two trait-bound
+destination slots; 197 cells are accepted and 24 rejected. Canvas model
 protocol v11's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
@@ -1385,3 +1390,63 @@ to assistive tools; one accepted structured edit, including dependent
 property repair, remains one chronological Undo/Redo unit. ADR-038's rejection
 of opaque/unvalidated filesystem paths, URLs and Dart-expression escape hatches
 remains in force.
+
+## ADR-040 — Opacity is a complete paint-and-semantics vertical slice
+
+Accepted for the 0.1.3 Palette stage. The canonical built-in type is
+`flutter.widgets.Opacity`, backed by the const `Opacity` constructor from
+`package:flutter/widgets.dart` in pinned Flutter 3.44.8. It is complete across
+catalog/model validation, strict JSON round-trip and migration fixtures,
+Properties, Create, native Canvas, Palette/tree DnD, same-tree movement,
+deterministic Dart generation, pair Save/reopen and chronological Undo/Redo.
+Its reviewed palette entry uses its own SVG asset in Layout order 80. `key`, raw
+Dart and every unreviewed constructor surface remain excluded.
+
+The API surface contains exactly two writable properties and one slot, in Dart
+constructor order: required named `double opacity`, optional named
+`bool alwaysIncludeSemantics`, and optional named `Widget? child`. Opacity must
+be finite and inside inclusive `[0, 1]`. A new prototype stores
+`opacity: 1.0`; it cannot restore that required argument to an absent state.
+`alwaysIncludeSemantics` has no stored creation value, so omission preserves
+Flutter's `false` default and generates no argument. `child` is one optional
+single any-widget slot and is not a property row. The canonical sorted contract
+fingerprint is:
+
+```text
+W|flutter.widgets.Opacity
+P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
+P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1
+S|child|single|0|0|1|any
+```
+
+Native and internal exact-Web Canvas projections construct the real Flutter
+`Opacity`, never `AnimatedOpacity`, a color rewrite or an `IgnorePointer`.
+At `opacity == 0.0`, Flutter omits child paint and normally omits child
+semantics, but it continues to hit-test the child. Explicit
+`alwaysIncludeSemantics: true` retains child semantics at zero opacity.
+Intermediate rendered alpha values use Flutter's normal offscreen compositing
+buffer. Selection, hit testing and Palette/move drop feedback are Designer
+controls, so their
+overlays wrap the Opacity and remain visible outside its paint/semantics effect;
+an empty Opacity keeps its real zero layout size while receiving an IDE-only
+selectable child target. Neither Theme nor Directionality participates in this
+contract.
+
+No version number changes. `.fd` remains schema v6, the contributor Catalog API
+remains 5, Canvas model protocol remains v11, and NBFC framing plus Canvas
+control/wire remain version 1. The rationale is structural: required/optional
+doubles, optional booleans and optional single any-widget slots already have
+canonical model, JSON, migration, Dart and Canvas encodings; Opacity introduces
+no value kind, union member, frame kind or payload shape. Existing documents
+need no data transform. The exact built-in catalog fingerprint and the runner's
+closed type/property/slot validator fence the new semantic allowlist without
+claiming a new transport grammar.
+
+Opacity adds two writable rows to ADR-038's 528, producing 530 across thirteen
+widgets and 513 across the twelve non-`Scaffold` definitions. `Opacity.child`
+is the fifteenth any-widget destination. Thirteen sources across fifteen
+any-widget plus two trait-bound destinations produce 221 candidates:
+`13 × 15 = 195` accepted any-widget cells, plus the two cells in which AppBar
+satisfies `PreferredSizeWidget`, for 197 accepted; the other `12 × 2 = 24`
+trait-bound cells are rejected. All Palette insertion and movement outside this
+closed matrix remains fail closed.

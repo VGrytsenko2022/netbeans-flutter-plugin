@@ -245,6 +245,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Center' ||
       'flutter.widgets.Container' ||
+      'flutter.widgets.Opacity' ||
       'flutter.widgets.Padding' ||
       'flutter.widgets.SizedBox' ||
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],

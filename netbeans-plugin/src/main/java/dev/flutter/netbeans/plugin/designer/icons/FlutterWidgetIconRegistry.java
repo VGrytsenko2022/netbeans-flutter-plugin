@@ -31,7 +31,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),
             Map.entry("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg"),
-            Map.entry("flutter.widgets.Container", ICON_ROOT + "container.svg"));
+            Map.entry("flutter.widgets.Container", ICON_ROOT + "container.svg"),
+            Map.entry("flutter.widgets.Opacity", ICON_ROOT + "opacity.svg"));
 
     private FlutterWidgetIconRegistry() {
     }

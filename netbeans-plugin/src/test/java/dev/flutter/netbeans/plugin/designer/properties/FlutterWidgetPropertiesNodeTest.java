@@ -394,6 +394,9 @@ class FlutterWidgetPropertiesNodeTest {
                                 java.util.Optional.empty(), false, List.of())),
                 "flutter.widgets.AspectRatio", Map.of(
                         new PropertyName("aspectRatio"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                "flutter.widgets.Opacity", Map.of(
+                        new PropertyName("opacity"),
                         new PropertyValue.DoubleValue(BigDecimal.ONE)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
@@ -406,6 +409,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Container",
+                "flutter.widgets.Opacity",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
 
@@ -437,9 +441,9 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(528, writableCount,
+        assertEquals(530, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
-                + "ElevatedButton, Text, Icon, AspectRatio, and Container leaves");
+                + "ElevatedButton, Text, Icon, AspectRatio, Container, and Opacity leaves");
     }
 
     @Test
@@ -665,6 +669,78 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Empty", child.getValue()),
                 () -> assertTrue(child.getShortDescription()
                         .contains("fill the box resolved from Aspect ratio")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void opacityProjectsRequiredUnitDoubleOptionalSemanticsAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Opacity");
+        StableId id = StableId.parse("e502bc32-1ce7-48ce-80f3-c85586040e68");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(
+                        new PropertyName("opacity"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                        new PropertyName("alwaysIncludeSemantics"),
+                                new PropertyValue.BooleanValue(true)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.Property<FlutterPropertyCellValue> alpha = cellProperty(
+                property(node, "opacity"));
+        assertAll(
+                () -> assertEquals("Opacity", alpha.getDisplayName()),
+                () -> assertTrue(alpha.getShortDescription()
+                        .contains("0 (fully transparent)")),
+                () -> assertTrue(alpha.getShortDescription()
+                        .contains("1 (fully opaque)")),
+                () -> assertTrue(alpha.getShortDescription()
+                        .contains("intermediate rendered alpha values")),
+                () -> assertTrue(alpha.getShortDescription()
+                        .contains("cannot be unset")),
+                () -> assertFalse(alpha.supportsDefaultValue()));
+        PropertyEditor alphaEditor = alpha.getPropertyEditor();
+        alphaEditor.setAsText("0");
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                cell(alphaEditor).explicitValue().orElseThrow());
+        alphaEditor.setAsText("1");
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                cell(alphaEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> alphaEditor.setAsText("-0.001"));
+        assertThrows(IllegalArgumentException.class,
+                () -> alphaEditor.setAsText("1.001"));
+        assertThrows(IllegalArgumentException.class,
+                () -> alpha.setValue(FlutterPropertyCellValue.unset()));
+
+        Node.Property<FlutterPropertyCellValue> semantics = cellProperty(
+                property(node, "alwaysIncludeSemantics"));
+        assertAll(
+                () -> assertEquals("Always include semantics",
+                        semantics.getDisplayName()),
+                () -> assertTrue(semantics.getShortDescription()
+                        .contains("Flutter defaults to false")),
+                () -> assertTrue(semantics.supportsDefaultValue()),
+                () -> assertFalse(semantics.isDefaultValue()));
+        semantics.restoreDefaultValue();
+        assertEquals(List.of(new ResetProperty(
+                        id, new PropertyName("alwaysIncludeSemantics"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("selected group opacity")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("selection outline and hit target visible")),
                 () -> assertTrue(child.getShortDescription()
                         .contains("Occupancy: 0/1")));
     }
@@ -1327,7 +1403,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void twelveCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -1340,6 +1416,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Container",
+                "flutter.widgets.Opacity",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon");
         Set<String> iconPaths = new HashSet<>();
@@ -1359,7 +1436,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(12, iconPaths.size(),
+        assertEquals(13, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
+import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.model.ColorSource;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
@@ -623,6 +624,67 @@ class DartRegionGeneratorTest {
                 generated.symbolOccurrences().stream()
                         .map(GeneratedDartSymbolOccurrence::symbolName)
                         .toList());
+    }
+
+    @Test
+    void emitsOpacityInPinnedSdkOrderWithOptionalSemanticsAndChild() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Opacity"),
+                Map.of(
+                        property("opacity"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                        property("alwaysIncludeSemantics"),
+                                new PropertyValue.BooleanValue(true)),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Opacity(
+                      opacity: 0.5,
+                      alwaysIncludeSemantics: true,
+                      child: const Text('Inside'),
+                    );
+                  }
+                """, generated.build().payload());
+        assertEquals(List.of("Widget", "BuildContext", "Opacity", "Text"),
+                generated.symbolOccurrences().stream()
+                        .map(GeneratedDartSymbolOccurrence::symbolName)
+                        .toList());
+    }
+
+    @Test
+    void emitsNewOpacityPrototypeAsCompactOpaqueConstWidget() {
+        WidgetNode root = WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault()
+                        .find(new WidgetTypeId("flutter.widgets.Opacity"))
+                        .orElseThrow(),
+                StableId.random());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Opacity(
+                      opacity: 1.0,
+                      child: null,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
     }
 
     @Test

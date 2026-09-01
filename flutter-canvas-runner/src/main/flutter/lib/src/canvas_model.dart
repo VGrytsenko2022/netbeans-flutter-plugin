@@ -3603,6 +3603,18 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Opacity': _WidgetSpec(
+    {
+      'opacity': _PropertySpec(
+        {'double'},
+        required: true,
+        creationDefaultFingerprint: 'double:1',
+        numericBounds: _zeroToOneDoubleBounds,
+      ),
+      'alwaysIncludeSemantics': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Column': _WidgetSpec(
     {
       'mainAxisAlignment': _PropertySpec(
@@ -4440,6 +4452,10 @@ P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,ma
 P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+W|flutter.widgets.Opacity
+P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
+P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1
+S|child|single|0|0|1|any
 W|flutter.widgets.Padding
 P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
 S|child|single|0|0|1|any

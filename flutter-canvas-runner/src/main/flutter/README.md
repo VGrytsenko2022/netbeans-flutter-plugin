@@ -75,7 +75,8 @@ SHA-256 are verified before admission. Media signature, declared dimensions and
 a real Flutter decode are then checked per resource: a failure quarantines that
 resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center`, `Container`, `SizedBox`, `AspectRatio` and `ElevatedButton`,
+`Padding`, `Center`, `Container`, `Opacity`, `SizedBox`, `AspectRatio` and
+`ElevatedButton`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -221,12 +222,23 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-12 reviewed Canvas widgets. Palette insertion evaluates 192 exact
-source/destination cells across 12 draggable sources and 16 reviewed slots;
-170 are accepted and 22 trait-incompatible cells are rejected. The negotiated
+13 reviewed Canvas widgets. Palette insertion evaluates 221 exact
+source/destination cells across 13 draggable sources and 17 reviewed slots;
+197 are accepted and 24 trait-incompatible cells are rejected. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
 bounded hit testing, returns revision-bound Palette intents and paints optional
 move feedback. Catalog JSON is reserved for a future versioned
 catalog contract, and Linux/macOS native hosts remain separate work.
+
+`flutter.widgets.Opacity` is decoded without a protocol-version change: required
+finite `opacity` is in inclusive `[0, 1]`, optional
+`alwaysIncludeSemantics` defaults to false when omitted, and `child` is one
+optional single any-widget slot. The runner builds the real Flutter `Opacity`,
+not `AnimatedOpacity` or a paint approximation. Opacity zero does not disable
+child hit testing; it normally suppresses child semantics, while explicit
+`alwaysIncludeSemantics: true` retains them. Designer selection, hit and drop
+overlays wrap the Opacity and remain visible outside its paint/semantics effect,
+including for an empty zero-size child target. The same contract is used by the
+native and exact-Web renderers.

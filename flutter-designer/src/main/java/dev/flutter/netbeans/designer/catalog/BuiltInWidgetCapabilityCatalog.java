@@ -149,7 +149,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Icon", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SizedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.AspectRatio", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Container", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Container", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Opacity", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -248,6 +249,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "double:1",
                             POSITIVE_DOUBLE_BOUNDS,
                             PropertyValueKind.DOUBLE)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Opacity", projection(Map.ofEntries(
+                    requiredDefaultNumericProperty(
+                            "opacity",
+                            "double:1",
+                            ZERO_TO_ONE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    property("alwaysIncludeSemantics", PropertyValueKind.BOOLEAN)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),

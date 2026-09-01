@@ -56,6 +56,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.AspectRatio");
     private static final PropertyName ASPECT_RATIO_PROPERTY =
             new PropertyName("aspectRatio");
+    private static final WidgetTypeId OPACITY_TYPE =
+            new WidgetTypeId("flutter.widgets.Opacity");
+    private static final PropertyName OPACITY_PROPERTY =
+            new PropertyName("opacity");
+    private static final PropertyName ALWAYS_INCLUDE_SEMANTICS_PROPERTY =
+            new PropertyName("alwaysIncludeSemantics");
     private static final SlotName CHILD_SLOT = new SlotName("child");
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
@@ -349,6 +355,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (OPACITY_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted with the selected group opacity. "
+                    + "The Designer keeps its selection outline and hit target visible "
+                    + "even when Opacity is zero. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -365,11 +380,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
     private Sheet.Set createGenericPropertySet() {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
+        boolean opacity = OPACITY_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
                 aspectRatio
                         ? "Sizing contract for the selected AspectRatio widget."
+                        : opacity
+                                ? "Transparency and semantics contract for the selected "
+                                        + "Opacity widget."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
@@ -380,6 +399,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         "Aspect ratio",
                         "Finite width-to-height ratio used to size this widget; "
                                 + "for example, use 1.7778 for a 16:9 surface."));
+            } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Opacity",
+                        "Finite alpha multiplier from 0 (fully transparent) through "
+                                + "1 (fully opaque); intermediate rendered alpha values "
+                                + "use an offscreen buffer in Flutter."));
+            } else if (opacity
+                    && ALWAYS_INCLUDE_SEMANTICS_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Always include semantics",
+                        "When true, exposes child semantics even when Opacity would "
+                                + "otherwise hide them; Flutter defaults to false."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

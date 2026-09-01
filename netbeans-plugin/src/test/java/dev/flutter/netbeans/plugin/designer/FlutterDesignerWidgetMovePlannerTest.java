@@ -44,6 +44,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId SIZED_BOX = type("flutter.widgets.SizedBox");
     private static final WidgetTypeId ASPECT_RATIO =
             type("flutter.widgets.AspectRatio");
+    private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -267,6 +268,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyAspectRatio.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyOpacityChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into Opacity");
+        WidgetNode emptyOpacity = WidgetNodePrototypeFactory.create(
+                definition(OPACITY), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyOpacity)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyOpacity.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyOpacity.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

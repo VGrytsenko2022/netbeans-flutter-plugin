@@ -424,6 +424,69 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
+        WidgetNode omitted = node(
+                "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(omitted), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/opacity", missing.path());
+
+        for (BigDecimal rejected : List.of(
+                new BigDecimal("-0.0001"), new BigDecimal("1.0001"))) {
+            WidgetNode invalid = node(
+                    "opacity-" + rejected,
+                    "flutter.widgets.Opacity",
+                    Map.of(name("opacity"), new PropertyValue.DoubleValue(rejected)),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/opacity", issue.path());
+            assertTrue(issue.message().contains("double range"));
+        }
+
+        for (PropertyValue rejected : List.of(
+                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                new PropertyValue.StringValue("C:/outside/widget.dart"),
+                new PropertyValue.AssetValue("../../outside.png"),
+                new PropertyValue.DartExpressionValue(
+                        "FileImage(File('../../outside.png'))"))) {
+            WidgetNode invalid = node(
+                    "opacity-kind-" + rejected.kind().wireName(),
+                    "flutter.widgets.Opacity",
+                    Map.of(name("opacity"), rejected),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/opacity", issue.path());
+        }
+
+        WidgetNode child = node(
+                "child", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Inside")),
+                Map.of());
+        for (BigDecimal accepted : List.of(
+                BigDecimal.ZERO, new BigDecimal("0.5"), BigDecimal.ONE)) {
+            WidgetNode valid = node(
+                    "valid-" + accepted,
+                    "flutter.widgets.Opacity",
+                    Map.of(
+                            name("opacity"), new PropertyValue.DoubleValue(accepted),
+                            name("alwaysIncludeSemantics"),
+                                    new PropertyValue.BooleanValue(true)),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+        }
+    }
+
+    @Test
     void containerEnforcesBackgroundAndClipRelationshipsAfterNestedValidation() {
         PropertyValue.BoxDecorationValue decoration = boxDecoration(
                 new ColorSource.Literal(0xFF102030L));

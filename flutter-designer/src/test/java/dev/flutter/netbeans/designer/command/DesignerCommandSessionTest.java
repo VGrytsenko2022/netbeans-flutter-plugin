@@ -72,6 +72,9 @@ class DesignerCommandSessionTest {
     private static final PropertyName WIDTH = property("width");
     private static final PropertyName HEIGHT = property("height");
     private static final PropertyName ASPECT_RATIO = property("aspectRatio");
+    private static final PropertyName OPACITY = property("opacity");
+    private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
+            property("alwaysIncludeSemantics");
     private static final PropertyName COLOR = property("color");
     private static final PropertyName DECORATION = property("decoration");
     private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
@@ -290,6 +293,75 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains("child: const Text('Inside')"), dart);
 
         DesignerCommandSession saved = edited.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Opacity")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
+                prototype.properties().get(OPACITY));
+        assertFalse(prototype.properties().containsKey(ALWAYS_INCLUDE_SEMANTICS));
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        DesignerCommandSession faded = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                OPACITY,
+                new PropertyValue.DoubleValue(new BigDecimal("0.5"))));
+        DesignerCommandSession semantic = applied(faded, new SetProperty(
+                WRAPPER_ID,
+                ALWAYS_INCLUDE_SEMANTICS,
+                new PropertyValue.BooleanValue(true)));
+
+        assertRejected(semantic, new SetProperty(
+                WRAPPER_ID,
+                OPACITY,
+                new PropertyValue.DoubleValue(new BigDecimal("1.01"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        DesignerCommandSession reset = applied(semantic, new ResetProperty(
+                WRAPPER_ID, ALWAYS_INCLUDE_SEMANTICS));
+        WidgetNode finalOpacity = find(reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                finalOpacity.properties().get(OPACITY));
+        assertFalse(finalOpacity.properties().containsKey(ALWAYS_INCLUDE_SEMANTICS));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalOpacity.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const Opacity("), dart);
+        assertTrue(dart.contains("opacity: 0.5"), dart);
+        assertFalse(dart.contains("alwaysIncludeSemantics:"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession semanticRestored = reset.undo().session();
+        assertEquals(new PropertyValue.BooleanValue(true),
+                find(semanticRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(ALWAYS_INCLUDE_SEMANTICS));
+        DesignerCommandSession resetRedone = semanticRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
         OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
                 saved.current().fdBytes(), FdCodecLimits.defaults());
         DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(

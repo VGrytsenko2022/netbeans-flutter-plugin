@@ -505,6 +505,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Container' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
+        (node.type == 'flutter.widgets.Opacity' &&
+            (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1762,6 +1764,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.Container' => _container(context),
+      'flutter.widgets.Opacity' => _opacity(),
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Text' =>
@@ -2988,6 +2991,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _aspectRatio() => AspectRatio(
     aspectRatio: _number('aspectRatio')!,
+    child: _single('child'),
+  );
+
+  Widget _opacity() => Opacity(
+    opacity: _number('opacity')!,
+    alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
     child: _single('child'),
   );
 

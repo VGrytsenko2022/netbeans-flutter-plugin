@@ -93,6 +93,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.AspectRatio'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(
       canvasDropSlotsForWidgetType('flutter.material.ElevatedButton'),
       const [canvasEmptyChildDropSlot],
@@ -107,7 +110,7 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 12-source by 16-destination compatibility matrix', () {
+  test('closes the 13-source by 17-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -118,6 +121,7 @@ void main() {
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
       'flutter.widgets.Container',
+      'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Text',
@@ -126,8 +130,8 @@ void main() {
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(12));
-    expect(destinations, hasLength(16));
+    expect(sourceTypes, hasLength(13));
+    expect(destinations, hasLength(17));
 
     var accepted = 0;
     var rejected = 0;
@@ -145,8 +149,8 @@ void main() {
         }
       }
     }
-    expect(accepted, 170);
-    expect(rejected, 22);
+    expect(accepted, 197);
+    expect(rejected, 24);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -1746,6 +1750,181 @@ void main() {
         ),
         isNull,
       );
+    },
+  );
+
+  testWidgets(
+    'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
+    (tester) async {
+      const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
+      final source = _modelJsonForView();
+      final sourceRoot = source['root']! as Map<String, Object?>;
+      final text = _findNode(sourceRoot, 'flutter.widgets.Text');
+      final textId = text['id']! as String;
+      Future<RenderOpacity> pump({
+        required double opacity,
+        required bool? alwaysIncludeSemantics,
+        String? selected,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredOpacity(
+                  opacity: opacity,
+                  alwaysIncludeSemantics: alwaysIncludeSemantics,
+                  child: text,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selected,
+              onSelected: (_) {},
+            ),
+          ),
+        );
+        await tester.pump();
+        final opacityFinder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$opacityId')),
+              matching: find.byType(Opacity),
+            )
+            .first;
+        return tester.renderObject<RenderOpacity>(opacityFinder);
+      }
+
+      final hidden = await pump(
+        opacity: 0,
+        alwaysIncludeSemantics: null,
+        selected: opacityId,
+      );
+      expect(hidden.opacity, 0);
+      expect(hidden.alwaysIncludeSemantics, isFalse);
+      expect(
+        (hidden.updateCompositedLayer(oldLayer: null) as OpacityLayer).alpha,
+        0,
+      );
+      final selectionOutline = find.byKey(
+        const ValueKey('canvas-selection-outline-$opacityId'),
+      );
+      expect(selectionOutline, findsOneWidget);
+      final renderedOpacity = find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$opacityId')),
+            matching: find.byType(Opacity),
+          )
+          .first;
+      expect(
+        find.ancestor(of: renderedOpacity, matching: selectionOutline),
+        findsOneWidget,
+        reason: 'the Designer outline wrapper must remain outside Opacity',
+      );
+      expect(
+        find.ancestor(of: selectionOutline, matching: find.byType(Opacity)),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('Opacity $opacityId')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('Text $textId')), findsNothing);
+      final hitTest = BoxHitTestResult();
+      expect(
+        hidden.hitTest(hitTest, position: hidden.size.center(Offset.zero)),
+        isTrue,
+        reason: 'opacity zero must not disable Flutter hit testing',
+      );
+      expect(
+        hitTest.path.any((entry) => identical(entry.target, hidden)),
+        isTrue,
+      );
+
+      final semantic = await pump(opacity: 0, alwaysIncludeSemantics: true);
+      expect(semantic.alwaysIncludeSemantics, isTrue);
+      expect(find.bySemanticsLabel(RegExp('Text $textId')), findsOneWidget);
+
+      final fractional = await pump(
+        opacity: 0.5,
+        alwaysIncludeSemantics: false,
+      );
+      expect(fractional.opacity, 0.5);
+      expect(
+        (fractional.updateCompositedLayer(oldLayer: null) as OpacityLayer)
+            .alpha,
+        128,
+      );
+      expect(fractional.isRepaintBoundary, isTrue);
+
+      final opaque = await pump(opacity: 1, alwaysIncludeSemantics: null);
+      expect(opaque.opacity, 1);
+      expect(
+        (opaque.updateCompositedLayer(oldLayer: null) as OpacityLayer).alpha,
+        255,
+      );
+      expect(find.byType(AnimatedOpacity), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'keeps empty Opacity at zero layout with a selectable child drop target',
+    (tester) async {
+      const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredOpacity(
+                opacity: 0,
+                alwaysIncludeSemantics: null,
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$opacityId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$opacityId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, opacityId);
+      expect(tester.getSize(rendered), Size.zero);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, opacityId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
     },
   );
 
@@ -4093,6 +4272,45 @@ Map<String, Object?> _modelWithCenteredAspectRatio({
           'properties': <String, Object?>{
             'aspectRatio': {'kind': 'double', 'value': aspectRatio},
           },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredOpacity({
+  required double opacity,
+  required bool? alwaysIncludeSemantics,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final properties = <String, Object?>{
+    'opacity': {'kind': 'double', 'value': opacity},
+  };
+  if (alwaysIncludeSemantics != null) {
+    properties['alwaysIncludeSemantics'] = {
+      'kind': 'boolean',
+      'value': alwaysIncludeSemantics,
+    };
+  }
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '47f754c8-9fcb-480c-9578-87cda83bd4d5',
+          'type': 'flutter.widgets.Opacity',
+          'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},
           },

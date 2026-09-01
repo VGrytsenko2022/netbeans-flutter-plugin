@@ -6,6 +6,22 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted `Opacity` vertical slice completes `flutter.widgets.Opacity`
+  across the catalog, model validation/codecs, migration fixtures, Properties,
+  Palette/tree/native-Canvas DnD, deterministic Dart generation, Save/reopen and
+  chronological Undo/Redo. The pinned Flutter 3.44.8 contract contains required
+  named finite `opacity` in inclusive `[0, 1]`, optional named
+  `alwaysIncludeSemantics` with omitted default `false`, and one optional single
+  any-widget `child`; `key`, raw Dart and unreviewed arguments remain excluded.
+  New prototypes store only `opacity: 1.0` plus an empty child. Native and
+  exact-Web Canvas projections build the real Flutter `Opacity`; zero opacity
+  preserves hit testing, normally suppresses child semantics, and retains them
+  only when `alwaysIncludeSemantics` is true. IDE-owned selection/hit/drop
+  overlays remain outside the effect. The current catalog has 530 writable rows
+  across 13 widgets. Thirteen sources across 15 any-widget and two trait-bound
+  destinations form 221 DnD candidates: 197 accepted and 24 rejected. Existing
+  value kinds and payload shapes are sufficient, so `.fd` schema v6, Catalog API
+  5, Canvas model v11 and version-1 framing/control contracts do not change.
 - The completed shared typed asset/`Container.DecorationImage` slice advances
   form `.fd` documents to schema v6, contributor Catalog API to 5 and Canvas
   model payload to v11 over NBFC framing v1. `ImageProviderValue` is a closed logical

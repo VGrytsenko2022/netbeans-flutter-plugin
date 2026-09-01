@@ -84,6 +84,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Container",
+                "flutter.widgets.Opacity",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -93,7 +94,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactTwelveWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactThirteenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -119,11 +120,14 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Center\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.SizedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.AspectRatio\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Opacity\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
         assertTrue(json.contains("\"height\":{\"kind\":\"double\",\"value\":48.5}"));
         assertTrue(json.contains("\"aspectRatio\":{\"kind\":\"double\",\"value\":1.7777777777777777}"));
+        assertTrue(json.contains("\"opacity\":{\"kind\":\"double\",\"value\":0.5}"));
+        assertTrue(json.contains("\"alwaysIncludeSemantics\":{\"kind\":\"boolean\",\"value\":true}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -576,7 +580,17 @@ class CanvasModelPayloadCodecTest {
                 Map.of(new PropertyName("aspectRatio"),
                         new PropertyValue.DoubleValue(
                                 new BigDecimal("1.7777777777777777"))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(new WidgetNode(
+                        id("c061d779-a0a3-46fb-9b0e-7b22397b51d2"),
+                        type("flutter.widgets.Opacity"),
+                        Map.of(
+                                new PropertyName("opacity"),
+                                        new PropertyValue.DoubleValue(
+                                                new BigDecimal("0.5")),
+                                new PropertyName("alwaysIncludeSemantics"),
+                                        new PropertyValue.BooleanValue(true)),
+                        Map.of(new SlotName("child"),
+                                WidgetSlot.SingleSlot.of(centered))))));
         WidgetNode sizedBox = new WidgetNode(
                 id("0cc7c095-7908-461b-b5b2-fe085343b6b2"),
                 type("flutter.widgets.SizedBox"),

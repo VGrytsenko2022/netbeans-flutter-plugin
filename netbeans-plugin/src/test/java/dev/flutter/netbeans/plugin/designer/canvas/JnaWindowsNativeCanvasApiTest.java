@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.jna.Pointer;
@@ -120,9 +121,94 @@ class JnaWindowsNativeCanvasApiTest {
         assertTrue(windows.isFocused(attachment));
         assertEquals(30L, state.focusedWindow);
         assertEquals(1, state.setFocusCalls);
-        assertEquals(List.of(true, false), state.inputAttachments);
+        assertEquals(List.of(true, true, false, false), state.inputAttachments);
+        assertEquals(List.of(
+                "11->33:true",
+                "11->22:true",
+                "11->22:false",
+                "11->33:false"), state.inputAttachmentEdges);
         assertTrue(state.guiThreadQueries.stream().allMatch(thread -> thread == 0),
                 "focus verification must query the actual foreground thread");
+    }
+
+    @Test
+    void foreignForegroundIsRefusedBeforeJoiningInputQueues() {
+        FocusNativeState state = new FocusNativeState();
+        state.focusedWindow = 40L;
+        state.otherFocusProcessId = 99L;
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(0, state.setFocusCalls);
+        assertTrue(state.inputAttachmentEdges.isEmpty());
+    }
+
+    @Test
+    void foreignForegroundDriftDuringQueueJoinDoesNotReceiveSetFocus() {
+        FocusNativeState state = new FocusNativeState();
+        state.moveFocusToForeignAfterParentAttach = true;
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(0, state.setFocusCalls);
+        assertEquals(List.of(
+                "11->33:true",
+                "11->22:true",
+                "11->22:false",
+                "11->33:false"), state.inputAttachmentEdges);
+    }
+
+    @Test
+    void failedParentQueueJoinDoesNotJoinRunnerOrCallSetFocus() {
+        FocusNativeState state = new FocusNativeState();
+        state.failedAttachThread = state.parentThread;
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(0, state.setFocusCalls);
+        assertEquals(List.of("11->33:true"), state.inputAttachmentEdges);
+    }
+
+    @Test
+    void failedRunnerQueueJoinDetachesParentWithoutCallingSetFocus() {
+        FocusNativeState state = new FocusNativeState();
+        state.failedAttachThread = state.runnerFocusThread;
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
+                windows.requestFocus(attachment()));
+        assertEquals(0, state.setFocusCalls);
+        assertEquals(List.of(
+                "11->33:true",
+                "11->22:true",
+                "11->33:false"), state.inputAttachmentEdges);
+        assertFalse(state.parentQueueAttached);
+    }
+
+    @Test
+    void throwingRunnerQueueJoinDetachesParentBeforePropagating() {
+        FocusNativeState state = new FocusNativeState();
+        state.attachFailureThread = state.runnerFocusThread;
+        state.attachFailure = new UnsatisfiedLinkError("synthetic runner attach failure");
+        JnaWindowsNativeCanvasApi windows = focusApi(state);
+
+        UnsatisfiedLinkError failure = assertThrows(
+                UnsatisfiedLinkError.class,
+                () -> windows.requestFocus(attachment()));
+        assertEquals("synthetic runner attach failure", failure.getMessage());
+        assertEquals(0, state.setFocusCalls);
+        assertEquals(List.of(
+                "11->33:true",
+                "11->22:true",
+                "11->33:false"), state.inputAttachmentEdges);
+        assertFalse(state.parentQueueAttached);
     }
 
     @Test
@@ -178,7 +264,7 @@ class JnaWindowsNativeCanvasApiTest {
         assertEquals(
                 WindowsNativeCanvasApi.FocusResult.TARGET_INVALID,
                 windows.requestFocus(attachment()));
-        assertEquals(List.of(true, false), state.inputAttachments,
+        assertEquals(List.of(true, true, false, false), state.inputAttachments,
                 "the joined queues must still be detached after identity drift");
         assertEquals(0, state.setFocusCalls,
                 "a target that drifted after attach must never receive SetFocus");
@@ -186,6 +272,17 @@ class JnaWindowsNativeCanvasApiTest {
 
     @Test
     void revalidatesTargetIdentityAndPhysicalFocusAfterDetachingJoinedQueue() {
+        FocusNativeState parentDrift = new FocusNativeState();
+        parentDrift.invalidateParentAfterDetach = true;
+        JnaWindowsNativeCanvasApi parentDriftApi = focusApi(parentDrift);
+
+        assertEquals(
+                WindowsNativeCanvasApi.FocusResult.TARGET_INVALID,
+                parentDriftApi.requestFocus(attachment()));
+        assertEquals(30L, parentDrift.focusedWindow);
+        assertEquals(List.of(true, true, false, false),
+                parentDrift.inputAttachments);
+
         FocusNativeState identityDrift = new FocusNativeState();
         identityDrift.invalidateFocusTargetAfterDetach = true;
         JnaWindowsNativeCanvasApi identityDriftApi = focusApi(identityDrift);
@@ -194,7 +291,8 @@ class JnaWindowsNativeCanvasApiTest {
                 WindowsNativeCanvasApi.FocusResult.TARGET_INVALID,
                 identityDriftApi.requestFocus(attachment()));
         assertEquals(30L, identityDrift.focusedWindow);
-        assertEquals(List.of(true, false), identityDrift.inputAttachments);
+        assertEquals(List.of(true, true, false, false),
+                identityDrift.inputAttachments);
 
         FocusNativeState focusDrift = new FocusNativeState();
         focusDrift.moveRunnerFocusAfterDetach = true;
@@ -204,7 +302,8 @@ class JnaWindowsNativeCanvasApiTest {
                 WindowsNativeCanvasApi.FocusResult.POLICY_REFUSED,
                 focusDriftApi.requestFocus(attachment()));
         assertEquals(40L, focusDrift.focusedWindow);
-        assertEquals(List.of(true, false), focusDrift.inputAttachments);
+        assertEquals(List.of(true, true, false, false),
+                focusDrift.inputAttachments);
     }
 
     @Test
@@ -216,7 +315,7 @@ class JnaWindowsNativeCanvasApiTest {
         assertEquals(
                 WindowsNativeCanvasApi.FocusResult.INPUT_QUEUE_DETACH_FAILED,
                 windows.requestFocus(attachment()));
-        assertEquals(List.of(true, false), state.inputAttachments);
+        assertEquals(List.of(true, true, false, false), state.inputAttachments);
         assertEquals(1, state.setFocusCalls);
     }
 
@@ -230,7 +329,7 @@ class JnaWindowsNativeCanvasApiTest {
         assertEquals(
                 WindowsNativeCanvasApi.FocusResult.INPUT_QUEUE_DETACH_FAILED,
                 windows.requestFocus(attachment()));
-        assertEquals(List.of(true, false), state.inputAttachments);
+        assertEquals(List.of(true, true, false, false), state.inputAttachments);
     }
 
     @Test
@@ -242,7 +341,7 @@ class JnaWindowsNativeCanvasApiTest {
         assertEquals(
                 WindowsNativeCanvasApi.FocusResult.INPUT_QUEUE_DETACH_FAILED,
                 windows.requestFocus(attachment()));
-        assertEquals(List.of(true, false), state.inputAttachments);
+        assertEquals(List.of(true, true, false, false), state.inputAttachments);
     }
 
     @Test
@@ -336,6 +435,7 @@ class JnaWindowsNativeCanvasApiTest {
                         long owner = switch ((int) window) {
                             case 10 -> state.parentProcessId;
                             case 30 -> state.flutterViewProcessId;
+                            case 40 -> state.otherFocusProcessId;
                             default -> state.runnerProcessId;
                         };
                         processId.setValue((int) owner);
@@ -356,13 +456,17 @@ class JnaWindowsNativeCanvasApiTest {
                     int sourceThread = (int) ((DWORD) arguments[0]).longValue();
                     int targetThread = (int) ((DWORD) arguments[1]).longValue();
                     boolean attach = (Boolean) arguments[2];
+                    boolean parentEdge = targetThread == state.parentThread;
+                    boolean runnerEdge = targetThread == state.runnerFocusThread;
                     state.inputAttachments.add(attach);
                     state.inputAttachmentEdges.add(
                             sourceThread + "->" + targetThread + ":" + attach);
-                    if (attach && state.invalidateAfterAttach) {
-                        state.flutterViewProcessId = 99L;
+                    if (attach
+                            && targetThread == state.attachFailureThread
+                            && state.attachFailure != null) {
+                        throw state.attachFailure;
                     }
-                    if (!attach && targetThread == state.parentThread) {
+                    if (!attach && parentEdge) {
                         if (state.invalidateParentAfterDetach) {
                             state.parentProcessId = 99L;
                         }
@@ -370,7 +474,7 @@ class JnaWindowsNativeCanvasApiTest {
                             state.focusedWindow = 40L;
                         }
                     }
-                    if (!attach && targetThread == state.runnerFocusThread) {
+                    if (!attach && runnerEdge) {
                         if (state.invalidateFocusTargetAfterDetach) {
                             state.flutterViewProcessId = 99L;
                         }
@@ -381,14 +485,40 @@ class JnaWindowsNativeCanvasApiTest {
                     if (!attach && state.detachFailure != null) {
                         throw state.detachFailure;
                     }
-                    yield attach ? state.attachSucceeds : state.detachSucceeds;
+                    boolean succeeded = attach
+                            ? state.attachSucceeds
+                                    && targetThread != state.failedAttachThread
+                            : state.detachSucceeds;
+                    if (succeeded) {
+                        if (parentEdge) {
+                            state.parentQueueAttached = attach;
+                        }
+                        if (runnerEdge) {
+                            state.runnerQueueAttached = attach;
+                        }
+                        if (attach && state.invalidateAfterAttach) {
+                            state.flutterViewProcessId = 99L;
+                        }
+                        if (attach && parentEdge
+                                && state.moveFocusToForeignAfterParentAttach) {
+                            state.focusedWindow = 40L;
+                            state.otherFocusProcessId = 99L;
+                        }
+                    }
+                    yield succeeded;
                 }
                 case "SetFocus" -> {
                     state.setFocusCalls++;
                     if (state.setFocusFailure != null) {
                         throw state.setFocusFailure;
                     }
-                    if (state.setFocusSucceeds) {
+                    boolean parentQueueReady = state.currentThread
+                            == state.parentThread || state.parentQueueAttached;
+                    boolean runnerQueueReady = state.currentThread
+                            == state.runnerFocusThread || state.runnerQueueAttached;
+                    if (state.setFocusSucceeds
+                            && parentQueueReady
+                            && runnerQueueReady) {
                         state.focusedWindow = windowValue(arguments[0]);
                         state.targetThreadRememberedFocus = state.focusedWindow;
                     }
@@ -411,7 +541,7 @@ class JnaWindowsNativeCanvasApiTest {
         });
         Kernel32 kernel32 = proxy(Kernel32.class, (method, arguments) ->
                 "GetCurrentThreadId".equals(method.getName())
-                        ? 11
+                        ? state.currentThread
                         : defaultValue(method.getReturnType()));
         return new JnaWindowsNativeCanvasApi(user32, kernel32, ignored -> 96);
     }
@@ -436,6 +566,8 @@ class JnaWindowsNativeCanvasApiTest {
         private long parentProcessId = ProcessHandle.current().pid();
         private long runnerProcessId = 77L;
         private long flutterViewProcessId = 77L;
+        private long otherFocusProcessId = ProcessHandle.current().pid();
+        private int currentThread = 11;
         private int parentThread = 33;
         private int runnerFocusThread = 22;
         private long focusedWindow;
@@ -443,11 +575,17 @@ class JnaWindowsNativeCanvasApiTest {
         private boolean attachSucceeds = true;
         private boolean detachSucceeds = true;
         private boolean setFocusSucceeds = true;
+        private boolean parentQueueAttached;
+        private boolean runnerQueueAttached;
+        private int failedAttachThread = -1;
+        private int attachFailureThread = -1;
         private boolean invalidateAfterAttach;
         private boolean invalidateFocusTargetAfterDetach;
         private boolean invalidateParentAfterDetach;
         private boolean moveFocusAfterDetach;
         private boolean moveRunnerFocusAfterDetach;
+        private boolean moveFocusToForeignAfterParentAttach;
+        private LinkageError attachFailure;
         private LinkageError setFocusFailure;
         private LinkageError detachFailure;
         private int setFocusCalls;

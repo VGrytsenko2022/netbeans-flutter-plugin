@@ -162,57 +162,110 @@ final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
         if (!isExpectedFocusTarget(attachment, parentProcessId)) {
             return FocusResult.TARGET_INVALID;
         }
-        long window = attachment.flutterViewWindow();
-        HWND target = hwnd(window);
-        IntByReference processId = new IntByReference();
-        int targetThread = user32.GetWindowThreadProcessId(target, processId);
-        if (targetThread == 0
-                || Integer.toUnsignedLong(processId.getValue())
+        long parentWindow = attachment.parentWindow();
+        long targetWindow = attachment.flutterViewWindow();
+        HWND parent = hwnd(parentWindow);
+        HWND target = hwnd(targetWindow);
+        IntByReference parentOwnerProcessId = new IntByReference();
+        int parentThread = user32.GetWindowThreadProcessId(
+                parent, parentOwnerProcessId);
+        IntByReference targetOwnerProcessId = new IntByReference();
+        int targetThread = user32.GetWindowThreadProcessId(
+                target, targetOwnerProcessId);
+        if (parentThread == 0
+                || targetThread == 0
+                || Integer.toUnsignedLong(parentOwnerProcessId.getValue())
+                        != parentProcessId
+                || Integer.toUnsignedLong(targetOwnerProcessId.getValue())
                         != attachment.runnerProcessId()) {
             return FocusResult.TARGET_INVALID;
         }
-        if (foregroundFocusedWindow() == window) {
+        long focusedWindow = foregroundFocusedWindow();
+        if (focusedWindow == targetWindow) {
             return FocusResult.FOCUSED;
         }
-        int currentThread = kernel32.GetCurrentThreadId();
-        boolean attachedInput = currentThread != targetThread;
-        if (attachedInput && !user32.AttachThreadInput(
-                new DWORD(Integer.toUnsignedLong(currentThread)),
-                new DWORD(Integer.toUnsignedLong(targetThread)),
-                true)) {
+        if (!isAuthorizedFocusSource(
+                focusedWindow, parentProcessId, attachment.runnerProcessId())) {
             return FocusResult.POLICY_REFUSED;
         }
+
+        int currentThread = kernel32.GetCurrentThreadId();
+        boolean parentInputAttached = false;
+        boolean targetInputAttached = false;
         FocusResult result = FocusResult.POLICY_REFUSED;
         Throwable focusFailure = null;
         boolean detachedInput = true;
         try {
-            if (!isExpectedFocusTarget(
-                    attachment,
-                    parentProcessId,
-                    targetThread)) {
-                result = FocusResult.TARGET_INVALID;
-            } else {
-                user32.SetFocus(target);
+            boolean inputQueuesReady = true;
+            if (currentThread != parentThread) {
+                parentInputAttached = user32.AttachThreadInput(
+                        new DWORD(Integer.toUnsignedLong(currentThread)),
+                        new DWORD(Integer.toUnsignedLong(parentThread)),
+                        true);
+                inputQueuesReady = parentInputAttached;
+            }
+            if (inputQueuesReady
+                    && currentThread != targetThread
+                    && targetThread != parentThread) {
+                targetInputAttached = user32.AttachThreadInput(
+                        new DWORD(Integer.toUnsignedLong(currentThread)),
+                        new DWORD(Integer.toUnsignedLong(targetThread)),
+                        true);
+                inputQueuesReady = targetInputAttached;
+            }
+            if (inputQueuesReady) {
                 if (!isExpectedFocusTarget(
                         attachment,
                         parentProcessId,
+                        parentThread,
                         targetThread)) {
                     result = FocusResult.TARGET_INVALID;
+                } else if (!isAuthorizedFocusSource(
+                        foregroundFocusedWindow(),
+                        parentProcessId,
+                        attachment.runnerProcessId())) {
+                    // A newer foreground application wins over this retained
+                    // activation intent. Joining input queues must never turn
+                    // a stale request into a later focus steal.
+                    result = FocusResult.POLICY_REFUSED;
                 } else {
-                    result = foregroundFocusedWindow() == window
-                            ? FocusResult.FOCUSED
-                            : FocusResult.POLICY_REFUSED;
+                    user32.SetFocus(target);
+                    if (!isExpectedFocusTarget(
+                            attachment,
+                            parentProcessId,
+                            parentThread,
+                            targetThread)) {
+                        result = FocusResult.TARGET_INVALID;
+                    } else {
+                        result = foregroundFocusedWindow() == targetWindow
+                                ? FocusResult.FOCUSED
+                                : FocusResult.POLICY_REFUSED;
+                    }
                 }
             }
         } catch (RuntimeException | LinkageError failure) {
             focusFailure = failure;
         } finally {
-            if (attachedInput) {
+            if (targetInputAttached) {
                 try {
                     detachedInput = user32.AttachThreadInput(
                             new DWORD(Integer.toUnsignedLong(currentThread)),
                             new DWORD(Integer.toUnsignedLong(targetThread)),
                             false);
+                } catch (RuntimeException | LinkageError failure) {
+                    detachedInput = false;
+                    if (focusFailure != null) {
+                        focusFailure.addSuppressed(failure);
+                    }
+                }
+            }
+            if (parentInputAttached) {
+                try {
+                    boolean parentDetached = user32.AttachThreadInput(
+                            new DWORD(Integer.toUnsignedLong(currentThread)),
+                            new DWORD(Integer.toUnsignedLong(parentThread)),
+                            false);
+                    detachedInput = detachedInput && parentDetached;
                 } catch (RuntimeException | LinkageError failure) {
                     detachedInput = false;
                     if (focusFailure != null) {
@@ -237,10 +290,11 @@ final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
             if (!isExpectedFocusTarget(
                     attachment,
                     parentProcessId,
+                    parentThread,
                     targetThread)) {
                 return FocusResult.TARGET_INVALID;
             }
-            if (foregroundFocusedWindow() != window) {
+            if (foregroundFocusedWindow() != targetWindow) {
                 return FocusResult.POLICY_REFUSED;
             }
         }
@@ -450,16 +504,24 @@ final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
     private boolean isExpectedFocusTarget(
             NativeCanvasAttachment attachment,
             long parentProcessId,
+            int parentThread,
             int targetThread) {
         if (!isExpectedFocusTarget(attachment, parentProcessId)) {
             return false;
         }
-        IntByReference revalidatedProcessId = new IntByReference();
-        int revalidatedThread = user32.GetWindowThreadProcessId(
+        IntByReference revalidatedParentProcessId = new IntByReference();
+        int revalidatedParentThread = user32.GetWindowThreadProcessId(
+                hwnd(attachment.parentWindow()),
+                revalidatedParentProcessId);
+        IntByReference revalidatedTargetProcessId = new IntByReference();
+        int revalidatedTargetThread = user32.GetWindowThreadProcessId(
                 hwnd(attachment.flutterViewWindow()),
-                revalidatedProcessId);
-        return revalidatedThread == targetThread
-                && Integer.toUnsignedLong(revalidatedProcessId.getValue())
+                revalidatedTargetProcessId);
+        return revalidatedParentThread == parentThread
+                && revalidatedTargetThread == targetThread
+                && Integer.toUnsignedLong(revalidatedParentProcessId.getValue())
+                        == parentProcessId
+                && Integer.toUnsignedLong(revalidatedTargetProcessId.getValue())
                         == attachment.runnerProcessId();
     }
 
@@ -468,23 +530,27 @@ final class JnaWindowsNativeCanvasApi implements WindowsNativeCanvasApi {
             long parentProcessId,
             int parentThread,
             int runnerThread) {
-        if (!isExpectedReleaseTarget(attachment, parentProcessId)) {
+        return isExpectedFocusTarget(
+                attachment, parentProcessId, parentThread, runnerThread);
+    }
+
+    private boolean isAuthorizedFocusSource(
+            long focusedWindow,
+            long parentProcessId,
+            long runnerProcessId) {
+        if (focusedWindow == 0) {
+            return true;
+        }
+        try {
+            if (!isWindow(focusedWindow)) {
+                return false;
+            }
+            long ownerProcessId = ownerProcessId(focusedWindow);
+            return ownerProcessId == parentProcessId
+                    || ownerProcessId == runnerProcessId;
+        } catch (RuntimeException | LinkageError failure) {
             return false;
         }
-        IntByReference revalidatedParentProcessId = new IntByReference();
-        int revalidatedParentThread = user32.GetWindowThreadProcessId(
-                hwnd(attachment.parentWindow()),
-                revalidatedParentProcessId);
-        IntByReference revalidatedRunnerProcessId = new IntByReference();
-        int revalidatedRunnerThread = user32.GetWindowThreadProcessId(
-                hwnd(attachment.flutterViewWindow()),
-                revalidatedRunnerProcessId);
-        return revalidatedParentThread == parentThread
-                && revalidatedRunnerThread == runnerThread
-                && Integer.toUnsignedLong(revalidatedParentProcessId.getValue())
-                        == parentProcessId
-                && Integer.toUnsignedLong(revalidatedRunnerProcessId.getValue())
-                        == attachment.runnerProcessId();
     }
 
     private long foregroundFocusedWindow() {

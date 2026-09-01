@@ -337,6 +337,14 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Fixed
 
+- Native Windows Canvas activation now joins the Java caller to both the exact
+  AWT parent input queue and the verified `FLUTTERVIEW` queue before `SetFocus`,
+  then detaches them in reverse order and revalidates HWND, PID, thread and
+  physical foreground authority. This closes the initial activation race where
+  the NetBeans top-level HWND was foreground but the cross-process Flutter child
+  could not receive focus. Foreign-foreground, partial-attach, detach-failure
+  and identity-drift paths remain fail-closed and cannot turn a retained
+  activation intent into a later focus steal.
 - At the schema-v2 milestone, the first Pair Save after editing a schema-v1 `.fd` model re-anchored
   retained semantic history to the proven canonical schema-v2 revision instead
   of mixing the raw v1 baseline into a new durable endpoint. Repeated Properties

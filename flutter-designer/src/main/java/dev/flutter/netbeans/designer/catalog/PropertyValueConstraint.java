@@ -26,6 +26,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.AlignmentGeometryValues,
         PropertyValueConstraint.BoxConstraintsValues,
         PropertyValueConstraint.Matrix4Values,
+        PropertyValueConstraint.ImageProviderValues,
         PropertyValueConstraint.BoxDecorationValues,
         PropertyValueConstraint.IntegerRange,
         PropertyValueConstraint.DoubleRange,
@@ -54,6 +55,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.ALIGNMENT_GEOMETRY
                     || kind == PropertyValueKind.BOX_CONSTRAINTS
                     || kind == PropertyValueKind.MATRIX4
+                    || kind == PropertyValueKind.IMAGE_PROVIDER
                     || kind == PropertyValueKind.BOX_DECORATION
                     || kind == PropertyValueKind.ICON_DATA
                     || kind == PropertyValueKind.CALLBACK) {
@@ -243,7 +245,26 @@ public sealed interface PropertyValueConstraint permits
         }
     }
 
-    /** Accepts the reviewed image-free BoxDecoration subset and theme colors. */
+    /** Accepts the complete reviewed asset-only ImageProvider contract. */
+    record ImageProviderValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.IMAGE_PROVIDER;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.ImageProviderValue provider
+                    && acceptsImageProvider(provider);
+        }
+
+        @Override
+        public String description() {
+            return "asset-only ImageProvider with optional bounded ResizeImage";
+        }
+    }
+
+    /** Accepts the reviewed BoxDecoration subset and theme colors. */
     record BoxDecorationValues(List<String> colorThemeTokenIds)
             implements PropertyValueConstraint {
         public BoxDecorationValues {
@@ -261,6 +282,7 @@ public sealed interface PropertyValueConstraint permits
                 return false;
             }
             return decoration.color().map(this::acceptsColor).orElse(true)
+                    && decoration.image().map(this::acceptsDecorationImage).orElse(true)
                     && decoration.border().map(this::acceptsBorder).orElse(true)
                     && decoration.borderRadius().map(this::acceptsRadiusGeometry).orElse(true)
                     && decoration.boxShadow().stream().allMatch(this::acceptsShadow)
@@ -269,11 +291,41 @@ public sealed interface PropertyValueConstraint permits
 
         @Override
         public String description() {
-            return "image-free BoxDecoration with literal or reviewed Material theme colors";
+            return "BoxDecoration with typed asset images and literal or reviewed Material theme colors";
         }
 
         private boolean acceptsColor(ColorSource source) {
             return acceptsColorSource(source, colorThemeTokenIds);
+        }
+
+        private boolean acceptsDecorationImage(
+                PropertyValue.DecorationImageValue image) {
+            return acceptsImageProvider(image.image())
+                    && acceptsAlignment(image.alignment())
+                    && image.centerSlice().map(rect ->
+                            DartNumericLiterals.isRepresentableDouble(rect.left())
+                            && DartNumericLiterals.isRepresentableDouble(rect.top())
+                            && DartNumericLiterals.isRepresentableDouble(rect.right())
+                            && DartNumericLiterals.isRepresentableDouble(rect.bottom()))
+                            .orElse(true)
+                    && DartNumericLiterals.isRepresentableDouble(image.scale())
+                    && DartNumericLiterals.isRepresentableDouble(image.opacity())
+                    && image.colorFilter().map(this::acceptsColorFilter).orElse(true);
+        }
+
+        private boolean acceptsColorFilter(
+                PropertyValue.DecorationImageValue.ColorFilter filter) {
+            if (filter instanceof PropertyValue.DecorationImageValue.Mode mode) {
+                return acceptsColor(mode.color());
+            }
+            if (filter instanceof PropertyValue.DecorationImageValue.Matrix matrix) {
+                return matrix.values().stream()
+                        .allMatch(DartNumericLiterals::isRepresentableDouble);
+            }
+            if (filter instanceof PropertyValue.DecorationImageValue.Saturation saturation) {
+                return DartNumericLiterals.isRepresentableDouble(saturation.value());
+            }
+            return true;
         }
 
         private boolean acceptsBorder(PropertyValue.BoxDecorationValue.BoxBorder border) {
@@ -348,6 +400,13 @@ public sealed interface PropertyValueConstraint permits
             return DartNumericLiterals.isRepresentableDouble(alignment.horizontal())
                     && DartNumericLiterals.isRepresentableDouble(alignment.vertical());
         }
+    }
+
+    private static boolean acceptsImageProvider(
+            PropertyValue.ImageProviderValue provider) {
+        return provider.exactScale()
+                .map(DartNumericLiterals::isRepresentableDouble)
+                .orElse(true);
     }
 
     private static List<String> themeTokenIds(List<String> values) {

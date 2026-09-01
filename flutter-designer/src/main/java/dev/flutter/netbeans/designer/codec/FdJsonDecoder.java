@@ -604,11 +604,13 @@ final class FdJsonDecoder {
             case "urn:netbeans-flutter-designer:schema:fd:1",
                     "urn:netbeans-flutter-designer:schema:fd:2",
                     "urn:netbeans-flutter-designer:schema:fd:3",
-                    "urn:netbeans-flutter-designer:schema:fd:4" ->
-                    "urn:netbeans-flutter-designer:schema:fd:5";
+                    "urn:netbeans-flutter-designer:schema:fd:4",
+                    "urn:netbeans-flutter-designer:schema:fd:5" ->
+                    "urn:netbeans-flutter-designer:schema:fd:6";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
-                    "../fd-v3.schema.json", "../fd-v4.schema.json" ->
-                    "../fd-v5.schema.json";
+                    "../fd-v3.schema.json", "../fd-v4.schema.json",
+                    "../fd-v5.schema.json" ->
+                    "../fd-v6.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1124,6 +1126,12 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "This property kind requires schema version 5.");
         }
+        if (sourceVersion < 6 && kind.equals("imageProvider")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "ImageProvider values require schema version 6.");
+        }
         return switch (kind) {
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
@@ -1359,13 +1367,17 @@ final class FdJsonDecoder {
                 }
                 yield modelValue(base, () -> new PropertyValue.Matrix4Value(storage));
             }
+            case "imageProvider" -> readImageProvider(fields, base);
             case "boxDecoration" -> {
-                enforceAllowedFields(
-                        parser, fields, base,
-                        Set.of(
+                Set<String> allowed = sourceVersion >= 6
+                        ? Set.of(
+                                "kind", "color", "image", "border", "borderRadius",
+                                "boxShadow", "gradient", "backgroundBlendMode", "shape")
+                        : Set.of(
                                 "kind", "color", "border", "borderRadius", "boxShadow",
-                                "gradient", "backgroundBlendMode", "shape"));
-                yield readBoxDecoration(fields, base);
+                                "gradient", "backgroundBlendMode", "shape");
+                enforceAllowedFields(parser, fields, base, allowed);
+                yield readBoxDecoration(fields, base, sourceVersion);
             }
             default -> throw invalidValue(parser, pointer(base, "kind"), "Unknown property kind.");
         };
@@ -1541,11 +1553,23 @@ final class FdJsonDecoder {
     }
 
     private PropertyValue.BoxDecorationValue readBoxDecoration(
-            Map<String, JsonValue> fields, String base) throws DecodeFailure {
+            Map<String, JsonValue> fields,
+            String base,
+            int sourceVersion) throws DecodeFailure {
         Optional<JsonValue> colorJson = optionalJson(fields, "color", base);
         Optional<ColorSource> color = colorJson.isPresent()
                 ? Optional.of(readColorSource(colorJson.orElseThrow(), pointer(base, "color")))
                 : Optional.empty();
+        Optional<PropertyValue.DecorationImageValue> image;
+        if (sourceVersion >= 6) {
+            Optional<JsonValue> imageJson = optionalJson(fields, "image", base);
+            image = imageJson.isPresent()
+                    ? Optional.of(readDecorationImage(
+                            imageJson.orElseThrow(), pointer(base, "image")))
+                    : Optional.empty();
+        } else {
+            image = Optional.empty();
+        }
         Optional<JsonValue> borderJson = optionalJson(fields, "border", base);
         Optional<PropertyValue.BoxDecorationValue.BoxBorder> border = borderJson.isPresent()
                 ? Optional.of(readBoxBorder(borderJson.orElseThrow(), pointer(base, "border")))
@@ -1575,7 +1599,215 @@ final class FdJsonDecoder {
                 pointer(base, "shape"),
                 () -> PropertyValue.BoxDecorationValue.BoxShape.fromWireName(shapeName));
         return modelValue(base, () -> new PropertyValue.BoxDecorationValue(
-                color, border, borderRadius, shadows, gradient, blendMode, shape));
+                color, image, border, borderRadius, shadows, gradient, blendMode, shape));
+    }
+
+    private PropertyValue.ImageProviderValue readImageProvider(
+            Map<String, JsonValue> fields,
+            String base) throws DecodeFailure {
+        enforceAllowedFields(fields, base, Set.of(
+                "kind", "providerKind", "assetName", "packageName",
+                "exactScale", "resize"));
+        String propertyKind = jsonString(fields, "kind", base);
+        if (!propertyKind.equals("imageProvider")) {
+            throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, "kind"),
+                    "The nested image provider kind must be imageProvider.");
+        }
+        String providerKindName = jsonString(fields, "providerKind", base);
+        PropertyValue.ImageProviderValue.ProviderKind providerKind = modelValue(
+                pointer(base, "providerKind"),
+                () -> PropertyValue.ImageProviderValue.ProviderKind.fromWireName(
+                        providerKindName));
+        String assetName = jsonString(fields, "assetName", base);
+        Optional<String> packageName = jsonOptionalString(
+                fields, "packageName", base);
+        Optional<BigDecimal> exactScale = jsonOptionalDartDouble(
+                fields, "exactScale", base);
+        Optional<JsonValue> resizeJson = optionalJson(fields, "resize", base);
+        Optional<PropertyValue.ImageProviderValue.ResizeImageConfig> resize =
+                resizeJson.isPresent()
+                        ? Optional.of(readResizeImage(
+                                resizeJson.orElseThrow(), pointer(base, "resize")))
+                        : Optional.empty();
+        return modelValue(base, () -> new PropertyValue.ImageProviderValue(
+                providerKind, assetName, packageName, exactScale, resize));
+    }
+
+    private PropertyValue.ImageProviderValue readImageProvider(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        return readImageProvider(jsonObject(value, base), base);
+    }
+
+    private PropertyValue.ImageProviderValue.ResizeImageConfig readResizeImage(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of(
+                "width", "height", "policy", "allowUpscaling"));
+        Optional<Integer> width = jsonOptionalInteger(fields, "width", base);
+        Optional<Integer> height = jsonOptionalInteger(fields, "height", base);
+        String policyName = jsonString(fields, "policy", base);
+        PropertyValue.ImageProviderValue.ResizePolicy policy = modelValue(
+                pointer(base, "policy"),
+                () -> PropertyValue.ImageProviderValue.ResizePolicy.fromWireName(
+                        policyName));
+        boolean allowUpscaling = jsonBoolean(fields, "allowUpscaling", base);
+        return modelValue(base, () ->
+                new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                        width, height, policy, allowUpscaling));
+    }
+
+    private PropertyValue.DecorationImageValue readDecorationImage(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of(
+                "image", "onError", "colorFilter", "fit", "alignment",
+                "centerSlice", "repeat", "matchTextDirection", "scale",
+                "opacity", "filterQuality", "invertColors", "isAntiAlias"));
+        PropertyValue.ImageProviderValue image = readImageProvider(
+                requiredJson(fields, "image", base), pointer(base, "image"));
+        Optional<JsonValue> onErrorJson = optionalJson(fields, "onError", base);
+        Optional<PropertyValue.CallbackValue> onError = onErrorJson.isPresent()
+                ? Optional.of(readCallbackValue(
+                        onErrorJson.orElseThrow(), pointer(base, "onError")))
+                : Optional.empty();
+        Optional<JsonValue> colorFilterJson = optionalJson(
+                fields, "colorFilter", base);
+        Optional<PropertyValue.DecorationImageValue.ColorFilter> colorFilter =
+                colorFilterJson.isPresent()
+                        ? Optional.of(readDecorationColorFilter(
+                                colorFilterJson.orElseThrow(),
+                                pointer(base, "colorFilter")))
+                        : Optional.empty();
+        Optional<String> fitName = jsonOptionalString(fields, "fit", base);
+        Optional<PropertyValue.DecorationImageValue.BoxFit> fit = fitName.isPresent()
+                ? Optional.of(modelValue(
+                        pointer(base, "fit"),
+                        () -> PropertyValue.DecorationImageValue.BoxFit.fromWireName(
+                                fitName.orElseThrow())))
+                : Optional.empty();
+        PropertyValue.AlignmentGeometryValue alignment = readAlignment(
+                requiredJson(fields, "alignment", base), pointer(base, "alignment"));
+        Optional<JsonValue> centerSliceJson = optionalJson(
+                fields, "centerSlice", base);
+        Optional<PropertyValue.DecorationImageValue.Rect> centerSlice =
+                centerSliceJson.isPresent()
+                        ? Optional.of(readDecorationRect(
+                                centerSliceJson.orElseThrow(),
+                                pointer(base, "centerSlice")))
+                        : Optional.empty();
+        String repeatName = jsonString(fields, "repeat", base);
+        PropertyValue.DecorationImageValue.ImageRepeat repeat = modelValue(
+                pointer(base, "repeat"),
+                () -> PropertyValue.DecorationImageValue.ImageRepeat.fromWireName(
+                        repeatName));
+        boolean matchTextDirection = jsonBoolean(
+                fields, "matchTextDirection", base);
+        BigDecimal scale = jsonDartDouble(fields, "scale", base);
+        BigDecimal opacity = jsonDartDouble(fields, "opacity", base);
+        String filterQualityName = jsonString(fields, "filterQuality", base);
+        PropertyValue.PaintValue.FilterQuality filterQuality = modelValue(
+                pointer(base, "filterQuality"),
+                () -> PropertyValue.PaintValue.FilterQuality.fromWireName(
+                        filterQualityName));
+        boolean invertColors = jsonBoolean(fields, "invertColors", base);
+        boolean isAntiAlias = jsonBoolean(fields, "isAntiAlias", base);
+        return modelValue(base, () -> new PropertyValue.DecorationImageValue(
+                image,
+                onError,
+                colorFilter,
+                fit,
+                alignment,
+                centerSlice,
+                repeat,
+                matchTextDirection,
+                scale,
+                opacity,
+                filterQuality,
+                invertColors,
+                isAntiAlias));
+    }
+
+    private PropertyValue.CallbackValue readCallbackValue(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("kind", "handler"));
+        if (!jsonString(fields, "kind", base).equals("callback")) {
+            throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, "kind"),
+                    "The nested callback kind must be callback.");
+        }
+        String handler = jsonString(fields, "handler", base);
+        return modelValue(base, () -> new PropertyValue.CallbackValue(handler));
+    }
+
+    private PropertyValue.DecorationImageValue.ColorFilter readDecorationColorFilter(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        String kind = jsonString(fields, "kind", base);
+        return switch (kind) {
+            case "mode" -> {
+                enforceAllowedFields(fields, base, Set.of("kind", "color", "blendMode"));
+                ColorSource color = readColorSource(
+                        requiredJson(fields, "color", base), pointer(base, "color"));
+                String blendName = jsonString(fields, "blendMode", base);
+                PropertyValue.PaintValue.BlendMode blendMode = modelValue(
+                        pointer(base, "blendMode"),
+                        () -> PropertyValue.PaintValue.BlendMode.fromWireName(
+                                blendName));
+                yield new PropertyValue.DecorationImageValue.Mode(color, blendMode);
+            }
+            case "matrix" -> {
+                enforceAllowedFields(fields, base, Set.of("kind", "values"));
+                List<JsonValue> entries = jsonArray(
+                        requiredJson(fields, "values", base), pointer(base, "values"));
+                List<BigDecimal> values = new ArrayList<>(entries.size());
+                for (int index = 0; index < entries.size(); index++) {
+                    values.add(jsonDartDouble(
+                            entries.get(index),
+                            pointer(pointer(base, "values"), Integer.toString(index))));
+                }
+                yield modelValue(base, () ->
+                        new PropertyValue.DecorationImageValue.Matrix(values));
+            }
+            case "linearToSrgbGamma" -> {
+                enforceAllowedFields(fields, base, Set.of("kind"));
+                yield new PropertyValue.DecorationImageValue.LinearToSrgbGamma();
+            }
+            case "srgbToLinearGamma" -> {
+                enforceAllowedFields(fields, base, Set.of("kind"));
+                yield new PropertyValue.DecorationImageValue.SrgbToLinearGamma();
+            }
+            case "saturation" -> {
+                enforceAllowedFields(fields, base, Set.of("kind", "value"));
+                BigDecimal saturation = jsonDartDouble(fields, "value", base);
+                yield new PropertyValue.DecorationImageValue.Saturation(saturation);
+            }
+            default -> throw failure(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer(base, "kind"),
+                    "Unknown DecorationImage ColorFilter kind.");
+        };
+    }
+
+    private PropertyValue.DecorationImageValue.Rect readDecorationRect(
+            JsonValue value,
+            String base) throws DecodeFailure {
+        Map<String, JsonValue> fields = jsonObject(value, base);
+        enforceAllowedFields(fields, base, Set.of("left", "top", "right", "bottom"));
+        BigDecimal left = jsonDartDouble(fields, "left", base);
+        BigDecimal top = jsonDartDouble(fields, "top", base);
+        BigDecimal right = jsonDartDouble(fields, "right", base);
+        BigDecimal bottom = jsonDartDouble(fields, "bottom", base);
+        return modelValue(base, () -> new PropertyValue.DecorationImageValue.Rect(
+                left, top, right, bottom));
     }
 
     private PropertyValue.BoxDecorationValue.BoxBorder readBoxBorder(

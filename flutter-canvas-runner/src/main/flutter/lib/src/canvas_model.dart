@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 10;
+const canvasModelProtocolVersion = 11;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -204,6 +204,7 @@ class CanvasModel {
     required this.profile,
     required this.root,
     required this.widgetIds,
+    required this.imageResourceIds,
   });
 
   final String sessionId;
@@ -213,6 +214,7 @@ class CanvasModel {
   final CanvasProfile profile;
   final CanvasNode root;
   final Set<String> widgetIds;
+  final Set<String> imageResourceIds;
 
   static CanvasModel decode(Uint8List bytes) {
     final Object? decoded;
@@ -261,6 +263,7 @@ class CanvasModel {
       profile: profile,
       root: root,
       widgetIds: Set.unmodifiable(budget.ids),
+      imageResourceIds: Set.unmodifiable(budget.imageResourceIds),
     );
   }
 }
@@ -1263,9 +1266,145 @@ class CanvasMatrix4Value {
   final List<double> storage;
 }
 
+class CanvasImageProviderValue {
+  const CanvasImageProviderValue({
+    required this.providerKind,
+    required this.assetName,
+    required this.packageName,
+    required this.exactScale,
+    required this.resize,
+    required this.resolution,
+  });
+
+  final String providerKind;
+  final String assetName;
+  final String? packageName;
+  final double? exactScale;
+  final CanvasResizeImageValue? resize;
+  final CanvasImageResolutionValue resolution;
+}
+
+class CanvasResizeImageValue {
+  const CanvasResizeImageValue({
+    required this.width,
+    required this.height,
+    required this.policy,
+    required this.allowUpscaling,
+  });
+
+  final int? width;
+  final int? height;
+  final String policy;
+  final bool allowUpscaling;
+}
+
+sealed class CanvasImageResolutionValue {
+  const CanvasImageResolutionValue();
+}
+
+class CanvasResolvedImageValue extends CanvasImageResolutionValue {
+  const CanvasResolvedImageValue({
+    required this.resourceId,
+    required this.resolvedScale,
+  });
+
+  final String resourceId;
+  final double resolvedScale;
+}
+
+class CanvasUnavailableImageValue extends CanvasImageResolutionValue {
+  const CanvasUnavailableImageValue({required this.code, required this.reason});
+
+  final String code;
+  final String reason;
+}
+
+class CanvasDecorationImageValue {
+  const CanvasDecorationImageValue({
+    required this.image,
+    required this.onError,
+    required this.colorFilter,
+    required this.fit,
+    required this.alignment,
+    required this.centerSlice,
+    required this.repeat,
+    required this.matchTextDirection,
+    required this.scale,
+    required this.opacity,
+    required this.filterQuality,
+    required this.invertColors,
+    required this.isAntiAlias,
+  });
+
+  final CanvasImageProviderValue image;
+
+  /// Presence only. The isolated runner never receives or executes a handler.
+  final bool onError;
+  final CanvasColorFilterValue? colorFilter;
+  final String? fit;
+  final CanvasAlignmentGeometryValue alignment;
+  final CanvasRectValue? centerSlice;
+  final String repeat;
+  final bool matchTextDirection;
+  final double scale;
+  final double opacity;
+  final String filterQuality;
+  final bool invertColors;
+  final bool isAntiAlias;
+}
+
+sealed class CanvasColorFilterValue {
+  const CanvasColorFilterValue();
+}
+
+class CanvasModeColorFilterValue extends CanvasColorFilterValue {
+  const CanvasModeColorFilterValue({
+    required this.color,
+    required this.blendMode,
+  });
+
+  final CanvasColorSource color;
+  final String blendMode;
+}
+
+class CanvasMatrixColorFilterValue extends CanvasColorFilterValue {
+  const CanvasMatrixColorFilterValue(this.values);
+
+  final List<double> values;
+}
+
+class CanvasLinearToSrgbGammaColorFilterValue extends CanvasColorFilterValue {
+  const CanvasLinearToSrgbGammaColorFilterValue();
+}
+
+class CanvasSrgbToLinearGammaColorFilterValue extends CanvasColorFilterValue {
+  const CanvasSrgbToLinearGammaColorFilterValue();
+}
+
+class CanvasSaturationColorFilterValue extends CanvasColorFilterValue {
+  const CanvasSaturationColorFilterValue(this.value);
+
+  final double value;
+}
+
+class CanvasRectValue {
+  const CanvasRectValue({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+}
+
 class CanvasBoxDecorationValue {
   const CanvasBoxDecorationValue({
     required this.color,
+    required this.image,
     required this.border,
     required this.borderRadius,
     required this.boxShadow,
@@ -1275,6 +1414,7 @@ class CanvasBoxDecorationValue {
   });
 
   final CanvasColorSource? color;
+  final CanvasDecorationImageValue? image;
   final CanvasBoxBorderValue? border;
   final CanvasBorderRadiusGeometryValue? borderRadius;
   final List<CanvasBoxShadowValue> boxShadow;
@@ -1956,6 +2096,334 @@ CanvasMatrix4Value _decodeMatrix4(Map<String, Object?> object, String path) {
   );
 }
 
+CanvasImageProviderValue _decodeImageProvider(Object? value, String path) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {
+    'kind',
+    'assetName',
+    'packageName',
+    'exactScale',
+    'resize',
+    'resolution',
+  });
+  final providerKind = _exactEnumText(object['kind'], '$path/kind', const {
+    'asset',
+    'exactAsset',
+  });
+  final assetName = _boundedPropertyText(
+    object['assetName'],
+    '$path/assetName',
+    1,
+    4096,
+  );
+  _validateImageAssetName(assetName, '$path/assetName');
+  final rawPackageName = object['packageName'];
+  _expect(
+    rawPackageName == null || rawPackageName is String,
+    'Canvas image packageName must be a string or null: $path/packageName',
+  );
+  final packageName = rawPackageName == null
+      ? null
+      : _boundedText(rawPackageName, '$path/packageName', 1, 64);
+  _expect(
+    packageName == null ||
+        RegExp(r'^[a-z][a-z0-9_]{0,63}$').hasMatch(packageName),
+    'Canvas image packageName is not a Dart package name: $path/packageName',
+  );
+  final exactScale = object['exactScale'] == null
+      ? null
+      : _finiteNumber(
+          object['exactScale'],
+          '$path/exactScale',
+          minimumExclusive: 0,
+        );
+  _expect(
+    (providerKind == 'exactAsset') == (exactScale != null),
+    'Canvas ExactAssetImage alone must carry exactScale: $path/exactScale',
+  );
+  return CanvasImageProviderValue(
+    providerKind: providerKind,
+    assetName: assetName,
+    packageName: packageName,
+    exactScale: exactScale,
+    resize: object['resize'] == null
+        ? null
+        : _decodeResizeImage(object['resize'], '$path/resize'),
+    resolution: _decodeImageResolution(
+      object['resolution'],
+      '$path/resolution',
+    ),
+  );
+}
+
+CanvasResizeImageValue _decodeResizeImage(Object? value, String path) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {
+    'width',
+    'height',
+    'policy',
+    'allowUpscaling',
+  });
+  int? dimension(String name) {
+    final raw = object[name];
+    _expect(
+      raw == null || raw is int,
+      'Canvas ResizeImage $name must be an integer or null: $path/$name',
+    );
+    final result = raw as int?;
+    _expect(
+      result == null || (result >= 1 && result <= 16384),
+      'Canvas ResizeImage $name is outside 1..16384: $path/$name',
+    );
+    return result;
+  }
+
+  final width = dimension('width');
+  final height = dimension('height');
+  _expect(
+    width != null || height != null,
+    'Canvas ResizeImage requires width or height: $path',
+  );
+  _expect(
+    object['allowUpscaling'] is bool,
+    'Canvas ResizeImage allowUpscaling must be a boolean: '
+    '$path/allowUpscaling',
+  );
+  return CanvasResizeImageValue(
+    width: width,
+    height: height,
+    policy: _exactEnumText(object['policy'], '$path/policy', const {
+      'exact',
+      'fit',
+    }),
+    allowUpscaling: object['allowUpscaling']! as bool,
+  );
+}
+
+CanvasImageResolutionValue _decodeImageResolution(Object? value, String path) {
+  final object = _object(value, path);
+  final kind = _exactEnumText(object['kind'], '$path/kind', const {
+    'resolved',
+    'unavailable',
+  });
+  if (kind == 'resolved') {
+    _exactKeys(object, path, const {'kind', 'resourceId', 'resolvedScale'});
+    final resourceId = _boundedText(
+      object['resourceId'],
+      '$path/resourceId',
+      64,
+      64,
+    );
+    _expect(
+      RegExp(r'^[0-9a-f]{64}$').hasMatch(resourceId),
+      'Canvas image resourceId must be a lowercase SHA-256 digest: '
+      '$path/resourceId',
+    );
+    return CanvasResolvedImageValue(
+      resourceId: resourceId,
+      resolvedScale: _finiteNumber(
+        object['resolvedScale'],
+        '$path/resolvedScale',
+        minimumExclusive: 0,
+      ),
+    );
+  }
+  _exactKeys(object, path, const {'kind', 'code', 'reason'});
+  final reason = _boundedPropertyText(
+    object['reason'],
+    '$path/reason',
+    1,
+    1024,
+  );
+  _expectWellFormedUtf16(reason, '$path/reason');
+  _expect(
+    reason.codeUnits.length <= 1024,
+    'Canvas unavailable image reason exceeds 1024 UTF-16 units: '
+    '$path/reason',
+  );
+  _expect(
+    !reason.codeUnits.any(
+      (unit) =>
+          ((unit <= 0x1f && unit != 0x09 && unit != 0x0a && unit != 0x0d) ||
+          (unit >= 0x7f && unit <= 0x9f)),
+    ),
+    'Canvas unavailable image reason contains a control character: '
+    '$path/reason',
+  );
+  _expect(
+    reason.trim().isNotEmpty,
+    'Canvas unavailable image reason must be concrete: $path/reason',
+  );
+  return CanvasUnavailableImageValue(
+    code: _exactEnumText(object['code'], '$path/code', const {
+      'undeclared',
+      'missing',
+      'invalidPath',
+      'unreadable',
+      'unsupportedFormat',
+      'corrupt',
+      'budgetExceeded',
+    }),
+    reason: reason,
+  );
+}
+
+CanvasDecorationImageValue _decodeDecorationImage(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {
+    'image',
+    'onError',
+    'colorFilter',
+    'fit',
+    'alignment',
+    'centerSlice',
+    'repeat',
+    'matchTextDirection',
+    'scale',
+    'opacity',
+    'filterQuality',
+    'invertColors',
+    'isAntiAlias',
+  });
+  _expect(
+    object['onError'] is bool,
+    'Canvas DecorationImage onError presence must be a boolean: '
+    '$path/onError',
+  );
+  _expect(
+    object['matchTextDirection'] is bool &&
+        object['invertColors'] is bool &&
+        object['isAntiAlias'] is bool,
+    'Canvas DecorationImage boolean field is invalid: $path',
+  );
+  final fit = object['fit'] == null
+      ? null
+      : _exactEnumText(object['fit'], '$path/fit', const {
+          'fill',
+          'contain',
+          'cover',
+          'fitWidth',
+          'fitHeight',
+          'none',
+          'scaleDown',
+        });
+  final centerSlice = object['centerSlice'] == null
+      ? null
+      : _decodeImageRect(object['centerSlice'], '$path/centerSlice');
+  _expect(
+    centerSlice == null || (fit != 'cover' && fit != 'none'),
+    'Canvas DecorationImage centerSlice rejects cover and none fits: '
+    '$path/fit',
+  );
+  return CanvasDecorationImageValue(
+    image: _decodeImageProvider(object['image'], '$path/image'),
+    onError: object['onError']! as bool,
+    colorFilter: object['colorFilter'] == null
+        ? null
+        : _decodeColorFilter(object['colorFilter'], spec, '$path/colorFilter'),
+    fit: fit,
+    alignment: _decodeNestedAlignmentGeometry(
+      object['alignment'],
+      '$path/alignment',
+    ),
+    centerSlice: centerSlice,
+    repeat: _exactEnumText(object['repeat'], '$path/repeat', const {
+      'repeat',
+      'repeatX',
+      'repeatY',
+      'noRepeat',
+    }),
+    matchTextDirection: object['matchTextDirection']! as bool,
+    scale: _finiteNumber(object['scale'], '$path/scale', minimumExclusive: 0),
+    opacity: _finiteNumber(
+      object['opacity'],
+      '$path/opacity',
+      minimum: 0,
+      maximum: 1,
+    ),
+    filterQuality: _exactEnumText(
+      object['filterQuality'],
+      '$path/filterQuality',
+      const {'none', 'low', 'medium', 'high'},
+    ),
+    invertColors: object['invertColors']! as bool,
+    isAntiAlias: object['isAntiAlias']! as bool,
+  );
+}
+
+CanvasColorFilterValue _decodeColorFilter(
+  Object? value,
+  _PropertySpec spec,
+  String path,
+) {
+  final object = _object(value, path);
+  final kind = _exactEnumText(object['kind'], '$path/kind', const {
+    'mode',
+    'matrix',
+    'linearToSrgbGamma',
+    'srgbToLinearGamma',
+    'saturation',
+  });
+  switch (kind) {
+    case 'mode':
+      _exactKeys(object, path, const {'kind', 'color', 'blendMode'});
+      return CanvasModeColorFilterValue(
+        color: _decodeBoxDecorationColor(object['color'], spec, '$path/color'),
+        blendMode: _exactEnumText(
+          object['blendMode'],
+          '$path/blendMode',
+          _blendModes,
+        ),
+      );
+    case 'matrix':
+      _exactKeys(object, path, const {'kind', 'values'});
+      final rawValues = object['values'];
+      _expect(
+        rawValues is List<Object?> && rawValues.length == 20,
+        'Canvas ColorFilter matrix must contain exactly 20 values: '
+        '$path/values',
+      );
+      final values = rawValues! as List<Object?>;
+      return CanvasMatrixColorFilterValue(
+        List.unmodifiable([
+          for (var index = 0; index < values.length; index++)
+            _finiteNumber(values[index], '$path/values/$index'),
+        ]),
+      );
+    case 'linearToSrgbGamma':
+      _exactKeys(object, path, const {'kind'});
+      return const CanvasLinearToSrgbGammaColorFilterValue();
+    case 'srgbToLinearGamma':
+      _exactKeys(object, path, const {'kind'});
+      return const CanvasSrgbToLinearGammaColorFilterValue();
+    case 'saturation':
+      _exactKeys(object, path, const {'kind', 'value'});
+      return CanvasSaturationColorFilterValue(
+        _finiteNumber(object['value'], '$path/value'),
+      );
+  }
+  throw StateError('Unreachable Canvas ColorFilter kind.');
+}
+
+CanvasRectValue _decodeImageRect(Object? value, String path) {
+  final object = _object(value, path);
+  _exactKeys(object, path, const {'left', 'top', 'right', 'bottom'});
+  final left = _finiteNumber(object['left'], '$path/left', minimum: 0);
+  final top = _finiteNumber(object['top'], '$path/top', minimum: 0);
+  final right = _finiteNumber(object['right'], '$path/right', minimum: 0);
+  final bottom = _finiteNumber(object['bottom'], '$path/bottom', minimum: 0);
+  _expect(
+    left < right && top < bottom,
+    'Canvas DecorationImage centerSlice must have positive width and height: '
+    '$path',
+  );
+  return CanvasRectValue(left: left, top: top, right: right, bottom: bottom);
+}
+
 CanvasBoxDecorationValue _decodeBoxDecoration(
   Map<String, Object?> object,
   _PropertySpec spec,
@@ -1964,6 +2432,7 @@ CanvasBoxDecorationValue _decodeBoxDecoration(
   _exactKeys(object, path, const {
     'kind',
     'color',
+    'image',
     'border',
     'borderRadius',
     'boxShadow',
@@ -1974,6 +2443,9 @@ CanvasBoxDecorationValue _decodeBoxDecoration(
   final color = object['color'] == null
       ? null
       : _decodeBoxDecorationColor(object['color'], spec, '$path/color');
+  final image = object['image'] == null
+      ? null
+      : _decodeDecorationImage(object['image'], spec, '$path/image');
   final border = object['border'] == null
       ? null
       : _decodeBoxBorder(object['border'], spec, '$path/border');
@@ -2011,6 +2483,7 @@ CanvasBoxDecorationValue _decodeBoxDecoration(
   _validatePaintSafeBoxBorder(border, borderRadius, shape, path);
   return CanvasBoxDecorationValue(
     color: color,
+    image: image,
     border: border,
     borderRadius: borderRadius,
     boxShadow: List.unmodifiable(boxShadow),
@@ -3943,8 +4416,8 @@ P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|constraints|boxConstraints|0|-|-|boxConstraints:boxConstraints
-P|decoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
-P|foregroundDecoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|decoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|foregroundDecoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|isAntiAlias|boolean|0|-|-|boolean:any
 P|margin|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
@@ -4154,7 +4627,14 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   if (kind == 'boxDecoration') {
     final tokens = spec.themeTokens.toList()..sort();
     _expect(tokens.isNotEmpty, 'Canvas BoxDecoration token schema is empty.');
-    return 'boxDecoration:${tokens.join(',')}';
+    return 'boxDecoration:v2:'
+        'imageProvider:v1:asset,exactAsset:package:exactScale:'
+        'resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:'
+        'onError,colorFilter(mode,matrix20,linearToSrgbGamma,'
+        'srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,'
+        'matchTextDirection,scale,opacity,filterQuality,invertColors,'
+        'isAntiAlias:centerSliceFit(except:cover,none):theme='
+        '${tokens.join(',')}';
   }
   if (kind == 'callback') {
     return 'callbackReference';
@@ -4182,6 +4662,7 @@ String _base64Fingerprint(String value) =>
 class _NodeBudget {
   int count = 0;
   final ids = <String>{};
+  final imageResourceIds = <String>{};
   final semanticsIdentifierPaths = <String, String>{};
 }
 
@@ -4228,6 +4709,16 @@ void _validatePropertyRelationships(
       'Canvas Container non-none clipBehavior requires decoration: '
       '$path/properties/clipBehavior',
     );
+    for (final name in const ['decoration', 'foregroundDecoration']) {
+      final decoration = properties[name]?.value;
+      if (decoration is! CanvasBoxDecorationValue) {
+        continue;
+      }
+      final resolution = decoration.image?.image.resolution;
+      if (resolution is CanvasResolvedImageValue) {
+        budget.imageResourceIds.add(resolution.resourceId);
+      }
+    }
     return;
   }
 
@@ -4741,6 +5232,67 @@ String _boundedText(Object? value, String path, int minimum, int maximum) {
     'Canvas string contains control characters: $path',
   );
   return text;
+}
+
+void _expectWellFormedUtf16(String value, String path) {
+  final units = value.codeUnits;
+  for (var index = 0; index < units.length; index++) {
+    final unit = units[index];
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      _expect(
+        index + 1 < units.length &&
+            units[index + 1] >= 0xdc00 &&
+            units[index + 1] <= 0xdfff,
+        'Canvas string contains an unpaired surrogate: $path',
+      );
+      index++;
+      continue;
+    }
+    _expect(
+      unit < 0xdc00 || unit > 0xdfff,
+      'Canvas string contains an unpaired surrogate: $path',
+    );
+  }
+}
+
+void _validateImageAssetName(String value, String path) {
+  _expectWellFormedUtf16(value, path);
+  final codeUnits = value.codeUnits;
+  _expect(
+    !value.runes.every(_isCanvasMetadataWhitespace) &&
+        codeUnits.first > 0x20 &&
+        codeUnits.last > 0x20,
+    'Canvas image assetName must be non-blank without surrounding whitespace: $path',
+  );
+  _expect(
+    !value.startsWith('/') && !value.startsWith('~') && !value.endsWith('/'),
+    'Canvas image assetName must be a relative POSIX path: $path',
+  );
+  _expect(
+    value
+        .split('/')
+        .every(
+          (segment) => segment.isNotEmpty && segment != '.' && segment != '..',
+        ),
+    'Canvas image assetName contains an unsafe path segment: $path',
+  );
+  _expect(
+    !value.runes.any(
+      (codePoint) =>
+          codePoint == 0x25 ||
+          codePoint == 0x5c ||
+          codePoint == 0x3a ||
+          codePoint <= 0x1f ||
+          (codePoint >= 0x7f && codePoint <= 0x9f) ||
+          codePoint == 0x061c ||
+          codePoint == 0x200e ||
+          codePoint == 0x200f ||
+          (codePoint >= 0x2028 && codePoint <= 0x202e) ||
+          (codePoint >= 0x2066 && codePoint <= 0x2069) ||
+          codePoint == 0xfeff,
+    ),
+    'Canvas image assetName contains an unsafe path character: $path',
+  );
 }
 
 String _boundedPropertyText(

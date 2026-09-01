@@ -4,7 +4,9 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-PNG, screenshots or raw pixel frames.
+screenshots or framebuffer pixels. Model protocol v11 may additionally carry
+bounded, content-addressed compressed project-image bytes for typed asset
+previews.
 
 ## Internal browser-host foundation (not product-routed)
 
@@ -65,12 +67,19 @@ acceptance is English-only; physical CJK IME and other language-specific input
 remain deferred to the final internationalization phase.
 
 After the bounded version 1 lifecycle handshake, stdin/stdout NBFC frames carry
-strict runtime control and one digest-described canonical model payload. The
-reviewed decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center`, `SizedBox` and `ElevatedButton`, with reviewed typed properties and slots. It
+strict runtime control and one digest-described canonical model payload. When
+`asset.imageBytes.v1` is negotiated, `host.render` then carries its sorted image
+descriptors and one NBFC `IMAGE_BYTES` frame per descriptor. Each frame and the
+aggregate are bounded by `maxEncodedImageBytes`; identity, order, size and
+SHA-256 are verified before admission. Media signature, declared dimensions and
+a real Flutter decode are then checked per resource: a failure quarantines that
+resource while the valid peers remain admissible. The reviewed
+decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
+`Padding`, `Center`, `Container`, `SizedBox`, `AspectRatio` and `ElevatedButton`,
+with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v9 carries the resolved project-theme id, seed, brightness,
+Model protocol v11 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
@@ -95,8 +104,26 @@ notification-predicate, shape, icon-theme, text-style and system-UI-overlay
 projections into real Flutter objects. AppBar also carries the reviewed
 `PreferredSizeWidget` trait used by `Scaffold.appBar` and `AppBar.bottom`.
 
+`Container` supports the reviewed `BoxDecoration` contract including a typed
+asset-only `DecorationImage`. Logical `AssetImage` and `ExactAssetImage`
+identity remains in the model, while host resolution supplies either one raw
+SHA-256 resource id plus its chosen variant scale or a closed unavailable
+status with a concrete reason. The runner constructs `MemoryImage(bytes,
+scale: resolvedScale)` and, when present, one bounded `ResizeImage` wrapper.
+It maps fit, directional alignment, nine-patch center slice, repeat,
+text-direction matching, decoration scale, opacity, filter quality, inversion
+and anti-aliasing, plus mode/matrix/gamma/saturation color filters. Serialized
+`onError` is presence-only and is never executed. Authenticated image frames
+that fail signature, media, dimension, full-decode, resize-target, or
+center-slice checks are quarantined per resource instead of closing the Canvas
+session. Missing, unreadable, and quarantined corrupt assets use a deterministic
+checker preview and a fixed path-free accessibility status; framing, digest,
+identity, ordering, bounds, and exact model-resource coverage remain fatal.
+Selection outlines, inset guides and Palette/move overlays stay outside the
+decorated/transformed widget.
+
 `ElevatedButton` adds the same 286 typed leaves and optional-single
-required-named-nullable child slot as the Java catalog. Protocol v9 carries
+required-named-nullable child slot as the Java catalog. Protocol v11 carries
 callback presence only, never callback identifiers, and the runner installs
 inert typed closures. It constructs direct sparse default/disabled/pressed/
 hovered/focused `ButtonStyle` values. Scalar leaves use disabled, pressed,
@@ -194,9 +221,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-ten reviewed Canvas widgets. Palette insertion evaluates 140 exact
-source/destination cells across ten draggable sources and 14 reviewed slots;
-122 are accepted and 18 trait-incompatible cells are rejected. The negotiated
+12 reviewed Canvas widgets. Palette insertion evaluates 192 exact
+source/destination cells across 12 draggable sources and 16 reviewed slots;
+170 are accepted and 22 trait-incompatible cells are rejected. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs

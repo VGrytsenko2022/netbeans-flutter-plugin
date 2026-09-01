@@ -57,9 +57,19 @@ public final class CanvasPresentationGate implements AutoCloseable {
     public synchronized CanvasRenderRequest present(
             CanvasRenderProfile renderProfile,
             ValidatedCanvasRevisionSnapshot snapshot) {
+        return present(
+                renderProfile, snapshot, CanvasImageResourceBundle.empty());
+    }
+
+    /** Publishes one revision with its immutable, revision-scoped image bytes. */
+    public synchronized CanvasRenderRequest present(
+            CanvasRenderProfile renderProfile,
+            ValidatedCanvasRevisionSnapshot snapshot,
+            CanvasImageResourceBundle imageResources) {
         requireOpen();
         Objects.requireNonNull(renderProfile, "renderProfile");
         Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(imageResources, "imageResources");
         if (!documentId.equals(snapshot.document().documentId())) {
             throw new IllegalArgumentException(
                     "Cannot present a Designer document owned by another Canvas gate");
@@ -73,7 +83,7 @@ public final class CanvasPresentationGate implements AutoCloseable {
                 documentId,
                 snapshot.logicalRevisionId());
         CanvasRenderRequest request = new CanvasRenderRequest(
-                next, renderProfile, snapshot);
+                next, renderProfile, snapshot, imageResources);
         nextPresentationSequence++;
         currentRevision = next;
         currentFrame = null;

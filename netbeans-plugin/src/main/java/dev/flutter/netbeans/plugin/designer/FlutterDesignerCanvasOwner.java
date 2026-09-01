@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer;
 
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
@@ -145,9 +146,15 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
             WidgetCatalog catalog,
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform,
-            CanvasResolvedTheme resolvedTheme) {
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources) {
         session.present(
-                document, catalog, previewMode, targetPlatform, resolvedTheme);
+                document,
+                catalog,
+                previewMode,
+                targetPlatform,
+                resolvedTheme,
+                imageResources);
     }
 
     @Override

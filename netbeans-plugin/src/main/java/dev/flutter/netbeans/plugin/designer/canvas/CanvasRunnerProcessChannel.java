@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.canvas;
 
 import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResource;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
 import dev.flutter.netbeans.designer.canvas.CanvasRevisionKey;
@@ -261,7 +262,10 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
         requireExactSession(request.revisionKey().sessionId(), "render request");
         synchronized (stateLock) {
             if (state != State.READY
-                    || !request.revisionKey().equals(latestExpectedRevision)) {
+                    || !request.revisionKey().equals(latestExpectedRevision)
+                    || (!request.imageResources().resources().isEmpty()
+                    && !acceptedCapabilities.contains(
+                            CanvasWireCapability.ASSET_IMAGE_BYTES_V1))) {
                 return false;
             }
         }
@@ -595,6 +599,12 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
             CanvasProcessFrame model = new CanvasProcessFrame(
                     CanvasProcessFrameKind.MODEL_JSON,
                     encodedModel);
+            if (request.imageResources().totalEncodedBytes()
+                    > activePolicy.maxPayloadBytes(
+                            CanvasProcessFrameKind.IMAGE_BYTES)) {
+                throw new IllegalArgumentException(
+                        "Canvas image publication exceeds the negotiated aggregate bound");
+            }
             byte[] control = runtimeCodec.encodeRender(
                     request, model.descriptor());
             synchronized (stateLock) {
@@ -609,6 +619,13 @@ public final class CanvasRunnerProcessChannel implements AutoCloseable {
                     new CanvasProcessFrame(
                             CanvasProcessFrameKind.CONTROL_JSON, control));
             writer.write(activePolicy, model, model.descriptor());
+            for (CanvasImageResource image
+                    : request.imageResources().resources()) {
+                CanvasProcessFrame frame = new CanvasProcessFrame(
+                        CanvasProcessFrameKind.IMAGE_BYTES,
+                        image.copyEncodedBytes());
+                writer.write(activePolicy, frame, frame.descriptor());
+            }
         } catch (CanvasRunnerControlException | RuntimeException failure) {
             fail("Canvas render request could not be encoded.");
         } catch (IOException failure) {

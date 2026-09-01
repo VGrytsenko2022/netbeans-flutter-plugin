@@ -9,8 +9,15 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_drop.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_runtime.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_view.dart';
+import 'package:netbeans_flutter_canvas_runner/src/sha256.dart';
 
 import 'canvas_model_test.dart' as fixture;
+
+final Uint8List _viewPng8 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/'
+  'j6/OV/ZHzWzg8FM9BBAboAugY6KAAAyITDgZYboFoAAAAASUVORK5CYII=',
+);
 
 void main() {
   test('models the reviewed multi-slot Canvas insertion matrix', () {
@@ -1986,6 +1993,389 @@ void main() {
   );
 
   testWidgets(
+    'renders resolved DecorationImage arguments in RTL without disturbing selection or DnD overlays',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+      final resourceId = sha256Hex(_viewPng8);
+      final resources = CanvasImageResourceBundle.fromResources([
+        CanvasImageResource(
+          resourceId: resourceId,
+          mediaType: 'image/png',
+          pixelWidth: 8,
+          pixelHeight: 8,
+          encodedBytes: _viewPng8,
+        ),
+      ]);
+      final colorFilters = <Map<String, Object?>>[
+        {
+          'kind': 'mode',
+          'color': _viewLiteralColor('0xFF336699'),
+          'blendMode': 'srcATop',
+        },
+        {
+          'kind': 'matrix',
+          'values': <Object?>[
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ],
+        },
+        {'kind': 'linearToSrgbGamma'},
+        {'kind': 'srgbToLinearGamma'},
+        {'kind': 'saturation', 'value': 0.4},
+      ];
+      String? selected;
+
+      for (final colorFilter in colorFilters) {
+        final json = _modelWithCenteredContainer(
+          properties: {
+            'width': {'kind': 'integer', 'value': 120},
+            'height': {'kind': 'integer', 'value': 80},
+            'decoration': _viewBoxDecoration(
+              image: _viewDecorationImage(
+                image: _viewImageProvider(
+                  kind: 'exactAsset',
+                  exactScale: 2,
+                  resize: {
+                    'width': 8,
+                    'height': 8,
+                    'policy': 'exact',
+                    'allowUpscaling': false,
+                  },
+                  resolution: {
+                    'kind': 'resolved',
+                    'resourceId': resourceId,
+                    'resolvedScale': 2,
+                  },
+                ),
+                onError: true,
+                colorFilter: colorFilter,
+                fit: 'fill',
+                alignment: _viewNestedAlignment(
+                  basis: 'directional',
+                  horizontal: -1,
+                  vertical: 0.25,
+                ),
+                centerSlice: {'left': 1, 'top': 1, 'right': 3, 'bottom': 3},
+                repeat: 'repeatX',
+                matchTextDirection: true,
+                scale: 1,
+                opacity: 0.65,
+                filterQuality: 'high',
+                invertColors: true,
+                isAntiAlias: true,
+              ),
+            ),
+          },
+          child: null,
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = 'ar-SA';
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            imageResources: resources,
+            selectedWidgetId: containerId,
+            onSelected: (value) => selected = value,
+            dropHoverTarget: const CanvasDropTarget(
+              parentWidgetId: containerId,
+              slotName: 'child',
+              insertionIndex: 0,
+              zone: CanvasDropZone(
+                leftMicros: 0,
+                topMicros: 0,
+                rightMicros: 1000000,
+                bottomMicros: 1000000,
+              ),
+            ),
+            dropIndicatorKind: CanvasDropIndicatorKind.widgetMove,
+          ),
+        );
+        await tester.pump();
+
+        final node = find.byKey(const ValueKey('canvas-widget-$containerId'));
+        final container = tester.widget<Container>(
+          find.descendant(of: node, matching: find.byType(Container)).first,
+        );
+        final image = (container.decoration! as BoxDecoration).image!;
+        expect(image.image, isA<ResizeImage>());
+        final resized = image.image as ResizeImage;
+        expect(resized.width, 8);
+        expect(resized.height, 8);
+        expect(resized.policy, ResizeImagePolicy.exact);
+        expect(resized.allowUpscaling, isFalse);
+        final memory = resized.imageProvider as MemoryImage;
+        expect(memory.scale, 2);
+        expect(image.colorFilter, isNotNull);
+        expect(image.fit, BoxFit.fill);
+        expect(image.alignment, const AlignmentDirectional(-1, 0.25));
+        expect(image.centerSlice, const Rect.fromLTRB(1, 1, 3, 3));
+        expect(image.repeat, ImageRepeat.repeatX);
+        expect(image.matchTextDirection, isTrue);
+        expect(image.scale, 1);
+        expect(image.opacity, 0.65);
+        expect(image.filterQuality, FilterQuality.high);
+        expect(image.invertColors, isTrue);
+        expect(image.isAntiAlias, isTrue);
+        expect(Directionality.of(tester.element(node)), TextDirection.rtl);
+        expect(
+          find.byKey(const ValueKey('canvas-selection-outline-$containerId')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('canvas-widget-move-preview-zone')),
+          findsOneWidget,
+        );
+        await tester.tap(node);
+        expect(selected, containerId);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('preserves serialized DecorationImage onError presence', (
+    tester,
+  ) async {
+    const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+    final resourceId = sha256Hex(_viewPng8);
+    final resources = CanvasImageResourceBundle.fromResources([
+      CanvasImageResource(
+        resourceId: resourceId,
+        mediaType: 'image/png',
+        pixelWidth: 8,
+        pixelHeight: 8,
+        encodedBytes: _viewPng8,
+      ),
+    ]);
+
+    for (final configured in const [false, true]) {
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredContainer(
+                properties: {
+                  'decoration': _viewBoxDecoration(
+                    image: _viewDecorationImage(
+                      image: _viewImageProvider(
+                        resolution: {
+                          'kind': 'resolved',
+                          'resourceId': resourceId,
+                          'resolvedScale': 1,
+                        },
+                      ),
+                      onError: configured,
+                    ),
+                  ),
+                },
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          imageResources: resources,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(const ValueKey('canvas-widget-$containerId'));
+      final container = tester.widget<Container>(
+        find.descendant(of: node, matching: find.byType(Container)).first,
+      );
+      final image = (container.decoration! as BoxDecoration).image!;
+      expect(
+        image.onError,
+        configured ? isNotNull : isNull,
+        reason: 'Canvas must preserve callback presence without an identifier',
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    'paints unavailable and runner-rejected placeholders with concrete accessible status',
+    (tester) async {
+      const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
+      const packageName = 'image_pack';
+      const assetName = 'assets/images/panel.png';
+      const assetIdentity = 'package:image_pack:assets/images/panel.png';
+      final semantics = tester.ensureSemantics();
+
+      for (final issue in const <(String, String)>[
+        ('missing', 'The declared project image does not exist'),
+        ('unreadable', 'The project image could not be read'),
+        ('corrupt', 'The PNG payload could not be decoded'),
+      ]) {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredContainer(
+                  properties: {
+                    'width': {'kind': 'integer', 'value': 120},
+                    'height': {'kind': 'integer', 'value': 80},
+                    'decoration': _viewBoxDecoration(
+                      image: _viewDecorationImage(
+                        image: _viewImageProvider(
+                          assetName: assetName,
+                          packageName: packageName,
+                          resolution: {
+                            'kind': 'unavailable',
+                            'code': issue.$1,
+                            'reason': issue.$2,
+                          },
+                        ),
+                        centerSlice: {
+                          'left': 40,
+                          'top': 40,
+                          'right': 80,
+                          'bottom': 80,
+                        },
+                      ),
+                    ),
+                  },
+                  child: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final node = find.byKey(const ValueKey('canvas-widget-$containerId'));
+        final container = tester.widget<Container>(
+          find.descendant(of: node, matching: find.byType(Container)).first,
+        );
+        final image = (container.decoration! as BoxDecoration).image!;
+        expect(image.image, isA<MemoryImage>());
+        expect(
+          image.centerSlice,
+          isNull,
+          reason: 'placeholder dimensions are intentionally untrusted',
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp(
+              'Image preview unavailable for ${RegExp.escape(assetIdentity)}.*'
+              'Status ${issue.$1}.*Reason: ${RegExp.escape(issue.$2)}',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
+
+      final rejectedResourceId = sha256Hex(_viewPng8);
+      final rejectedModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredContainer(
+                properties: {
+                  'width': {'kind': 'integer', 'value': 120},
+                  'height': {'kind': 'integer', 'value': 80},
+                  'decoration': _viewBoxDecoration(
+                    image: _viewDecorationImage(
+                      image: _viewImageProvider(
+                        assetName: assetName,
+                        packageName: packageName,
+                        resolution: {
+                          'kind': 'resolved',
+                          'resourceId': rejectedResourceId,
+                          'resolvedScale': 1,
+                        },
+                      ),
+                      centerSlice: {
+                        'left': 40,
+                        'top': 40,
+                        'right': 80,
+                        'bottom': 80,
+                      },
+                    ),
+                  ),
+                },
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      final rejectedResources = CanvasImageResourceBundle.fromResources(
+        const [],
+        rejections: [
+          CanvasImageResourceRejection.encodedContent(rejectedResourceId),
+        ],
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: rejectedModel,
+          imageResources: rejectedResources,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final rejectedNode = find.byKey(
+        const ValueKey('canvas-widget-$containerId'),
+      );
+      final rejectedContainer = tester.widget<Container>(
+        find
+            .descendant(of: rejectedNode, matching: find.byType(Container))
+            .first,
+      );
+      final rejectedImage =
+          (rejectedContainer.decoration! as BoxDecoration).image!;
+      expect(rejectedImage.image, isA<MemoryImage>());
+      expect(rejectedImage.centerSlice, isNull);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Image preview unavailable for ${RegExp.escape(assetIdentity)}.*'
+            'Status corrupt.*Reason: '
+            '${RegExp.escape(CanvasImageResourceRejectionKind.encodedContent.reason)}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
     'resolves Container padding and margin guides with distinct stable styles',
     (tester) async {
       const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
@@ -3920,8 +4310,55 @@ Map<String, Object?> _viewSweepGradient() => {
   'rotationRadians': -0.3,
 };
 
+Map<String, Object?> _viewImageProvider({
+  String kind = 'asset',
+  String assetName = 'assets/images/panel.png',
+  String? packageName,
+  num? exactScale,
+  Map<String, Object?>? resize,
+  required Map<String, Object?> resolution,
+}) => {
+  'kind': kind,
+  'assetName': assetName,
+  'packageName': packageName,
+  'exactScale': exactScale,
+  'resize': resize,
+  'resolution': resolution,
+};
+
+Map<String, Object?> _viewDecorationImage({
+  required Map<String, Object?> image,
+  bool onError = false,
+  Map<String, Object?>? colorFilter,
+  String? fit,
+  Map<String, Object?>? alignment,
+  Map<String, Object?>? centerSlice,
+  String repeat = 'noRepeat',
+  bool matchTextDirection = false,
+  num scale = 1,
+  num opacity = 1,
+  String filterQuality = 'medium',
+  bool invertColors = false,
+  bool isAntiAlias = false,
+}) => {
+  'image': image,
+  'onError': onError,
+  'colorFilter': colorFilter,
+  'fit': fit,
+  'alignment': alignment ?? _viewNestedAlignment(),
+  'centerSlice': centerSlice,
+  'repeat': repeat,
+  'matchTextDirection': matchTextDirection,
+  'scale': scale,
+  'opacity': opacity,
+  'filterQuality': filterQuality,
+  'invertColors': invertColors,
+  'isAntiAlias': isAntiAlias,
+};
+
 Map<String, Object?> _viewBoxDecoration({
   Map<String, Object?>? color,
+  Map<String, Object?>? image,
   Map<String, Object?>? border,
   Map<String, Object?>? borderRadius,
   List<Map<String, Object?>> boxShadow = const [],
@@ -3931,6 +4368,7 @@ Map<String, Object?> _viewBoxDecoration({
 }) => {
   'kind': 'boxDecoration',
   'color': color,
+  'image': image,
   'border': border,
   'borderRadius': borderRadius,
   'boxShadow': boxShadow,

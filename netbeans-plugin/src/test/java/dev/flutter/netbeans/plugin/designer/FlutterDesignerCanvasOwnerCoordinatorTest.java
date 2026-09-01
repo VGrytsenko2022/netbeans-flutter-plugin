@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasTargetPlatform;
@@ -752,7 +753,8 @@ class FlutterDesignerCanvasOwnerCoordinatorTest {
                 WidgetCatalog catalog,
                 CanvasPreviewMode previewMode,
                 CanvasTargetPlatform targetPlatform,
-                CanvasResolvedTheme resolvedTheme) {
+                CanvasResolvedTheme resolvedTheme,
+                CanvasImageResourceBundle imageResources) {
         }
 
         @Override

@@ -73,19 +73,52 @@ from the project theme.
 `foregroundDecoration`, `width`, `height`, `constraints`, `margin`, `transform`,
 `transformAlignment` and `clipBehavior`, plus one optional `child` slot. Use its
 structured editors for physical/directional alignment, bounded or unbounded
-constraints, the column-major 4×4 matrix and image-free BoxDecoration fill,
-border, elliptical radius, ordered shadows and linear/radial/sweep gradients.
+constraints, the column-major 4×4 matrix and complete BoxDecoration fill,
+image, border, elliptical radius, ordered shadows and linear/radial/sweep
+gradients.
 Literal colors and reviewed Material theme roles work at the top level and at
-every nested decoration color. The editor rejects invalid Flutter combinations,
+every nested decoration color, including `ColorFilter.mode`. The editor rejects invalid Flutter combinations,
 including `color` with `decoration` and non-`none` clipping without a decoration,
 and applies required multi-property transitions as one Undo/Redo operation.
 Canvas keeps the layout outline outside `transform`, shows distinct margin and
 padding guides and retains a selectable/drop target when an empty Container has
-zero layout size. `DecorationImage` is deferred until shared typed asset support
-is available; there is no raw path or Dart-expression field.
-This slice uses `.fd` schema v5, contributor Catalog API 4 and Canvas model
-protocol 10. Twelve sources across fourteen any-widget and two trait-bound slots
-produce 192 compatibility candidates: 170 accepted and 22 rejected.
+zero layout size.
+
+In the BoxDecoration editor, open the accessible **Image** tab and enable
+`DecorationImage`, then choose an application or package image from the declared
+asset list. The model accepts only `AssetImage` or `ExactAssetImage`, optionally
+with one `ResizeImage`; it never accepts a typed path, URL or Dart expression.
+The remaining typed controls cover all 13 pinned SDK arguments and mode,
+matrix, linear-to-sRGB gamma, sRGB-to-linear gamma and saturation color filters.
+If you enable `centerSlice`, enter a non-negative positive-area rectangle. Fit
+may be unset, `fill`, `contain`, `fitWidth`, `fitHeight` or `scaleDown`;
+`cover` and `none` are rejected. An `onError` value is only a validated Dart
+identifier for a compatible `(Object, StackTrace?)` handler. The status below
+the asset selector names why inventory is unavailable, and all image controls
+expose accessible names/descriptions. OK publishes the complete structured
+value as one chronological Undo/Redo edit; invalid drafts remain local.
+
+The asset list comes only from app/package `pubspec.yaml` declarations resolved
+through `.dart_tool/package_config.json`. PNG/JPEG/GIF/WebP candidates are
+checked for safe POSIX-relative identity, root/symlink confinement, magic and
+dimensions. Canvas receives no filesystem path or callback name: Canvas model
+protocol v11 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
+only referenced immutable compressed bytes under exact revision, order, size
+and SHA-256 checks. Native
+preview and the internal exact-Web runtime build the same real
+`DecorationImage`. A media/decode/resize/center-slice failure quarantines only
+that resource; wire, identity and exact-coverage failures still reject the
+render. A missing or quarantined asset shows a deterministic
+non-interactive placeholder that names its logical identity, code and reason
+without removing Container selection/layout/drop overlays. Exact-Web product
+selection is still gated; the routed Web choice remains the native-engine
+responsive layout preview.
+
+This slice uses `.fd` schema v6, contributor Catalog API 5 and Canvas model
+protocol 11. Schema v1-v5 files migrate in memory with no image and are written
+as v6 only after an admitted edit. Twelve sources across fourteen any-widget
+and two trait-bound slots produce 192 compatibility candidates: 170 accepted
+and 22 rejected.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and

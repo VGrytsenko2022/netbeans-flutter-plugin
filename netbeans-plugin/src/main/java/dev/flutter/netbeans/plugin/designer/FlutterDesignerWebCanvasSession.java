@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentAdmission;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentReplayGate;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentReplayPolicy;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasPresentationGate;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
@@ -281,7 +282,8 @@ final class FlutterDesignerWebCanvasSession
             WidgetCatalog catalog,
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform,
-            CanvasResolvedTheme resolvedTheme) {
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources) {
         requireEdt();
         if (closing) {
             return;
@@ -316,6 +318,7 @@ final class FlutterDesignerWebCanvasSession
                 Objects.requireNonNull(previewMode, "previewMode"),
                 targetPlatform,
                 Objects.requireNonNull(resolvedTheme, "resolvedTheme"),
+                Objects.requireNonNull(imageResources, "imageResources"),
                 ids);
         clearCurrentPresentation();
         beginInteractionBarrier(Optional.empty());
@@ -765,7 +768,8 @@ final class FlutterDesignerWebCanvasSession
                             pending.snapshot().document().canvas(),
                             admittedEngineIdentity,
                             pending.resolvedTheme()),
-                    pending.snapshot());
+                    pending.snapshot(),
+                    pending.imageResources());
         } catch (IllegalArgumentException | IllegalStateException failure) {
             publishFailure("Resolve exact Flutter Web Canvas presentation",
                     failureReason(failure));
@@ -1680,6 +1684,7 @@ final class FlutterDesignerWebCanvasSession
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform,
             CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources,
             Set<StableId> widgetIds) {
         private PendingPresentation {
             if (publicationGeneration <= 0) {
@@ -1690,6 +1695,7 @@ final class FlutterDesignerWebCanvasSession
             Objects.requireNonNull(previewMode, "previewMode");
             Objects.requireNonNull(targetPlatform, "targetPlatform");
             Objects.requireNonNull(resolvedTheme, "resolvedTheme");
+            Objects.requireNonNull(imageResources, "imageResources");
             widgetIds = Set.copyOf(widgetIds);
         }
     }

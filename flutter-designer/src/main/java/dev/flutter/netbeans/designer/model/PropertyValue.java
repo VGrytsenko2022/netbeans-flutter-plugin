@@ -2,6 +2,7 @@ package dev.flutter.netbeans.designer.model;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +33,7 @@ public sealed interface PropertyValue permits
         PropertyValue.AlignmentGeometryValue,
         PropertyValue.BoxConstraintsValue,
         PropertyValue.Matrix4Value,
+        PropertyValue.ImageProviderValue,
         PropertyValue.BoxDecorationValue {
 
     PropertyValueKind kind();
@@ -696,11 +698,373 @@ public sealed interface PropertyValue permits
     }
 
     /**
-     * Reviewed, image-free subset of Flutter {@code BoxDecoration}. Every
-     * nested union keeps its physical versus directional semantics explicit.
+     * Closed, asset-only Flutter image-provider contract. Project-bound asset
+     * resolution remains outside this pure document model; this value carries
+     * only the normalized logical asset identity and reviewed decode options.
+     */
+    record ImageProviderValue(
+            ProviderKind providerKind,
+            String assetName,
+            Optional<String> packageName,
+            Optional<BigDecimal> exactScale,
+            Optional<ResizeImageConfig> resize) implements PropertyValue {
+        public static final int MAX_ASSET_NAME_LENGTH = 4096;
+        public static final int MAX_PACKAGE_NAME_LENGTH = 64;
+        public static final int MAX_RESIZE_DIMENSION = 16_384;
+        private static final Pattern DART_PACKAGE_NAME = Pattern.compile(
+                "[a-z][a-z0-9_]{0,63}");
+
+        public ImageProviderValue {
+            Objects.requireNonNull(providerKind, "providerKind");
+            assetName = normalizedAssetName(assetName);
+            Objects.requireNonNull(packageName, "packageName");
+            packageName = packageName.map(value -> ModelConstraints.matching(
+                    value, "Dart package name", DART_PACKAGE_NAME));
+            exactScale = normalizedOptional(exactScale, "exactScale");
+            resize = copiedOptional(resize, "resize");
+            if (providerKind == ProviderKind.EXACT_ASSET) {
+                if (exactScale.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "ExactAssetImage requires exactScale");
+                }
+                exactScale = Optional.of(positive(
+                        exactScale.orElseThrow(), "exactScale"));
+            } else if (exactScale.isPresent()) {
+                throw new IllegalArgumentException(
+                        "AssetImage cannot carry exactScale");
+            }
+        }
+
+        public static ImageProviderValue asset(String assetName) {
+            return new ImageProviderValue(
+                    ProviderKind.ASSET,
+                    assetName,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty());
+        }
+
+        public static ImageProviderValue exactAsset(
+                String assetName, BigDecimal scale) {
+            return new ImageProviderValue(
+                    ProviderKind.EXACT_ASSET,
+                    assetName,
+                    Optional.empty(),
+                    Optional.of(scale),
+                    Optional.empty());
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.IMAGE_PROVIDER;
+        }
+
+        public enum ProviderKind {
+            ASSET("asset"),
+            EXACT_ASSET("exactAsset");
+
+            private final String wireName;
+
+            ProviderKind(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static ProviderKind fromWireName(String wireName) {
+                return enumValue(
+                        values(), wireName, ProviderKind::wireName,
+                        "image provider kind");
+            }
+        }
+
+        public record ResizeImageConfig(
+                Optional<Integer> width,
+                Optional<Integer> height,
+                ResizePolicy policy,
+                boolean allowUpscaling) {
+            public ResizeImageConfig {
+                Objects.requireNonNull(width, "width");
+                Objects.requireNonNull(height, "height");
+                width = width.map(value -> validDimension(value, "width"));
+                height = height.map(value -> validDimension(value, "height"));
+                Objects.requireNonNull(policy, "policy");
+                if (width.isEmpty() && height.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "ResizeImage requires width or height");
+                }
+            }
+
+            private static int validDimension(int value, String label) {
+                if (value < 1 || value > MAX_RESIZE_DIMENSION) {
+                    throw new IllegalArgumentException(
+                            label + " must be between 1 and "
+                            + MAX_RESIZE_DIMENSION);
+                }
+                return value;
+            }
+        }
+
+        public enum ResizePolicy {
+            EXACT("exact"),
+            FIT("fit");
+
+            private final String wireName;
+
+            ResizePolicy(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static ResizePolicy fromWireName(String wireName) {
+                return enumValue(
+                        values(), wireName, ResizePolicy::wireName,
+                        "ResizeImage policy");
+            }
+        }
+
+        private static String normalizedAssetName(String value) {
+            value = ModelConstraints.codePointLength(
+                    value, "assetName", 1, MAX_ASSET_NAME_LENGTH);
+            if (value.isBlank() || !value.equals(value.trim())) {
+                throw new IllegalArgumentException(
+                        "assetName must be non-blank without surrounding whitespace");
+            }
+            if (!value.equals(Normalizer.normalize(value, Normalizer.Form.NFC))) {
+                throw new IllegalArgumentException("assetName must use Unicode NFC");
+            }
+            if (value.startsWith("/") || value.startsWith("~")
+                    || value.endsWith("/")) {
+                throw new IllegalArgumentException(
+                        "assetName must be a relative POSIX path without a trailing slash");
+            }
+            String[] segments = value.split("/", -1);
+            for (String segment : segments) {
+                if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                    throw new IllegalArgumentException(
+                            "assetName must not contain empty, '.' or '..' path segments");
+                }
+            }
+            for (int offset = 0; offset < value.length();) {
+                int codePoint = value.codePointAt(offset);
+                if (codePoint == '\\' || codePoint == ':' || codePoint == '%'
+                        || Character.isISOControl(codePoint)
+                        || codePoint == 0x061C
+                        || codePoint == 0x200E
+                        || codePoint == 0x200F
+                        || (codePoint >= 0x2028 && codePoint <= 0x202E)
+                        || (codePoint >= 0x2066 && codePoint <= 0x2069)
+                        || codePoint == 0xFEFF
+                        || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+                    throw new IllegalArgumentException(
+                            "assetName must contain safe POSIX path characters only");
+                }
+                offset += Character.charCount(codePoint);
+            }
+            return value;
+        }
+    }
+
+    /** Complete reviewed constructor contract for Flutter {@code DecorationImage}. */
+    record DecorationImageValue(
+            ImageProviderValue image,
+            Optional<CallbackValue> onError,
+            Optional<ColorFilter> colorFilter,
+            Optional<BoxFit> fit,
+            AlignmentGeometryValue alignment,
+            Optional<Rect> centerSlice,
+            ImageRepeat repeat,
+            boolean matchTextDirection,
+            BigDecimal scale,
+            BigDecimal opacity,
+            PaintValue.FilterQuality filterQuality,
+            boolean invertColors,
+            boolean isAntiAlias) {
+
+        public DecorationImageValue {
+            Objects.requireNonNull(image, "image");
+            onError = copiedOptional(onError, "onError");
+            colorFilter = copiedOptional(colorFilter, "colorFilter");
+            fit = copiedOptional(fit, "fit");
+            Objects.requireNonNull(alignment, "alignment");
+            centerSlice = copiedOptional(centerSlice, "centerSlice");
+            Objects.requireNonNull(repeat, "repeat");
+            scale = positive(scale, "scale");
+            opacity = ModelConstraints.normalizedNumber(opacity, "opacity");
+            if (opacity.signum() < 0 || opacity.compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalArgumentException("opacity must be in [0, 1]");
+            }
+            Objects.requireNonNull(filterQuality, "filterQuality");
+            if (centerSlice.isPresent() && fit.filter(value ->
+                    value == BoxFit.COVER || value == BoxFit.NONE).isPresent()) {
+                throw new IllegalArgumentException(
+                        "centerSlice does not allow BoxFit.cover or BoxFit.none");
+            }
+        }
+
+        public static DecorationImageValue defaults(ImageProviderValue image) {
+            return new DecorationImageValue(
+                    image,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    new AlignmentGeometryValue(
+                            AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                            BigDecimal.ZERO,
+                            BigDecimal.ZERO),
+                    Optional.empty(),
+                    ImageRepeat.NO_REPEAT,
+                    false,
+                    BigDecimal.ONE,
+                    BigDecimal.ONE,
+                    PaintValue.FilterQuality.MEDIUM,
+                    false,
+                    false);
+        }
+
+        public sealed interface ColorFilter
+                permits Mode, Matrix, LinearToSrgbGamma,
+                        SrgbToLinearGamma, Saturation {
+            String wireKind();
+        }
+
+        public record Mode(
+                ColorSource color,
+                PaintValue.BlendMode blendMode) implements ColorFilter {
+            public Mode {
+                Objects.requireNonNull(color, "color");
+                Objects.requireNonNull(blendMode, "blendMode");
+            }
+
+            @Override
+            public String wireKind() {
+                return "mode";
+            }
+        }
+
+        public record Matrix(List<BigDecimal> values) implements ColorFilter {
+            public static final int VALUE_COUNT = 20;
+
+            public Matrix {
+                Objects.requireNonNull(values, "values");
+                if (values.size() != VALUE_COUNT) {
+                    throw new IllegalArgumentException(
+                            "ColorFilter.matrix requires exactly 20 values");
+                }
+                values = values.stream()
+                        .map(value -> ModelConstraints.normalizedNumber(
+                                value, "matrix value"))
+                        .toList();
+            }
+
+            @Override
+            public String wireKind() {
+                return "matrix";
+            }
+        }
+
+        public record LinearToSrgbGamma() implements ColorFilter {
+            @Override
+            public String wireKind() {
+                return "linearToSrgbGamma";
+            }
+        }
+
+        public record SrgbToLinearGamma() implements ColorFilter {
+            @Override
+            public String wireKind() {
+                return "srgbToLinearGamma";
+            }
+        }
+
+        public record Saturation(BigDecimal value) implements ColorFilter {
+            public Saturation {
+                value = ModelConstraints.normalizedNumber(value, "saturation");
+            }
+
+            @Override
+            public String wireKind() {
+                return "saturation";
+            }
+        }
+
+        public record Rect(
+                BigDecimal left,
+                BigDecimal top,
+                BigDecimal right,
+                BigDecimal bottom) {
+            public Rect {
+                left = nonNegative(left, "left");
+                top = nonNegative(top, "top");
+                right = nonNegative(right, "right");
+                bottom = nonNegative(bottom, "bottom");
+                if (left.compareTo(right) >= 0 || top.compareTo(bottom) >= 0) {
+                    throw new IllegalArgumentException(
+                            "Rect must have positive width and height");
+                }
+            }
+        }
+
+        public enum BoxFit {
+            FILL("fill"),
+            CONTAIN("contain"),
+            COVER("cover"),
+            FIT_WIDTH("fitWidth"),
+            FIT_HEIGHT("fitHeight"),
+            NONE("none"),
+            SCALE_DOWN("scaleDown");
+
+            private final String wireName;
+
+            BoxFit(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static BoxFit fromWireName(String wireName) {
+                return enumValue(values(), wireName, BoxFit::wireName, "BoxFit");
+            }
+        }
+
+        public enum ImageRepeat {
+            REPEAT("repeat"),
+            REPEAT_X("repeatX"),
+            REPEAT_Y("repeatY"),
+            NO_REPEAT("noRepeat");
+
+            private final String wireName;
+
+            ImageRepeat(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static ImageRepeat fromWireName(String wireName) {
+                return enumValue(
+                        values(), wireName, ImageRepeat::wireName,
+                        "image repeat");
+            }
+        }
+    }
+
+    /**
+     * Reviewed Flutter {@code BoxDecoration}. Every nested union keeps its
+     * physical versus directional semantics explicit.
      */
     record BoxDecorationValue(
             Optional<ColorSource> color,
+            Optional<DecorationImageValue> image,
             Optional<BoxBorder> border,
             Optional<BorderRadiusGeometry> borderRadius,
             List<BoxShadow> boxShadow,
@@ -712,6 +1076,7 @@ public sealed interface PropertyValue permits
 
         public BoxDecorationValue {
             color = copiedOptional(color, "color");
+            image = copiedOptional(image, "image");
             border = copiedOptional(border, "border");
             borderRadius = copiedOptional(borderRadius, "borderRadius");
             boxShadow = boundedItems(boxShadow, "boxShadow", MAX_SHADOWS);
@@ -730,6 +1095,26 @@ public sealed interface PropertyValue permits
             if (border.isPresent()) {
                 validatePaintSafeBorder(border.orElseThrow(), borderRadius, shape);
             }
+        }
+
+        /** Source-compatible constructor for schema-v5 image-free callers. */
+        public BoxDecorationValue(
+                Optional<ColorSource> color,
+                Optional<BoxBorder> border,
+                Optional<BorderRadiusGeometry> borderRadius,
+                List<BoxShadow> boxShadow,
+                Optional<BoxGradient> gradient,
+                Optional<PaintValue.BlendMode> backgroundBlendMode,
+                BoxShape shape) {
+            this(
+                    color,
+                    Optional.empty(),
+                    border,
+                    borderRadius,
+                    boxShadow,
+                    gradient,
+                    backgroundBlendMode,
+                    shape);
         }
 
         @Override

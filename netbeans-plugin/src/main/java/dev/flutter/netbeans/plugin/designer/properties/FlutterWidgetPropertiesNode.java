@@ -66,6 +66,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private final PropertyMutationHandler mutationHandler;
     private final FlutterWidgetSlotEditorContext slotEditorContext;
     private final SlotMutationHandler slotMutationHandler;
+    private final FlutterImageAssetChoices imageAssetChoices;
 
     /** Dispatches one exact command from the immutable selected-widget snapshot. */
     @FunctionalInterface
@@ -124,6 +125,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             PropertyMutationHandler mutationHandler,
             FlutterWidgetSlotEditorContext slotEditorContext,
             SlotMutationHandler slotMutationHandler) {
+        this(
+                children,
+                widget,
+                definition,
+                mutationHandler,
+                slotEditorContext,
+                slotMutationHandler,
+                FlutterImageAssetChoices.empty());
+    }
+
+    /** Creates the complete Properties projection with declared asset choices. */
+    public FlutterWidgetPropertiesNode(
+            Children children,
+            WidgetNode widget,
+            WidgetDefinition definition,
+            PropertyMutationHandler mutationHandler,
+            FlutterWidgetSlotEditorContext slotEditorContext,
+            SlotMutationHandler slotMutationHandler,
+            FlutterImageAssetChoices imageAssetChoices) {
         super(
                 Objects.requireNonNull(children, "children"),
                 Lookups.fixed(
@@ -140,6 +160,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         this.mutationHandler = mutationHandler;
         this.slotEditorContext = slotEditorContext;
         this.slotMutationHandler = slotMutationHandler;
+        this.imageAssetChoices = Objects.requireNonNull(
+                imageAssetChoices, "imageAssetChoices");
         if (slotMutationHandler != null && slotEditorContext == null) {
             throw new IllegalArgumentException(
                     "A slot mutation handler requires a slot editor context.");
@@ -719,6 +741,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         // spinner, or text area's intermediate events can never consume the
         // designer's one-shot mutation lease.
         result.setValue("changeImmediate", Boolean.FALSE);
+        result.setValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE,
+                imageAssetChoices);
         return result;
     }
 

@@ -18,6 +18,7 @@ public final class CanvasProcessFramingPolicy {
     private final int maxControlBytes;
     private final int maxModelBytes;
     private final int maxCatalogBytes;
+    private final int maxEncodedImageBytes;
     private final CanvasProcessDirection direction;
     private final CanvasProcessFramingState state;
     private final Set<CanvasWireCapability> capabilities;
@@ -35,6 +36,7 @@ public final class CanvasProcessFramingPolicy {
                 payloadLimits.maxControlMessageBytes());
         this.maxModelBytes = payloadLimits.maxModelBytes();
         this.maxCatalogBytes = payloadLimits.maxCatalogBytes();
+        this.maxEncodedImageBytes = payloadLimits.maxEncodedImageBytes();
         this.direction = Objects.requireNonNull(direction, "direction");
         this.state = Objects.requireNonNull(state, "state");
         this.capabilities = capabilities.isEmpty()
@@ -101,6 +103,7 @@ public final class CanvasProcessFramingPolicy {
             case CONTROL_JSON -> maxControlBytes;
             case MODEL_JSON -> maxModelBytes;
             case CATALOG_JSON -> maxCatalogBytes;
+            case IMAGE_BYTES -> maxEncodedImageBytes;
         };
     }
 
@@ -118,6 +121,11 @@ public final class CanvasProcessFramingPolicy {
                     : CanvasProcessFramingError.WRONG_STATE;
         }
         if (!capabilities.contains(CanvasWireCapability.READ_ONLY_RENDER)) {
+            return CanvasProcessFramingError.CAPABILITY_NOT_NEGOTIATED;
+        }
+        if (kind == CanvasProcessFrameKind.IMAGE_BYTES
+                && !capabilities.contains(
+                        CanvasWireCapability.ASSET_IMAGE_BYTES_V1)) {
             return CanvasProcessFramingError.CAPABILITY_NOT_NEGOTIATED;
         }
         return null;

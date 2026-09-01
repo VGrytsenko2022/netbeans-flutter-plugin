@@ -23,6 +23,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v4.schema.json");
     private static final Path V5_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v5.schema.json");
+    private static final Path V6_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v6.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -107,8 +109,6 @@ class FdSchemaResourceTest {
 
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v5 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v5");
         String schema = new String(packaged, StandardCharsets.UTF_8);
         assertFalse(schema.contains("\r"));
         assertTrue(schema.contains(
@@ -125,6 +125,47 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\"sweepGradient\""));
         assertTrue(schema.contains("\"backgroundBlendMode\""));
         assertTrue(schema.contains("\"focalRadius\": {\"const\": 0}"));
+    }
+
+    @Test
+    void packagesTheCanonicalV6SchemaWithTypedAssetImages()
+            throws IOException {
+        byte[] packaged = loadPackagedV6Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V6_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v6 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v6");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:6\""));
+        assertTrue(schema.contains("\"const\": 6"));
+        assertTrue(schema.contains("\"imageProviderValue\""));
+        assertTrue(schema.contains("\"const\": \"imageProvider\""));
+        assertTrue(schema.contains("\"maximum\": 16384"));
+        assertTrue(schema.contains("\"decorationImage\""));
+        assertTrue(schema.contains("\"decorationImageColorFilterMatrix\""));
+        assertTrue(schema.contains("\"minItems\": 20"));
+        assertTrue(schema.contains("\"linearToSrgbGamma\""));
+        assertTrue(schema.contains("\"srgbToLinearGamma\""));
+        assertTrue(schema.contains("\"saturation\""));
+        assertTrue(schema.contains("\"centerSlice\""));
+        assertTrue(schema.contains("{\"const\": \"contain\"}"));
+        assertTrue(schema.contains("{\"const\": \"scaleDown\"}"));
+        assertTrue(schema.contains(
+                "\"pattern\": \"^(?!(?:[\\\\u0009-\\\\u000D"
+                + "\\\\u001C-\\\\u0020"),
+                "Image asset names must reject Java-blank strings");
+        assertTrue(schema.contains(
+                "])+$)(?![\\\\u0000-\\\\u0020])"),
+                "Image asset names must reject Java-trimmed leading whitespace");
+        assertTrue(schema.contains(
+                "(?!.*[\\\\u0000-\\\\u0020]$)(?!/)(?!~)(?!.*%)"),
+                "Image asset names must reject trailing whitespace, home-relative, "
+                + "and percent syntax");
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {
@@ -173,6 +214,16 @@ class FdSchemaResourceTest {
                 "The canonical schema v5 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV5()) {
             assertNotNull(input, "The canonical schema v5 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV6Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V6_RESOURCE),
+                "The canonical schema v6 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV6()) {
+            assertNotNull(input, "The canonical schema v6 resource must be readable");
             return input.readAllBytes();
         }
     }

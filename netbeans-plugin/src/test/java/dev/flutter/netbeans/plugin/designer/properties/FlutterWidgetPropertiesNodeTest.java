@@ -146,6 +146,32 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void declaredImageChoicesReachTheStructuredDecorationEditorDescriptor()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Container");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("6bfe3d47-1646-464b-b3c9-b034540ea4e1"));
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(),
+                        "assets/background.png",
+                        "App: assets/background.png")),
+                Optional.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                widget,
+                definition,
+                ignored -> { },
+                null,
+                null,
+                choices);
+
+        assertSame(choices, property(node, "decoration").getValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE));
+    }
+
+    @Test
     void exposesStandardLookupIdentityAndPaletteDisplayName() {
         WidgetDefinition definition = definition("flutter.widgets.Text");
         StableId id = StableId.parse("86bb276e-44b6-4c55-9fdb-aea8ec62ab90");

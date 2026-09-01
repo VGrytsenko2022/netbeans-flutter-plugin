@@ -70,7 +70,29 @@ Accepted. `flutter-designer` uses a locally constrained streaming JSON codec ins
 
 ## ADR-012 — The 0.1.3 catalog contributor API is public but provisional
 
-Accepted for 0.1.3. The main NetBeans module exports exactly `dev.flutter.netbeans.designer.catalog` and `dev.flutter.netbeans.designer.model`, because the catalog metadata constructors expose model identifier and value types in their public signatures. Contributor NBMs use a normal specification dependency on `dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor` through the default Lookup, and reuse the host module's single packaged `flutter-designer.jar`; an extension must never bundle another copy. Codec, validation and NetBeans-edge packages remain private. API 1 was frozen for 0.1.3-compatible patch builds. The direction-aware edge-insets model deliberately established `API_VERSION == 2`, because adding a permitted subtype to the exported sealed `PropertyValue` surface is source-incompatible; API-1 contributors are rejected explicitly rather than loaded under a changed contract. Typed `IconDataValue` and `PropertyValueKind.ICON_DATA` established the next incompatible boundary at `API_VERSION == 3`. The structured `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and image-free `BoxDecoration` kinds added for ADR-038 establish `API_VERSION == 4`; API-1 through API-3 contributors fail closed before their definitions are loaded. This is not yet a permanent 1.0 compatibility promise. Further incompatible evolution should move the SPI to a dedicated module/new package boundary rather than silently breaking extensions behind an existing API version.
+Accepted for 0.1.3. The main NetBeans module exports exactly
+`dev.flutter.netbeans.designer.catalog` and
+`dev.flutter.netbeans.designer.model`, because catalog metadata constructors
+expose model identifier and value types in their public signatures. Contributor
+NBMs use a normal specification dependency on
+`dev.flutter.netbeans.netbeans.plugin`, register `WidgetCatalogContributor`
+through the default Lookup, and reuse the host module's single packaged
+`flutter-designer.jar`; an extension must never bundle another copy. Codec,
+validation and NetBeans-edge packages remain private.
+
+API 1 was frozen for 0.1.3-compatible patch builds. Direction-aware edge insets
+established `API_VERSION == 2`, because adding a permitted subtype to the
+exported sealed `PropertyValue` surface is source-incompatible; API-1
+contributors are rejected explicitly rather than loaded under a changed
+contract. Typed `IconDataValue` and `PropertyValueKind.ICON_DATA` established
+`API_VERSION == 3`. ADR-038's structured `AlignmentGeometry`,
+`BoxConstraints`, `Matrix4` and initial `BoxDecoration` kinds established
+`API_VERSION == 4`. ADR-039 adds exported `ImageProviderValue` and establishes
+the current `API_VERSION == 5`; API-1 through API-4 contributors fail closed
+before their definitions are loaded. This is not yet a permanent 1.0
+compatibility promise. Further incompatible evolution should move the SPI to a
+dedicated module/new package boundary rather than silently breaking extensions
+behind an existing API version.
 
 ## ADR-013 — On-disk declared integrity is read-only evidence, not a write gate
 
@@ -217,8 +239,9 @@ to transferred pixels.
 Every request and runtime response is bound to an exact open-Canvas session,
 the validated document/model revision and a host-issued monotonically
 increasing presentation sequence. Frame and layout sequences identify native
-presentation and Flutter-side hit-test epochs; they do not identify an image
-payload. The identities fence delayed acknowledgements and intents across
+presentation and Flutter-side hit-test epochs. Image-resource identity is the
+lowercase raw SHA-256 of immutable compressed bytes, and its bundle is bound to
+the exact model revision rather than inferred from frame/layout sequence. The identities fence delayed acknowledgements and intents across
 reload, Undo/Redo, runner restart, close and reopen. Every backend spawn or
 restart receives a fresh session identity, so an ABA return to the same logical
 revision cannot revive detached work.
@@ -237,8 +260,8 @@ property intents.
 The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
-framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037 and
-ADR-038 make 511 catalog-backed non-`Scaffold` Properties fields writable,
+framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
+ADR-038 and ADR-039 make 511 catalog-backed non-`Scaffold` Properties fields writable,
 including the 59-leaf Text
 projection, two `SizedBox` dimensions, 13 typed Icon constructor properties,
 120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
@@ -254,12 +277,15 @@ twelve-source, 192-candidate matrix (170 accepted and 22 rejected). Same-tree
 existing-widget movement is separately enabled by ADR-028. A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v10 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v11 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center`,
 `SizedBox`, `AspectRatio`, `Container` and `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
-versioned catalog contract.
+versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
+revision-scoped model descriptors are followed by ordered NBFC kind 4
+`IMAGE_BYTES` frames for referenced compressed assets; paths and callback
+identifiers remain excluded.
 
 The Windows edge has a real heavyweight AWT HWND host, exact
 PID/parent/class/style validation for runner and `FLUTTERVIEW` children, a
@@ -272,8 +298,11 @@ and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
 those twelve Create-capable definitions, and the DnD-capable set uses the reviewed
 192-cell candidate matrix across fourteen any-widget and two trait-bound
-destination slots; 170 cells are accepted and 22 rejected. No image or
-pixel-transfer frame kind exists.
+destination slots; 170 cells are accepted and 22 rejected. Canvas model
+protocol v11's
+content-addressed asset-resource frames do not change ADR-021's core boundary:
+the Canvas is still rendered directly by Flutter and never transferred as a
+screenshot or framebuffer-pixel stream.
 Preview availability follows real generated project platform directories rather
 than connected devices or a stale wizard choice. Each choice is now an exact
 `responsive mode + adaptive target` pair: Android Phone/Tablet, iPhone/iPad,
@@ -789,7 +818,9 @@ The additional Text fields are `styleThemeTextStyle`, `styleForeground`,
 `styleBackground`, `styleShadows`, `styleFontFeatures` and
 `styleFontVariations`. Paint is a deliberately safe subset: color, blend mode,
 painting style, stroke geometry, antialiasing, filter quality, invert-colors and
-an optional blur mask. Shaders, color/image filters and raw Dart are excluded.
+an optional blur mask. Shaders, color/image filters and raw Dart are excluded
+from this Paint value; ADR-039 separately admits five typed
+`DecorationImage.colorFilter` variants.
 Shadows, OpenType features and font variations are ordered stable-ID lists. An
 absent list means inherit/omit; an explicitly empty list means clear. The
 catalog rejects `styleColor` with `styleForeground` and
@@ -1203,6 +1234,11 @@ SVG assets identify the widget in both Palette and tree at light/dark 16/32 px.
 
 ## ADR-038 — Container uses structured values as one complete vertical slice
 
+Historical scope note: this ADR records the original image-free Container
+milestone. ADR-039 later supplies the shared typed asset infrastructure and
+supersedes only the decision to defer `DecorationImage`; the remaining
+Container contract and rationale stay in force.
+
 Accepted for the 0.1.3 Palette stage. The canonical
 `flutter.widgets.Container` definition is complete across Properties, Create,
 native Canvas, Palette/tree DnD, deterministic Dart generation, Save/reopen and
@@ -1274,3 +1310,78 @@ shared typed asset identity, pubspec/package resolution, generated-Dart import
 and asset emission, cache/error behavior and native Canvas decoding that other
 image-bearing widgets can reuse. It must not enter `BoxDecoration` first through
 an opaque path, URL or Dart-expression field.
+
+## ADR-039 — Shared typed assets complete Container DecorationImage
+
+Accepted for the 0.1.3 Palette stage. The model stores image identity, never
+project bytes or a filesystem path. `ImageProviderValue` is a closed
+asset-only union: `AssetImage` or `ExactAssetImage`, a normalized relative POSIX
+asset name, optional Dart package, exact positive scale only for
+`ExactAssetImage`, and at most one bounded `ResizeImage` (`width` and/or
+`height` in `1..16384`, `exact`/`fit`, optional upscaling). Network, file,
+memory and custom providers remain outside the public model; the runner's
+internal `MemoryImage` is only the safe projection of host-resolved bytes.
+
+`BoxDecoration.image` now contains a typed `DecorationImageValue` with the 13
+Flutter 3.44.8 named arguments in SDK order: required `image`, optional
+`onError`, optional `colorFilter`, optional `fit`, alignment, optional
+`centerSlice`, repeat, `matchTextDirection`, scale, opacity, filter quality,
+`invertColors` and `isAntiAlias`. Color filters are exactly mode, 20-value
+matrix, linear-to-sRGB gamma, sRGB-to-linear gamma or saturation; mode colors
+admit the same literal/reviewed-theme tokens as other decoration colors. A
+center slice has non-negative coordinates and strict positive area. Fit may be
+omitted, `fill`, `contain`, `fitWidth`, `fitHeight` or `scaleDown`; `cover` and
+`none` fail closed. The callback is one validated declarative Dart
+identifier for an `ImageErrorListener`-compatible two-argument handler; no raw
+Dart is admitted, and Canvas receives callback presence rather than its text.
+
+The NetBeans resolver inventories only app/package image assets declared by
+`pubspec.yaml`, resolving packages through `.dart_tool/package_config.json`.
+It rejects absolute, backslash and dot/traversal identities and snapshots only
+PNG/JPEG/GIF/WebP after lexical/real-root, symlink, magic,
+dimension and bounded-resource checks. Inventory defaults are 4,096 logical
+assets, 16 MiB/file, 64 MiB total, dimension 4,096 and 8,388,608 pixels; a
+presentation projects at most 256 logical assets and 256 resources, 16 MiB total,
+dimension 16,384 and 67,108,864 pixels. Asset variant choice is pinned to
+Flutter 3.44.8 framework revision
+`058e0af2c2b57e369d905a03ac9748b0ebf543c6`: exact DPR wins; an out-of-range
+DPR clamps to the nearest endpoint; between lower and upper variants, DPR below
+2.0 chooses upper, otherwise values strictly above the midpoint choose upper
+and midpoint ties choose lower.
+Only a parsed package root whose `pubspec.yaml` name matches `package_config`
+becomes an external recursive-listener boundary. Listener replacement and
+cleanup run off the EDT behind a generation fence; changing the watch set forces
+a fresh inventory before any bytes are published.
+
+Canvas model protocol v11 over NBFC framing v1 negotiates
+`asset.imageBytes.v1`. A resource-bearing
+render follows exact `CONTROL` → `MODEL` → `IMAGE` order; its revision-scoped
+model descriptor is followed by NBFC frame kind 4
+`IMAGE_BYTES`; every descriptor/payload size and lowercase raw SHA-256 is
+rechecked before immutable compressed bytes become visible. No filesystem path
+or callback identifier crosses the Canvas boundary. Both native and internal
+exact-Web runtimes construct a real `DecorationImage` from `MemoryImage(bytes,
+scale: resolvedScale)` plus at most one `ResizeImage`. Authenticated
+media/decode/resize/center-slice failures quarantine only the affected resource;
+framing, identity, digest, ordering and exact model-resource coverage failures
+remain fatal. An unavailable or quarantined asset produces a deterministic
+non-interactive placeholder and status naming its logical identity, code and
+reason; selection, layout and drop overlays remain outside `Container`.
+
+Center-slice size admission mirrors the pinned host decode paths. Native exact
+resize rounds a missing width, truncates a missing height and honors explicit
+upscale. Web rounds either missing axis, while its
+`instantiateImageCodecWithSize` delegation forces `allowUpscaling: false` and
+therefore keeps the intrinsic image if either completed target axis would
+upscale. The unmodified Flutter `fit` arithmetic may derive a zero axis for an
+extreme aspect ratio; that is rejected for `centerSlice` rather than silently
+promoted to one pixel.
+
+This decision raises `.fd` to schema v6, the contributor Catalog API to 5 and
+the Canvas model protocol to v11. Schema v1-v5 documents migrate in memory with
+an absent decoration image and become canonical v6 only on an admitted edit.
+The typed Image tab, inventory status and validation descriptions are exposed
+to assistive tools; one accepted structured edit, including dependent
+property repair, remains one chronological Undo/Redo unit. ADR-038's rejection
+of opaque/unvalidated filesystem paths, URLs and Dart-expression escape hatches
+remains in force.

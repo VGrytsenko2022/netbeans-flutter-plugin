@@ -658,6 +658,293 @@ void main() {
     }
   });
 
+  test(
+    'decodes strict resolved DecorationImage and every ColorFilter union',
+    () {
+      const resourceId =
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      for (final colorFilter in <Map<String, Object?>>[
+        {
+          'kind': 'mode',
+          'color': _canvasThemeColor('material.colorScheme.primary'),
+          'blendMode': 'srcATop',
+        },
+        {'kind': 'matrix', 'values': List<Object?>.generate(20, (i) => i)},
+        {'kind': 'linearToSrgbGamma'},
+        {'kind': 'srgbToLinearGamma'},
+        {'kind': 'saturation', 'value': 0.35},
+      ]) {
+        final decoded = _decode(
+          _containerModel(
+            properties: {
+              'decoration': _canvasBoxDecoration(
+                image: _canvasDecorationImage(
+                  image: _canvasImageProvider(
+                    kind: 'exactAsset',
+                    exactScale: 2,
+                    resize: {
+                      'width': 320,
+                      'height': null,
+                      'policy': 'fit',
+                      'allowUpscaling': false,
+                    },
+                    resolution: {
+                      'kind': 'resolved',
+                      'resourceId': resourceId,
+                      'resolvedScale': 2,
+                    },
+                  ),
+                  colorFilter: colorFilter,
+                  fit: 'contain',
+                  alignment: _canvasNestedAlignment(
+                    basis: 'directional',
+                    horizontal: -1,
+                    vertical: 0.5,
+                  ),
+                  repeat: 'repeatX',
+                  matchTextDirection: true,
+                  scale: 1.25,
+                  opacity: 0.65,
+                  filterQuality: 'high',
+                  invertColors: true,
+                  isAntiAlias: true,
+                ),
+              ),
+            },
+          ),
+        );
+        final decoration =
+            decoded.root.properties['decoration']!.value
+                as CanvasBoxDecorationValue;
+        final image = decoration.image!;
+        expect(image.image.providerKind, 'exactAsset');
+        expect(image.image.exactScale, 2);
+        expect(image.image.resize!.width, 320);
+        expect(image.image.resize!.policy, 'fit');
+        expect(image.image.resolution, isA<CanvasResolvedImageValue>());
+        expect(image.alignment.basis, 'directional');
+        expect(image.matchTextDirection, isTrue);
+        expect(image.filterQuality, 'high');
+        expect(decoded.imageResourceIds, {resourceId});
+      }
+    },
+  );
+
+  test('decodes unavailable image status without admitting a resource id', () {
+    final decoded = _decode(
+      _containerModel(
+        properties: {
+          'decoration': _canvasBoxDecoration(
+            image: _canvasDecorationImage(
+              image: _canvasImageProvider(
+                resolution: {
+                  'kind': 'unavailable',
+                  'code': 'corrupt',
+                  'reason': 'assets/panel.png could not be decoded as PNG',
+                },
+              ),
+              centerSlice: {'left': 1, 'top': 2, 'right': 5, 'bottom': 6},
+            ),
+          ),
+        },
+      ),
+    );
+    final decoration =
+        decoded.root.properties['decoration']!.value
+            as CanvasBoxDecorationValue;
+    final resolution =
+        decoration.image!.image.resolution as CanvasUnavailableImageValue;
+    expect(resolution.code, 'corrupt');
+    expect(resolution.reason, contains('could not be decoded'));
+    expect(decoded.imageResourceIds, isEmpty);
+  });
+
+  test('accepts an ExactAssetImage scale above the DPR variant bound', () {
+    const resourceId =
+        'abababababababababababababababababababababababababababababababab';
+    final decoded = _decode(
+      _containerModel(
+        properties: {
+          'decoration': _canvasBoxDecoration(
+            image: _canvasDecorationImage(
+              image: _canvasImageProvider(
+                kind: 'exactAsset',
+                exactScale: 125,
+                resolution: {
+                  'kind': 'resolved',
+                  'resourceId': resourceId,
+                  'resolvedScale': 125,
+                },
+              ),
+            ),
+          ),
+        },
+      ),
+    );
+    final decoration =
+        decoded.root.properties['decoration']!.value
+            as CanvasBoxDecorationValue;
+    final provider = decoration.image!.image;
+    expect(provider.exactScale, 125);
+    expect(
+      (provider.resolution as CanvasResolvedImageValue).resolvedScale,
+      125,
+    );
+    expect(decoded.imageResourceIds, {resourceId});
+  });
+
+  test('rejects non-canonical DecorationImage and provider wire values', () {
+    void rejects(Map<String, Object?> image, String reason) {
+      expect(
+        () => _decode(
+          _containerModel(
+            properties: {'decoration': _canvasBoxDecoration(image: image)},
+          ),
+        ),
+        throwsFormatException,
+        reason: reason,
+      );
+    }
+
+    final valid = _canvasDecorationImage();
+    rejects({...valid, 'unknown': true}, 'closed DecorationImage object');
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(assetName: '../secret.png'),
+      ),
+      'unsafe asset path',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(assetName: '~/secret.png'),
+      ),
+      'home-relative asset path',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(assetName: 'assets/%2e%2e/secret.png'),
+      ),
+      'percent-encoded asset path',
+    );
+    for (final (assetName, reason) in const [
+      (' ', 'blank asset path'),
+      ('\u1680', 'Unicode-blank asset path'),
+      (' assets/images/logo.png', 'leading-whitespace asset path'),
+      ('assets/images/logo.png ', 'trailing-whitespace asset path'),
+    ]) {
+      rejects(
+        _canvasDecorationImage(
+          image: _canvasImageProvider(assetName: assetName),
+        ),
+        reason,
+      );
+    }
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(kind: 'exactAsset', exactScale: null),
+      ),
+      'ExactAssetImage requires exactScale',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(
+          resize: {
+            'width': null,
+            'height': null,
+            'policy': 'exact',
+            'allowUpscaling': false,
+          },
+        ),
+      ),
+      'ResizeImage requires one dimension',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(
+          resolution: {
+            'kind': 'unavailable',
+            'code': 'network',
+            'reason': 'not allowed',
+          },
+        ),
+      ),
+      'closed unavailable code',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(
+          resolution: {
+            'kind': 'unavailable',
+            'code': 'corrupt',
+            'reason': 'bad\u0001bytes',
+          },
+        ),
+      ),
+      'unavailable reason control character',
+    );
+    rejects(
+      _canvasDecorationImage(
+        image: _canvasImageProvider(
+          resolution: {
+            'kind': 'unavailable',
+            'code': 'corrupt',
+            'reason': List.filled(513, '\u{1f642}').join(),
+          },
+        ),
+      ),
+      'unavailable reason UTF-16 bound',
+    );
+    rejects(
+      _canvasDecorationImage(
+        colorFilter: {'kind': 'matrix', 'values': List<Object?>.filled(19, 0)},
+      ),
+      'matrix length',
+    );
+    rejects(
+      _canvasDecorationImage(
+        fit: 'cover',
+        centerSlice: {'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+      ),
+      'centerSlice fit invariant',
+    );
+    rejects(
+      _canvasDecorationImage(
+        fit: 'none',
+        centerSlice: {'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+      ),
+      'centerSlice none fit invariant',
+    );
+    rejects(
+      _canvasDecorationImage(
+        centerSlice: {'left': 1, 'top': 0, 'right': 1, 'bottom': 1},
+      ),
+      'centerSlice requires positive width',
+    );
+    rejects(
+      _canvasDecorationImage(
+        centerSlice: {'left': 0, 'top': 1, 'right': 1, 'bottom': 1},
+      ),
+      'centerSlice requires positive height',
+    );
+    final containedSlice = _decode(
+      _containerModel(
+        properties: {
+          'decoration': _canvasBoxDecoration(
+            image: _canvasDecorationImage(
+              fit: 'contain',
+              centerSlice: {'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+            ),
+          ),
+        },
+      ),
+    );
+    final containedDecoration =
+        containedSlice.root.properties['decoration']!.value
+            as CanvasBoxDecorationValue;
+    expect(containedDecoration.image!.fit, 'contain');
+    rejects(_canvasDecorationImage(opacity: 1.1), 'opacity bound');
+  });
+
   test('rejects unsafe or non-canonical Container structured values', () {
     void rejects(Map<String, Object?> properties, String reason) {
       expect(
@@ -3040,8 +3327,61 @@ Map<String, Object?> _canvasSweepGradient({
   'rotationRadians': -0.5,
 };
 
+Map<String, Object?> _canvasImageProvider({
+  String kind = 'asset',
+  String assetName = 'assets/images/panel.png',
+  String? packageName,
+  num? exactScale,
+  Map<String, Object?>? resize,
+  Map<String, Object?>? resolution,
+}) => {
+  'kind': kind,
+  'assetName': assetName,
+  'packageName': packageName,
+  'exactScale': exactScale,
+  'resize': resize,
+  'resolution':
+      resolution ??
+      <String, Object?>{
+        'kind': 'unavailable',
+        'code': 'missing',
+        'reason': 'The project asset is missing',
+      },
+};
+
+Map<String, Object?> _canvasDecorationImage({
+  Map<String, Object?>? image,
+  bool onError = false,
+  Map<String, Object?>? colorFilter,
+  String? fit,
+  Map<String, Object?>? alignment,
+  Map<String, Object?>? centerSlice,
+  String repeat = 'noRepeat',
+  bool matchTextDirection = false,
+  num scale = 1,
+  num opacity = 1,
+  String filterQuality = 'medium',
+  bool invertColors = false,
+  bool isAntiAlias = false,
+}) => {
+  'image': image ?? _canvasImageProvider(),
+  'onError': onError,
+  'colorFilter': colorFilter,
+  'fit': fit,
+  'alignment': alignment ?? _canvasNestedAlignment(),
+  'centerSlice': centerSlice,
+  'repeat': repeat,
+  'matchTextDirection': matchTextDirection,
+  'scale': scale,
+  'opacity': opacity,
+  'filterQuality': filterQuality,
+  'invertColors': invertColors,
+  'isAntiAlias': isAntiAlias,
+};
+
 Map<String, Object?> _canvasBoxDecoration({
   Map<String, Object?>? color,
+  Map<String, Object?>? image,
   Map<String, Object?>? border,
   Map<String, Object?>? borderRadius,
   List<Map<String, Object?>> boxShadow = const [],
@@ -3051,6 +3391,7 @@ Map<String, Object?> _canvasBoxDecoration({
 }) => {
   'kind': 'boxDecoration',
   'color': color,
+  'image': image,
   'border': border,
   'borderRadius': borderRadius,
   'boxShadow': boxShadow,
@@ -3099,7 +3440,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 10,
+  'protocolVersion': 11,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

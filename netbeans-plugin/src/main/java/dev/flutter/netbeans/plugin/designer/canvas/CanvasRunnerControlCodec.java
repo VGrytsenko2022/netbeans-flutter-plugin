@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResource;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentId;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
@@ -31,6 +32,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HexFormat;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -121,6 +123,7 @@ public final class CanvasRunnerControlCodec {
         if (model.kind() != CanvasProcessFrameKind.MODEL_JSON) {
             throw new IllegalArgumentException("render requires one MODEL_JSON descriptor");
         }
+        List<CanvasImageResource> images = request.imageResources().resources();
         return encode(json -> {
             writeEnvelopeStart(json, request.revisionKey().sessionId(), "host.render");
             writeRevision(json, request.revisionKey());
@@ -130,6 +133,20 @@ public final class CanvasRunnerControlCodec {
             json.writeStringField(
                     "sha256", HexFormat.of().formatHex(model.copySha256()));
             json.writeEndObject();
+            json.writeArrayFieldStart("images");
+            for (CanvasImageResource image : images) {
+                json.writeStartObject();
+                json.writeStringField("resourceId", image.resourceId());
+                json.writeStringField("kind", "image.bytes");
+                json.writeStringField("mediaType", image.format().mediaType());
+                json.writeNumberField("pixelWidth", image.pixelWidth());
+                json.writeNumberField("pixelHeight", image.pixelHeight());
+                json.writeNumberField(
+                        "payloadBytes", image.encodedByteLength());
+                json.writeStringField("sha256", image.resourceId());
+                json.writeEndObject();
+            }
+            json.writeEndArray();
             writeEnvelopeEnd(json);
         });
     }

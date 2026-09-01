@@ -24,7 +24,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import javax.swing.DefaultCellEditor;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
@@ -56,6 +58,14 @@ final class FlutterContainerPropertyEditorComponents {
     static final String MATRIX_TABLE_NAME = "flutter.container.matrix.table";
     static final String DECORATION_TABS_NAME = "flutter.container.decoration.tabs";
     static final String DECORATION_COLOR_MODE_NAME = "flutter.container.decoration.color.mode";
+    static final String DECORATION_IMAGE_ENABLED_NAME =
+            "flutter.container.decoration.image.enabled";
+    static final String DECORATION_IMAGE_ASSET_NAME =
+            "flutter.container.decoration.image.asset";
+    static final String DECORATION_IMAGE_PROVIDER_NAME =
+            "flutter.container.decoration.image.provider";
+    static final String DECORATION_IMAGE_FILTER_NAME =
+            "flutter.container.decoration.image.colorFilter";
     static final String DECORATION_BORDER_TABLE_NAME = "flutter.container.decoration.border.table";
     static final String DECORATION_RADIUS_TABLE_NAME = "flutter.container.decoration.radius.table";
     static final String DECORATION_SHADOW_TABLE_NAME = "flutter.container.decoration.shadow.table";
@@ -579,6 +589,63 @@ final class FlutterContainerPropertyEditorComponents {
         private final ColorSourceEditor fill;
         private final JComboBox<String> blend = new JComboBox<>();
 
+        private final FlutterImageAssetChoices assetChoices;
+        private final JCheckBox imageEnabled = new JCheckBox(
+                "Enable DecorationImage");
+        private final JComboBox<FlutterImageAssetChoices.Choice> imageAsset =
+                new JComboBox<>();
+        private final JComboBox<PropertyValue.ImageProviderValue.ProviderKind>
+                imageProvider = new JComboBox<>(
+                        PropertyValue.ImageProviderValue.ProviderKind.values());
+        private final JTextField imageExactScale = new JTextField("1", 8);
+        private final JCheckBox imageResizeEnabled = new JCheckBox(
+                "Wrap with ResizeImage");
+        private final JTextField imageResizeWidth = new JTextField(8);
+        private final JTextField imageResizeHeight = new JTextField(8);
+        private final JComboBox<PropertyValue.ImageProviderValue.ResizePolicy>
+                imageResizePolicy = new JComboBox<>(
+                        PropertyValue.ImageProviderValue.ResizePolicy.values());
+        private final JCheckBox imageAllowUpscaling = new JCheckBox(
+                "Allow upscaling");
+        private final JCheckBox imageOnErrorEnabled = new JCheckBox(
+                "Use typed image-error handler");
+        private final JTextField imageOnError = new JTextField(18);
+        private final JComboBox<String> imageColorFilter = new JComboBox<>(
+                new String[]{"None", "Mode", "Matrix", "Linear to sRGB gamma",
+                    "sRGB to linear gamma", "Saturation"});
+        private final ColorSourceEditor imageFilterColor;
+        private final JComboBox<PropertyValue.PaintValue.BlendMode>
+                imageFilterBlend = new JComboBox<>(
+                        PropertyValue.PaintValue.BlendMode.values());
+        private final JTextField imageFilterMatrix = new JTextField(42);
+        private final JTextField imageFilterSaturation = new JTextField("1", 8);
+        private final JComboBox<String> imageFit = new JComboBox<>();
+        private final JComboBox<PropertyValue.AlignmentGeometryValue.HorizontalBasis>
+                imageAlignmentBasis = new JComboBox<>(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.values());
+        private final JTextField imageAlignmentHorizontal = new JTextField("0", 8);
+        private final JTextField imageAlignmentVertical = new JTextField("0", 8);
+        private final JCheckBox imageCenterSliceEnabled = new JCheckBox(
+                "Use center slice (nine-patch)");
+        private final JTextField imageSliceLeft = new JTextField("0", 7);
+        private final JTextField imageSliceTop = new JTextField("0", 7);
+        private final JTextField imageSliceRight = new JTextField("1", 7);
+        private final JTextField imageSliceBottom = new JTextField("1", 7);
+        private final JComboBox<PropertyValue.DecorationImageValue.ImageRepeat>
+                imageRepeat = new JComboBox<>(
+                        PropertyValue.DecorationImageValue.ImageRepeat.values());
+        private final JCheckBox imageMatchTextDirection = new JCheckBox(
+                "Mirror for text direction");
+        private final JTextField imageScale = new JTextField("1", 8);
+        private final JTextField imageOpacity = new JTextField("1", 8);
+        private final JComboBox<PropertyValue.PaintValue.FilterQuality>
+                imageFilterQuality = new JComboBox<>(
+                        PropertyValue.PaintValue.FilterQuality.values());
+        private final JCheckBox imageInvertColors = new JCheckBox(
+                "Invert colors");
+        private final JCheckBox imageAntiAlias = new JCheckBox(
+                "Anti-alias image edges");
+
         private final JCheckBox borderEnabled = new JCheckBox("Enable border");
         private final JComboBox<String> borderBasis = new JComboBox<>(
                 new String[]{"Physical: left / right", "Directional: start / end"});
@@ -631,12 +698,16 @@ final class FlutterContainerPropertyEditorComponents {
         DecorationPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding,
                 PropertyEnv environment) {
             super(editor, binding, environment);
+            assetChoices = assetChoices(environment);
+            configureImageRenderers();
+            imageFilterColor = new ColorSourceEditor(
+                    binding.allowedColorSourceTokens(), false, this::refresh);
             setLayout(new BorderLayout(0, 8));
-            setPreferredSize(new Dimension(830, 610));
+            setPreferredSize(new Dimension(900, 680));
             setName("flutter.container.decoration.custom");
             getAccessibleContext().setAccessibleName("Container BoxDecoration editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits the reviewed image-free Flutter BoxDecoration domain using structured controls.");
+                    "Edits the reviewed Flutter BoxDecoration and DecorationImage domains using typed structured controls.");
             fill = new ColorSourceEditor(binding.allowedColorSourceTokens(), true, this::refresh);
 
             JPanel north = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
@@ -649,8 +720,9 @@ final class FlutterContainerPropertyEditorComponents {
             tabs.setName(DECORATION_TABS_NAME);
             tabs.getAccessibleContext().setAccessibleName("BoxDecoration sections");
             tabs.getAccessibleContext().setAccessibleDescription(
-                    "Fill, border, radius, ordered shadows, and gradient settings.");
+                    "Fill, image, border, radius, ordered shadows, and gradient settings.");
             tabs.addTab("Fill", fillPanel());
+            tabs.addTab("Image", imagePanel());
             tabs.addTab("Border", borderPanel());
             tabs.addTab("Radius", radiusPanel());
             tabs.addTab("Shadows", shadowPanel());
@@ -667,6 +739,37 @@ final class FlutterContainerPropertyEditorComponents {
             activate();
         }
 
+        private void configureImageRenderers() {
+            displayWith(imageProvider, value -> switch (value) {
+                case ASSET -> "AssetImage (DPR-aware)";
+                case EXACT_ASSET -> "ExactAssetImage";
+            });
+            displayWith(imageResizePolicy, value -> switch (value) {
+                case EXACT -> "Exact dimensions";
+                case FIT -> "Fit within dimensions";
+            });
+            displayWith(imageAlignmentBasis, value -> switch (value) {
+                case PHYSICAL -> "Physical (left/right)";
+                case DIRECTIONAL -> "Directional (start/end)";
+            });
+            displayWith(imageRepeat, value -> switch (value) {
+                case REPEAT -> "Repeat both axes";
+                case REPEAT_X -> "Repeat horizontally";
+                case REPEAT_Y -> "Repeat vertically";
+                case NO_REPEAT -> "No repeat";
+            });
+            displayWith(imageFilterQuality, value -> switch (value) {
+                case NONE -> "None";
+                case LOW -> "Low";
+                case MEDIUM -> "Medium";
+                case HIGH -> "High";
+            });
+            displayWith(imageFilterBlend,
+                    value -> humanizeWireName(value.wireName()));
+            displayWith(imageFit, FlutterContainerPropertyEditorComponents
+                    ::humanizeWireName);
+        }
+
         private JPanel fillPanel() {
             JPanel panel = new JPanel(new GridBagLayout());
             int row = 0;
@@ -678,6 +781,151 @@ final class FlutterContainerPropertyEditorComponents {
             addRow(panel, row, "Background blend:", blend);
             addVerticalGlue(panel, row + 1);
             return panel;
+        }
+
+        private JPanel imagePanel() {
+            imageEnabled.setName(DECORATION_IMAGE_ENABLED_NAME);
+            imageAsset.setName(DECORATION_IMAGE_ASSET_NAME);
+            imageProvider.setName(DECORATION_IMAGE_PROVIDER_NAME);
+            imageColorFilter.setName(DECORATION_IMAGE_FILTER_NAME);
+            imageEnabled.getAccessibleContext().setAccessibleDescription(
+                    "Adds or removes the typed DecorationImage from this BoxDecoration draft.");
+            imageAsset.getAccessibleContext().setAccessibleName(
+                    "Declared Flutter image asset");
+            imageAsset.getAccessibleContext().setAccessibleDescription(
+                    "Chooses a concrete image declared by the application or a resolved Dart package; arbitrary paths are not accepted.");
+            imageProvider.getAccessibleContext().setAccessibleName(
+                    "Flutter image provider kind");
+            imageExactScale.getAccessibleContext().setAccessibleName(
+                    "ExactAssetImage scale");
+            imageExactScale.getAccessibleContext().setAccessibleDescription(
+                    "Positive logical scale used only by ExactAssetImage.");
+            imageResizeEnabled.getAccessibleContext().setAccessibleDescription(
+                    "Adds one typed ResizeImage wrapper around the selected asset provider.");
+            imageResizeWidth.getAccessibleContext().setAccessibleName(
+                    "ResizeImage cache width");
+            imageResizeWidth.getAccessibleContext().setAccessibleDescription(
+                    "Optional positive decoded width in pixels, at most 16384.");
+            imageResizeHeight.getAccessibleContext().setAccessibleName(
+                    "ResizeImage cache height");
+            imageResizeHeight.getAccessibleContext().setAccessibleDescription(
+                    "Optional positive decoded height in pixels, at most 16384.");
+            imageResizePolicy.getAccessibleContext().setAccessibleName(
+                    "ResizeImage policy");
+            imageAllowUpscaling.getAccessibleContext().setAccessibleDescription(
+                    "Allows ResizeImage to decode larger than the source dimensions.");
+            imageOnErrorEnabled.getAccessibleContext().setAccessibleDescription(
+                    "Enables a validated two-argument Flutter image-error callback identifier.");
+            imageOnError.getAccessibleContext().setAccessibleName(
+                    "Typed image error handler identifier");
+            imageOnError.getAccessibleContext().setAccessibleDescription(
+                    "A Dart function identifier only; expressions and callback source are rejected.");
+            imageColorFilter.getAccessibleContext().setAccessibleName(
+                    "DecorationImage color filter variant");
+            imageFilterMatrix.getAccessibleContext().setAccessibleName(
+                    "ColorFilter matrix values");
+            imageFilterMatrix.getAccessibleContext().setAccessibleDescription(
+                    "Exactly twenty finite typed matrix values in row-major order.");
+            imageFilterSaturation.getAccessibleContext().setAccessibleName(
+                    "ColorFilter saturation amount");
+            imageFit.getAccessibleContext().setAccessibleName(
+                    "DecorationImage BoxFit");
+            imageAlignmentBasis.getAccessibleContext().setAccessibleName(
+                    "DecorationImage alignment basis");
+            imageAlignmentHorizontal.getAccessibleContext().setAccessibleName(
+                    "DecorationImage horizontal alignment");
+            imageAlignmentVertical.getAccessibleContext().setAccessibleName(
+                    "DecorationImage vertical alignment");
+            imageCenterSliceEnabled.getAccessibleContext().setAccessibleDescription(
+                    "Enables a strict positive-area nine-patch rectangle; every "
+                    + "pinned-SDK fit except cover and none is accepted.");
+            imageSliceLeft.getAccessibleContext().setAccessibleName(
+                    "Center slice left");
+            imageSliceTop.getAccessibleContext().setAccessibleName(
+                    "Center slice top");
+            imageSliceRight.getAccessibleContext().setAccessibleName(
+                    "Center slice right");
+            imageSliceBottom.getAccessibleContext().setAccessibleName(
+                    "Center slice bottom");
+            imageRepeat.getAccessibleContext().setAccessibleName(
+                    "DecorationImage repeat");
+            imageMatchTextDirection.getAccessibleContext().setAccessibleDescription(
+                    "Mirrors the image when the ambient text direction is right-to-left.");
+            imageScale.getAccessibleContext().setAccessibleName(
+                    "DecorationImage paint scale");
+            imageOpacity.getAccessibleContext().setAccessibleName(
+                    "DecorationImage opacity");
+            imageFilterQuality.getAccessibleContext().setAccessibleName(
+                    "DecorationImage filter quality");
+            imageInvertColors.getAccessibleContext().setAccessibleDescription(
+                    "Requests semantic color inversion for accessibility.");
+            imageAntiAlias.getAccessibleContext().setAccessibleDescription(
+                    "Anti-aliases image edges while painting.");
+
+            for (FlutterImageAssetChoices.Choice choice : assetChoices.choices()) {
+                imageAsset.addItem(choice);
+            }
+            imageFit.addItem(NOT_SET);
+            Arrays.stream(PropertyValue.DecorationImageValue.BoxFit.values())
+                    .map(PropertyValue.DecorationImageValue.BoxFit::wireName)
+                    .forEach(imageFit::addItem);
+            imageFilterMatrix.setText(
+                    "1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0");
+
+            JPanel form = new JPanel(new GridBagLayout());
+            int row = 0;
+            addWideRow(form, row++, imageEnabled);
+            addRow(form, row++, "Declared asset:", imageAsset);
+            addRow(form, row++, "Provider:", imageProvider, imageExactScale);
+            addWideRow(form, row++, imageResizeEnabled);
+            addRow(form, row++, "Resize width / height:",
+                    flow(imageResizeWidth, new JLabel("×"), imageResizeHeight));
+            addRow(form, row++, "Resize policy:", imageResizePolicy,
+                    imageAllowUpscaling);
+            addRow(form, row++, "onError:", imageOnErrorEnabled, imageOnError);
+            addRow(form, row++, "Color filter:", imageColorFilter);
+            addRow(form, row++, "Filter color / blend:", imageFilterColor,
+                    imageFilterBlend);
+            addRow(form, row++, "Matrix (20 values):", imageFilterMatrix);
+            addRow(form, row++, "Saturation:", imageFilterSaturation);
+            addRow(form, row++, "Fit:", imageFit);
+            addRow(form, row++, "Alignment basis:", imageAlignmentBasis);
+            addRow(form, row++, "Alignment X / Y:", flow(
+                    imageAlignmentHorizontal,
+                    new JLabel("/"),
+                    imageAlignmentVertical));
+            addWideRow(form, row++, imageCenterSliceEnabled);
+            addRow(form, row++, "Center slice L / T / R / B:", flow(
+                    imageSliceLeft, imageSliceTop,
+                    imageSliceRight, imageSliceBottom));
+            addRow(form, row++, "Repeat:", imageRepeat,
+                    imageMatchTextDirection);
+            addRow(form, row++, "Scale / opacity:", flow(
+                    imageScale, new JLabel("/"), imageOpacity));
+            addRow(form, row++, "Filter quality:", imageFilterQuality);
+            addWideRow(form, row++, flow(imageInvertColors, imageAntiAlias));
+
+            String inventoryStatus = assetChoices.choices().isEmpty()
+                    ? "Asset selection unavailable: "
+                    + assetChoices.unavailableReason().orElse(
+                            "no declared image assets were found.")
+                    : assetChoices.choices().size()
+                    + " declared image asset choice(s) are available.";
+            JLabel status = new JLabel(inventoryStatus);
+            status.setName("flutter.container.decoration.image.assetStatus");
+            status.getAccessibleContext().setAccessibleName(
+                    "Declared image asset inventory status");
+            status.getAccessibleContext().setAccessibleDescription(inventoryStatus);
+            addWideRow(form, row, status);
+            addVerticalGlue(form, row + 1);
+
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(form, BorderLayout.NORTH);
+            JScrollPane scroll = new JScrollPane(panel);
+            scroll.setBorder(null);
+            JPanel wrapper = new JPanel(new BorderLayout());
+            wrapper.add(scroll, BorderLayout.CENTER);
+            return wrapper;
         }
 
         private JPanel borderPanel() {
@@ -774,6 +1022,7 @@ final class FlutterContainerPropertyEditorComponents {
             try {
                 shape.setSelectedItem(value.shape());
                 fill.setValue(value.color());
+                populateImage(value.image());
                 blend.setSelectedItem(value.backgroundBlendMode()
                         .map(PropertyValue.PaintValue.BlendMode::wireName).orElse(NOT_SET));
                 populateBorder(value.border());
@@ -788,6 +1037,125 @@ final class FlutterContainerPropertyEditorComponents {
                 populateGradient(value.gradient());
             } finally {
                 updating = false;
+            }
+        }
+
+        private void populateImage(
+                Optional<PropertyValue.DecorationImageValue> value) {
+            imageEnabled.setSelected(value.isPresent());
+            PropertyValue.DecorationImageValue image = value.orElseGet(() ->
+                    PropertyValue.DecorationImageValue.defaults(
+                            PropertyValue.ImageProviderValue.asset(
+                                    assetChoices.choices().isEmpty()
+                                    ? "assets/image.png"
+                                    : assetChoices.choices().getFirst().assetName())));
+            PropertyValue.ImageProviderValue provider = image.image();
+            FlutterImageAssetChoices.Choice choice = assetChoices.find(
+                    provider.packageName(), provider.assetName())
+                    .orElseGet(() -> new FlutterImageAssetChoices.Choice(
+                            provider.packageName(),
+                            provider.assetName(),
+                            provider.packageName()
+                                    .map(name -> "Package " + name + ": "
+                                    + provider.assetName() + " (stored; unavailable)")
+                                    .orElseGet(() -> "App: " + provider.assetName()
+                                    + " (stored; unavailable)")));
+            boolean present = false;
+            for (int index = 0; index < imageAsset.getItemCount(); index++) {
+                if (imageAsset.getItemAt(index).equals(choice)) {
+                    present = true;
+                    break;
+                }
+            }
+            if (!present && value.isPresent()) {
+                imageAsset.addItem(choice);
+            }
+            imageAsset.setSelectedItem(value.isPresent() ? choice
+                    : imageAsset.getItemCount() == 0
+                            ? null : imageAsset.getItemAt(0));
+            imageProvider.setSelectedItem(provider.providerKind());
+            imageExactScale.setText(provider.exactScale()
+                    .map(BigDecimal::toPlainString).orElse("1"));
+            imageResizeEnabled.setSelected(provider.resize().isPresent());
+            provider.resize().ifPresentOrElse(resize -> {
+                imageResizeWidth.setText(
+                        resize.width().map(Object::toString).orElse(""));
+                imageResizeHeight.setText(
+                        resize.height().map(Object::toString).orElse(""));
+                imageResizePolicy.setSelectedItem(resize.policy());
+                imageAllowUpscaling.setSelected(resize.allowUpscaling());
+            }, () -> {
+                imageResizeWidth.setText("");
+                imageResizeHeight.setText("");
+                imageResizePolicy.setSelectedItem(
+                        PropertyValue.ImageProviderValue.ResizePolicy.EXACT);
+                imageAllowUpscaling.setSelected(false);
+            });
+            imageOnErrorEnabled.setSelected(image.onError().isPresent());
+            imageOnError.setText(image.onError()
+                    .map(PropertyValue.CallbackValue::handler).orElse(""));
+            populateImageColorFilter(image.colorFilter());
+            imageFit.setSelectedItem(image.fit()
+                    .map(PropertyValue.DecorationImageValue.BoxFit::wireName)
+                    .orElse(NOT_SET));
+            imageAlignmentBasis.setSelectedItem(image.alignment().basis());
+            imageAlignmentHorizontal.setText(
+                    image.alignment().horizontal().toPlainString());
+            imageAlignmentVertical.setText(
+                    image.alignment().vertical().toPlainString());
+            imageCenterSliceEnabled.setSelected(image.centerSlice().isPresent());
+            image.centerSlice().ifPresentOrElse(slice -> {
+                imageSliceLeft.setText(slice.left().toPlainString());
+                imageSliceTop.setText(slice.top().toPlainString());
+                imageSliceRight.setText(slice.right().toPlainString());
+                imageSliceBottom.setText(slice.bottom().toPlainString());
+            }, () -> {
+                imageSliceLeft.setText("0");
+                imageSliceTop.setText("0");
+                imageSliceRight.setText("1");
+                imageSliceBottom.setText("1");
+            });
+            imageRepeat.setSelectedItem(image.repeat());
+            imageMatchTextDirection.setSelected(image.matchTextDirection());
+            imageScale.setText(image.scale().toPlainString());
+            imageOpacity.setText(image.opacity().toPlainString());
+            imageFilterQuality.setSelectedItem(image.filterQuality());
+            imageInvertColors.setSelected(image.invertColors());
+            imageAntiAlias.setSelected(image.isAntiAlias());
+        }
+
+        private void populateImageColorFilter(
+                Optional<PropertyValue.DecorationImageValue.ColorFilter> value) {
+            if (value.isEmpty()) {
+                imageColorFilter.setSelectedItem("None");
+                imageFilterColor.setValue(Optional.of(
+                        new ColorSource.Literal(0xFF000000L)));
+                imageFilterBlend.setSelectedItem(
+                        PropertyValue.PaintValue.BlendMode.SRC_OVER);
+                imageFilterSaturation.setText("1");
+                return;
+            }
+            switch (value.orElseThrow()) {
+                case PropertyValue.DecorationImageValue.Mode mode -> {
+                    imageColorFilter.setSelectedItem("Mode");
+                    imageFilterColor.setValue(Optional.of(mode.color()));
+                    imageFilterBlend.setSelectedItem(mode.blendMode());
+                }
+                case PropertyValue.DecorationImageValue.Matrix matrix -> {
+                    imageColorFilter.setSelectedItem("Matrix");
+                    imageFilterMatrix.setText(matrix.values().stream()
+                            .map(BigDecimal::toPlainString)
+                            .collect(java.util.stream.Collectors.joining(", ")));
+                }
+                case PropertyValue.DecorationImageValue.LinearToSrgbGamma ignored ->
+                    imageColorFilter.setSelectedItem("Linear to sRGB gamma");
+                case PropertyValue.DecorationImageValue.SrgbToLinearGamma ignored ->
+                    imageColorFilter.setSelectedItem("sRGB to linear gamma");
+                case PropertyValue.DecorationImageValue.Saturation saturation -> {
+                    imageColorFilter.setSelectedItem("Saturation");
+                    imageFilterSaturation.setText(
+                            saturation.value().toPlainString());
+                }
             }
         }
 
@@ -893,6 +1261,46 @@ final class FlutterContainerPropertyEditorComponents {
             useDefault.addActionListener(ignored -> refresh());
             shape.addActionListener(ignored -> refresh());
             blend.addActionListener(ignored -> refresh());
+            for (JComboBox<?> combo : List.of(
+                    imageAsset,
+                    imageProvider,
+                    imageResizePolicy,
+                    imageColorFilter,
+                    imageFilterBlend,
+                    imageFit,
+                    imageAlignmentBasis,
+                    imageRepeat,
+                    imageFilterQuality)) {
+                combo.addActionListener(ignored -> refresh());
+            }
+            for (JCheckBox check : List.of(
+                    imageEnabled,
+                    imageResizeEnabled,
+                    imageAllowUpscaling,
+                    imageOnErrorEnabled,
+                    imageCenterSliceEnabled,
+                    imageMatchTextDirection,
+                    imageInvertColors,
+                    imageAntiAlias)) {
+                check.addActionListener(ignored -> refresh());
+            }
+            for (JTextField field : List.of(
+                    imageExactScale,
+                    imageResizeWidth,
+                    imageResizeHeight,
+                    imageOnError,
+                    imageFilterMatrix,
+                    imageFilterSaturation,
+                    imageAlignmentHorizontal,
+                    imageAlignmentVertical,
+                    imageSliceLeft,
+                    imageSliceTop,
+                    imageSliceRight,
+                    imageSliceBottom,
+                    imageScale,
+                    imageOpacity)) {
+                field.getDocument().addDocumentListener(listener(this::refresh));
+            }
             borderEnabled.addActionListener(ignored -> refresh());
             borderBasis.addActionListener(ignored -> {
                 if (!updating) {
@@ -975,7 +1383,8 @@ final class FlutterContainerPropertyEditorComponents {
             }
             try {
                 PropertyValue.BoxDecorationValue value = new PropertyValue.BoxDecorationValue(
-                        fill.value(), readBorder(), readRadius(), readShadows(), readGradient(),
+                        fill.value(), readImage(), readBorder(), readRadius(),
+                        readShadows(), readGradient(),
                         NOT_SET.equals(blend.getSelectedItem()) ? Optional.empty()
                                 : Optional.of(PropertyValue.PaintValue.BlendMode.fromWireName(
                                         Objects.toString(blend.getSelectedItem()))),
@@ -987,6 +1396,119 @@ final class FlutterContainerPropertyEditorComponents {
                 markInvalid(failure.getMessage(), this);
                 return false;
             }
+        }
+
+        private Optional<PropertyValue.DecorationImageValue> readImage() {
+            if (!imageEnabled.isSelected()) {
+                return Optional.empty();
+            }
+            FlutterImageAssetChoices.Choice choice =
+                    (FlutterImageAssetChoices.Choice) imageAsset.getSelectedItem();
+            if (choice == null) {
+                throw new IllegalArgumentException(
+                        "Choose a declared Flutter image asset. Target: DecorationImage.image. "
+                        + "Reason: " + assetChoices.unavailableReason().orElse(
+                                "no declared image asset is available."));
+            }
+            PropertyValue.ImageProviderValue.ProviderKind providerKind =
+                    (PropertyValue.ImageProviderValue.ProviderKind)
+                    imageProvider.getSelectedItem();
+            Optional<BigDecimal> exactScale = providerKind
+                    == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET
+                    ? Optional.of(decimal(imageExactScale, "Exact asset scale"))
+                    : Optional.empty();
+            Optional<PropertyValue.ImageProviderValue.ResizeImageConfig> resize =
+                    imageResizeEnabled.isSelected()
+                    ? Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                            optionalInteger(imageResizeWidth, "Resize width"),
+                            optionalInteger(imageResizeHeight, "Resize height"),
+                            (PropertyValue.ImageProviderValue.ResizePolicy)
+                            imageResizePolicy.getSelectedItem(),
+                            imageAllowUpscaling.isSelected()))
+                    : Optional.empty();
+            PropertyValue.ImageProviderValue provider =
+                    new PropertyValue.ImageProviderValue(
+                            providerKind,
+                            choice.assetName(),
+                            choice.packageName(),
+                            exactScale,
+                            resize);
+            Optional<PropertyValue.CallbackValue> onError =
+                    imageOnErrorEnabled.isSelected()
+                    ? Optional.of(new PropertyValue.CallbackValue(
+                            imageOnError.getText().strip()))
+                    : Optional.empty();
+            Optional<PropertyValue.DecorationImageValue.BoxFit> fit =
+                    NOT_SET.equals(imageFit.getSelectedItem())
+                    ? Optional.empty()
+                    : Optional.of(PropertyValue.DecorationImageValue.BoxFit
+                            .fromWireName(Objects.toString(
+                                    imageFit.getSelectedItem())));
+            Optional<PropertyValue.DecorationImageValue.Rect> centerSlice =
+                    imageCenterSliceEnabled.isSelected()
+                    ? Optional.of(new PropertyValue.DecorationImageValue.Rect(
+                            nonNegative(imageSliceLeft.getText(),
+                                    "Center slice left"),
+                            nonNegative(imageSliceTop.getText(),
+                                    "Center slice top"),
+                            nonNegative(imageSliceRight.getText(),
+                                    "Center slice right"),
+                            nonNegative(imageSliceBottom.getText(),
+                                    "Center slice bottom")))
+                    : Optional.empty();
+            return Optional.of(new PropertyValue.DecorationImageValue(
+                    provider,
+                    onError,
+                    readImageColorFilter(),
+                    fit,
+                    new PropertyValue.AlignmentGeometryValue(
+                            (PropertyValue.AlignmentGeometryValue.HorizontalBasis)
+                            imageAlignmentBasis.getSelectedItem(),
+                            decimal(imageAlignmentHorizontal,
+                                    "Image alignment horizontal"),
+                            decimal(imageAlignmentVertical,
+                                    "Image alignment vertical")),
+                    centerSlice,
+                    (PropertyValue.DecorationImageValue.ImageRepeat)
+                    imageRepeat.getSelectedItem(),
+                    imageMatchTextDirection.isSelected(),
+                    decimal(imageScale, "DecorationImage scale"),
+                    decimal(imageOpacity, "DecorationImage opacity"),
+                    (PropertyValue.PaintValue.FilterQuality)
+                    imageFilterQuality.getSelectedItem(),
+                    imageInvertColors.isSelected(),
+                    imageAntiAlias.isSelected()));
+        }
+
+        private Optional<PropertyValue.DecorationImageValue.ColorFilter>
+                readImageColorFilter() {
+            String selected = Objects.toString(
+                    imageColorFilter.getSelectedItem(), "None");
+            return switch (selected) {
+                case "None" -> Optional.empty();
+                case "Mode" -> Optional.of(
+                        new PropertyValue.DecorationImageValue.Mode(
+                                imageFilterColor.value().orElseThrow(() ->
+                                        new IllegalArgumentException(
+                                                "Choose a typed ColorFilter color.")),
+                                (PropertyValue.PaintValue.BlendMode)
+                                imageFilterBlend.getSelectedItem()));
+                case "Matrix" -> Optional.of(
+                        new PropertyValue.DecorationImageValue.Matrix(
+                                matrixValues(imageFilterMatrix.getText())));
+                case "Linear to sRGB gamma" -> Optional.of(
+                        new PropertyValue.DecorationImageValue
+                                .LinearToSrgbGamma());
+                case "sRGB to linear gamma" -> Optional.of(
+                        new PropertyValue.DecorationImageValue
+                                .SrgbToLinearGamma());
+                case "Saturation" -> Optional.of(
+                        new PropertyValue.DecorationImageValue.Saturation(
+                                decimal(imageFilterSaturation,
+                                        "ColorFilter saturation")));
+                default -> throw new IllegalArgumentException(
+                        "Choose a reviewed ColorFilter variant.");
+            };
         }
 
         @Override
@@ -1121,6 +1643,53 @@ final class FlutterContainerPropertyEditorComponents {
             if (!enabled) {
                 return;
             }
+            boolean hasImage = imageEnabled.isSelected();
+            for (JComponent component : List.of(
+                    imageAsset,
+                    imageProvider,
+                    imageResizeEnabled,
+                    imageOnErrorEnabled,
+                    imageColorFilter,
+                    imageFit,
+                    imageAlignmentBasis,
+                    imageAlignmentHorizontal,
+                    imageAlignmentVertical,
+                    imageCenterSliceEnabled,
+                    imageRepeat,
+                    imageMatchTextDirection,
+                    imageScale,
+                    imageOpacity,
+                    imageFilterQuality,
+                    imageInvertColors,
+                    imageAntiAlias)) {
+                component.setEnabled(hasImage);
+            }
+            imageExactScale.setEnabled(hasImage
+                    && imageProvider.getSelectedItem()
+                    == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
+            boolean resizeImage = hasImage && imageResizeEnabled.isSelected();
+            imageResizeWidth.setEnabled(resizeImage);
+            imageResizeHeight.setEnabled(resizeImage);
+            imageResizePolicy.setEnabled(resizeImage);
+            imageAllowUpscaling.setEnabled(resizeImage);
+            imageOnError.setEnabled(
+                    hasImage && imageOnErrorEnabled.isSelected());
+            String colorFilter = Objects.toString(
+                    imageColorFilter.getSelectedItem(), "None");
+            boolean modeFilter = hasImage && "Mode".equals(colorFilter);
+            imageFilterColor.setEnabled(modeFilter);
+            setEnabledRecursively(imageFilterColor, modeFilter, null);
+            imageFilterBlend.setEnabled(modeFilter);
+            imageFilterMatrix.setEnabled(
+                    hasImage && "Matrix".equals(colorFilter));
+            imageFilterSaturation.setEnabled(
+                    hasImage && "Saturation".equals(colorFilter));
+            boolean centerSlice = hasImage
+                    && imageCenterSliceEnabled.isSelected();
+            imageSliceLeft.setEnabled(centerSlice);
+            imageSliceTop.setEnabled(centerSlice);
+            imageSliceRight.setEnabled(centerSlice);
+            imageSliceBottom.setEnabled(centerSlice);
             borderTable.setEnabled(borderEnabled.isSelected());
             borderBasis.setEnabled(borderEnabled.isSelected());
             boolean circle = shape.getSelectedItem()
@@ -1513,6 +2082,60 @@ final class FlutterContainerPropertyEditorComponents {
                 BigDecimal.valueOf(x), BigDecimal.valueOf(y));
     }
 
+    private static FlutterImageAssetChoices assetChoices(
+            PropertyEnv environment) {
+        if (environment == null || environment.getFeatureDescriptor() == null) {
+            return FlutterImageAssetChoices.empty();
+        }
+        Object value = environment.getFeatureDescriptor().getValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE);
+        return value instanceof FlutterImageAssetChoices choices
+                ? choices : FlutterImageAssetChoices.empty();
+    }
+
+    private static JPanel flow(Component... components) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        for (Component component : components) {
+            panel.add(Objects.requireNonNull(component, "component"));
+        }
+        return panel;
+    }
+
+    private static Optional<Integer> optionalInteger(
+            JTextField field,
+            String label) {
+        String text = field.getText().strip();
+        if (text.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Integer.valueOf(text));
+        } catch (NumberFormatException failure) {
+            throw new IllegalArgumentException(
+                    label + " must be a whole number.", failure);
+        }
+    }
+
+    private static List<BigDecimal> matrixValues(String text) {
+        String normalized = Objects.requireNonNull(text, "text").strip();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "ColorFilter matrix requires exactly 20 decimal values.");
+        }
+        List<String> parts = Arrays.stream(normalized.split("[,\\s]+"))
+                .filter(value -> !value.isBlank()).toList();
+        if (parts.size() != PropertyValue.DecorationImageValue.Matrix.VALUE_COUNT) {
+            throw new IllegalArgumentException(
+                    "ColorFilter matrix requires exactly 20 decimal values.");
+        }
+        try {
+            return parts.stream().map(BigDecimal::new).toList();
+        } catch (NumberFormatException failure) {
+            throw new IllegalArgumentException(
+                    "ColorFilter matrix values must be finite decimals.", failure);
+        }
+    }
+
     private static PropertyValue.AlignmentGeometryValue readAlignment(
             JComboBox<PropertyValue.AlignmentGeometryValue.HorizontalBasis> basis,
             JTextField x, JTextField y, String label) {
@@ -1612,6 +2235,30 @@ final class FlutterContainerPropertyEditorComponents {
                 clearErrors(child);
             }
         }
+    }
+
+    private static <T> void displayWith(
+            JComboBox<T> combo,
+            Function<T, String> display) {
+        Objects.requireNonNull(combo, "combo");
+        Objects.requireNonNull(display, "display");
+        DefaultListCellRenderer delegate = new DefaultListCellRenderer();
+        combo.setRenderer((list, value, index, selected, focused) -> {
+            JLabel label = (JLabel) delegate.getListCellRendererComponent(
+                    list, value, index, selected, focused);
+            label.setText(value == null ? "" : display.apply(value));
+            return label;
+        });
+    }
+
+    private static String humanizeWireName(String value) {
+        Objects.requireNonNull(value, "value");
+        String spaced = value.replaceAll(
+                "(?<=[a-z0-9])(?=[A-Z])", " ");
+        return spaced.isEmpty()
+                ? spaced
+                : spaced.substring(0, 1).toUpperCase(Locale.ROOT)
+                + spaced.substring(1);
     }
 
     private static DocumentListener listener(Runnable action) {

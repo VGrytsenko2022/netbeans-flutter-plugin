@@ -96,7 +96,7 @@ class WidgetCatalogCompositionTest {
         assertTrue(result.catalog().definitions().isEmpty());
         CatalogDiagnostic diagnostic = result.diagnostics().getFirst();
         assertEquals(CatalogDiagnosticCode.UNSUPPORTED_API_VERSION, diagnostic.code());
-        assertTrue(diagnostic.message().contains("Expected catalog API 4"));
+        assertTrue(diagnostic.message().contains("Expected catalog API 5"));
         assertTrue(diagnostic.message().contains("received 2"));
     }
 

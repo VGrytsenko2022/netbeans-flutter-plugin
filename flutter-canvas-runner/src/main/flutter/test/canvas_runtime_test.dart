@@ -777,6 +777,581 @@ void main() {
     },
   );
 
+  test(
+    'admits exact kind-4 images before atomically binding the model',
+    () async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final diagnostics = <String>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: diagnostics.add,
+      );
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      final model = _imageContainerModel(
+        resolution: {
+          'kind': 'resolved',
+          'resourceId': image.resourceId,
+          'resolvedScale': 2,
+        },
+        centerSlice: {'left': 1, 'top': 1, 'right': 3, 'bottom': 3},
+      );
+
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(imageBytes: true))),
+        ),
+      );
+      _addRender(input, model, images: [image]);
+      await _waitUntil(() => runtime.model != null);
+
+      expect(runtime.model!.imageResourceIds, {image.resourceId});
+      final admitted = runtime.imageResources[image.resourceId]!;
+      expect(admitted.mediaType, 'image/png');
+      expect(admitted.pixelWidth, 8);
+      expect(admitted.pixelHeight, 8);
+      expect(admitted.encodedBytes, image.bytes);
+
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+      expect(diagnostics, isEmpty);
+      final hello = _decodeControlMessages(output).first;
+      expect(
+        (hello['body'] as Map<String, Object?>)['acceptedCapabilities'],
+        contains('asset.imageBytes.v1'),
+      );
+    },
+  );
+
+  test('image rejection bundles validate ids and declared-id uniqueness', () {
+    final resourceId = sha256Hex(_testPng8);
+    final rejection = CanvasImageResourceRejection.encodedContent(resourceId);
+    final bundle = CanvasImageResourceBundle.fromResources(
+      const [],
+      rejections: [rejection],
+    );
+
+    expect(bundle.isEmpty, isFalse);
+    expect(bundle.resourceIds, isEmpty);
+    expect(bundle.declaredResourceIds, {resourceId});
+    expect(bundle.rejection(resourceId), same(rejection));
+    expect(
+      () => CanvasImageResourceRejection.encodedContent('not-a-sha256'),
+      throwsArgumentError,
+    );
+    expect(
+      () => CanvasImageResourceBundle.fromResources(
+        const [],
+        rejections: [rejection, rejection],
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => CanvasImageResourceBundle.fromResources(
+        [
+          CanvasImageResource(
+            resourceId: resourceId,
+            mediaType: 'image/png',
+            pixelWidth: 8,
+            pixelHeight: 8,
+            encodedBytes: _testPng8,
+          ),
+        ],
+        rejections: [rejection],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test(
+    'matches pinned native exact ResizeImage dimension derivation',
+    () async {
+      expect(
+        await _decodeNativeResize(width: 2, height: null),
+        (2, 1),
+        reason:
+            'native ImageDescriptor truncates the height derived from width',
+      );
+      expect(
+        await _decodeNativeResize(width: null, height: 2),
+        (3, 2),
+        reason: 'native ImageDescriptor rounds the width derived from height',
+      );
+      expect(
+        await _decodeNativeResize(width: 5, height: null, allowUpscaling: true),
+        (5, 3),
+        reason: 'native ResizeImage honors an explicit upscaling request',
+      );
+    },
+  );
+
+  test(
+    'uses pinned Web rounding and forced no-upscale for centerSlice',
+    () async {
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.webView,
+          resizeWidth: 2,
+          centerSliceRight: 2,
+          centerSliceBottom: 2,
+        ),
+        isTrue,
+        reason: 'Web derives 4x3 at width 2 as 2x2 using round()',
+      );
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.injectedTest,
+          resizeWidth: 2,
+          centerSliceRight: 2,
+          centerSliceBottom: 2,
+        ),
+        isFalse,
+        reason: 'native derives the same request as 2x1',
+      );
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.webView,
+          resizeHeight: 2,
+          centerSliceRight: 3,
+          centerSliceBottom: 2,
+        ),
+        isTrue,
+        reason: 'Web also rounds the inverse missing-width calculation',
+      );
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.webView,
+          resizeWidth: 5,
+          allowUpscaling: true,
+          centerSliceRight: 5,
+          centerSliceBottom: 3,
+        ),
+        isFalse,
+        reason:
+            'Web returns the intrinsic 4x3 image when either target dimension '
+            'would upscale',
+      );
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.webView,
+          resizeWidth: 5,
+          allowUpscaling: true,
+          centerSliceRight: 4,
+          centerSliceBottom: 3,
+        ),
+        isTrue,
+        reason: 'the intrinsic Web fallback boundary remains valid',
+      );
+      expect(
+        await _admitsResizeCenterSlice(
+          hostProfile: CanvasRuntimeHostProfile.injectedTest,
+          resizeWidth: 5,
+          allowUpscaling: true,
+          centerSliceRight: 5,
+          centerSliceBottom: 3,
+        ),
+        isTrue,
+        reason: 'shared validation must not reject the valid native upscale',
+      );
+    },
+  );
+
+  test(
+    'rejects fit centerSlice when Flutter derives a zero pixel axis',
+    () async {
+      await expectLater(
+        _decodeNativeResize(
+          width: 1,
+          height: null,
+          imageBytes: _testPng100x1,
+          policy: ResizeImagePolicy.fit,
+        ),
+        throwsA(anything),
+        reason: 'the pinned native debug codec rejects fit 100x1 -> 1x0',
+      );
+      await expectLater(
+        _decodeNativeResize(
+          width: null,
+          height: 1,
+          imageBytes: _testPng1x100,
+          policy: ResizeImagePolicy.fit,
+        ),
+        throwsA(anything),
+        reason: 'the pinned native debug codec rejects fit 1x100 -> 0x1',
+      );
+      for (final hostProfile in const {
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      }) {
+        expect(
+          await _admitsResizeCenterSlice(
+            hostProfile: hostProfile,
+            imageBytes: _testPng100x1,
+            pixelWidth: 100,
+            pixelHeight: 1,
+            resizeWidth: 1,
+            resizePolicy: 'fit',
+            centerSliceRight: 1,
+            centerSliceBottom: 0.5,
+          ),
+          isFalse,
+          reason:
+              '$hostProfile must mirror Flutter fit 100x1 -> 1x0 instead of '
+              'inventing a valid 1x1 decode',
+        );
+        expect(
+          await _admitsResizeCenterSlice(
+            hostProfile: hostProfile,
+            imageBytes: _testPng1x100,
+            pixelWidth: 1,
+            pixelHeight: 100,
+            resizeHeight: 1,
+            resizePolicy: 'fit',
+            centerSliceRight: 0.5,
+            centerSliceBottom: 1,
+          ),
+          isFalse,
+          reason:
+              '$hostProfile must mirror Flutter fit 1x100 -> 0x1 instead of '
+              'inventing a valid 1x1 decode',
+        );
+      }
+    },
+  );
+
+  test(
+    'quarantines authenticated image content and paint-configuration failures',
+    () async {
+      final valid = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      final cases =
+          <
+            ({
+              String reason,
+              _TestImageResource image,
+              Map<String, Object?>? centerSlice,
+              Map<String, Object?>? resize,
+              CanvasImageResourceRejectionKind rejectionKind,
+            })
+          >[
+            (
+              reason: 'header-only PNG must fail its full Flutter decode',
+              image: _TestImageResource(
+                bytes: Uint8List.fromList(_testPng8.sublist(0, 24)),
+                pixelWidth: 8,
+                pixelHeight: 8,
+              ),
+              centerSlice: null,
+              resize: null,
+              rejectionKind: CanvasImageResourceRejectionKind.encodedContent,
+            ),
+            (
+              reason: 'encoded bytes must match their declared media type',
+              image: _TestImageResource(
+                bytes: _testPng8,
+                pixelWidth: 8,
+                pixelHeight: 8,
+                mediaType: 'image/jpeg',
+              ),
+              centerSlice: null,
+              resize: null,
+              rejectionKind: CanvasImageResourceRejectionKind.encodedContent,
+            ),
+            (
+              reason: 'decoded dimensions must match the descriptor',
+              image: _TestImageResource(
+                bytes: _testPng8,
+                pixelWidth: 7,
+                pixelHeight: 8,
+              ),
+              centerSlice: null,
+              resize: null,
+              rejectionKind: CanvasImageResourceRejectionKind.encodedContent,
+            ),
+            (
+              reason: 'centerSlice must fit decoded logical pixels',
+              image: valid,
+              centerSlice: {'left': 0, 'top': 0, 'right': 5, 'bottom': 2},
+              resize: null,
+              rejectionKind:
+                  CanvasImageResourceRejectionKind.centerSliceOutOfBounds,
+            ),
+            (
+              reason:
+                  'fit resize must reject Flutter\'s derived zero-pixel axis',
+              image: _TestImageResource(
+                bytes: _testPng100x1,
+                pixelWidth: 100,
+                pixelHeight: 1,
+              ),
+              centerSlice: null,
+              resize: {
+                'width': 1,
+                'height': null,
+                'policy': 'fit',
+                'allowUpscaling': false,
+              },
+              rejectionKind:
+                  CanvasImageResourceRejectionKind.invalidResizeTarget,
+            ),
+          ];
+
+      for (final testCase in cases) {
+        final input = StreamController<List<int>>();
+        final output = <List<int>>[];
+        final diagnostics = <String>[];
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (bytes) => output.add(List<int>.from(bytes)),
+          flush: () async {},
+          diagnostic: diagnostics.add,
+        );
+        final model = _imageContainerModel(
+          resolution: {
+            'kind': 'resolved',
+            'resourceId': testCase.image.resourceId,
+            'resolvedScale': 2,
+          },
+          centerSlice: testCase.centerSlice,
+          resize: testCase.resize,
+        );
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(
+            nbfcControlJson,
+            utf8.encode(jsonEncode(_hello(imageBytes: true))),
+          ),
+        );
+        _addRender(input, model, images: [testCase.image]);
+        await _waitUntil(() => runtime.model != null || runtime.closed);
+
+        expect(runtime.closed, isFalse, reason: testCase.reason);
+        expect(runtime.model, isNotNull, reason: testCase.reason);
+        expect(runtime.imageResources.declaredResourceIds, {
+          testCase.image.resourceId,
+        }, reason: testCase.reason);
+        expect(
+          runtime.imageResources[testCase.image.resourceId],
+          isNull,
+          reason: testCase.reason,
+        );
+        final rejection = runtime.imageResources.rejection(
+          testCase.image.resourceId,
+        );
+        expect(rejection, isNotNull, reason: testCase.reason);
+        expect(rejection!.code, 'corrupt', reason: testCase.reason);
+        expect(rejection.kind, testCase.rejectionKind, reason: testCase.reason);
+        expect(
+          rejection.reason,
+          testCase.rejectionKind.reason,
+          reason: testCase.reason,
+        );
+        runtime.completePendingLayoutForTesting();
+        expect(runtime.presentedLayoutSequence, 0, reason: testCase.reason);
+
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+        );
+        await input.close();
+        await running;
+        expect(diagnostics, isEmpty, reason: testCase.reason);
+        final messages = _decodeControlMessages(output);
+        expect(
+          messages.where((message) => message['type'] == 'runner.presented'),
+          hasLength(1),
+          reason: testCase.reason,
+        );
+        expect(
+          messages.where((message) => message['type'] == 'runner.failure'),
+          isEmpty,
+          reason: testCase.reason,
+        );
+      }
+    },
+  );
+
+  test(
+    'admits and replays a mixed valid and corrupt image revision atomically',
+    () async {
+      final valid = _TestImageResource(
+        bytes: _testPng4,
+        pixelWidth: 4,
+        pixelHeight: 4,
+      );
+      final corrupt = _TestImageResource(
+        bytes: Uint8List.fromList(_testPng8.sublist(0, 24)),
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      final model = _withForegroundImage(
+        _imageContainerModel(
+          resolution: {
+            'kind': 'resolved',
+            'resourceId': valid.resourceId,
+            'resolvedScale': 1,
+          },
+        ),
+        resolution: {
+          'kind': 'resolved',
+          'resourceId': corrupt.resourceId,
+          'resolvedScale': 1,
+        },
+        centerSlice: {'left': 1, 'top': 1, 'right': 3, 'bottom': 3},
+      );
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final diagnostics = <String>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: diagnostics.add,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(jsonEncode(_hello(imageBytes: true))),
+        ),
+      );
+      _addRender(input, model, images: [valid, corrupt]);
+      await _waitUntil(() => runtime.model != null || runtime.closed);
+
+      expect(runtime.closed, isFalse);
+      expect(runtime.model!.imageResourceIds, {
+        valid.resourceId,
+        corrupt.resourceId,
+      });
+      expect(runtime.imageResources[valid.resourceId], isNotNull);
+      expect(runtime.imageResources[corrupt.resourceId], isNull);
+      expect(runtime.imageResources.rejection(corrupt.resourceId), isNotNull);
+      runtime.completePendingLayoutForTesting();
+      expect(runtime.presentedLayoutSequence, 0);
+
+      _addRender(input, model, images: [valid, corrupt]);
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+      );
+      await input.close();
+      await running;
+
+      expect(diagnostics, isEmpty);
+      final messages = _decodeControlMessages(output);
+      expect(
+        messages.where((message) => message['type'] == 'runner.failure'),
+        isEmpty,
+      );
+      expect(
+        messages.where((message) => message['type'] == 'runner.presented'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('fails closed on every non-canonical image framing boundary', () async {
+    final valid = _TestImageResource(
+      bytes: _testPng8,
+      pixelWidth: 8,
+      pixelHeight: 8,
+    );
+    final other = _TestImageResource(
+      bytes: _testPng4,
+      pixelWidth: 4,
+      pixelHeight: 4,
+    );
+
+    Future<void> rejects({
+      required String reason,
+      required _TestImageResource modelImage,
+      required List<_TestImageResource> frames,
+      bool capability = true,
+      bool sortImages = true,
+      int maxEncodedImageBytes = 16777216,
+    }) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final diagnostics = <String>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: diagnostics.add,
+      );
+      final model = _imageContainerModel(
+        resolution: {
+          'kind': 'resolved',
+          'resourceId': modelImage.resourceId,
+          'resolvedScale': 2,
+        },
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(
+          nbfcControlJson,
+          utf8.encode(
+            jsonEncode(
+              _hello(
+                imageBytes: capability,
+                maxEncodedImageBytes: maxEncodedImageBytes,
+              ),
+            ),
+          ),
+        ),
+      );
+      _addRender(input, model, images: frames, sortImages: sortImages);
+      await input.close();
+      await running;
+
+      expect(runtime.closed, isTrue, reason: reason);
+      expect(runtime.model, isNull, reason: reason);
+      expect(runtime.imageResources.isEmpty, isTrue, reason: reason);
+      expect(diagnostics, isNotEmpty, reason: reason);
+      expect(
+        _decodeControlMessages(output).last['type'],
+        'runner.failure',
+        reason: reason,
+      );
+    }
+
+    await rejects(
+      reason: 'capability must be negotiated',
+      modelImage: valid,
+      frames: [valid],
+      capability: false,
+    );
+    await rejects(
+      reason: 'descriptors must be sorted',
+      modelImage: valid,
+      frames: [valid, other],
+      sortImages: false,
+    );
+    await rejects(
+      reason: 'aggregate and per-frame bound is negotiated',
+      modelImage: valid,
+      frames: [valid],
+      maxEncodedImageBytes: valid.bytes.length - 1,
+    );
+    await rejects(
+      reason: 'unreferenced descriptors are rejected',
+      modelImage: valid,
+      frames: [valid, other],
+    );
+  });
+
   test('does not replace a newer model with a stale presentation', () async {
     final input = StreamController<List<int>>();
     final output = <List<int>>[];
@@ -2678,8 +3253,238 @@ Map<String, Object?>? _findNodeByType(Map<String, Object?> node, String type) {
   return null;
 }
 
-void _addRender(StreamController<List<int>> input, Uint8List model) {
+final Uint8List _testPng8 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/'
+  'j6/OV/ZHzWzg8FM9BBAboAugY6KAAAyITDgZYboFoAAAAASUVORK5CYII=',
+);
+
+final Uint8List _testPng4 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAASSURBVBhXY5Dr'
+  'ePofGTOQLgAATc8oocRj8pEAAAAASUVORK5CYII=',
+);
+
+final Uint8List _testPng4x3 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAYAAAC09K7GAAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAvSURBVBhXFcgx'
+  'EQBACMTA04QSRCAkKqhxmp/fcpNgBSe4waSxGqdx+8dhHc7hHj4/ZRk5KklW1gAA'
+  'AABJRU5ErkJggg==',
+);
+
+final Uint8List _testPng100x1 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAGQAAAABCAYAAAAo2wu9AAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAARSURBVChTYxAJ'
+  'WPB/FA8eDAAAaMktLwjfZwAAAABJRU5ErkJggg==',
+);
+
+final Uint8List _testPng1x100 = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAASSURBVChTYxAJ'
+  'WPCfYZQYSQQA6QfJLYS6M/cAAAAASUVORK5CYII=',
+);
+
+Future<(int, int)> _decodeNativeResize({
+  required int? width,
+  required int? height,
+  Uint8List? imageBytes,
+  ResizeImagePolicy policy = ResizeImagePolicy.exact,
+  bool allowUpscaling = false,
+}) async {
+  final provider = ResizeImage(
+    MemoryImage(imageBytes ?? _testPng4x3),
+    width: width,
+    height: height,
+    policy: policy,
+    allowUpscaling: allowUpscaling,
+  );
+  final stream = provider.resolve(ImageConfiguration.empty);
+  final decoded = Completer<(int, int)>();
+  late final ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (image, synchronousCall) {
+      if (!decoded.isCompleted) {
+        decoded.complete((image.image.width, image.image.height));
+      }
+    },
+    onError: (Object error, StackTrace? stackTrace) {
+      if (!decoded.isCompleted) {
+        decoded.completeError(error, stackTrace);
+      }
+    },
+  );
+  stream.addListener(listener);
+  try {
+    return await decoded.future.timeout(const Duration(seconds: 5));
+  } finally {
+    stream.removeListener(listener);
+  }
+}
+
+Future<bool> _admitsResizeCenterSlice({
+  required CanvasRuntimeHostProfile hostProfile,
+  Uint8List? imageBytes,
+  int pixelWidth = 4,
+  int pixelHeight = 3,
+  int? resizeWidth,
+  int? resizeHeight,
+  String resizePolicy = 'exact',
+  bool allowUpscaling = false,
+  required num centerSliceRight,
+  required num centerSliceBottom,
+}) async {
+  final input = StreamController<List<int>>();
+  final output = <List<int>>[];
+  final diagnostics = <String>[];
+  final runtime = CanvasRuntimeController(
+    input: input.stream,
+    output: (bytes) => output.add(List<int>.from(bytes)),
+    flush: () async {},
+    diagnostic: diagnostics.add,
+    hostProfile: hostProfile,
+  );
+  final image = _TestImageResource(
+    bytes: imageBytes ?? _testPng4x3,
+    pixelWidth: pixelWidth,
+    pixelHeight: pixelHeight,
+  );
+  final model = _imageContainerModel(
+    resolution: {
+      'kind': 'resolved',
+      'resourceId': image.resourceId,
+      'resolvedScale': 1,
+    },
+    resize: {
+      'width': resizeWidth,
+      'height': resizeHeight,
+      'policy': resizePolicy,
+      'allowUpscaling': allowUpscaling,
+    },
+    centerSlice: {
+      'left': 0,
+      'top': 0,
+      'right': centerSliceRight,
+      'bottom': centerSliceBottom,
+    },
+  );
+
+  final running = runtime.start();
+  input.add(
+    encodeNbfcFrame(
+      nbfcControlJson,
+      utf8.encode(jsonEncode(_hello(imageBytes: true))),
+    ),
+  );
+  _addRender(input, model, images: [image]);
+  input.add(
+    encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+  );
+  await input.close();
+  await running;
+  return diagnostics.isEmpty &&
+      runtime.model != null &&
+      runtime.imageResources[image.resourceId] != null;
+}
+
+Uint8List _imageContainerModel({
+  required Map<String, Object?> resolution,
+  Map<String, Object?>? centerSlice,
+  Map<String, Object?>? resize,
+  num decorationScale = 1,
+}) {
+  final model =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': 'b98f48b3-7d54-4d10-88d2-651d5610961a',
+    'type': 'flutter.widgets.Container',
+    'properties': <String, Object?>{
+      'width': {'kind': 'double', 'value': 120},
+      'height': {'kind': 'double', 'value': 80},
+      'decoration': {
+        'kind': 'boxDecoration',
+        'color': null,
+        'image': {
+          'image': {
+            'kind': 'asset',
+            'assetName': 'assets/images/panel.png',
+            'packageName': null,
+            'exactScale': null,
+            'resize': resize,
+            'resolution': resolution,
+          },
+          'onError': true,
+          'colorFilter': null,
+          'fit': centerSlice == null ? 'contain' : 'fill',
+          'alignment': {
+            'basis': 'directional',
+            'horizontal': -1,
+            'vertical': 0,
+          },
+          'centerSlice': centerSlice,
+          'repeat': 'noRepeat',
+          'matchTextDirection': true,
+          'scale': decorationScale,
+          'opacity': 0.8,
+          'filterQuality': 'high',
+          'invertColors': false,
+          'isAntiAlias': true,
+        },
+        'border': null,
+        'borderRadius': null,
+        'boxShadow': <Object?>[],
+        'gradient': null,
+        'backgroundBlendMode': null,
+        'shape': 'rectangle',
+      },
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+Uint8List _withForegroundImage(
+  Uint8List modelBytes, {
+  required Map<String, Object?> resolution,
+  Map<String, Object?>? centerSlice,
+}) {
+  final model = jsonDecode(utf8.decode(modelBytes)) as Map<String, Object?>;
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final child = body['child']! as Map<String, Object?>;
+  final properties = child['properties']! as Map<String, Object?>;
+  final foreground =
+      jsonDecode(jsonEncode(properties['decoration'])) as Map<String, Object?>;
+  final image = foreground['image']! as Map<String, Object?>;
+  final provider = image['image']! as Map<String, Object?>;
+  provider['assetName'] = 'assets/images/foreground.png';
+  provider['resolution'] = resolution;
+  image['centerSlice'] = centerSlice;
+  image['fit'] = centerSlice == null ? 'contain' : 'fill';
+  properties['foregroundDecoration'] = foreground;
+  return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+void _addRender(
+  StreamController<List<int>> input,
+  Uint8List model, {
+  List<_TestImageResource> images = const [],
+  bool sortImages = true,
+}) {
   final json = jsonDecode(utf8.decode(model)) as Map<String, Object?>;
+  final orderedImages = List<_TestImageResource>.from(images);
+  orderedImages.sort(
+    (left, right) => left.resourceId.compareTo(right.resourceId),
+  );
+  if (!sortImages) {
+    orderedImages.setAll(0, orderedImages.reversed.toList());
+  }
   final body = <String, Object?>{
     'presentationSequence': json['presentationSequence'],
     'documentId': json['documentId'],
@@ -2689,6 +3494,18 @@ void _addRender(StreamController<List<int>> input, Uint8List model) {
       'payloadBytes': model.length,
       'sha256': sha256Hex(model),
     },
+    'images': <Object?>[
+      for (final image in orderedImages)
+        {
+          'resourceId': image.resourceId,
+          'kind': 'image.bytes',
+          'mediaType': image.mediaType,
+          'pixelWidth': image.pixelWidth,
+          'pixelHeight': image.pixelHeight,
+          'payloadBytes': image.bytes.length,
+          'sha256': image.resourceId,
+        },
+    ],
   };
   final control = <String, Object?>{
     'format': 'netbeans-flutter-canvas-runtime',
@@ -2699,6 +3516,25 @@ void _addRender(StreamController<List<int>> input, Uint8List model) {
   };
   input.add(encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(control))));
   input.add(encodeNbfcFrame(nbfcModelJson, model));
+  for (final image in orderedImages) {
+    input.add(encodeNbfcFrame(nbfcImageBytes, image.bytes));
+  }
+}
+
+class _TestImageResource {
+  _TestImageResource({
+    required this.bytes,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    this.mediaType = 'image/png',
+  });
+
+  final Uint8List bytes;
+  final int pixelWidth;
+  final int pixelHeight;
+  final String mediaType;
+
+  String get resourceId => sha256Hex(bytes);
 }
 
 List<Map<String, Object?>> _decodeControlMessages(List<List<int>> output) {
@@ -2722,7 +3558,9 @@ Map<String, Object?> _hello({
   bool viewport = false,
   bool widgetMovePreview = false,
   bool surfacePresentation = false,
+  bool imageBytes = false,
   bool sourceAwarePaletteDrop = true,
+  int maxEncodedImageBytes = 16777216,
 }) => {
   'format': 'netbeans-flutter-canvas-wire',
   'protocolVersion': 1,
@@ -2742,13 +3580,14 @@ Map<String, Object?> _hello({
       if (widgetMovePreview) 'widget.movePreview.v1',
       if (viewport) 'viewport.presentation.v1',
       if (surfacePresentation) 'surface.presentation.v1',
+      if (imageBytes) 'asset.imageBytes.v1',
     ],
     'offeredLimits': {
       'maxControlMessageBytes': 262144,
       'maxModelBytes': 16777216,
       'maxCatalogBytes': 4194304,
       'maxLayoutBytes': 8388608,
-      'maxEncodedImageBytes': 16777216,
+      'maxEncodedImageBytes': maxEncodedImageBytes,
       'maxPhysicalDimension': 4096,
       'maxPhysicalPixels': 8388608,
     },

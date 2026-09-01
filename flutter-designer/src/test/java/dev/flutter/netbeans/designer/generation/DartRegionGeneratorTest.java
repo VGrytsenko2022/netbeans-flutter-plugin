@@ -762,6 +762,176 @@ class DartRegionGeneratorTest {
         assertFalse(build.contains("DecorationImage"), build);
     }
 
+    @Test
+    void emitsCompleteTypedDecorationImageAndDiscoversModeThemeColor() {
+        PropertyValue.ImageProviderValue provider =
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                        "assets/images/logo.png",
+                        Optional.of("reviewed_icons"),
+                        Optional.of(new BigDecimal("2")),
+                        Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                                Optional.of(512), Optional.of(256),
+                                PropertyValue.ImageProviderValue.ResizePolicy.FIT,
+                                true)));
+        PropertyValue.DecorationImageValue image =
+                new PropertyValue.DecorationImageValue(
+                        provider,
+                        Optional.of(new PropertyValue.CallbackValue("onImageError")),
+                        Optional.of(new PropertyValue.DecorationImageValue.Mode(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.primary")),
+                                PropertyValue.PaintValue.BlendMode.SRC_IN)),
+                        Optional.of(PropertyValue.DecorationImageValue.BoxFit.CONTAIN),
+                        alignment(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                                "0.25", "-0.5"),
+                        Optional.of(new PropertyValue.DecorationImageValue.Rect(
+                                BigDecimal.ONE, BigDecimal.TWO,
+                                new BigDecimal("20"), new BigDecimal("30"))),
+                        PropertyValue.DecorationImageValue.ImageRepeat.REPEAT_X,
+                        true,
+                        new BigDecimal("1.5"),
+                        new BigDecimal("0.75"),
+                        PropertyValue.PaintValue.FilterQuality.HIGH,
+                        true,
+                        true);
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(new ColorSource.Literal(0xFF010203L)),
+                        Optional.of(image),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Container"),
+                Map.of(property("decoration"), decoration),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/material.dart';\n",
+                generated.imports().payload());
+        String build = generated.build().payload();
+        for (String expected : List.of(
+                "decoration: BoxDecoration(",
+                "color: const Color(0xFF010203)",
+                "image: DecorationImage(",
+                "const ResizeImage(const ExactAssetImage('assets/images/logo.png', "
+                        + "scale: 2.0, package: 'reviewed_icons')",
+                "width: 512",
+                "height: 256",
+                "policy: ResizeImagePolicy.fit",
+                "allowUpscaling: true",
+                "onError: onImageError",
+                "colorFilter: ColorFilter.mode("
+                        + "Theme.of(context).colorScheme.primary, BlendMode.srcIn)",
+                "fit: BoxFit.contain",
+                "alignment: const AlignmentDirectional(0.25, -0.5)",
+                "centerSlice: const Rect.fromLTRB(1.0, 2.0, 20.0, 30.0)",
+                "repeat: ImageRepeat.repeatX",
+                "matchTextDirection: true",
+                "scale: 1.5",
+                "opacity: 0.75",
+                "filterQuality: FilterQuality.high",
+                "invertColors: true",
+                "isAntiAlias: true",
+                "shape: BoxShape.rectangle")) {
+            assertTrue(build.contains(expected), () -> expected + "\n" + build);
+        }
+        assertTrue(build.indexOf("color: const Color") < build.indexOf("image: DecorationImage"));
+        assertFalse(build.contains("decoration: const BoxDecoration"), build);
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("ExactAssetImage")));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("ResizeImage")));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("DecorationImage")));
+    }
+
+    @Test
+    void emitsEveryDecorationColorFilterWithPinnedConstSemantics() {
+        List<BigDecimal> matrix = java.util.stream.IntStream.range(0, 20)
+                .mapToObj(BigDecimal::valueOf)
+                .toList();
+        Map<PropertyValue.DecorationImageValue.ColorFilter, String> expected =
+                new LinkedHashMap<>();
+        expected.put(new PropertyValue.DecorationImageValue.Mode(
+                        new ColorSource.Literal(0xFFAABBCCL),
+                        PropertyValue.PaintValue.BlendMode.MULTIPLY),
+                "const ColorFilter.mode(const Color(0xFFAABBCC), BlendMode.multiply)");
+        expected.put(new PropertyValue.DecorationImageValue.Matrix(matrix),
+                "const ColorFilter.matrix(const <double>[0.0, 1.0, 2.0");
+        expected.put(new PropertyValue.DecorationImageValue.LinearToSrgbGamma(),
+                "const ColorFilter.linearToSrgbGamma()");
+        expected.put(new PropertyValue.DecorationImageValue.SrgbToLinearGamma(),
+                "const ColorFilter.srgbToLinearGamma()");
+        expected.put(new PropertyValue.DecorationImageValue.Saturation(
+                        new BigDecimal("0.5")),
+                "ColorFilter.saturation(0.5)");
+
+        for (Map.Entry<PropertyValue.DecorationImageValue.ColorFilter, String> entry
+                : expected.entrySet()) {
+            String build = generatedDecoration(entry.getKey());
+            assertTrue(build.contains(entry.getValue()),
+                    () -> entry.getValue() + "\n" + build);
+            if (entry.getKey() instanceof PropertyValue.DecorationImageValue.Saturation) {
+                assertFalse(build.contains("decoration: const BoxDecoration"), build);
+                assertFalse(build.contains("image: const DecorationImage"), build);
+            } else {
+                assertTrue(build.contains("decoration: const BoxDecoration"), build);
+                assertTrue(build.contains("image: const DecorationImage"), build);
+            }
+            assertFalse(build.contains("Theme.of(context)"), build);
+        }
+    }
+
+    private static String generatedDecoration(
+            PropertyValue.DecorationImageValue.ColorFilter filter) {
+        PropertyValue.DecorationImageValue image =
+                new PropertyValue.DecorationImageValue(
+                        PropertyValue.ImageProviderValue.asset("assets/logo.png"),
+                        Optional.empty(),
+                        Optional.of(filter),
+                        Optional.empty(),
+                        alignment(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                "0", "0"),
+                        Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false,
+                        BigDecimal.ONE,
+                        BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                        false,
+                        false);
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(), Optional.of(image), Optional.empty(),
+                        Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Container"),
+                Map.of(property("decoration"), decoration),
+                Map.of(),
+                Extensions.empty());
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        return result.generated().orElseThrow().build().payload();
+    }
+
     private static PropertyValue.AlignmentGeometryValue alignment(
             PropertyValue.AlignmentGeometryValue.HorizontalBasis basis,
             String horizontal,

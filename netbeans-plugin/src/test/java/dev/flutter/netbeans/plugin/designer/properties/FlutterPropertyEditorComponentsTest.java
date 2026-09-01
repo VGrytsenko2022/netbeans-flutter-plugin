@@ -445,6 +445,199 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void decorationImageUsesDeclaredTypedChoicesAndCommitsEveryDependentDomain()
+            throws Exception {
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.empty(),
+                                "assets/background.png",
+                                "App: assets/background.png"),
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.of("ui_kit"),
+                                "assets/panel.webp",
+                                "Package ui_kit: assets/panel.webp")),
+                java.util.Optional.empty());
+        PropertyEditor editor = decorationEditor(decoration(
+                java.util.Optional.empty(), java.util.Optional.empty()));
+        FeatureDescriptor descriptor = descriptor(
+                "Decoration", "Typed Container DecorationImage editor.");
+        descriptor.setValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE, choices);
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTabbedPane tabs = findNamed(panel, JTabbedPane.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_TABS_NAME);
+            assertNotNull(tabs);
+            assertTrue(tabs.getAccessibleContext().getAccessibleDescription()
+                    .contains("image"));
+            Component imagePanel = tabs.getComponentAt(tabs.indexOfTab("Image"));
+            JCheckBox enabled = findNamed(
+                    imagePanel,
+                    JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_ENABLED_NAME);
+            JComboBox<?> asset = findNamed(
+                    imagePanel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_ASSET_NAME);
+            JComboBox<?> provider = findNamed(
+                    imagePanel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_PROVIDER_NAME);
+            JComboBox<?> colorFilter = findNamed(
+                    imagePanel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_FILTER_NAME);
+            assertNotNull(enabled);
+            assertNotNull(asset);
+            assertNotNull(provider);
+            assertNotNull(colorFilter);
+            assertEquals(2, asset.getItemCount());
+            assertFalse(asset.isEditable(),
+                    "arbitrary asset paths must not be accepted");
+            assertEquals("ExactAssetImage", assertInstanceOf(
+                    JLabel.class,
+                    renderedComboCell(
+                            provider,
+                            PropertyValue.ImageProviderValue.ProviderKind
+                                    .EXACT_ASSET)).getText());
+            assertFalse(enabled.isSelected());
+            assertFalse(asset.isEnabled());
+
+            enabled.doClick();
+            asset.setSelectedIndex(1);
+            provider.setSelectedItem(
+                    PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
+            JTextField exactScale = findAccessibleName(
+                    imagePanel, JTextField.class, "ExactAssetImage scale");
+            assertNotNull(exactScale);
+            assertTrue(exactScale.isEnabled());
+            exactScale.setText("2");
+
+            JCheckBox resize = findByText(
+                    imagePanel, JCheckBox.class, "Wrap with ResizeImage");
+            JTextField resizeWidth = findAccessibleName(
+                    imagePanel, JTextField.class, "ResizeImage cache width");
+            JComboBox<?> resizePolicy = findAccessibleName(
+                    imagePanel, JComboBox.class, "ResizeImage policy");
+            assertNotNull(resize);
+            assertNotNull(resizeWidth);
+            assertNotNull(resizePolicy);
+            resize.doClick();
+            resizeWidth.setText("320");
+            resizePolicy.setSelectedItem(
+                    PropertyValue.ImageProviderValue.ResizePolicy.FIT);
+            findByText(imagePanel, JCheckBox.class, "Allow upscaling").doClick();
+
+            JCheckBox onError = findByText(
+                    imagePanel,
+                    JCheckBox.class,
+                    "Use typed image-error handler");
+            JTextField handler = findAccessibleName(
+                    imagePanel,
+                    JTextField.class,
+                    "Typed image error handler identifier");
+            onError.doClick();
+            handler.setText("_handleDecorationImageError");
+
+            colorFilter.setSelectedItem("Saturation");
+            findAccessibleName(
+                    imagePanel,
+                    JTextField.class,
+                    "ColorFilter saturation amount").setText("0.75");
+            JComboBox<?> fit = findAccessibleName(
+                    imagePanel, JComboBox.class, "DecorationImage BoxFit");
+            JCheckBox centerSlice = findByText(
+                    imagePanel,
+                    JCheckBox.class,
+                    "Use center slice (nine-patch)");
+            fit.setSelectedItem("cover");
+            centerSlice.doClick();
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState(),
+                    "centerSlice must fail closed for BoxFit.cover");
+            fit.setSelectedItem("contain");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+
+            findAccessibleName(
+                    imagePanel,
+                    JTextField.class,
+                    "DecorationImage paint scale").setText("1.25");
+            findAccessibleName(
+                    imagePanel,
+                    JTextField.class,
+                    "DecorationImage opacity").setText("0.6");
+            findAccessibleName(
+                    imagePanel,
+                    JComboBox.class,
+                    "DecorationImage repeat").setSelectedItem(
+                            PropertyValue.DecorationImageValue.ImageRepeat.REPEAT_X);
+            findAccessibleName(
+                    imagePanel,
+                    JComboBox.class,
+                    "DecorationImage filter quality").setSelectedItem(
+                            PropertyValue.PaintValue.FilterQuality.HIGH);
+            findByText(
+                    imagePanel,
+                    JCheckBox.class,
+                    "Mirror for text direction").doClick();
+            findByText(
+                    imagePanel,
+                    JCheckBox.class,
+                    "Invert colors").doClick();
+            findByText(
+                    imagePanel,
+                    JCheckBox.class,
+                    "Anti-alias image edges").doClick();
+
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.DecorationImageValue committed =
+                    committedDecoration(editor).image().orElseThrow();
+            assertEquals(
+                    PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                    committed.image().providerKind());
+            assertEquals("assets/panel.webp", committed.image().assetName());
+            assertEquals(java.util.Optional.of("ui_kit"),
+                    committed.image().packageName());
+            assertEquals(java.util.Optional.of(new BigDecimal("2")),
+                    committed.image().exactScale());
+            var committedResize = committed.image().resize().orElseThrow();
+            assertEquals(java.util.Optional.of(320), committedResize.width());
+            assertEquals(java.util.Optional.empty(), committedResize.height());
+            assertEquals(PropertyValue.ImageProviderValue.ResizePolicy.FIT,
+                    committedResize.policy());
+            assertTrue(committedResize.allowUpscaling());
+            assertEquals("_handleDecorationImageError",
+                    committed.onError().orElseThrow().handler());
+            assertEquals(new BigDecimal("0.75"), assertInstanceOf(
+                    PropertyValue.DecorationImageValue.Saturation.class,
+                    committed.colorFilter().orElseThrow()).value());
+            assertEquals(java.util.Optional.of(
+                    PropertyValue.DecorationImageValue.BoxFit.CONTAIN),
+                    committed.fit());
+            assertTrue(committed.centerSlice().isPresent());
+            assertEquals(PropertyValue.DecorationImageValue.ImageRepeat.REPEAT_X,
+                    committed.repeat());
+            assertTrue(committed.matchTextDirection());
+            assertEquals(new BigDecimal("1.25"), committed.scale());
+            assertEquals(new BigDecimal("0.6"), committed.opacity());
+            assertEquals(PropertyValue.PaintValue.FilterQuality.HIGH,
+                    committed.filterQuality());
+            assertTrue(committed.invertColors());
+            assertTrue(committed.isAntiAlias());
+            return null;
+        });
+    }
+
+    @Test
     void realNetBeansPropertyPanelInstallsTheTriStateCheckbox()
             throws Exception {
         WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
@@ -1831,6 +2024,15 @@ class FlutterPropertyEditorComponentsTest {
         javax.swing.ListCellRenderer renderer = list.getCellRenderer();
         return renderer.getListCellRendererComponent(
                 list, value, 0, false, false);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Component renderedComboCell(
+            JComboBox<?> combo,
+            Object value) {
+        javax.swing.ListCellRenderer renderer = combo.getRenderer();
+        return renderer.getListCellRendererComponent(
+                new JList<>(), value, 0, false, false);
     }
 
     private static <T extends Component> T findFirst(

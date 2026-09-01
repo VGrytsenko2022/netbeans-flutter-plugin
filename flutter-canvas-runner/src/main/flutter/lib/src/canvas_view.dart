@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -15,6 +16,35 @@ bool _ignoreInlineTextCommit(
   String text,
   bool compositionObserved,
 ) => false;
+
+final Uint8List _unavailableImageBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA'
+  'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/'
+  'j6/OV/ZHzWzg8FM9BBAboAugY6KAAAyITDgZYboFoAAAAASUVORK5CYII=',
+);
+
+TextDirection _canvasTextDirection(String locale) {
+  final language = locale.split(RegExp('[-_]')).first.toLowerCase();
+  return const {
+        'ar',
+        'arc',
+        'ckb',
+        'dv',
+        'fa',
+        'he',
+        'ks',
+        'ku',
+        'nqo',
+        'ps',
+        'sd',
+        'syr',
+        'ug',
+        'ur',
+        'yi',
+      }.contains(language)
+      ? TextDirection.rtl
+      : TextDirection.ltr;
+}
 
 class NativeCanvasApp extends StatelessWidget {
   const NativeCanvasApp({required this.runtime, super.key});
@@ -43,6 +73,8 @@ class NativeCanvasApp extends StatelessWidget {
         }
         return CanvasModelApp(
           model: model,
+          imageResources: runtime.imageResources,
+          onImageError: runtime.reportImageRenderError,
           selectedWidgetId: runtime.selectedWidgetId,
           onSelected: runtime.selectFromCanvas,
           onInteraction: runtime.interactFromCanvas,
@@ -71,6 +103,8 @@ class CanvasModelApp extends StatelessWidget {
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.imageResources,
+    this.onImageError,
     this.onInteraction,
     this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
@@ -89,6 +123,8 @@ class CanvasModelApp extends StatelessWidget {
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final CanvasImageResourceBundle? imageResources;
+  final CanvasImageErrorReporter? onImageError;
   final VoidCallback? onInteraction;
   final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
@@ -110,22 +146,27 @@ class CanvasModelApp extends StatelessWidget {
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
       theme: _theme(model.profile, Brightness.light),
       darkTheme: _theme(model.profile, Brightness.dark),
-      home: CanvasDocumentView(
-        model: model,
-        selectedWidgetId: selectedWidgetId,
-        onSelected: onSelected,
-        onInteraction: onInteraction,
-        interactionInputSynchronized: interactionInputSynchronized,
-        onDeleteSelected: onDeleteSelected,
-        inlineTextEditEnabled: inlineTextEditEnabled,
-        onInlineTextCommit: onInlineTextCommit,
-        dropHoverTarget: dropHoverTarget,
-        dropIndicatorKind: dropIndicatorKind,
-        onDropResolverChanged: onDropResolverChanged,
-        onMovePreviewResolverChanged: onMovePreviewResolverChanged,
-        viewportPresentation: viewportPresentation,
-        onViewportPresentationChanged: onViewportPresentationChanged,
-        onViewportMetricsChanged: onViewportMetricsChanged,
+      home: Directionality(
+        textDirection: _canvasTextDirection(model.profile.locale),
+        child: CanvasDocumentView(
+          model: model,
+          imageResources: imageResources,
+          onImageError: onImageError,
+          selectedWidgetId: selectedWidgetId,
+          onSelected: onSelected,
+          onInteraction: onInteraction,
+          interactionInputSynchronized: interactionInputSynchronized,
+          onDeleteSelected: onDeleteSelected,
+          inlineTextEditEnabled: inlineTextEditEnabled,
+          onInlineTextCommit: onInlineTextCommit,
+          dropHoverTarget: dropHoverTarget,
+          dropIndicatorKind: dropIndicatorKind,
+          onDropResolverChanged: onDropResolverChanged,
+          onMovePreviewResolverChanged: onMovePreviewResolverChanged,
+          viewportPresentation: viewportPresentation,
+          onViewportPresentationChanged: onViewportPresentationChanged,
+          onViewportMetricsChanged: onViewportMetricsChanged,
+        ),
       ),
     );
   }
@@ -136,6 +177,8 @@ class CanvasDocumentView extends StatefulWidget {
     required this.model,
     required this.selectedWidgetId,
     required this.onSelected,
+    this.imageResources,
+    this.onImageError,
     this.onInteraction,
     this.interactionInputSynchronized = true,
     this.onDeleteSelected = _ignoreDeleteSelected,
@@ -154,6 +197,8 @@ class CanvasDocumentView extends StatefulWidget {
   final CanvasModel model;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
+  final CanvasImageResourceBundle? imageResources;
+  final CanvasImageErrorReporter? onImageError;
   final VoidCallback? onInteraction;
   final bool interactionInputSynchronized;
   final bool Function() onDeleteSelected;
@@ -308,6 +353,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                             child: ClipRect(
                               child: _CanvasNodeView(
                                 node: widget.model.root,
+                                imageResources:
+                                    widget.imageResources ??
+                                    CanvasImageResourceBundle.empty,
+                                onImageError: widget.onImageError,
                                 selectedWidgetId: widget.selectedWidgetId,
                                 onSelected: _selectWidget,
                                 nodeKey: _nodeKey,
@@ -1658,6 +1707,8 @@ class _InlineTextEditSession {
 class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
+    required this.imageResources,
+    required this.onImageError,
     required this.selectedWidgetId,
     required this.onSelected,
     required this.nodeKey,
@@ -1670,6 +1721,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   });
 
   final CanvasNode node;
+  final CanvasImageResourceBundle imageResources;
+  final CanvasImageErrorReporter? onImageError;
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
   final GlobalKey Function(String id) nodeKey;
@@ -1763,7 +1816,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       child: guidedChild,
     );
     return Semantics(
-      label: '${_displayType(node.type)} ${node.id}',
+      label: '${_displayType(node.type)} ${node.id}${_imageStatusSemantics()}',
       selected: selected,
       child: MouseRegion(
         cursor: editing ? SystemMouseCursors.text : SystemMouseCursors.click,
@@ -2667,6 +2720,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     }
     return BoxDecoration(
       color: value.color == null ? null : _colorSource(context, value.color!),
+      image: value.image == null
+          ? null
+          : _decorationImage(context, value.image!),
       border: value.border == null ? null : _boxBorder(context, value.border!),
       borderRadius: value.borderRadius == null
           ? null
@@ -2689,6 +2745,138 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           : _blendMode(value.backgroundBlendMode!),
       shape: value.shape == 'circle' ? BoxShape.circle : BoxShape.rectangle,
     );
+  }
+
+  DecorationImage _decorationImage(
+    BuildContext context,
+    CanvasDecorationImageValue value,
+  ) {
+    final resolution = value.image.resolution;
+    final resource = resolution is CanvasResolvedImageValue
+        ? imageResources[resolution.resourceId]
+        : null;
+    final placeholder =
+        resolution is! CanvasResolvedImageValue || resource == null;
+    ImageProvider<Object> provider = placeholder
+        ? MemoryImage(_unavailableImageBytes)
+        : MemoryImage(resource.encodedBytes, scale: resolution.resolvedScale);
+    final resize = value.image.resize;
+    if (!placeholder && resize != null) {
+      provider = ResizeImage(
+        provider,
+        width: resize.width,
+        height: resize.height,
+        policy: resize.policy == 'fit'
+            ? ResizeImagePolicy.fit
+            : ResizeImagePolicy.exact,
+        allowUpscaling: resize.allowUpscaling,
+      );
+    }
+    return DecorationImage(
+      image: provider,
+      onError: value.onError && resolution is CanvasResolvedImageValue
+          ? (error, stackTrace) =>
+                onImageError?.call(resolution.resourceId, error, stackTrace)
+          : null,
+      colorFilter: value.colorFilter == null
+          ? null
+          : _colorFilter(context, value.colorFilter!),
+      fit: value.fit == null ? null : _boxFit(value.fit!),
+      alignment: _alignmentGeometryValue(value.alignment),
+      // An unavailable image has no trustworthy intrinsic dimensions. The
+      // status checker remains paint-safe while preserving every other visual
+      // argument; a resolved image keeps the reviewed nine-patch contract.
+      centerSlice: placeholder || value.centerSlice == null
+          ? null
+          : Rect.fromLTRB(
+              value.centerSlice!.left,
+              value.centerSlice!.top,
+              value.centerSlice!.right,
+              value.centerSlice!.bottom,
+            ),
+      repeat: _imageRepeat(value.repeat),
+      matchTextDirection: value.matchTextDirection,
+      scale: value.scale,
+      opacity: value.opacity,
+      filterQuality: _filterQuality(value.filterQuality),
+      invertColors: value.invertColors,
+      isAntiAlias: value.isAntiAlias,
+    );
+  }
+
+  ColorFilter _colorFilter(
+    BuildContext context,
+    CanvasColorFilterValue value,
+  ) => switch (value) {
+    CanvasModeColorFilterValue() => ColorFilter.mode(
+      _colorSource(context, value.color),
+      _blendMode(value.blendMode),
+    ),
+    CanvasMatrixColorFilterValue() => ColorFilter.matrix(value.values),
+    CanvasLinearToSrgbGammaColorFilterValue() =>
+      const ColorFilter.linearToSrgbGamma(),
+    CanvasSrgbToLinearGammaColorFilterValue() =>
+      const ColorFilter.srgbToLinearGamma(),
+    CanvasSaturationColorFilterValue() => ColorFilter.saturation(value.value),
+  };
+
+  BoxFit _boxFit(String value) => switch (value) {
+    'fill' => BoxFit.fill,
+    'contain' => BoxFit.contain,
+    'cover' => BoxFit.cover,
+    'fitWidth' => BoxFit.fitWidth,
+    'fitHeight' => BoxFit.fitHeight,
+    'none' => BoxFit.none,
+    _ => BoxFit.scaleDown,
+  };
+
+  ImageRepeat _imageRepeat(String value) => switch (value) {
+    'repeat' => ImageRepeat.repeat,
+    'repeatX' => ImageRepeat.repeatX,
+    'repeatY' => ImageRepeat.repeatY,
+    _ => ImageRepeat.noRepeat,
+  };
+
+  FilterQuality _filterQuality(String value) => switch (value) {
+    'none' => FilterQuality.none,
+    'low' => FilterQuality.low,
+    'high' => FilterQuality.high,
+    _ => FilterQuality.medium,
+  };
+
+  String _imageStatusSemantics() {
+    final statuses = <String>[];
+    for (final name in const ['decoration', 'foregroundDecoration']) {
+      final decoration = node.properties[name]?.value;
+      if (decoration is! CanvasBoxDecorationValue || decoration.image == null) {
+        continue;
+      }
+      final provider = decoration.image!.image;
+      final resolution = provider.resolution;
+      final identity = _imageProviderIdentity(provider);
+      if (resolution is CanvasUnavailableImageValue) {
+        statuses.add(
+          'Image preview unavailable for $identity. '
+          'Status ${resolution.code}. Reason: ${resolution.reason}',
+        );
+      } else if (resolution is CanvasResolvedImageValue &&
+          imageResources[resolution.resourceId] == null) {
+        final rejection = imageResources.rejection(resolution.resourceId);
+        statuses.add(
+          'Image preview unavailable for $identity. '
+          'Status ${rejection?.code ?? 'missing'}. Reason: '
+          '${rejection?.reason ?? 'the content-addressed resource is not bound to this revision'}',
+        );
+      }
+    }
+    return statuses.isEmpty ? '' : '. ${statuses.join('. ')}';
+  }
+
+  String _imageProviderIdentity(CanvasImageProviderValue provider) {
+    final packageName = provider.packageName;
+    return packageName == null
+        ? 'app:${provider.assetName}'
+        : 'package:$packageName:${provider.assetName}';
   }
 
   BoxBorder _boxBorder(BuildContext context, CanvasBoxBorderValue value) =>
@@ -3166,6 +3354,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   _CanvasNodeView _view(CanvasNode child) => _CanvasNodeView(
     node: child,
+    imageResources: imageResources,
+    onImageError: onImageError,
     selectedWidgetId: selectedWidgetId,
     onSelected: onSelected,
     nodeKey: nodeKey,

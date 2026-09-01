@@ -21,6 +21,7 @@ public enum PropertyValueKind {
     ALIGNMENT_GEOMETRY("alignmentGeometry"),
     BOX_CONSTRAINTS("boxConstraints"),
     MATRIX4("matrix4"),
+    IMAGE_PROVIDER("imageProvider"),
     BOX_DECORATION("boxDecoration");
 
     private final String wireName;

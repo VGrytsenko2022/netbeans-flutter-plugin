@@ -32,6 +32,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Bounded canonical JSON writer for current-version Flutter Designer documents. */
 final class FdJsonEncoder {
@@ -493,6 +494,8 @@ final class FdJsonEncoder {
                         itemPointer);
             }
             context.endArray(pointer + "/storage");
+        } else if (value instanceof PropertyValue.ImageProviderValue imageProvider) {
+            writeImageProviderFields(imageProvider, pointer, context);
         } else if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             writeBoxDecoration(decoration, pointer, context);
         } else {
@@ -549,6 +552,13 @@ final class FdJsonEncoder {
             String pointer,
             EncodingContext context) throws IOException, FdEncodeException {
         writeOptionalColorSource("color", value.color(), pointer, context);
+        context.fieldName("image", pointer + "/image");
+        if (value.image().isPresent()) {
+            writeDecorationImage(
+                    value.image().orElseThrow(), pointer + "/image", context);
+        } else {
+            context.nullValue(pointer + "/image");
+        }
         context.fieldName("border", pointer + "/border");
         if (value.border().isPresent()) {
             writeBoxBorder(value.border().orElseThrow(), pointer + "/border", context);
@@ -593,6 +603,160 @@ final class FdJsonEncoder {
             context.nullValue(blendPointer);
         }
         context.stringField("shape", value.shape().wireName(), pointer + "/shape");
+    }
+
+    private static void writeImageProvider(
+            PropertyValue.ImageProviderValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        context.stringField("kind", value.kind().wireName(), pointer + "/kind");
+        writeImageProviderFields(value, pointer, context);
+        context.endObject(pointer);
+    }
+
+    private static void writeImageProviderFields(
+            PropertyValue.ImageProviderValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.stringField(
+                "providerKind", value.providerKind().wireName(),
+                pointer + "/providerKind");
+        context.stringField("assetName", value.assetName(), pointer + "/assetName");
+        writeOptionalStringField(
+                "packageName", value.packageName(), pointer, context);
+        writeOptionalDartDoubleField(
+                "exactScale", value.exactScale(), pointer, context);
+        String resizePointer = pointer + "/resize";
+        context.fieldName("resize", resizePointer);
+        if (value.resize().isEmpty()) {
+            context.nullValue(resizePointer);
+            return;
+        }
+        PropertyValue.ImageProviderValue.ResizeImageConfig resize =
+                value.resize().orElseThrow();
+        context.startObject(resizePointer);
+        writeOptionalIntegerField(
+                "width", resize.width(), resizePointer, context);
+        writeOptionalIntegerField(
+                "height", resize.height(), resizePointer, context);
+        context.stringField(
+                "policy", resize.policy().wireName(), resizePointer + "/policy");
+        context.booleanField(
+                "allowUpscaling", resize.allowUpscaling(),
+                resizePointer + "/allowUpscaling");
+        context.endObject(resizePointer);
+    }
+
+    private static void writeDecorationImage(
+            PropertyValue.DecorationImageValue value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        context.fieldName("image", pointer + "/image");
+        writeImageProvider(value.image(), pointer + "/image", context);
+        String onErrorPointer = pointer + "/onError";
+        context.fieldName("onError", onErrorPointer);
+        if (value.onError().isPresent()) {
+            context.startObject(onErrorPointer);
+            context.stringField("kind", "callback", onErrorPointer + "/kind");
+            context.stringField(
+                    "handler", value.onError().orElseThrow().handler(),
+                    onErrorPointer + "/handler");
+            context.endObject(onErrorPointer);
+        } else {
+            context.nullValue(onErrorPointer);
+        }
+        String colorFilterPointer = pointer + "/colorFilter";
+        context.fieldName("colorFilter", colorFilterPointer);
+        if (value.colorFilter().isPresent()) {
+            writeDecorationColorFilter(
+                    value.colorFilter().orElseThrow(), colorFilterPointer, context);
+        } else {
+            context.nullValue(colorFilterPointer);
+        }
+        String fitPointer = pointer + "/fit";
+        context.fieldName("fit", fitPointer);
+        if (value.fit().isPresent()) {
+            context.stringValue(value.fit().orElseThrow().wireName(), fitPointer);
+        } else {
+            context.nullValue(fitPointer);
+        }
+        String alignmentPointer = pointer + "/alignment";
+        context.fieldName("alignment", alignmentPointer);
+        context.startObject(alignmentPointer);
+        writeAlignmentFields(value.alignment(), alignmentPointer, context);
+        context.endObject(alignmentPointer);
+        String centerSlicePointer = pointer + "/centerSlice";
+        context.fieldName("centerSlice", centerSlicePointer);
+        if (value.centerSlice().isPresent()) {
+            PropertyValue.DecorationImageValue.Rect rect =
+                    value.centerSlice().orElseThrow();
+            context.startObject(centerSlicePointer);
+            writeDartDoubleField("left", rect.left(), centerSlicePointer, context);
+            writeDartDoubleField("top", rect.top(), centerSlicePointer, context);
+            writeDartDoubleField("right", rect.right(), centerSlicePointer, context);
+            writeDartDoubleField("bottom", rect.bottom(), centerSlicePointer, context);
+            context.endObject(centerSlicePointer);
+        } else {
+            context.nullValue(centerSlicePointer);
+        }
+        context.stringField("repeat", value.repeat().wireName(), pointer + "/repeat");
+        context.booleanField(
+                "matchTextDirection", value.matchTextDirection(),
+                pointer + "/matchTextDirection");
+        writeDartDoubleField("scale", value.scale(), pointer, context);
+        writeDartDoubleField("opacity", value.opacity(), pointer, context);
+        context.stringField(
+                "filterQuality", value.filterQuality().wireName(),
+                pointer + "/filterQuality");
+        context.booleanField(
+                "invertColors", value.invertColors(), pointer + "/invertColors");
+        context.booleanField(
+                "isAntiAlias", value.isAntiAlias(), pointer + "/isAntiAlias");
+        context.endObject(pointer);
+    }
+
+    private static void writeDecorationColorFilter(
+            PropertyValue.DecorationImageValue.ColorFilter value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        context.stringField("kind", value.wireKind(), pointer + "/kind");
+        if (value instanceof PropertyValue.DecorationImageValue.Mode mode) {
+            context.fieldName("color", pointer + "/color");
+            writeColorSource(mode.color(), pointer + "/color", context);
+            context.stringField(
+                    "blendMode", mode.blendMode().wireName(),
+                    pointer + "/blendMode");
+        } else if (value instanceof PropertyValue.DecorationImageValue.Matrix matrix) {
+            context.fieldName("values", pointer + "/values");
+            context.startArray(pointer + "/values");
+            for (int index = 0; index < matrix.values().size(); index++) {
+                writeDartDoubleValue(
+                        matrix.values().get(index),
+                        pointer + "/values/" + index,
+                        context);
+            }
+            context.endArray(pointer + "/values");
+        } else if (value instanceof PropertyValue.DecorationImageValue.Saturation saturation) {
+            writeDartDoubleField("value", saturation.value(), pointer, context);
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeOptionalIntegerField(
+            String field,
+            Optional<Integer> value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        String valuePointer = pointer + '/' + field;
+        context.fieldName(field, valuePointer);
+        if (value.isPresent()) {
+            context.numberValue(Integer.toString(value.orElseThrow()), valuePointer);
+        } else {
+            context.nullValue(valuePointer);
+        }
     }
 
     private static void writeOptionalColorSource(
@@ -881,6 +1045,21 @@ final class FdJsonEncoder {
                     "The field must be exactly representable as a finite Dart double."));
         }
         writeDecimalField(name, value, parentPointer, context);
+    }
+
+    private static void writeDartDoubleValue(
+            BigDecimal value,
+            String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        if (!DartNumericLiterals.isRepresentableDouble(value)) {
+            throw new FdEncodeException(FdCodecDiagnostic.withoutLocation(
+                    FdCodecDiagnosticCode.INVALID_VALUE,
+                    pointer,
+                    "The value must be exactly representable as a finite Dart double."));
+        }
+        context.numberValue(
+                CanonicalJsonNumbers.decimal(value, context.limits(), pointer),
+                pointer);
     }
 
     private record ExtensionsFieldTask(Extensions extensions, String pointer) implements WriteTask {

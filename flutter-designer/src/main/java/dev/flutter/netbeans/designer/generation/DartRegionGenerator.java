@@ -3529,38 +3529,283 @@ public final class DartRegionGenerator {
         value.color().ifPresent(color -> members.add(new CompositeMember(
                 "color", 0,
                 renderColorSource(color, path + "/color", widgetId, context))));
+        value.image().ifPresent(image -> members.add(new CompositeMember(
+                "image", 1,
+                renderDecorationImage(
+                        image, valueIndent + 2, path + "/image",
+                        widgetId, context))));
         value.border().ifPresent(border -> members.add(new CompositeMember(
-                "border", 1,
+                "border", 2,
                 renderBoxBorder(border, valueIndent + 2, path + "/border",
                         widgetId, context))));
         value.borderRadius().ifPresent(radius -> members.add(new CompositeMember(
-                "borderRadius", 2,
+                "borderRadius", 3,
                 renderBorderRadius(radius, valueIndent + 2,
                         path + "/borderRadius", widgetId, context))));
         if (!value.boxShadow().isEmpty()) {
             members.add(new CompositeMember(
-                    "boxShadow", 3,
+                    "boxShadow", 4,
                     renderBoxShadows(value.boxShadow(), valueIndent + 2,
                             path + "/boxShadow", widgetId, context)));
         }
         value.gradient().ifPresent(gradient -> members.add(new CompositeMember(
-                "gradient", 4,
+                "gradient", 5,
                 renderBoxGradient(gradient, valueIndent + 2,
                         path + "/gradient", widgetId, context))));
         value.backgroundBlendMode().ifPresent(blend -> members.add(
                 new CompositeMember(
-                        "backgroundBlendMode", 5,
+                        "backgroundBlendMode", 6,
                         renderEnumSymbol(
                                 "BlendMode", blend.wireName(), "background-blend-mode",
                                 path + "/backgroundBlendMode", widgetId, context))));
         members.add(new CompositeMember(
-                "shape", 6,
+                "shape", 7,
                 renderEnumSymbol(
                         "BoxShape", value.shape().wireName(), "box-shape",
                         path + "/shape", widgetId, context)));
         return renderNamedCompositeMembers(
                 "BoxDecoration", Optional.empty(), members, valueIndent,
                 path, widgetId, context);
+    }
+
+    private RenderedValue renderImageProvider(
+            PropertyValue.ImageProviderValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        String dartClass = value.providerKind()
+                == PropertyValue.ImageProviderValue.ProviderKind.ASSET
+                ? "AssetImage" : "ExactAssetImage";
+        RenderedSymbol providerSymbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        StringBuilder rendered = new StringBuilder("const ");
+        int providerOffset = rendered.length() + providerSymbol.nameOffset();
+        rendered.append(providerSymbol.text())
+                .append('(')
+                .append(dartString(
+                        value.assetName(), path + "/assetName", widgetId,
+                        context.maxRenderedUtf8Bytes()));
+        value.exactScale().ifPresent(scale -> rendered
+                .append(", scale: ")
+                .append(dartDouble(scale)));
+        value.packageName().ifPresent(packageName -> rendered
+                .append(", package: ")
+                .append(dartString(
+                        packageName, path + "/packageName", widgetId,
+                        context.maxRenderedUtf8Bytes())));
+        rendered.append(')');
+        RenderedValue provider = scalar(
+                rendered.toString(),
+                true,
+                path,
+                widgetId,
+                context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":image-provider:" + path,
+                        providerOffset,
+                        providerSymbol.name(),
+                        providerSymbol.libraryUri(),
+                        path,
+                        Optional.of(widgetId))));
+        if (value.resize().isEmpty()) {
+            return provider;
+        }
+
+        PropertyValue.ImageProviderValue.ResizeImageConfig resize =
+                value.resize().orElseThrow();
+        RenderedSymbol resizeSymbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "ResizeImage");
+        RenderedSymbol policySymbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "ResizeImagePolicy");
+        StringBuilder wrapper = new StringBuilder("const ");
+        int resizeOffset = wrapper.length() + resizeSymbol.nameOffset();
+        wrapper.append(resizeSymbol.text()).append('(');
+        int providerValueOffset = wrapper.length();
+        wrapper.append(provider.joined());
+        resize.width().ifPresent(width -> wrapper
+                .append(", width: ").append(width));
+        resize.height().ifPresent(height -> wrapper
+                .append(", height: ").append(height));
+        wrapper.append(", policy: ");
+        int policyOffset = wrapper.length() + policySymbol.nameOffset();
+        wrapper.append(policySymbol.text())
+                .append('.')
+                .append(resize.policy().wireName())
+                .append(", allowUpscaling: ")
+                .append(resize.allowUpscaling())
+                .append(')');
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":resize-image:" + path,
+                resizeOffset,
+                resizeSymbol.name(),
+                resizeSymbol.libraryUri(),
+                path,
+                Optional.of(widgetId)));
+        shiftInto(occurrences, provider.symbolOccurrences(), providerValueOffset);
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":resize-policy:" + path,
+                policyOffset,
+                policySymbol.name(),
+                policySymbol.libraryUri(),
+                path + "/resize/policy",
+                Optional.of(widgetId)));
+        return scalar(
+                wrapper.toString(), true, path, widgetId, context, occurrences);
+    }
+
+    private RenderedValue renderDecorationImage(
+            PropertyValue.DecorationImageValue value,
+            int valueIndent,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        members.add(new CompositeMember(
+                "image", 0,
+                renderImageProvider(value.image(), path + "/image", widgetId, context)));
+        value.onError().ifPresent(callback -> members.add(new CompositeMember(
+                "onError", 1,
+                scalar(callback.handler(), false, path + "/onError",
+                        widgetId, context))));
+        value.colorFilter().ifPresent(filter -> members.add(new CompositeMember(
+                "colorFilter", 2,
+                renderDecorationColorFilter(
+                        filter, path + "/colorFilter", widgetId, context))));
+        value.fit().ifPresent(fit -> members.add(new CompositeMember(
+                "fit", 3,
+                renderEnumSymbol(
+                        "BoxFit", fit.wireName(), "decoration-image-fit",
+                        path + "/fit", widgetId, context))));
+        members.add(new CompositeMember(
+                "alignment", 4,
+                renderAlignmentGeometry(
+                        value.alignment(), path + "/alignment", widgetId, context)));
+        value.centerSlice().ifPresent(rect -> members.add(new CompositeMember(
+                "centerSlice", 5,
+                renderDecorationRect(rect, path + "/centerSlice", widgetId, context))));
+        members.add(new CompositeMember(
+                "repeat", 6,
+                renderEnumSymbol(
+                        "ImageRepeat", value.repeat().wireName(),
+                        "decoration-image-repeat", path + "/repeat",
+                        widgetId, context)));
+        members.add(new CompositeMember(
+                "matchTextDirection", 7,
+                scalar(Boolean.toString(value.matchTextDirection()), true,
+                        path + "/matchTextDirection", widgetId, context)));
+        members.add(new CompositeMember(
+                "scale", 8,
+                scalar(dartDouble(value.scale()), true,
+                        path + "/scale", widgetId, context)));
+        members.add(new CompositeMember(
+                "opacity", 9,
+                scalar(dartDouble(value.opacity()), true,
+                        path + "/opacity", widgetId, context)));
+        members.add(new CompositeMember(
+                "filterQuality", 10,
+                renderEnumSymbol(
+                        "FilterQuality", value.filterQuality().wireName(),
+                        "decoration-image-filter-quality",
+                        path + "/filterQuality", widgetId, context)));
+        members.add(new CompositeMember(
+                "invertColors", 11,
+                scalar(Boolean.toString(value.invertColors()), true,
+                        path + "/invertColors", widgetId, context)));
+        members.add(new CompositeMember(
+                "isAntiAlias", 12,
+                scalar(Boolean.toString(value.isAntiAlias()), true,
+                        path + "/isAntiAlias", widgetId, context)));
+        return renderNamedCompositeMembers(
+                "DecorationImage", Optional.empty(), members, valueIndent,
+                path, widgetId, context);
+    }
+
+    private RenderedValue renderDecorationColorFilter(
+            PropertyValue.DecorationImageValue.ColorFilter value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        if (value instanceof PropertyValue.DecorationImageValue.Mode mode) {
+            return renderPositionalCompositeValues(
+                    "ColorFilter",
+                    Optional.of("mode"),
+                    List.of(
+                            renderColorSource(
+                                    mode.color(), path + "/color", widgetId, context),
+                            renderEnumSymbol(
+                                    "BlendMode", mode.blendMode().wireName(),
+                                    "decoration-image-color-filter-blend-mode",
+                                    path + "/blendMode", widgetId, context)),
+                    path,
+                    widgetId,
+                    context);
+        }
+        if (value instanceof PropertyValue.DecorationImageValue.Matrix matrix) {
+            String values = matrix.values().stream()
+                    .map(DartRegionGenerator::dartDouble)
+                    .collect(Collectors.joining(", "));
+            return renderPositionalCompositeValues(
+                    "ColorFilter",
+                    Optional.of("matrix"),
+                    List.of(scalar(
+                            "const <double>[" + values + "]", true,
+                            path + "/values", widgetId, context)),
+                    path,
+                    widgetId,
+                    context);
+        }
+        if (value instanceof PropertyValue.DecorationImageValue.LinearToSrgbGamma) {
+            return renderNamedCompositeMembers(
+                    "ColorFilter", Optional.of("linearToSrgbGamma"), List.of(),
+                    0, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.DecorationImageValue.SrgbToLinearGamma) {
+            return renderNamedCompositeMembers(
+                    "ColorFilter", Optional.of("srgbToLinearGamma"), List.of(),
+                    0, path, widgetId, context);
+        }
+        PropertyValue.DecorationImageValue.Saturation saturation =
+                (PropertyValue.DecorationImageValue.Saturation) value;
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "ColorFilter");
+        String rendered = symbol.text() + ".saturation("
+                + dartDouble(saturation.value()) + ')';
+        return scalar(
+                rendered,
+                false,
+                path,
+                widgetId,
+                context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":color-filter-saturation:" + path,
+                        symbol.nameOffset(),
+                        symbol.name(),
+                        symbol.libraryUri(),
+                        path,
+                        Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderDecorationRect(
+            PropertyValue.DecorationImageValue.Rect value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        return renderPositionalCompositeValues(
+                "Rect",
+                Optional.of("fromLTRB"),
+                List.of(
+                        scalar(dartDouble(value.left()), true,
+                                path + "/left", widgetId, context),
+                        scalar(dartDouble(value.top()), true,
+                                path + "/top", widgetId, context),
+                        scalar(dartDouble(value.right()), true,
+                                path + "/right", widgetId, context),
+                        scalar(dartDouble(value.bottom()), true,
+                                path + "/bottom", widgetId, context)),
+                path,
+                widgetId,
+                context);
     }
 
     private RenderedValue renderBoxBorder(
@@ -4128,6 +4373,14 @@ public final class DartRegionGenerator {
                 .anyMatch(ColorSource.Theme.class::isInstance)) {
             return true;
         }
+        if (decoration.image().stream()
+                .flatMap(image -> image.colorFilter().stream())
+                .filter(PropertyValue.DecorationImageValue.Mode.class::isInstance)
+                .map(PropertyValue.DecorationImageValue.Mode.class::cast)
+                .map(PropertyValue.DecorationImageValue.Mode::color)
+                .anyMatch(ColorSource.Theme.class::isInstance)) {
+            return true;
+        }
         return decoration.gradient().stream()
                 .flatMap(gradient -> gradient.stops().stream())
                 .map(PropertyValue.BoxDecorationValue.GradientStop::color)
@@ -4235,6 +4488,9 @@ public final class DartRegionGenerator {
         }
         if (value instanceof PropertyValue.Matrix4Value matrix) {
             return renderMatrix4(matrix, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.ImageProviderValue imageProvider) {
+            return renderImageProvider(imageProvider, path, widgetId, context);
         }
         if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             return renderBoxDecoration(

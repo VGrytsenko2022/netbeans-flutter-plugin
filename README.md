@@ -110,12 +110,15 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 - Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
   a complete Designer pair. The target is restricted to `lib` or one of its
   subfolders. A Dart target such as `lib/account/profile.dart` is paired with
-  the JSON model `.fd_templates/account/profile.fd`; the current schema-v5
+  the JSON model `.fd_templates/account/profile.fd`; the current schema-v6
   `source.dartFile` value remains the Dart basename `profile.dart`. Schema v5
-  adds structured `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and reviewed
-  image-free `BoxDecoration` values for `Container`; schema v4's closed typed
-  nullable `IconData` remains supported. The model never stores an executable
-  Dart expression for either feature.
+  added structured `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and
+  `BoxDecoration` values for `Container`; schema v6 adds the shared asset-only
+  `ImageProviderValue` and complete typed `DecorationImage`. Schema v4's closed
+  nullable `IconData` remains supported. Schema v1-v5 forms migrate in memory
+  and become canonical v6 only after an admitted edit. The model stores a safe
+  logical app/package asset identity, never image bytes, a filesystem path or
+  an executable Dart expression.
 - Dart sources and Flutter Designer `.fd` models use distinct theme-aware file
   icons in Projects, Files, and the corresponding New File wizard entries.
 - NetBeans `Delete` is available on either member of a complete Designer pair
@@ -257,7 +260,7 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated protocol-v10 model restricted by the exact built-in capability
+bounded validated protocol-v11 model restricted by the exact built-in capability
 gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`,
 `Center`, `SizedBox`, `AspectRatio`, `ElevatedButton` and `Container`.
 The toolbar now preserves exact Android Phone,
@@ -330,15 +333,53 @@ preserve physical/directional alignment and radii, normalized constraints,
 column-major Matrix4 storage, theme-aware decoration colors, exact borders,
 ordered shadows and linear/radial/sweep gradients. `color` is mutually exclusive
 with `decoration`, non-`none` clipping requires a decoration, and related changes
-are committed atomically. `DecorationImage` awaits shared typed asset
-infrastructure rather than entering through a string or Dart escape hatch. The
-native Canvas renders the real Container, keeps the selection/layout frame
-outside its paint transform, draws distinct padding and margin guides and
-retains an IDE-only target for an empty zero-size Container. The optional
-`child` remains a named single any-widget slot rather than a property row. The
-current catalog therefore exposes exactly 528 writable rows across twelve
-widgets; `.fd` is v5, the contributor Catalog API is 4 and the Canvas model
-protocol is 10.
+are committed atomically. Its typed `DecorationImage` covers the pinned 13 SDK
+arguments—`image`, `onError`, `colorFilter`, `fit`, `alignment`, `centerSlice`,
+`repeat`, `matchTextDirection`, `scale`, `opacity`, `filterQuality`,
+`invertColors` and `isAntiAlias`—including all five reviewed `ColorFilter`
+variants. `centerSlice` requires a positive-area non-negative rectangle and
+permits fit omitted, `fill`, `contain`, `fitWidth`, `fitHeight` or `scaleDown`;
+`cover` and `none` are rejected. `onError` is a validated two-argument callback
+identifier, never callback source or raw Dart.
+
+The provider matrix is deliberately closed: `AssetImage` or `ExactAssetImage`,
+optionally wrapped once by bounded `ResizeImage`; `FileImage`, `MemoryImage`,
+`NetworkImage` and custom providers remain deferred. The IDE selects only
+declared app/package assets discovered from `pubspec.yaml` and
+`.dart_tool/package_config.json`, verifies PNG/JPEG/GIF/WebP bytes and their
+dimensions, rejects absolute/backslash/traversal/symlink-escape paths and applies
+the exact Flutter 3.44.8 DPR algorithm pinned to framework revision
+`058e0af2c2b57e369d905a03ac9748b0ebf543c6`.
+
+Canvas model protocol v11 over NBFC framing v1 negotiates
+`asset.imageBytes.v1` and sends referenced,
+revision-scoped compressed resources only, each addressed by the lowercase raw
+SHA-256 of its immutable bytes and checked against exact descriptor size, digest
+and order. No filesystem path or callback identifier crosses that boundary.
+Native and the internal exact-Web runtime build the same real `DecorationImage`
+from an internal `MemoryImage(bytes, scale: resolvedScale)` plus at most one `ResizeImage`;
+their `centerSlice` admission mirrors the pinned codecs: native exact resize
+uses Flutter's asymmetric missing-axis derivation and honors explicit upscale,
+whereas Web rounds either missing axis and returns the intrinsic image whenever
+the derived target would upscale. A `fit` target that collapses an axis to zero
+is rejected rather than treated as a synthetic one-pixel decode.
+Authenticated media/decode/resize/center-slice failures quarantine only the
+affected resource; framing, identity, digest, ordering and exact model-resource
+coverage failures remain fatal. Unresolved or quarantined assets render a
+deterministic non-interactive placeholder with the
+logical identity, code and reason. Selection/layout frames, guides and drop zones remain outside
+the decorated/transformed `Container`. The Image tab exposes typed accessible
+controls and inventory status, and one accepted structured/dependent edit is
+one Undo/Redo unit. The optional `child` remains a named single any-widget slot
+rather than a property row. The current catalog therefore exposes exactly 528
+writable rows across twelve widgets; `.fd` is v6, the contributor Catalog API
+is 5 and the Canvas model protocol is 11. Exact-Web product selection remains
+separately gated; the currently routed Web choice is the native-engine layout
+preview.
+
+`Opacity` is the proposed next complete vertical slice, but it is awaiting user
+agreement and is not implemented.
+
 Fourteen any-widget slots admit all twelve sources:
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
 `Row.children`, `Center.child`, `Padding.child`, `SizedBox.child`,

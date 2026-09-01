@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer;
 
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
@@ -46,12 +47,28 @@ interface FlutterDesignerCanvasSession extends AutoCloseable {
 
     boolean canRestart();
 
+    default void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme) {
+        present(
+                document,
+                catalog,
+                previewMode,
+                targetPlatform,
+                resolvedTheme,
+                CanvasImageResourceBundle.empty());
+    }
+
     void present(
             DesignerDocument document,
             WidgetCatalog catalog,
             CanvasPreviewMode previewMode,
             CanvasTargetPlatform targetPlatform,
-            CanvasResolvedTheme resolvedTheme);
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources);
 
     void withdraw();
 

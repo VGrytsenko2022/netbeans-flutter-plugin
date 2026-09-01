@@ -175,13 +175,16 @@ class PropertyValueConstraintTest {
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.MATRIX4));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.IMAGE_PROVIDER));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.BOX_DECORATION));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.CALLBACK));
     }
 
     @Test
-    void v5StructuredConstraintsEnforceDartNumbersAndReviewedNestedThemeColors() {
+    void structuredConstraintsEnforceDartNumbersAndReviewedNestedThemeColors() {
         BigDecimal huge = BigDecimal.ONE.scaleByPowerOfTen(400);
         PropertyValueConstraint.AlignmentGeometryValues alignments =
                 new PropertyValueConstraint.AlignmentGeometryValues();
@@ -219,6 +222,65 @@ class PropertyValueConstraintTest {
                         new ThemeToken("material.colorScheme.secondary"))),
                 Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
                 Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
+
+        PropertyValue.ImageProviderValue provider =
+                PropertyValue.ImageProviderValue.asset("assets/logo.png");
+        PropertyValue.DecorationImageValue allowedImage =
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(),
+                        Optional.of(new PropertyValue.DecorationImageValue.Mode(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.primary")),
+                                PropertyValue.PaintValue.BlendMode.SRC_IN)),
+                        Optional.empty(),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                BigDecimal.ZERO, BigDecimal.ZERO),
+                        Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ONE, BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                        false, false);
+        assertTrue(decorations.accepts(new PropertyValue.BoxDecorationValue(
+                Optional.empty(), Optional.of(allowedImage), Optional.empty(),
+                Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
+
+        PropertyValue.DecorationImageValue disallowedImage =
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(),
+                        Optional.of(new PropertyValue.DecorationImageValue.Mode(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.secondary")),
+                                PropertyValue.PaintValue.BlendMode.SRC_IN)),
+                        Optional.empty(), allowedImage.alignment(), Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ONE, BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                        false, false);
+        assertFalse(decorations.accepts(new PropertyValue.BoxDecorationValue(
+                Optional.empty(), Optional.of(disallowedImage), Optional.empty(),
+                Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
+
+        PropertyValue.ImageProviderValue hugeScale =
+                PropertyValue.ImageProviderValue.exactAsset(
+                        "assets/logo.png", huge);
+        assertFalse(new PropertyValueConstraint.ImageProviderValues()
+                .accepts(hugeScale));
+        PropertyValue.DecorationImageValue hugeSaturation =
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(),
+                        Optional.of(new PropertyValue.DecorationImageValue.Saturation(huge)),
+                        Optional.empty(), allowedImage.alignment(), Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ONE, BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                        false, false);
+        assertFalse(decorations.accepts(new PropertyValue.BoxDecorationValue(
+                Optional.empty(), Optional.of(hugeSaturation), Optional.empty(),
+                Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
     }
 
     @Test

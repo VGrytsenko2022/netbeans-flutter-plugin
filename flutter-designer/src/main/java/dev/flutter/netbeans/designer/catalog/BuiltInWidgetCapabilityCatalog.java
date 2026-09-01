@@ -49,6 +49,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.ALIGNMENT_GEOMETRY,
                     PropertyValueKind.BOX_CONSTRAINTS,
                     PropertyValueKind.MATRIX4,
+                    PropertyValueKind.IMAGE_PROVIDER,
                     PropertyValueKind.BOX_DECORATION,
                     PropertyValueKind.CALLBACK));
     private static final Set<PropertyValueKind> NUMERIC_SCHEMA_KINDS =
@@ -59,6 +60,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final String WIDGETS_LIBRARY = "package:flutter/widgets.dart";
     private static final String MATERIAL_LIBRARY = "package:flutter/material.dart";
     private static final String GESTURES_LIBRARY = "package:flutter/gestures.dart";
+    private static final String IMAGE_PROVIDER_CONTRACT_FINGERPRINT =
+            "imageProvider:v1:asset,exactAsset:package:exactScale:"
+            + "resize(1..16384,exact,fit,allowUpscaling)";
     private static final List<String> REVIEWED_COLOR_THEME_TOKENS = List.of(
             "material.colorScheme.primary",
             "material.colorScheme.onPrimary",
@@ -425,9 +429,8 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static CanvasProjection containerProjection() {
-        String decorationFingerprint = "boxDecoration:"
-                + REVIEWED_COLOR_THEME_TOKENS.stream().sorted()
-                        .collect(Collectors.joining(","));
+        String decorationFingerprint = boxDecorationFingerprint(
+                REVIEWED_COLOR_THEME_TOKENS);
         return projection(Map.ofEntries(
                 Map.entry("alignment", constrainedSchema(
                         PropertyValueKind.ALIGNMENT_GEOMETRY,
@@ -1358,6 +1361,17 @@ public final class BuiltInWidgetCapabilityCatalog {
                 constraintFingerprints);
     }
 
+    private static String boxDecorationFingerprint(List<String> themeTokenIds) {
+        return "boxDecoration:v2:"
+                + IMAGE_PROVIDER_CONTRACT_FINGERPRINT
+                + ":decorationImage:v1:"
+                + "onError,colorFilter(mode,matrix20,linearToSrgbGamma,"
+                + "srgbToLinearGamma,saturation),fit,alignment,centerSlice,"
+                + "repeat,matchTextDirection,scale,opacity,filterQuality,"
+                + "invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme="
+                + themeTokenIds.stream().sorted().collect(Collectors.joining(","));
+    }
+
     private static String constraintFingerprint(
             PropertyValueConstraint constraint) {
         if (constraint instanceof PropertyValueConstraint.AnyValue) {
@@ -1389,10 +1403,11 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.Matrix4Values) {
             return "matrix4";
         }
+        if (constraint instanceof PropertyValueConstraint.ImageProviderValues) {
+            return IMAGE_PROVIDER_CONTRACT_FINGERPRINT;
+        }
         if (constraint instanceof PropertyValueConstraint.BoxDecorationValues values) {
-            return "boxDecoration:"
-                    + values.colorThemeTokenIds().stream().sorted()
-                            .collect(Collectors.joining(","));
+            return boxDecorationFingerprint(values.colorThemeTokenIds());
         }
         if (constraint instanceof PropertyValueConstraint.StringLength length) {
             return "length:" + length.minimum() + ':' + length.maximum();

@@ -70,6 +70,7 @@ public final class PropertyValueFormatter {
             case PropertyValue.Matrix4Value matrix -> isIdentity(matrix)
                     ? "Identity matrix"
                     : "Custom 4×4 matrix";
+            case PropertyValue.ImageProviderValue image -> imageProvider(image);
             case PropertyValue.BoxDecorationValue decoration ->
                 decoration(decoration);
         };
@@ -95,6 +96,8 @@ public final class PropertyValueFormatter {
         java.util.ArrayList<String> parts = new java.util.ArrayList<>();
         parts.add(value.shape().wireName());
         value.color().ifPresent(item -> parts.add(color(item)));
+        value.image().ifPresent(item -> parts.add(
+                "image " + imageProvider(item.image())));
         value.gradient().ifPresent(item -> parts.add(switch (item) {
             case PropertyValue.BoxDecorationValue.LinearGradient ignored -> "linear gradient";
             case PropertyValue.BoxDecorationValue.RadialGradient ignored -> "radial gradient";
@@ -107,6 +110,26 @@ public final class PropertyValueFormatter {
                     ? "1 shadow" : value.boxShadow().size() + " shadows");
         }
         return "BoxDecoration(" + String.join(", ", parts) + ')';
+    }
+
+    private static String imageProvider(PropertyValue.ImageProviderValue value) {
+        String identity = value.packageName()
+                .map(name -> "package:" + name + ':' + value.assetName())
+                .orElseGet(() -> "app:" + value.assetName());
+        String provider = value.providerKind().wireName()
+                + ' ' + quote(identity);
+        if (value.exactScale().isPresent()) {
+            provider += " @ " + number(value.exactScale().orElseThrow()) + 'x';
+        }
+        if (value.resize().isPresent()) {
+            var resize = value.resize().orElseThrow();
+            provider += " resized "
+                    + resize.width().map(Object::toString).orElse("auto")
+                    + '×'
+                    + resize.height().map(Object::toString).orElse("auto")
+                    + " (" + resize.policy().wireName() + ')';
+        }
+        return provider;
     }
 
     private static String iconData(PropertyValue.IconDataValue value) {

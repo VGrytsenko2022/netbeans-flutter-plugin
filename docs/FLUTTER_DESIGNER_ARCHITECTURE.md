@@ -121,7 +121,7 @@ optional `canvas.themeMode` is only a local preview override (`system`, `light`
 or `dark`); when absent, Canvas follows the project default. The Canvas reads
 the validated project descriptor and the verified generated-artifact hash,
 then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme/
-component override tables and revision digest through model protocol v10 to the isolated
+component override tables and revision digest through model protocol v11 to the isolated
 Flutter runner. It never executes project Dart. The runner applies the same
 construction order as generated Dart before form-local widget overrides. Projects
 without a descriptor keep the legacy Material preview; a present but invalid
@@ -372,11 +372,14 @@ may still format the complete Dart document.
 ## `.fd` document contract
 
 `.fd` is UTF-8 JSON and current documents conform to
-[`flutter-designer/fd-v5.schema.json`](flutter-designer/fd-v5.schema.json).
+[`flutter-designer/fd-v6.schema.json`](flutter-designer/fd-v6.schema.json).
 The stable format name is `netbeans-flutter-designer`, and the integer
-`schemaVersion` makes migrations explicit. Versions 1 through 4 remain readable
+`schemaVersion` makes migrations explicit. Versions 1 through 5 remain readable
 through in-memory migrations; opening alone does not rewrite the file, while
-the next admitted Designer edit emits canonical version 5.
+the next admitted Designer edit emits canonical version 6. A migrated v1-v5
+BoxDecoration has no image. Frozen v1-v5 schema resources are immutable; the v6
+encoder writes the new discriminator/ref graph strictly and never down-saves a
+newer document.
 
 The checked-in version-1 [`home_page.fd`](flutter-designer/examples/home_page.fd)
 and [`home_page.dart`](flutter-designer/examples/home_page.dart) pair remains the
@@ -413,17 +416,41 @@ nullable `IconData` value with a Unicode-scalar code point and validated font
 metadata. An icon never uses the arbitrary-Dart-expression kind, so the model,
 generator and Canvas all consume the same typed value.
 
-Version 5 adds closed `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and
-image-free `BoxDecoration` values. These are structural model types rather than
-escaped Dart fragments: codec, validator, generator, Properties and Canvas
-therefore share the same discriminated records and exact invariants. The
-`BoxDecoration` subset covers semantic-theme or literal colors, physical or
-directional borders with complete `BorderSide` values, physical or directional
-elliptical radii, ordered stable-ID shadows, linear/radial/sweep gradients with
-ordered color stops and `GradientRotation`, blend mode and shape. It deliberately
-excludes `DecorationImage`; image selection, pubspec declaration and asset
-lifecycle require one shared asset-infrastructure slice before that constructor
-branch can be admitted safely.
+Version 5 adds closed `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and the
+initial `BoxDecoration` values without an image. Version 6 completes that branch with
+a reusable top-level `IMAGE_PROVIDER` kind and optional typed
+`BoxDecoration.image`. These are structural model types rather than escaped
+Dart fragments: codec, validator, generator, Properties and Canvas therefore
+share the same discriminated records and exact invariants. The BoxDecoration
+subset covers semantic-theme or literal colors, physical or directional borders
+with complete `BorderSide` values, physical or directional elliptical radii,
+ordered stable-ID shadows, linear/radial/sweep gradients with ordered color
+stops and `GradientRotation`, blend mode, shape and `DecorationImage`.
+
+`ImageProviderValue` is intentionally narrower than Flutter's open provider
+hierarchy. It admits only `AssetImage` or `ExactAssetImage`, a normalized safe
+relative POSIX asset name, optional Dart package name, and an exact positive
+scale if and only if the exact provider is selected. Either provider may have
+at most one `ResizeImage`; at least one width/height is present, every present
+dimension is in `1..16384`, policy is `exact` or `fit`, and upscaling is an
+explicit boolean. Network, file, memory and custom providers remain deferred.
+The runner's private `MemoryImage` is a projection of host-resolved immutable
+bytes and is not a persisted provider alternative.
+
+`DecorationImageValue` pins all 13 Flutter 3.44.8 named arguments in SDK order:
+required image, optional typed `onError`, optional color filter, optional fit,
+alignment, optional center slice, repeat, match-text-direction, scale, opacity,
+filter quality, invert-colors and anti-alias. Defaults are center alignment,
+`noRepeat`, false, `1.0`, `1.0`, medium, false and false. The filter union is
+exactly mode, a 20-value finite matrix, linear-to-sRGB gamma,
+sRGB-to-linear gamma or any finite saturation decimal within normal codec/Dart
+emission bounds; a mode color may be literal or one reviewed theme token.
+Decoration scale is positive and opacity stays in `[0,1]`. Center
+slice coordinates are non-negative with `left < right` and `top < bottom`.
+Fit may be omitted, `fill`, `contain`, `fitWidth`, `fitHeight` or `scaleDown`;
+`cover` and `none` fail closed. The callback stores only a validated
+Dart identifier expected to bind to `void Function(Object, StackTrace?)`; raw
+expressions are not admitted and Canvas receives only callback presence.
 
 Version 1 represents an asset value as one deterministically escaped Dart
 string literal containing its path. That path is relative to the Flutter
@@ -483,10 +510,11 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v10 projection for the twelve exact built-ins carrying the
+  canonical protocol-v11 projection for the twelve exact built-ins carrying the
   Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
-  framing for control, model and catalog JSON channels.
+  framing for control JSON, model JSON, negotiated image bytes and reserved
+  catalog JSON channels.
 
 `netbeans-plugin` owns only the NetBeans edge:
 
@@ -553,8 +581,8 @@ types are omitted with diagnostics. The NetBeans edge discovers contributors
 and passes them explicitly to the domain composer, avoiding a global
 class-loader policy in this module.
 
-The current version 4 contributor SPI requires a reverse-DNS contributor id,
-catalog `API_VERSION == 4`, and every contributed widget type id to start with
+The current version 5 contributor SPI requires a reverse-DNS contributor id,
+catalog `API_VERSION == 5`, and every contributed widget type id to start with
 `<contributorId>.`. A malformed definition, duplicate local type, foreign or
 reserved namespace, or unsupported API version rejects that contributor as one
 atomic unit.
@@ -634,14 +662,15 @@ The NetBeans module exports only `dev.flutter.netbeans.designer.catalog` and
 depends on this plugin's NetBeans module and reuses its packaged
 `flutter-designer.jar`; bundling another copy would split SPI class identity.
 Codec, validation and NetBeans edge packages remain private. If the contributor
-API must evolve independently after version 4, it moves to a dedicated SPI NBM
+API must evolve independently after version 5, it moves to a dedicated SPI NBM
 or new package boundary instead of silently breaking this module's public
 surface. `API_VERSION == 2` was the incompatible boundary introduced for
 direction-aware edge-insets values. Typed `IconData` established the next
-explicit boundary at `API_VERSION == 3`. The four structured Container values
-establish the current boundary at `API_VERSION == 4`; API-1, API-2 and API-3
-contributors are rejected rather than loaded with a changed sealed model
-contract. This is not yet a permanent 1.0 compatibility promise. A runtime
+explicit boundary at `API_VERSION == 3`. The initial four structured Container
+values established `API_VERSION == 4`; the reusable exported
+`ImageProviderValue` establishes the current boundary at `API_VERSION == 5`.
+API-1 through API-4 contributors are rejected rather than loaded with a changed
+sealed model contract. This is not yet a permanent 1.0 compatibility promise. A runtime
 fixture NBM verifies the specification dependency, default
 Lookup discovery, composed widget, shared API class identity and absence of a
 second packaged `flutter-designer.jar`.
@@ -1012,7 +1041,7 @@ Undo/Redo in sticky conflict. The assembled NetBeans 30 runtime, strict NBM
   target, and the first Windows native host slice is implemented. It builds
   a versioned isolated runner, creates the real Flutter child window inside a
   heavyweight AWT host in the Design MultiView, validates the exact HWND/PID
-  hierarchy and publishes one bounded validated protocol-v10 revision restricted
+  hierarchy and publishes one bounded validated protocol-v11 revision restricted
   by the exact capability gate to `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
   `Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `ElevatedButton` and
   `Container`. The owning
@@ -1122,15 +1151,16 @@ child unchanged. Runtime object references—`key`, `focusNode`, `statesControll
 `backgroundBuilder` and `foregroundBuilder`—are not serialized.
 
 Callback values are strict Dart identifiers rather than arbitrary expressions.
-Generated source may bind them, but Canvas model payload protocol v10 projects only
+Generated source may bind them, but Canvas model payload protocol v11 projects only
 `callbackPresence`; the runner creates inert typed closures and cannot receive
 or execute a project handler. Disabling the button emits null press callbacks;
 an enabled button without a press binding gets a generator-owned empty
 `onPressed` closure so its enabled state remains truthful. Its `child` is an
 optional-single, required-named-but-nullable catalog slot. The empty prototype
 is valid and emits `child: null`. No new value kind was required for that
-milestone, so `.fd` remained schema v4; the current Container slice raises the
-aggregate document contract to schema v5.
+milestone, so `.fd` remained schema v4; the initial Container slice raised the
+aggregate document contract to schema v5, and its completed image branch now
+raises it to schema v6.
 
 | Widget(s) | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
 | --- | --- | --- | --- | --- |
@@ -1263,7 +1293,7 @@ as a property row.
 | `padding` | `EdgeInsetsGeometry?` | Physical/directional finite non-negative insets editor. |
 | `color` | `Color?` | Literal ARGB or reviewed `ColorScheme` role; mutually exclusive with `decoration`. |
 | `isAntiAlias` | `bool?` | Accessible optional checkbox; omission preserves Flutter's `true` constructor default. |
-| `decoration` | `Decoration?` | Transactional reviewed image-free `BoxDecoration` behind the child. |
+| `decoration` | `Decoration?` | Transactional reviewed `BoxDecoration`, including typed asset-only `DecorationImage`, behind the child. |
 | `foregroundDecoration` | `Decoration?` | The same reviewed `BoxDecoration` domain in front of the child. |
 | `width` | `double?` | Exact finite non-negative decimal. |
 | `height` | `double?` | Exact finite non-negative decimal. |
@@ -1277,7 +1307,8 @@ The structured decoration union covers a literal or semantic-theme fill,
 physical or directional borders with complete `BorderSide` fields, physical or
 directional elliptical radii, ordered stable-ID shadows, linear/radial/sweep
 gradients with ordered stable-ID theme/literal color stops, every `TileMode`,
-optional `GradientRotation`, background blend mode and rectangle/circle shape.
+optional `GradientRotation`, background blend mode, rectangle/circle shape and
+the complete typed `DecorationImage` contract described below.
 It rejects Flutter layout and paint hazards at the model, codec, command,
 generator and runner boundaries: non-negative sizes/insets/radii/shadow blur,
 finite-or-infinite constraint ordering, blend without a fill, radius on a
@@ -1288,17 +1319,78 @@ not guessed from abstract alignments. Changes that must update
 dependent fields use one revision-bound `PatchProperties` command and one
 Undo/Redo unit, so an intermediate invalid graph never reaches persistence.
 
-Top-level `color` and every nested decoration color use the same reviewed
+Top-level `color` and every nested decoration color, including
+`DecorationImage.colorFilter.mode`, use the same reviewed
 `material.colorScheme.*` allowlist. Project light, dark and custom themes
 therefore resolve identically in generated Dart and Canvas; explicit literals
 remain local overrides. The native runner builds the real `Container`, keeps
 its IDE-owned layout/selection frame outside the paint transform, draws distinct
 padding and margin guides, and supplies an IDE-only selectable/drop target for
 an empty zero-size container without changing its Flutter layout size.
-`DecorationImage` remains deferred until a shared typed asset identity,
-pubspec/package resolution, Dart asset emission, cache/error behavior and Canvas
-decoder can serve every image-bearing widget; an opaque path, URL or Dart
-expression is not an acceptable shortcut.
+
+The NetBeans asset inventory reads the application `pubspec.yaml` plus package
+asset declarations rooted through `.dart_tool/package_config.json`. The `.fd`
+model persists normalized `assetName`, optional `packageName`, provider kind and
+typed provider options; it never persists project bytes or filesystem paths.
+Canvas derives the diagnostic/wire identity `app:<assetName>` or
+`package:<packageName>:<assetName>` from those fields.
+Resolution accepts PNG/JPEG/GIF/WebP, validates file magic and dimensions,
+normalizes POSIX-relative names, and rejects absolute paths, backslashes,
+percent/dot/traversal segments, non-file package roots, symlink/root escape and
+unreadable or inconsistent files. Host hardening defaults are 4,096 logical
+assets, 16 MiB per file, 64 MiB aggregate, dimension 4,096 and 8,388,608 pixels.
+The immutable snapshot includes each base asset and declared `Nx` resolution
+peer, metadata, compressed-byte SHA-256 and one inventory digest; file watching
+invalidates and recomputes the project inventory without writing the form. Only
+parsed package roots whose `pubspec.yaml` name matches `package_config` become
+external recursive-listener boundaries. Listener replacement, rollback and
+cleanup run off the EDT under a generation fence; a changed watch set forces a
+fresh inventory before bytes are published, and all path events remain relevant
+because Flutter permits arbitrary and extensionless declared asset names.
+
+Variant selection reproduces Flutter 3.44.8 framework revision
+`058e0af2c2b57e369d905a03ac9748b0ebf543c6`, source
+`packages/flutter/lib/src/painting/image_resolution.dart`, with low-DPR limit
+2.0. The inventory fingerprint names this contract exactly as
+`flutter-3.44.8-058e0af2c2b57e369d905a03ac9748b0ebf543c6-asset-image-dpr-low-limit-2.0`.
+An exact DPR match wins; DPR below/above the available range chooses the
+lowest/highest variant. Between `lower < dpr < upper`, DPR below 2.0 chooses
+upper; at or above 2.0 it chooses upper only when
+`dpr > (lower + upper) / 2`, so an exact midpoint ties to lower. This pinned
+Flutter algorithm is distinct from the IDE security/size policy above.
+
+One presentation projects only referenced resources, with at most 256 logical
+assets, 256 resources and 16 MiB encoded bytes in total. Each resource remains
+within 16 MiB, dimension 16,384 and 67,108,864 pixels; `resourceId` is lowercase
+raw SHA-256 of the immutable compressed bytes. Canvas model v11 over NBFC
+framing v1 negotiates
+`asset.imageBytes.v1`; one resource-bearing render follows the canonical
+`CONTROL` → `MODEL` → `IMAGE` order: exact `host.render` control, model JSON
+with sorted resource descriptors, then NBFC kind 4 `IMAGE_BYTES` frames.
+Revision, resource order, descriptor/payload size and SHA are rechecked before
+admission. Authenticated media/decode/resize/center-slice failures quarantine
+only the affected resource, while framing, identity, digest, ordering and exact
+model-resource coverage failures remain fatal. The independently declared
+Java/Dart capability fingerprint includes
+the provider/resize union, all 13 image arguments, five filters and dependent
+fit rule, so an incomplete runner fails closed at capability/model admission
+rather than narrowing the model. No filesystem path, callback identifier or
+project Dart crosses the boundary. This is asset-resource transport, not a
+screenshot/framebuffer proxy.
+
+Native and internal exact-Web runtimes both turn an available resource into
+`MemoryImage(bytes, scale: resolvedScale)`, optionally wrap it once in
+`ResizeImage`, and construct the real `DecorationImage`. Runtime validation
+predicts the pinned codec, not an idealized resize: native exact resize rounds
+a missing width, truncates a missing height and honors explicit upscale; Web
+rounds either missing dimension and its codec path forces no-upscale, returning
+the intrinsic image if the completed target would enlarge either axis. A
+Flutter `fit` result with a zero axis is preserved as invalid for
+`centerSlice`, never clamped to a fictional 1 px. An unavailable or quarantined
+logical asset produces a deterministic non-interactive checker placeholder and
+accessible status naming the logical identity, issue code and bounded reason.
+The selection/layout outline, padding/margin guides and Palette/move drop
+overlays remain outside the decorated/transformed `Container` and remain usable.
 
 These 528 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
@@ -1312,9 +1404,13 @@ strict callback-ID fields and the same typed state-aware color, numeric, enum,
 insets, typography and shape editors. Built-in Icon data uses
 the searchable reviewed Material registry plus an explicit **None** choice.
 Container adds the transactional alignment, constraints, matrix and tabbed
-decoration editors described above; every optional structured editor has an
-explicit inherited/default state, includes an active table cell before OK and
-cannot publish an invalid draft.
+decoration editors described above. Its accessible Image tab selects only the
+declared app/package inventory and exposes provider/exact scale, one resize,
+callback, five filters, fit/alignment/center slice, repeat/direction, scale,
+opacity, quality, inversion and anti-alias controls. The inventory status and
+every dependent field have concrete accessible names/descriptions. Every
+optional structured editor has an explicit inherited/default state, includes
+an active table cell before OK and cannot publish an invalid draft.
 In particular, `aspectRatio > 0`, `maxLines > 0`, `textScalerFactor >= 0`, `styleFontSize >= 0`,
 `strutFontSize > 0` and `strutLeading >= 0`; the remaining admitted Text
 style/strut doubles are finite without inventing undocumented constructor
@@ -1329,7 +1425,9 @@ submission fence prevents duplicate editor callbacks from reusing the captured
 revision; the accepted candidate then follows the existing analyzed pair-save
 and shared Undo/Redo lifecycle. Required `Text.data`, `Padding.padding` and
 `Icon.icon` cannot be reset to omission; optional `SizedBox.width` and `SizedBox.height`
-can.
+can. A complete BoxDecoration/Image draft publishes as one structured property
+edit; any required top-level repair uses one `PatchProperties`, so each accepted
+image transition is one chronological Undo/Redo unit and one canonical pair-save.
 
 Generation folds Text leaves into `Locale.fromSubtags`, `TextScaler.linear`,
 `TextHeightBehavior`, `TextStyle`, its optional nested locale and combined
@@ -1344,11 +1442,21 @@ isolated runner constructs real `Paint`, `Shadow`, `FontFeature` and
 empty list means clear. This gives Properties, generated Dart and native Canvas
 one mapping rather than a lossy presentation string.
 
+BoxDecoration generation emits `image` immediately after `color`, preserving
+Flutter constructor order. Providers become const `AssetImage` or
+`ExactAssetImage` and optional const `ResizeImage`; the image graph emits all 13
+arguments, five `ColorFilter` constructors, `Rect.fromLTRB` and closed enums
+without raw text. Theme detection walks `ColorFilter.mode`. Const propagation
+is structural: `ColorFilter.saturation` and a callback identifier keep the
+containing decoration non-const; the other closed values remain const-capable
+only while their nested values (for example, a literal rather than theme color)
+are const.
+
 The deprecated `Text.textScaleFactor` argument and `key` are deliberately not
 shown; `textScalerFactor` is explicitly labeled as linear and generates the
-current `textScaler` argument. Paint
-shaders, color filters and image filters remain outside the reviewed safe
-subset and are not represented by raw Dart or opaque string escape hatches.
+current `textScaler` argument. Paint shaders and image filters, plus ColorFilter
+forms outside DecorationImage's five-variant union, remain outside the reviewed
+safe subset and are not represented by raw Dart or opaque string escape hatches.
 Schema v3 represents Padding as either physical `EdgeInsets` or
 text-direction-aware `EdgeInsetsDirectional`; All, Symmetric and Individual are
 editor modes that canonicalize to four semantic sides. Flex baseline alignment
@@ -1513,10 +1621,12 @@ JSON without a BOM for `host.hello`, `runner.hello`, `host.close`,
 zero and are contiguous; wire integers do not exceed 9,007,199,254,740,991. The
 implemented process codec validates a fixed header, kind-specific negotiated
 size and SHA-256 before accepting a payload. Its complete frame-kind whitelist
-is control JSON, model JSON and catalog JSON; only control is legal before the
-hello is admitted. Stream-bound readers and writers fail closed after malformed
-or partial traffic, and model frames require the exact expected
-kind/length/SHA-256 descriptor before allocation.
+is control JSON, model JSON, NBFC kind 4 `IMAGE_BYTES` and catalog JSON; only
+control is legal before hello, catalog remains reserved, and image bytes require
+`asset.imageBytes.v1` plus the immediately preceding exact revision/model
+descriptor and declared resource order. Stream-bound readers and writers fail
+closed after malformed or partial traffic, and model/image frames require the
+exact expected kind/length/SHA-256 descriptor before allocation.
 
 After the handshake, a strict runtime control codec carries `host.render`,
 `runner.presented`, `host.selection`, `runner.selection`, the capability-gated
@@ -1534,12 +1644,15 @@ the runner continues to build with the fixed logical `MediaQuery`. The
 DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
 token to the exact current canonical type and traits for hover filtering;
 negotiating or decoding either capability does not by itself enable Palette
-mutation. `host.render` describes one canonical bounded protocol-v10 model
-frame. The runner decodes only the twelve reviewed
-Canvas-capable built-in widget contracts and never loads project code.
-`CATALOG_JSON` remains reserved for a future versioned catalog contract. There
-is no image or pixel-transfer frame kind; the current Windows path renders the
-validated model directly in its native Flutter surface.
+mutation. `host.render` describes one canonical bounded protocol-v11 model
+frame. The runner decodes only the twelve reviewed Canvas-capable built-in
+widget contracts and never loads project code. `CATALOG_JSON` remains reserved
+for a future versioned catalog contract. When `asset.imageBytes.v1` is
+negotiated, the model's sorted resource descriptors are followed by exact NBFC
+kind 4 `IMAGE_BYTES` frames for that revision. These carry compressed referenced
+asset bytes only; the Windows path still renders the validated model directly
+in its native Flutter surface and never transfers Canvas screenshots or
+framebuffer pixels.
 
 `widget.movePreview.v1` is disposable view feedback, never move authority. Java
 sends source/parent/slot/post-removal index with the exact presented identities
@@ -1824,7 +1937,7 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v10 projection intentionally contains exactly the twelve
+The current protocol-v11 projection intentionally contains exactly the twelve
 Canvas-capable definitions: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
 `Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `ElevatedButton` and
 `Container`. It proves native hosting, bounded model publication,
@@ -1854,7 +1967,8 @@ Implementation proceeds through explicit gates:
 4. [Current Windows twelve-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
-   viewport with no image-transfer path. The separately compiled browser runner
+   viewport with the same revision-scoped typed asset resources and no
+   screenshot/framebuffer transfer. The separately compiled browser runner
    foundation described below does not change this product route until every
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
@@ -1922,6 +2036,10 @@ durable-anchor overlay, targeted pre-persistence semantic invalidation and the
 NetBeans 30 runtime/release matrix are complete as non-authorizing
 infrastructure.
 
+`Opacity` is the proposed next complete widget vertical slice, but this proposal
+awaits explicit user agreement. No Opacity catalog, schema, Properties, Canvas,
+DnD or Dart-generation implementation exists yet.
+
 1. Pair-aware Save As, cross-directory Copy with explicit relative-URI rebasing,
    and the explicit conversion flow for an already modified or open Dart
    source. Same-folder pair Copy/Paste is implemented under ADR-022; same-project
@@ -1934,14 +2052,14 @@ infrastructure.
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
    state composites, AppBar composites, Text composites, a closed Paint subset,
    shadows, font features, font variations, IconData, semantic theme roles and
-   Container's structured AlignmentGeometry/BoxConstraints/Matrix4/image-free
-   BoxDecoration graphs; built-in
+   Container's structured AlignmentGeometry/BoxConstraints/Matrix4/complete
+   BoxDecoration and asset-only DecorationImage graphs; built-in
    domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
-   intent validation required by ADR-021. The bounded protocol-v10 capability-gated model payload,
+   intent validation required by ADR-021. The bounded protocol-v11 capability-gated model payload,
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Windows inline Text product
    slice is also implemented under ADR-036, while physical CJK IME acceptance

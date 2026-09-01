@@ -60,6 +60,9 @@ import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
+import dev.flutter.netbeans.designer.canvas.CanvasPreviewProfileResolver;
 import dev.flutter.netbeans.designer.canvas.CanvasResolvedTheme;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportMetrics;
 import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
@@ -90,12 +93,16 @@ import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPreviewPlatforms.PreviewTarget;
+import dev.flutter.netbeans.plugin.designer.assets.FlutterAssetInventory;
+import dev.flutter.netbeans.plugin.designer.assets.FlutterAssetResolver;
+import dev.flutter.netbeans.plugin.designer.assets.FlutterDesignerCanvasImageProjector;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPalette;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragLifecycle;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragRegistry;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPlanner;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteTreeDropAdapter;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotEditorContext;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotMutation;
 import dev.flutter.netbeans.plugin.project.FlutterProjectPlatformProvider;
@@ -175,6 +182,10 @@ public final class FlutterDesignerMultiViewDesign
     private final FlutterProjectPlatformProvider projectPlatforms;
     private final FlutterDesignerProjectThemeResolver projectThemeResolver =
             new FlutterDesignerProjectThemeResolver();
+    private final FlutterAssetResolver projectAssetResolver =
+            new FlutterAssetResolver();
+    private final FlutterDesignerCanvasImageProjector canvasImageProjector =
+            new FlutterDesignerCanvasImageProjector();
     private final ChangeListener projectPlatformListener =
             event -> projectPlatformsChanged();
     private final FlutterDesignerCanvasBackendSelector canvasBackendSelector;
@@ -211,6 +222,16 @@ public final class FlutterDesignerMultiViewDesign
             projectThemeResolutionController;
     private FlutterDesignerProjectThemeWatcher projectThemeWatcher;
     private String projectThemeSetupFailure;
+    private FlutterDesignerProjectAssetResolutionController
+            projectAssetResolutionController;
+    private FlutterDesignerCanvasImageProjectionController
+            canvasImageProjectionController;
+    private FlutterDesignerProjectAssetWatcher projectAssetWatcher;
+    private String projectAssetSetupFailure;
+    private FlutterAssetInventory synchronizedProjectAssetInventory;
+    private FlutterAssetInventory synchronizingProjectAssetInventory;
+    private FlutterImageAssetChoices currentImageAssetChoices =
+            FlutterImageAssetChoices.empty();
     private FlutterDesignerMutationController.Snapshot mutationSnapshot;
     private FlutterDesignerDocumentState durableDocumentState;
     private FlutterDesignerDocumentState.Current currentCanvasState;
@@ -221,6 +242,7 @@ public final class FlutterDesignerMultiViewDesign
     private WidgetCatalog presentedCanvasCatalog;
     private PreviewTarget presentedCanvasTarget;
     private CanvasResolvedTheme presentedCanvasTheme;
+    private String presentedCanvasImageFingerprint;
     private FlutterDesignerNativeCanvasStatus lastCanvasStatus;
     private boolean previewInitialized;
     private boolean synchronizingSelection;
@@ -879,6 +901,43 @@ public final class FlutterDesignerMultiViewDesign
                 projectThemeSetupFailure = failureReason(failure);
             }
         }
+        if (dataObject != null
+                && projectAssetResolutionController == null) {
+            try {
+                Path projectRoot = Path.of(
+                        dataObject.getProject().getProjectDirectory().toURI())
+                        .toAbsolutePath().normalize();
+                projectAssetResolutionController =
+                        new FlutterDesignerProjectAssetResolutionController(
+                                projectRoot,
+                                projectAssetResolver,
+                                this::projectAssetResolutionChanged);
+                canvasImageProjectionController =
+                        new FlutterDesignerCanvasImageProjectionController(
+                                canvasImageProjector,
+                                this::canvasImageProjectionChanged);
+                projectAssetWatcher = new FlutterDesignerProjectAssetWatcher(
+                        dataObject.getProject().getProjectDirectory(),
+                        this::projectAssetFilesChanged);
+                projectAssetWatcher.open();
+                projectAssetSetupFailure = null;
+            } catch (RuntimeException failure) {
+                if (projectAssetWatcher != null) {
+                    projectAssetWatcher.close();
+                    projectAssetWatcher = null;
+                }
+                if (canvasImageProjectionController != null) {
+                    canvasImageProjectionController.close();
+                    canvasImageProjectionController = null;
+                }
+                if (projectAssetResolutionController != null) {
+                    projectAssetResolutionController.close();
+                    projectAssetResolutionController = null;
+                }
+                currentImageAssetChoices = FlutterImageAssetChoices.empty();
+                projectAssetSetupFailure = failureReason(failure);
+            }
+        }
         if (dataObject != null && !mutationListening) {
             mutationController = dataObject.mutationController();
             mutationViewEpoch++;
@@ -926,6 +985,22 @@ public final class FlutterDesignerMultiViewDesign
             projectThemeResolutionController = null;
         }
         projectThemeSetupFailure = null;
+        if (projectAssetWatcher != null) {
+            projectAssetWatcher.close();
+            projectAssetWatcher = null;
+        }
+        if (canvasImageProjectionController != null) {
+            canvasImageProjectionController.close();
+            canvasImageProjectionController = null;
+        }
+        if (projectAssetResolutionController != null) {
+            projectAssetResolutionController.close();
+            projectAssetResolutionController = null;
+        }
+        projectAssetSetupFailure = null;
+        synchronizedProjectAssetInventory = null;
+        synchronizingProjectAssetInventory = null;
+        currentImageAssetChoices = FlutterImageAssetChoices.empty();
         if (mutationController != null && mutationListening) {
             mutationViewEpoch++;
             mutationListening = false;
@@ -2674,10 +2749,105 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         CanvasResolvedTheme resolvedTheme = themeResolution.theme().orElseThrow();
+        boolean referencesImages = canvasImageProjector.referencesImages(document);
+        CanvasImageResourceBundle imageResources =
+                CanvasImageResourceBundle.empty();
+        FlutterDesignerProjectAssetResolutionController assetController =
+                projectAssetResolutionController;
+        Optional<FlutterDesignerProjectAssetResolutionController.Resolution>
+                cachedAssets = assetController == null
+                        ? Optional.empty()
+                        : assetController.request();
+        if (referencesImages) {
+            if (assetController == null) {
+                imageResources = unavailableImageResources(
+                        document,
+                        "the declared Flutter image inventory service is unavailable"
+                        + (projectAssetSetupFailure == null
+                                ? "."
+                                : "; setup failed: "
+                                + projectAssetSetupFailure));
+            } else if (cachedAssets.isEmpty()) {
+                clearPresentedCanvasIdentity();
+                owner.withdraw();
+                renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
+                        FlutterDesignerNativeCanvasStatus.Stage.STARTING,
+                        "Resolving declared Flutter image assets...",
+                        "Target: " + modelName
+                        + " DecorationImage assets. Reading and validating bounded "
+                        + "pubspec/package asset bytes outside the UI thread."));
+                return;
+            } else {
+                FlutterDesignerProjectAssetResolutionController.Resolution
+                        assetResolution = cachedAssets.orElseThrow();
+                if (!assetResolution.available()) {
+                    imageResources = unavailableImageResources(
+                            document,
+                            assetResolution.detail());
+                } else if (canvasImageProjectionController == null) {
+                    imageResources = unavailableImageResources(
+                            document,
+                            "the revision-scoped Canvas image projector is unavailable");
+                } else {
+                    FlutterAssetInventory inventory =
+                            assetResolution.inventory().orElseThrow();
+                    if (inventory != synchronizedProjectAssetInventory) {
+                        clearPresentedCanvasIdentity();
+                        owner.withdraw();
+                        renderNativeCanvasStatus(
+                                new FlutterDesignerNativeCanvasStatus(
+                                        FlutterDesignerNativeCanvasStatus.Stage
+                                                .STARTING,
+                                        "Synchronizing Flutter package asset listeners...",
+                                        "Target: " + modelName
+                                        + " DecorationImage assets. Establishing a "
+                                        + "generation-fenced listener snapshot outside "
+                                        + "the UI thread before publishing image bytes."));
+                        return;
+                    }
+                    double devicePixelRatio = CanvasPreviewProfileResolver
+                            .resolveDevicePixelRatio(
+                                    target.mode(), document.canvas())
+                            .value();
+                    Optional<FlutterDesignerCanvasImageProjectionController
+                            .Resolution> cachedProjection =
+                            canvasImageProjectionController.request(
+                                    document, inventory, devicePixelRatio);
+                    if (cachedProjection.isEmpty()) {
+                        clearPresentedCanvasIdentity();
+                        owner.withdraw();
+                        renderNativeCanvasStatus(
+                                new FlutterDesignerNativeCanvasStatus(
+                                        FlutterDesignerNativeCanvasStatus.Stage
+                                                .STARTING,
+                                        "Preparing declared Flutter image bytes...",
+                                        "Target: " + modelName
+                                        + " DecorationImage assets. Selecting the exact "
+                                        + "Flutter 3.44.8 DPR variants and building one "
+                                        + "bounded revision-scoped content-addressed bundle "
+                                        + "outside the UI thread."));
+                        return;
+                    }
+                    FlutterDesignerCanvasImageProjectionController.Resolution
+                            projectionResolution =
+                            cachedProjection.orElseThrow();
+                    imageResources = projectionResolution.available()
+                            ? projectionResolution.projection().orElseThrow()
+                                    .bundle()
+                            : unavailableImageResources(
+                                    document,
+                                    projectionResolution.detail());
+                }
+            }
+        }
+        String imageFingerprint = imageResources.fingerprintSha256();
         if (presentedCanvasDocument == document
                 && presentedCanvasCatalog == catalog
                 && Objects.equals(presentedCanvasTarget, target)
-                && Objects.equals(presentedCanvasTheme, resolvedTheme)) {
+                && Objects.equals(presentedCanvasTheme, resolvedTheme)
+                && Objects.equals(
+                        presentedCanvasImageFingerprint,
+                        imageFingerprint)) {
             selectedWidgetId().ifPresent(owner::selectWidget);
             return;
         }
@@ -2686,12 +2856,23 @@ public final class FlutterDesignerMultiViewDesign
                 catalog,
                 target.mode(),
                 target.targetPlatform(),
-                resolvedTheme);
+                resolvedTheme,
+                imageResources);
         presentedCanvasDocument = document;
         presentedCanvasCatalog = catalog;
         presentedCanvasTarget = target;
         presentedCanvasTheme = resolvedTheme;
+        presentedCanvasImageFingerprint = imageFingerprint;
         selectedWidgetId().ifPresent(owner::selectWidget);
+    }
+
+    private CanvasImageResourceBundle unavailableImageResources(
+            DesignerDocument document,
+            String reason) {
+        return canvasImageProjector.unavailable(
+                document,
+                CanvasImageResolutionIssue.Code.UNREADABLE,
+                "Resolve declared Flutter image bytes: " + reason + '.');
     }
 
     private List<PreviewTarget> availablePreviewChoices() {
@@ -2808,6 +2989,196 @@ public final class FlutterDesignerMultiViewDesign
         presentCurrentCanvas();
     }
 
+    private void projectAssetFilesChanged() {
+        if (projectAssetWatcher == null
+                || projectAssetResolutionController == null) {
+            return;
+        }
+        projectAssetResolutionController.invalidate();
+        synchronizedProjectAssetInventory = null;
+        synchronizingProjectAssetInventory = null;
+        if (canvasImageProjectionController != null) {
+            canvasImageProjectionController.invalidate();
+        }
+        currentImageAssetChoices = new FlutterImageAssetChoices(
+                List.of(),
+                Optional.of(
+                        "Refreshing the owning Flutter project's declared image "
+                        + "asset inventory."));
+        refreshCanvasAfterProjectAssetChange();
+    }
+
+    private void projectAssetResolutionChanged() {
+        FlutterDesignerProjectAssetResolutionController controllerForAssets =
+                projectAssetResolutionController;
+        if (controllerForAssets == null) {
+            return;
+        }
+        Optional<FlutterDesignerProjectAssetResolutionController.Resolution>
+                resolution = controllerForAssets.request();
+        if (resolution.isEmpty()) {
+            return;
+        }
+        if (canvasImageProjectionController != null) {
+            canvasImageProjectionController.invalidate();
+        }
+        FlutterDesignerProjectAssetResolutionController.Resolution resolved =
+                resolution.orElseThrow();
+        if (!resolved.available()) {
+            synchronizedProjectAssetInventory = null;
+            synchronizingProjectAssetInventory = null;
+            currentImageAssetChoices = unavailableImageChoices(
+                    resolved.detail());
+            refreshCanvasAfterProjectAssetChange();
+            return;
+        }
+        FlutterDesignerProjectAssetWatcher watcherForAssets =
+                projectAssetWatcher;
+        if (watcherForAssets == null) {
+            failClosedProjectAssetPipeline(
+                    "Synchronize external Flutter package asset listeners: "
+                    + "the project asset watcher is unavailable.");
+            return;
+        }
+        FlutterAssetInventory inventory =
+                resolved.inventory().orElseThrow();
+        if (inventory == synchronizedProjectAssetInventory) {
+            currentImageAssetChoices = canvasImageProjector.choices(inventory);
+            refreshCanvasAfterProjectAssetChange();
+            return;
+        }
+        if (inventory == synchronizingProjectAssetInventory) {
+            return;
+        }
+        synchronizedProjectAssetInventory = null;
+        synchronizingProjectAssetInventory = inventory;
+        try {
+            watcherForAssets.synchronizePackageRoots(
+                    inventory.internalPackageWatchRoots(),
+                    result -> projectAssetWatchSynchronizationChanged(
+                            controllerForAssets,
+                            watcherForAssets,
+                            resolved,
+                            inventory,
+                            result));
+        } catch (RuntimeException failure) {
+            failClosedProjectAssetPipeline(
+                    "Synchronize external Flutter package asset listeners: "
+                    + failureReason(failure) + ".");
+        }
+    }
+
+    private void projectAssetWatchSynchronizationChanged(
+            FlutterDesignerProjectAssetResolutionController expectedController,
+            FlutterDesignerProjectAssetWatcher expectedWatcher,
+            FlutterDesignerProjectAssetResolutionController.Resolution
+                    expectedResolution,
+            FlutterAssetInventory expectedInventory,
+            FlutterDesignerProjectAssetWatcher.SynchronizationResult result) {
+        if (projectAssetResolutionController != expectedController
+                || projectAssetWatcher != expectedWatcher
+                || synchronizingProjectAssetInventory != expectedInventory) {
+            return;
+        }
+        Optional<FlutterDesignerProjectAssetResolutionController.Resolution>
+                current = expectedController.request();
+        if (current.isEmpty()
+                || current.orElseThrow() != expectedResolution) {
+            return;
+        }
+        synchronizingProjectAssetInventory = null;
+        if (!result.successful()) {
+            failClosedProjectAssetPipeline(
+                    "Synchronize external Flutter package asset listeners: "
+                    + result.failureDetail().orElseThrow());
+            return;
+        }
+        if (result.changed()) {
+            // The first snapshot discovered the package roots before their
+            // listeners existed. Resolve once more after worker registration
+            // so a mutation in that interval cannot leave immutable bytes
+            // cached without an invalidating event.
+            synchronizedProjectAssetInventory = null;
+            expectedController.invalidate();
+            if (canvasImageProjectionController != null) {
+                canvasImageProjectionController.invalidate();
+            }
+            currentImageAssetChoices = new FlutterImageAssetChoices(
+                    List.of(),
+                    Optional.of(
+                            "Verifying declared Flutter image assets after "
+                            + "synchronizing external package listeners."));
+            refreshCanvasAfterProjectAssetChange();
+            return;
+        }
+        synchronizedProjectAssetInventory = expectedInventory;
+        currentImageAssetChoices = canvasImageProjector.choices(
+                expectedInventory);
+        refreshCanvasAfterProjectAssetChange();
+    }
+
+    private void failClosedProjectAssetPipeline(String detail) {
+        String safeDetail = canvasImageProjector.sanitizeExternalReason(detail);
+        projectAssetSetupFailure = safeDetail;
+        synchronizedProjectAssetInventory = null;
+        synchronizingProjectAssetInventory = null;
+        if (projectAssetWatcher != null) {
+            projectAssetWatcher.close();
+            projectAssetWatcher = null;
+        }
+        if (canvasImageProjectionController != null) {
+            canvasImageProjectionController.close();
+            canvasImageProjectionController = null;
+        }
+        if (projectAssetResolutionController != null) {
+            projectAssetResolutionController.close();
+            projectAssetResolutionController = null;
+        }
+        currentImageAssetChoices = unavailableImageChoices(safeDetail);
+        clearPresentedCanvasIdentity();
+        if (canvasOwner != null) {
+            canvasOwner.withdraw();
+        }
+        refreshCanvasAfterProjectAssetChange();
+    }
+
+    private void canvasImageProjectionChanged() {
+        if (canvasImageProjectionController == null) {
+            return;
+        }
+        refreshCanvasAfterProjectAssetChange();
+    }
+
+    private void refreshCanvasAfterProjectAssetChange() {
+        DesignerDocument document = currentCanvasDocument;
+        if (document == null) {
+            return;
+        }
+        if (canvasImageProjector.referencesImages(document)) {
+            clearPresentedCanvasIdentity();
+        }
+        if (mutationController != null && mutationListening) {
+            scheduleMutationSnapshotRefresh();
+        } else if (durableDocumentState
+                instanceof FlutterDesignerDocumentState.Current current
+                && canvasEligible(current)) {
+            publishDurableCanvas(current);
+        } else {
+            presentCurrentCanvas();
+        }
+    }
+
+    private FlutterImageAssetChoices unavailableImageChoices(
+            String detail) {
+        String compact = canvasImageProjector.sanitizeExternalReason(detail);
+        String reason = "Resolve declared Flutter image choices: " + compact;
+        if (reason.length() > 1024) {
+            reason = reason.substring(0, 1023) + "…";
+        }
+        return new FlutterImageAssetChoices(
+                List.of(), Optional.of(reason));
+    }
+
     private void updatePreviewModeAccessibility() {
         String description;
         if (projectPlatforms == null) {
@@ -2910,7 +3281,8 @@ public final class FlutterDesignerMultiViewDesign
                 definition,
                 mutationHandler,
                 slotEditorContext,
-                slotMutationHandler);
+                slotMutationHandler,
+                currentImageAssetChoices);
         widgetNodes.put(widget.id(), node);
         return node;
     }
@@ -4845,6 +5217,7 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasCatalog = null;
         presentedCanvasTarget = null;
         presentedCanvasTheme = null;
+        presentedCanvasImageFingerprint = null;
     }
 
     private enum CanvasCloseGateState {

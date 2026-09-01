@@ -7,7 +7,8 @@ import java.util.Optional;
 public enum CanvasProcessFrameKind {
     CONTROL_JSON(1),
     MODEL_JSON(2),
-    CATALOG_JSON(3);
+    CATALOG_JSON(3),
+    IMAGE_BYTES(4);
 
     private final int wireCode;
 

@@ -236,8 +236,8 @@ class DesignerPairCopyPlannerTest {
         OriginalFdBytes current = starterFd();
         String currentJson = new String(current.copyBytes(), StandardCharsets.UTF_8);
         String futureJson = currentJson.replaceFirst(
-                "\\\"schemaVersion\\\"\\s*:\\s*5",
-                "\"schemaVersion\": 6");
+                "\\\"schemaVersion\\\"\\s*:\\s*6",
+                "\"schemaVersion\": 7");
         assertNotEquals(currentJson, futureJson);
         OriginalFdBytes future = OriginalFdBytes.copyOf(
                 futureJson.getBytes(StandardCharsets.UTF_8),

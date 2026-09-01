@@ -278,10 +278,13 @@ accepted architecture is documented in
     `host.hello`, `runner.hello`, `host.close`, `runner.closed` and
     `runner.failure`, including exact version/capability/limit negotiation,
     contiguous runner sequences and startup-close races.
-  - [x] Add bounded digest-verified process framing. The complete current
-    channel whitelist is control JSON plus post-handshake model and catalog
-    JSON. The model channel now carries the canonical bounded `CORE_V1`
-    projection; catalog JSON remains reserved for a future versioned contract.
+  - [x] Add bounded digest-verified process framing. The current post-handshake
+    whitelist is control JSON, canonical bounded model JSON, negotiated NBFC
+    kind 4 `IMAGE_BYTES` and reserved catalog JSON. Under
+    `asset.imageBytes.v1`, one revision-scoped model
+    descriptor is followed by the exact ordered SHA/size-checked compressed
+    image-resource frames. This transports referenced asset resources, never a
+    screenshot or rendered-Canvas pixel surface.
   - [x] Reject physical surfaces above 4096 pixels per dimension or 8,388,608
     total pixels before native surface allocation. This is not a raster-transfer
     budget.
@@ -322,8 +325,10 @@ accepted architecture is documented in
   selected Windows architecture is the bounded Flutter Web release bundle in a
   windowed Microsoft Edge WebView2 child controller owned through a narrow
   native Win32 adapter, with direct DOM multi-view embedding, an isolated HTTPS
-  virtual host and JSON web messages carrying the existing framed protocol. It
-  has no image-transfer path.
+  virtual host and JSON web messages carrying the existing framed protocol.
+  Its shared runtime now consumes the same negotiated revision-scoped
+  `IMAGE_BYTES` resources as native Canvas for exact `DecorationImage` parity;
+  it still has no screenshot/framebuffer transfer path.
   - [x] Compile the same bounded Canvas runtime for Web through `main_web.dart`,
     separate process-only I/O from the shared runtime, and attach one Flutter
     widget root per browser-managed view through Flutter multi-view.
@@ -737,7 +742,8 @@ accepted architecture is documented in
   `isAntiAlias`, `decoration`, `foregroundDecoration`, `width`, `height`,
   `constraints`, `margin`, `transform`, `transformAlignment` and
   `clipBehavior`. AlignmentGeometry, BoxConstraints, column-major Matrix4 and
-  image-free BoxDecoration are closed typed values with transactional editors,
+  the schema-v5 BoxDecoration branch was a closed typed value with transactional
+  editors,
   exact layout/paint invariants, semantic `ColorScheme` integration and atomic
   dependent-property patches. Generated Dart and the real native Canvas share
   the same contract; Canvas keeps selection outside the paint transform, draws
@@ -745,10 +751,29 @@ accepted architecture is documented in
   surface is twelve Create/Canvas/DnD sources, 528 writable rows and 192
   compatibility candidates across fourteen any-widget plus two trait-bound
   destinations: exactly 170 accepted and 22 rejected. This slice raises `.fd`
-  to v5, Catalog API to 4 and Canvas payload to v10. `DecorationImage` remains
-  deferred to shared typed asset, pubspec/package, generator, cache/error and
-  Canvas-decoder infrastructure rather than accepting a path or Dart escape
-  hatch.
+  to v5, Catalog API to 4 and Canvas payload to v10. ADR-039 completes the
+  deliberately deferred image branch in the following checked item.
+- [x] Complete shared typed image assets and `Container.DecorationImage`
+  end-to-end. `.fd` schema v6 adds asset-only `ImageProviderValue` plus the full
+  13-argument `DecorationImageValue`; Catalog API 5, deterministic Dart,
+  accessible typed Properties, migration, chronological Undo/Redo and theme
+  detection use the same fail-closed contract. The project inventory resolves
+  app/package `pubspec.yaml` declarations through `package_config.json`, accepts
+  verified PNG/JPEG/GIF/WebP variants, applies the exact Flutter 3.44.8 DPR
+  selection algorithm and publishes referenced immutable bytes only. Canvas
+  model v11 over NBFC framing v1 negotiates `asset.imageBytes.v1`, orders
+  `CONTROL` → `MODEL` → `IMAGE`, and
+  validates exact descriptors, payload SHA-256, size and order. Native and
+  internal exact Web construct the same real `DecorationImage`; authenticated
+  corrupt resources are quarantined independently, while wire/identity/coverage
+  violations remain fatal. Unavailable resources use deterministic accessible
+  placeholders without removing
+  selection/layout/drop overlays. File, memory, network and custom model
+  providers remain deferred; there is no filesystem-path, URL or raw-Dart
+  escape hatch.
+- [ ] If the user agrees, use `Opacity` as the next bounded complete vertical
+  slice. This is a proposal only: no catalog/model/UI/Canvas/generation work for
+  `Opacity` has been implemented or approved yet.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`

@@ -151,10 +151,19 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals("matrix4", projection.propertyContracts()
                 .get(new PropertyName("transform"))
                 .constraintFingerprints().get(PropertyValueKind.MATRIX4));
-        assertTrue(projection.propertyContracts()
+        String decorationFingerprint = projection.propertyContracts()
                 .get(new PropertyName("decoration"))
-                .constraintFingerprints().get(PropertyValueKind.BOX_DECORATION)
-                .startsWith("boxDecoration:material.colorScheme.error,"));
+                .constraintFingerprints().get(PropertyValueKind.BOX_DECORATION);
+        assertTrue(decorationFingerprint.startsWith(
+                "boxDecoration:v2:imageProvider:v1:asset,exactAsset:"));
+        assertTrue(decorationFingerprint.contains(
+                "resize(1..16384,exact,fit,allowUpscaling)"));
+        assertTrue(decorationFingerprint.contains(
+                "colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation)"));
+        assertTrue(decorationFingerprint.contains(
+                ":theme=material.colorScheme.error,"));
+        assertTrue(decorationFingerprint.contains(
+                "material.colorScheme.surfaceTint"));
         assertEquals("0:1:*:1", projection.propertyContracts()
                 .get(new PropertyName("margin")).numericBounds()
                 .get(PropertyValueKind.EDGE_INSETS).fingerprint());

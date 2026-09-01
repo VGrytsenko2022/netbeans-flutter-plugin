@@ -45,4 +45,20 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('NBFC kind 4 carries opaque image bytes', () async {
+    final payload = utf8.encode('not-json-image-bytes');
+    final reader = NbfcFrameReader(
+      Stream.value(encodeNbfcFrame(nbfcImageBytes, payload)),
+    );
+
+    final frame = await reader.read(
+      maxPayloadBytes: 1024,
+      expectedKind: nbfcImageBytes,
+    );
+
+    expect(frame!.kind, nbfcImageBytes);
+    expect(frame.payload, payload);
+    expect(frame.digestHex, sha256Hex(payload));
+  });
 }

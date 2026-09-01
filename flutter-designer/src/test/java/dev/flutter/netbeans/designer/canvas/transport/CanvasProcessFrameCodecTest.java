@@ -39,12 +39,15 @@ class CanvasProcessFrameCodecTest {
         List<CanvasProcessFrame> expected = List.of(
                 frame(CanvasProcessFrameKind.CONTROL_JSON, "hello"),
                 frame(CanvasProcessFrameKind.MODEL_JSON, "model"),
-                frame(CanvasProcessFrameKind.CATALOG_JSON, "catalog"));
+                frame(CanvasProcessFrameKind.CATALOG_JSON, "catalog"),
+                frame(CanvasProcessFrameKind.IMAGE_BYTES, "image"));
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         CanvasProcessFrameWriter writer = codec.writer(bytes);
         writer.write(policy, expected.get(0));
         writer.write(policy, expected.get(1), expected.get(1).descriptor());
         writer.write(policy, expected.get(2), expected.get(2).descriptor());
+        CanvasProcessFramingPolicy imagePolicy = hostToRunnerWithImages();
+        writer.write(imagePolicy, expected.get(3), expected.get(3).descriptor());
 
         CanvasProcessFrameReader reader = codec.reader(
                 new FragmentedInputStream(bytes.toByteArray(), 2));
@@ -53,6 +56,8 @@ class CanvasProcessFrameCodecTest {
                 policy, expected.get(1).descriptor()).orElseThrow());
         assertEquals(expected.get(2), reader.read(
                 policy, expected.get(2).descriptor()).orElseThrow());
+        assertEquals(expected.get(3), reader.read(
+                imagePolicy, expected.get(3).descriptor()).orElseThrow());
         assertTrue(reader.read(policy).isEmpty());
         assertTrue(reader.read(policy).isEmpty());
         assertFalse(reader.isPoisoned());
@@ -115,6 +120,36 @@ class CanvasProcessFrameCodecTest {
         byte[] headerOnly = encoded.clone();
         headerOnly[11] = 6;
         assertHeaderFailure(headerOnly, policy, exact.descriptor(),
+                CanvasProcessFramingError.PAYLOAD_LIMIT);
+    }
+
+    @Test
+    void imageFramesRequireTheirCapabilityAndUseTheNegotiatedImageBound()
+            throws Exception {
+        CanvasWireHandshakeLimits tiny = new CanvasWireHandshakeLimits(
+                128, 32, 32, 32, 5, 1, 1);
+        CanvasProcessFramingPolicy admitted = negotiated(
+                tiny,
+                CanvasProcessDirection.HOST_TO_RUNNER,
+                List.of(
+                        CanvasWireCapability.READ_ONLY_RENDER,
+                        CanvasWireCapability.ASSET_IMAGE_BYTES_V1));
+        CanvasProcessFrame exact = new CanvasProcessFrame(
+                CanvasProcessFrameKind.IMAGE_BYTES, new byte[5]);
+        byte[] encoded = encoded(admitted, exact, exact.descriptor());
+
+        assertEquals(exact, codec.reader(new ByteArrayInputStream(encoded)).read(
+                admitted, exact.descriptor()).orElseThrow());
+        assertHeaderFailure(encoded, negotiated(
+                        tiny,
+                        CanvasProcessDirection.HOST_TO_RUNNER,
+                        List.of(CanvasWireCapability.READ_ONLY_RENDER)),
+                exact.descriptor(),
+                CanvasProcessFramingError.CAPABILITY_NOT_NEGOTIATED);
+
+        byte[] tooLargeHeader = encoded.clone();
+        tooLargeHeader[11] = 6;
+        assertHeaderFailure(tooLargeHeader, admitted, exact.descriptor(),
                 CanvasProcessFramingError.PAYLOAD_LIMIT);
     }
 
@@ -338,6 +373,15 @@ class CanvasProcessFrameCodecTest {
                 PAYLOAD_LIMITS,
                 CanvasProcessDirection.RUNNER_TO_HOST,
                 List.of(CanvasWireCapability.READ_ONLY_RENDER));
+    }
+
+    private static CanvasProcessFramingPolicy hostToRunnerWithImages() {
+        return negotiated(
+                PAYLOAD_LIMITS,
+                CanvasProcessDirection.HOST_TO_RUNNER,
+                List.of(
+                        CanvasWireCapability.READ_ONLY_RENDER,
+                        CanvasWireCapability.ASSET_IMAGE_BYTES_V1));
     }
 
     private static CanvasProcessFramingPolicy hostToRunnerWithoutCapabilities() {

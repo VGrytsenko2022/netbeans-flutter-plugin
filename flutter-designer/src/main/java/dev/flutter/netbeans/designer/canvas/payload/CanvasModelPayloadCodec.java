@@ -4,6 +4,11 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderProfile;
 import dev.flutter.netbeans.designer.canvas.CanvasRenderRequest;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAsset;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAssetId;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
+import dev.flutter.netbeans.designer.canvas.CanvasImageVariant;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeColorValue;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeComponentColorRole;
 import dev.flutter.netbeans.designer.canvas.CanvasThemeTextStyleOverride;
@@ -21,8 +26,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Canonical projection of one validated Designer revision for the isolated
@@ -35,7 +43,7 @@ import java.util.Map;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -76,8 +84,10 @@ public final class CanvasModelPayloadCodec {
                     "logicalRevisionId",
                     request.revisionKey().logicalRevisionId());
             writeProfile(json, request.renderProfile());
+            ProjectionContext context = new ProjectionContext(request);
             json.writeFieldName("root");
-            writeWidget(json, request.snapshot().document().root());
+            writeWidget(json, request.snapshot().document().root(), context);
+            context.requireExactResourceCoverage();
             json.writeEndObject();
         } catch (IOException | RuntimeException failure) {
             throw new CanvasModelPayloadException(
@@ -254,7 +264,10 @@ public final class CanvasModelPayloadCodec {
         }
     }
 
-    private static void writeWidget(JsonGenerator json, WidgetNode widget)
+    private static void writeWidget(
+            JsonGenerator json,
+            WidgetNode widget,
+            ProjectionContext context)
             throws IOException {
         json.writeStartObject();
         json.writeStringField("id", widget.id().toString());
@@ -264,7 +277,7 @@ public final class CanvasModelPayloadCodec {
                 .sorted(java.util.Comparator.comparing(value -> value.getKey().toString()))
                 .toList()) {
             json.writeFieldName(entry.getKey().toString());
-            writeProperty(json, entry.getValue());
+            writeProperty(json, entry.getValue(), context);
         }
         json.writeEndObject();
         json.writeObjectFieldStart("slots");
@@ -272,13 +285,16 @@ public final class CanvasModelPayloadCodec {
                 .sorted(java.util.Comparator.comparing(value -> value.getKey().toString()))
                 .toList()) {
             json.writeFieldName(entry.getKey().toString());
-            writeSlot(json, entry.getValue());
+            writeSlot(json, entry.getValue(), context);
         }
         json.writeEndObject();
         json.writeEndObject();
     }
 
-    private static void writeSlot(JsonGenerator json, WidgetSlot slot)
+    private static void writeSlot(
+            JsonGenerator json,
+            WidgetSlot slot,
+            ProjectionContext context)
             throws IOException {
         json.writeStartObject();
         switch (slot) {
@@ -286,7 +302,7 @@ public final class CanvasModelPayloadCodec {
                 json.writeStringField("kind", "single");
                 json.writeFieldName("child");
                 if (single.child().isPresent()) {
-                    writeWidget(json, single.child().orElseThrow());
+                    writeWidget(json, single.child().orElseThrow(), context);
                 } else {
                     json.writeNull();
                 }
@@ -295,7 +311,7 @@ public final class CanvasModelPayloadCodec {
                 json.writeStringField("kind", "list");
                 json.writeArrayFieldStart("children");
                 for (WidgetNode child : list.children()) {
-                    writeWidget(json, child);
+                    writeWidget(json, child, context);
                 }
                 json.writeEndArray();
             }
@@ -303,7 +319,10 @@ public final class CanvasModelPayloadCodec {
         json.writeEndObject();
     }
 
-    private static void writeProperty(JsonGenerator json, PropertyValue value)
+    private static void writeProperty(
+            JsonGenerator json,
+            PropertyValue value,
+            ProjectionContext context)
             throws IOException {
         json.writeStartObject();
         switch (value) {
@@ -362,8 +381,12 @@ public final class CanvasModelPayloadCodec {
             case PropertyValue.BoxConstraintsValue constraints ->
                 writeBoxConstraints(json, constraints);
             case PropertyValue.Matrix4Value matrix -> writeMatrix4(json, matrix);
+            case PropertyValue.ImageProviderValue provider -> {
+                json.writeStringField("kind", "imageProvider");
+                writeImageProviderFields(json, provider, context);
+            }
             case PropertyValue.BoxDecorationValue decoration ->
-                writeBoxDecoration(json, decoration);
+                writeBoxDecoration(json, decoration, context);
             case PropertyValue.AssetValue ignored -> throw unsupported(value);
             case PropertyValue.CallbackValue ignored ->
                 // Executable handler identifiers never cross the Canvas
@@ -520,11 +543,19 @@ public final class CanvasModelPayloadCodec {
 
     private static void writeBoxDecoration(
             JsonGenerator json,
-            PropertyValue.BoxDecorationValue decoration) throws IOException {
+            PropertyValue.BoxDecorationValue decoration,
+            ProjectionContext context) throws IOException {
         json.writeStringField("kind", "boxDecoration");
         json.writeFieldName("color");
         if (decoration.color().isPresent()) {
             writeColorSource(json, decoration.color().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        json.writeFieldName("image");
+        if (decoration.image().isPresent()) {
+            writeDecorationImage(
+                    json, decoration.image().orElseThrow(), context);
         } else {
             json.writeNull();
         }
@@ -569,6 +600,144 @@ public final class CanvasModelPayloadCodec {
             json.writeNullField("backgroundBlendMode");
         }
         json.writeStringField("shape", decoration.shape().wireName());
+    }
+
+    private static void writeDecorationImage(
+            JsonGenerator json,
+            PropertyValue.DecorationImageValue image,
+            ProjectionContext context) throws IOException {
+        json.writeStartObject();
+        json.writeObjectFieldStart("image");
+        writeImageProviderFields(json, image.image(), context);
+        json.writeEndObject();
+        json.writeBooleanField("onError", image.onError().isPresent());
+        json.writeFieldName("colorFilter");
+        if (image.colorFilter().isPresent()) {
+            writeColorFilter(json, image.colorFilter().orElseThrow());
+        } else {
+            json.writeNull();
+        }
+        if (image.fit().isPresent()) {
+            json.writeStringField("fit", image.fit().orElseThrow().wireName());
+        } else {
+            json.writeNullField("fit");
+        }
+        json.writeObjectFieldStart("alignment");
+        writeAlignmentFields(json, image.alignment());
+        json.writeEndObject();
+        json.writeFieldName("centerSlice");
+        if (image.centerSlice().isPresent()) {
+            PropertyValue.DecorationImageValue.Rect rect =
+                    image.centerSlice().orElseThrow();
+            json.writeStartObject();
+            json.writeNumberField("left", rect.left());
+            json.writeNumberField("top", rect.top());
+            json.writeNumberField("right", rect.right());
+            json.writeNumberField("bottom", rect.bottom());
+            json.writeEndObject();
+        } else {
+            json.writeNull();
+        }
+        json.writeStringField("repeat", image.repeat().wireName());
+        json.writeBooleanField(
+                "matchTextDirection", image.matchTextDirection());
+        json.writeNumberField("scale", image.scale());
+        json.writeNumberField("opacity", image.opacity());
+        json.writeStringField(
+                "filterQuality", image.filterQuality().wireName());
+        json.writeBooleanField("invertColors", image.invertColors());
+        json.writeBooleanField("isAntiAlias", image.isAntiAlias());
+        json.writeEndObject();
+    }
+
+    private static void writeImageProviderFields(
+            JsonGenerator json,
+            PropertyValue.ImageProviderValue provider,
+            ProjectionContext context) throws IOException {
+        json.writeStringField("kind", provider.providerKind().wireName());
+        json.writeStringField("assetName", provider.assetName());
+        if (provider.packageName().isPresent()) {
+            json.writeStringField(
+                    "packageName", provider.packageName().orElseThrow());
+        } else {
+            json.writeNullField("packageName");
+        }
+        if (provider.exactScale().isPresent()) {
+            json.writeNumberField(
+                    "exactScale", provider.exactScale().orElseThrow());
+        } else {
+            json.writeNullField("exactScale");
+        }
+        json.writeFieldName("resize");
+        if (provider.resize().isPresent()) {
+            PropertyValue.ImageProviderValue.ResizeImageConfig resize =
+                    provider.resize().orElseThrow();
+            json.writeStartObject();
+            if (resize.width().isPresent()) {
+                json.writeNumberField("width", resize.width().orElseThrow());
+            } else {
+                json.writeNullField("width");
+            }
+            if (resize.height().isPresent()) {
+                json.writeNumberField("height", resize.height().orElseThrow());
+            } else {
+                json.writeNullField("height");
+            }
+            json.writeStringField("policy", resize.policy().wireName());
+            json.writeBooleanField(
+                    "allowUpscaling", resize.allowUpscaling());
+            json.writeEndObject();
+        } else {
+            json.writeNull();
+        }
+        json.writeObjectFieldStart("resolution");
+        switch (context.resolve(provider)) {
+            case ResolvedImage resolved -> {
+                json.writeStringField("kind", "resolved");
+                json.writeStringField(
+                        "resourceId", resolved.resourceId());
+                json.writeNumberField(
+                        "resolvedScale", resolved.resolvedScale());
+            }
+            case UnavailableImage unavailable -> {
+                json.writeStringField("kind", "unavailable");
+                json.writeStringField(
+                        "code", unavailable.issue().code().wireName());
+                json.writeStringField(
+                        "reason", unavailable.issue().reason());
+            }
+        }
+        json.writeEndObject();
+    }
+
+    private static void writeColorFilter(
+            JsonGenerator json,
+            PropertyValue.DecorationImageValue.ColorFilter filter)
+            throws IOException {
+        json.writeStartObject();
+        json.writeStringField("kind", filter.wireKind());
+        switch (filter) {
+            case PropertyValue.DecorationImageValue.Mode mode -> {
+                json.writeFieldName("color");
+                writeColorSource(json, mode.color());
+                json.writeStringField(
+                        "blendMode", mode.blendMode().wireName());
+            }
+            case PropertyValue.DecorationImageValue.Matrix matrix -> {
+                json.writeArrayFieldStart("values");
+                for (var value : matrix.values()) {
+                    json.writeNumber(value);
+                }
+                json.writeEndArray();
+            }
+            case PropertyValue.DecorationImageValue.Saturation saturation ->
+                json.writeNumberField("value", saturation.value());
+            case PropertyValue.DecorationImageValue.LinearToSrgbGamma ignored -> {
+            }
+            case PropertyValue.DecorationImageValue.SrgbToLinearGamma ignored -> {
+            }
+        }
+        json.writeEndObject();
     }
 
     private static void writeBoxBorder(
@@ -717,6 +886,95 @@ public final class CanvasModelPayloadCodec {
             }
         }
         json.writeEndObject();
+    }
+
+    private sealed interface ImageResolution
+            permits ResolvedImage, UnavailableImage {
+    }
+
+    private record ResolvedImage(
+            String resourceId,
+            java.math.BigDecimal resolvedScale) implements ImageResolution {
+    }
+
+    private record UnavailableImage(
+            CanvasImageResolutionIssue issue) implements ImageResolution {
+    }
+
+    /** Mutable only during one synchronous encoding call. */
+    private static final class ProjectionContext {
+        private final CanvasRenderRequest request;
+        private final CanvasImageResourceBundle bundle;
+        private final Set<CanvasImageAssetId> referencedAssets = new HashSet<>();
+        private final Set<CanvasImageAssetId> referencedIssues = new HashSet<>();
+        private final Set<String> referencedResources = new HashSet<>();
+
+        ProjectionContext(CanvasRenderRequest request) {
+            this.request = Objects.requireNonNull(request, "request");
+            bundle = request.imageResources();
+        }
+
+        ImageResolution resolve(PropertyValue.ImageProviderValue provider) {
+            CanvasImageAssetId assetId = new CanvasImageAssetId(
+                    provider.packageName(), provider.assetName());
+            var asset = bundle.find(assetId);
+            if (asset.isPresent()) {
+                CanvasImageAsset resolvedAsset = asset.orElseThrow();
+                String resourceId;
+                java.math.BigDecimal resolvedScale;
+                if (provider.providerKind()
+                        == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET) {
+                    resourceId = resolvedAsset.exactResourceId();
+                    resolvedScale = provider.exactScale().orElseThrow();
+                } else {
+                    CanvasImageVariant variant = resolvedAsset.selectVariant(
+                            request.renderProfile().devicePixelRatio().value());
+                    resourceId = variant.resourceId();
+                    resolvedScale = variant.scale();
+                }
+                referencedAssets.add(assetId);
+                referencedResources.add(resourceId);
+                return new ResolvedImage(resourceId, resolvedScale);
+            }
+
+            CanvasImageResolutionIssue issue = bundle.findIssue(assetId)
+                    .orElseGet(() -> new CanvasImageResolutionIssue(
+                            assetId,
+                            CanvasImageResolutionIssue.Code.UNDECLARED,
+                            "Resolve Canvas image " + assetId.externalName()
+                            + ": no declared, readable image bytes are available "
+                            + "in the current bounded project snapshot."));
+            referencedIssues.add(assetId);
+            return new UnavailableImage(issue);
+        }
+
+        void requireExactResourceCoverage()
+                throws CanvasModelPayloadException {
+            Set<CanvasImageAssetId> suppliedAssets = bundle.assets().stream()
+                    .map(CanvasImageAsset::assetId)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            Set<CanvasImageAssetId> suppliedIssues = bundle.issues().stream()
+                    .map(CanvasImageResolutionIssue::assetId)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            Set<String> suppliedResources = bundle.resources().stream()
+                    .map(dev.flutter.netbeans.designer.canvas.CanvasImageResource::resourceId)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            if (!suppliedAssets.equals(referencedAssets)) {
+                throw new CanvasModelPayloadException(
+                        "Canvas image snapshot must contain exactly the logical assets "
+                        + "referenced by this Designer revision.");
+            }
+            if (!suppliedIssues.equals(referencedIssues)) {
+                throw new CanvasModelPayloadException(
+                        "Canvas image snapshot must contain exactly the unavailable "
+                        + "asset reasons referenced by this Designer revision.");
+            }
+            if (!suppliedResources.equals(referencedResources)) {
+                throw new CanvasModelPayloadException(
+                        "Canvas image snapshot must contain exactly the encoded image "
+                        + "resources selected for this presentation.");
+            }
+        }
     }
 
     private static IllegalStateException unsupported(PropertyValue value) {

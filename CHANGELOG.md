@@ -6,6 +6,53 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The completed shared typed asset/`Container.DecorationImage` slice advances
+  form `.fd` documents to schema v6, contributor Catalog API to 5 and Canvas
+  model payload to v11 over NBFC framing v1. `ImageProviderValue` is a closed logical
+  app/package identity for `AssetImage` or `ExactAssetImage`, optionally wrapped
+  once by bounded `ResizeImage`; `FileImage`, `MemoryImage`, `NetworkImage`,
+  custom providers, filesystem paths, URLs and raw-Dart expressions remain excluded.
+  `DecorationImageValue` covers all 13 Flutter 3.44.8 arguments and mode,
+  20-value matrix, linear-to-sRGB gamma, sRGB-to-linear gamma and saturation
+  `ColorFilter` variants, including reviewed theme colors for mode. Its
+  positive-area `centerSlice` permits fit omitted, `fill`, `contain`,
+  `fitWidth`, `fitHeight` or `scaleDown` and rejects `cover`/`none`; `onError`
+  is one validated identifier for a compatible `(Object, StackTrace?)` handler.
+  The accessible tabbed BoxDecoration editor selects only declared inventory,
+  exposes typed provider/resize/filter/layout/paint controls and concrete status,
+  and publishes one structured/dependent change as one chronological Undo/Redo
+  unit. Schema v1-v5 forms migrate in memory with no image and become canonical
+  v6 only after an admitted edit.
+- The shared project asset resolver reads application/package `pubspec.yaml`
+  declarations through `.dart_tool/package_config.json`, snapshots verified
+  PNG/JPEG/GIF/WebP bytes and rejects absolute/backslash/traversal identities,
+  symlink/root escape, bad magic/dimensions and bounded inventory violations.
+  Variant choice exactly matches Flutter 3.44.8 framework revision
+  `058e0af2c2b57e369d905a03ac9748b0ebf543c6`: exact DPR, endpoint clamping,
+  upper neighbor below DPR 2.0, otherwise strict midpoint comparison with ties
+  downward. Inventory defaults are 4,096 logical assets, 16 MiB/file, 64 MiB
+  total, dimension 4,096 and 8,388,608 pixels. Only parsed, name-matched package
+  roots receive recursive listeners; listener replacement/cleanup runs off the
+  EDT behind a generation fence, and a changed watch set forces a fresh
+  inventory before any image bytes are published.
+- Negotiated `asset.imageBytes.v1` adds NBFC kind 4 `IMAGE_BYTES` after the
+  revision-scoped model descriptor. A presentation projects referenced assets
+  only (at most 256 logical assets, 256 resources and 16 MiB total); resource IDs are
+  lowercase raw SHA-256 of immutable compressed bytes, and exact order, size,
+  digest, format and dimensions are revalidated. Native and internal exact-Web
+  runtimes both create `MemoryImage(bytes, scale: resolvedScale)`, optionally one
+  `ResizeImage`, and the real `DecorationImage`. No filesystem path or callback
+  identifier crosses Canvas. Authenticated media/decode/resize/center-slice
+  failures quarantine only the affected resource; framing, identity, digest,
+  ordering and exact model-resource coverage failures remain fatal. Unavailable
+  or quarantined assets show a deterministic
+  non-interactive placeholder/status with logical identity, issue code and
+  reason while Container selection, layout, guides and drop overlays remain
+  usable outside the decorated widget. Center-slice bounds mirror the pinned
+  codecs: native preserves Flutter's asymmetric exact missing-axis arithmetic
+  and explicit upscale, Web rounds a missing axis but forces decode no-upscale,
+  and a `fit` result with a zero axis fails closed instead of being invented as
+  one pixel.
 - The complete `ElevatedButton` vertical slice expands the exact
   Palette/Canvas surface to ten widgets and the writable surface to 497 rows
   across nine non-`Scaffold` widgets. Its 286 typed leaves comprise seven direct

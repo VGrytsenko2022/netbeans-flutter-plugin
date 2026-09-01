@@ -103,6 +103,35 @@ class PropertyValueFormatterTest {
                         BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE))));
+        PropertyValue.ImageProviderValue imageProvider =
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                        "assets/panel.webp",
+                        Optional.of("ui_kit"),
+                        Optional.of(BigDecimal.valueOf(2)),
+                        Optional.of(
+                                new PropertyValue.ImageProviderValue
+                                        .ResizeImageConfig(
+                                                Optional.of(320),
+                                                Optional.empty(),
+                                                PropertyValue.ImageProviderValue
+                                                        .ResizePolicy.FIT,
+                                                true)));
+        assertEquals(
+                "exactAsset \"package:ui_kit:assets/panel.webp\" @ 2x "
+                + "resized 320×auto (fit)",
+                PropertyValueFormatter.format(imageProvider));
+        assertEquals(
+                "BoxDecoration(rectangle, image exactAsset "
+                + "\"package:ui_kit:assets/panel.webp\" @ 2x "
+                + "resized 320×auto (fit))",
+                PropertyValueFormatter.format(new PropertyValue.BoxDecorationValue(
+                        Optional.empty(),
+                        Optional.of(PropertyValue.DecorationImageValue.defaults(
+                                imageProvider)),
+                        Optional.empty(), Optional.empty(), List.of(),
+                        Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
         assertEquals("BoxDecoration(rectangle, theme:primary, border)",
                 PropertyValueFormatter.format(new PropertyValue.BoxDecorationValue(
                         Optional.of(new ColorSource.Theme(

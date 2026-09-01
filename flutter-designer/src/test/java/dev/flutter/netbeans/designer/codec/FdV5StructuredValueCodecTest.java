@@ -29,12 +29,12 @@ class FdV5StructuredValueCodecTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void roundTripsEveryV5StructuredKindAndNestedDecorationUnion() throws Exception {
+    void roundTripsEveryPreImageStructuredKindAndNestedDecorationUnion() throws Exception {
         DesignerDocument document = document();
         OriginalFdBytes encoded = codec.encode(document);
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 5"), json);
+        assertTrue(json.contains("\"schemaVersion\": 6"), json);
         assertTrue(json.contains("\"kind\": \"alignmentGeometry\""), json);
         assertTrue(json.contains("\"kind\": \"boxConstraints\""), json);
         assertTrue(json.contains("\"kind\": \"matrix4\""), json);
@@ -45,15 +45,15 @@ class FdV5StructuredValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(encoded));
-        assertEquals(5, decoded.sourceSchemaVersion());
+        assertEquals(6, decoded.sourceSchemaVersion());
         assertEquals(document, decoded.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(decoded.document()).copyBytes());
     }
 
     @Test
-    void rejectsV5KindsWhenTheEnvelopeClaimsV4() throws Exception {
+    void rejectsStructuredKindsWhenTheEnvelopeClaimsV4() throws Exception {
         String json = new String(codec.encode(document()).copyBytes(), StandardCharsets.UTF_8)
-                .replace("\"schemaVersion\": 5", "\"schemaVersion\": 4");
+                .replace("\"schemaVersion\": 6", "\"schemaVersion\": 4");
         FdDecodeResult.Invalid invalid = assertInstanceOf(
                 FdDecodeResult.Invalid.class,
                 codec.decode(json.getBytes(StandardCharsets.UTF_8)));
@@ -125,7 +125,7 @@ class FdV5StructuredValueCodecTest {
                 "container_page.dart", "ContainerPage", WidgetClassKind.STATELESS,
                 Optional.of("test"), new ManagedRegions(region, region));
         return new DesignerDocument(
-                Optional.of("../fd-v5.schema.json"),
+                Optional.of("../fd-v6.schema.json"),
                 StableId.parse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
                 source, Optional.empty(), root,
                 dev.flutter.netbeans.designer.model.Extensions.empty());

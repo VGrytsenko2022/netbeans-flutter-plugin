@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,7 @@ import 'sha256.dart';
 const nbfcControlJson = 1;
 const nbfcModelJson = 2;
 const nbfcCatalogJson = 3;
+const nbfcImageBytes = 4;
 const _wireFormat = 'netbeans-flutter-canvas-wire';
 const _runtimeFormat = 'netbeans-flutter-canvas-runtime';
 const _protocolVersion = 1;
@@ -26,12 +28,16 @@ const _inlineTextEditCapability = 'widget.inlineTextEdit.v1';
 const _widgetMovePreviewCapability = 'widget.movePreview.v1';
 const _viewportPresentationCapability = 'viewport.presentation.v1';
 const _surfacePresentationCapability = 'surface.presentation.v1';
+const _imageBytesCapability = 'asset.imageBytes.v1';
 const _maximumDevicePixelRatioMicros = 2147483647;
 const minimumCanvasZoomMicros = 250000;
 const maximumCanvasZoomMicros = 2000000;
 const canvasViewportMicros = 1000000;
 const maximumInlineTextUtf16Units = 65536;
 const maximumInlineTextUnicodeScalars = 32768;
+
+typedef CanvasImageErrorReporter =
+    void Function(String resourceId, Object error, StackTrace? stackTrace);
 
 String? inlineTextValidationError(String value) {
   final metrics = _inlineTextMetrics(value);
@@ -70,6 +76,168 @@ class NbfcFrame {
   final int kind;
   final Uint8List payload;
   final String digestHex;
+}
+
+/// One verified, revision-scoped compressed image admitted by host.render.
+@immutable
+class CanvasImageResource {
+  CanvasImageResource({
+    required this.resourceId,
+    required this.mediaType,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required Uint8List encodedBytes,
+  }) : encodedBytes = Uint8List.fromList(encodedBytes).asUnmodifiableView();
+
+  final String resourceId;
+  final String mediaType;
+  final int pixelWidth;
+  final int pixelHeight;
+  final Uint8List encodedBytes;
+}
+
+/// Closed reasons why an authenticated image resource is not paint-safe.
+enum CanvasImageResourceRejectionKind {
+  encodedContent(
+    code: 'corrupt',
+    reason: 'The encoded image could not be decoded safely.',
+  ),
+  invalidResizeTarget(
+    code: 'corrupt',
+    reason: 'The image resize request produces an invalid decoded size.',
+  ),
+  centerSliceOutOfBounds(
+    code: 'corrupt',
+    reason: 'The image center slice exceeds its decoded image bounds.',
+  );
+
+  const CanvasImageResourceRejectionKind({
+    required this.code,
+    required this.reason,
+  });
+
+  final String code;
+  final String reason;
+}
+
+/// One authenticated image resource that this revision cannot safely paint.
+///
+/// The public status is intentionally fixed and path-free. Decoder exceptions
+/// can contain platform-specific details and must never cross into Canvas UI.
+@immutable
+class CanvasImageResourceRejection {
+  const CanvasImageResourceRejection._({
+    required this.resourceId,
+    required this.kind,
+  });
+
+  factory CanvasImageResourceRejection.encodedContent(String resourceId) =>
+      _create(resourceId, CanvasImageResourceRejectionKind.encodedContent);
+
+  factory CanvasImageResourceRejection.invalidResizeTarget(String resourceId) =>
+      _create(resourceId, CanvasImageResourceRejectionKind.invalidResizeTarget);
+
+  factory CanvasImageResourceRejection.centerSliceOutOfBounds(
+    String resourceId,
+  ) => _create(
+    resourceId,
+    CanvasImageResourceRejectionKind.centerSliceOutOfBounds,
+  );
+
+  static final RegExp _resourceIdPattern = RegExp(r'^[0-9a-f]{64}$');
+
+  final String resourceId;
+  final CanvasImageResourceRejectionKind kind;
+
+  String get code => kind.code;
+
+  String get reason => kind.reason;
+
+  static CanvasImageResourceRejection _create(
+    String resourceId,
+    CanvasImageResourceRejectionKind kind,
+  ) {
+    if (!_resourceIdPattern.hasMatch(resourceId)) {
+      throw ArgumentError.value(
+        resourceId,
+        'resourceId',
+        'Canvas rejected image resource id must be a lowercase SHA-256 digest',
+      );
+    }
+    return CanvasImageResourceRejection._(resourceId: resourceId, kind: kind);
+  }
+}
+
+/// Immutable image resources owned by exactly one admitted Canvas revision.
+@immutable
+class CanvasImageResourceBundle {
+  CanvasImageResourceBundle._(
+    Map<String, CanvasImageResource> resources,
+    Map<String, CanvasImageResourceRejection> rejections,
+  ) : _resources = Map.unmodifiable(resources),
+      _rejections = Map.unmodifiable(rejections);
+
+  factory CanvasImageResourceBundle.fromResources(
+    Iterable<CanvasImageResource> resources, {
+    Iterable<CanvasImageResourceRejection> rejections = const [],
+  }) {
+    final index = <String, CanvasImageResource>{};
+    for (final resource in resources) {
+      if (index.containsKey(resource.resourceId)) {
+        throw ArgumentError.value(
+          resource.resourceId,
+          'resources',
+          'Duplicate Canvas image resource id',
+        );
+      }
+      index[resource.resourceId] = resource;
+    }
+    final rejectedIndex = <String, CanvasImageResourceRejection>{};
+    for (final rejection in rejections) {
+      if (index.containsKey(rejection.resourceId) ||
+          rejectedIndex.containsKey(rejection.resourceId)) {
+        throw ArgumentError.value(
+          rejection.resourceId,
+          'rejections',
+          'Duplicate Canvas image resource id',
+        );
+      }
+      rejectedIndex[rejection.resourceId] = rejection;
+    }
+    return CanvasImageResourceBundle._(index, rejectedIndex);
+  }
+
+  static final empty = CanvasImageResourceBundle._(const {}, const {});
+
+  final Map<String, CanvasImageResource> _resources;
+  final Map<String, CanvasImageResourceRejection> _rejections;
+
+  CanvasImageResource? operator [](String resourceId) => _resources[resourceId];
+
+  CanvasImageResourceRejection? rejection(String resourceId) =>
+      _rejections[resourceId];
+
+  Set<String> get resourceIds => Set.unmodifiable(_resources.keys.toSet());
+
+  Set<String> get declaredResourceIds =>
+      Set.unmodifiable({..._resources.keys, ..._rejections.keys});
+
+  bool get isEmpty => _resources.isEmpty && _rejections.isEmpty;
+
+  CanvasImageResourceBundle _rejectResources(
+    Iterable<CanvasImageResourceRejection> rejections,
+  ) {
+    final nextResources = Map<String, CanvasImageResource>.of(_resources);
+    final nextRejections = Map<String, CanvasImageResourceRejection>.of(
+      _rejections,
+    );
+    for (final rejection in rejections) {
+      if (nextResources.remove(rejection.resourceId) != null) {
+        nextRejections[rejection.resourceId] = rejection;
+      }
+    }
+    return CanvasImageResourceBundle._(nextResources, nextRejections);
+  }
 }
 
 /// Selects host-owned runtime capabilities independently of the byte transport.
@@ -256,7 +424,7 @@ class CanvasViewportMetrics {
 
 /// Encodes one complete NBFC version 1 frame.
 Uint8List encodeNbfcFrame(int kind, List<int> payload) {
-  if (kind < nbfcControlJson || kind > nbfcCatalogJson) {
+  if (kind < nbfcControlJson || kind > nbfcImageBytes) {
     throw ArgumentError.value(kind, 'kind', 'Unsupported NBFC frame kind');
   }
   if (payload.isEmpty || payload.length > 0xffffffff) {
@@ -307,7 +475,7 @@ class NbfcFrameReader {
       throw const FormatException('NBFC frame version is not supported.');
     }
     final kind = header[5];
-    if (kind < nbfcControlJson || kind > nbfcCatalogJson) {
+    if (kind < nbfcControlJson || kind > nbfcImageBytes) {
       throw const FormatException('NBFC frame kind is not supported.');
     }
     if (header[6] != 0 || header[7] != 0) {
@@ -416,6 +584,8 @@ class CanvasRuntimeController extends ChangeNotifier
   final bool _ownsProcessIo;
 
   CanvasModel? _model;
+  CanvasImageResourceBundle _imageResources = CanvasImageResourceBundle.empty;
+  String? _modelPayloadSha256;
   String? _selectedWidgetId;
   String? _errorMessage;
   String? _sessionId;
@@ -449,6 +619,7 @@ class CanvasRuntimeController extends ChangeNotifier
   bool _widgetMovePreviewNegotiated = false;
   bool _viewportPresentationNegotiated = false;
   bool _surfacePresentationNegotiated = false;
+  bool _imageBytesNegotiated = false;
   CanvasViewportPresentation? _viewportPresentation;
   CanvasViewportMetrics? _viewportMetrics;
   String? _lastViewportPublication;
@@ -459,6 +630,7 @@ class CanvasRuntimeController extends ChangeNotifier
   _PaletteDragSourceAuthority? _paletteDragSourceAuthority;
 
   CanvasModel? get model => _model;
+  CanvasImageResourceBundle get imageResources => _imageResources;
   String? get selectedWidgetId => _selectedWidgetId;
   String? get errorMessage => _errorMessage;
   bool get closed => _closed;
@@ -469,6 +641,21 @@ class CanvasRuntimeController extends ChangeNotifier
   CanvasDropTarget? get widgetMovePreviewTarget => _widgetMovePreviewTarget;
   CanvasViewportPresentation? get viewportPresentation => _viewportPresentation;
   bool get inlineTextEditNegotiated => _inlineTextEditNegotiated;
+
+  /// Reports a runner-owned image-paint failure without invoking model code.
+  void reportImageRenderError(
+    String resourceId,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    if (_closed || _imageResources[resourceId] == null) {
+      return;
+    }
+    _diagnostic(
+      'Flutter Canvas could not paint image resource $resourceId: '
+      '${_boundedFailureMessage(error)}',
+    );
+  }
 
   /// Binds this one-shot Canvas runtime to its exact Flutter render surface.
   ///
@@ -622,6 +809,9 @@ class CanvasRuntimeController extends ChangeNotifier
       );
       _surfacePresentationNegotiated = hello.capabilities.contains(
         _surfacePresentationCapability,
+      );
+      _imageBytesNegotiated = hello.capabilities.contains(
+        _imageBytesCapability,
       );
       await _writeControl(
         _runnerHello(hello, paletteDropAvailable: _paletteDropNegotiated),
@@ -1333,6 +1523,7 @@ class CanvasRuntimeController extends ChangeNotifier
       'documentId',
       'logicalRevisionId',
       'model',
+      'images',
     });
     final presentationSequence = _sequence(
       body['presentationSequence'],
@@ -1360,6 +1551,60 @@ class CanvasRuntimeController extends ChangeNotifier
         'Canvas model frame does not match its admitted descriptor.',
       );
     }
+    final imageDescriptors = _decodeImagePayloadDescriptors(body['images']);
+    if (imageDescriptors.isNotEmpty && !_imageBytesNegotiated) {
+      throw const FormatException(
+        'Canvas image bytes capability was not negotiated.',
+      );
+    }
+    var totalImageBytes = 0;
+    for (final image in imageDescriptors) {
+      if (image.payloadBytes > _limits.maxEncodedImageBytes) {
+        throw const FormatException(
+          'Canvas image descriptor exceeds the negotiated bound.',
+        );
+      }
+      totalImageBytes += image.payloadBytes;
+      if (totalImageBytes > _limits.maxEncodedImageBytes) {
+        throw const FormatException(
+          'Canvas image descriptors exceed the negotiated aggregate bound.',
+        );
+      }
+    }
+    final admittedImages = <String, CanvasImageResource>{};
+    final rejectedImages = <String, CanvasImageResourceRejection>{};
+    for (final image in imageDescriptors) {
+      final imageFrame = await _reader.read(
+        maxPayloadBytes: _limits.maxEncodedImageBytes,
+        expectedKind: nbfcImageBytes,
+      );
+      if (imageFrame == null ||
+          imageFrame.payload.length != image.payloadBytes ||
+          imageFrame.digestHex != image.sha256) {
+        throw FormatException(
+          'Canvas image frame does not match resource '
+          '${image.resourceId}.',
+        );
+      }
+      try {
+        await _verifyEncodedImage(image, imageFrame.payload);
+      } on FormatException {
+        rejectedImages[image.resourceId] =
+            CanvasImageResourceRejection.encodedContent(image.resourceId);
+        continue;
+      }
+      admittedImages[image.resourceId] = CanvasImageResource(
+        resourceId: image.resourceId,
+        mediaType: image.mediaType,
+        pixelWidth: image.pixelWidth,
+        pixelHeight: image.pixelHeight,
+        encodedBytes: imageFrame.payload,
+      );
+    }
+    var nextImages = CanvasImageResourceBundle._(
+      admittedImages,
+      rejectedImages,
+    );
     final next = CanvasModel.decode(frame.payload);
     if (next.sessionId != _sessionId ||
         next.presentationSequence != presentationSequence ||
@@ -1369,6 +1614,11 @@ class CanvasRuntimeController extends ChangeNotifier
         'Canvas model identity does not match host.render.',
       );
     }
+    nextImages = _validateImageResourceReferences(
+      next,
+      nextImages,
+      usesWebImageCodec: hostProfile == CanvasRuntimeHostProfile.webView,
+    );
     final current = _model;
     if (current != null) {
       if (presentationSequence < current.presentationSequence) {
@@ -1381,10 +1631,18 @@ class CanvasRuntimeController extends ChangeNotifier
             'Canvas presentation sequence was reused with another identity.',
           );
         }
+        if (_modelPayloadSha256 != descriptor.sha256 ||
+            !_sameImageBundles(_imageResources, nextImages)) {
+          throw const FormatException(
+            'Canvas presentation sequence was reused with another payload.',
+          );
+        }
         return;
       }
     }
     _model = next;
+    _imageResources = nextImages;
+    _modelPayloadSha256 = descriptor.sha256;
     _viewportPresentation = CanvasViewportPresentation.fit(next);
     _viewportMetrics = null;
     _lastViewportPublication = null;
@@ -2020,7 +2278,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
   });
   _boundedText(body['hostVersion'], r'$/body/hostVersion', 1, 128);
   final rawCapabilities = body['requestedCapabilities'];
-  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 10) {
+  if (rawCapabilities is! List<Object?> || rawCapabilities.length > 11) {
     throw const FormatException('Canvas requested capabilities are invalid.');
   }
   const supported = {
@@ -2034,6 +2292,7 @@ _HostHello _decodeHostHello(Uint8List payload) {
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
     _surfacePresentationCapability,
+    _imageBytesCapability,
   };
   final capabilities = <String>{};
   for (final value in rawCapabilities) {
@@ -2078,6 +2337,7 @@ Map<String, Object?> _runnerHello(
     _widgetMovePreviewCapability,
     _viewportPresentationCapability,
     _surfacePresentationCapability,
+    _imageBytesCapability,
   ];
   final limits = hello.limits.tightenedToSafe();
   return {
@@ -2239,6 +2499,400 @@ class _PayloadDescriptor {
     }
     return _PayloadDescriptor(payloadBytes, digest);
   }
+}
+
+class _ImagePayloadDescriptor {
+  const _ImagePayloadDescriptor({
+    required this.resourceId,
+    required this.mediaType,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.payloadBytes,
+    required this.sha256,
+  });
+
+  final String resourceId;
+  final String mediaType;
+  final int pixelWidth;
+  final int pixelHeight;
+  final int payloadBytes;
+  final String sha256;
+
+  static _ImagePayloadDescriptor decode(Object? value, String path) {
+    final object = _object(value, path);
+    _exactKeys(object, path, const {
+      'resourceId',
+      'kind',
+      'mediaType',
+      'pixelWidth',
+      'pixelHeight',
+      'payloadBytes',
+      'sha256',
+    });
+    if (object['kind'] != 'image.bytes') {
+      throw FormatException('Canvas image descriptor kind is invalid: $path');
+    }
+    final resourceId = object['resourceId'];
+    final sha256 = object['sha256'];
+    if (resourceId is! String ||
+        sha256 is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(resourceId) ||
+        resourceId != sha256) {
+      throw FormatException(
+        'Canvas image resource id and SHA-256 digest are invalid: $path',
+      );
+    }
+    final mediaType = object['mediaType'];
+    if (mediaType is! String ||
+        !const {
+          'image/png',
+          'image/jpeg',
+          'image/gif',
+          'image/webp',
+        }.contains(mediaType)) {
+      throw FormatException(
+        'Canvas image media type is not supported: $path/mediaType',
+      );
+    }
+    final pixelWidth = object['pixelWidth'];
+    final pixelHeight = object['pixelHeight'];
+    if (pixelWidth is! int ||
+        pixelHeight is! int ||
+        pixelWidth <= 0 ||
+        pixelHeight <= 0 ||
+        pixelWidth > 16384 ||
+        pixelHeight > 16384 ||
+        pixelWidth * pixelHeight > 67108864) {
+      throw FormatException(
+        'Canvas image dimensions exceed the reviewed decode budget: $path',
+      );
+    }
+    final payloadBytes = object['payloadBytes'];
+    if (payloadBytes is! int || payloadBytes <= 0) {
+      throw FormatException(
+        'Canvas image payload length is invalid: $path/payloadBytes',
+      );
+    }
+    return _ImagePayloadDescriptor(
+      resourceId: resourceId,
+      mediaType: mediaType,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      payloadBytes: payloadBytes,
+      sha256: sha256,
+    );
+  }
+}
+
+List<_ImagePayloadDescriptor> _decodeImagePayloadDescriptors(Object? value) {
+  if (value is! List<Object?> || value.length > 256) {
+    throw const FormatException(
+      'Canvas image descriptors must be an array of at most 256 items.',
+    );
+  }
+  final result = <_ImagePayloadDescriptor>[];
+  String? previousResourceId;
+  for (var index = 0; index < value.length; index++) {
+    final descriptor = _ImagePayloadDescriptor.decode(
+      value[index],
+      r'$/body/images/' + index.toString(),
+    );
+    if (previousResourceId != null &&
+        descriptor.resourceId.compareTo(previousResourceId) <= 0) {
+      throw const FormatException(
+        'Canvas image descriptors must be unique and sorted by resourceId.',
+      );
+    }
+    result.add(descriptor);
+    previousResourceId = descriptor.resourceId;
+  }
+  return List.unmodifiable(result);
+}
+
+Future<void> _verifyEncodedImage(
+  _ImagePayloadDescriptor descriptor,
+  Uint8List bytes,
+) async {
+  if (!_matchesImageSignature(descriptor.mediaType, bytes)) {
+    throw FormatException(
+      'Canvas image ${descriptor.resourceId} does not match its media type.',
+    );
+  }
+  ui.ImmutableBuffer? buffer;
+  ui.ImageDescriptor? imageDescriptor;
+  ui.Codec? codec;
+  ui.FrameInfo? frame;
+  try {
+    buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    imageDescriptor = await ui.ImageDescriptor.encoded(buffer);
+    if (imageDescriptor.width != descriptor.pixelWidth ||
+        imageDescriptor.height != descriptor.pixelHeight) {
+      throw FormatException(
+        'Canvas image ${descriptor.resourceId} dimensions do not match its '
+        'descriptor.',
+      );
+    }
+    codec = await imageDescriptor.instantiateCodec();
+    frame = await codec.getNextFrame();
+    if (frame.image.width != descriptor.pixelWidth ||
+        frame.image.height != descriptor.pixelHeight) {
+      throw FormatException(
+        'Canvas image ${descriptor.resourceId} decoded dimensions do not '
+        'match its descriptor.',
+      );
+    }
+  } on FormatException {
+    rethrow;
+  } on Object catch (error) {
+    throw FormatException(
+      'Canvas image ${descriptor.resourceId} is corrupt: $error',
+    );
+  } finally {
+    frame?.image.dispose();
+    codec?.dispose();
+    imageDescriptor?.dispose();
+    buffer?.dispose();
+  }
+}
+
+bool _matchesImageSignature(String mediaType, Uint8List bytes) =>
+    switch (mediaType) {
+      'image/png' =>
+        bytes.length >= 8 &&
+            bytes[0] == 0x89 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x4e &&
+            bytes[3] == 0x47 &&
+            bytes[4] == 0x0d &&
+            bytes[5] == 0x0a &&
+            bytes[6] == 0x1a &&
+            bytes[7] == 0x0a,
+      'image/jpeg' =>
+        bytes.length >= 3 &&
+            bytes[0] == 0xff &&
+            bytes[1] == 0xd8 &&
+            bytes[2] == 0xff,
+      'image/gif' =>
+        bytes.length >= 6 &&
+            bytes[0] == 0x47 &&
+            bytes[1] == 0x49 &&
+            bytes[2] == 0x46 &&
+            bytes[3] == 0x38 &&
+            (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+            bytes[5] == 0x61,
+      'image/webp' =>
+        bytes.length >= 12 &&
+            bytes[0] == 0x52 &&
+            bytes[1] == 0x49 &&
+            bytes[2] == 0x46 &&
+            bytes[3] == 0x46 &&
+            bytes[8] == 0x57 &&
+            bytes[9] == 0x45 &&
+            bytes[10] == 0x42 &&
+            bytes[11] == 0x50,
+      _ => false,
+    };
+
+CanvasImageResourceBundle _validateImageResourceReferences(
+  CanvasModel model,
+  CanvasImageResourceBundle resources, {
+  required bool usesWebImageCodec,
+}) {
+  if (!setEquals(model.imageResourceIds, resources.declaredResourceIds)) {
+    throw const FormatException(
+      'Canvas model and image descriptors must reference exactly the same '
+      'resources.',
+    );
+  }
+  final rejections = <String, CanvasImageResourceRejection>{};
+  for (final node in _canvasNodes(model.root)) {
+    for (final property in node.properties.values) {
+      final decoration = property.value;
+      if (decoration is! CanvasBoxDecorationValue || decoration.image == null) {
+        continue;
+      }
+      final image = decoration.image!;
+      final provider = image.image;
+      final resolution = provider.resolution;
+      if (resolution is! CanvasResolvedImageValue) {
+        continue;
+      }
+      if (provider.providerKind == 'exactAsset' &&
+          (provider.exactScale! - resolution.resolvedScale).abs() > 1e-9) {
+        throw const FormatException(
+          'Canvas ExactAssetImage resolvedScale must equal exactScale.',
+        );
+      }
+      if (resources.rejection(resolution.resourceId) != null ||
+          rejections.containsKey(resolution.resourceId)) {
+        continue;
+      }
+      final resource = resources[resolution.resourceId]!;
+      final centerSlice = image.centerSlice;
+      final resize = provider.resize;
+      if (resize == null && centerSlice == null) {
+        continue;
+      }
+      final decodedSize = _resizedImageSize(
+        resource,
+        resize,
+        usesWebImageCodec: usesWebImageCodec,
+      );
+      if (decodedSize.$1 <= 0 || decodedSize.$2 <= 0) {
+        rejections[resolution.resourceId] =
+            CanvasImageResourceRejection.invalidResizeTarget(
+              resolution.resourceId,
+            );
+        continue;
+      }
+      if (centerSlice == null) {
+        continue;
+      }
+      final combinedScale = resolution.resolvedScale * image.scale;
+      if (centerSlice.right * combinedScale > decodedSize.$1 + 1e-9 ||
+          centerSlice.bottom * combinedScale > decodedSize.$2 + 1e-9) {
+        rejections[resolution.resourceId] =
+            CanvasImageResourceRejection.centerSliceOutOfBounds(
+              resolution.resourceId,
+            );
+      }
+    }
+  }
+  return rejections.isEmpty
+      ? resources
+      : resources._rejectResources(rejections.values);
+}
+
+Iterable<CanvasNode> _canvasNodes(CanvasNode root) sync* {
+  yield root;
+  for (final slot in root.slots.values) {
+    for (final child in slot.children) {
+      yield* _canvasNodes(child);
+    }
+  }
+}
+
+(int, int) _resizedImageSize(
+  CanvasImageResource resource,
+  CanvasResizeImageValue? resize, {
+  required bool usesWebImageCodec,
+}) {
+  if (resize == null) {
+    return (resource.pixelWidth, resource.pixelHeight);
+  }
+  final intrinsicWidth = resource.pixelWidth;
+  final intrinsicHeight = resource.pixelHeight;
+  if (resize.policy == 'fit') {
+    final aspectRatio = intrinsicWidth / intrinsicHeight;
+    final maxWidth = resize.width ?? intrinsicWidth;
+    final maxHeight = resize.height ?? intrinsicHeight;
+    var width = intrinsicWidth;
+    var height = intrinsicHeight;
+    if (width > maxWidth) {
+      width = maxWidth;
+      height = (width / aspectRatio).floor();
+    }
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = (height * aspectRatio).floor();
+    }
+    if (resize.allowUpscaling) {
+      if (resize.width == null) {
+        height = resize.height!;
+        width = (height * aspectRatio).floor();
+      } else if (resize.height == null) {
+        width = resize.width!;
+        height = (width / aspectRatio).floor();
+      } else {
+        final derivedMaxWidth = (maxHeight * aspectRatio).floor();
+        final derivedMaxHeight = (maxWidth / aspectRatio).floor();
+        width = math.min(maxWidth, derivedMaxWidth);
+        height = math.min(maxHeight, derivedMaxHeight);
+      }
+    }
+    return _applyCanvasImageCodecResize(
+      intrinsicWidth: intrinsicWidth,
+      intrinsicHeight: intrinsicHeight,
+      targetWidth: width,
+      targetHeight: height,
+      usesWebImageCodec: usesWebImageCodec,
+    );
+  }
+  var width = resize.width;
+  var height = resize.height;
+  if (!resize.allowUpscaling) {
+    width = width == null ? null : math.min(width, intrinsicWidth);
+    height = height == null ? null : math.min(height, intrinsicHeight);
+  }
+  if (width == null) {
+    // ImageDescriptor derives a missing width with round() on both the native
+    // and Web implementations pinned by this runner.
+    width = (intrinsicWidth * height! / intrinsicHeight).round();
+  } else {
+    // The native ImageDescriptor uses truncating division here. The Web
+    // engine's scaledImageSize instead rounds both derived dimensions.
+    height ??= usesWebImageCodec
+        ? (intrinsicHeight * width / intrinsicWidth).round()
+        : width ~/ (intrinsicWidth / intrinsicHeight);
+  }
+  return _applyCanvasImageCodecResize(
+    intrinsicWidth: intrinsicWidth,
+    intrinsicHeight: intrinsicHeight,
+    targetWidth: width,
+    targetHeight: height,
+    usesWebImageCodec: usesWebImageCodec,
+  );
+}
+
+(int, int) _applyCanvasImageCodecResize({
+  required int intrinsicWidth,
+  required int intrinsicHeight,
+  required int targetWidth,
+  required int targetHeight,
+  required bool usesWebImageCodec,
+}) {
+  // Flutter 3.44.8's Web instantiateImageCodecWithSize always delegates with
+  // allowUpscaling:false. Its renderer therefore returns the original image
+  // when either fully-derived target dimension would upscale, even when the
+  // ResizeImage model requested allowUpscaling:true. Native ImageDescriptor
+  // has no equivalent forced clamp and honors ResizeImage's target instead.
+  if (usesWebImageCodec &&
+      (targetWidth > intrinsicWidth || targetHeight > intrinsicHeight)) {
+    return (intrinsicWidth, intrinsicHeight);
+  }
+  return (targetWidth, targetHeight);
+}
+
+bool _sameImageBundles(
+  CanvasImageResourceBundle left,
+  CanvasImageResourceBundle right,
+) {
+  if (!setEquals(left.declaredResourceIds, right.declaredResourceIds)) {
+    return false;
+  }
+  for (final resourceId in left.declaredResourceIds) {
+    final firstResource = left[resourceId];
+    final secondResource = right[resourceId];
+    if ((firstResource == null) != (secondResource == null)) {
+      return false;
+    }
+    if (firstResource != null && secondResource != null) {
+      if (firstResource.mediaType != secondResource.mediaType ||
+          firstResource.pixelWidth != secondResource.pixelWidth ||
+          firstResource.pixelHeight != secondResource.pixelHeight) {
+        return false;
+      }
+      continue;
+    }
+    final firstRejection = left.rejection(resourceId);
+    final secondRejection = right.rejection(resourceId);
+    if (firstRejection?.kind != secondRejection?.kind ||
+        firstRejection?.code != secondRejection?.code ||
+        firstRejection?.reason != secondRejection?.reason) {
+      return false;
+    }
+  }
+  return true;
 }
 
 Map<String, Object?> _identityBody(CanvasModel model) => {

@@ -51,7 +51,6 @@ import org.openide.text.CloneableEditorSupport;
 import org.openide.text.NbDocument;
 import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
-import org.openide.util.datatransfer.ExTransferable;
 import org.openide.util.datatransfer.PasteType;
 import org.openide.windows.CloneableTopComponent;
 
@@ -687,8 +686,8 @@ final class FlutterDesignerDataObjectIT {
             assertNotNull("The direct destination folder exposed no pair Move paste",
                     pairPaste);
             Transferable consumed = pairPaste.paste();
-            assertSame("Successful pair Move must consume its one-shot Cut payload",
-                    ExTransferable.EMPTY, consumed);
+            assertNull("Successful pair Move must not request a second clipboard clear",
+                    consumed);
 
             Path targetDartPath = targetDartFolderPath.resolve(
                     sourceStem + ".dart");
@@ -746,9 +745,6 @@ final class FlutterDesignerDataObjectIT {
             assertFalse("Fresh .fd owner unexpectedly enables generic one-file Move",
                     targetModelObject.isMoveAllowed());
 
-            assertNull("The consumed Cut payload still exposes pair Move",
-                    pairMovePasteType(
-                            destinationFolderNode.getPasteTypes(consumed)));
             assertNull("The stale original Cut payload exposes a second pair Move",
                     pairMovePasteType(
                             destinationFolderNode.getPasteTypes(clipboard)));
@@ -2377,7 +2373,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 4,
+                      "schemaVersion": 6,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",
@@ -2428,7 +2424,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 4,
+                      "schemaVersion": 6,
                       "documentId": "5d5c0562-e7ad-4d32-bdbc-998bd05a11e6",
                       "source": {
                         "dartFile": "%s.dart",
@@ -2485,7 +2481,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 4,
+                      "schemaVersion": 6,
                       "documentId": "6a277643-991f-47cc-88d3-1ad0044bb4c0",
                       "source": {
                         "dartFile": "%s.dart",

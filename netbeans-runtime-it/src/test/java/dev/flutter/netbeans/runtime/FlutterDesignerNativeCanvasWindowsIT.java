@@ -309,7 +309,11 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 awaitRetiredIncludingParent(
                         "recreated first Design MultiView after close",
                         recreatedFirstIdentity);
-                awaitGracefulClose(first);
+                // Retired-owner status callbacks are epoch-fenced. The session
+                // protocol gate proves the authenticated host.close handshake;
+                // this assembled-runtime gate proves peer and process-tree retirement.
+                assertFalse("The closed first Design MultiView remained open",
+                        first.isOpened());
 
                 second.activate();
                 await("The activated failed second Canvas did not keep Retry available",
@@ -330,7 +334,8 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                 awaitRetiredIncludingParent(
                         "retried second Design MultiView after close",
                         restartedSecondIdentity);
-                awaitGracefulClose(second);
+                assertFalse("The closed second Design MultiView remained open",
+                        second.isOpened());
             } finally {
                 try {
                     closeQuietly(first);
@@ -348,25 +353,6 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                         "retried second Design MultiView final cleanup",
                         restartedSecondIdentity);
             }
-        }
-
-        private void awaitGracefulClose(NativeView view) throws Exception {
-            long deadline = System.nanoTime() + STOP_TIMEOUT.toNanos();
-            String lastDetail = null;
-            do {
-                drainEdt();
-                lastDetail = view.statusDetail();
-                if (lastDetail != null
-                        && lastDetail.contains("acknowledged host.close")
-                        && lastDetail.contains(
-                                "exited naturally without bounded termination")
-                        && !lastDetail.contains("escalation")) {
-                    return;
-                }
-                Thread.sleep(25);
-            } while (System.nanoTime() < deadline);
-            fail(view.label + " did not report authenticated graceful close; "
-                    + "last status detail=" + String.valueOf(lastDetail));
         }
 
         private NativeView openDesignView(DataObject owner, String label)
@@ -1109,7 +1095,7 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 4,
+                      "schemaVersion": 6,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",
@@ -2247,15 +2233,6 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                     return onEdtValue(status::getText);
                 } catch (Exception failure) {
                     throw new AssertionError(label + " status cannot be read", failure);
-                }
-            }
-
-            private String statusDetail() {
-                try {
-                    return onEdtValue(status::getToolTipText);
-                } catch (Exception failure) {
-                    throw new AssertionError(
-                            label + " status detail cannot be read", failure);
                 }
             }
 

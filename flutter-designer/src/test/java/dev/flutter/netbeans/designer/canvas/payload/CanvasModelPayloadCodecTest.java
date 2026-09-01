@@ -8,6 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.canvas.CanvasDevicePixelRatio;
 import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAsset;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAssetId;
+import dev.flutter.netbeans.designer.canvas.CanvasImageFormat;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResource;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
+import dev.flutter.netbeans.designer.canvas.CanvasImageVariant;
 import dev.flutter.netbeans.designer.canvas.CanvasLocale;
 import dev.flutter.netbeans.designer.canvas.CanvasPresentationGate;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
@@ -98,7 +104,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":10"));
+        assertTrue(json.contains("\"protocolVersion\":11"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -181,7 +187,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV10() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV11() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -221,7 +227,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":10"), json);
+        assertTrue(json.contains("\"protocolVersion\":11"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -245,7 +251,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV10Order()
+    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV11Order()
             throws Exception {
         CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
                 Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
@@ -346,7 +352,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsStructuredContainerValuesInProtocolV10() throws Exception {
+    void projectsStructuredContainerValuesInProtocolV11() throws Exception {
         PropertyValue.AlignmentGeometryValue alignment =
                 new PropertyValue.AlignmentGeometryValue(
                         PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
@@ -399,7 +405,7 @@ class CanvasModelPayloadCodecTest {
                 request(new DesignerDocument(DOCUMENT_ID, source(), container))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":10"), json);
+        assertTrue(json.contains("\"protocolVersion\":11"), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
         assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
@@ -411,6 +417,96 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"gradient\":{\"kind\":\"linear\""), json);
         assertTrue(json.contains("\"backgroundBlendMode\":\"multiply\""), json);
         assertTrue(json.contains("\"shape\":\"rectangle\""), json);
+    }
+
+    @Test
+    void projectsResolvedDecorationImageWithoutPathsOrCallbackCode()
+            throws Exception {
+        PropertyValue.ImageProviderValue provider =
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        "assets/background.png",
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of(new PropertyValue.ImageProviderValue
+                                .ResizeImageConfig(
+                                        Optional.of(320),
+                                        Optional.empty(),
+                                        PropertyValue.ImageProviderValue
+                                                .ResizePolicy.FIT,
+                                        false)));
+        PropertyValue.DecorationImageValue image =
+                new PropertyValue.DecorationImageValue(
+                        provider,
+                        Optional.of(new PropertyValue.CallbackValue(
+                                "handleImageError")),
+                        Optional.of(new PropertyValue.DecorationImageValue.Mode(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.primary")),
+                                PropertyValue.PaintValue.BlendMode.SRC_OVER)),
+                        Optional.of(PropertyValue.DecorationImageValue.BoxFit.COVER),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue
+                                        .HorizontalBasis.DIRECTIONAL,
+                                new BigDecimal("0.25"),
+                                BigDecimal.ZERO),
+                        Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.REPEAT_X,
+                        true,
+                        new BigDecimal("1.5"),
+                        new BigDecimal("0.75"),
+                        PropertyValue.PaintValue.FilterQuality.HIGH,
+                        true,
+                        true);
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(),
+                        Optional.of(image),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        WidgetNode container = new WidgetNode(
+                id("6130c00c-8568-48f5-a835-e88a01fa0e6f"),
+                type("flutter.widgets.Container"),
+                Map.of(new PropertyName("decoration"), decoration),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        DesignerDocument document = new DesignerDocument(
+                DOCUMENT_ID, source(), container);
+        CanvasImageResource resource = CanvasImageResource.create(
+                CanvasImageFormat.PNG, 64, 32, new byte[]{1, 2, 3, 4});
+        CanvasImageAssetId assetId = CanvasImageAssetId.application(
+                "assets/background.png");
+        CanvasImageResourceBundle bundle = new CanvasImageResourceBundle(
+                List.of(new CanvasImageAsset(
+                        assetId,
+                        resource.resourceId(),
+                        List.of(new CanvasImageVariant(
+                                BigDecimal.ONE, resource.resourceId())))),
+                List.of(resource));
+
+        String json = new String(
+                new CanvasModelPayloadCodec().encode(request(
+                        PROFILE, document, bundle)),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":11"), json);
+        assertTrue(json.contains("\"image\":{\"image\":{"), json);
+        assertTrue(json.contains("\"kind\":\"asset\""), json);
+        assertTrue(json.contains("\"assetName\":\"assets/background.png\""), json);
+        assertTrue(json.contains("\"resize\":{\"width\":320,\"height\":null,"), json);
+        assertTrue(json.contains("\"resolution\":{\"kind\":\"resolved\","), json);
+        assertTrue(json.contains("\"resourceId\":\""
+                + resource.resourceId() + "\""), json);
+        assertTrue(json.contains("\"resolvedScale\":1"), json);
+        assertTrue(json.contains("\"onError\":true"), json);
+        assertFalse(json.contains("handleImageError"), json);
+        assertTrue(json.contains("\"colorFilter\":{\"kind\":\"mode\""), json);
+        assertTrue(json.contains("\"fit\":\"cover\""), json);
+        assertTrue(json.contains("\"repeat\":\"repeatX\""), json);
+        assertTrue(json.contains("\"opacity\":0.75"), json);
     }
 
     private static void assertCanvasAdmissionRejects(
@@ -439,13 +535,20 @@ class CanvasModelPayloadCodecTest {
 
     private static CanvasRenderRequest request(
             CanvasRenderProfile profile, DesignerDocument document) {
+        return request(profile, document, CanvasImageResourceBundle.empty());
+    }
+
+    private static CanvasRenderRequest request(
+            CanvasRenderProfile profile,
+            DesignerDocument document,
+            CanvasImageResourceBundle imageResources) {
         var catalog = BuiltInWidgetCatalog.getDefault();
         var snapshot = ValidatedCanvasRevisionSnapshot.captureReadOnly(
                 0, document, catalog, ValidationLimits.defaults());
         var gate = new CanvasPresentationGate(
                 CanvasSessionId.parse("2c8ca807-93f6-4c6b-b16b-a2c1a438d79b"),
                 DOCUMENT_ID);
-        return gate.present(profile, snapshot);
+        return gate.present(profile, snapshot, imageResources);
     }
 
     private static DesignerDocument document(boolean reversePropertyOrder) {

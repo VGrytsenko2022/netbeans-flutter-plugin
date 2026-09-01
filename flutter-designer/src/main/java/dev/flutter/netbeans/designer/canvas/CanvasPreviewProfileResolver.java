@@ -94,7 +94,7 @@ public final class CanvasPreviewProfileResolver {
             defaultViewport.logicalWidth(),
             defaultViewport.logicalHeight()
         };
-        double dpr = 1.0d;
+        double dpr = resolveDevicePixelRatio(mode, preferences).value();
         String locale = "en-US";
         double textScale = 1.0d;
         if (preferences.isPresent()) {
@@ -103,7 +103,6 @@ public final class CanvasPreviewProfileResolver {
             if (ownsSavedViewport) {
                 size[0] = value.logicalWidth().map(Number::doubleValue).orElse(size[0]);
                 size[1] = value.logicalHeight().map(Number::doubleValue).orElse(size[1]);
-                dpr = value.devicePixelRatio().map(Number::doubleValue).orElse(dpr);
                 if (value.orientation().orElse(null) == CanvasOrientation.LANDSCAPE
                         && size[0] < size[1]
                         || value.orientation().orElse(null) == CanvasOrientation.PORTRAIT
@@ -126,6 +125,24 @@ public final class CanvasPreviewProfileResolver {
                 new CanvasLocale(locale),
                 new CanvasTextScaleFactor(textScale),
                 engineIdentity);
+    }
+
+    /**
+     * Resolves the exact DPR used by a presentation without requiring an
+     * engine or theme. Project asset selection uses this same source of truth.
+     */
+    public static CanvasDevicePixelRatio resolveDevicePixelRatio(
+            CanvasPreviewMode mode,
+            Optional<CanvasPreferences> preferences) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(preferences, "preferences");
+        double dpr = 1.0d;
+        if (preferences.isPresent() && mode == initialMode(preferences)) {
+            dpr = preferences.orElseThrow().devicePixelRatio()
+                    .map(Number::doubleValue)
+                    .orElse(dpr);
+        }
+        return new CanvasDevicePixelRatio(dpr);
     }
 
     /** Exact compatibility theme for projects created outside this plugin. */

@@ -14,6 +14,12 @@ import dev.flutter.netbeans.designer.canvas.CanvasEngineIdentity;
 import dev.flutter.netbeans.designer.canvas.CanvasFrameKey;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentId;
 import dev.flutter.netbeans.designer.canvas.CanvasIntentKey;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAsset;
+import dev.flutter.netbeans.designer.canvas.CanvasImageAssetId;
+import dev.flutter.netbeans.designer.canvas.CanvasImageFormat;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResource;
+import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
+import dev.flutter.netbeans.designer.canvas.CanvasImageVariant;
 import dev.flutter.netbeans.designer.canvas.CanvasLayoutKey;
 import dev.flutter.netbeans.designer.canvas.CanvasLocale;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
@@ -69,6 +75,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -87,6 +94,7 @@ class CanvasRunnerProcessChannelTest {
             CanvasWireCapability.READ_ONLY_RENDER,
             CanvasWireCapability.READ_ONLY_LAYOUT,
             CanvasWireCapability.READ_ONLY_SELECTION,
+            CanvasWireCapability.ASSET_IMAGE_BYTES_V1,
             CanvasWireCapability.SURFACE_PRESENTATION_V1,
             CanvasWireCapability.PALETTE_DROP_CATALOG_INSERT_V1,
             CanvasWireCapability.PALETTE_DROP_SOURCE_AWARE_V1,
@@ -397,6 +405,86 @@ class CanvasRunnerProcessChannelTest {
                 + harness.sessionId + "\""));
         assertTrue(control.contains("\"presentationSequence\":7"));
         assertArrayEquals(model, frames.get(2).copyPayload());
+    }
+
+    @Test
+    void writesDeclaredImageDescriptorsAndBytesAfterTheExactModel()
+            throws Exception {
+        harness = Harness.ready();
+        CanvasRenderRequest base = renderRequest(harness.sessionId);
+        byte[] encodedImage = new byte[]{1, 3, 3, 7, 9};
+        CanvasImageResource resource = CanvasImageResource.create(
+                CanvasImageFormat.PNG, 23, 17, encodedImage);
+        CanvasImageAsset asset = new CanvasImageAsset(
+                CanvasImageAssetId.application("assets/logo.png"),
+                resource.resourceId(),
+                List.of(new CanvasImageVariant(
+                        BigDecimal.ONE, resource.resourceId())));
+        CanvasRenderRequest request = new CanvasRenderRequest(
+                base.revisionKey(),
+                base.renderProfile(),
+                base.snapshot(),
+                new CanvasImageResourceBundle(
+                        List.of(asset), List.of(resource)));
+        byte[] model = "{\"model\":\"with-image\"}"
+                .getBytes(StandardCharsets.UTF_8);
+
+        harness.channel.expectPresentation(request.revisionKey());
+        assertTrue(harness.channel.present(request, model));
+
+        List<CanvasProcessFrame> frames =
+                harness.awaitHostFramesWithModelAndImage(model, resource);
+        assertEquals(4, frames.size());
+        assertEquals(CanvasProcessFrameKind.CONTROL_JSON, frames.get(1).kind());
+        assertEquals(CanvasProcessFrameKind.MODEL_JSON, frames.get(2).kind());
+        assertEquals(CanvasProcessFrameKind.IMAGE_BYTES, frames.get(3).kind());
+        String control = new String(
+                frames.get(1).copyPayload(), StandardCharsets.UTF_8);
+        assertTrue(control.contains("\"images\":[{"));
+        assertTrue(control.contains("\"resourceId\":\""
+                + resource.resourceId() + "\""));
+        assertTrue(control.contains("\"kind\":\"image.bytes\""));
+        assertTrue(control.contains("\"mediaType\":\"image/png\""));
+        assertTrue(control.contains("\"pixelWidth\":23"));
+        assertTrue(control.contains("\"pixelHeight\":17"));
+        assertTrue(control.contains("\"payloadBytes\":5"));
+        assertTrue(control.contains("\"sha256\":\""
+                + resource.resourceId() + "\""));
+        assertArrayEquals(encodedImage, frames.get(3).copyPayload());
+    }
+
+    @Test
+    void rejectsImagePublicationWhenTheRunnerDidNotNegotiateImageBytes()
+            throws Exception {
+        harness = new Harness();
+        harness.channel.start();
+        harness.awaitHostFrames(1);
+        List<CanvasWireCapability> withoutImages = ALL_CAPABILITIES.stream()
+                .filter(capability -> capability
+                        != CanvasWireCapability.ASSET_IMAGE_BYTES_V1)
+                .toList();
+        harness.sendHello(withoutImages);
+        assertTrue(harness.listener.ready.await(2, TimeUnit.SECONDS));
+        CanvasRenderRequest base = renderRequest(harness.sessionId);
+        CanvasImageResource resource = CanvasImageResource.create(
+                CanvasImageFormat.PNG, 1, 1, new byte[]{42});
+        CanvasImageAsset asset = new CanvasImageAsset(
+                CanvasImageAssetId.application("assets/pixel.png"),
+                resource.resourceId(),
+                List.of(new CanvasImageVariant(
+                        BigDecimal.ONE, resource.resourceId())));
+        CanvasRenderRequest request = new CanvasRenderRequest(
+                base.revisionKey(),
+                base.renderProfile(),
+                base.snapshot(),
+                new CanvasImageResourceBundle(
+                        List.of(asset), List.of(resource)));
+
+        harness.channel.expectPresentation(request.revisionKey());
+
+        assertFalse(harness.channel.present(
+                request, "{}".getBytes(StandardCharsets.UTF_8)));
+        assertEquals(1, harness.awaitHostFrames(1).size());
     }
 
     @Test
@@ -1995,6 +2083,48 @@ class CanvasRunnerProcessChannelTest {
                 throw lastFailure;
             }
             throw new AssertionError("Timed out waiting for model frame");
+        }
+
+        List<CanvasProcessFrame> awaitHostFramesWithModelAndImage(
+                byte[] model,
+                CanvasImageResource image) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            Exception lastFailure = null;
+            while (System.nanoTime() < deadline) {
+                try {
+                    CanvasProcessFrameReader reader =
+                            new CanvasProcessFrameCodec().reader(
+                                    new ByteArrayInputStream(
+                                            hostStdin.toByteArray()));
+                    CanvasProcessFramingPolicy handshake = handshakePolicy(
+                            CanvasProcessDirection.HOST_TO_RUNNER);
+                    CanvasProcessFramingPolicy negotiated = negotiatedPolicy(
+                            CanvasProcessDirection.HOST_TO_RUNNER);
+                    CanvasProcessFrame hello = reader.read(handshake)
+                            .orElseThrow();
+                    CanvasProcessFrame render = reader.read(negotiated)
+                            .orElseThrow();
+                    CanvasProcessFrame expectedModel = new CanvasProcessFrame(
+                            CanvasProcessFrameKind.MODEL_JSON, model);
+                    CanvasProcessFrame actualModel = reader.read(
+                            negotiated, expectedModel.descriptor()).orElseThrow();
+                    CanvasProcessFrame expectedImage = new CanvasProcessFrame(
+                            CanvasProcessFrameKind.IMAGE_BYTES,
+                            image.copyEncodedBytes());
+                    CanvasProcessFrame actualImage = reader.read(
+                            negotiated, expectedImage.descriptor()).orElseThrow();
+                    assertTrue(reader.read(negotiated).isEmpty());
+                    return List.of(
+                            hello, render, actualModel, actualImage);
+                } catch (IOException | RuntimeException failure) {
+                    lastFailure = failure;
+                }
+                Thread.sleep(5);
+            }
+            if (lastFailure != null) {
+                throw lastFailure;
+            }
+            throw new AssertionError("Timed out waiting for image frame");
         }
 
         @Override

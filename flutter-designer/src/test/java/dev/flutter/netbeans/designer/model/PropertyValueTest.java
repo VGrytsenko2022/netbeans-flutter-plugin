@@ -408,4 +408,200 @@ class PropertyValueTest {
                         Optional.of(radius), List.of(), Optional.empty(), Optional.empty(),
                         PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE));
     }
+
+    @Test
+    void modelsClosedAssetImageProvidersAndRejectsUnsafeOrIncoherentValues() {
+        PropertyValue.ImageProviderValue.ResizeImageConfig resize =
+                new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                        Optional.of(512),
+                        Optional.empty(),
+                        PropertyValue.ImageProviderValue.ResizePolicy.FIT,
+                        true);
+        PropertyValue.ImageProviderValue exact =
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                        "assets/images/é/logo.png",
+                        Optional.of("reviewed_icons"),
+                        Optional.of(new BigDecimal("2.00")),
+                        Optional.of(resize));
+
+        assertEquals(PropertyValueKind.IMAGE_PROVIDER, exact.kind());
+        assertEquals(new BigDecimal("2"), exact.exactScale().orElseThrow());
+        assertEquals(16_384, PropertyValue.ImageProviderValue.MAX_RESIZE_DIMENSION);
+        assertEquals(PropertyValue.ImageProviderValue.asset("assets/logo.png"),
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        "assets/logo.png", Optional.empty(), Optional.empty(),
+                        Optional.empty()));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("/assets/logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("assets//logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("assets/../logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("assets\\logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("C:/logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("~/assets/logo.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset(
+                        "assets/%2e%2e/logo.png"));
+        for (String whitespacePath : List.of(
+                " ", "\u1680", " assets/logo.png", "assets/logo.png ")) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    PropertyValue.ImageProviderValue.asset(whitespacePath));
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.asset("assets/e\u0301.png"));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        "assets/logo.png", Optional.empty(), Optional.of(BigDecimal.ONE),
+                        Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                        "assets/logo.png", Optional.empty(), Optional.empty(),
+                        Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.ImageProviderValue.exactAsset(
+                        "assets/logo.png", BigDecimal.ZERO));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                        Optional.empty(), Optional.empty(),
+                        PropertyValue.ImageProviderValue.ResizePolicy.EXACT, false));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                        Optional.of(16_385), Optional.empty(),
+                        PropertyValue.ImageProviderValue.ResizePolicy.EXACT, false));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        "assets/logo.png", Optional.of("Bad-Package"),
+                        Optional.empty(), Optional.empty()));
+    }
+
+    @Test
+    void modelsCompleteDecorationImageDefaultsFiltersAndDependentInvariants() {
+        PropertyValue.ImageProviderValue provider =
+                PropertyValue.ImageProviderValue.asset("assets/logo.png");
+        PropertyValue.DecorationImageValue defaults =
+                PropertyValue.DecorationImageValue.defaults(provider);
+        assertEquals(provider, defaults.image());
+        assertEquals(Optional.empty(), defaults.onError());
+        assertEquals(Optional.empty(), defaults.colorFilter());
+        assertEquals(Optional.empty(), defaults.fit());
+        assertEquals(BigDecimal.ZERO, defaults.alignment().horizontal());
+        assertEquals(BigDecimal.ZERO, defaults.alignment().vertical());
+        assertEquals(PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                defaults.repeat());
+        assertEquals(BigDecimal.ONE, defaults.scale());
+        assertEquals(BigDecimal.ONE, defaults.opacity());
+        assertEquals(PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                defaults.filterQuality());
+
+        PropertyValue.DecorationImageValue.Rect slice =
+                new PropertyValue.DecorationImageValue.Rect(
+                        BigDecimal.ONE, BigDecimal.TWO,
+                        BigDecimal.TEN, BigDecimal.valueOf(20));
+        PropertyValue.DecorationImageValue image =
+                new PropertyValue.DecorationImageValue(
+                        provider,
+                        Optional.of(new PropertyValue.CallbackValue("onImageError")),
+                        Optional.of(new PropertyValue.DecorationImageValue.Mode(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.primary")),
+                                PropertyValue.PaintValue.BlendMode.SRC_IN)),
+                        Optional.of(PropertyValue.DecorationImageValue.BoxFit.FILL),
+                        defaults.alignment(),
+                        Optional.of(slice),
+                        PropertyValue.DecorationImageValue.ImageRepeat.REPEAT_X,
+                        true,
+                        new BigDecimal("1.5"),
+                        new BigDecimal("0.75"),
+                        PropertyValue.PaintValue.FilterQuality.HIGH,
+                        true,
+                        true);
+        assertEquals(slice, image.centerSlice().orElseThrow());
+
+        List<BigDecimal> matrix = java.util.stream.IntStream.range(0, 20)
+                .mapToObj(BigDecimal::valueOf)
+                .toList();
+        PropertyValue.DecorationImageValue.Matrix normalizedMatrix =
+                new PropertyValue.DecorationImageValue.Matrix(matrix);
+        assertEquals(20, normalizedMatrix.values().size());
+        assertEquals(0, normalizedMatrix.values().get(10)
+                .compareTo(BigDecimal.TEN));
+        assertEquals("linearToSrgbGamma",
+                new PropertyValue.DecorationImageValue.LinearToSrgbGamma().wireKind());
+        assertEquals("srgbToLinearGamma",
+                new PropertyValue.DecorationImageValue.SrgbToLinearGamma().wireKind());
+        assertEquals(new BigDecimal("1.25"),
+                new PropertyValue.DecorationImageValue.Saturation(
+                        new BigDecimal("1.250")).value());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DecorationImageValue.Matrix(List.of(BigDecimal.ONE)));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DecorationImageValue.Rect(
+                        BigDecimal.ONE, BigDecimal.ZERO,
+                        BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DecorationImageValue.Rect(
+                        BigDecimal.ZERO, BigDecimal.ONE,
+                        BigDecimal.ONE, BigDecimal.ONE));
+        PropertyValue.DecorationImageValue containedSlice =
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(), Optional.empty(),
+                        Optional.of(PropertyValue.DecorationImageValue.BoxFit.CONTAIN),
+                        defaults.alignment(), Optional.of(slice),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ONE, BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM, false, false);
+        assertEquals(PropertyValue.DecorationImageValue.BoxFit.CONTAIN,
+                containedSlice.fit().orElseThrow());
+        for (PropertyValue.DecorationImageValue.BoxFit rejectedFit : List.of(
+                PropertyValue.DecorationImageValue.BoxFit.COVER,
+                PropertyValue.DecorationImageValue.BoxFit.NONE)) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new PropertyValue.DecorationImageValue(
+                            provider, Optional.empty(), Optional.empty(),
+                            Optional.of(rejectedFit),
+                            defaults.alignment(), Optional.of(slice),
+                            PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                            false, BigDecimal.ONE, BigDecimal.ONE,
+                            PropertyValue.PaintValue.FilterQuality.MEDIUM,
+                            false, false));
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(), Optional.empty(), Optional.empty(),
+                        defaults.alignment(), Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ZERO, BigDecimal.ONE,
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM, false, false));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DecorationImageValue(
+                        provider, Optional.empty(), Optional.empty(), Optional.empty(),
+                        defaults.alignment(), Optional.empty(),
+                        PropertyValue.DecorationImageValue.ImageRepeat.NO_REPEAT,
+                        false, BigDecimal.ONE, new BigDecimal("1.01"),
+                        PropertyValue.PaintValue.FilterQuality.MEDIUM, false, false));
+
+        PropertyValue.BoxDecorationValue oldConstructor =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(), Optional.empty(), Optional.empty(), List.of(),
+                        Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        assertEquals(Optional.empty(), oldConstructor.image());
+        PropertyValue.BoxDecorationValue withImage =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.empty(), Optional.of(image), Optional.empty(),
+                        Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        assertEquals(image, withImage.image().orElseThrow());
+    }
 }

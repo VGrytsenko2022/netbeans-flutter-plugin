@@ -783,9 +783,22 @@ accepted architecture is documented in
   child semantics and retains them only when `alwaysIncludeSemantics` is true.
   IDE-owned selection/hit/drop overlays remain outside the effect. Existing
   double/boolean/single-slot encodings keep `.fd` schema v6, Catalog API 5,
-  Canvas model v11 and version-1 framing/control unchanged. The active surface
-  is 13 widgets and 530 writable rows. Thirteen sources across 15 any-widget plus
+  Canvas model v11 and version-1 framing/control unchanged. At that milestone
+  the active surface was 13 widgets and 530 writable rows. Thirteen sources across 15 any-widget plus
   two trait-bound destinations form 221 candidates: 197 accepted and 24 rejected.
+- [x] Complete `Align` as the next bounded Layout vertical slice. The exact
+  Flutter 3.44.8 const contract contains optional `AlignmentGeometry alignment`
+  with omitted `Alignment.center` default, nullable finite non-negative
+  `widthFactor` and `heightFactor`, and one optional single any-widget `child`;
+  `key` and raw Dart remain excluded. New prototypes store no property values
+  and keep an empty child. Native and exact-Web projections build real Flutter
+  `Align`, preserve physical and directional alignment under LTR/RTL, and keep
+  selection/drop feedback outside the widget, including an IDE-only target when
+  an empty factor-driven Align has zero size. Existing alignment, numeric and
+  single-slot encodings keep `.fd` schema v6, Catalog API 5, Canvas model v11 and
+  version-1 framing/control unchanged. The active surface is 14 widgets and 533
+  writable rows. Fourteen sources across 16 any-widget plus two trait-bound
+  destinations form 252 candidates: 226 accepted and 26 rejected.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -805,7 +818,7 @@ accepted architecture is documented in
   current pair-save/editor-operation regression is green and Palette-expansion
   work is resumed. The dormant dedicated-shell/exact-Web product gates above
   remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all thirteen admitted built-ins and does not
+  current typed Properties slice spans all fourteen admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

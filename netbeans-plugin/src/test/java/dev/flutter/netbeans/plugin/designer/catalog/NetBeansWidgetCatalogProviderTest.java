@@ -40,6 +40,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         assertTrue(typeIds(result).contains("flutter.material.Scaffold"));
         assertTrue(typeIds(result).contains("flutter.widgets.Text"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Align"));
     }
 
     @Test
@@ -127,7 +128,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(13, result.catalog().definitions().size());
+        assertEquals(14, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -160,7 +161,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(13, result.catalog().definitions().size());
+        assertEquals(14, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

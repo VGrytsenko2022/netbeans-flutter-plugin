@@ -50,10 +50,11 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirteen
-widgets: `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`,
-`AspectRatio`, `Container`, `Opacity`, `Text`, `Icon` and `ElevatedButton`.
-Their `General` Properties expose exactly 530 typed writable rows: 513 across the twelve
+The current capability-gated Palette and native Canvas admit exactly fourteen
+widgets: `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Align`,
+`SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text`, `Icon` and
+`ElevatedButton`. Their `General` Properties expose exactly 533 typed writable
+rows: 516 across the thirteen
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -77,6 +78,15 @@ hit-tests its child, normally removes the child's semantics, and retains them
 only when **Always include semantics** is true. Canvas selection, hit and drop
 overlays stay visible outside the effect, including for an empty zero-size
 target. Opacity does not inherit Theme or Directionality values.
+
+`Align` exposes optional physical or directional alignment, optional finite
+non-negative width/height factors and one optional any-widget `child`. A new
+instance keeps all properties omitted, so Flutter supplies `Alignment.center`
+and null factors. Null is not the same as factor `1`: on a bounded axis null
+expands, while a factor shrink-wraps to the child's size. Directional horizontal
+coordinates flip under LTR/RTL, physical coordinates do not, and values outside
+`[-1, 1]` intentionally extrapolate. An empty zero-size Align remains selectable
+and accepts a drop through an IDE-only target that does not alter generated Dart.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -126,10 +136,10 @@ responsive layout preview.
 
 The current surface uses `.fd` schema v6, contributor Catalog API 5 and Canvas
 model protocol 11. Schema v1-v5 files migrate in memory with no image and are written
-as v6 only after an admitted edit. Opacity uses existing double, boolean and
-single-slot encodings, so it changes none of those versions. Thirteen sources
-across fifteen any-widget and two trait-bound slots produce 221 compatibility
-candidates: 197 accepted and 24 rejected.
+as v6 only after an admitted edit. Opacity and Align reuse existing alignment,
+double, boolean and single-slot encodings, so they change none of those
+versions. Fourteen sources across sixteen any-widget and two trait-bound slots
+produce 252 compatibility candidates: 226 accepted and 26 rejected.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and

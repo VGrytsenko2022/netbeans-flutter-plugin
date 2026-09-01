@@ -75,7 +75,7 @@ SHA-256 are verified before admission. Media signature, declared dimensions and
 a real Flutter decode are then checked per resource: a failure quarantines that
 resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center`, `Container`, `Opacity`, `SizedBox`, `AspectRatio` and
+`Padding`, `Center`, `Align`, `Container`, `Opacity`, `SizedBox`, `AspectRatio` and
 `ElevatedButton`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -222,9 +222,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-13 reviewed Canvas widgets. Palette insertion evaluates 221 exact
-source/destination cells across 13 draggable sources and 17 reviewed slots;
-197 are accepted and 24 trait-incompatible cells are rejected. The negotiated
+14 reviewed Canvas widgets. Palette insertion evaluates 252 exact
+source/destination cells across 14 draggable sources and 18 reviewed slots;
+226 are accepted and 26 trait-incompatible cells are rejected. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
@@ -242,3 +242,12 @@ child hit testing; it normally suppresses child semantics, while explicit
 overlays wrap the Opacity and remain visible outside its paint/semantics effect,
 including for an empty zero-size child target. The same contract is used by the
 native and exact-Web renderers.
+
+`flutter.widgets.Align` is also decoded without a protocol-version change. Its
+optional alignment is the existing finite physical/directional
+`AlignmentGeometry` value; omission resolves to `Alignment.center`. Nullable
+width and height factors reuse the finite non-negative numeric contract, with
+zero and values greater than one admitted, and `child` is one optional single
+any-widget slot. The runner builds a real Flutter `Align`, resolves directional
+coordinates through the current LTR/RTL `Directionality`, and keeps an IDE-only
+selection/drop target when an empty factor-driven instance has zero layout size.

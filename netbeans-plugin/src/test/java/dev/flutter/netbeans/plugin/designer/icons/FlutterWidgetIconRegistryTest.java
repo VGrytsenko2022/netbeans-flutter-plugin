@@ -187,6 +187,39 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void alignFamilyUsesExactReviewedAnchorGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "align.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "path[d=M8 3.5v9M3.5 8h9, stroke-dasharray=1 1.5, stroke-linecap=round, stroke-width=1]",
+                "rect[height=4, rx=.8, stroke-width=1, width=4, x=8.5, y=3.5]",
+                "circle[cx=10.5, cy=5.5, r=.7]"), light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "path[d=M16 7v18M7 16h18, stroke-dasharray=2 3, stroke-linecap=round, stroke-width=2]",
+                "rect[height=8, rx=1.6, stroke-width=2, width=8, x=17, y=7]",
+                "circle[cx=21, cy=11, r=1.4]"), light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "path[fill=none, stroke=#42A5F5]",
+                "rect[fill=#80DEEA, stroke=#1565C0]",
+                "circle[fill=#00838F]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "path[fill=none, stroke=#64B5F6]",
+                "rect[fill=#4DD0E1, stroke=#90CAF9]",
+                "circle[fill=#B2EBF2]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void opacityFamilyUsesExactReviewedTransparencyGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "opacity.svg";
@@ -373,6 +406,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg");
         expected.put("flutter.widgets.Container", ICON_ROOT + "container.svg");
         expected.put("flutter.widgets.Opacity", ICON_ROOT + "opacity.svg");
+        expected.put("flutter.widgets.Align", ICON_ROOT + "align.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

@@ -85,6 +85,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Container",
                 "flutter.widgets.Opacity",
+                "flutter.widgets.Align",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
@@ -94,7 +95,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTheExactThirteenWidgetProfileWithoutSourceOrExecutableCode()
+    void projectsTheExactFourteenWidgetProfileWithoutSourceOrExecutableCode()
             throws Exception {
         CanvasRenderRequest request = request(document(false));
 
@@ -121,6 +122,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.SizedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.AspectRatio\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Opacity\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Align\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
         assertTrue(json.contains("\"width\":{\"kind\":\"integer\",\"value\":120}"));
@@ -128,6 +130,10 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"aspectRatio\":{\"kind\":\"double\",\"value\":1.7777777777777777}"));
         assertTrue(json.contains("\"opacity\":{\"kind\":\"double\",\"value\":0.5}"));
         assertTrue(json.contains("\"alwaysIncludeSemantics\":{\"kind\":\"boolean\",\"value\":true}"));
+        assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","));
+        assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"));
+        assertTrue(json.contains("\"widthFactor\":{\"kind\":\"integer\",\"value\":0}"));
+        assertTrue(json.contains("\"heightFactor\":{\"kind\":\"double\",\"value\":1.5}"));
         assertTrue(json.contains("\"kind\":\"edgeInsets\",\"left\":16"));
         assertTrue(json.contains("\"crossAxisAlignment\":{\"kind\":\"enum\","
                 + "\"type\":\"CrossAxisAlignment\",\"value\":\"baseline\"}"));
@@ -574,23 +580,37 @@ class CanvasModelPayloadCodecTest {
                 Map.of(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
                         "4508c721-215c-4059-be29-3e38fd02b411", "World"))));
+        WidgetNode align = new WidgetNode(
+                id("9c39207e-e9a0-438a-8350-d71474977bd2"),
+                type("flutter.widgets.Align"),
+                Map.of(
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.DIRECTIONAL,
+                                        new BigDecimal("0.25"),
+                                        new BigDecimal("-0.75")),
+                        new PropertyName("widthFactor"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                        new PropertyName("heightFactor"),
+                                new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+        WidgetNode opacity = new WidgetNode(
+                id("c061d779-a0a3-46fb-9b0e-7b22397b51d2"),
+                type("flutter.widgets.Opacity"),
+                Map.of(
+                        new PropertyName("opacity"),
+                                new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                        new PropertyName("alwaysIncludeSemantics"),
+                                new PropertyValue.BooleanValue(true)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(align)));
         WidgetNode aspectRatio = new WidgetNode(
                 id("ad9476e2-bef0-4c4b-afcf-2e184cb7f622"),
                 type("flutter.widgets.AspectRatio"),
                 Map.of(new PropertyName("aspectRatio"),
                         new PropertyValue.DoubleValue(
                                 new BigDecimal("1.7777777777777777"))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(new WidgetNode(
-                        id("c061d779-a0a3-46fb-9b0e-7b22397b51d2"),
-                        type("flutter.widgets.Opacity"),
-                        Map.of(
-                                new PropertyName("opacity"),
-                                        new PropertyValue.DoubleValue(
-                                                new BigDecimal("0.5")),
-                                new PropertyName("alwaysIncludeSemantics"),
-                                        new PropertyValue.BooleanValue(true)),
-                        Map.of(new SlotName("child"),
-                                WidgetSlot.SingleSlot.of(centered))))));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(opacity)));
         WidgetNode sizedBox = new WidgetNode(
                 id("0cc7c095-7908-461b-b5b2-fe085343b6b2"),
                 type("flutter.widgets.SizedBox"),

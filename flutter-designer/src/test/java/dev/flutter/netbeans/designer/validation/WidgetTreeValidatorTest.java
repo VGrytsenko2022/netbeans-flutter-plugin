@@ -487,6 +487,72 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void alignAcceptsOptionalPhysicalOrDirectionalAlignmentAndNonNegativeFactors() {
+        WidgetNode omitted = node(
+                "align-omitted", "flutter.widgets.Align", Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> "Issues were: " + omittedResult.issues());
+
+        WidgetNode child = node(
+                "align-child", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Inside")),
+                Map.of());
+        for (PropertyValue.AlignmentGeometryValue.HorizontalBasis basis
+                : PropertyValue.AlignmentGeometryValue.HorizontalBasis.values()) {
+            WidgetNode valid = node(
+                    "align-valid-" + basis.name(),
+                    "flutter.widgets.Align",
+                    Map.of(
+                            name("alignment"),
+                                    new PropertyValue.AlignmentGeometryValue(
+                                            basis,
+                                            new BigDecimal("-0.25"),
+                                            new BigDecimal("0.75")),
+                            name("widthFactor"),
+                                    new PropertyValue.IntegerValue(BigInteger.ZERO),
+                            name("heightFactor"),
+                                    new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+        }
+
+        Map<String, PropertyValue> rejectedFactors = Map.of(
+                "widthFactor", new PropertyValue.IntegerValue(BigInteger.ONE.negate()),
+                "heightFactor", new PropertyValue.DoubleValue(new BigDecimal("-0.001")));
+        for (Map.Entry<String, PropertyValue> entry : rejectedFactors.entrySet()) {
+            WidgetNode invalid = node(
+                    "align-negative-" + entry.getKey(),
+                    "flutter.widgets.Align",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        for (Map.Entry<String, PropertyValue> entry : Map.<String, PropertyValue>of(
+                "alignment", new PropertyValue.StringValue("Alignment.center"),
+                "widthFactor", new PropertyValue.BooleanValue(true),
+                "heightFactor", new PropertyValue.StringValue("1.5")).entrySet()) {
+            WidgetNode invalid = node(
+                    "align-kind-" + entry.getKey(),
+                    "flutter.widgets.Align",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+    }
+
+    @Test
     void containerEnforcesBackgroundAndClipRelationshipsAfterNestedValidation() {
         PropertyValue.BoxDecorationValue decoration = boxDecoration(
                 new ColorSource.Literal(0xFF102030L));

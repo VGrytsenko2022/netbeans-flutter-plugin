@@ -45,6 +45,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId ASPECT_RATIO =
             type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
+    private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -293,6 +294,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyOpacity.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyAlignChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into Align");
+        WidgetNode emptyAlign = WidgetNodePrototypeFactory.create(
+                definition(ALIGN), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyAlign)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyAlign.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyAlign.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

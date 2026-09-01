@@ -93,6 +93,20 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.Align"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Align"), prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
     void createsContainerWithoutMaterializingFlutterDefaultsAndWithEmptyChild() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Container"), ID);

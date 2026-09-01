@@ -688,6 +688,93 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void emitsAlignInPinnedSdkOrderWithPhysicalAlignmentFactorsAndChild() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Align"),
+                Map.of(
+                        property("alignment"), alignment(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                                "0.25", "-0.5"),
+                        property("widthFactor"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                        property("heightFactor"),
+                                new PropertyValue.DoubleValue(new BigDecimal("1.5"))),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.of(text("Inside"))),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("import 'package:flutter/widgets.dart';\n",
+                generated.imports().payload());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Align(
+                      alignment: const Alignment(0.25, -0.5),
+                      widthFactor: 0,
+                      heightFactor: 1.5,
+                      child: const Text('Inside'),
+                    );
+                  }
+                """, generated.build().payload());
+    }
+
+    @Test
+    void emitsDirectionalAlignWithoutMaterializingFrameworkDefaults() {
+        WidgetNode root = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Align"),
+                Map.of(property("alignment"), alignment(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        "-1", "1")),
+                Map.of(slot("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Align(
+                      alignment: const AlignmentDirectional(-1.0, 1.0),
+                      child: null,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
+    void emitsNewAlignPrototypeAsCompactDefaultPreservingConstWidget() {
+        WidgetNode root = WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault()
+                        .find(new WidgetTypeId("flutter.widgets.Align"))
+                        .orElseThrow(),
+                StableId.random());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(root, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        assertEquals("""
+                  @override
+                  Widget build(BuildContext context) {
+                    return const Align(
+                      child: null,
+                    );
+                  }
+                """, result.generated().orElseThrow().build().payload());
+    }
+
+    @Test
     void emitsCompleteStructuredContainerAndDiscoversNestedThemeColors() {
         PropertyValue.AlignmentGeometryValue begin = alignment(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,

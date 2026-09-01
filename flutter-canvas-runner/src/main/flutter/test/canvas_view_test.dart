@@ -81,6 +81,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Padding'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Align'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Center'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -110,11 +113,12 @@ void main() {
     expect(canvasScaffoldBodyDropSlot.modelSlotKind, 'single');
   });
 
-  test('closes the 13-source by 17-destination compatibility matrix', () {
+  test('closes the 14-source by 18-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
       'flutter.material.ElevatedButton',
+      'flutter.widgets.Align',
       'flutter.widgets.AspectRatio',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
@@ -130,8 +134,8 @@ void main() {
     for (final type in sourceTypes) {
       destinations.addAll(canvasDropSlotsForWidgetType(type));
     }
-    expect(sourceTypes, hasLength(13));
-    expect(destinations, hasLength(17));
+    expect(sourceTypes, hasLength(14));
+    expect(destinations, hasLength(18));
 
     var accepted = 0;
     var rejected = 0;
@@ -149,8 +153,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 197);
-    expect(rejected, 24);
+    expect(accepted, 226);
+    expect(rejected, 26);
+    expect(accepted + rejected, 252);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -1581,6 +1586,258 @@ void main() {
     expect(renderedCenter().widthFactor, isNull);
     expect(renderedCenter().heightFactor, isNull);
   });
+
+  testWidgets(
+    'renders real Align defaults, factors, and extrapolated physical layout',
+    (tester) async {
+      const alignId = 'b51246d4-4e44-4d7c-91bc-a0892df4a341';
+      final fixedChild = <String, Object?>{
+        'id': '2985a65c-e7ef-46b7-b942-93f72ab18930',
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{
+          'width': {'kind': 'integer', 'value': 40},
+          'height': {'kind': 'integer', 'value': 20},
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      };
+
+      Finder alignFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$alignId')),
+            matching: find.byType(Align),
+          )
+          .first;
+
+      Future<RenderPositionedBox> pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredAlign(
+                  properties: properties,
+                  child: fixedChild,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderPositionedBox>(alignFinder());
+      }
+
+      final omitted = await pump(const {});
+      final omittedWidget = tester.widget<Align>(alignFinder());
+      expect(omittedWidget.alignment, Alignment.center);
+      expect(omittedWidget.widthFactor, isNull);
+      expect(omittedWidget.heightFactor, isNull);
+      expect(omitted.child!.size, const Size(40, 20));
+      expect(omitted.size.width, greaterThan(omitted.child!.size.width));
+      expect(omitted.size.height, greaterThan(omitted.child!.size.height));
+      expect(
+        (omitted.child!.parentData! as BoxParentData).offset,
+        Offset(
+          (omitted.size.width - omitted.child!.size.width) / 2,
+          (omitted.size.height - omitted.child!.size.height) / 2,
+        ),
+      );
+
+      final extrapolated = await pump({
+        'alignment': _viewAlignment(horizontal: 2, vertical: -2),
+        'widthFactor': {'kind': 'integer', 'value': 2},
+        'heightFactor': {'kind': 'double', 'value': 3.0},
+      });
+      final explicitWidget = tester.widget<Align>(alignFinder());
+      expect(explicitWidget.alignment, const Alignment(2, -2));
+      expect(explicitWidget.widthFactor, 2);
+      expect(explicitWidget.heightFactor, 3);
+      expect(extrapolated.child!.size, const Size(40, 20));
+      expect(extrapolated.size, const Size(80, 60));
+      expect(
+        (extrapolated.child!.parentData! as BoxParentData).offset,
+        const Offset(60, -20),
+      );
+      expect(find.byType(AnimatedAlign), findsNothing);
+    },
+  );
+
+  testWidgets('resolves Align directional start in LTR and RTL', (
+    tester,
+  ) async {
+    const alignId = 'b51246d4-4e44-4d7c-91bc-a0892df4a341';
+    final child = <String, Object?>{
+      'id': '2985a65c-e7ef-46b7-b942-93f72ab18930',
+      'type': 'flutter.widgets.SizedBox',
+      'properties': <String, Object?>{
+        'width': {'kind': 'integer', 'value': 40},
+        'height': {'kind': 'integer', 'value': 20},
+      },
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': null},
+      },
+    };
+
+    Future<({Offset offset, double remainingWidth, TextDirection direction})>
+    render(String locale) async {
+      final json = _modelWithCenteredAlign(
+        properties: {
+          'alignment': _viewAlignment(
+            basis: 'directional',
+            horizontal: -1,
+            vertical: 0,
+          ),
+        },
+        child: child,
+      );
+      (json['profile']! as Map<String, Object?>)['locale'] = locale;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      final node = find.byKey(const ValueKey('canvas-widget-$alignId'));
+      final align = tester.widget<Align>(
+        find.descendant(of: node, matching: find.byType(Align)).first,
+      );
+      expect(align.alignment, const AlignmentDirectional(-1, 0));
+      final render = tester.renderObject<RenderPositionedBox>(
+        find.descendant(of: node, matching: find.byType(Align)).first,
+      );
+      return (
+        offset: (render.child!.parentData! as BoxParentData).offset,
+        remainingWidth: render.size.width - render.child!.size.width,
+        direction: render.textDirection!,
+      );
+    }
+
+    final ltr = await render('en-US');
+    expect(ltr.direction, TextDirection.ltr);
+    expect(ltr.offset.dx, 0);
+    expect(ltr.offset.dy, greaterThan(0));
+
+    final rtl = await render('ar-SA');
+    expect(rtl.direction, TextDirection.rtl);
+    expect(rtl.remainingWidth, greaterThan(0));
+    expect(rtl.offset.dx, rtl.remainingWidth);
+    expect(rtl.offset.dy, greaterThan(0));
+  });
+
+  testWidgets(
+    'keeps empty and factor-zero Align selectable and exposes empty child DnD',
+    (tester) async {
+      const alignId = 'b51246d4-4e44-4d7c-91bc-a0892df4a341';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+
+      final emptyModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredAlign(
+                properties: const {
+                  'widthFactor': {'kind': 'integer', 'value': 1},
+                  'heightFactor': {'kind': 'integer', 'value': 1},
+                },
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: emptyModel,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$alignId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$alignId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, alignId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, alignId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+
+      final occupiedChild = <String, Object?>{
+        'id': '2985a65c-e7ef-46b7-b942-93f72ab18930',
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{
+          'width': {'kind': 'integer', 'value': 40},
+          'height': {'kind': 'integer', 'value': 20},
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      };
+      final factorZeroModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredAlign(
+                properties: const {
+                  'widthFactor': {'kind': 'integer', 'value': 0},
+                  'heightFactor': {'kind': 'integer', 'value': 1},
+                },
+                child: occupiedChild,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: factorZeroModel,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.getSize(rendered), const Size(0, 20));
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      final align = tester.widget<Align>(
+        find.descendant(of: rendered, matching: find.byType(Align)).first,
+      );
+      expect(align.child, isNotNull);
+      expect(align.widthFactor, 0);
+      expect(align.heightFactor, 1);
+    },
+  );
 
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
@@ -4272,6 +4529,35 @@ Map<String, Object?> _modelWithCenteredAspectRatio({
           'properties': <String, Object?>{
             'aspectRatio': {'kind': 'double', 'value': aspectRatio},
           },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredAlign({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'b51246d4-4e44-4d7c-91bc-a0892df4a341',
+          'type': 'flutter.widgets.Align',
+          'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},
           },

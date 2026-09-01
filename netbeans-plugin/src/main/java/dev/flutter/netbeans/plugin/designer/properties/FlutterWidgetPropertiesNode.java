@@ -62,6 +62,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS_PROPERTY =
             new PropertyName("alwaysIncludeSemantics");
+    private static final WidgetTypeId ALIGN_TYPE =
+            new WidgetTypeId("flutter.widgets.Align");
+    private static final PropertyName ALIGNMENT_PROPERTY =
+            new PropertyName("alignment");
+    private static final PropertyName WIDTH_FACTOR_PROPERTY =
+            new PropertyName("widthFactor");
+    private static final PropertyName HEIGHT_FACTOR_PROPERTY =
+            new PropertyName("heightFactor");
     private static final SlotName CHILD_SLOT = new SlotName("child");
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
@@ -364,6 +372,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (ALIGN_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child positioned within Align using the selected physical "
+                    + "alignment or directional alignment resolved from TextDirection "
+                    + "(LTR/RTL), not from the theme. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -381,6 +398,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private Sheet.Set createGenericPropertySet() {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
+        boolean align = ALIGN_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
@@ -389,6 +407,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
+                        : align
+                                ? "Positioning and optional shrink-wrap factors for the selected "
+                                        + "Align widget; directional alignment resolves from "
+                                        + "TextDirection (LTR/RTL), not from the theme."
                         : "Explicit property values stored on the selected widget; "
                                 + "catalog creation defaults are not applied.");
         for (PropertyDefinition property : definition.properties()) {
@@ -415,6 +437,31 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         "Always include semantics",
                         "When true, exposes child semantics even when Opacity would "
                                 + "otherwise hide them; Flutter defaults to false."));
+            } else if (align && ALIGNMENT_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Alignment",
+                        "Physical position or directional position resolved from TextDirection "
+                                + "(LTR/RTL), not from the theme. Flutter "
+                                + "defaults to center; coordinates outside -1 through 1 "
+                                + "extrapolate beyond the available box."));
+            } else if (align && WIDTH_FACTOR_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Width factor",
+                        "Optional finite non-negative multiplier applied to the child's width. "
+                                + "Zero is valid; when omitted, Align expands on a bounded "
+                                + "horizontal axis and shrink-wraps on an unbounded axis."));
+            } else if (align && HEIGHT_FACTOR_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Height factor",
+                        "Optional finite non-negative multiplier applied to the child's height. "
+                                + "Zero is valid; when omitted, Align expands on a bounded "
+                                + "vertical axis and shrink-wraps on an unbounded axis."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

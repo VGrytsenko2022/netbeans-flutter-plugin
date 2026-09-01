@@ -33,6 +33,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
             "flutter.widgets.Opacity",
+            "flutter.widgets.Align",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -48,6 +49,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
             "flutter.widgets.Opacity",
+            "flutter.widgets.Align",
             "flutter.widgets.Text",
             "flutter.widgets.Icon");
 
@@ -57,6 +59,34 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(CANVAS_ORDER, types(WidgetCapability.CREATE));
         assertEquals(CANVAS_ORDER, types(WidgetCapability.DND));
         assertEquals(PROPERTIES_ORDER, types(WidgetCapability.PROPERTIES));
+    }
+
+    @Test
+    void exactDndCapabilityMatrixHasFourteenSourcesAndEighteenDestinations() {
+        List<WidgetDefinition> sources =
+                BuiltInWidgetCapabilityCatalog.definitionsSupporting(
+                        WidgetCapability.DND);
+        List<SlotDefinition> destinations =
+                BuiltInWidgetCapabilityCatalog.definitionsSupporting(
+                                WidgetCapability.DND).stream()
+                        .flatMap(definition -> definition.slots().stream())
+                        .toList();
+
+        long accepted = 0;
+        for (WidgetDefinition source : sources) {
+            for (SlotDefinition destination : destinations) {
+                if (destination.acceptance().accepts(source)) {
+                    accepted++;
+                }
+            }
+        }
+        long candidates = (long) sources.size() * destinations.size();
+
+        assertEquals(14, sources.size());
+        assertEquals(18, destinations.size());
+        assertEquals(252, candidates);
+        assertEquals(226, accepted);
+        assertEquals(26, candidates - accepted);
     }
 
     @Test
@@ -163,6 +193,57 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertTrue(semantics.creationDefaultFingerprint().isEmpty());
         assertEquals("any", semantics.constraintFingerprints()
                 .get(PropertyValueKind.BOOLEAN));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void alignHasTheExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Align");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("alignment"),
+                        new PropertyName("widthFactor"),
+                        new PropertyName("heightFactor")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertTrue(alignment.numericBounds().isEmpty());
+
+        for (String name : List.of("widthFactor", "heightFactor")) {
+            var factor = projection.propertyContracts().get(new PropertyName(name));
+            assertFalse(factor.required(), name);
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    factor.acceptedKinds(), name);
+            assertTrue(factor.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("0:1:9007199254740991:1", factor.numericBounds()
+                    .get(PropertyValueKind.INTEGER).fingerprint(), name);
+            assertEquals("0:1:*:1", factor.numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+            assertEquals("range:0:1:9007199254740991:1",
+                    factor.constraintFingerprints().get(PropertyValueKind.INTEGER), name);
+            assertEquals("range:0:1:*:1",
+                    factor.constraintFingerprints().get(PropertyValueKind.DOUBLE), name);
+        }
+
         assertEquals(
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),
@@ -421,6 +502,19 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "fontFeatureList:any\n"));
         assertTrue(contract.contains(
                 "S|children|list|0|0|10000|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Align\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|heightFactor|double,integer|0|-|"
+                + "double:0:1:*:1;integer:0:1:9007199254740991:1|"
+                + "double:range:0:1:*:1;"
+                + "integer:range:0:1:9007199254740991:1\n"
+                + "P|widthFactor|double,integer|0|-|"
+                + "double:0:1:*:1;integer:0:1:9007199254740991:1|"
+                + "double:range:0:1:*:1;"
+                + "integer:range:0:1:9007199254740991:1\n"
+                + "S|child|single|0|0|1|any\n"));
     }
 
     @Test

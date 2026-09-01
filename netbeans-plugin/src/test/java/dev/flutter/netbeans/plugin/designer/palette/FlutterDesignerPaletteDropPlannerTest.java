@@ -53,6 +53,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId CONTAINER = type("flutter.widgets.Container");
     private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
+    private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
@@ -149,6 +150,16 @@ class FlutterDesignerPaletteDropPlannerTest {
                         CHILD,
                         0),
                 new AcceptedCase(
+                        "absent optional Align child",
+                        document(prototype(ALIGN)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
+                        "explicitly empty Align child",
+                        document(singleParent(ALIGN, null)),
+                        CHILD,
+                        0),
+                new AcceptedCase(
                         "absent optional ElevatedButton child",
                         document(WidgetNodePrototypeFactory.create(
                                 definition(ELEVATED_BUTTON), ROOT_ID)),
@@ -188,7 +199,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void plansAllOneHundredNinetyFiveAnyWidgetCompatibilityCellsWithExactPrototypes() {
+    void plansAllTwoHundredTwentyFourAnyWidgetCompatibilityCellsWithExactPrototypes() {
         List<CoreSourceCase> sources = coreSources();
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
@@ -202,14 +213,15 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("AspectRatio.child", ASPECT_RATIO, CHILD),
                 target("Container.child", CONTAINER, CHILD),
                 target("Opacity.child", OPACITY, CHILD),
+                target("Align.child", ALIGN, CHILD),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
                 target("AppBar.title", APP_BAR, TITLE),
                 target("AppBar.actions", APP_BAR, ACTIONS),
                 target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE));
 
-        assertEquals(13, sources.size());
-        assertEquals(15, targets.size());
+        assertEquals(14, sources.size());
+        assertEquals(16, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
                     AtomicInteger allocations = new AtomicInteger();
@@ -239,17 +251,17 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact221CellMatrix() {
+    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact252CellMatrix() {
         AtomicInteger allocations = new AtomicInteger();
         List<MatrixTargetCase> traitTargets = List.of(
                 target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
                 target("AppBar.bottom", APP_BAR, BOTTOM));
         assertAll(
-                () -> assertEquals(221, 13 * (15 + traitTargets.size()),
+                () -> assertEquals(252, 14 * (16 + traitTargets.size()),
                         "exact compatibility-matrix candidates"),
-                () -> assertEquals(197, 13 * 15 + traitTargets.size(),
-                        "195 any-widget cells plus two AppBar trait cells"),
-                () -> assertEquals(24, traitTargets.size() * (13 - 1),
+                () -> assertEquals(226, 14 * 16 + traitTargets.size(),
+                        "224 any-widget cells plus two AppBar trait cells"),
+                () -> assertEquals(26, traitTargets.size() * (14 - 1),
                         "all non-AppBar trait cells are rejected"));
 
         assertAll(traitTargets.stream().map(target -> (Executable) () -> {
@@ -280,7 +292,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                             rejected.code(), source.name());
                 })));
         assertEquals(0, allocations.get(),
-                "all 24 rejected trait cells must fail before stable-id allocation");
+                "all 26 rejected trait cells must fail before stable-id allocation");
     }
 
     @Test
@@ -295,6 +307,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("AspectRatio.child", ASPECT_RATIO, CHILD),
                 new SingleTargetCase("Container.child", CONTAINER, CHILD),
                 new SingleTargetCase("Opacity.child", OPACITY, CHILD),
+                new SingleTargetCase("Align.child", ALIGN, CHILD),
                 new SingleTargetCase(
                         "ElevatedButton.child", ELEVATED_BUTTON, CHILD));
         AtomicInteger allocations = new AtomicInteger();
@@ -788,6 +801,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                         OPACITY,
                         Map.of(OPACITY_VALUE,
                                 new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                        Map.of(CHILD, SlotCardinality.SINGLE)),
+                new CoreSourceCase(
+                        "Align",
+                        ALIGN,
+                        Map.of(),
                         Map.of(CHILD, SlotCardinality.SINGLE)),
                 new CoreSourceCase(
                         "Text",

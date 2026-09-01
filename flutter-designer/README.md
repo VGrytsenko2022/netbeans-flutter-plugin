@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical thirteen-widget Canvas
+responsive render profiles and the bounded canonical fourteen-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,15 +40,15 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for all thirteen canonical widgets: `Scaffold`,
-`ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`,
-`AspectRatio`, `Container`, `Opacity`, `Text` and `Icon`. The exact catalog
-currently contains 530 writable property
+bounded typed read/write slice for all fourteen canonical widgets: `Scaffold`,
+`ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `Align`,
+`SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text` and `Icon`. The exact
+catalog currently contains 533 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-221-cell candidate matrix: thirteen exact capability-reviewed sources target
-fifteen any-widget and two `PreferredSizeWidget` destinations, with exactly 197
-accepted and 24 rejected cells, subject to
+252-cell candidate matrix: fourteen exact capability-reviewed sources target
+sixteen any-widget and two `PreferredSizeWidget` destinations, with exactly 226
+accepted and 26 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -81,7 +81,7 @@ introduced the resolved project-theme tables. Version 8 retains the closed typed
 `IconData` and AppBar projections, adds ElevatedButton's sparse state contract
 and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `Column`, `Row`, `Text`,
-`Icon`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`
+`Icon`, `Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`
 and `ElevatedButton` from the reviewed
 built-in catalog and excludes project paths, Dart source, callback identifiers,
 extensions and persistence authority. The frame-kind whitelist is control JSON,
@@ -100,7 +100,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical thirteen-widget model, renders it
+tests. The isolated runner decodes the canonical fourteen-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -202,9 +202,9 @@ typed closures. The optional-single required-named-nullable child slot emits
 
 The tables above plus `AspectRatio.aspectRatio` account for 498 catalog-backed
 property rows across the ten pre-Container non-`Scaffold` widgets. `Container`
-adds 13 reviewed rows and `Opacity` adds two, bringing the non-`Scaffold` total
-to 513; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is
-530 writable rows across thirteen canonical widgets. `AspectRatio` requires one
+adds 13 reviewed rows, `Opacity` adds two and `Align` adds three, bringing the
+non-`Scaffold` total to 516; `Scaffold` adds 17 reviewed scalar rows, so the
+current exact total is 533 writable rows across fourteen canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
 dependency.
@@ -221,6 +221,17 @@ hit-testing and drop overlays remain outside the effect, including the empty
 zero-size target. Opacity reads neither Theme nor Directionality. Existing
 double/boolean/single-slot encodings keep `.fd` v6, Catalog API 5, Canvas model
 v11 and the version-1 framing/control contracts unchanged.
+
+`Align` is the exact const `flutter.widgets.Align` contract from
+`package:flutter/widgets.dart`: optional physical/directional
+`AlignmentGeometry alignment`, optional finite non-negative `widthFactor` and
+`heightFactor`, and one optional single any-widget `child`; `key` is excluded.
+The prototype stores no properties, preserving the omitted `Alignment.center`
+and null-factor behavior. Directional alignment resolves through LTR/RTL,
+physical alignment does not, and coordinates may extrapolate beyond `[-1, 1]`.
+Native and exact-Web projections build real Flutter `Align`; a factor-driven
+empty zero-size instance receives only an IDE-owned selection/drop target.
+Existing alignment/numeric/single-slot encodings keep all versions unchanged.
 
 `Container` exposes its complete reviewed non-widget constructor surface; its
 optional single `child` remains a slot at constructor position 12 and is not
@@ -576,21 +587,21 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the thirteen-source insertion matrix
+disconnected. That stage is superseded by the fourteen-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled NetBeans 30 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, thirteen-widget projection, responsive
-profiles, stable-ID tree selection, exact thirteen-item context Palette and
+Windows native read-only `FlutterView`, fourteen-widget projection, responsive
+profiles, stable-ID tree selection, exact fourteen-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-530 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
-`AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `AspectRatio`,
+533 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+`AppBar`, `Column`, `Row`, `Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`,
 `Container`, `Opacity`, `Text` and `Icon`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the thirteen exact capability-reviewed source definitions and
-seventeen catalog-authorized slots, for 221 candidate cells: 197 admitted and 24
+Palette DnD is enabled for the fourteen exact capability-reviewed source definitions and
+eighteen catalog-authorized slots, for 252 candidate cells: 226 admitted and 26
 rejected. Exact-Web product routing/assembled acceptance, cross-platform
 providers and the broader unreviewed widget contracts remain outstanding; the
 internal exact-Web runtime already has image-model parity. The native-engine

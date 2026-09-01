@@ -160,13 +160,13 @@ Canvas model projection, including migration of schema v1-v5 to v6. The sealed
 `IMAGE_PROVIDER` property-kind change makes contributor Catalog API 5 the exact
 current boundary; API 1 through API 4 contributors fail closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, thirteen-item context Palette, selected-node
+Canvas/tree selection edge, fourteen-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 530 catalog-backed fields across
+Properties are writable for exactly 533 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `Column`, `Row`, `Padding`, `Center`,
-`SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text` and `Icon`. AspectRatio adds one required
+`Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Text` and `Icon`. AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
 scalar slice; ElevatedButton contributes 286 typed leaves; AppBar contributes
@@ -204,6 +204,17 @@ overlays remain outside the effect, including an empty zero-size target.
 Opacity reads neither Theme nor Directionality. The existing double, boolean
 and single-slot representations require no `.fd` schema, Catalog API, Canvas
 model, framing or control-protocol version change.
+
+Align contributes optional physical/directional `AlignmentGeometry` plus
+nullable finite non-negative width and height factors. Its optional `child` is
+one single any-widget slot. A new prototype stores no properties, preserving
+Flutter's omitted `Alignment.center` and null-factor expansion behavior.
+Directional coordinates resolve through the Canvas `Directionality`; physical
+coordinates do not, and neither is clamped to `[-1, 1]`. Native and exact-Web
+Canvas projections construct a real Flutter `Align`/`RenderPositionedBox`.
+Factor-driven empty zero-size layout remains real, while an IDE-only target
+keeps selection and DnD available without changing generated Dart. Existing
+alignment, numeric and single-slot representations require no version change.
 
 `ImageProviderValue` is a reusable asset-only union for `AssetImage` and
 `ExactAssetImage`, with a safe relative POSIX asset name, optional Dart package,
@@ -268,9 +279,9 @@ subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` are preserved;
 explicit local values remain local overrides. The bundled Material Icons
 registry contains 8,825 entries locked to Flutter 3.44.8.
 
-The current contract admits thirteen exact capability-gated Palette sources
-across fifteen any-widget and two `PreferredSizeWidget` destination slots:
-221 candidates, of which 197 are accepted and 24 rejected. Same-tree existing-
+The current contract admits fourteen exact capability-gated Palette sources
+across sixteen any-widget and two `PreferredSizeWidget` destination slots:
+252 candidates, of which 226 are accepted and 26 rejected. Same-tree existing-
 widget move/reorder uses the shared compatibility planner. The Slots editor
 exposes atomic occupied-single replacement and single/list clear operations
 with exact revision/child fences and one chronological Undo step. Cross-form
@@ -443,7 +454,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current thirteen-definition
+historical source restriction is superseded by the current fourteen-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -481,8 +492,8 @@ remains the only path to an `AddWidget` command. That command uses the
 established generation, analysis, paired replacement, Save and chronological
 Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
-authority. DnD outside the thirteen-source, 221-candidate matrix (197 accepted,
-24 rejected) remains disabled; process separation is not described as an OS security
+authority. DnD outside the fourteen-source, 252-candidate matrix (226 accepted,
+26 rejected) remains disabled; process separation is not described as an OS security
 sandbox.
 
 The current internal slice implements the NetBeans-independent Canvas
@@ -495,7 +506,7 @@ selection and capability-gates the narrowly typed `runner.paletteDrop` and
 Protocol negotiation and decoding do not authorize mutation. The canonical
 protocol-v11 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity` and
+`Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity` and
 `ElevatedButton`.
 Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
@@ -705,9 +716,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact thirteen widgets carrying
-the Create capability. All thirteen built-ins, including `Scaffold`, admit the
-reviewed 530-property Set/Reset slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact fourteen widgets carrying
+the Create capability. All fourteen built-ins, including `Scaffold`, admit the
+reviewed 533-property Set/Reset slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

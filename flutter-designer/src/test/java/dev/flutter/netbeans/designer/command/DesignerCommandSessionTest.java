@@ -75,6 +75,9 @@ class DesignerCommandSessionTest {
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
+    private static final PropertyName ALIGNMENT = property("alignment");
+    private static final PropertyName WIDTH_FACTOR = property("widthFactor");
+    private static final PropertyName HEIGHT_FACTOR = property("heightFactor");
     private static final PropertyName COLOR = property("color");
     private static final PropertyName DECORATION = property("decoration");
     private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
@@ -357,6 +360,95 @@ class DesignerCommandSessionTest {
                 find(semanticRestored.current().document().root(), WRAPPER_ID)
                         .properties().get(ALWAYS_INCLUDE_SEMANTICS));
         DesignerCommandSession resetRedone = semanticRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void alignPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Align")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        DesignerCommandSession aligned = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE)));
+        DesignerCommandSession widthSet = applied(aligned, new SetProperty(
+                WRAPPER_ID,
+                WIDTH_FACTOR,
+                new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        DesignerCommandSession heightSet = applied(widthSet, new SetProperty(
+                WRAPPER_ID,
+                HEIGHT_FACTOR,
+                new PropertyValue.DoubleValue(new BigDecimal("1.5"))));
+
+        assertRejected(heightSet, new SetProperty(
+                WRAPPER_ID,
+                WIDTH_FACTOR,
+                new PropertyValue.IntegerValue(BigInteger.ONE.negate())),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(heightSet, new SetProperty(
+                WRAPPER_ID,
+                HEIGHT_FACTOR,
+                new PropertyValue.DoubleValue(new BigDecimal("-0.001"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(heightSet, new ResetProperty(
+                WRAPPER_ID, WIDTH_FACTOR));
+        WidgetNode finalAlign = find(reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE),
+                finalAlign.properties().get(ALIGNMENT));
+        assertFalse(finalAlign.properties().containsKey(WIDTH_FACTOR));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("1.5")),
+                finalAlign.properties().get(HEIGHT_FACTOR));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalAlign.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const Align("), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(-1.0, 1.0)"), dart);
+        assertFalse(dart.contains("widthFactor:"), dart);
+        assertTrue(dart.contains("heightFactor: 1.5"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession widthRestored = reset.undo().session();
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                find(widthRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(WIDTH_FACTOR));
+        DesignerCommandSession resetRedone = widthRestored.redo().session();
         assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
         assertArrayEquals(reset.current().dartCandidateBytes(),
                 resetRedone.current().dartCandidateBytes());

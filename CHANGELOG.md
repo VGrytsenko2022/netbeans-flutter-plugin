@@ -6,6 +6,22 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted `Align` vertical slice completes `flutter.widgets.Align` across
+  the catalog, model validation/codecs, Properties, Create,
+  Palette/tree/native-Canvas DnD, deterministic Dart generation, Save/reopen and
+  chronological Undo/Redo. The pinned Flutter 3.44.8 const contract exposes an
+  optional `AlignmentGeometry alignment` with omitted `Alignment.center`
+  default, nullable finite non-negative `widthFactor` and `heightFactor`, and
+  one optional single any-widget `child`; `key`, raw Dart and unreviewed
+  arguments remain excluded. New prototypes keep all three properties omitted.
+  Native and exact-Web projections build the real Flutter `Align`, preserve
+  physical versus directional alignment under LTR/RTL, and keep an IDE-only
+  selectable/drop target for a zero-size empty widget. The current catalog has
+  533 writable rows across 14 widgets. Fourteen sources across 16 any-widget
+  and two trait-bound destinations form 252 DnD candidates: 226 accepted and 26
+  rejected. Existing alignment, numeric and single-slot encodings are
+  sufficient, so `.fd` schema v6, Catalog API 5, Canvas model v11 and version-1
+  framing/control contracts do not change.
 - The accepted `Opacity` vertical slice completes `flutter.widgets.Opacity`
   across the catalog, model validation/codecs, migration fixtures, Properties,
   Palette/tree/native-Canvas DnD, deterministic Dart generation, Save/reopen and
@@ -17,8 +33,8 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   exact-Web Canvas projections build the real Flutter `Opacity`; zero opacity
   preserves hit testing, normally suppresses child semantics, and retains them
   only when `alwaysIncludeSemantics` is true. IDE-owned selection/hit/drop
-  overlays remain outside the effect. The current catalog has 530 writable rows
-  across 13 widgets. Thirteen sources across 15 any-widget and two trait-bound
+  overlays remain outside the effect. At that milestone the catalog had 530
+  writable rows across 13 widgets. Thirteen sources across 15 any-widget and two trait-bound
   destinations form 221 DnD candidates: 197 accepted and 24 rejected. Existing
   value kinds and payload shapes are sufficient, so `.fd` schema v6, Catalog API
   5, Canvas model v11 and version-1 framing/control contracts do not change.
@@ -275,7 +291,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 - Packaged NetBeans 30 coverage now proves one shared Design/Source Undo identity and the public CES dirty→Save→Undo→Redo savepoint lifecycle. The strict release verifier and isolated clean-install lifecycle pass through activation, SDK auto-discovery, project reopen, disable, uninstall and fresh-cache cleanup with no critical log entries or plugin-owned ordering warnings.
 - A new Designer command may now branch from an exact noncanonical saved-history endpoint such as `C1/S0`. An opaque staged command-source token binds the logical owner, endpoint-specific `SavedHistoryProof`, live identity, monotonic NetBeans document version and coordinator epochs; even edit-to-exact-revert ABA is rejected before replacement publication. The pending lease derives and pins `C3/S0` from that exact pair until joint analyzer/document/pair/command adoption. The generalized replacement/recovery path accepts analyzer-free saved predecessors without fabricating analyzer evidence, rejects canonical-pair or stale-token substitution without mutation, preserves the older native semantic graph across an atomically rolled-back failed apply, and counts the candidate with all physical history variants before analyzer or CES work. Adoption preserves durable `C2/S2`, truncates the obsolete `S2/C2` redo suffix, installs the exact `B/S0→C1/S0→C3/S0` branch, and keeps `S0` sticky for the following ordinary command.
 
-- The active Flutter Designer `Design` lookup now publishes the standard NetBeans Palette filtered by the exact Create capability to `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text`, `Icon` and `ElevatedButton`. Stable-ID tree/Canvas selection drives standard selected-Node Properties: 497 catalog-backed fields are writable across the nine non-`Scaffold` widgets, including the 286-leaf ElevatedButton, 120-leaf AppBar, 59-leaf Text and 13-property Icon projections. The historical first DnD vertical slice admitted only built-in `Text`, followed by the six-, seven-, eight- and nine-source matrices; all are superseded for the current surface by the ten-source capability-gated matrix described above. The widget catalog remains the Java authority for source type, traits, slot cardinality and acceptance. Palette and Properties open once on the first Design activation without taking focus from the editor.
+- At that milestone, the active Flutter Designer `Design` lookup published the standard NetBeans Palette filtered by the exact Create capability to `Scaffold`, `AppBar`, `Column`, `Row`, `Padding`, `Center`, `SizedBox`, `Text`, `Icon` and `ElevatedButton`. Stable-ID tree/Canvas selection drove standard selected-Node Properties: 497 catalog-backed fields were writable across the nine non-`Scaffold` widgets, including the 286-leaf ElevatedButton, 120-leaf AppBar, 59-leaf Text and 13-property Icon projections. The historical first DnD vertical slice admitted only built-in `Text`, followed by the six-, seven-, eight- and nine-source matrices; all were superseded at that milestone by the ten-source capability-gated matrix described above. The widget catalog remained the Java authority for source type, traits, slot cardinality and acceptance. Palette and Properties opened once on the first Design activation without taking focus from the editor.
 
 ### Fixed
 

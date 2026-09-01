@@ -47,7 +47,8 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.SizedBox",
             "flutter.widgets.AspectRatio",
             "flutter.widgets.Container",
-            "flutter.widgets.Opacity");
+            "flutter.widgets.Opacity",
+            "flutter.widgets.Align");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -64,7 +65,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button"), itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity"),
+                "Container", "Opacity", "Align"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
@@ -87,7 +88,7 @@ class FlutterDesignerPaletteTest {
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity"),
+                "Container", "Opacity", "Align"),
                 itemLabels(categories[1]));
         assertEquals(List.of("Text", "Icon"), itemLabels(categories[2]));
 
@@ -164,6 +165,31 @@ class FlutterDesignerPaletteTest {
                 node.getLookup().lookup(FlutterDesignerPaletteItem.class));
         assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
         assertEquals("Opacity", node.getDisplayName());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void alignPaletteSelectionExposesReviewedMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Align";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        90,
+                        "Align"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Align", node.getDisplayName());
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
@@ -441,7 +467,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void thirteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fourteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -460,7 +486,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(13, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(14, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

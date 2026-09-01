@@ -11,9 +11,10 @@ ten-widget `ElevatedButton` milestone and its 140 candidate Palette/DnD cells,
 atomic replacement and clear-all commands. ADR-035 governs the writable
 `Scaffold` slice. ADR-037 records the eleven-widget `AspectRatio` milestone.
 ADR-038 records the twelve-widget `Container` milestone, and ADR-039 completes
-its shared typed-asset branch. ADR-040 establishes the current catalog surface:
-530 typed rows across thirteen widgets and 221 Palette/DnD candidates, including
-197 accepted and 24 rejected cells. The total still includes the 17 closed
+its shared typed-asset branch. ADR-040 records the thirteen-widget `Opacity`
+milestone. ADR-041 establishes the current catalog surface: 533 typed rows
+across fourteen widgets and 252 Palette/DnD candidates, including 226 accepted
+and 26 rejected cells. The total still includes the 17 closed
 scalar `Scaffold` fields. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
@@ -21,7 +22,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-040 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-041 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -263,12 +264,12 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 make 513 catalog-backed non-`Scaffold` Properties
+ADR-038, ADR-039, ADR-040 and ADR-041 make 516 catalog-backed non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
 120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
-`AspectRatio.aspectRatio` value, all 13 `Container` constructor properties and
-the two Opacity properties.
+`AspectRatio.aspectRatio` value, all 13 `Container` constructor properties,
+the two Opacity properties and the three Align properties.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -276,15 +277,16 @@ nine-source, 117-candidate capability matrix (101 accepted and 16 rejected),
 and ADR-033 superseded it with ten sources and 140 candidates (122 accepted and
 18 rejected), ADR-037 superseded that stage with eleven sources and 165
 candidates (145 accepted and 20 rejected), and ADR-038 established twelve
-sources and 192 candidates (170 accepted and 22 rejected). ADR-040 establishes
-the current thirteen-source, 221-candidate matrix (197 accepted and 24
-rejected). Same-tree existing-widget movement is separately enabled by ADR-028.
+sources and 192 candidates (170 accepted and 22 rejected). ADR-040 established
+thirteen sources and 221 candidates (197 accepted and 24 rejected). ADR-041
+establishes the current fourteen-source, 252-candidate matrix (226 accepted and
+26 rejected). Same-tree existing-widget movement is separately enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
 protocol-v11 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`, `Padding`, `Center`,
-`SizedBox`, `AspectRatio`, `Container`, `Opacity` and `ElevatedButton`; the
+`Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity` and `ElevatedButton`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -298,12 +300,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirteen-widget model for Mobile, Tablet,
+Canvas now renders the validated fourteen-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirteen Create-capable definitions, and the DnD-capable set uses the
-reviewed 221-cell candidate matrix across fifteen any-widget and two trait-bound
-destination slots; 197 cells are accepted and 24 rejected. Canvas model
+those fourteen Create-capable definitions, and the DnD-capable set uses the
+reviewed 252-cell candidate matrix across sixteen any-widget and two trait-bound
+destination slots; 226 cells are accepted and 26 rejected. Canvas model
 protocol v11's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
@@ -1448,5 +1450,63 @@ is the fifteenth any-widget destination. Thirteen sources across fifteen
 any-widget plus two trait-bound destinations produce 221 candidates:
 `13 × 15 = 195` accepted any-widget cells, plus the two cells in which AppBar
 satisfies `PreferredSizeWidget`, for 197 accepted; the other `12 × 2 = 24`
+trait-bound cells are rejected. All Palette insertion and movement outside this
+closed matrix remains fail closed.
+
+## ADR-041 — Align is a complete directional-layout vertical slice
+
+Accepted for the 0.1.3 Palette stage. The canonical built-in type is
+`flutter.widgets.Align`, backed by the const `Align` constructor exported from
+`package:flutter/widgets.dart` in pinned Flutter 3.44.8. It is complete across
+catalog/model validation, strict JSON round-trip and migration preservation,
+Properties, Create, native Canvas, Palette/tree DnD, same-tree movement,
+deterministic Dart generation, pair Save/reopen and chronological Undo/Redo.
+Its reviewed Palette entry uses its own SVG asset in Layout order 90. `key`, raw
+Dart and every unreviewed constructor surface remain excluded.
+
+The API surface contains exactly three writable properties and one slot, in
+Dart constructor order: optional `AlignmentGeometry alignment`, optional
+`double? widthFactor`, optional `double? heightFactor`, and optional `Widget?
+child`. The model deliberately leaves all three properties absent in a new
+prototype. Omitted alignment preserves Flutter's `Alignment.center` default;
+omitted factors preserve null and therefore bounded-axis expansion rather than
+an explicit factor of one. Present factors accept only finite non-negative
+Designer integers or doubles; zero and values greater than one are valid.
+Physical and directional alignment coordinates are finite but are not clamped
+to `[-1, 1]`, because Flutter permits linear extrapolation. `child` is one
+optional single any-widget slot and is not a property row. The canonical sorted
+contract fingerprint is:
+
+```text
+W|flutter.widgets.Align
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1|any
+```
+
+Native and internal exact-Web Canvas projections construct a real Flutter
+`Align` and therefore a `RenderPositionedBox`, never `Center`, `AnimatedAlign`
+or a paint-only approximation. A physical `Alignment` is independent of text
+direction; `AlignmentDirectional` resolves against the current Canvas
+`Directionality` and flips its horizontal placement between LTR and RTL. A
+factor-driven empty Align may have a real zero layout size. Selection and
+Palette/move feedback remain Designer controls outside the widget and retain a
+bounded IDE-only selectable/drop target without changing generated layout.
+
+No version number changes. `.fd` remains schema v6, the contributor Catalog API
+remains 5, Canvas model protocol remains v11, and NBFC framing plus Canvas
+control/wire remain version 1. AlignmentGeometry, optional finite numeric values
+and optional single any-widget slots already have canonical model, JSON,
+migration, Dart and Canvas encodings. Existing documents need no data transform;
+the exact built-in catalog fingerprint and the runner's closed validator fence
+the new semantic allowlist.
+
+Align adds three writable rows to ADR-040's 530, producing 533 across fourteen
+widgets and 516 across the thirteen non-`Scaffold` definitions. `Align.child`
+is the sixteenth any-widget destination. Fourteen sources across sixteen
+any-widget plus two trait-bound destinations produce 252 candidates:
+`14 × 16 = 224` accepted any-widget cells, plus the two cells in which AppBar
+satisfies `PreferredSizeWidget`, for 226 accepted; the other `13 × 2 = 26`
 trait-bound cells are rejected. All Palette insertion and movement outside this
 closed matrix remains fail closed.

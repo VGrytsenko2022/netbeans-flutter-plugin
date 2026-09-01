@@ -3592,6 +3592,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.Align': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'widthFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'heightFactor': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.AspectRatio': _WidgetSpec(
     {
       'aspectRatio': _PropertySpec(
@@ -4407,6 +4421,11 @@ P|restorationId|string|0|-|-|string:length:1:256
 S|appBar|single|0|0|1|trait:Zmx1dHRlci53aWRnZXRzLlByZWZlcnJlZFNpemVXaWRnZXQ
 S|body|single|0|0|1|any
 S|floatingActionButton|single|0|0|1|any
+W|flutter.widgets.Align
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1|any
 W|flutter.widgets.AspectRatio
 P|aspectRatio|double|1|double:1|double:0:0:*:1|double:range:0:0:*:1
 S|child|single|0|0|1|any

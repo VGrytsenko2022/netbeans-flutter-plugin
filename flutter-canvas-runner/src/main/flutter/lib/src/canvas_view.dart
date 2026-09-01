@@ -507,6 +507,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Opacity' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
+        (node.type == 'flutter.widgets.Align' &&
+            ((node.slot('child')?.children.isEmpty ?? true) ||
+                node.properties['widthFactor']?.value == 0 ||
+                node.properties['heightFactor']?.value == 0)) ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1761,6 +1765,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
+      'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.Container' => _container(context),
@@ -2991,6 +2996,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _aspectRatio() => AspectRatio(
     aspectRatio: _number('aspectRatio')!,
+    child: _single('child'),
+  );
+
+  Widget _align() => Align(
+    alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+    widthFactor: _number('widthFactor'),
+    heightFactor: _number('heightFactor'),
     child: _single('child'),
   );
 

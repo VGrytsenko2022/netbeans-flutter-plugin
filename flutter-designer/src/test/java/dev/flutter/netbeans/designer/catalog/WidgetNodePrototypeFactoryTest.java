@@ -345,6 +345,28 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsIntrinsicHeightAsEmptyInsertableStructuralWrapper() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.IntrinsicHeight");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.IntrinsicHeight"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(0, definition.slot(new SlotName("child"))
+                .orElseThrow().minChildren());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

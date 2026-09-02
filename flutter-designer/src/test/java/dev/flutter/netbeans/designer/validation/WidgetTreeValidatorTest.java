@@ -734,6 +734,55 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsIntrinsicHeightWithEmptyOrOrdinaryOptionalChildAndNoProperties() {
+        WidgetNode empty = intrinsicHeight("emptyIntrinsicHeight", Map.of(), null);
+        WidgetNode configured = intrinsicHeight(
+                "configuredIntrinsicHeight", Map.of(), text("intrinsicText"));
+
+        assertTrue(validator().validate(
+                document(empty), BuiltInWidgetCatalog.getDefault()).valid());
+        assertTrue(validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault()).valid());
+
+        WidgetNode unexpectedProperty = intrinsicHeight(
+                "invalidIntrinsicHeight",
+                Map.of(name("height"),
+                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                null);
+        ValidationIssue issue = onlyIssue(
+                validator().validate(
+                        document(unexpectedProperty),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/height", issue.path());
+    }
+
+    @Test
+    void intrinsicHeightChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("intrinsicExpanded", Map.of(),
+                        text("intrinsicExpandedText")),
+                flexible("intrinsicFlexible", Map.of(),
+                        text("intrinsicFlexibleText")),
+                spacer("intrinsicSpacer", Map.of()))) {
+            WidgetNode intrinsicHeight = intrinsicHeight(
+                    "intrinsicHeight-" + restricted.type().value(),
+                    Map.of(),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(intrinsicHeight),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.IntrinsicHeight.child"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2470,6 +2519,16 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Baseline", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode intrinsicHeight(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.IntrinsicHeight", properties, Map.of(
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));

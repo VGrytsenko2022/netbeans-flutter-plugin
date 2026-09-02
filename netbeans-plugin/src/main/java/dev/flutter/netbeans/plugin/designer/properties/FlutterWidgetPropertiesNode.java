@@ -61,6 +61,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("aspectRatio");
     private static final WidgetTypeId BASELINE_TYPE =
             new WidgetTypeId("flutter.widgets.Baseline");
+    private static final WidgetTypeId INTRINSIC_HEIGHT_TYPE =
+            new WidgetTypeId("flutter.widgets.IntrinsicHeight");
     private static final PropertyName BASELINE_PROPERTY =
             new PropertyName("baseline");
     private static final PropertyName BASELINE_TYPE_PROPERTY =
@@ -639,6 +641,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (INTRINSIC_HEIGHT_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child sized to its intrinsic height before final layout. "
+                    + "Flutter performs a speculative layout pass, which can be O(N²) "
+                    + "in tree depth; prefer ordinary constraints when they can express "
+                    + "the layout. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -777,6 +789,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private Sheet.Set createGenericPropertySet() {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean baseline = BASELINE_TYPE.equals(widget.type());
+        boolean intrinsicHeight = INTRINSIC_HEIGHT_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -799,6 +812,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : baseline
                                 ? "Required baseline offset and type, plus an optional child, "
                                         + "for the selected Baseline widget."
+                        : intrinsicHeight
+                                ? "Intrinsic-height sizing and optional child for the selected "
+                                        + "IntrinsicHeight widget. Flutter performs a speculative "
+                                        + "layout pass that can be O(N²) in tree depth."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."

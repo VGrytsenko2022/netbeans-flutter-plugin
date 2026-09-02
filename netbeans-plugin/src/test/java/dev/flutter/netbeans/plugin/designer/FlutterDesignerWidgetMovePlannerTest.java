@@ -67,6 +67,8 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
     private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
     private static final WidgetTypeId BASELINE = type("flutter.widgets.Baseline");
+    private static final WidgetTypeId INTRINSIC_HEIGHT =
+            type("flutter.widgets.IntrinsicHeight");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -778,6 +780,74 @@ class FlutterDesignerWidgetMovePlannerTest {
                 new WidgetPlacement(emptyBaseline.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyIntrinsicHeightChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into IntrinsicHeight");
+        WidgetNode emptyIntrinsicHeight = WidgetNodePrototypeFactory.create(
+                definition(INTRINSIC_HEIGHT), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyIntrinsicHeight)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyIntrinsicHeight.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyIntrinsicHeight.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void intrinsicHeightChildRejectsAllFlexParentDataSourcesOnMove() {
+        record RejectedSource(String label, WidgetNode node) {
+        }
+        List<RejectedSource> sources = List.of(
+                new RejectedSource(
+                        "Expanded",
+                        expanded(A_ID, validText(C_ID, "expanded child"))),
+                new RejectedSource(
+                        "Flexible",
+                        flexible(A_ID, validText(C_ID, "flexible child"))),
+                new RejectedSource("Spacer", node(A_ID, SPACER)));
+
+        assertAll(sources.stream().map(source -> () -> {
+            WidgetNode intrinsicHeight = WidgetNodePrototypeFactory.create(
+                    definition(INTRINSIC_HEIGHT), B_ID);
+            DesignerDocument document = document(listParent(
+                    ROOT_ID,
+                    ROW,
+                    CHILDREN,
+                    List.of(source.node(), intrinsicHeight)));
+
+            FlutterDesignerWidgetMovePlanner.Rejected rejected = assertInstanceOf(
+                    FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(
+                            document,
+                            BUILT_INS,
+                            source.node().id(),
+                            new FlutterDesignerWidgetMovePlanner.On(
+                                    intrinsicHeight.id())),
+                    source.label());
+            assertEquals(
+                    FlutterDesignerWidgetMovePlanner.RejectionCode
+                            .NO_COMPATIBLE_DESTINATION,
+                    rejected.code(),
+                    source.label());
+            assertTrue(rejected.reason().contains(source.label()), source.label());
+            assertTrue(rejected.reason().contains(
+                    "direct child of Row.children or Column.children"),
+                    source.label());
+        }));
     }
 
     @Test

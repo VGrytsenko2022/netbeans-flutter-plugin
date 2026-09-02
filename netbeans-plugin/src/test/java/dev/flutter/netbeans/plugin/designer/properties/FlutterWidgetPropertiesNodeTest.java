@@ -686,6 +686,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
+                "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -730,7 +731,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
-                + "Expanded, Flexible, Spacer, Baseline, ListView, "
+                + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, ListView, "
                 + "and Image leaves");
         assertEquals(647, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
@@ -1068,6 +1069,41 @@ class FlutterWidgetPropertiesNodeTest {
                         "bottom edge")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "shift the child above this box")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void intrinsicHeightProjectsNoWritablePropertiesAndPerformanceAwareOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.IntrinsicHeight");
+        StableId id = StableId.parse("aa9f06c2-69ae-4d34-94a3-439f0f77ba7c");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(), names(properties.getProperties()));
+        assertEquals(
+                "Intrinsic-height sizing and optional child for the selected "
+                + "IntrinsicHeight widget. Flutter performs a speculative layout pass "
+                + "that can be O(N²) in tree depth.",
+                properties.getShortDescription());
+        assertEquals(FlutterWidgetPropertiesNode.GENERAL_TAB_NAME,
+                properties.getValue(FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "sized to its intrinsic height")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "speculative layout pass")),
+                () -> assertTrue(child.getShortDescription().contains("O(N²)")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "prefer ordinary constraints")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
@@ -3102,7 +3138,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void twentyNineCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3130,6 +3166,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
+                "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3161,7 +3198,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(29, iconPaths.size(),
+        assertEquals(30, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

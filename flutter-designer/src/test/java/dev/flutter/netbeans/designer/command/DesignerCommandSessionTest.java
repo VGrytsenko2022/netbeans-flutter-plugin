@@ -425,6 +425,79 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void intrinsicHeightPrototypeChildUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.IntrinsicHeight"))
+                        .orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+
+        WidgetNode finalIntrinsicHeight = find(
+                childAdded.current().document().root(), WRAPPER_ID);
+        assertTrue(finalIntrinsicHeight.properties().isEmpty());
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalIntrinsicHeight.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                childAdded.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const IntrinsicHeight("), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession undone = childAdded.undo().session();
+        assertTrue(((WidgetSlot.SingleSlot) find(
+                undone.current().document().root(), WRAPPER_ID)
+                .slots().get(CHILD)).child().isEmpty());
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(childAdded.current().fdBytes(),
+                redone.current().fdBytes());
+        assertArrayEquals(childAdded.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redone.markSaved();
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened,
+                new SetProperty(
+                        THIRD_ID,
+                        DATA,
+                        new PropertyValue.StringValue("After reopen")));
+        assertEquals(new PropertyValue.StringValue("After reopen"),
+                find(editedAfterReopen.current().document().root(), THIRD_ID)
+                        .properties().get(DATA));
+        String editedDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("const IntrinsicHeight("), editedDart);
+        assertTrue(editedDart.contains(
+                "child: const Text('After reopen')"), editedDart);
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

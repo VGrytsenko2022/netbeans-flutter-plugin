@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedTwentyNineTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -52,6 +52,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
+                "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.LimitedBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Opacity",
@@ -68,8 +69,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(29, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(24, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(30, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(25, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -112,6 +113,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.FractionallySizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.IntrinsicHeight", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.LimitedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ListView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
@@ -230,6 +232,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
+                "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -1423,6 +1426,31 @@ class BuiltInWidgetCatalogTest {
 
         SlotDefinition child = baseline.slot(new SlotName("child")).orElseThrow();
         assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void intrinsicHeightExposesExactFlutter344ConstStructuralSurface() {
+        WidgetDefinition intrinsicHeight = definition(
+                "flutter.widgets.IntrinsicHeight");
+
+        assertEquals("IntrinsicHeight", intrinsicHeight.dartClassName());
+        assertTrue(intrinsicHeight.constConstructor());
+        assertEquals(WIDGETS_IMPORT, intrinsicHeight.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), intrinsicHeight.importUris());
+        assertTrue(intrinsicHeight.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                        "flutter.layout", 200, 160, "IntrinsicHeight"),
+                intrinsicHeight.palette());
+        assertTrue(intrinsicHeight.properties().isEmpty());
+
+        SlotDefinition child = intrinsicHeight.slot(new SlotName("child"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());

@@ -209,6 +209,42 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(baseline));
     }
 
+    @Test
+    void intrinsicHeightIsAnOrdinaryInsertableWidgetWithRestrictedAnyWidgetChild() {
+        WidgetDefinition intrinsicHeight = definition(
+                "flutter.widgets.IntrinsicHeight");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(intrinsicHeight).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), intrinsicHeight));
+        assertTrue(WidgetPlacementRules.accepts(
+                intrinsicHeight, slot(intrinsicHeight, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    intrinsicHeight,
+                    slot(intrinsicHeight, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.IntrinsicHeight.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(intrinsicHeight));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(
+                intrinsicHeight));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(intrinsicHeight));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

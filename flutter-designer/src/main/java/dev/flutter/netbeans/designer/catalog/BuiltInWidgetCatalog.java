@@ -50,6 +50,7 @@ public final class BuiltInWidgetCatalog {
             flexible(),
             spacer(),
             baseline(),
+            intrinsicHeight(),
             listView(),
             image(),
             elevatedButton(),
@@ -982,6 +983,19 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("TextBaseline", "alphabetic", "ideographic"),
                                 new PropertyValue.EnumValue("TextBaseline", "alphabetic"))),
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition intrinsicHeight() {
+        return widget(
+                "flutter.widgets.IntrinsicHeight",
+                "IntrinsicHeight",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 160, "IntrinsicHeight"),
+                List.of(),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

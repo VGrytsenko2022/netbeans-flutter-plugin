@@ -305,6 +305,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Baseline' ||
+      'flutter.widgets.IntrinsicHeight' ||
       'flutter.widgets.Center' ||
       'flutter.widgets.ConstrainedBox' ||
       'flutter.widgets.UnconstrainedBox' ||

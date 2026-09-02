@@ -7,6 +7,27 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight/IntrinsicHeight.html)
+  vertical slice is the tenth post-core Palette addition, at Layout order 160
+  immediately after Baseline. Its complete pinned Flutter 3.44.8 non-`key`
+  contract has no writable properties and exposes one optional single
+  any-widget `child`. Generated Dart and native and exact-Web Canvas construct
+  the real Flutter IntrinsicHeight, preserving parent constraints and the
+  framework-owned intrinsic-height layout pass. Palette and Properties
+  descriptions warn that speculative intrinsic layout is relatively expensive
+  and can be O(N²) in tree depth. An empty or collapsed node keeps its real
+  layout while a bounded, non-layout-affecting Designer target supplies
+  selection and child insertion. Exact-slot editing, Palette/tree/Canvas DnD,
+  same-tree movement, deterministic generation, Save/reopen, Undo/Redo and
+  reviewed light/dark SVG icons share one closed contract. The catalog now
+  contains 30 widgets, 25 reviewed const constructors and 664 writable rows,
+  including 647 across the 29 non-`Scaffold` definitions. Thirty sources
+  across 27 insertable any-widget and two trait-bound destinations form 870
+  DnD candidates: 737 accepted and 133 rejected. Layout contains 22 items, and
+  the practical 92-widget backlog is 30/92 complete with 62 remaining. `.fd`
+  schema v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1
+  remain unchanged.
+- The accepted const
   [`flutter.widgets.Baseline`](https://api.flutter.dev/flutter/widgets/Baseline/Baseline.html)
   vertical slice is the ninth post-core Palette addition, at Layout order 150
   immediately after Spacer. Its complete pinned Flutter 3.44.8 non-`key`
@@ -22,11 +43,11 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Properties, exact-slot editing,
   Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
   Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
-  contract. The catalog now contains 29 widgets, 24 reviewed const constructors
+  contract. At that milestone the catalog contained 29 widgets, 24 reviewed const constructors
   and 664 writable rows, including 647 across the 28 non-`Scaffold`
   definitions. Twenty-nine sources across 26 insertable any-widget and two
-  trait-bound destinations form 812 DnD candidates: 684 accepted and 128
-  rejected. Layout contains 21 items, and the practical 92-widget backlog is
+  trait-bound destinations formed 812 DnD candidates: 684 accepted and 128
+  rejected. Layout contained 21 items, and the practical 92-widget backlog was
   29/92 complete with 63 remaining. `.fd` schema v7, Catalog API 6, Canvas model
   v12 and NBFC framing/control/wire v1 remain unchanged.
 - The accepted const

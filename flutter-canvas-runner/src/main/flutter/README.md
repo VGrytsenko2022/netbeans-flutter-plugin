@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-29 reviewed Canvas widgets. Palette insertion evaluates 812 exact
-source/destination cells across 29 draggable sources and 28 insertable reviewed
-slots; 684 are accepted and 128 cells are rejected. Expanded and Flexible are
+30 reviewed Canvas widgets. Palette insertion evaluates 870 exact
+source/destination cells across 30 draggable sources and 29 insertable reviewed
+slots; 737 are accepted and 133 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -430,10 +430,30 @@ an ordinary widget, while generic placement rules reject Expanded, Flexible and
 Spacer in its child slot. Native and exact-Web renderers construct the real
 Flutter Baseline; an empty or collapsed instance retains a bounded 36 x 36
 Designer selection target without changing generated Dart. The aggregate
-catalog now has 29 widgets, 24 reviewed const constructors and 664 writable
+catalog at that milestone had 29 widgets, 24 reviewed const constructors and 664 writable
 properties, including 647 outside Scaffold. Twenty-nine sources across 26
-insertable any-widget and two trait destinations form 812 candidates: 684
-accepted and 128 rejected. The practical Material/Base Designer backlog is
-29/92 complete with 63 remaining, the Palette Layout category contains 21
-items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
+insertable any-widget and two trait destinations formed 812 candidates: 684
+accepted and 128 rejected. The practical Material/Base Designer backlog was
+29/92 complete with 63 remaining, and the Palette Layout category contained 21
+items. `.fd` schema v7, Catalog API
 6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight-class.html)
+is the tenth post-core Canvas widget, at Palette Layout order 160 immediately
+after Baseline. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` has no writable properties and accepts one
+optional single any-widget `child`. Palette, tree and Canvas creation admit it
+as an ordinary widget, while generic placement rules reject Expanded, Flexible
+and Spacer in its child slot. Native and exact-Web renderers construct the real
+Flutter IntrinsicHeight, preserving parent constraints and the speculative
+intrinsic-height pass. The Palette contract warns that intrinsic measurement is
+relatively expensive and can be O(N²) in tree depth. An empty or collapsed
+instance retains a bounded 36 x 36 Designer selection/drop target without
+changing generated Dart or Flutter layout. The aggregate catalog now has 30
+widgets, 25 reviewed const constructors and 664 writable properties, including
+647 outside Scaffold. Thirty sources across 27 insertable any-widget and two
+trait destinations form 870 candidates: 737 accepted and 133 rejected. The
+practical Material/Base Designer backlog is 30/92 complete with 62 remaining,
+the Palette Layout category contains 22 items, and no later widget has an
+explicit order. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+framing/control/wire v1 remain unchanged.

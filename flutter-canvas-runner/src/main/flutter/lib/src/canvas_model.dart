@@ -3744,6 +3744,9 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.IntrinsicHeight': _WidgetSpec(const {}, {
+    'child': _optionalSingleSlot,
+  }),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5151,6 +5154,8 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.IntrinsicHeight
+S|child|single|0|0|1|any
 W|flutter.widgets.LimitedBox
 P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1

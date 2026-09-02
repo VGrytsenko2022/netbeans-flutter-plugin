@@ -2606,7 +2606,7 @@ void main() {
   test('Image reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Image\n');
-    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.IntrinsicHeight\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));
@@ -2624,6 +2624,124 @@ void main() {
         'asset,exactAsset:package:exactScale:'
         'resize(1..16384,exact,fit,allowUpscaling)\n',
       ),
+    );
+  });
+
+  test('decodes the exact property-free IntrinsicHeight child contract', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '15aa2055-201d-4f3e-bd50-24cc60fa50c0',
+        'flutter.widgets.IntrinsicHeight',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final omitted = _decode(model()).root;
+    expect(omitted.type, 'flutter.widgets.IntrinsicHeight');
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+
+    final empty = _decode(model(slots: {'child': _single(null)})).root;
+    expect(empty.slot('child'), isNotNull);
+    expect(empty.slot('child')!.child, isNull);
+
+    final text = _node(
+      'cf781f2a-8d2e-4a88-a05a-9758e5e911d8',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Measured child'},
+      },
+    );
+    final occupied = _decode(model(slots: {'child': _single(text)})).root;
+    expect(occupied.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test('rejects every non-contract IntrinsicHeight shape and flex child', () {
+    Map<String, Object?> intrinsicHeight({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      '15aa2055-201d-4f3e-bd50-24cc60fa50c0',
+      'flutter.widgets.IntrinsicHeight',
+      properties: properties,
+      slots: slots,
+    );
+
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    expect(
+      () => _decode(
+        rootWith(
+          intrinsicHeight(
+            properties: const {
+              'height': {'kind': 'double', 'value': 10.0},
+            },
+          ),
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () =>
+          _decode(rootWith(intrinsicHeight(slots: {'child': _list(const [])}))),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        rootWith(intrinsicHeight(slots: {'children': _list(const [])})),
+      ),
+      throwsFormatException,
+    );
+
+    final text = _node(
+      'cf781f2a-8d2e-4a88-a05a-9758e5e911d8',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Flex child'},
+      },
+    );
+    for (final flexType in const [
+      'flutter.widgets.Expanded',
+      'flutter.widgets.Flexible',
+      'flutter.widgets.Spacer',
+    ]) {
+      final flexChild = _node(
+        '4ce1aa49-68ea-4e84-ae5c-57f89107633d',
+        flexType,
+        slots: flexType == 'flutter.widgets.Spacer'
+            ? const {}
+            : {'child': _single(text)},
+      );
+      expect(
+        () => _decode(
+          rootWith(intrinsicHeight(slots: {'child': _single(flexChild)})),
+        ),
+        throwsFormatException,
+        reason: '$flexType is legal only in Row.children or Column.children',
+      );
+    }
+  });
+
+  test('IntrinsicHeight reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.IntrinsicHeight\n');
+    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.IntrinsicHeight\n'
+      'S|child|single|0|0|1|any\n',
     );
   });
 

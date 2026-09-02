@@ -1013,12 +1013,32 @@ accepted architecture is documented in
   Properties, exact-slot
   editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
   generation, Save/reopen, Undo/Redo, reviewed light/dark SVG icons and focused
-  contract tests. The current surface is 29 widgets, 24 const definitions and
+  contract tests. At that milestone the surface was 29 widgets, 24 const definitions and
   664 rows (647 outside Scaffold), with 21 Layout items. Twenty-nine sources
   across 26 insertable any-widget plus two trait destinations form 812
   candidates: 684 accepted and 128 rejected. The practical 92-widget backlog is
   29/92 complete with 63 remaining. `.fd` schema v7, Catalog API 6, Canvas model
   v12 and NBFC framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight/IntrinsicHeight.html)
+  as the tenth post-core Palette vertical slice at Layout order 160,
+  immediately after Baseline. Its complete non-`key` Flutter 3.44.8
+  constructor surface has no writable properties and one optional single
+  any-widget `child`. Generated Dart and both Canvas projections construct the
+  real Flutter IntrinsicHeight, preserving parent constraints and the
+  speculative intrinsic-height layout pass. Keep the framework performance
+  warning visible because intrinsic measurement is relatively expensive and
+  can be O(N²) in tree depth. Empty or collapsed nodes retain real layout while
+  a bounded, non-layout-affecting Designer target supplies selection and
+  insertion. Complete exact-slot editing, Palette/tree/Canvas DnD, same-tree
+  movement, deterministic generation, Save/reopen, Undo/Redo, reviewed
+  light/dark SVG icons and focused contract tests. The current surface is 30
+  widgets, 25 const definitions and 664 rows (647 outside Scaffold), with 22
+  Layout items. Thirty sources across 27 insertable any-widget plus two trait
+  destinations form 870 candidates: 737 accepted and 133 rejected. The
+  practical 92-widget backlog is 30/92 complete with 62 remaining. `.fd`
+  schema v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1
+  remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1036,8 +1056,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Baseline has yet been assigned an
-  explicit order. The current typed Properties slice spans all twenty-nine
+  vertical slices. No specific widget after IntrinsicHeight has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

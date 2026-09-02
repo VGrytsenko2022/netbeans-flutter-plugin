@@ -27,12 +27,13 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the twenty-nine capability-authorized Palette widgets (`Scaffold`,
+    accepts the thirty capability-authorized Palette widgets (`Scaffold`,
     `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
     `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
     `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-    `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `ListView`, `Text`, `Icon` and `Image`) through a
-    fail-closed 812-cell catalog matrix with 684 accepted and 128 rejected
+    `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`,
+    `ListView`, `Text`, `Icon` and `Image`) through a
+    fail-closed 870-cell catalog matrix with 737 accepted and 133 rejected
     combinations, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
@@ -272,7 +273,8 @@ slice. Each eligible `.fd` Design tab embeds an isolated real
 bounded validated protocol-v12 model restricted by the exact built-in capability
 gate to `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `ListView`, `Container`
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
+`IntrinsicHeight`, `ListView`, `Container`
 and `Opacity`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
@@ -281,7 +283,7 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The twenty-eight non-`Scaffold` widgets expose 647 typed
+tree and standard Properties. The twenty-nine non-`Scaffold` widgets expose 647 typed
 read/write property rows. `AppBar` contributes 120 independently resettable
 leaves across behavior, layout, colors/elevation, shape, icon themes, text
 styles and system-UI overlay groups, plus exact `leading`, `title`, `actions`,
@@ -308,7 +310,7 @@ so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
 remain direct local arguments. Generated Dart and the native Canvas have exact
 argument parity. The active Design lookup supplies the standard NetBeans Palette
-with the exact twenty-nine widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
+with the exact thirty widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
 behavior/callback fields, five 54-leaf state groups for default, disabled,
 pressed, hovered and focused values, and nine common layout/feedback fields.
 Its callbacks store strict Dart identifiers only—never arbitrary expressions.
@@ -387,8 +389,8 @@ the decorated/transformed `Container`. The Image tab exposes typed accessible
 controls and inventory status, and one accepted structured/dependent edit is
 one Undo/Redo unit. The optional `child` remains a named single any-widget slot
 rather than a property row. The current catalog therefore exposes exactly 664
-writable rows across twenty-nine widgets, including 647 across the twenty-eight
-non-`Scaffold` definitions; twenty-four definitions use reviewed const constructors.
+writable rows across thirty widgets, including 647 across the twenty-nine
+non-`Scaffold` definitions; twenty-five definitions use reviewed const constructors.
 `.fd` is v7, the contributor Catalog API
 is 6 and the Canvas model protocol is 12. Exact-Web product selection remains
 separately gated; the currently routed Web choice is the native-engine layout
@@ -602,25 +604,42 @@ and receives only the non-layout-affecting Designer selection/drop target.
 Properties, exact-slot
 editing, Palette/tree/Canvas insertion, same-tree movement, Save/reopen,
 Undo/Redo and reviewed light/dark SVG identity share the same closed contract.
-The current practical backlog is 29/92 complete with 63 remaining, and Layout
-contains 21 items. No later backlog widget has an explicit order. `.fd` remains v7, Catalog
+At that milestone the practical backlog was 29/92 complete with 63 remaining,
+and Layout contained 21 items. `.fd` remains v7, Catalog
 API remains 6, Canvas model remains v12, and NBFC framing plus Canvas
 control/wire remain version 1.
 
-Twenty-six any-widget slots provide the reusable destination contract:
+[`IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight/IntrinsicHeight.html)
+is the tenth complete post-core Palette slice and occupies Layout order 160,
+immediately after Baseline. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes no writable arguments and one optional
+single any-widget `child`. Generated Dart and both Canvas projections construct
+the real Flutter IntrinsicHeight, so Flutter performs the speculative intrinsic
+height pass while still honoring the parent's constraints. Because that pass is
+relatively expensive and can be O(N²) in tree depth, the Palette and slot
+descriptions keep the performance warning visible. An empty or collapsed node
+receives only a bounded, non-layout-affecting Designer selection/drop target.
+Exact-slot editing, Palette/tree/Canvas insertion, same-tree movement,
+Save/reopen, Undo/Redo and reviewed light/dark SVG identity share the same
+closed contract. The current practical backlog is 30/92 complete with 62
+remaining, and Layout contains 22 items. No later backlog widget has an
+explicit order. `.fd` remains v7, Catalog API remains 6, Canvas model remains
+v12, and NBFC framing plus Canvas control/wire remain version 1.
+
+Twenty-seven any-widget slots provide the reusable destination contract:
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
 `Row.children`, `ListView.children`, `Wrap.children`, `Center.child`, `Align.child`,
 `FractionallySizedBox.child`, `FittedBox.child`, `ConstrainedBox.child`,
 `UnconstrainedBox.child`, `LimitedBox.child`, `OverflowBox.child`,
 `Padding.child`, `SizedBox.child`, `AspectRatio.child`, `Container.child`,
-`Opacity.child`, `Baseline.child`, `Stack.children`,
+`Opacity.child`, `Baseline.child`, `IntrinsicHeight.child`, `Stack.children`,
 `ElevatedButton.child`, and AppBar's `leading`, `title`, `actions` and
 `flexibleSpace`. `Scaffold.appBar` and `AppBar.bottom` accept only
-`PreferredSizeWidget`, currently the reviewed AppBar. The 28 insertable
-destinations and 29 sources form 812 candidate cells: 684 accepted and 128
+`PreferredSizeWidget`, currently the reviewed AppBar. The 29 insertable
+destinations and 30 sources form 870 candidate cells: 737 accepted and 133
 rejected. Expanded and Flexible each wrap only an existing direct
 `Row.children`/`Column.children` child; Spacer inserts only into those same two
-list slots. The other 26 sources enter all 26 any-widget slots, and only AppBar
+list slots. The other 27 sources enter all 27 any-widget slots, and only AppBar
 enters the two trait-bound slots. Expanded and Flexible's required `child` slots
 are replacement-only and are therefore not insertable matrix destinations.
 `ElevatedButton.child` is an optional-single, required-named-but-nullable slot;

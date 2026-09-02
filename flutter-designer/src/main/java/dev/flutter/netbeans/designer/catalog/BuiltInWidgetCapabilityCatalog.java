@@ -169,6 +169,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Flexible", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Spacer", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Baseline", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.IntrinsicHeight", STATIC_STRUCTURAL),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -423,6 +424,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                             PropertyValueKind.ENUM,
                             "enum:" + base64(WIDGETS_LIBRARY)
                             + ":TextBaseline:alphabetic,ideographic")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.IntrinsicHeight", projection(
+                    Map.of(),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),

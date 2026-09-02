@@ -47,6 +47,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Flexible",
             "flutter.widgets.Spacer",
             "flutter.widgets.Baseline",
+            "flutter.widgets.IntrinsicHeight",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -92,7 +93,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasTwentyNineSourcesAndTwentyEightInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtySourcesAndTwentyNineInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -115,9 +116,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(29, sources.size());
-        assertEquals(28, destinations.size());
-        assertEquals(26, destinations.stream()
+        assertEquals(30, sources.size());
+        assertEquals(29, destinations.size());
+        assertEquals(27, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -125,9 +126,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(812, candidates);
-        assertEquals(684, accepted);
-        assertEquals(128, candidates - accepted);
+        assertEquals(870, candidates);
+        assertEquals(737, accepted);
+        assertEquals(133, candidates - accepted);
     }
 
     @Test
@@ -748,6 +749,29 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void intrinsicHeightHasStructuralCapabilitiesAndIndependentEmptyProjection() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.IntrinsicHeight");
+
+        assertEquals(Set.of(
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        assertFalse(BuiltInWidgetCapabilityCatalog.supports(
+                definition, WidgetCapability.PROPERTIES));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertTrue(projection.properties().isEmpty());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1334,6 +1358,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         int spacerEnd = contract.indexOf("W|", spacerStart + 2);
         String spacerContract = contract.substring(spacerStart, spacerEnd);
         assertFalse(spacerContract.contains("\nC|"), spacerContract);
+        assertTrue(contract.contains(
+                "W|flutter.widgets.IntrinsicHeight\n"
+                + "S|child|single|0|0|1|any\n"));
     }
 
     @Test

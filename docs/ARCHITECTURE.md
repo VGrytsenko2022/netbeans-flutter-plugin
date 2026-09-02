@@ -162,7 +162,7 @@ BoxConstraints finite-or-positive-infinity semantic domain makes contributor
 Catalog API 6 the exact current boundary; API 1 through API 5 contributors fail
 closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, twenty-nine-item context Palette, selected-node
+Canvas/tree selection edge, thirty-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
@@ -170,9 +170,9 @@ Properties are writable for exactly 664 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
 `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`,
-`Expanded`, `Flexible`, `Spacer`, `Baseline`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Twenty-four of the twenty-nine definitions use reviewed const
-constructors; the twenty-eight non-`Scaffold` definitions account for 647 rows.
+`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
+and `Image`. Twenty-five of the thirty definitions use reviewed const
+constructors; the twenty-nine non-`Scaffold` definitions account for 647 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -447,17 +447,33 @@ prototypes therefore persist reviewed visible values `baseline: 24.0` and
 `baselineType: TextBaseline.alphabetic`. Generated Dart and both Canvas
 projections construct the real Baseline. Childless layout remains framework-owned
 at `constraints.smallest` (often zero), with selection and empty-child insertion
-exposed only by a non-layout-affecting Designer target. The current surface has
-29 widgets, 24
-reviewed const definitions, 664 writable rows (647 outside Scaffold) and 21
-Layout items. The practical Material/Base Designer backlog is 29/92 complete
-with 63 remaining; no later widget currently has an explicit order. Existing encodings cover this contract,
+exposed only by a non-layout-affecting Designer target. At that milestone the
+surface had 29 widgets, 24 reviewed const definitions, 664 writable rows (647
+outside Scaffold) and 21 Layout items. The practical Material/Base Designer
+backlog was 29/92 complete with 63 remaining. Existing encodings cover this contract,
 so `.fd` remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC
 framing plus Canvas control/wire remain version 1.
 
-The current contract admits twenty-nine exact capability-gated Palette sources
-across twenty-six insertable any-widget and two `PreferredSizeWidget`
-destination slots: 812 candidates, of which 684 are accepted and 128 rejected.
+[`IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight/IntrinsicHeight.html)
+is the tenth post-core built-in, at Layout order 160 immediately after
+Baseline. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` has no writable properties and accepts one
+optional single any-widget `child`. Generated Dart and both Canvas projections
+construct the real IntrinsicHeight, preserving parent constraints and Flutter's
+speculative intrinsic-height layout. Palette and slot descriptions expose the
+framework performance warning: intrinsic measurement is relatively expensive
+and can be O(N²) in tree depth. Empty or collapsed nodes retain real layout
+behind a bounded, non-layout-affecting Designer selection/drop target. The
+current surface has 30 widgets, 25 reviewed const definitions, 664 writable rows
+(647 outside Scaffold) and 22 Layout items. The practical Material/Base
+Designer backlog is 30/92 complete with 62 remaining; no later widget currently
+has an explicit order. Existing encodings cover this contract, so `.fd`
+remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC framing
+plus Canvas control/wire remain version 1.
+
+The current contract admits thirty exact capability-gated Palette sources
+across twenty-seven insertable any-widget and two `PreferredSizeWidget`
+destination slots: 870 candidates, of which 737 are accepted and 133 rejected.
 Expanded and Flexible enter only direct `Row.children` and `Column.children`
 wrapper targets; Spacer enters those two list slots by ordinary insertion. The
 wrappers' required child slots are replacement-only and excluded
@@ -634,7 +650,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current twenty-nine-definition
+historical source restriction is superseded by the current thirty-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -676,7 +692,7 @@ Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 before stable-ID allocation and fails closed when inventory is unavailable. DnD
-outside the twenty-nine-source, 812-candidate matrix (684 accepted, 128 rejected)
+outside the thirty-source, 870-candidate matrix (737 accepted, 133 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -901,8 +917,8 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact twenty-nine widgets carrying
-the Create capability. All twenty-nine built-ins, including `Scaffold`, admit the
+Design lookup supplies a Palette filtered to the exact thirty widgets carrying
+the Create capability. All thirty built-ins, including `Scaffold`, admit the
 reviewed 664-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,

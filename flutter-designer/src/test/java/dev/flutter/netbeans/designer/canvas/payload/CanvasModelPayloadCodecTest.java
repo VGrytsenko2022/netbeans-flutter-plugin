@@ -99,6 +99,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
+                "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -447,6 +448,28 @@ class CanvasModelPayloadCodecTest {
                 + "\"type\":\"TextBaseline\",\"value\":\"ideographic\"}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"66d958ff-0f49-43fe-ae5b-59ea9a55252f\""), json);
+    }
+
+    @Test
+    void projectsIntrinsicHeightWithoutChangingProtocolV12() throws Exception {
+        WidgetNode intrinsicHeight = new WidgetNode(
+                id("aa623160-3214-4724-8550-64719ea659aa"),
+                type("flutter.widgets.IntrinsicHeight"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb",
+                        "Intrinsic"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), intrinsicHeight))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.IntrinsicHeight\""), json);
+        assertTrue(json.contains("\"properties\":{}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"2d797cbd-2ddc-4532-84e6-7c735cb0e9cb\""), json);
     }
 
     @Test

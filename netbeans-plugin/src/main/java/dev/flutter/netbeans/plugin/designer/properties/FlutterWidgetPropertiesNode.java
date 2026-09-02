@@ -63,6 +63,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Baseline");
     private static final WidgetTypeId INTRINSIC_HEIGHT_TYPE =
             new WidgetTypeId("flutter.widgets.IntrinsicHeight");
+    private static final WidgetTypeId INTRINSIC_WIDTH_TYPE =
+            new WidgetTypeId("flutter.widgets.IntrinsicWidth");
     private static final PropertyName BASELINE_PROPERTY =
             new PropertyName("baseline");
     private static final PropertyName BASELINE_TYPE_PROPERTY =
@@ -651,6 +653,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (INTRINSIC_WIDTH_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child sized to its maximum intrinsic width before final "
+                    + "layout, with optional width and height step snapping still bounded "
+                    + "by the parent constraints. Flutter performs a speculative layout "
+                    + "pass, which can be O(N²) in tree depth; prefer ordinary constraints "
+                    + "when they can express the layout. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -790,6 +803,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean baseline = BASELINE_TYPE.equals(widget.type());
         boolean intrinsicHeight = INTRINSIC_HEIGHT_TYPE.equals(widget.type());
+        boolean intrinsicWidth = INTRINSIC_WIDTH_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -816,6 +830,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Intrinsic-height sizing and optional child for the selected "
                                         + "IntrinsicHeight widget. Flutter performs a speculative "
                                         + "layout pass that can be O(N²) in tree depth."
+                        : intrinsicWidth
+                                ? "Maximum-intrinsic-width sizing, optional width and height "
+                                        + "step snapping, parent constraints, and optional child "
+                                        + "for the selected IntrinsicWidth widget. Flutter performs "
+                                        + "a speculative layout pass that can be O(N²) in tree depth."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -900,6 +919,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "or ideographic for ideographic scripts. When the child does "
                                 + "not report the requested baseline, Flutter uses its bottom "
                                 + "edge."));
+            } else if (intrinsicWidth) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        intrinsicWidthPropertyDisplayName(property.name()),
+                        intrinsicWidthPropertyDescription(property.name())));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -1136,6 +1161,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 + "incoming height is unbounded. Omission preserves Flutter's default positive "
                 + "infinity; zero is valid.";
             default -> "Explicit LimitedBox value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String intrinsicWidthPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "stepWidth" -> "Step width";
+            case "stepHeight" -> "Step height";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String intrinsicWidthPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "stepWidth" ->
+                "Optional finite non-negative width step. A positive value snaps the "
+                + "child width upward to a multiple of this step after measuring its "
+                + "maximum intrinsic width, subject to the parent constraints. Omission "
+                + "or zero uses the maximum intrinsic width directly; zero is valid.";
+            case "stepHeight" ->
+                "Optional finite non-negative height step. A positive value snaps the "
+                + "child height upward to a multiple of this step, subject to the parent "
+                + "constraints. Omission or zero gives the child unconstrained height; "
+                + "zero is valid.";
+            default -> "Explicit IntrinsicWidth value for " + propertyName.value() + ".";
         };
     }
 

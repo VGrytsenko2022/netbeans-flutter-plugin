@@ -73,6 +73,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId BASELINE = type("flutter.widgets.Baseline");
     private static final WidgetTypeId INTRINSIC_HEIGHT =
             type("flutter.widgets.IntrinsicHeight");
+    private static final WidgetTypeId INTRINSIC_WIDTH =
+            type("flutter.widgets.IntrinsicWidth");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -820,6 +822,49 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void intrinsicWidthTokenPreviewsAndCommitsOptionalStepsAndEmptyChild() {
+        Fixture fixture = fixture(INTRINSIC_WIDTH);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(INTRINSIC_WIDTH, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(INTRINSIC_WIDTH, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the IntrinsicWidth palette authority once"));
+    }
+
+    @Test
     void stackTokenPreviewsAndCommitsOptionalPropertiesAndEmptyOrderedChildren() {
         Fixture fixture = fixture(STACK);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -942,6 +987,10 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty IntrinsicHeight",
                         document(prototype(INTRINSIC_HEIGHT)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty IntrinsicWidth",
+                        document(prototype(INTRINSIC_WIDTH)),
                         CHILD));
 
         assertAll(accepted.stream().map(testCase -> () -> {

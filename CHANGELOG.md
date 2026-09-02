@@ -7,6 +7,30 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.IntrinsicWidth`](https://api.flutter.dev/flutter/widgets/IntrinsicWidth/IntrinsicWidth.html)
+  vertical slice is the eleventh post-core Palette addition, at Layout order
+  170 immediately after IntrinsicHeight. Its complete pinned Flutter 3.44.8
+  non-`key` contract exposes optional non-negative `stepWidth` and `stepHeight`
+  values plus one optional single any-widget `child`. Null and explicit zero
+  remain distinct Designer values even though Flutter treats zero as no
+  snapping; positive values snap the corresponding child extent upward to a
+  multiple of the step. Generated Dart and native and exact-Web Canvas
+  construct the real Flutter IntrinsicWidth while preserving parent
+  constraints. Palette and Properties descriptions expose the speculative
+  intrinsic-layout performance warning, including worst-case O(N²) tree-depth
+  behavior. Empty or collapsed nodes keep real layout behind a bounded,
+  non-layout-affecting Designer selection/drop target. Exact property and slot
+  editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
+  generation, Save/reopen, Undo/Redo and reviewed light/dark SVG icons share
+  one closed contract. The catalog now contains 31 widgets, 26 reviewed const
+  constructors and 666 writable rows, including 649 across the 30
+  non-`Scaffold` definitions. Thirty-one sources across 28 insertable
+  any-widget and two trait-bound destinations form 930 DnD candidates: 792
+  accepted and 138 rejected. Layout contains 23 items, and the practical
+  92-widget backlog is 31/92 complete with 61 remaining. `.fd` schema v7,
+  Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
+- The accepted const
   [`flutter.widgets.IntrinsicHeight`](https://api.flutter.dev/flutter/widgets/IntrinsicHeight/IntrinsicHeight.html)
   vertical slice is the tenth post-core Palette addition, at Layout order 160
   immediately after Baseline. Its complete pinned Flutter 3.44.8 non-`key`
@@ -19,12 +43,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   layout while a bounded, non-layout-affecting Designer target supplies
   selection and child insertion. Exact-slot editing, Palette/tree/Canvas DnD,
   same-tree movement, deterministic generation, Save/reopen, Undo/Redo and
-  reviewed light/dark SVG icons share one closed contract. The catalog now
-  contains 30 widgets, 25 reviewed const constructors and 664 writable rows,
+  reviewed light/dark SVG icons share one closed contract. At that milestone
+  the catalog contained 30 widgets, 25 reviewed const constructors and 664 writable rows,
   including 647 across the 29 non-`Scaffold` definitions. Thirty sources
-  across 27 insertable any-widget and two trait-bound destinations form 870
-  DnD candidates: 737 accepted and 133 rejected. Layout contains 22 items, and
-  the practical 92-widget backlog is 30/92 complete with 62 remaining. `.fd`
+  across 27 insertable any-widget and two trait-bound destinations formed 870
+  DnD candidates: 737 accepted and 133 rejected. Layout contained 22 items, and
+  the practical 92-widget backlog was 30/92 complete with 62 remaining. `.fd`
   schema v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1
   remain unchanged.
 - The accepted const

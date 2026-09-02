@@ -523,6 +523,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                 node.properties['heightFactor']?.value == 0)) ||
         node.type == 'flutter.widgets.Baseline' ||
         node.type == 'flutter.widgets.IntrinsicHeight' ||
+        node.type == 'flutter.widgets.IntrinsicWidth' ||
         node.type == 'flutter.widgets.ConstrainedBox' ||
         node.type == 'flutter.widgets.UnconstrainedBox' ||
         node.type == 'flutter.widgets.LimitedBox' ||
@@ -1865,6 +1866,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Baseline' => _baseline(),
       'flutter.widgets.IntrinsicHeight' => _intrinsicHeight(),
+      'flutter.widgets.IntrinsicWidth' => _intrinsicWidth(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.ConstrainedBox' => _constrainedBox(),
       'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
@@ -3430,6 +3432,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   );
 
   Widget _intrinsicHeight() => IntrinsicHeight(child: _single('child'));
+
+  Widget _intrinsicWidth() => IntrinsicWidth(
+    stepWidth: _number('stepWidth'),
+    stepHeight: _number('stepHeight'),
+    child: _single('child'),
+  );
 
   Widget _align() => Align(
     alignment: _alignmentGeometry('alignment') ?? Alignment.center,

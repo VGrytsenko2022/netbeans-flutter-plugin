@@ -46,6 +46,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Baseline", ICON_ROOT + "baseline.svg"),
             Map.entry("flutter.widgets.IntrinsicHeight",
                     ICON_ROOT + "intrinsicheight.svg"),
+            Map.entry("flutter.widgets.IntrinsicWidth",
+                    ICON_ROOT + "intrinsicwidth.svg"),
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),

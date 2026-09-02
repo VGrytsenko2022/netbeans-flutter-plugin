@@ -772,6 +772,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Spacer",
                     "flutter.widgets.Baseline",
                     "flutter.widgets.IntrinsicHeight",
+                    "flutter.widgets.IntrinsicWidth",
                     "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",

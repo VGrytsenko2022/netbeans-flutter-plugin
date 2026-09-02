@@ -48,6 +48,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Spacer",
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicHeight",
+            "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -79,6 +80,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Flexible",
             "flutter.widgets.Spacer",
             "flutter.widgets.Baseline",
+            "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -93,7 +95,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtySourcesAndTwentyNineInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyOneSourcesAndThirtyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -116,9 +118,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(30, sources.size());
-        assertEquals(29, destinations.size());
-        assertEquals(27, destinations.stream()
+        assertEquals(31, sources.size());
+        assertEquals(30, destinations.size());
+        assertEquals(28, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -126,9 +128,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(870, candidates);
-        assertEquals(737, accepted);
-        assertEquals(133, candidates - accepted);
+        assertEquals(930, candidates);
+        assertEquals(792, accepted);
+        assertEquals(138, candidates - accepted);
     }
 
     @Test
@@ -772,6 +774,41 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void intrinsicWidthHasStaticEditableCapabilitiesAndIndependentProjection() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.IntrinsicWidth");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("stepWidth"),
+                        new PropertyName("stepHeight")),
+                projection.properties().keySet());
+        for (String name : List.of("stepWidth", "stepHeight")) {
+            var step = projection.propertyContracts().get(new PropertyName(name));
+            assertFalse(step.required(), name);
+            assertEquals(Set.of(PropertyValueKind.DOUBLE), step.acceptedKinds(), name);
+            assertTrue(step.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("0:1:*:1", step.numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+            assertEquals("range:0:1:*:1", step.constraintFingerprints()
+                    .get(PropertyValueKind.DOUBLE), name);
+        }
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1360,6 +1397,13 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertFalse(spacerContract.contains("\nC|"), spacerContract);
         assertTrue(contract.contains(
                 "W|flutter.widgets.IntrinsicHeight\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.IntrinsicWidth\n"
+                + "P|stepHeight|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "P|stepWidth|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
                 + "S|child|single|0|0|1|any\n"));
     }
 

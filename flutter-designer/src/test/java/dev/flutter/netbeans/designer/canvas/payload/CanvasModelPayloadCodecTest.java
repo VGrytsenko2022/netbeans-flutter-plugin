@@ -100,6 +100,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
+                "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -470,6 +471,37 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"properties\":{}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"2d797cbd-2ddc-4532-84e6-7c735cb0e9cb\""), json);
+    }
+
+    @Test
+    void projectsIntrinsicWidthPropertiesAndChildWithoutChangingProtocolV12()
+            throws Exception {
+        WidgetNode intrinsicWidth = new WidgetNode(
+                id("e589812d-a08a-4476-9443-0a70af6c708f"),
+                type("flutter.widgets.IntrinsicWidth"),
+                Map.of(
+                        new PropertyName("stepWidth"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                        new PropertyName("stepHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("12.5"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "65c34b52-ff29-40a4-895a-6bddfb757483",
+                        "Intrinsic width"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), intrinsicWidth))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.IntrinsicWidth\""), json);
+        assertTrue(json.contains(
+                "\"stepWidth\":{\"kind\":\"double\",\"value\":0}"), json);
+        assertTrue(json.contains(
+                "\"stepHeight\":{\"kind\":\"double\",\"value\":12.5}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"65c34b52-ff29-40a4-895a-6bddfb757483\""), json);
     }
 
     @Test

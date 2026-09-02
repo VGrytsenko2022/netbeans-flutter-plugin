@@ -367,6 +367,53 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsIntrinsicWidthWithNullableStepsAndEmptyOptionalChild() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.IntrinsicWidth");
+
+        WidgetNode empty = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.IntrinsicWidth"),
+                empty.type());
+        assertTrue(empty.properties().isEmpty(),
+                "Nullable Flutter step arguments must remain omitted by default");
+        assertEquals(List.of(new SlotName("child")),
+                empty.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                empty.slots().get(new SlotName("child"))).child().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("stepWidth"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                        new PropertyName("stepHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("12.5"))));
+        assertEquals(List.of(
+                        new PropertyName("stepWidth"),
+                        new PropertyName("stepHeight")),
+                configured.properties().keySet().stream().toList());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                configured.properties().get(new PropertyName("stepWidth")));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("12.5")),
+                configured.properties().get(new PropertyName("stepHeight")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("stepWidth"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("-0.01")))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

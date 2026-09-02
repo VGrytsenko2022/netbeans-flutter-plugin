@@ -74,6 +74,8 @@ class DesignerCommandSessionTest {
     private static final PropertyName ASPECT_RATIO = property("aspectRatio");
     private static final PropertyName BASELINE = property("baseline");
     private static final PropertyName BASELINE_TYPE = property("baselineType");
+    private static final PropertyName STEP_WIDTH = property("stepWidth");
+    private static final PropertyName STEP_HEIGHT = property("stepHeight");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -495,6 +497,104 @@ class DesignerCommandSessionTest {
         assertTrue(editedDart.contains("const IntrinsicHeight("), editedDart);
         assertTrue(editedDart.contains(
                 "child: const Text('After reopen')"), editedDart);
+    }
+
+    @Test
+    void intrinsicWidthPrototypePropertiesChildUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.IntrinsicWidth"))
+                        .orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        DesignerCommandSession zeroWidth = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                STEP_WIDTH,
+                new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        DesignerCommandSession configured = applied(zeroWidth, new SetProperty(
+                WRAPPER_ID,
+                STEP_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("12.5"))));
+
+        WidgetNode finalIntrinsicWidth = find(
+                configured.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                finalIntrinsicWidth.properties().get(STEP_WIDTH));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("12.5")),
+                finalIntrinsicWidth.properties().get(STEP_HEIGHT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalIntrinsicWidth.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                configured.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const IntrinsicWidth("), dart);
+        assertTrue(dart.contains("stepWidth: 0.0"), dart);
+        assertTrue(dart.contains("stepHeight: 12.5"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+        assertTrue(dart.indexOf("stepWidth: 0.0")
+                < dart.indexOf("stepHeight: 12.5"), dart);
+        assertTrue(dart.indexOf("stepHeight: 12.5")
+                < dart.indexOf("child: const Text('Inside')"), dart);
+
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID,
+                STEP_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("-0.01"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession undone = configured.undo().session();
+        assertFalse(find(undone.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(STEP_HEIGHT));
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                find(undone.current().document().root(), WRAPPER_ID)
+                        .properties().get(STEP_WIDTH));
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(configured.current().fdBytes(),
+                redone.current().fdBytes());
+        assertArrayEquals(configured.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redone.markSaved();
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened,
+                new SetProperty(
+                        WRAPPER_ID,
+                        STEP_WIDTH,
+                        new PropertyValue.DoubleValue(new BigDecimal("8.25"))));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("8.25")),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(STEP_WIDTH));
+        String editedDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("const IntrinsicWidth("), editedDart);
+        assertTrue(editedDart.contains("stepWidth: 8.25"), editedDart);
+        assertTrue(editedDart.contains("stepHeight: 12.5"), editedDart);
     }
 
     @Test

@@ -687,6 +687,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
+                "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -724,16 +725,17 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(664, writableCount,
+        assertEquals(666, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
                 + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
-                + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, ListView, "
+                + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
+                + "ListView, "
                 + "and Image leaves");
-        assertEquals(647, nonScaffoldWritableCount,
+        assertEquals(649, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1104,6 +1106,110 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(child.getShortDescription().contains("O(N²)")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "prefer ordinary constraints")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void intrinsicWidthProjectsBothTypedStepsResetAndPerformanceAwareOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.IntrinsicWidth");
+        StableId id = StableId.parse("416354f4-ceb8-4f39-8ea5-708d9db64cf3");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, id);
+        PropertyValue.DoubleValue initialWidth =
+                new PropertyValue.DoubleValue(new BigDecimal("24"));
+        PropertyValue.DoubleValue initialHeight =
+                new PropertyValue.DoubleValue(new BigDecimal("12.5"));
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(
+                        new PropertyName("stepWidth"), initialWidth,
+                        new PropertyName("stepHeight"), initialHeight),
+                prototype.slots(),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("stepWidth", "stepHeight"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Maximum-intrinsic-width sizing, optional width and height step "
+                + "snapping, parent constraints, and optional child for the selected "
+                + "IntrinsicWidth widget. Flutter performs a speculative layout pass "
+                + "that can be O(N²) in tree depth.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> stepWidth = cellProperty(
+                property(node, "stepWidth"));
+        Node.Property<FlutterPropertyCellValue> stepHeight = cellProperty(
+                property(node, "stepHeight"));
+        assertAll(
+                () -> assertEquals("Step width", stepWidth.getDisplayName()),
+                () -> assertEquals("Step height", stepHeight.getDisplayName()),
+                () -> assertEquals(initialWidth,
+                        stepWidth.getValue().explicitValue().orElseThrow()),
+                () -> assertEquals(initialHeight,
+                        stepHeight.getValue().explicitValue().orElseThrow()),
+                () -> assertTrue(stepWidth.getShortDescription().contains(
+                        "maximum intrinsic width")),
+                () -> assertTrue(stepWidth.getShortDescription().contains(
+                        "subject to the parent constraints")),
+                () -> assertTrue(stepWidth.getShortDescription().contains(
+                        "Omission or zero")),
+                () -> assertTrue(stepHeight.getShortDescription().contains(
+                        "unconstrained height")),
+                () -> assertTrue(stepHeight.getShortDescription().contains(
+                        "subject to the parent constraints")),
+                () -> assertTrue(stepWidth.supportsDefaultValue()),
+                () -> assertTrue(stepHeight.supportsDefaultValue()),
+                () -> assertFalse(stepWidth.isDefaultValue()),
+                () -> assertFalse(stepHeight.isDefaultValue()));
+
+        PropertyEditor widthEditor = stepWidth.getPropertyEditor();
+        widthEditor.setAsText("0");
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                cell(widthEditor).explicitValue().orElseThrow());
+        PropertyEditor heightEditor = stepHeight.getPropertyEditor();
+        heightEditor.setAsText("32.25");
+        PropertyValue.DoubleValue updatedHeight =
+                new PropertyValue.DoubleValue(new BigDecimal("32.25"));
+        assertEquals(updatedHeight, cell(heightEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("-0.1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("NaN"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("Infinity"));
+        assertThrows(IllegalArgumentException.class,
+                () -> stepWidth.setValue(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.IntegerValue(BigInteger.ZERO))));
+        assertTrue(commands.isEmpty(),
+                "editor validation must not partially submit a command");
+
+        stepWidth.restoreDefaultValue();
+        stepHeight.setValue(FlutterPropertyCellValue.explicit(updatedHeight));
+        assertEquals(List.of(
+                new ResetProperty(id, new PropertyName("stepWidth")),
+                new SetProperty(id, new PropertyName("stepHeight"), updatedHeight)),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "maximum intrinsic width")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "width and height step snapping")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "bounded by the parent constraints")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "speculative layout pass")),
+                () -> assertTrue(child.getShortDescription().contains("O(N²)")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
@@ -3138,7 +3244,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyOneCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3167,6 +3273,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
+                "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3198,7 +3305,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(30, iconPaths.size(),
+        assertEquals(31, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

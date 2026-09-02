@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-30 reviewed Canvas widgets. Palette insertion evaluates 870 exact
-source/destination cells across 30 draggable sources and 29 insertable reviewed
-slots; 737 are accepted and 133 cells are rejected. Expanded and Flexible are
+31 reviewed Canvas widgets. Palette insertion evaluates 930 exact
+source/destination cells across 31 draggable sources and 30 insertable reviewed
+slots; 792 are accepted and 138 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -449,11 +449,33 @@ Flutter IntrinsicHeight, preserving parent constraints and the speculative
 intrinsic-height pass. The Palette contract warns that intrinsic measurement is
 relatively expensive and can be O(N²) in tree depth. An empty or collapsed
 instance retains a bounded 36 x 36 Designer selection/drop target without
-changing generated Dart or Flutter layout. The aggregate catalog now has 30
-widgets, 25 reviewed const constructors and 664 writable properties, including
-647 outside Scaffold. Thirty sources across 27 insertable any-widget and two
-trait destinations form 870 candidates: 737 accepted and 133 rejected. The
-practical Material/Base Designer backlog is 30/92 complete with 62 remaining,
-the Palette Layout category contains 22 items, and no later widget has an
-explicit order. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+changing generated Dart or Flutter layout. At that milestone the aggregate
+catalog had 30 widgets, 25 reviewed const constructors and 664 writable
+properties, including 647 outside Scaffold. Thirty sources across 27 insertable
+any-widget and two trait destinations formed 870 candidates: 737 accepted and
+133 rejected. The practical Material/Base Designer backlog was 30/92 complete
+with 62 remaining, and the Palette Layout category contained 22 items.
+
+[`flutter.widgets.IntrinsicWidth`](https://api.flutter.dev/flutter/widgets/IntrinsicWidth-class.html)
+is the eleventh post-core Canvas widget, at Palette Layout order 170 immediately
+after IntrinsicHeight. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes optional finite non-negative
+`stepWidth`, optional finite non-negative `stepHeight`, and one optional single
+any-widget `child`. Omission and explicit zero are preserved as distinct model,
+history and Dart states even though Flutter treats both as unsnapped on the
+corresponding axis. Positive values snap the child's extent upward to a multiple
+of that step, while incoming parent constraints remain authoritative. Palette,
+tree and Canvas creation admit IntrinsicWidth as an ordinary widget; generic
+placement rules reject Expanded, Flexible and Spacer in its child slot. Native
+and exact-Web renderers construct the real Flutter IntrinsicWidth and preserve
+its speculative intrinsic-width pass. The Palette contract warns that intrinsic
+measurement is relatively expensive and can be O(N²) in tree depth. An empty or
+collapsed instance retains a bounded 36 x 36 Designer selection/drop target
+without changing generated Dart or Flutter layout. The aggregate catalog now
+has 31 widgets, 26 reviewed const constructors and 666 writable properties,
+including 649 outside Scaffold. Thirty-one sources across 28 insertable
+any-widget and two trait destinations form 930 candidates: 792 accepted and 138
+rejected. The practical Material/Base Designer backlog is 31/92 complete with
+61 remaining, the Palette Layout category contains 23 items, and no later widget
+has an explicit order. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
 framing/control/wire v1 remain unchanged.

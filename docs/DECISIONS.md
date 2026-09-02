@@ -17,10 +17,11 @@ milestone; ADR-041 through ADR-045 add `Align`, `FractionallySizedBox`, `Stack`,
 with `ListView`, ADR-048 begins the post-core surface with `Wrap`, ADR-049 adds
 `FittedBox`, ADR-050 adds `ConstrainedBox`, ADR-051 adds `UnconstrainedBox`,
 ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, ADR-054 adds `Flexible`,
-ADR-055 adds `Spacer`, ADR-056 adds `Baseline`, and ADR-057 establishes the
-current `IntrinsicHeight` surface: 664 typed rows across thirty widgets,
-twenty-five const-constructor definitions and 870 Palette/DnD candidates,
-including 737 accepted and 133 rejected cells. The 647-field
+ADR-055 adds `Spacer`, ADR-056 adds `Baseline`, ADR-057 adds `IntrinsicHeight`,
+and ADR-058 establishes the current `IntrinsicWidth` surface: 666 typed rows
+across thirty-one widgets, twenty-six const-constructor definitions and 930
+Palette/DnD candidates, including 792 accepted and 138 rejected cells. The
+649-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -30,7 +31,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-057 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-058 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -273,7 +274,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-057 make 647 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-058 make 649 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -285,8 +286,9 @@ properties, four Stack properties, one Expanded property, 22 Image properties,
 FittedBox properties, the required ConstrainedBox constraints property, four
 UnconstrainedBox properties, two LimitedBox properties, six OverflowBox
 properties, Flexible's two properties, Spacer's one property, Baseline's two
-required properties plus optional child slot, and IntrinsicHeight's
-property-free optional child slot.
+required properties plus optional child slot, IntrinsicHeight's property-free
+optional child slot, and IntrinsicWidth's two optional step properties plus
+optional child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -314,8 +316,9 @@ and 73 rejected), ADR-054 established the twenty-seven-source, 729-candidate
 matrix (631 accepted and 98 rejected), ADR-055 established the
 twenty-eight-source, 756-candidate matrix (633 accepted and 123 rejected), and
 ADR-056 established the twenty-nine-source, 812-candidate matrix (684 accepted
-and 128 rejected), and ADR-057 establishes the current thirty-source,
-870-candidate matrix (737 accepted and 133 rejected).
+and 128 rejected), ADR-057 established the thirty-source, 870-candidate matrix
+(737 accepted and 133 rejected), and ADR-058 establishes the current
+thirty-one-source, 930-candidate matrix (792 accepted and 138 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -325,7 +328,7 @@ protocol-v12 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `ListView`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `ListView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -340,12 +343,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-widget model for Mobile, Tablet,
+Canvas now renders the validated thirty-one-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty Create-capable definitions, and the DnD-capable set uses the
-reviewed 870-cell candidate matrix across twenty-seven insertable any-widget and
-two trait-bound destination slots; 737 cells are accepted and 133 rejected.
+those thirty-one Create-capable definitions, and the DnD-capable set uses the
+reviewed 930-cell candidate matrix across twenty-eight insertable any-widget and
+two trait-bound destination slots; 792 cells are accepted and 138 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
@@ -2208,7 +2211,54 @@ trait-bound destination. This adds 53 accepted and five rejected cells,
 producing 737 accepted and 133 rejected overall. The Layout Palette contains 22
 items.
 
-The practical Material/Base Designer backlog is now 30/92 complete, with 62
+The practical Material/Base Designer backlog was then 30/92 complete, with 62
+remaining. This is a project planning target, not a normative complete list of
+Flutter widgets. IntrinsicWidth became the next complete vertical slice.
+Existing encodings cover this contract, so
+`.fd` remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC
+framing plus Canvas control/wire remain version 1.
+
+## ADR-058 — IntrinsicWidth completes stepped intrinsic width sizing
+
+Accepted. The canonical built-in is the const
+[`flutter.widgets.IntrinsicWidth(...)`](https://api.flutter.dev/flutter/widgets/IntrinsicWidth/IntrinsicWidth.html)
+constructor from `package:flutter/widgets.dart`, published in the **Layout**
+Palette category at order 170 immediately after IntrinsicHeight. It supports
+typed Properties and exact-slot presentation, Create, native and exact-Web
+Canvas, Palette/tree/Canvas DnD, same-tree movement, deterministic Dart
+generation, Save/reopen and chronological Undo/Redo. Reviewed light/dark SVG
+icons at 16 and 32 pixels provide its Palette identity.
+
+The complete reviewed non-`key` Flutter 3.44.8 constructor surface contains
+optional named finite non-negative `double stepWidth`, optional named finite
+non-negative `double stepHeight` and one optional single any-widget `child`, in
+that constructor order. Detached Designer prototypes omit both step values and
+start with an empty child slot. Null and explicit `0.0` remain distinct model,
+history and generated-Dart values. Flutter internally treats zero like null for
+the corresponding render-object step; a positive step rounds the child's
+intrinsic extent upward to the next multiple. Negative, non-finite and
+wrong-typed values fail closed.
+
+Generated Dart and both Canvas projections construct the real Flutter
+IntrinsicWidth under the parent's constraints. Flutter performs a speculative
+intrinsic layout pass before final layout. This is relatively expensive and can
+be O(N²) in tree depth, so the performance warning and step semantics are part
+of the Palette, property and slot descriptions. An empty or collapsed node
+retains real framework layout while a bounded, non-layout-affecting Designer
+target supplies selection and empty-child drop.
+
+IntrinsicWidth adds two writable rows, one ordinary source and one insertable
+any-widget destination to ADR-057. The current surface contains 666 writable
+rows, with 649 outside Scaffold, across 31 widgets and 26 const-constructor
+definitions. Thirty-one sources across 28 any-widget plus two trait-bound
+destinations form 930 candidates. The new IntrinsicWidth destination accepts
+27 old unrestricted sources and rejects Expanded, Flexible and Spacer; the new
+IntrinsicWidth source enters all 28 any-widget destinations and neither
+trait-bound destination. This adds 55 accepted and five rejected cells,
+producing 792 accepted and 138 rejected overall. The Layout Palette contains 23
+items.
+
+The practical Material/Base Designer backlog is now 31/92 complete, with 61
 remaining. This is a project planning target, not a normative complete list of
 Flutter widgets. No later widget has an explicit order; the next admission must
 again be a complete vertical slice. Existing encodings cover this contract, so

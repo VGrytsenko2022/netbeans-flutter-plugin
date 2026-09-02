@@ -3747,6 +3747,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.widgets.IntrinsicHeight': _WidgetSpec(const {}, {
     'child': _optionalSingleSlot,
   }),
+  'flutter.widgets.IntrinsicWidth': _WidgetSpec(
+    {
+      'stepWidth': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'stepHeight': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5155,6 +5166,10 @@ P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 W|flutter.widgets.IntrinsicHeight
+S|child|single|0|0|1|any
+W|flutter.widgets.IntrinsicWidth
+P|stepHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|stepWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 S|child|single|0|0|1|any
 W|flutter.widgets.LimitedBox
 P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1

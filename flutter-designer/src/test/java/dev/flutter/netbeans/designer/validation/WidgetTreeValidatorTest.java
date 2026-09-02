@@ -783,6 +783,88 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsIntrinsicWidthNullableNonNegativeStepsAndOrdinaryOptionalChild() {
+        WidgetNode empty = intrinsicWidth("emptyIntrinsicWidth", Map.of(), null);
+        WidgetNode configured = intrinsicWidth(
+                "configuredIntrinsicWidth",
+                Map.of(
+                        name("stepWidth"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                        name("stepHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("12.5"))),
+                text("intrinsicWidthText"));
+
+        assertTrue(validator().validate(
+                document(empty), BuiltInWidgetCatalog.getDefault()).valid());
+        assertTrue(validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault()).valid());
+    }
+
+    @Test
+    void intrinsicWidthRejectsNegativeWrongKindAndMisspelledStepPropertiesAtExactPaths() {
+        for (String property : List.of("stepWidth", "stepHeight")) {
+            WidgetNode negative = intrinsicWidth(
+                    "negative-" + property,
+                    Map.of(name(property), new PropertyValue.DoubleValue(
+                            new BigDecimal("-0.01"))),
+                    null);
+            ValidationIssue constraint = onlyIssue(
+                    validator().validate(
+                            document(negative), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + property, constraint.path());
+
+            WidgetNode wrongKind = intrinsicWidth(
+                    "wrong-kind-" + property,
+                    Map.of(name(property), new PropertyValue.IntegerValue(
+                            BigInteger.ZERO)),
+                    null);
+            ValidationIssue kind = onlyIssue(
+                    validator().validate(
+                            document(wrongKind), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + property, kind.path());
+        }
+
+        WidgetNode misspelled = intrinsicWidth(
+                "misspelledIntrinsicWidth",
+                Map.of(name("stepwidth"),
+                        new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                null);
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(misspelled), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/stepwidth", unknown.path());
+    }
+
+    @Test
+    void intrinsicWidthChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("intrinsicWidthExpanded", Map.of(),
+                        text("intrinsicWidthExpandedText")),
+                flexible("intrinsicWidthFlexible", Map.of(),
+                        text("intrinsicWidthFlexibleText")),
+                spacer("intrinsicWidthSpacer", Map.of()))) {
+            WidgetNode intrinsicWidth = intrinsicWidth(
+                    "intrinsicWidth-" + restricted.type().value(),
+                    Map.of(),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(intrinsicWidth),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.IntrinsicWidth.child"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2529,6 +2611,16 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.IntrinsicHeight", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode intrinsicWidth(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.IntrinsicWidth", properties, Map.of(
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));

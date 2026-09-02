@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirty
+The current capability-gated Palette and native Canvas admit exactly thirty-one
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `ListView`, `Text`, `Icon` and `Image`. Twenty-five
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `ListView`, `Text`, `Icon` and `Image`. Twenty-six
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 664 typed writable rows: 647 across the twenty-nine
+exactly 666 typed writable rows: 649 across the thirty
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -257,9 +257,24 @@ intrinsic-height pass while the parent's constraints remain authoritative.
 This pass is relatively expensive and can be O(N²) in tree depth; the warning
 is shown in the Palette and slot descriptions. An empty or collapsed node
 retains a bounded Designer selection/drop target without changing Flutter
-layout. The practical Material/Base backlog is now 30/92 complete with 62
+layout. The practical Material/Base backlog was then 30/92 complete with 62
 remaining. It is a planning backlog rather than a normative full Flutter widget
-list; no later widget currently has an explicit order. Layout contains 22
+list. Layout contained 22 items.
+
+[`IntrinsicWidth`](https://api.flutter.dev/flutter/widgets/IntrinsicWidth/IntrinsicWidth.html)
+is the eleventh post-core Palette slice, at Layout order 170 immediately after
+IntrinsicHeight. Its optional `stepWidth` and `stepHeight` values accept finite
+non-negative doubles or `<not set>`, and its optional child uses the ordinary
+single-child slot editor. Null and explicit zero are saved distinctly; Flutter
+treats either as no snapping on that axis, while a positive value rounds the
+child's corresponding intrinsic extent up to a multiple of the step. Generated
+Dart and Canvas construct the real IntrinsicWidth while parent constraints
+remain authoritative. Palette and Properties show the relatively expensive
+speculative-layout and worst-case O(N²) warning. An empty or collapsed node
+retains a bounded Designer selection/drop target without changing Flutter
+layout. The practical Material/Base backlog is now 31/92 complete with 61
+remaining. It is a planning backlog rather than a normative full Flutter widget
+list; no later widget currently has an explicit order. Layout contains 23
 items.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -312,9 +327,9 @@ The current surface uses `.fd` schema v7, contributor Catalog API 6 and Canvas
 model protocol 12. Schema v1-v6 files migrate in memory and are written as v7
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
-migrate losslessly. Thirty sources across twenty-seven insertable any-widget
-and two trait-bound slots produce 870 compatibility candidates: 737 accepted
-and 133 rejected. Expanded and Flexible enter only direct
+migrate losslessly. Thirty-one sources across twenty-eight insertable any-widget
+and two trait-bound slots produce 930 compatibility candidates: 792 accepted
+and 138 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. NBFC framing

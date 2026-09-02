@@ -65,6 +65,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Spacer",
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicHeight",
+            "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
@@ -86,7 +87,8 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight"),
+                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
+                "IntrinsicWidth"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -113,7 +115,8 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight"),
+                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
+                "IntrinsicWidth"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -571,6 +574,39 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void intrinsicWidthPaletteSelectionExposesSnappingConstraintsPerformanceAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.IntrinsicWidth";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        170,
+                        "IntrinsicWidth"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("IntrinsicWidth", node.getDisplayName());
+        assertEquals(
+                "Size an optional child to its maximum intrinsic width, optionally "
+                + "snapping width and height to non-negative step multiples while honoring "
+                + "parent constraints. A null or zero stepWidth uses the maximum intrinsic "
+                + "width; a null or zero stepHeight leaves height unconstrained. This adds "
+                + "a speculative layout pass and can be O(N²) in tree depth.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Image";
@@ -899,7 +935,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void thirtyCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyOneCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -918,7 +954,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(30, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(31, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

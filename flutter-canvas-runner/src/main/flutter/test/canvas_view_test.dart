@@ -125,6 +125,41 @@ void main() {
       canvasDropSlotsForWidgetType('flutter.widgets.IntrinsicHeight'),
       const [canvasEmptyChildDropSlot],
     );
+    expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.IntrinsicWidth'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.IntrinsicWidth',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.IntrinsicWidth',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+        reason: '$flexType requires a direct Row or Column children slot',
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -220,7 +255,7 @@ void main() {
     );
   });
 
-  test('closes the 30-source by 29-destination compatibility matrix', () {
+  test('closes the 31-source by 30-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -230,6 +265,7 @@ void main() {
       'flutter.widgets.AspectRatio',
       'flutter.widgets.Baseline',
       'flutter.widgets.IntrinsicHeight',
+      'flutter.widgets.IntrinsicWidth',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Wrap',
@@ -261,8 +297,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(30));
-    expect(destinations, hasLength(29));
+    expect(sourceTypes, hasLength(31));
+    expect(destinations, hasLength(30));
 
     var accepted = 0;
     var rejected = 0;
@@ -288,9 +324,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 737);
-    expect(rejected, 133);
-    expect(accepted + rejected, 870);
+    expect(accepted, 792);
+    expect(rejected, 138);
+    expect(accepted + rejected, 930);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -5847,6 +5883,220 @@ void main() {
   );
 
   testWidgets(
+    'renders real IntrinsicWidth with null, zero, and snapped step values',
+    (tester) async {
+      const intrinsicId = 'bbce8cc2-8ff1-4337-83e2-46f70a579075';
+      const childId = '4eaf2797-e975-402c-8e3a-827e40ee9c83';
+
+      Future<({IntrinsicWidth widget, RenderIntrinsicWidth render})> pump(
+        Map<String, Object?> properties,
+      ) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredIntrinsicWidth(
+                  properties: properties,
+                  child: _viewSizedBoxNode(childId, width: 40, height: 10),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final finder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$intrinsicId')),
+              matching: find.byType(IntrinsicWidth),
+            )
+            .first;
+        return (
+          widget: tester.widget<IntrinsicWidth>(finder),
+          render: tester.renderObject<RenderIntrinsicWidth>(finder),
+        );
+      }
+
+      final omitted = await pump(const {});
+      expect(omitted.widget.stepWidth, isNull);
+      expect(omitted.widget.stepHeight, isNull);
+      expect(omitted.render.stepWidth, isNull);
+      expect(omitted.render.stepHeight, isNull);
+      expect(omitted.render.size, const Size(40, 10));
+      expect(omitted.render.child!.size, const Size(40, 10));
+
+      final zero = await pump(const {
+        'stepWidth': {'kind': 'double', 'value': 0.0},
+        'stepHeight': {'kind': 'double', 'value': 0.0},
+      });
+      expect(zero.widget.stepWidth, 0.0);
+      expect(zero.widget.stepHeight, 0.0);
+      expect(
+        zero.render.stepWidth,
+        isNull,
+        reason: 'Flutter defines public zero as unsnapped intrinsic width',
+      );
+      expect(
+        zero.render.stepHeight,
+        isNull,
+        reason: 'Flutter defines public zero as an unconstrained height',
+      );
+      expect(zero.render.size, const Size(40, 10));
+      expect(zero.render.child!.size, const Size(40, 10));
+
+      final snapped = await pump(const {
+        'stepWidth': {'kind': 'double', 'value': 24.0},
+        'stepHeight': {'kind': 'double', 'value': 6.0},
+      });
+      expect(snapped.widget.stepWidth, 24.0);
+      expect(snapped.widget.stepHeight, 6.0);
+      expect(snapped.render.stepWidth, 24.0);
+      expect(snapped.render.stepHeight, 6.0);
+      expect(snapped.render.size, const Size(48, 12));
+      expect(snapped.render.child!.size, const Size(48, 12));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps empty and collapsed IntrinsicWidth selectable without changing layout',
+    (tester) async {
+      const intrinsicId = 'bbce8cc2-8ff1-4337-83e2-46f70a579075';
+      const childId = '4eaf2797-e975-402c-8e3a-827e40ee9c83';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+
+      Future<void> pump(Map<String, Object?>? child) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredIntrinsicWidth(
+                  properties: const {},
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) => CanvasModelApp(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      CanvasDropTarget? resolveAt(Offset point) {
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      RenderIntrinsicWidth intrinsicRender() =>
+          tester.renderObject<RenderIntrinsicWidth>(
+            find
+                .descendant(
+                  of: find.byKey(const ValueKey('canvas-widget-$intrinsicId')),
+                  matching: find.byType(IntrinsicWidth),
+                )
+                .first,
+          );
+
+      await pump(null);
+      final emptyTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$intrinsicId'),
+      );
+      expect(intrinsicRender().size, Size.zero);
+      expect(emptyTarget, findsOneWidget);
+      expect(tester.getSize(emptyTarget), const Size.square(36));
+      final surfaceRect = tester.getRect(find.byType(CanvasDocumentView));
+      final emptyTargetRect = tester.getRect(emptyTarget);
+      expect(surfaceRect.intersect(emptyTargetRect), emptyTargetRect);
+      await tester.tap(emptyTarget);
+      await tester.pump();
+      expect(selectedWidgetId, intrinsicId);
+      final emptyDrop = resolveAt(emptyTargetRect.center);
+      expect(emptyDrop?.parentWidgetId, intrinsicId);
+      expect(emptyDrop?.slotName, 'child');
+      expect(emptyDrop?.insertionIndex, 0);
+      expect(emptyDrop?.zone?.isEmpty, isFalse);
+      expect(intrinsicRender().size, Size.zero);
+
+      selectedWidgetId = null;
+      await pump(_viewSizedBoxNode(childId, width: 40, height: 10));
+      final occupiedNode = find.byKey(
+        const ValueKey('canvas-widget-$intrinsicId'),
+      );
+      expect(intrinsicRender().size, const Size(40, 10));
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$intrinsicId'),
+        ),
+        findsNothing,
+      );
+      final occupiedRect = tester.getRect(occupiedNode);
+      await tester.tapAt(occupiedRect.center);
+      await tester.pump();
+      expect(selectedWidgetId, childId);
+      expect(
+        resolveAt(occupiedRect.center)?.parentWidgetId,
+        isNot(intrinsicId),
+      );
+
+      selectedWidgetId = null;
+      await pump(<String, Object?>{
+        'id': childId,
+        'type': 'flutter.widgets.Padding',
+        'properties': <String, Object?>{
+          'padding': {
+            'kind': 'edgeInsets',
+            'left': 0,
+            'top': 0,
+            'right': 0,
+            'bottom': 0,
+          },
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      });
+      final collapsedTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$intrinsicId'),
+      );
+      expect(intrinsicRender().size, Size.zero);
+      expect(collapsedTarget, findsOneWidget);
+      expect(tester.getSize(collapsedTarget), const Size.square(36));
+      final collapsedTargetRect = tester.getRect(collapsedTarget);
+      expect(surfaceRect.intersect(collapsedTargetRect), collapsedTargetRect);
+      await tester.tap(collapsedTarget);
+      await tester.pump();
+      expect(selectedWidgetId, intrinsicId);
+      expect(
+        resolveAt(collapsedTargetRect.center)?.parentWidgetId,
+        isNot(intrinsicId),
+        reason: 'an occupied IntrinsicWidth child slot cannot accept another',
+      );
+      expect(intrinsicRender().size, Size.zero);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
     (tester) async {
       const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
@@ -8442,6 +8692,35 @@ Map<String, Object?> _modelWithCenteredIntrinsicHeight({
           'id': '15aa2055-201d-4f3e-bd50-24cc60fa50c0',
           'type': 'flutter.widgets.IntrinsicHeight',
           'properties': <String, Object?>{},
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredIntrinsicWidth({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': 'd3788591-8a73-4a82-b16c-e0b75a47ea22',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'bbce8cc2-8ff1-4337-83e2-46f70a579075',
+          'type': 'flutter.widgets.IntrinsicWidth',
+          'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},
           },

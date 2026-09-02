@@ -2735,12 +2735,167 @@ void main() {
   test('IntrinsicHeight reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.IntrinsicHeight\n');
-    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.IntrinsicWidth\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
       contract.substring(start, end),
       'W|flutter.widgets.IntrinsicHeight\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test('decodes exact nullable IntrinsicWidth steps and optional child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'bbce8cc2-8ff1-4337-83e2-46f70a579075',
+        'flutter.widgets.IntrinsicWidth',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final omitted = _decode(model()).root;
+    expect(omitted.type, 'flutter.widgets.IntrinsicWidth');
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+
+    final zero = _decode(
+      model(
+        properties: const {
+          'stepWidth': {'kind': 'double', 'value': 0.0},
+          'stepHeight': {'kind': 'double', 'value': 0.0},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    expect(zero.properties['stepWidth']!.kind, 'double');
+    expect(zero.properties['stepWidth']!.value, 0.0);
+    expect(zero.properties['stepHeight']!.kind, 'double');
+    expect(zero.properties['stepHeight']!.value, 0.0);
+    expect(zero.slot('child')!.child, isNull);
+
+    final text = _node(
+      '4eaf2797-e975-402c-8e3a-827e40ee9c83',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Measured child'},
+      },
+    );
+    final positive = _decode(
+      model(
+        properties: const {
+          'stepWidth': {'kind': 'double', 'value': 24.5},
+          'stepHeight': {'kind': 'double', 'value': 12.0},
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+    expect(positive.properties['stepWidth']!.value, 24.5);
+    expect(positive.properties['stepHeight']!.value, 12.0);
+    expect(positive.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test('rejects non-contract IntrinsicWidth values, slots, and flex child', () {
+    Map<String, Object?> intrinsicWidth({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      'bbce8cc2-8ff1-4337-83e2-46f70a579075',
+      'flutter.widgets.IntrinsicWidth',
+      properties: properties,
+      slots: slots,
+    );
+
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    for (final invalid in <Map<String, Object?>>[
+      const {
+        'stepWidth': {'kind': 'double', 'value': -1.0},
+      },
+      const {
+        'stepHeight': {'kind': 'double', 'value': -0.001},
+      },
+      const {
+        'stepWidth': {'kind': 'boolean', 'value': true},
+      },
+      const {
+        'stepHeight': {'kind': 'string', 'value': '12'},
+      },
+      const {
+        'stepWidth': {'kind': 'integer', 'value': 12},
+      },
+      const {
+        'unknown': {'kind': 'integer', 'value': 1},
+      },
+    ]) {
+      expect(
+        () => _decode(rootWith(intrinsicWidth(properties: invalid))),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+    expect(
+      () =>
+          _decode(rootWith(intrinsicWidth(slots: {'child': _list(const [])}))),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        rootWith(intrinsicWidth(slots: {'children': _list(const [])})),
+      ),
+      throwsFormatException,
+    );
+
+    final text = _node(
+      '4eaf2797-e975-402c-8e3a-827e40ee9c83',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Flex child'},
+      },
+    );
+    for (final flexType in const [
+      'flutter.widgets.Expanded',
+      'flutter.widgets.Flexible',
+      'flutter.widgets.Spacer',
+    ]) {
+      final flexChild = _node(
+        '05fca0c6-53be-4ef3-9b4a-2aad669bce7b',
+        flexType,
+        slots: flexType == 'flutter.widgets.Spacer'
+            ? const {}
+            : {'child': _single(text)},
+      );
+      expect(
+        () => _decode(
+          rootWith(intrinsicWidth(slots: {'child': _single(flexChild)})),
+        ),
+        throwsFormatException,
+        reason: '$flexType is legal only in Row.children or Column.children',
+      );
+    }
+  });
+
+  test('IntrinsicWidth reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.IntrinsicWidth\n');
+    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.IntrinsicWidth\n'
+      'P|stepHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'P|stepWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
       'S|child|single|0|0|1|any\n',
     );
   });

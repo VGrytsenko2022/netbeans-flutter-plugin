@@ -51,6 +51,7 @@ public final class BuiltInWidgetCatalog {
             spacer(),
             baseline(),
             intrinsicHeight(),
+            intrinsicWidth(),
             listView(),
             image(),
             elevatedButton(),
@@ -996,6 +997,21 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 160, "IntrinsicHeight"),
                 List.of(),
                 List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition intrinsicWidth() {
+        return widget(
+                "flutter.widgets.IntrinsicWidth",
+                "IntrinsicWidth",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 170, "IntrinsicWidth"),
+                List.of(
+                        namedProperty("stepWidth", 0, false, nonNegativeDoubles()),
+                        namedProperty("stepHeight", 1, false, nonNegativeDoubles())),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

@@ -87,6 +87,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE_TYPE =
             new WidgetTypeId("flutter.widgets.Flexible");
+    private static final WidgetTypeId SPACER_TYPE =
+            new WidgetTypeId("flutter.widgets.Spacer");
     private static final WidgetTypeId IMAGE_TYPE =
             new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName ALIGNMENT_PROPERTY =
@@ -769,6 +771,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean wrap = WRAP_TYPE.equals(widget.type());
         boolean expanded = EXPANDED_TYPE.equals(widget.type());
         boolean flexible = FLEXIBLE_TYPE.equals(widget.type());
+        boolean spacer = SPACER_TYPE.equals(widget.type());
         boolean image = IMAGE_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
@@ -818,6 +821,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Loose or tight remaining-space allocation and required child "
                                         + "contract for the selected direct Row or Column "
                                         + "Flexible widget."
+                        : spacer
+                                ? "Empty positive-flex remaining-space allocation for the "
+                                        + "selected direct Row or Column Spacer widget."
                         : image
                                 ? "Declared asset provider, layout, paint, nine-patch, callback, "
                                         + "and semantics settings for the selected Image widget."
@@ -1015,6 +1021,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "Loose, Flutter's default, lets the child be smaller than "
                                 + "the allocation; tight requires it to fill the allocation. "
                                 + "The value is ignored when flex is zero."));
+            } else if (spacer && FLEX_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Flex",
+                        "Positive integer share of the remaining Row or Column main-axis "
+                                + "space reserved as an empty gap. Flutter defaults to 1; "
+                                + "zero is invalid. Positive flex requires bounded width in "
+                                + "Row or bounded height in Column."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

@@ -3213,7 +3213,7 @@ void main() {
   );
 
   testWidgets(
-    'authoritatively admits flex wrappers only as existing Row child wraps',
+    'authoritatively admits flex wrappers and Spacer with distinct Row semantics',
     (tester) async {
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
@@ -3227,7 +3227,7 @@ void main() {
       input.add(
         encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
       );
-      _addRender(input, fixture.modelBytesForViewTest());
+      _addRender(input, _rowWithSpacerModelBytes());
       await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
       for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
         await tester.pump(const Duration(milliseconds: 10));
@@ -3241,6 +3241,9 @@ void main() {
       const flexibleToken =
           'nbfdnd:v1:257c964b-1a74-4fb3-8c50-15ad787ba48d:'
           '344cba19-ff83-4bee-a740-87958be27bbf';
+      const spacerToken =
+          'nbfdnd:v1:3178a0e1-79fb-4ae5-984b-52f62ac7b6cb:'
+          '4a4e2854-d2b7-418a-bf9b-aa9cc7490688';
       Map<String, Object?> request(String token, int generation, int probeId) =>
           {
             'token': token,
@@ -3282,6 +3285,24 @@ void main() {
           widgetType: canvasExpandedWidgetType,
         ),
         isFalse,
+        reason: 'Expanded cannot wrap Spacer',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 2,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(expandedToken, 0, 2),
+          widgetType: canvasExpandedWidgetType,
+        ),
+        isFalse,
         reason: 'Expanded wraps an existing child, never terminal-appends',
       );
 
@@ -3296,7 +3317,7 @@ void main() {
         await _sourceAwareHover(
           runtime,
           input,
-          request(expandedToken, 0, 2),
+          request(expandedToken, 0, 3),
           widgetType: canvasExpandedWidgetType,
         ),
         isFalse,
@@ -3335,7 +3356,78 @@ void main() {
           widgetType: canvasFlexibleWidgetType,
         ),
         isFalse,
+        reason: 'Flexible cannot wrap Spacer',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 2,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(flexibleToken, 1, 2),
+          widgetType: canvasFlexibleWidgetType,
+        ),
+        isFalse,
         reason: 'Flexible wraps an existing child, never terminal-appends',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 2,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(spacerToken, 2, 0),
+          widgetType: canvasSpacerWidgetType,
+        ),
+        isTrue,
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(spacerToken, 2, 1),
+          widgetType: canvasSpacerWidgetType,
+        ),
+        isFalse,
+        reason: 'Spacer inserts only at the reviewed terminal append index',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '6e88bff4-8d73-48aa-92b5-87aa3344f6a7',
+          slotName: 'body',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(spacerToken, 2, 2),
+          widgetType: canvasSpacerWidgetType,
+        ),
+        isFalse,
+        reason: 'Spacer is restricted to direct Row or Column children',
       );
 
       await input.close();
@@ -3376,6 +3468,25 @@ void main() {
       isFalse,
     );
   });
+}
+
+Uint8List _rowWithSpacerModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  final row = _findNodeByType(root, 'flutter.widgets.Row')!;
+  final children =
+      ((row['slots']! as Map<String, Object?>)['children']!
+              as Map<String, Object?>)['children']!
+          as List<Object?>;
+  children.add(<String, Object?>{
+    'id': '40ab557c-e837-420f-b66a-25ae9ebec96f',
+    'type': canvasSpacerWidgetType,
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{},
+  });
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
 }
 
 Uint8List _emptyCenterModelBytes() {

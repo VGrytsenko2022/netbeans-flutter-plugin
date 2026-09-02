@@ -14,6 +14,7 @@ import java.util.Optional;
 public final class WidgetPlacementRules {
     public static final String EXPANDED_TYPE = "flutter.widgets.Expanded";
     public static final String FLEXIBLE_TYPE = "flutter.widgets.Flexible";
+    public static final String SPACER_TYPE = "flutter.widgets.Spacer";
 
     private static final String COLUMN_TYPE = "flutter.widgets.Column";
     private static final String ROW_TYPE = "flutter.widgets.Row";
@@ -57,7 +58,7 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
-        if (!isFlexParentDataWidget(child)) {
+        if (!isFlexRestrictedWidget(child)) {
             return ACCEPTED;
         }
         String childType = child.typeId().value();
@@ -87,7 +88,7 @@ public final class WidgetPlacementRules {
                     "Catalog slot '" + destination + "' rejects widget type '"
                     + child.typeId().value() + "'.");
         }
-        if (isFlexParentDataWidget(child)
+        if (isFlexRestrictedWidget(child)
                 && !isFlexParentDataDestination(parent, slot)) {
             return rejected(
                     RejectionKind.DIRECT_PARENT_SLOT,
@@ -110,7 +111,7 @@ public final class WidgetPlacementRules {
     /** Returns the reviewed Palette creation behavior of one widget. */
     public static PaletteCreationMode creationMode(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        return isFlexParentDataWidget(definition)
+        return isFlexWrapper(definition)
                 ? PaletteCreationMode.WRAP_EXISTING_CHILD
                 : PaletteCreationMode.INSERT_PROTOTYPE;
     }
@@ -126,17 +127,30 @@ public final class WidgetPlacementRules {
      */
     public static List<String> capabilityFingerprintLines(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        if (!isFlexParentDataWidget(definition)) {
+        if (!isFlexRestrictedWidget(definition)) {
             return List.of();
         }
         String type = definition.typeId().value();
-        return List.of(
+        List<String> placementLines = List.of(
                 "R|" + type + "|directParentSlot|flutter.widgets.Column|children",
-                "R|" + type + "|directParentSlot|flutter.widgets.Row|children",
+                "R|" + type + "|directParentSlot|flutter.widgets.Row|children");
+        if (!isFlexWrapper(definition)) {
+            return placementLines;
+        }
+        return List.of(
+                placementLines.get(0),
+                placementLines.get(1),
                 "C|" + type + "|paletteCreate|wrapExistingChild|child");
     }
 
-    private static boolean isFlexParentDataWidget(WidgetDefinition definition) {
+    private static boolean isFlexRestrictedWidget(WidgetDefinition definition) {
+        String type = definition.typeId().value();
+        return EXPANDED_TYPE.equals(type)
+                || FLEXIBLE_TYPE.equals(type)
+                || SPACER_TYPE.equals(type);
+    }
+
+    private static boolean isFlexWrapper(WidgetDefinition definition) {
         String type = definition.typeId().value();
         return EXPANDED_TYPE.equals(type) || FLEXIBLE_TYPE.equals(type);
     }

@@ -256,7 +256,7 @@ class CanvasModel {
     final budget = _NodeBudget();
     final root = CanvasNode._decode(object['root'], budget, 0, r'$/root');
     _expect(
-      !_isFlexParentDataWidgetType(root.type),
+      !_isFlexRestrictedWidgetType(root.type),
       'Canvas ${root.type} must be a direct child of Row.children or '
       'Column.children: \$/root',
     );
@@ -4229,6 +4229,9 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Spacer': _WidgetSpec({
+    'flex': _PropertySpec({'integer'}, numericBounds: _positiveIntegerBounds),
+  }, const {}),
   'flutter.material.ElevatedButton': _WidgetSpec(
     _elevatedButtonProperties(),
     const {'child': _requiredEmptySingleSlot},
@@ -5176,6 +5179,10 @@ W|flutter.widgets.SizedBox
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.Spacer
+P|flex|integer|0|-|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
+R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Column|children
+R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Row|children
 W|flutter.widgets.Stack
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
@@ -5302,7 +5309,7 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
         '${slot.acceptance.fingerprint()}',
       );
     }
-    if (_isFlexParentDataWidgetType(widgetType)) {
+    if (_isFlexRestrictedWidgetType(widgetType)) {
       result
         ..writeln(
           'R|$widgetType|directParentSlot|'
@@ -5311,8 +5318,10 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
         ..writeln(
           'R|$widgetType|directParentSlot|'
           'flutter.widgets.Row|children',
-        )
-        ..writeln('C|$widgetType|paletteCreate|wrapExistingChild|child');
+        );
+      if (_isFlexParentDataWidgetType(widgetType)) {
+        result.writeln('C|$widgetType|paletteCreate|wrapExistingChild|child');
+      }
     }
   }
   return result.toString();
@@ -5323,7 +5332,7 @@ bool _placementAccepts(
   String slotName,
   String childWidgetType,
 ) {
-  if (!_isFlexParentDataWidgetType(childWidgetType)) {
+  if (!_isFlexRestrictedWidgetType(childWidgetType)) {
     return true;
   }
   return slotName == 'children' &&
@@ -5334,6 +5343,10 @@ bool _placementAccepts(
 bool _isFlexParentDataWidgetType(String widgetType) =>
     widgetType == 'flutter.widgets.Expanded' ||
     widgetType == 'flutter.widgets.Flexible';
+
+bool _isFlexRestrictedWidgetType(String widgetType) =>
+    _isFlexParentDataWidgetType(widgetType) ||
+    widgetType == 'flutter.widgets.Spacer';
 
 bool isCanvasReviewedWidgetType(String widgetType) =>
     _widgetSpecifications.containsKey(widgetType);

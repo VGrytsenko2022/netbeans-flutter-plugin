@@ -203,9 +203,15 @@ const canvasExpandedWidgetType = 'flutter.widgets.Expanded';
 
 const canvasFlexibleWidgetType = 'flutter.widgets.Flexible';
 
+const canvasSpacerWidgetType = 'flutter.widgets.Spacer';
+
 bool isCanvasFlexParentDataWidgetType(String widgetType) =>
     widgetType == canvasExpandedWidgetType ||
     widgetType == canvasFlexibleWidgetType;
+
+bool isCanvasFlexRestrictedWidgetType(String widgetType) =>
+    isCanvasFlexParentDataWidgetType(widgetType) ||
+    widgetType == canvasSpacerWidgetType;
 
 const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
@@ -343,6 +349,12 @@ bool canvasDropTargetAcceptsSource({
           currentChildCount: currentChildCount,
           insertionIndex: insertionIndex,
         );
+  }
+  if (source.widgetType == canvasSpacerWidgetType &&
+      (slotName != 'children' ||
+          (parentWidgetType != 'flutter.widgets.Row' &&
+              parentWidgetType != 'flutter.widgets.Column'))) {
+    return false;
   }
   final slot = canvasDropSlotForWidgetSlot(parentWidgetType, slotName);
   return slot != null &&

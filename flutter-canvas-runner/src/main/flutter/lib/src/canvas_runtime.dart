@@ -1447,7 +1447,7 @@ class CanvasRuntimeController extends ChangeNotifier
     if (isCanvasFlexParentDataWidgetType(authority.source.widgetType) &&
         (modelSlot == null ||
             modelSlot.kind != 'list' ||
-            isCanvasFlexParentDataWidgetType(
+            isCanvasFlexRestrictedWidgetType(
               modelSlot.children[target.insertionIndex].type,
             ))) {
       return null;

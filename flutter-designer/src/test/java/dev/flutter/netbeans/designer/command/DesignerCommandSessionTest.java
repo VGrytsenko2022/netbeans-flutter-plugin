@@ -1827,6 +1827,55 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void spacerInsertsDirectlyIntoFlexAndCannotMoveOrBeWrappedOutsideIt()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture(text(FIRST_ID, "first")));
+        WidgetDefinition spacerDefinition = CATALOG.find(
+                type("flutter.widgets.Spacer")).orElseThrow();
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1),
+                WidgetNodePrototypeFactory.create(spacerDefinition, WRAPPER_ID)));
+
+        assertEquals(List.of(FIRST_ID, WRAPPER_ID), rootChildren(added).stream()
+                .map(WidgetNode::id).toList());
+        assertTrue(find(added.current().document().root(), WRAPPER_ID)
+                .properties().isEmpty());
+        String dart = new String(
+                added.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const Spacer()"), dart);
+
+        DesignerCommandSession explicit = applied(added, new SetProperty(
+                WRAPPER_ID,
+                new PropertyName("flex"),
+                new PropertyValue.IntegerValue(BigInteger.valueOf(3))));
+        assertTrue(new String(explicit.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8).contains("flex: 3"));
+
+        WidgetNode stack = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Stack")).orElseThrow(), SECOND_ID);
+        DesignerCommandSession withStack = applied(explicit, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 2), stack));
+        DesignerCommandSessionResult wrongMove = withStack.apply(new MoveWidget(
+                WRAPPER_ID, new WidgetPlacement(SECOND_ID, CHILDREN, 0)));
+        assertEquals(DesignerCommandStatus.REJECTED, wrongMove.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                wrongMove.diagnostics().getFirst().code());
+
+        WidgetDefinition expandedDefinition = CATALOG.find(
+                type("flutter.widgets.Expanded")).orElseThrow();
+        DesignerCommandSessionResult wrongWrap = explicit.apply(new WrapWidget(
+                WRAPPER_ID,
+                WidgetNodePrototypeFactory.create(expandedDefinition, THIRD_ID),
+                CHILD,
+                0));
+        assertEquals(DesignerCommandStatus.REJECTED, wrongWrap.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                wrongWrap.diagnostics().getFirst().code());
+        assertTrue(wrongWrap.diagnostics().getFirst().message()
+                .contains("flutter.widgets.Expanded.child"));
+    }
+
+    @Test
     void removeFromCatalogRequiredSlotHasSpecificStableDiagnostic() {
         WidgetDefinition requiredParent = new WidgetDefinition(
                 type("test.RequiredParent"),

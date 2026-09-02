@@ -167,6 +167,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Stack", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Flexible", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Spacer", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -404,6 +405,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "fit", RENDERING_LIBRARY,
                             "FlexFit", "loose", "tight")),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.Spacer", projection(Map.of(
+                    "flex", numericSchema(
+                            POSITIVE_INTEGER_BOUNDS,
+                            PropertyValueKind.INTEGER)),
+                    Map.of())),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),

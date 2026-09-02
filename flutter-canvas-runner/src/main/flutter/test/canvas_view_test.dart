@@ -164,9 +164,56 @@ void main() {
     );
     expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
     expect(canvasDropSlotsForWidgetType(canvasFlexibleWidgetType), isEmpty);
+    expect(canvasDropSlotsForWidgetType(canvasSpacerWidgetType), isEmpty);
+
+    final spacerSource = CanvasPaletteDragSource(
+      token: 'spacer-source',
+      widgetType: canvasSpacerWidgetType,
+      traits: const {},
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Row',
+        slotName: 'children',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: spacerSource,
+      ),
+      isTrue,
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Column',
+        slotName: 'children',
+        currentChildCount: 1,
+        insertionIndex: 1,
+        source: spacerSource,
+      ),
+      isTrue,
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Row',
+        slotName: 'children',
+        currentChildCount: 1,
+        insertionIndex: 0,
+        source: spacerSource,
+      ),
+      isFalse,
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Stack',
+        slotName: 'children',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: spacerSource,
+      ),
+      isFalse,
+    );
   });
 
-  test('closes the 27-source by 27-destination compatibility matrix', () {
+  test('closes the 28-source by 27-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -186,6 +233,7 @@ void main() {
       'flutter.widgets.Container',
       'flutter.widgets.Expanded',
       'flutter.widgets.Flexible',
+      'flutter.widgets.Spacer',
       'flutter.widgets.FittedBox',
       'flutter.widgets.FractionallySizedBox',
       'flutter.widgets.Opacity',
@@ -204,7 +252,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(27));
+    expect(sourceTypes, hasLength(28));
     expect(destinations, hasLength(27));
 
     var accepted = 0;
@@ -231,9 +279,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 631);
-    expect(rejected, 98);
-    expect(accepted + rejected, 729);
+    expect(accepted, 633);
+    expect(rejected, 123);
+    expect(accepted + rejected, 756);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -4088,12 +4136,131 @@ void main() {
     },
   );
 
+  testWidgets(
+    'renders real Spacer directly in Row and Column with selectable overlays',
+    (tester) async {
+      const defaultId = '18f6cf8c-4bb7-4d00-a159-a2fa5abc92ea';
+      const weightedId = 'ee23441e-0993-4f6e-951e-fcc38ac2fe69';
+      const leadingId = '185940b7-436d-4671-9215-f62d29d6754a';
+      const trailingId = '8607bb96-03a2-4d85-a8f6-91192394cf6e';
+      String? selected;
+
+      Future<void> pump(
+        String parentType, {
+        bool stretchCrossAxis = false,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithFixedFlex(
+                  parentType: parentType,
+                  parentProperties: stretchCrossAxis
+                      ? const {
+                          'crossAxisAlignment': {
+                            'kind': 'enum',
+                            'type': 'CrossAxisAlignment',
+                            'value': 'stretch',
+                          },
+                        }
+                      : const {},
+                  children: [
+                    _viewSizedBoxNode(leadingId, width: 30, height: 20),
+                    _viewSpacerNode(defaultId),
+                    _viewSpacerNode(weightedId, flex: 2),
+                    _viewSizedBoxNode(trailingId, width: 30, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: selected,
+            onSelected: (id) => selected = id,
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+
+      void expectDirectSpacerRenderChildren(Finder parent) {
+        final renderFlex = tester.renderObject<RenderFlex>(parent);
+        for (var index = 0; index < 2; index++) {
+          final renderObject = tester.renderObject<RenderObject>(
+            find.byType(Spacer).at(index),
+          );
+          expect(renderObject.parent, same(renderFlex));
+          expect(renderObject.parentData, isA<FlexParentData>());
+        }
+      }
+
+      await pump('flutter.widgets.Row');
+      var spacers = tester.widgetList<Spacer>(find.byType(Spacer)).toList();
+      expect(spacers.map((widget) => widget.flex), [1, 2]);
+      expectDirectSpacerRenderChildren(find.byType(Row));
+      expect(
+        tester.getSize(find.byKey(const ValueKey('canvas-widget-$defaultId'))),
+        const Size(80, 0),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('canvas-widget-$weightedId'))),
+        const Size(160, 0),
+      );
+      final defaultTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$defaultId'),
+      );
+      expect(defaultTarget, findsOneWidget);
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$weightedId'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(defaultTarget);
+      expect(selected, defaultId);
+
+      await pump('flutter.widgets.Column');
+      spacers = tester.widgetList<Spacer>(find.byType(Spacer)).toList();
+      expect(spacers.map((widget) => widget.flex), [1, 2]);
+      expectDirectSpacerRenderChildren(find.byType(Column));
+      final defaultColumn = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$defaultId')),
+      );
+      final weightedColumn = tester.getSize(
+        find.byKey(const ValueKey('canvas-widget-$weightedId')),
+      );
+      expect(defaultColumn.width, 0);
+      expect(defaultColumn.height, closeTo(80 / 3, 0.01));
+      expect(weightedColumn.width, 0);
+      expect(weightedColumn.height, closeTo(160 / 3, 0.01));
+
+      await pump('flutter.widgets.Row', stretchCrossAxis: true);
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$defaultId')))
+            .height,
+        120,
+      );
+      expect(
+        find.byKey(const ValueKey('canvas-zero-size-widget-target-$defaultId')),
+        findsOneWidget,
+        reason: 'stretched Spacer still needs external safe instrumentation',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('offers flex wrapper zones on existing Row children only', (
     tester,
   ) async {
     const rowId = 'be4b446d-12b9-42c3-a427-03fb2fd472bd';
     const firstId = '2c65ab83-02e9-4100-b116-2485762440d9';
     const secondId = '294cdd5d-c142-4b93-9856-1b8497cc6bc7';
+    const spacerId = '40ab557c-e837-420f-b66a-25ae9ebec96f';
     CanvasDropResolver? resolver;
     final model = CanvasModel.decode(
       Uint8List.fromList(
@@ -4105,6 +4272,7 @@ void main() {
               children: [
                 _viewSizedBoxNode(firstId, width: 80, height: 30),
                 _viewSizedBoxNode(secondId, width: 60, height: 30),
+                _viewSpacerNode(spacerId),
               ],
             ),
           ),
@@ -4156,6 +4324,12 @@ void main() {
       expect(second?.slotName, 'children');
       expect(second?.insertionIndex, 1);
       expect(second?.zone?.isEmpty, isFalse);
+
+      expect(
+        resolveAt(spacerId, source),
+        isNull,
+        reason: '$widgetType cannot wrap Spacer',
+      );
     }
 
     final normalSource = CanvasPaletteDragSource(
@@ -4187,7 +4361,7 @@ void main() {
       normalSource,
     );
     expect(normal?.parentWidgetId, rowId);
-    expect(normal?.insertionIndex, 2);
+    expect(normal?.insertionIndex, 3);
   });
 
   testWidgets(
@@ -6970,6 +7144,18 @@ void main() {
         lessThan(250000),
         reason: 'the RTL Row exposes only its concise terminal append band',
       );
+      final spacerTarget = resolver!(
+        xMicros,
+        yMicros,
+        CanvasPaletteDragSource(
+          token: 'spacer-source',
+          widgetType: canvasSpacerWidgetType,
+          traits: const {},
+        ),
+      );
+      expect(spacerTarget?.parentWidgetId, rowId);
+      expect(spacerTarget?.slotName, 'children');
+      expect(spacerTarget?.insertionIndex, 1);
       expect(resolver!(-1, yMicros), isNull);
       expect(resolver!(xMicros, 1000001), isNull);
 
@@ -8327,9 +8513,20 @@ Map<String, Object?> _viewFlexibleNode(
   },
 };
 
+Map<String, Object?> _viewSpacerNode(String id, {int? flex}) =>
+    <String, Object?>{
+      'id': id,
+      'type': 'flutter.widgets.Spacer',
+      'properties': <String, Object?>{
+        if (flex != null) 'flex': {'kind': 'integer', 'value': flex},
+      },
+      'slots': <String, Object?>{},
+    };
+
 Map<String, Object?> _modelWithFixedFlex({
   required String parentType,
   String parentId = 'be4b446d-12b9-42c3-a427-03fb2fd472bd',
+  Map<String, Object?> parentProperties = const {},
   required List<Map<String, Object?>> children,
 }) {
   final model = _modelJsonForView();
@@ -8339,7 +8536,7 @@ Map<String, Object?> _modelWithFixedFlex({
   final flex = <String, Object?>{
     'id': parentId,
     'type': parentType,
-    'properties': <String, Object?>{},
+    'properties': parentProperties,
     'slots': <String, Object?>{
       'children': <String, Object?>{'kind': 'list', 'children': children},
     },

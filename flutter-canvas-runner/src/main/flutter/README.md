@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,12 +229,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-27 reviewed Canvas widgets. Palette insertion evaluates 729 exact
-source/destination cells across 27 draggable sources and 27 insertable reviewed
-slots; 631 are accepted and 98 cells are rejected. Expanded and Flexible are
+28 reviewed Canvas widgets. Palette insertion evaluates 756 exact
+source/destination cells across 28 draggable sources and 27 insertable reviewed
+slots; 633 are accepted and 123 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
-slots that are excluded from the insertion matrix. The negotiated
+slots that are excluded from the insertion matrix. They also cannot wrap
+Spacer; Spacer is inserted only into direct Row/Column children and never wraps
+another widget. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
@@ -385,11 +387,32 @@ ParentDataWidget path remains valid. Palette, tree and Canvas creation wrap an
 existing direct Row/Column child atomically; Flexible and Expanded cannot wrap
 either wrapper type. The occupied required child is replacement-only, cannot be
 cleared and is not an insertable destination. Positive loose flex may use less
-than its allocation, while positive tight flex fills it. The aggregate catalog
-now has 27 widgets, 22 reviewed const constructors and 661 writable properties,
-including 644 outside Scaffold. Twenty-seven sources across the unchanged 25
-insertable any-widget and two trait destinations form 729 candidates: 631
-accepted and 98 rejected. The practical Material/Base Designer backlog is
-27/92 complete with 65 remaining, the Palette Layout category contains 19
+than its allocation, while positive tight flex fills it. At that milestone the
+aggregate catalog had 27 widgets, 22 reviewed const constructors and 661
+writable properties, including 644 outside Scaffold. Twenty-seven sources
+across the unchanged 25 insertable any-widget and two trait destinations formed
+729 candidates: 631 accepted and 98 rejected. The practical Material/Base
+Designer backlog was 27/92 complete with 65 remaining, and the Palette Layout
+category contained 19 items. `.fd` schema v7, Catalog API
+6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.Spacer`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html)
+is the eighth post-core Canvas widget, at Palette Layout order 140 immediately
+after Flexible. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes one optional
+positive portable integer `flex`; omission preserves `flex: 1`, while zero,
+negative and over-limit values are rejected. Spacer has no child or other slot.
+Palette, tree and Canvas creation insert it only into direct `Row.children` or
+`Column.children`; it never wraps an existing child. Expanded and Flexible
+cannot wrap Spacer because Spacer internally creates the Expanded parent-data
+path that must remain directly below Row or Column. Native and exact-Web
+renderers construct the real Flutter Spacer directly under the Flex. Because an
+outer render-object wrapper would invalidate that path, Designer selection, hit
+testing and outlines use only the surface overlay. The aggregate catalog now
+has 28 widgets, 23 reviewed const constructors and 662 writable properties,
+including 645 outside Scaffold. Twenty-eight sources across the unchanged 25
+insertable any-widget and two trait destinations form 756 candidates: 633
+accepted and 123 rejected. The practical Material/Base Designer backlog is
+28/92 complete with 64 remaining, the Palette Layout category contains 20
 items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
 6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.

@@ -65,6 +65,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
+    private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -326,6 +327,46 @@ class FlutterDesignerWidgetMovePlannerTest {
                         childFailure.code()),
                 () -> assertTrue(childFailure.reason().contains(
                         "flutter.widgets.Flexible.child")));
+    }
+
+    @Test
+    void spacerMovesOnlyBetweenDirectRowAndColumnChildren() {
+        WidgetNode source = node(A_ID, SPACER);
+        WidgetNode row = listParent(B_ID, ROW, CHILDREN, List.of());
+        WidgetNode stack = listParent(C_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, row, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result rowMove = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(row.id()));
+        MoveWidget rowCommand = accepted(rowMove).command();
+        assertEquals(
+                new WidgetPlacement(row.id(), CHILDREN, 0),
+                rowCommand.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, rowMove);
+
+        FlutterDesignerWidgetMovePlanner.Rejected stackFailure = assertInstanceOf(
+                FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        source.id(),
+                        new FlutterDesignerWidgetMovePlanner.On(stack.id())));
+        assertAll(
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .NO_COMPATIBLE_DESTINATION,
+                        stackFailure.code()),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "Spacer '" + source.id() + "'")),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "direct child of Row.children or Column.children")));
     }
 
     @Test

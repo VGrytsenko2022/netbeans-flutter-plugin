@@ -40,8 +40,10 @@ public final class FlutterDesignerPaletteDropPlanner {
             new WidgetTypeId(WidgetPlacementRules.EXPANDED_TYPE);
     private static final WidgetTypeId FLEXIBLE_TYPE =
             new WidgetTypeId(WidgetPlacementRules.FLEXIBLE_TYPE);
+    private static final WidgetTypeId SPACER_TYPE =
+            new WidgetTypeId(WidgetPlacementRules.SPACER_TYPE);
     private static final Set<WidgetTypeId> FLEX_PARENT_DATA_TYPES =
-            Set.of(EXPANDED_TYPE, FLEXIBLE_TYPE);
+            Set.of(EXPANDED_TYPE, FLEXIBLE_TYPE, SPACER_TYPE);
     private static final SlotName CHILD_SLOT = new SlotName("child");
 
     /** Plans one Palette drop without changing the document. */
@@ -296,8 +298,7 @@ public final class FlutterDesignerPaletteDropPlanner {
 
         WidgetNode target = list.children().get(childIndex);
         if (FLEX_PARENT_DATA_TYPES.contains(target.type())) {
-            String targetName = target.type().equals(EXPANDED_TYPE)
-                    ? "Expanded" : "Flexible";
+            String targetName = flexParentDataDisplayName(target.type());
             return rejected(
                     RejectionCode.WRAP_TARGET_REJECTED,
                     "Cannot wrap " + targetName + " '" + target.id()
@@ -339,6 +340,20 @@ public final class FlutterDesignerPaletteDropPlanner {
         }
         return new Wrapped(new WrapWidget(
                 target.id(), wrapper, CHILD_SLOT, 0));
+    }
+
+    private static String flexParentDataDisplayName(WidgetTypeId type) {
+        if (type.equals(EXPANDED_TYPE)) {
+            return "Expanded";
+        }
+        if (type.equals(FLEXIBLE_TYPE)) {
+            return "Flexible";
+        }
+        if (type.equals(SPACER_TYPE)) {
+            return "Spacer";
+        }
+        throw new IllegalArgumentException(
+                "Not a reviewed Flex parent-data widget: " + type.value());
     }
 
     private static String placementRejection(

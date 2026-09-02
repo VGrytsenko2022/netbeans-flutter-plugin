@@ -45,6 +45,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
             "flutter.widgets.Flexible",
+            "flutter.widgets.Spacer",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -74,6 +75,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
             "flutter.widgets.Flexible",
+            "flutter.widgets.Spacer",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -88,7 +90,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasTwentySevenSourcesAndTwentySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasTwentyEightSourcesAndTwentySevenInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -111,7 +113,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(27, sources.size());
+        assertEquals(28, sources.size());
         assertEquals(27, destinations.size());
         assertEquals(25, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -121,9 +123,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(729, candidates);
-        assertEquals(631, accepted);
-        assertEquals(98, candidates - accepted);
+        assertEquals(756, candidates);
+        assertEquals(633, accepted);
+        assertEquals(123, candidates - accepted);
     }
 
     @Test
@@ -739,6 +741,31 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void spacerHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Spacer");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("flex")), projection.properties().keySet());
+        assertTrue(projection.slots().isEmpty());
+
+        var flex = projection.propertyContracts().get(new PropertyName("flex"));
+        assertFalse(flex.required());
+        assertEquals(Set.of(PropertyValueKind.INTEGER), flex.acceptedKinds());
+        assertTrue(flex.creationDefaultFingerprint().isEmpty());
+        assertEquals("1:1:9007199254740991:1", flex.numericBounds()
+                .get(PropertyValueKind.INTEGER).fingerprint());
+        assertEquals("range:1:1:9007199254740991:1",
+                flex.constraintFingerprints().get(PropertyValueKind.INTEGER));
+    }
+
+    @Test
     void textFieldHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.material.TextField");
         assertEquals(Set.of(
@@ -1248,6 +1275,18 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "flutter.widgets.Row|children\n"
                 + "C|flutter.widgets.Flexible|paletteCreate|"
                 + "wrapExistingChild|child\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Spacer\n"
+                + "P|flex|integer|0|-|integer:1:1:9007199254740991:1|"
+                + "integer:range:1:1:9007199254740991:1\n"
+                + "R|flutter.widgets.Spacer|directParentSlot|"
+                + "flutter.widgets.Column|children\n"
+                + "R|flutter.widgets.Spacer|directParentSlot|"
+                + "flutter.widgets.Row|children\n"));
+        int spacerStart = contract.indexOf("W|flutter.widgets.Spacer\n");
+        int spacerEnd = contract.indexOf("W|", spacerStart + 2);
+        String spacerContract = contract.substring(spacerStart, spacerEnd);
+        assertFalse(spacerContract.contains("\nC|"), spacerContract);
     }
 
     @Test

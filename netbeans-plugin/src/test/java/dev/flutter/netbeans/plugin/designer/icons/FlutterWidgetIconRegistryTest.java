@@ -445,6 +445,41 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void spacerFamilyUsesExactReviewedExpandableGapGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "spacer.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=11, rx=1.5, stroke-width=1, width=13, x=1.5, y=2.5]",
+                "rect[height=6, rx=.75, stroke-width=1, width=2.5, x=3, y=5]",
+                "rect[height=6, rx=.75, stroke-width=1, width=2.5, x=10.5, y=5]",
+                "path[d=M6 8h4M7.25 6.75 6 8l1.25 1.25M8.75 6.75 10 8l-1.25 1.25, stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=22, rx=3, stroke-width=2, width=26, x=3, y=5]",
+                "rect[height=12, rx=1.5, stroke-width=2, width=5, x=6, y=10]",
+                "rect[height=12, rx=1.5, stroke-width=2, width=5, x=21, y=10]",
+                "path[d=M12 16h8M14.5 13.5 12 16l2.5 2.5M17.5 13.5 20 16l-2.5 2.5, stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#1565C0]",
+                "rect[fill=#D7F1FC, stroke=#1565C0]",
+                "path[fill=none, stroke=#42A5F5]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#2E596B, stroke=#90CAF9]",
+                "rect[fill=#2E596B, stroke=#90CAF9]",
+                "path[fill=none, stroke=#64B5F6]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void listViewFamilyUsesExactReviewedScrollableListGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "listview.svg";
@@ -879,6 +914,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Stack", ICON_ROOT + "stack.svg");
         expected.put("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg");
         expected.put("flutter.widgets.Flexible", ICON_ROOT + "flexible.svg");
+        expected.put("flutter.widgets.Spacer", ICON_ROOT + "spacer.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);

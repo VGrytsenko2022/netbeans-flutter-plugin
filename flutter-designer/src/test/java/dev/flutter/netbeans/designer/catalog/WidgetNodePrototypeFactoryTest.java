@@ -272,6 +272,21 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsSpacerAsAnEmptyInsertableLeafWithoutMaterializingFlexDefault() {
+        WidgetDefinition definition = definition("flutter.widgets.Spacer");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Spacer"), prototype.type());
+        assertTrue(prototype.properties().isEmpty(),
+                "Flutter's flex default is intentionally not materialized");
+        assertTrue(prototype.slots().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

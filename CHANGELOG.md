@@ -7,6 +7,27 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.Spacer`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html)
+  vertical slice is the eighth post-core Palette addition, at Layout order 140
+  immediately after Flexible. Its pinned Flutter 3.44.8 contract exposes one
+  optional positive portable integer `flex`; omission preserves `flex: 1`,
+  while zero, negative and over-limit values are rejected. Spacer is a childless leaf that
+  is inserted only into direct `Row.children` or `Column.children` slots.
+  Expanded and Flexible cannot wrap Spacer because Spacer internally creates
+  the parent-data path that must remain directly below the Flex. Generated Dart
+  emits the real Flutter Spacer; native and exact-Web Canvas keep that real
+  widget direct while exposing selection and outline geometry through the
+  surface overlay. Properties, Palette/tree/Canvas insertion, same-tree
+  movement, deterministic generation, Save/reopen, Undo/Redo and reviewed
+  light/dark SVG icons share one closed contract. The catalog now contains 28
+  widgets, 23 reviewed const constructors and 662 writable rows, including 645
+  across the 27 non-`Scaffold` definitions. Twenty-eight sources across the
+  unchanged 25 insertable any-widget and two trait-bound destinations form 756
+  DnD candidates: 633 accepted and 123 rejected. Layout contains 20 items, and
+  the practical 92-widget backlog is 28/92 complete with 64 remaining. `.fd`
+  schema v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1
+  remain unchanged.
+- The accepted const
   [`flutter.widgets.Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html)
   vertical slice is the seventh post-core Palette addition, at Layout order 130
   immediately after Expanded. Its pinned Flutter 3.44.8 contract exposes
@@ -21,12 +42,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   positive-flex allocation. Properties, required-child replacement, creation,
   Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
   Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
-  contract. The catalog now contains 27 widgets, 22 reviewed const constructors
+  contract. At that milestone the catalog contained 27 widgets, 22 reviewed const constructors
   and 661 writable rows, including 644 across the 26 non-`Scaffold`
   definitions. Twenty-seven sources across the unchanged 25 insertable
-  any-widget and two trait-bound destinations form 729 DnD candidates: 631
-  accepted and 98 rejected. Layout contains 19 items, and the practical
-  92-widget backlog is 27/92 complete with 65 remaining. `.fd` schema v7,
+  any-widget and two trait-bound destinations formed 729 DnD candidates: 631
+  accepted and 98 rejected. Layout contained 19 items, and the practical
+  92-widget backlog was 27/92 complete with 65 remaining. `.fd` schema v7,
   Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
   unchanged.
 - The accepted const

@@ -255,6 +255,12 @@ public final class FlutterDesignerPalette {
                         + "with " + wrapperName + ". Drop " + wrapperName
                         + " on that child; terminal insertion and empty placeholders are "
                         + "unavailable because " + wrapperName + ".child is required.");
+            } else if (WidgetPlacementRules.SPACER_TYPE.equals(
+                    definition.typeId().value())) {
+                setShortDescription(
+                        "Insert an empty flexible gap directly into Row.children or "
+                        + "Column.children. Spacer has no child; omitted flex preserves "
+                        + "Flutter's positive default of 1.");
             } else if (FlutterImageWidgetCreationValues.IMAGE_TYPE.equals(
                     definition.typeId())) {
                 setShortDescription(

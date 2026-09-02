@@ -97,6 +97,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -389,6 +390,32 @@ class CanvasModelPayloadCodecTest {
                 + "\"type\":\"FlexFit\",\"value\":\"tight\"}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"4ac0119f-f11b-4012-a08e-0aa2fe260dca\""), json);
+    }
+
+    @Test
+    void projectsSpacerWithoutChangingProtocolV12() throws Exception {
+        WidgetNode spacer = new WidgetNode(
+                id("39d10c48-9652-45d3-965a-a61002dd4a0c"),
+                type("flutter.widgets.Spacer"),
+                Map.of(new PropertyName("flex"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(3))),
+                Map.of());
+        WidgetNode row = new WidgetNode(
+                id("d05cbeae-b3ca-4c59-844c-f5f4f318ef53"),
+                type("flutter.widgets.Row"),
+                Map.of(),
+                Map.of(new SlotName("children"),
+                        new WidgetSlot.ListSlot(List.of(spacer))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), row))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.Spacer\""), json);
+        assertTrue(json.contains(
+                "\"flex\":{\"kind\":\"integer\",\"value\":3}"), json);
     }
 
     @Test

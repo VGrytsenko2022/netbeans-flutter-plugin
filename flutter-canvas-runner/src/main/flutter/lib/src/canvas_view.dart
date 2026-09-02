@@ -472,7 +472,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final coincidentTargets = <Rect, List<CanvasNode>>{};
       for (final node in _zeroSizedDesignerTargets(widget.model.root)) {
         final box = _renderBox(_nodeKeys[node.id]);
-        if (box == null || !box.size.isEmpty) {
+        // Spacer owns no child where instrumentation can safely live. An
+        // external target is therefore required even when stretch gives its
+        // internal SizedBox a non-zero cross-axis extent.
+        final alwaysUsesSurfaceOverlay = node.type == canvasSpacerWidgetType;
+        if (box == null || (!alwaysUsesSurfaceOverlay && !box.size.isEmpty)) {
           continue;
         }
         final rendered = _globalRect(box).shift(-surfaceRect.topLeft);
@@ -524,6 +528,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.FittedBox' ||
         node.type == 'flutter.widgets.Expanded' ||
         node.type == 'flutter.widgets.Flexible' ||
+        node.type == canvasSpacerWidgetType ||
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Wrap' ||
         node.type == 'flutter.widgets.ListView' ||
@@ -1050,7 +1055,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       if (modelSlot?.kind == 'list') {
         for (var index = 0; index < modelSlot!.children.length; index++) {
           final child = modelSlot.children[index];
-          if (isCanvasFlexParentDataWidgetType(child.type)) {
+          if (isCanvasFlexRestrictedWidgetType(child.type)) {
             continue;
           }
           final box = _renderBox(_nodeKeys[child.id]);
@@ -1852,6 +1857,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
+      'flutter.widgets.Spacer' => Spacer(flex: _integer('flex') ?? 1),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
@@ -1872,6 +1878,15 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         editing ? _inlineTextEditor(context) : _text(context),
       _ => const SizedBox.shrink(),
     };
+    if (node.type == canvasSpacerWidgetType) {
+      // Every wrapper here is a component widget. A RenderObjectWidget between
+      // Spacer's internal Expanded and the enclosing Flex would invalidate its
+      // ParentData path; selection and outlines live in the surface overlay.
+      return KeyedSubtree(
+        key: ValueKey('canvas-widget-${node.id}'),
+        child: KeyedSubtree(key: nodeKey(node.id), child: child),
+      );
+    }
     final selected = selectedWidgetId == node.id;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final resolvedPadding = paddingGeometry?.resolve(

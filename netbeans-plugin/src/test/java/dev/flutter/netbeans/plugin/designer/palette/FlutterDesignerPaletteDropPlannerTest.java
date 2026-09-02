@@ -71,6 +71,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
+    private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
     private static final WidgetTypeId LIST_VIEW = type("flutter.widgets.ListView");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
@@ -665,7 +666,120 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void expandedAndFlexibleCannotWrapEachOtherOrThemselves() {
+    void spacerCompletesExact756CellModelAsATerminalDirectFlexChild() {
+        List<MatrixTargetCase> targets = List.of(
+                target("Scaffold.body", SCAFFOLD, BODY),
+                target("Scaffold.floatingActionButton", SCAFFOLD,
+                        FLOATING_ACTION_BUTTON),
+                target("Column.children", COLUMN, CHILDREN),
+                target("Row.children", ROW, CHILDREN),
+                target("Wrap.children", WRAP, CHILDREN),
+                target("Padding.child", PADDING, CHILD),
+                target("Center.child", CENTER, CHILD),
+                target("SizedBox.child", SIZED_BOX, CHILD),
+                target("AspectRatio.child", ASPECT_RATIO, CHILD),
+                target("Container.child", CONTAINER, CHILD),
+                target("Opacity.child", OPACITY, CHILD),
+                target("Align.child", ALIGN, CHILD),
+                target("FractionallySizedBox.child", FRACTIONALLY_SIZED_BOX, CHILD),
+                target("FittedBox.child", FITTED_BOX, CHILD),
+                target("ConstrainedBox.child", CONSTRAINED_BOX, CHILD),
+                target("UnconstrainedBox.child", UNCONSTRAINED_BOX, CHILD),
+                target("LimitedBox.child", LIMITED_BOX, CHILD),
+                target("OverflowBox.child", OVERFLOW_BOX, CHILD),
+                target("Stack.children", STACK, CHILDREN),
+                target("ListView.children", LIST_VIEW, CHILDREN),
+                target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
+                target("AppBar.leading", APP_BAR, LEADING),
+                target("AppBar.title", APP_BAR, TITLE),
+                target("AppBar.actions", APP_BAR, ACTIONS),
+                target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE),
+                target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
+                target("AppBar.bottom", APP_BAR, BOTTOM));
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, SPACER, ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Column.children")
+                    || target.name().equals("Row.children")) {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        target.name());
+                AddWidget command = success.command();
+                assertEquals(ROOT_ID, command.destination().parentId());
+                assertEquals(CHILDREN, command.destination().slotName());
+                assertEquals(0, command.destination().index());
+                assertEquals(SPACER, command.widget().type());
+                assertTrue(command.widget().properties().isEmpty(),
+                        "omitted flex preserves Flutter's positive default of 1");
+                assertTrue(command.widget().slots().isEmpty(),
+                        "Spacer is terminal and has no child slot");
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertTrue(failure.reason().contains("flutter.widgets.Spacer"));
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(27, targets.size()),
+                () -> assertEquals(2, accepted.get()),
+                () -> assertEquals(25, rejected.get()),
+                () -> assertEquals(756, 28 * targets.size()),
+                () -> assertEquals(633, 631 + accepted.get()),
+                () -> assertEquals(123, 98 + rejected.get()));
+    }
+
+    @Test
+    void spacerAppendsToPopulatedFlexChildrenAndNeverWrapsTheExistingChild() {
+        DesignerDocument document = document(parent(
+                ROW, List.of(text(FIRST_ID, "existing"))));
+        FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        SPACER,
+                        ROOT_ID,
+                        CHILDREN,
+                        1,
+                        () -> NEW_ID));
+
+        assertEquals(1, accepted.command().destination().index());
+        assertEquals(SPACER, accepted.command().widget().type());
+        assertTrue(accepted.command().widget().slots().isEmpty());
+        assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        SPACER,
+                        ROOT_ID,
+                        CHILDREN,
+                        0,
+                        () -> NEW_ID));
+    }
+
+    @Test
+    void expandedAndFlexibleCannotWrapAnyFlexParentDataWidget() {
         record NestedCase(String name, WidgetTypeId outer, WidgetNode inner) {
         }
         WidgetNode innerChild = text(
@@ -678,7 +792,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new NestedCase("Expanded over Flexible", EXPANDED,
                         flexible(FIRST_ID, innerChild)),
                 new NestedCase("Flexible over Flexible", FLEXIBLE,
-                        flexible(FIRST_ID, innerChild)));
+                        flexible(FIRST_ID, innerChild)),
+                new NestedCase("Expanded over Spacer", EXPANDED,
+                        WidgetNodePrototypeFactory.create(definition(SPACER), FIRST_ID)),
+                new NestedCase("Flexible over Spacer", FLEXIBLE,
+                        WidgetNodePrototypeFactory.create(definition(SPACER), FIRST_ID)));
 
         assertAll(cases.stream().map(testCase -> (Executable) () -> {
             AtomicInteger allocations = new AtomicInteger();

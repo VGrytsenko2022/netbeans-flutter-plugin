@@ -2,7 +2,9 @@
 
 ## 1. Install prerequisites
 
-Install JDK 21+, Apache NetBeans 30, Maven 3.9+ and a current Flutter SDK.
+Install JDK 21+, Apache NetBeans IDE 31, Maven 3.9+ and a current Flutter SDK.
+The current development runtime is NetBeans IDE 31; the plugin intentionally
+continues to compile against the `RELEASE300` API baseline.
 
 Verify:
 
@@ -50,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly twenty-seven
+The current capability-gated Palette and native Canvas admit exactly twenty-eight
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
-`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `ListView`, `Text`,
-`Icon` and `Image`. Twenty-two
+`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `ListView`, `Text`,
+`Icon` and `Image`. Twenty-three
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 661 typed writable rows: 644 across the twenty-six
+exactly 662 typed writable rows: 645 across the twenty-seven
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -102,7 +104,9 @@ exposes alignment, text direction, fit, clip behavior and an ordered list of
 non-positioned children. `Expanded` and `Flexible` are required-child wrappers;
 drop either on an existing direct Row/Column child to wrap that child atomically.
 They are unavailable as terminal Add operations, cannot wrap either wrapper
-type, and their child editors support replacement but not add, remove or clear.
+type or Spacer, and their child editors support replacement but not add, remove
+or clear. `Spacer` is a childless insertion-only leaf available only in direct
+`Row.children` or `Column.children`; it never wraps another widget.
 `Flexible` additionally exposes optional non-negative `flex` and optional
 `FlexFit.loose`/`tight`; omission preserves `flex: 1` and loose fit.
 
@@ -213,9 +217,23 @@ would no longer be a direct Flex child. The occupied child is replacement-only,
 cannot be cleared and is not an insertable DnD destination. Generated Dart and
 Canvas build the real Flutter Flexible; zero flex is inflexible, positive loose
 flex may remain smaller than its allocation, and positive tight flex fills it.
-The practical Material/Base backlog is now 27/92 complete with 65 remaining.
-It is a planning backlog rather than a normative full Flutter widget list; no
-later widget currently has an explicit order. Layout contains 19 items.
+At that milestone the practical Material/Base backlog was 27/92 complete with
+65 remaining, and Layout contained 19 items.
+
+[`Spacer`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html) is the
+eighth post-core Palette slice, at Layout order 140 immediately after Flexible.
+Its optional `flex` accepts positive portable integers; leaving it unset
+preserves Flutter's default of `1`, while zero, negative and over-limit values
+are rejected. Spacer has no slots. Create it only by inserting it directly into
+`Row.children` or `Column.children`; Palette, tree and Canvas use ordinary
+insertion rather than wrapping an existing child. Expanded and Flexible cannot
+wrap Spacer because Spacer's internal Expanded parent-data path must remain
+directly below Row or Column. Generated Dart and Canvas build the real Flutter
+Spacer directly under the Flex, while Canvas selection and outlines come from
+the surface overlay. The practical Material/Base backlog is now 28/92 complete
+with 64 remaining. It is a planning backlog rather than a normative full
+Flutter widget list; no later widget currently has an explicit order. Layout
+contains 20 items.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -267,11 +285,12 @@ The current surface uses `.fd` schema v7, contributor Catalog API 6 and Canvas
 model protocol 12. Schema v1-v6 files migrate in memory and are written as v7
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
-migrate losslessly. Twenty-seven sources across twenty-five insertable
-any-widget and two trait-bound slots produce 729 compatibility candidates: 631
-accepted and 98 rejected. Expanded and Flexible enter only direct
-`Row.children` and `Column.children` wrapper targets; their required child slots
-are replacement-only and excluded from the destination matrix. NBFC framing
+migrate losslessly. Twenty-eight sources across twenty-five insertable
+any-widget and two trait-bound slots produce 756 compatibility candidates: 633
+accepted and 123 rejected. Expanded and Flexible enter only direct
+`Row.children` and `Column.children` wrapper targets, while Spacer inserts only
+into those same two list slots; the wrappers' required child slots are
+replacement-only and excluded from the destination matrix. NBFC framing
 and Canvas control/wire remain v1.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
@@ -301,8 +320,10 @@ OK submits at most once, while Cancel submits nothing.
 
 Expanded and Flexible are the exceptions to ordinary Palette prototype
 insertion: each wraps one existing direct Row/Column child and exposes a
-required replacement-only `child` slot. Neither wrapper can wrap Expanded or
-Flexible, and neither required child slot is an insertable DnD destination.
+required replacement-only `child` slot. Neither wrapper can wrap Expanded,
+Flexible or Spacer, and neither required child slot is an insertable DnD
+destination. Spacer is an ordinary childless prototype only for direct
+Row/Column list insertion; other destinations fail closed.
 Image Add and Replace New Widget additionally require a current declared asset
 inventory before allocating a stable ID. TextField is an ordinary immediate leaf
 insertion and never captures runtime editable state.
@@ -384,7 +405,8 @@ In `pubspec.yaml`, press Ctrl+Space for pub/Flutter keys, SDK dependencies, and 
 
 ## 7. Run the plugin during development
 
-After a successful build, assemble the plugin cluster and start a separate NetBeans 30 instance:
+After a successful build, assemble the plugin cluster and start a separate
+NetBeans IDE 31 instance from the installed `G:/netbeans` runtime:
 
 ```powershell
 mvn nbm:cluster

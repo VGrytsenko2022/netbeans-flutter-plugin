@@ -769,6 +769,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Stack",
                     "flutter.widgets.Expanded",
                     "flutter.widgets.Flexible",
+                    "flutter.widgets.Spacer",
                     "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
@@ -834,6 +835,39 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 false,
                 "disabled-token",
                 flexible,
+                (ignoredToken, ignoredType) -> {
+                    throw new AssertionError(
+                            "disabled MultiView authority must not reach Canvas");
+                }));
+    }
+
+    @Test
+    void spacerPaletteSourceUsesExactMultiViewCanvasAuthorizationType() {
+        WidgetDefinition spacer = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.Spacer"))
+                .orElseThrow();
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> token = new AtomicReference<>();
+        AtomicReference<WidgetTypeId> type = new AtomicReference<>();
+
+        assertTrue(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
+                true,
+                "opaque-spacer-token",
+                spacer,
+                (candidateToken, candidateType) -> {
+                    calls.incrementAndGet();
+                    token.set(candidateToken);
+                    type.set(candidateType);
+                    return true;
+                }));
+        assertEquals(1, calls.get());
+        assertEquals("opaque-spacer-token", token.get());
+        assertEquals(new WidgetTypeId("flutter.widgets.Spacer"), type.get());
+
+        assertFalse(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
+                false,
+                "disabled-token",
+                spacer,
                 (ignoredToken, ignoredType) -> {
                     throw new AssertionError(
                             "disabled MultiView authority must not reach Canvas");

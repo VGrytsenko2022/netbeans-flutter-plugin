@@ -2303,6 +2303,150 @@ void main() {
     },
   );
 
+  test('decodes Spacer only as a direct Row or Column child', () {
+    Map<String, Object?> spacer({int? flex}) => _node(
+      '83a1364b-efac-4cc7-a4ef-660ff49fba7c',
+      'flutter.widgets.Spacer',
+      properties: {
+        if (flex != null) 'flex': {'kind': 'integer', 'value': flex},
+      },
+    );
+    Map<String, Object?> model(String parentType, {int? flex}) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '10e37c05-b2bd-436b-91d7-cad781bdb47a',
+        parentType,
+        slots: {
+          'children': _list([spacer(flex: flex)]),
+        },
+      );
+      return json;
+    }
+
+    final omitted = _decode(model('flutter.widgets.Row')).root;
+    final omittedSpacer = omitted.slot('children')!.child!;
+    expect(omittedSpacer.type, 'flutter.widgets.Spacer');
+    expect(omittedSpacer.properties, isEmpty);
+    expect(omittedSpacer.slots, isEmpty);
+
+    final minimum = _decode(
+      model('flutter.widgets.Column', flex: 1),
+    ).root.slot('children')!.child!;
+    expect(minimum.properties['flex']!.value, 1);
+
+    final maximum = _decode(
+      model('flutter.widgets.Row', flex: maxCanvasSequence),
+    ).root.slot('children')!.child!;
+    expect(maximum.properties['flex']!.value, maxCanvasSequence);
+  });
+
+  test('rejects invalid Spacer values, slots, root, and parent placement', () {
+    Map<String, Object?> spacer({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      '83a1364b-efac-4cc7-a4ef-660ff49fba7c',
+      'flutter.widgets.Spacer',
+      properties: properties,
+      slots: slots,
+    );
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    Map<String, Object?> rowWith(Map<String, Object?> child) => rootWith(
+      _node(
+        '10e37c05-b2bd-436b-91d7-cad781bdb47a',
+        'flutter.widgets.Row',
+        slots: {
+          'children': _list([child]),
+        },
+      ),
+    );
+
+    expect(() => _decode(rootWith(spacer())), throwsFormatException);
+    expect(
+      () => _decode(
+        rootWith(
+          _node(
+            '255aaf93-d0d3-4dbc-96f0-d00a36954d53',
+            'flutter.widgets.Stack',
+            slots: {
+              'children': _list([spacer()]),
+            },
+          ),
+        ),
+      ),
+      throwsFormatException,
+    );
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'flex': {'kind': 'integer', 'value': 0},
+      },
+      const {
+        'flex': {'kind': 'integer', 'value': -1},
+      },
+      const {
+        'flex': {'kind': 'integer', 'value': 9007199254740992},
+      },
+      const {
+        'flex': {'kind': 'double', 'value': 1.0},
+      },
+      const {
+        'flex': {'kind': 'dartExpression', 'source': '1'},
+      },
+      const {
+        'unknown': {'kind': 'integer', 'value': 1},
+      },
+    ]) {
+      expect(
+        () => _decode(rowWith(spacer(properties: properties))),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(
+        rowWith(
+          spacer(
+            slots: {
+              'child': _single(
+                _node(
+                  'ec741ce1-7eeb-45d2-8b91-e57d07d171cc',
+                  'flutter.widgets.Text',
+                  properties: {
+                    'data': {'kind': 'string', 'value': 'invalid'},
+                  },
+                ),
+              ),
+            },
+          ),
+        ),
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('Spacer reviewed schema and placement contract is exact', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Spacer\n');
+    final end = contract.indexOf('W|flutter.widgets.Stack\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Spacer\n'
+      'P|flex|integer|0|-|integer:1:1:9007199254740991:1|'
+      'integer:range:1:1:9007199254740991:1\n'
+      'R|flutter.widgets.Spacer|directParentSlot|'
+      'flutter.widgets.Column|children\n'
+      'R|flutter.widgets.Spacer|directParentSlot|'
+      'flutter.widgets.Row|children\n',
+    );
+  });
+
   test('decodes the exact direct Image contract and resolved provider', () {
     const resourceId =
         '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';

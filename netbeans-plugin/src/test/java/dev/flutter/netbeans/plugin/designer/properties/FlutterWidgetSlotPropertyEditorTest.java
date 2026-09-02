@@ -1448,7 +1448,8 @@ class FlutterWidgetSlotPropertyEditorTest {
                 CATALOG,
                 List.of(type("flutter.widgets.Text"),
                         type("flutter.widgets.Expanded"),
-                        type("flutter.widgets.Flexible")));
+                        type("flutter.widgets.Flexible"),
+                        type("flutter.widgets.Spacer")));
 
         FlutterWidgetSlotPropertyEditor columnEditor =
                 new FlutterWidgetSlotPropertyEditor(
@@ -1464,9 +1465,9 @@ class FlutterWidgetSlotPropertyEditorTest {
                     custom,
                     FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
                     JComboBox.class);
-            assertEquals(List.of("Text"), labels(addType),
-                    "Expanded and Flexible are wrapping affordances and must not "
-                    + "appear as terminal Add new widget choices.");
+            assertEquals(List.of("Text", "Spacer"), labels(addType),
+                    "Expanded and Flexible are wrapping affordances, while Spacer is "
+                    + "a terminal direct-Flex child.");
             return null;
         });
 
@@ -1505,6 +1506,60 @@ class FlutterWidgetSlotPropertyEditorTest {
                         "illegal removal",
                         new FlutterWidgetSlotMutation.Remove(
                                 flexible.id(), CHILD, current.id()))));
+    }
+
+    @Test
+    void spacerIsAnAddChoiceOnlyForDirectRowOrColumnChildren() throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition rowDefinition = definition("flutter.widgets.Row");
+        WidgetDefinition stackDefinition = definition("flutter.widgets.Stack");
+        WidgetNode row = new WidgetNode(
+                id("7bdabf33-2e62-4548-b884-8a39c24be5e2"),
+                rowDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                Extensions.empty());
+        WidgetNode stack = new WidgetNode(
+                id("01fb3e4d-3911-4dd3-988a-ec2a8e5c7e0b"),
+                stackDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("6869194a-729d-4a84-aa0d-2b853c0c77d2"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(row, stack))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column), CATALOG, List.of(type("flutter.widgets.Spacer")));
+
+        FlutterWidgetSlotPropertyEditor rowEditor = new FlutterWidgetSlotPropertyEditor(
+                row,
+                rowDefinition,
+                rowDefinition.slot(CHILDREN).orElseThrow(),
+                context);
+        rowEditor.attachEnv(PropertyEnv.create(descriptor("Children")));
+        FlutterWidgetSlotPropertyEditor stackEditor = new FlutterWidgetSlotPropertyEditor(
+                stack,
+                stackDefinition,
+                stackDefinition.slot(CHILDREN).orElseThrow(),
+                context);
+        stackEditor.attachEnv(PropertyEnv.create(descriptor("Children")));
+
+        onEdt(() -> {
+            JComboBox<?> rowAddType = component(
+                    rowEditor.getCustomEditor(),
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> stackAddType = component(
+                    stackEditor.getCustomEditor(),
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            assertEquals(List.of("Spacer"), labels(rowAddType));
+            assertEquals(List.of(), labels(stackAddType));
+            return null;
+        });
     }
 
     @Test

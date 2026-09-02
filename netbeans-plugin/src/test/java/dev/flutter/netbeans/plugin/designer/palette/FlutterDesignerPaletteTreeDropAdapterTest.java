@@ -69,6 +69,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
+    private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -1011,7 +1012,70 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
-    void treeDropRejectsMutualExpandedFlexibleNestingBeforeIdAllocation() {
+    void spacerTreeDropAppendsATerminalPrototypeOnlyToRowOrColumn() {
+        for (WidgetTypeId flexType : List.of(COLUMN, ROW)) {
+            Fixture fixture = fixture(SPACER);
+            StringSelection transferable = new StringSelection(fixture.token());
+            DesignerDocument empty = document(flexParent(flexType, List.of()));
+            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                            fixture.adapter().preview(
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    empty,
+                                    CATALOG,
+                                    ROOT_ID),
+                            flexType.value());
+            assertAll(
+                    () -> assertEquals(SPACER, prepared.widgetType()),
+                    () -> assertEquals(ROOT_ID, prepared.parentId()),
+                    () -> assertEquals(CHILDREN, prepared.slotName()),
+                    () -> assertEquals(0, prepared.insertionIndex()),
+                    () -> assertEquals(Optional.empty(), prepared.wrapTargetId()));
+
+            DesignerDocument populated = document(flexParent(
+                    flexType, List.of(text(FIRST_ID, "existing"))));
+            FlutterDesignerPaletteTreeDropAdapter.Committed committed =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                            fixture.adapter().commit(
+                                    prepared,
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    populated,
+                                    CATALOG,
+                                    () -> NEW_ID));
+            AddWidget command = committed.command();
+            assertAll(
+                    () -> assertEquals(ROOT_ID, command.destination().parentId()),
+                    () -> assertEquals(CHILDREN, command.destination().slotName()),
+                    () -> assertEquals(1, command.destination().index()),
+                    () -> assertEquals(SPACER, command.widget().type()),
+                    () -> assertTrue(command.widget().properties().isEmpty()),
+                    () -> assertTrue(command.widget().slots().isEmpty()));
+        }
+
+        Fixture rejectedFixture = fixture(SPACER);
+        StringSelection rejectedTransfer = new StringSelection(rejectedFixture.token());
+        FlutterDesignerPaletteTreeDropAdapter.Rejected rejected = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                rejectedFixture.adapter().preview(
+                        rejectedTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(stack(List.of())),
+                        CATALOG,
+                        ROOT_ID));
+        assertEquals(
+                FlutterDesignerPaletteTreeDropAdapter.RejectionCode
+                        .NO_COMPATIBLE_DESTINATION,
+                rejected.code());
+        assertTrue(rejectedFixture.lifecycle().resolve(rejectedTransfer).isPresent(),
+                "preview rejection must not consume Spacer source authority");
+    }
+
+    @Test
+    void treeDropRejectsWrappingAnyFlexParentDataWidgetBeforeIdAllocation() {
         record NestedCase(String name, WidgetTypeId outer, WidgetNode inner) {
         }
         WidgetNode innerChild = text(
@@ -1020,7 +1084,13 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new NestedCase("Expanded over Flexible", EXPANDED,
                         flexible(FIRST_ID, innerChild)),
                 new NestedCase("Flexible over Expanded", FLEXIBLE,
-                        expanded(FIRST_ID, innerChild)));
+                        expanded(FIRST_ID, innerChild)),
+                new NestedCase("Expanded over Spacer", EXPANDED,
+                        WidgetNodePrototypeFactory.create(
+                                CATALOG.find(SPACER).orElseThrow(), FIRST_ID)),
+                new NestedCase("Flexible over Spacer", FLEXIBLE,
+                        WidgetNodePrototypeFactory.create(
+                                CATALOG.find(SPACER).orElseThrow(), FIRST_ID)));
 
         assertAll(cases.stream().map(testCase -> () -> {
             Fixture fixture = fixture(testCase.outer());

@@ -137,14 +137,14 @@ public final class FlutterDesignerWidgetMovePlanner {
                         parentDefinition, slot, sourceDefinition))
                 .toList();
         if (compatible.isEmpty()) {
-            if (isParentRestrictedWrapper(sourceDefinition)) {
-                String wrapperName = sourceDefinition.palette().displayName();
+            if (isDirectFlexChild(sourceDefinition)) {
+                String widgetName = sourceDefinition.palette().displayName();
                 return rejected(
                         RejectionCode.NO_COMPATIBLE_DESTINATION,
-                        "Cannot move " + wrapperName + " '" + source.node().id()
+                        "Cannot move " + widgetName + " '" + source.node().id()
                         + "' onto '"
                         + parentDefinition.typeId().value()
-                        + "': " + wrapperName
+                        + "': " + widgetName
                         + " must remain a direct child of Row.children "
                         + "or Column.children.");
             }
@@ -301,14 +301,14 @@ public final class FlutterDesignerWidgetMovePlanner {
             int destinationIndex) {
         if (!WidgetPlacementRules.accepts(
                 parentDefinition, slot, sourceDefinition)) {
-            if (isParentRestrictedWrapper(sourceDefinition)) {
-                String wrapperName = sourceDefinition.palette().displayName();
+            if (isDirectFlexChild(sourceDefinition)) {
+                String widgetName = sourceDefinition.palette().displayName();
                 return rejected(
                         RejectionCode.SLOT_REJECTS_WIDGET,
-                        "Cannot move " + wrapperName + " '" + source.node().id()
+                        "Cannot move " + widgetName + " '" + source.node().id()
                         + "' to '"
                         + parentDefinition.typeId().value() + '.'
-                        + slot.name().value() + "': " + wrapperName
+                        + slot.name().value() + "': " + widgetName
                         + " must remain a direct "
                         + "child of Row.children or Column.children.");
             }
@@ -487,10 +487,11 @@ public final class FlutterDesignerWidgetMovePlanner {
         return List.copyOf(result);
     }
 
-    private static boolean isParentRestrictedWrapper(
-            WidgetDefinition definition) {
-        return WidgetPlacementRules.creationMode(definition)
-                == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+    private static boolean isDirectFlexChild(WidgetDefinition definition) {
+        String type = definition.typeId().value();
+        return WidgetPlacementRules.EXPANDED_TYPE.equals(type)
+                || WidgetPlacementRules.FLEXIBLE_TYPE.equals(type)
+                || WidgetPlacementRules.SPACER_TYPE.equals(type);
     }
 
     private static TreeInventory inventory(WidgetNode root) {

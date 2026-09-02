@@ -50,8 +50,10 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             new WidgetTypeId(WidgetPlacementRules.EXPANDED_TYPE);
     private static final WidgetTypeId FLEXIBLE_TYPE =
             new WidgetTypeId(WidgetPlacementRules.FLEXIBLE_TYPE);
+    private static final WidgetTypeId SPACER_TYPE =
+            new WidgetTypeId(WidgetPlacementRules.SPACER_TYPE);
     private static final Set<WidgetTypeId> FLEX_PARENT_DATA_TYPES =
-            Set.of(EXPANDED_TYPE, FLEXIBLE_TYPE);
+            Set.of(EXPANDED_TYPE, FLEXIBLE_TYPE, SPACER_TYPE);
     private final FlutterDesignerPaletteDragLifecycle lifecycle;
     private final FlutterDesignerPaletteDropPlanner planner;
 
@@ -424,8 +426,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                     + "Row.children or Column.children.");
         }
         if (FLEX_PARENT_DATA_TYPES.contains(target.node().type())) {
-            String targetName = target.node().type().equals(EXPANDED_TYPE)
-                    ? "Expanded" : "Flexible";
+            String targetName = flexParentDataDisplayName(target.node().type());
             return destinationRejected(
                     RejectionCode.NO_COMPATIBLE_DESTINATION,
                     "Cannot wrap " + targetName + " '" + targetChildId
@@ -484,6 +485,20 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 target.slotName(),
                 target.slotIndex(),
                 Optional.of(targetChildId));
+    }
+
+    private static String flexParentDataDisplayName(WidgetTypeId type) {
+        if (type.equals(EXPANDED_TYPE)) {
+            return "Expanded";
+        }
+        if (type.equals(FLEXIBLE_TYPE)) {
+            return "Flexible";
+        }
+        if (type.equals(SPACER_TYPE)) {
+            return "Spacer";
+        }
+        throw new IllegalArgumentException(
+                "Not a reviewed Flex parent-data widget: " + type.value());
     }
 
     private static TreeInventory inventory(WidgetNode root, StableId parentId) {

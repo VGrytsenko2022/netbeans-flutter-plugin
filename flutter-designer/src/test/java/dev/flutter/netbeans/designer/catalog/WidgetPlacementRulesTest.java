@@ -139,6 +139,42 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(flexible));
     }
 
+    @Test
+    void spacerIsAnInsertableLeafRestrictedToDirectFlexChildrenSlots() {
+        WidgetDefinition spacer = definition("flutter.widgets.Spacer");
+        WidgetDefinition row = definition("flutter.widgets.Row");
+        WidgetDefinition column = definition("flutter.widgets.Column");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition expanded = definition("flutter.widgets.Expanded");
+
+        WidgetPlacementRules.Decision root = WidgetPlacementRules.evaluateRoot(spacer);
+        assertFalse(root.accepted());
+        assertEquals(WidgetPlacementRules.RejectionKind.ROOT_PLACEMENT,
+                root.rejectionKind().orElseThrow());
+        assertTrue(WidgetPlacementRules.accepts(row, slot(row, "children"), spacer));
+        assertTrue(WidgetPlacementRules.accepts(
+                column, slot(column, "children"), spacer));
+
+        WidgetPlacementRules.Decision stackDecision = WidgetPlacementRules.evaluate(
+                stack, slot(stack, "children"), spacer);
+        assertFalse(stackDecision.accepted());
+        assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                stackDecision.rejectionKind().orElseThrow());
+        WidgetPlacementRules.Decision expandedDecision = WidgetPlacementRules.evaluate(
+                expanded, slot(expanded, "child"), spacer);
+        assertFalse(expandedDecision.accepted());
+        assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                expandedDecision.rejectionKind().orElseThrow());
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(spacer));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(spacer));
+        assertEquals(List.of(
+                "R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Column|children",
+                "R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Row|children"),
+                WidgetPlacementRules.capabilityFingerprintLines(spacer));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

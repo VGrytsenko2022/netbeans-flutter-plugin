@@ -62,6 +62,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
             "flutter.widgets.Flexible",
+            "flutter.widgets.Spacer",
             "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
@@ -83,7 +84,7 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible"),
+                "Expanded", "Flexible", "Spacer"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -110,7 +111,7 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible"),
+                "Expanded", "Flexible", "Spacer"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -475,6 +476,37 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void spacerPaletteSelectionExposesReviewedTerminalFlexMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Spacer";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        140,
+                        "Spacer"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Spacer", node.getDisplayName());
+        assertEquals(
+                "Insert an empty flexible gap directly into Row.children or "
+                + "Column.children. Spacer has no child; omitted flex preserves "
+                + "Flutter's positive default of 1.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Image";
@@ -803,7 +835,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void twentySevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentyEightCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -822,7 +854,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(27, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(28, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

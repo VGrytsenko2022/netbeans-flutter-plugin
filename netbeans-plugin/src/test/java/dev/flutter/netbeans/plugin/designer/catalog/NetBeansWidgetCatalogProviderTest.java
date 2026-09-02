@@ -51,6 +51,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.Wrap"));
         assertTrue(typeIds(result).contains("flutter.widgets.Expanded"));
         assertTrue(typeIds(result).contains("flutter.widgets.Flexible"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Spacer"));
     }
 
     @Test
@@ -138,7 +139,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(27, result.catalog().definitions().size());
+        assertEquals(28, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -171,7 +172,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(27, result.catalog().definitions().size());
+        assertEquals(28, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

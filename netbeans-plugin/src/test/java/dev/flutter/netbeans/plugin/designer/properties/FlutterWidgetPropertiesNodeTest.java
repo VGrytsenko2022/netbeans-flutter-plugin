@@ -679,6 +679,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -716,16 +717,16 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(661, writableCount,
+        assertEquals(662, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
                 + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
-                + "Expanded, Flexible, ListView, "
+                + "Expanded, Flexible, Spacer, ListView, "
                 + "and Image leaves");
-        assertEquals(644, nonScaffoldWritableCount,
+        assertEquals(645, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1966,6 +1967,62 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void spacerProjectsPositiveFlexEditorWithoutAChildSlot() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Spacer");
+        StableId widgetId = StableId.parse(
+                "f43e5a28-eacb-42c3-9cec-3a2f7d56256e");
+        PropertyName flexName = new PropertyName("flex");
+        WidgetNode widget = new WidgetNode(
+                widgetId,
+                definition.typeId(),
+                Map.of(flexName, new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of(),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("flex"), names(properties.getProperties()));
+        assertEquals(
+                "Empty positive-flex remaining-space allocation for the selected direct "
+                + "Row or Column Spacer widget.",
+                properties.getShortDescription());
+        assertTrue(Arrays.stream(node.getPropertySets()).noneMatch(set ->
+                FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(set.getName())));
+
+        Node.Property<FlutterPropertyCellValue> flex = cellProperty(
+                property(node, "flex"));
+        assertAll(
+                () -> assertEquals("Flex", flex.getDisplayName()),
+                () -> assertTrue(flex.getShortDescription().startsWith(
+                        "Positive integer share of the remaining Row or Column main-axis "
+                        + "space reserved as an empty gap. Flutter defaults to 1; zero is "
+                        + "invalid. Positive flex requires bounded width in Row or bounded "
+                        + "height in Column.")),
+                () -> assertTrue(flex.supportsDefaultValue()),
+                () -> assertFalse(flex.isDefaultValue()));
+
+        PropertyEditor editor = flex.getPropertyEditor();
+        editor.setAsText("1");
+        assertEquals(
+                new PropertyValue.IntegerValue(BigInteger.ONE),
+                cell(editor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("0"));
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("-1"));
+
+        FlutterPropertyCellValue flexValue = FlutterPropertyCellValue.explicit(
+                new PropertyValue.IntegerValue(BigInteger.valueOf(3)));
+        flex.setValue(flexValue);
+        flex.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(widgetId, flexName,
+                        flexValue.explicitValue().orElseThrow()),
+                new ResetProperty(widgetId, flexName)), commands);
+    }
+
+    @Test
     void scaffoldProjectsEnterpriseGroupsPresetsAndExactSetResetCommands()
             throws Exception {
         WidgetDefinition definition = definition("flutter.material.Scaffold");
@@ -2930,7 +2987,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void twentySevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentyEightCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -2956,6 +3013,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -2987,7 +3045,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(27, iconPaths.size(),
+        assertEquals(28, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

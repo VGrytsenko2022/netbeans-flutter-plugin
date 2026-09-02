@@ -968,13 +968,36 @@ accepted architecture is documented in
   tight positive-flex allocation. Complete Properties, creation,
   Palette/tree/Canvas DnD, required-child replacement, same-tree movement,
   deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
-  icons and focused contract tests. The current surface is 27 widgets, 22 const
-  definitions and 661 rows (644 outside Scaffold), with 19 Layout items.
-  Twenty-seven sources across the unchanged 25 insertable any-widget plus two
-  trait destinations form 729 candidates: 631 accepted and 98 rejected. The
-  practical 92-widget backlog is 27/92 complete with 65 remaining. `.fd` schema
+  icons and focused contract tests. At that milestone the surface was 27
+  widgets, 22 const definitions and 661 rows (644 outside Scaffold), with 19
+  Layout items. Twenty-seven sources across the unchanged 25 insertable
+  any-widget plus two trait destinations formed 729 candidates: 631 accepted
+  and 98 rejected. The practical 92-widget backlog was 27/92 complete with 65
+  remaining. `.fd` schema
   v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
   unchanged.
+- [x] Complete const
+  [`Spacer`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html) as the
+  eighth post-core Palette vertical slice at Layout order 140, immediately
+  after Flexible. Expose one optional positive portable integer `flex` and no
+  slots. Persist no constructor default: omission preserves Flutter's `flex: 1`,
+  while zero, negative and over-limit values fail closed. Palette/tree/Canvas
+  creation inserts a childless Spacer prototype only into direct
+  `Row.children` or `Column.children`; it never wraps an existing child.
+  Expanded and Flexible cannot wrap Spacer because Spacer internally builds an
+  Expanded parent-data path that must remain directly below Row or Column.
+  Generated Dart emits the real Flutter Spacer. Both Canvas projections keep
+  the real Spacer directly under the Flex and expose Designer selection and
+  outlines through surface overlay geometry instead of an invalid outer
+  render-object wrapper. Complete Properties, creation, Palette/tree/Canvas
+  DnD, same-tree movement, deterministic generation, Save/reopen, Undo/Redo,
+  reviewed light/dark SVG icons and focused contract tests. The current surface
+  is 28 widgets, 23 const definitions and 662 rows (645 outside Scaffold), with
+  20 Layout items. Twenty-eight sources across the unchanged 25 insertable
+  any-widget plus two trait destinations form 756 candidates: 633 accepted and
+  123 rejected. The practical 92-widget backlog is 28/92 complete with 64
+  remaining. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+  framing/control/wire v1 remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -992,8 +1015,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Flexible has yet been assigned an
-  explicit order. The current typed Properties slice spans all twenty-seven
+  vertical slices. No specific widget after Spacer has yet been assigned an
+  explicit order. The current typed Properties slice spans all twenty-eight
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

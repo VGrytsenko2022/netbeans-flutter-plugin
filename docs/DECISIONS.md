@@ -16,10 +16,10 @@ milestone; ADR-041 through ADR-045 add `Align`, `FractionallySizedBox`, `Stack`,
 `Expanded` and `Image`, ADR-046 adds `TextField`, ADR-047 closes the agreed core
 with `ListView`, ADR-048 begins the post-core surface with `Wrap`, ADR-049 adds
 `FittedBox`, ADR-050 adds `ConstrainedBox`, ADR-051 adds `UnconstrainedBox`,
-ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, and ADR-054 establishes
-the current `Flexible` surface: 661 typed rows across twenty-seven widgets,
-twenty-two const-constructor definitions and 729 Palette/DnD candidates,
-including 631 accepted and 98 rejected cells. The 644-field
+ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, ADR-054 adds `Flexible`,
+and ADR-055 establishes the current `Spacer` surface: 662 typed rows across
+twenty-eight widgets, twenty-three const-constructor definitions and 756
+Palette/DnD candidates, including 633 accepted and 123 rejected cells. The 645-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -29,7 +29,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-054 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-055 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -272,7 +272,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-054 make 644 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-055 make 645 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -283,7 +283,7 @@ properties, four Stack properties, one Expanded property, 22 Image properties,
 54 TextField properties, 17 ListView properties, nine Wrap properties, three
 FittedBox properties, the required ConstrainedBox constraints property, four
 UnconstrainedBox properties, two LimitedBox properties, six OverflowBox
-properties and Flexible's two properties.
+properties, Flexible's two properties and Spacer's one property.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -307,8 +307,9 @@ matrix (488 accepted and 64 rejected), ADR-051 established the twenty-four-sourc
 600-candidate matrix (533 accepted and 67 rejected), ADR-052 established the
 twenty-five-source, 650-candidate matrix (580 accepted and 70 rejected), and
 ADR-053 established the twenty-six-source, 702-candidate matrix (629 accepted
-and 73 rejected), and ADR-054 establishes the current twenty-seven-source,
-729-candidate matrix (631 accepted and 98 rejected).
+and 73 rejected), ADR-054 established the twenty-seven-source, 729-candidate
+matrix (631 accepted and 98 rejected), and ADR-055 establishes the current
+twenty-eight-source, 756-candidate matrix (633 accepted and 123 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -317,7 +318,7 @@ selection and capability-gates the narrow palette-drop intent. The canonical
 protocol-v12 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
-`AspectRatio`, `Stack`, `Expanded`, `Flexible`, `ListView`, `Wrap`, `FittedBox`,
+`AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `ListView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -332,14 +333,15 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated twenty-seven-widget model for Mobile, Tablet,
+Canvas now renders the validated twenty-eight-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those twenty-seven Create-capable definitions, and the DnD-capable set uses the
-reviewed 729-cell candidate matrix across twenty-five insertable any-widget and
-two trait-bound destination slots; 631 cells are accepted and 98 rejected.
-Expanded and Flexible each enter only direct Row/Column wrapper targets, and
-their required child slots are replacement-only rather than insertable. Canvas model
+those twenty-eight Create-capable definitions, and the DnD-capable set uses the
+reviewed 756-cell candidate matrix across twenty-five insertable any-widget and
+two trait-bound destination slots; 633 cells are accepted and 123 rejected.
+Expanded and Flexible each enter only direct Row/Column wrapper targets, while
+Spacer inserts only into direct Row/Column children. Expanded and Flexible's
+required child slots are replacement-only rather than insertable. Canvas model
 protocol v12's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
@@ -2048,16 +2050,66 @@ generation, Properties, Canvas model/view/drop, DnD/slot/move commands and their
 closed-contract tests share this exact definition.
 
 Flexible adds two non-Scaffold rows, one parent-restricted source and one
-required non-insertable child slot to ADR-053. The current surface is 661
+required non-insertable child slot to ADR-053. At that milestone the surface was 661
 writable rows across 27 widgets, 644 outside Scaffold and 22 const-constructor
 definitions. Twenty-seven sources across the unchanged 25 insertable any-widget
-plus two trait-bound destinations form 729 candidates. The 25 ordinary sources
-enter all 25 any-widget destinations, AppBar additionally enters both trait
-destinations, and Expanded plus Flexible each enter only Row.children and
-Column.children. This produces 631 accepted and 98 rejected cells. The Layout
-Palette now contains 19 items.
+plus two trait-bound destinations formed 729 candidates. The 25 ordinary sources
+entered all 25 any-widget destinations, AppBar additionally entered both trait
+destinations, and Expanded plus Flexible each entered only Row.children and
+Column.children. This produced 631 accepted and 98 rejected cells. The Layout
+Palette contained 19 items.
 
-The practical Material/Base Designer backlog is now 27/92 complete, with 65
+The practical Material/Base Designer backlog was then 27/92 complete, with 65
+remaining. This is a project planning target, not a normative complete list of
+Flutter widgets. Existing encodings cover this contract, so
+`.fd` remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC
+framing plus Canvas control/wire remain version 1.
+
+## ADR-055 — Spacer completes childless proportional Flex spacing
+
+Accepted. The canonical built-in is the const
+[`flutter.widgets.Spacer(...)`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html)
+constructor from `package:flutter/widgets.dart`, published in the **Layout**
+Palette category at order 140 immediately after Flexible. It supports
+Properties, Create, native and exact-Web Canvas, Palette/tree/Canvas DnD,
+same-tree movement, deterministic Dart generation, Save/reopen and
+chronological Undo/Redo. Reviewed light/dark SVG icons at 16 and 32 pixels
+provide its Palette identity.
+
+The reviewed non-`key` Flutter 3.44.8 constructor surface has one optional
+positive portable integer `flex` at constructor position zero and no child or
+other slot. Omission preserves Flutter's `flex: 1`; explicit values range from
+one through the shared exact portable integer ceiling. Zero, negative values,
+over-limit integers and raw Dart remain fail-closed. A detached prototype stores
+no properties or slots and is safe for direct insertion only after the complete
+placement rule accepts its destination.
+
+Palette, tree and Canvas creation append a Spacer prototype only to direct
+`Row.children` or `Column.children`; unlike Expanded and Flexible, Spacer never
+wraps an existing child. The same direct-parent rule applies to move and
+validation. Expanded and Flexible cannot wrap Spacer because Spacer's own
+`build` creates an Expanded parent-data path that must still reach Row or Column
+without another ParentDataWidget in between.
+
+Generated Dart constructs the real Flutter Spacer. Both Canvas projections also
+keep the real Spacer directly under Row or Column. Because an outer
+Semantics/gesture/paint RenderObject would invalidate Spacer's internal Expanded
+path, the Canvas uses only transparent component wrappers around Spacer and
+publishes Designer selection, hit target and outline through the surface overlay
+geometry. Catalog, validator, generation, Properties, Canvas model/view/drop,
+DnD/move commands and their closed-contract tests share this exact definition.
+
+Spacer adds one non-Scaffold row, one parent-restricted insertion source and no
+destination slot to ADR-054. The current surface is 662 writable rows across 28
+widgets, 645 outside Scaffold and 23 const-constructor definitions. Twenty-eight
+sources across the unchanged 25 insertable any-widget plus two trait-bound
+destinations form 756 candidates. The 25 unrestricted sources enter all 25
+any-widget destinations, AppBar additionally enters both trait destinations,
+Expanded and Flexible each enter only Row.children and Column.children as
+wrappers, and Spacer enters those two slots as a leaf. This produces 633
+accepted and 123 rejected cells. The Layout Palette contains 20 items.
+
+The practical Material/Base Designer backlog is now 28/92 complete, with 64
 remaining. This is a project planning target, not a normative complete list of
 Flutter widgets. No later widget has an explicit order; the next admission must
 again be a complete vertical slice. Existing encodings cover this contract, so

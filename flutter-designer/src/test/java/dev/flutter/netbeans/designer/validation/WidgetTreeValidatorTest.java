@@ -573,6 +573,50 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsSpacerOnlyAsDirectRowOrColumnChildWithPositivePortableFlex() {
+        WidgetNode omitted = spacer("omittedSpacer", Map.of());
+        WidgetNode maximum = spacer("maximumSpacer", Map.of(
+                name("flex"), new PropertyValue.IntegerValue(
+                        new BigInteger("9007199254740991"))));
+        WidgetNode row = node("row", "flutter.widgets.Row", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(omitted))));
+        WidgetNode column = node("column", "flutter.widgets.Column", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(maximum))));
+
+        assertTrue(validator().validate(document(row), BuiltInWidgetCatalog.getDefault())
+                .valid());
+        assertTrue(validator().validate(document(column), BuiltInWidgetCatalog.getDefault())
+                .valid());
+    }
+
+    @Test
+    void rejectsSpacerAtRootOutsideFlexOrWithNonPositiveFlex() {
+        ValidationIssue rootIssue = onlyIssue(
+                validator().validate(document(spacer("rootSpacer", Map.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(rootIssue.message().contains("flutter.widgets.Spacer"));
+
+        WidgetNode stack = node("stack", "flutter.widgets.Stack", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(
+                        spacer("stackSpacer", Map.of())))));
+        ValidationIssue stackIssue = onlyIssue(
+                validator().validate(document(stack), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(stackIssue.message().contains("flutter.widgets.Stack.children"));
+
+        WidgetNode zero = spacer("zeroSpacer", Map.of(
+                name("flex"), new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        WidgetNode row = node("row", "flutter.widgets.Row", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(zero))));
+        ValidationIssue flexIssue = onlyIssue(
+                validator().validate(document(row), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/slots/children/children/0/properties/flex",
+                flexIssue.path());
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2296,6 +2340,12 @@ class WidgetTreeValidatorTest {
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Flexible", properties, Map.of(
                 slotName("child"), WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode spacer(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties) {
+        return node(idSeed, "flutter.widgets.Spacer", properties, Map.of());
     }
 
     private static PropertyValue.ImageProviderValue imageProvider() {

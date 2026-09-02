@@ -48,6 +48,7 @@ public final class BuiltInWidgetCatalog {
             stack(),
             expanded(),
             flexible(),
+            spacer(),
             listView(),
             image(),
             elevatedButton(),
@@ -942,6 +943,19 @@ public final class BuiltInWidgetCatalog {
                                 false,
                                 renderingEnumValues("FlexFit", "loose", "tight"))),
                 List.of(singleSlot("child", 2, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition spacer() {
+        return widget(
+                WidgetPlacementRules.SPACER_TYPE,
+                "Spacer",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 140, "Spacer"),
+                List.of(namedProperty("flex", 0, false, positiveIntegers())),
+                List.of());
     }
 
     private static WidgetDefinition listView() {

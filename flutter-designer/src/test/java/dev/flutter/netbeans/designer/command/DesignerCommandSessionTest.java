@@ -72,6 +72,8 @@ class DesignerCommandSessionTest {
     private static final PropertyName WIDTH = property("width");
     private static final PropertyName HEIGHT = property("height");
     private static final PropertyName ASPECT_RATIO = property("aspectRatio");
+    private static final PropertyName BASELINE = property("baseline");
+    private static final PropertyName BASELINE_TYPE = property("baselineType");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -314,6 +316,112 @@ class DesignerCommandSessionTest {
         assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
         assertArrayEquals(saved.current().dartCandidateBytes(),
                 reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void baselinePrototypeEditChildUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Baseline")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(24)),
+                prototype.properties().get(BASELINE));
+        assertEquals(new PropertyValue.EnumValue(
+                        "TextBaseline", "alphabetic"),
+                prototype.properties().get(BASELINE_TYPE));
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside")));
+        DesignerCommandSession distanceSet = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                BASELINE,
+                new PropertyValue.DoubleValue(new BigDecimal("-12.5"))));
+        DesignerCommandSession configured = applied(distanceSet, new SetProperty(
+                WRAPPER_ID,
+                BASELINE_TYPE,
+                new PropertyValue.EnumValue(
+                        "TextBaseline", "ideographic")));
+
+        assertRejectedUnchanged(configured, new SetProperty(
+                WRAPPER_ID,
+                BASELINE,
+                new PropertyValue.IntegerValue(BigInteger.ONE)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejectedUnchanged(configured, new SetProperty(
+                WRAPPER_ID,
+                BASELINE_TYPE,
+                new PropertyValue.EnumValue("TextBaseline", "central")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejectedUnchanged(configured, new ResetProperty(
+                WRAPPER_ID, BASELINE),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+        assertRejectedUnchanged(configured, new ResetProperty(
+                WRAPPER_ID, BASELINE_TYPE),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+
+        WidgetNode finalBaseline = find(
+                configured.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("-12.5")),
+                finalBaseline.properties().get(BASELINE));
+        assertEquals(new PropertyValue.EnumValue(
+                        "TextBaseline", "ideographic"),
+                finalBaseline.properties().get(BASELINE_TYPE));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBaseline.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                configured.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const Baseline("), dart);
+        assertTrue(dart.contains("baseline: -12.5"), dart);
+        assertTrue(dart.contains(
+                "baselineType: TextBaseline.ideographic"), dart);
+        assertTrue(dart.contains("child: const Text('Inside')"), dart);
+
+        DesignerCommandSession undone = configured.undo().session();
+        assertEquals(new PropertyValue.EnumValue(
+                        "TextBaseline", "alphabetic"),
+                find(undone.current().document().root(), WRAPPER_ID)
+                        .properties().get(BASELINE_TYPE));
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(configured.current().fdBytes(),
+                redone.current().fdBytes());
+        assertArrayEquals(configured.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redone.markSaved();
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(),
+                reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened,
+                new SetProperty(
+                        WRAPPER_ID,
+                        BASELINE,
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(8))));
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(8)),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(BASELINE));
+        assertTrue(new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8).contains("baseline: 8.0"));
     }
 
     @Test

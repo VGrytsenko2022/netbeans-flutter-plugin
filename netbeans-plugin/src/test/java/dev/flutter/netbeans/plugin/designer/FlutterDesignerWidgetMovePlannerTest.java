@@ -66,6 +66,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
     private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
+    private static final WidgetTypeId BASELINE = type("flutter.widgets.Baseline");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -334,11 +335,13 @@ class FlutterDesignerWidgetMovePlannerTest {
         WidgetNode source = node(A_ID, SPACER);
         WidgetNode row = listParent(B_ID, ROW, CHILDREN, List.of());
         WidgetNode stack = listParent(C_ID, STACK, CHILDREN, List.of());
+        WidgetNode baseline = WidgetNodePrototypeFactory.create(
+                definition(BASELINE), D_ID);
         DesignerDocument document = document(listParent(
                 ROOT_ID,
                 COLUMN,
                 CHILDREN,
-                List.of(source, row, stack)));
+                List.of(source, row, stack, baseline)));
 
         FlutterDesignerWidgetMovePlanner.Result rowMove = planner.plan(
                 document,
@@ -358,6 +361,13 @@ class FlutterDesignerWidgetMovePlannerTest {
                         BUILT_INS,
                         source.id(),
                         new FlutterDesignerWidgetMovePlanner.On(stack.id())));
+        FlutterDesignerWidgetMovePlanner.Rejected baselineFailure = assertInstanceOf(
+                FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(
+                        document,
+                        BUILT_INS,
+                        source.id(),
+                        new FlutterDesignerWidgetMovePlanner.On(baseline.id())));
         assertAll(
                 () -> assertEquals(
                         FlutterDesignerWidgetMovePlanner.RejectionCode
@@ -366,6 +376,14 @@ class FlutterDesignerWidgetMovePlannerTest {
                 () -> assertTrue(stackFailure.reason().contains(
                         "Spacer '" + source.id() + "'")),
                 () -> assertTrue(stackFailure.reason().contains(
+                        "direct child of Row.children or Column.children")),
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .NO_COMPATIBLE_DESTINATION,
+                        baselineFailure.code()),
+                () -> assertTrue(baselineFailure.reason().contains(
+                        "Spacer '" + source.id() + "'")),
+                () -> assertTrue(baselineFailure.reason().contains(
                         "direct child of Row.children or Column.children")));
     }
 
@@ -733,6 +751,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyOverflowBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyBaselineChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into Baseline");
+        WidgetNode emptyBaseline = WidgetNodePrototypeFactory.create(
+                definition(BASELINE), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyBaseline)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyBaseline.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyBaseline.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

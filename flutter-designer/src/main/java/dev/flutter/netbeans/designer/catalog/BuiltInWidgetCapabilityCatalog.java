@@ -168,6 +168,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Flexible", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Spacer", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Baseline", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -410,6 +411,19 @@ public final class BuiltInWidgetCapabilityCatalog {
                             POSITIVE_INTEGER_BOUNDS,
                             PropertyValueKind.INTEGER)),
                     Map.of())),
+            Map.entry("flutter.widgets.Baseline", projection(Map.ofEntries(
+                    requiredDefaultNumericProperty(
+                            "baseline",
+                            "double:24",
+                            UNBOUNDED_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    requiredDefaultConstrainedProperty(
+                            "baselineType",
+                            "enum:TextBaseline:alphabetic",
+                            PropertyValueKind.ENUM,
+                            "enum:" + base64(WIDGETS_LIBRARY)
+                            + ":TextBaseline:alphabetic,ideographic")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
@@ -1882,6 +1896,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         if (value instanceof PropertyValue.DoubleValue decimal) {
             return "double:" + decimalText(decimal.value());
+        }
+        if (value instanceof PropertyValue.EnumValue enumValue) {
+            return "enum:" + enumValue.type() + ':' + enumValue.value();
         }
         if (value instanceof PropertyValue.EdgeInsetsValue insets) {
             return "edgeInsets:" + decimalText(insets.left()) + ','

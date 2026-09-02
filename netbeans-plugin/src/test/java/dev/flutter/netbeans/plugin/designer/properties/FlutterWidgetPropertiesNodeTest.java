@@ -641,6 +641,11 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.AspectRatio", Map.of(
                         new PropertyName("aspectRatio"),
                         new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                "flutter.widgets.Baseline", Map.of(
+                        new PropertyName("baseline"),
+                        new PropertyValue.DoubleValue(new BigDecimal("24")),
+                        new PropertyName("baselineType"),
+                        new PropertyValue.EnumValue("TextBaseline", "alphabetic")),
                 "flutter.widgets.Opacity", Map.of(
                         new PropertyName("opacity"),
                         new PropertyValue.DoubleValue(BigDecimal.ONE)),
@@ -680,6 +685,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
+                "flutter.widgets.Baseline",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -717,16 +723,16 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(662, writableCount,
+        assertEquals(664, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
                 + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
-                + "Expanded, Flexible, Spacer, ListView, "
+                + "Expanded, Flexible, Spacer, Baseline, ListView, "
                 + "and Image leaves");
-        assertEquals(645, nonScaffoldWritableCount,
+        assertEquals(647, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -955,6 +961,115 @@ class FlutterWidgetPropertiesNodeTest {
                         .contains("fill the box resolved from Aspect ratio")),
                 () -> assertTrue(child.getShortDescription()
                         .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void baselineProjectsRequiredFiniteOffsetEnumAndOptionalChild() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Baseline");
+        StableId id = StableId.parse("214ecb85-3115-43a8-83b0-a46f96c7350f");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("baseline", "baselineType"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Required baseline offset and type, plus an optional child, "
+                + "for the selected Baseline widget.",
+                properties.getShortDescription());
+        assertEquals(FlutterWidgetPropertiesNode.GENERAL_TAB_NAME,
+                properties.getValue(FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        Node.PropertySet slots = propertySet(
+                node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals("Slots", slots.getDisplayName());
+        assertEquals(FlutterWidgetPropertiesNode.SLOTS_TAB_NAME,
+                slots.getValue(FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+
+        Node.Property<FlutterPropertyCellValue> baseline = cellProperty(
+                property(node, "baseline"));
+        assertAll(
+                () -> assertEquals("Baseline", baseline.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.DoubleValue(new BigDecimal("24"))),
+                        baseline.getValue()),
+                () -> assertTrue(baseline.getShortDescription().contains(
+                        "logical-pixel distance from the top")),
+                () -> assertTrue(baseline.getShortDescription().contains(
+                        "starts at 24")),
+                () -> assertTrue(baseline.getShortDescription().contains(
+                        "Negative values")),
+                () -> assertTrue(baseline.getShortDescription().contains(
+                        "cannot be unset")),
+                () -> assertFalse(baseline.supportsDefaultValue()),
+                () -> assertFalse(baseline.isDefaultValue()));
+        PropertyEditor baselineEditor = baseline.getPropertyEditor();
+        baselineEditor.setAsText("-3.5");
+        FlutterPropertyCellValue raised = cell(baselineEditor);
+        assertEquals(
+                new PropertyValue.DoubleValue(new BigDecimal("-3.5")),
+                raised.explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> baselineEditor.setAsText("NaN"));
+        assertThrows(IllegalArgumentException.class,
+                () -> baselineEditor.setAsText("Infinity"));
+        assertThrows(IllegalArgumentException.class,
+                () -> baseline.setValue(FlutterPropertyCellValue.unset()));
+
+        Node.Property<FlutterPropertyCellValue> baselineType = cellProperty(
+                property(node, "baselineType"));
+        assertAll(
+                () -> assertEquals("Baseline type", baselineType.getDisplayName()),
+                () -> assertEquals(List.of("alphabetic", "ideographic"),
+                        List.of(baselineType.getPropertyEditor().getTags())),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "alphabetic")),
+                        baselineType.getValue()),
+                () -> assertTrue(baselineType.getShortDescription().contains(
+                        "alphabetic scripts")),
+                () -> assertTrue(baselineType.getShortDescription().contains(
+                        "bottom edge")),
+                () -> assertTrue(baselineType.getShortDescription().contains(
+                        "cannot be unset")),
+                () -> assertFalse(baselineType.supportsDefaultValue()));
+        PropertyEditor typeEditor = baselineType.getPropertyEditor();
+        typeEditor.setAsText("ideographic");
+        FlutterPropertyCellValue ideographic = cell(typeEditor);
+        assertEquals(
+                new PropertyValue.EnumValue("TextBaseline", "ideographic"),
+                ideographic.explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> typeEditor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT));
+
+        baseline.setValue(raised);
+        baselineType.setValue(ideographic);
+        baseline.restoreDefaultValue();
+        baselineType.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("baseline"),
+                        raised.explicitValue().orElseThrow()),
+                new SetProperty(id, new PropertyName("baselineType"),
+                        ideographic.explicitValue().orElseThrow())),
+                commands,
+                "required constructor arguments never expose Restore Default");
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "alphabetic or ideographic baseline")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "bottom edge")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "shift the child above this box")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
     }
 
     @Test
@@ -2987,7 +3102,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void twentyEightCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentyNineCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3014,6 +3129,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
+                "flutter.widgets.Baseline",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3045,7 +3161,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(28, iconPaths.size(),
+        assertEquals(29, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

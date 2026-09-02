@@ -521,6 +521,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
+        node.type == 'flutter.widgets.Baseline' ||
         node.type == 'flutter.widgets.ConstrainedBox' ||
         node.type == 'flutter.widgets.UnconstrainedBox' ||
         node.type == 'flutter.widgets.LimitedBox' ||
@@ -1861,6 +1862,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
+      'flutter.widgets.Baseline' => _baseline(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.ConstrainedBox' => _constrainedBox(),
       'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
@@ -3416,6 +3418,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _aspectRatio() => AspectRatio(
     aspectRatio: _number('aspectRatio')!,
+    child: _single('child'),
+  );
+
+  Widget _baseline() => Baseline(
+    baseline: _number('baseline')!,
+    baselineType: _textBaseline('baselineType')!,
     child: _single('child'),
   );
 

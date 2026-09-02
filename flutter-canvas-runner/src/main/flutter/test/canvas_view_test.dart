@@ -118,6 +118,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.AspectRatio'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Baseline'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -213,7 +216,7 @@ void main() {
     );
   });
 
-  test('closes the 28-source by 27-destination compatibility matrix', () {
+  test('closes the 29-source by 28-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -221,6 +224,7 @@ void main() {
       'flutter.material.TextField',
       'flutter.widgets.Align',
       'flutter.widgets.AspectRatio',
+      'flutter.widgets.Baseline',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Wrap',
@@ -252,8 +256,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(28));
-    expect(destinations, hasLength(27));
+    expect(sourceTypes, hasLength(29));
+    expect(destinations, hasLength(28));
 
     var accepted = 0;
     var rejected = 0;
@@ -279,9 +283,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 633);
-    expect(rejected, 123);
-    expect(accepted + rejected, 756);
+    expect(accepted, 684);
+    expect(rejected, 128);
+    expect(accepted + rejected, 812);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -5472,6 +5476,205 @@ void main() {
   );
 
   testWidgets(
+    'renders real Baseline values and both TextBaseline modes with Flutter layout',
+    (tester) async {
+      const baselineId = '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae';
+      const childId = '0197b4c0-11f0-45b2-a191-d9b1b00a21ce';
+      final child = _viewSizedBoxNode(childId, width: 40, height: 10);
+
+      Future<({Baseline widget, RenderBaseline render, Rect childRect})> pump({
+        required double baseline,
+        required String baselineType,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredBaseline(
+                  baseline: baseline,
+                  baselineType: baselineType,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        final finder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$baselineId')),
+              matching: find.byType(Baseline),
+            )
+            .first;
+        final widget = tester.widget<Baseline>(finder);
+        final render = tester.renderObject<RenderBaseline>(finder);
+        final renderChild = render.child!;
+        return (
+          widget: widget,
+          render: render,
+          childRect: MatrixUtils.transformRect(
+            renderChild.getTransformTo(render),
+            Offset.zero & renderChild.size,
+          ),
+        );
+      }
+
+      final alphabetic = await pump(baseline: 24, baselineType: 'alphabetic');
+      expect(alphabetic.widget.baseline, 24);
+      expect(alphabetic.widget.baselineType, TextBaseline.alphabetic);
+      expect(alphabetic.render.size, const Size(40, 24));
+      expect(alphabetic.childRect, const Rect.fromLTWH(0, 14, 40, 10));
+
+      final ideographic = await pump(
+        baseline: 36.5,
+        baselineType: 'ideographic',
+      );
+      expect(ideographic.widget.baseline, 36.5);
+      expect(ideographic.widget.baselineType, TextBaseline.ideographic);
+      expect(ideographic.render.size, const Size(40, 36.5));
+      expect(ideographic.childRect, const Rect.fromLTWH(0, 26.5, 40, 10));
+
+      final negative = await pump(baseline: -6, baselineType: 'alphabetic');
+      expect(negative.widget.baseline, -6);
+      expect(negative.render.size, const Size(40, 0));
+      expect(negative.childRect, const Rect.fromLTWH(0, -16, 40, 10));
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$baselineId'),
+        ),
+        findsOneWidget,
+        reason: 'a legal finite baseline can collapse the real RenderBaseline',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps empty and child-bearing Baseline selectable with exact child DnD',
+    (tester) async {
+      const baselineId = '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae';
+      const childId = '0197b4c0-11f0-45b2-a191-d9b1b00a21ce';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+
+      Future<void> pump({
+        required double baseline,
+        required Map<String, Object?>? child,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredBaseline(
+                  baseline: baseline,
+                  baselineType: 'alphabetic',
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) => CanvasModelApp(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      CanvasDropTarget? resolveAt(Offset point) {
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      await pump(baseline: 24, child: null);
+      final emptyNode = find.byKey(const ValueKey('canvas-widget-$baselineId'));
+      final emptyTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$baselineId'),
+      );
+      expect(tester.getSize(emptyNode), Size.zero);
+      expect(emptyTarget, findsOneWidget);
+      expect(tester.getSize(emptyTarget), const Size(36, 36));
+      await tester.tap(emptyTarget);
+      await tester.pump();
+      expect(selectedWidgetId, baselineId);
+      final emptyDrop = resolveAt(tester.getRect(emptyTarget).center);
+      expect(emptyDrop?.parentWidgetId, baselineId);
+      expect(emptyDrop?.slotName, 'child');
+      expect(emptyDrop?.insertionIndex, 0);
+      expect(emptyDrop?.zone?.isEmpty, isFalse);
+
+      selectedWidgetId = null;
+      await pump(
+        baseline: 24,
+        child: _viewSizedBoxNode(childId, width: 40, height: 10),
+      );
+      final occupiedNode = find.byKey(
+        const ValueKey('canvas-widget-$baselineId'),
+      );
+      final occupiedRect = tester.getRect(occupiedNode);
+      final occupiedRender = tester.renderObject<RenderBaseline>(
+        find
+            .descendant(of: occupiedNode, matching: find.byType(Baseline))
+            .first,
+      );
+      expect(occupiedRender.size, const Size(40, 24));
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$baselineId'),
+        ),
+        findsNothing,
+      );
+      await tester.tapAt(Offset(occupiedRect.center.dx, occupiedRect.top + 4));
+      await tester.pump();
+      expect(selectedWidgetId, baselineId);
+      expect(resolveAt(occupiedRect.center)?.parentWidgetId, isNot(baselineId));
+
+      selectedWidgetId = null;
+      await pump(
+        baseline: -6,
+        child: _viewSizedBoxNode(childId, width: 40, height: 10),
+      );
+      final collapsedTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$baselineId'),
+      );
+      final collapsedRender = tester.renderObject<RenderBaseline>(
+        find
+            .descendant(of: occupiedNode, matching: find.byType(Baseline))
+            .first,
+      );
+      expect(collapsedRender.size, const Size(40, 0));
+      expect(collapsedTarget, findsOneWidget);
+      await tester.tap(collapsedTarget);
+      await tester.pump();
+      expect(selectedWidgetId, baselineId);
+      expect(
+        resolveAt(tester.getRect(collapsedTarget).center)?.parentWidgetId,
+        isNot(baselineId),
+        reason: 'an occupied Baseline child slot cannot accept another child',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
     (tester) async {
       const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
@@ -8001,6 +8204,43 @@ Map<String, Object?> _modelWithCenteredAspectRatio({
           'type': 'flutter.widgets.AspectRatio',
           'properties': <String, Object?>{
             'aspectRatio': {'kind': 'double', 'value': aspectRatio},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredBaseline({
+  required double baseline,
+  required String baselineType,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '0197b4c0-11f0-45b0-9c63-4caa0981d386',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae',
+          'type': 'flutter.widgets.Baseline',
+          'properties': <String, Object?>{
+            'baseline': {'kind': 'double', 'value': baseline},
+            'baselineType': {
+              'kind': 'enum',
+              'type': 'TextBaseline',
+              'value': baselineType,
+            },
           },
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},

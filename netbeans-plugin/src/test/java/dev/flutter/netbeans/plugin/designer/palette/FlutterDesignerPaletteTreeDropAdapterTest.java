@@ -70,6 +70,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
     private static final WidgetTypeId SPACER = type("flutter.widgets.Spacer");
+    private static final WidgetTypeId BASELINE = type("flutter.widgets.Baseline");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -80,6 +81,9 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             new PropertyName("aspectRatio");
     private static final PropertyName OPACITY_VALUE = new PropertyName("opacity");
     private static final PropertyName CONSTRAINTS = new PropertyName("constraints");
+    private static final PropertyName BASELINE_VALUE = new PropertyName("baseline");
+    private static final PropertyName BASELINE_TYPE_VALUE =
+            new PropertyName("baselineType");
     private static final StableId DOCUMENT_ID =
             id("f56a6bbb-fe08-4977-9597-a8273aa143eb");
     private static final StableId ROOT_ID =
@@ -721,6 +725,56 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void baselineTokenPreviewsAndCommitsRequiredDefaultsAndEmptyChild() {
+        Fixture fixture = fixture(BASELINE);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(BASELINE, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(BASELINE, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(
+                                BASELINE_VALUE,
+                                new PropertyValue.DoubleValue(new BigDecimal("24")),
+                                BASELINE_TYPE_VALUE,
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "alphabetic")),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the Baseline palette authority once"));
+    }
+
+    @Test
     void stackTokenPreviewsAndCommitsOptionalPropertiesAndEmptyOrderedChildren() {
         Fixture fixture = fixture(STACK);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -835,6 +889,10 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty OverflowBox",
                         document(prototype(OVERFLOW_BOX)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty Baseline",
+                        document(prototype(BASELINE)),
                         CHILD));
 
         assertAll(accepted.stream().map(testCase -> () -> {

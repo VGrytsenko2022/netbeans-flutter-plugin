@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-28 reviewed Canvas widgets. Palette insertion evaluates 756 exact
-source/destination cells across 28 draggable sources and 27 insertable reviewed
-slots; 633 are accepted and 123 cells are rejected. Expanded and Flexible are
+29 reviewed Canvas widgets. Palette insertion evaluates 812 exact
+source/destination cells across 29 draggable sources and 28 insertable reviewed
+slots; 684 are accepted and 128 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -408,11 +408,32 @@ cannot wrap Spacer because Spacer internally creates the Expanded parent-data
 path that must remain directly below Row or Column. Native and exact-Web
 renderers construct the real Flutter Spacer directly under the Flex. Because an
 outer render-object wrapper would invalidate that path, Designer selection, hit
-testing and outlines use only the surface overlay. The aggregate catalog now
-has 28 widgets, 23 reviewed const constructors and 662 writable properties,
-including 645 outside Scaffold. Twenty-eight sources across the unchanged 25
-insertable any-widget and two trait destinations form 756 candidates: 633
-accepted and 123 rejected. The practical Material/Base Designer backlog is
-28/92 complete with 64 remaining, the Palette Layout category contains 20
+testing and outlines use only the surface overlay. At that milestone the
+aggregate catalog had 28 widgets, 23 reviewed const constructors and 662
+writable properties, including 645 outside Scaffold. Twenty-eight sources
+across the unchanged 25 insertable any-widget and two trait destinations formed
+756 candidates: 633 accepted and 123 rejected. The practical Material/Base
+Designer backlog was 28/92 complete with 64 remaining, the Palette Layout
+category contained 20 items, and no later widget had an explicit order. `.fd`
+schema v7, Catalog API
+6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.Baseline`](https://api.flutter.dev/flutter/widgets/Baseline-class.html)
+is the ninth post-core Canvas widget, at Palette Layout order 150 immediately
+after Spacer. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes required finite signed `double baseline`,
+required exact `TextBaseline.alphabetic`/`TextBaseline.ideographic`, and one
+optional single any-widget `child`. Designer prototype creation uses
+`baseline: 24.0` and `TextBaseline.alphabetic`; wrong kinds, non-finite values
+and raw Dart are rejected. Palette, tree and Canvas creation admit Baseline as
+an ordinary widget, while generic placement rules reject Expanded, Flexible and
+Spacer in its child slot. Native and exact-Web renderers construct the real
+Flutter Baseline; an empty or collapsed instance retains a bounded 36 x 36
+Designer selection target without changing generated Dart. The aggregate
+catalog now has 29 widgets, 24 reviewed const constructors and 664 writable
+properties, including 647 outside Scaffold. Twenty-nine sources across 26
+insertable any-widget and two trait destinations form 812 candidates: 684
+accepted and 128 rejected. The practical Material/Base Designer backlog is
+29/92 complete with 63 remaining, the Palette Layout category contains 21
 items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
 6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.

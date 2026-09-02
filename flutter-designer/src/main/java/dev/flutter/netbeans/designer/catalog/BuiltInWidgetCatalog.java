@@ -49,6 +49,7 @@ public final class BuiltInWidgetCatalog {
             expanded(),
             flexible(),
             spacer(),
+            baseline(),
             listView(),
             image(),
             elevatedButton(),
@@ -956,6 +957,31 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 140, "Spacer"),
                 List.of(namedProperty("flex", 0, false, positiveIntegers())),
                 List.of());
+    }
+
+    private static WidgetDefinition baseline() {
+        return widget(
+                "flutter.widgets.Baseline",
+                "Baseline",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 150, "Baseline"),
+                List.of(
+                        namedProperty(
+                                "baseline",
+                                0,
+                                true,
+                                finiteDoubles(),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(24))),
+                        namedProperty(
+                                "baselineType",
+                                1,
+                                true,
+                                enumValues("TextBaseline", "alphabetic", "ideographic"),
+                                new PropertyValue.EnumValue("TextBaseline", "alphabetic"))),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

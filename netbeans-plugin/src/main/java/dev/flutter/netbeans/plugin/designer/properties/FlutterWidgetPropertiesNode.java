@@ -59,6 +59,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.AspectRatio");
     private static final PropertyName ASPECT_RATIO_PROPERTY =
             new PropertyName("aspectRatio");
+    private static final WidgetTypeId BASELINE_TYPE =
+            new WidgetTypeId("flutter.widgets.Baseline");
+    private static final PropertyName BASELINE_PROPERTY =
+            new PropertyName("baseline");
+    private static final PropertyName BASELINE_TYPE_PROPERTY =
+            new PropertyName("baselineType");
     private static final WidgetTypeId OPACITY_TYPE =
             new WidgetTypeId("flutter.widgets.Opacity");
     private static final PropertyName OPACITY_PROPERTY =
@@ -622,6 +628,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (BASELINE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child positioned so its selected alphabetic or ideographic "
+                    + "baseline sits at the required logical-pixel offset from the top. "
+                    + "When the child does not report that baseline, Flutter uses its "
+                    + "bottom edge; a smaller offset can shift the child above this box. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -759,6 +776,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
     private Sheet.Set createGenericPropertySet() {
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
+        boolean baseline = BASELINE_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -778,6 +796,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 "Widget properties",
                 aspectRatio
                         ? "Sizing contract for the selected AspectRatio widget."
+                        : baseline
+                                ? "Required baseline offset and type, plus an optional child, "
+                                        + "for the selected Baseline widget."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -843,6 +864,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         "Aspect ratio",
                         "Finite width-to-height ratio used to size this widget; "
                                 + "for example, use 1.7778 for a 16:9 surface."));
+            } else if (baseline && BASELINE_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Baseline",
+                        "Required finite logical-pixel distance from the top of this box "
+                                + "at which Flutter positions the selected child baseline. "
+                                + "Designer palette creation starts at 24. "
+                                + "Negative values shift the child upward and can make it "
+                                + "overflow above the box."));
+            } else if (baseline && BASELINE_TYPE_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Baseline type",
+                        "Required child baseline to query: alphabetic for alphabetic scripts "
+                                + "or ideographic for ideographic scripts. When the child does "
+                                + "not report the requested baseline, Flutter uses its bottom "
+                                + "edge."));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,

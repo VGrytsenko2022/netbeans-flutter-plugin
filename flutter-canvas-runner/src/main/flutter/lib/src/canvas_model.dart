@@ -3725,6 +3725,25 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Baseline': _WidgetSpec(
+    {
+      'baseline': _PropertySpec(
+        {'double'},
+        required: true,
+        creationDefaultFingerprint: 'double:24',
+        numericBounds: _unboundedDoubleBounds,
+      ),
+      'baselineType': _PropertySpec(
+        {'enum'},
+        required: true,
+        creationDefaultFingerprint: 'enum:TextBaseline:alphabetic',
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextBaseline',
+        enumValues: {'alphabetic', 'ideographic'},
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5036,6 +5055,10 @@ P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|d
 S|child|single|0|0|1|any
 W|flutter.widgets.AspectRatio
 P|aspectRatio|double|1|double:1|double:0:0:*:1|double:range:0:0:*:1
+S|child|single|0|0|1|any
+W|flutter.widgets.Baseline
+P|baseline|double|1|double:24|double:*:1:*:1|double:range:*:1:*:1
+P|baselineType|enum|1|enum:TextBaseline:alphabetic|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
 S|child|single|0|0|1|any
 W|flutter.widgets.Center
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1

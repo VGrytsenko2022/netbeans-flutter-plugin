@@ -98,6 +98,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
+                "flutter.widgets.Baseline",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -416,6 +417,36 @@ class CanvasModelPayloadCodecTest {
                 "\"type\":\"flutter.widgets.Spacer\""), json);
         assertTrue(json.contains(
                 "\"flex\":{\"kind\":\"integer\",\"value\":3}"), json);
+    }
+
+    @Test
+    void projectsBaselineWithoutChangingProtocolV12() throws Exception {
+        WidgetNode baseline = new WidgetNode(
+                id("82bf740b-1a96-4d8f-b0d3-345f4169776c"),
+                type("flutter.widgets.Baseline"),
+                Map.of(
+                        new PropertyName("baseline"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("-12.5")),
+                        new PropertyName("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "ideographic")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "66d958ff-0f49-43fe-ae5b-59ea9a55252f", "Baseline"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), baseline))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.Baseline\""), json);
+        assertTrue(json.contains(
+                "\"baseline\":{\"kind\":\"double\",\"value\":-12.5}"), json);
+        assertTrue(json.contains("\"baselineType\":{\"kind\":\"enum\","
+                + "\"type\":\"TextBaseline\",\"value\":\"ideographic\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"66d958ff-0f49-43fe-ae5b-59ea9a55252f\""), json);
     }
 
     @Test

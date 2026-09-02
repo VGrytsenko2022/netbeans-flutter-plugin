@@ -2349,6 +2349,84 @@ void main() {
   );
 
   testWidgets(
+    'admits Baseline as an exact source and empty Baseline child destination',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyBaselineModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      const baselineId = '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae';
+      runtime.setDropResolver(
+        (_, _, [source]) => source?.widgetType == 'flutter.widgets.Baseline'
+            ? const CanvasDropTarget(
+                parentWidgetId: baselineId,
+                slotName: 'child',
+                insertionIndex: 0,
+              )
+            : null,
+      );
+      const token =
+          'nbfdnd:v1:0197b4c0-11f0-45b3-a801-5c531f1482bc:'
+          '0197b4c0-11f0-45b4-bfc0-7e11df6280ec';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request,
+          widgetType: 'flutter.widgets.Baseline',
+        ),
+        isTrue,
+      );
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (_decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('token', token));
+      expect(drops.single['body'], containsPair('parentWidgetId', baselineId));
+      expect(drops.single['body'], containsPair('slotName', 'child'));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'publishes exact ADD into an empty Center child and rejects other slots',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -3486,6 +3564,30 @@ Uint8List _rowWithSpacerModelBytes() {
     'properties': <String, Object?>{},
     'slots': <String, Object?>{},
   });
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyBaselineModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(_emptyScaffoldModelBytes()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  ((root['slots']! as Map<String, Object?>)['body']!
+      as Map<String, Object?>)['child'] = <String, Object?>{
+    'id': '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae',
+    'type': 'flutter.widgets.Baseline',
+    'properties': <String, Object?>{
+      'baseline': {'kind': 'double', 'value': 24.0},
+      'baselineType': {
+        'kind': 'enum',
+        'type': 'TextBaseline',
+        'value': 'alphabetic',
+      },
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
   return Uint8List.fromList(utf8.encode(jsonEncode(json)));
 }
 

@@ -46,6 +46,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Expanded",
             "flutter.widgets.Flexible",
             "flutter.widgets.Spacer",
+            "flutter.widgets.Baseline",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -76,6 +77,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Expanded",
             "flutter.widgets.Flexible",
             "flutter.widgets.Spacer",
+            "flutter.widgets.Baseline",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -90,7 +92,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasTwentyEightSourcesAndTwentySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasTwentyNineSourcesAndTwentyEightInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -113,9 +115,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(28, sources.size());
-        assertEquals(27, destinations.size());
-        assertEquals(25, destinations.stream()
+        assertEquals(29, sources.size());
+        assertEquals(28, destinations.size());
+        assertEquals(26, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -123,9 +125,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(756, candidates);
-        assertEquals(633, accepted);
-        assertEquals(123, candidates - accepted);
+        assertEquals(812, candidates);
+        assertEquals(684, accepted);
+        assertEquals(128, candidates - accepted);
     }
 
     @Test
@@ -697,6 +699,51 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, true, 1, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void baselineHasRequiredVisibleDefaultsAndIndependentFiniteProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Baseline");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("baseline"),
+                        new PropertyName("baselineType")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var distance = projection.propertyContracts().get(
+                new PropertyName("baseline"));
+        assertTrue(distance.required());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE), distance.acceptedKinds());
+        assertEquals(Optional.of("double:24"),
+                distance.creationDefaultFingerprint());
+        assertEquals("*:1:*:1", distance.numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("range:*:1:*:1", distance.constraintFingerprints()
+                .get(PropertyValueKind.DOUBLE));
+
+        var type = projection.propertyContracts().get(
+                new PropertyName("baselineType"));
+        assertTrue(type.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), type.acceptedKinds());
+        assertEquals(Optional.of("enum:TextBaseline:alphabetic"),
+                type.creationDefaultFingerprint());
+        assertTrue(type.numericBounds().isEmpty());
+        assertTrue(type.constraintFingerprints().get(PropertyValueKind.ENUM)
+                .endsWith(":TextBaseline:alphabetic,ideographic"));
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
                 projection.slotContracts().get(new SlotName("child")));
     }
 

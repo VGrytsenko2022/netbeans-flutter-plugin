@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedTwentyEightTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedTwentyNineTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -41,6 +41,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.TextField",
                 "flutter.widgets.Align",
                 "flutter.widgets.AspectRatio",
+                "flutter.widgets.Baseline",
                 "flutter.widgets.Center",
                 "flutter.widgets.Column",
                 "flutter.widgets.ConstrainedBox",
@@ -67,8 +68,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(28, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(23, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(29, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(24, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -81,10 +82,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(662, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(664, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(645, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(647, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -100,6 +101,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.TextField", MATERIAL_IMPORT),
                 Map.entry("flutter.widgets.Align", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Baseline", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ConstrainedBox", WIDGETS_IMPORT),
@@ -227,6 +229,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
+                "flutter.widgets.Baseline",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -313,6 +316,12 @@ class BuiltInWidgetCatalogTest {
         }
         assertTrue(property(catalog, "flutter.widgets.Spacer", "flex")
                 .creationDefault().isEmpty());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(24)),
+                property(catalog, "flutter.widgets.Baseline", "baseline")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.EnumValue("TextBaseline", "alphabetic"),
+                property(catalog, "flutter.widgets.Baseline", "baselineType")
+                        .creationDefault().orElseThrow());
         assertTrue(definition("flutter.material.TextField").properties().stream()
                 .allMatch(value -> value.creationDefault().isEmpty()));
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
@@ -1363,6 +1372,62 @@ class BuiltInWidgetCatalogTest {
         assertFalse(range.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)));
         assertFalse(range.accepts(new PropertyValue.IntegerValue(
                 DartNumericLiterals.MAX_PORTABLE_INTEGER.add(BigInteger.ONE))));
+    }
+
+    @Test
+    void baselineExposesExactFlutter344ConstSurfaceAndReviewedVisiblePrototype() {
+        WidgetDefinition baseline = definition("flutter.widgets.Baseline");
+
+        assertEquals("Baseline", baseline.dartClassName());
+        assertTrue(baseline.constConstructor());
+        assertEquals(WIDGETS_IMPORT, baseline.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), baseline.importUris());
+        assertTrue(baseline.traits().isEmpty());
+        assertEquals(new PaletteMetadata("flutter.layout", 200, 150, "Baseline"),
+                baseline.palette());
+        assertEquals(List.of("baseline", "baselineType"), baseline.properties().stream()
+                .map(value -> value.name().value()).toList());
+
+        PropertyDefinition distance = baseline.property(new PropertyName("baseline"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, true), distance.parameter());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE), distance.acceptedKinds());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(24)),
+                distance.creationDefault().orElseThrow(),
+                "The Designer prototype keeps a typical text child visible; Flutter has no default");
+        PropertyValueConstraint.DoubleRange distanceRange = assertInstanceOf(
+                PropertyValueConstraint.DoubleRange.class,
+                distance.constraints().getFirst());
+        assertNull(distanceRange.minimum());
+        assertTrue(distanceRange.minimumInclusive());
+        assertNull(distanceRange.maximum());
+        assertTrue(distanceRange.maximumInclusive());
+        assertTrue(distanceRange.accepts(new PropertyValue.DoubleValue(
+                new BigDecimal("-12.5"))),
+                "Flutter 3.44.8 has no non-negative Baseline assertion");
+        assertTrue(distanceRange.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        assertFalse(distanceRange.accepts(new PropertyValue.IntegerValue(BigInteger.ONE)));
+
+        PropertyDefinition type = baseline.property(new PropertyName("baselineType"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(1, true), type.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), type.acceptedKinds());
+        assertEquals(new PropertyValue.EnumValue("TextBaseline", "alphabetic"),
+                type.creationDefault().orElseThrow());
+        PropertyValueConstraint.EnumValues values = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                type.constraints().getFirst());
+        assertEquals(new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
+                values.dartType());
+        assertEquals(List.of("alphabetic", "ideographic"), values.values());
+
+        SlotDefinition child = baseline.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
     }
 
     @Test

@@ -617,6 +617,123 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsBaselineWithReviewedDefaultsOrSignedFiniteOverrideAndOptionalChild() {
+        WidgetNode empty = baseline(
+                "emptyBaseline",
+                Map.of(
+                        name("baseline"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(24)),
+                        name("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "alphabetic")),
+                null);
+        WidgetNode configured = baseline(
+                "configuredBaseline",
+                Map.of(
+                        name("baseline"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("-12.5")),
+                        name("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "ideographic")),
+                text("baselineText"));
+
+        assertTrue(validator().validate(
+                document(empty), BuiltInWidgetCatalog.getDefault()).valid());
+        assertTrue(validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault()).valid());
+    }
+
+    @Test
+    void rejectsMissingOrMismatchedBaselineArgumentsAtExactPropertyPaths() {
+        WidgetNode missingDistance = baseline(
+                "missingDistance",
+                Map.of(name("baselineType"),
+                        new PropertyValue.EnumValue(
+                                "TextBaseline", "alphabetic")),
+                null);
+        ValidationIssue distanceIssue = onlyIssue(
+                validator().validate(
+                        document(missingDistance),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/baseline", distanceIssue.path());
+
+        WidgetNode missingType = baseline(
+                "missingType",
+                Map.of(name("baseline"),
+                        new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                null);
+        ValidationIssue typeIssue = onlyIssue(
+                validator().validate(
+                        document(missingType),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/baselineType", typeIssue.path());
+
+        WidgetNode integerDistance = baseline(
+                "integerDistance",
+                Map.of(
+                        name("baseline"),
+                                new PropertyValue.IntegerValue(BigInteger.ONE),
+                        name("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "alphabetic")),
+                null);
+        ValidationIssue integerIssue = onlyIssue(
+                validator().validate(
+                        document(integerDistance),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/baseline", integerIssue.path());
+
+        for (PropertyValue.EnumValue rejected : List.of(
+                new PropertyValue.EnumValue("TextBaseline", "central"),
+                new PropertyValue.EnumValue("VerticalDirection", "down"))) {
+            WidgetNode invalidType = baseline(
+                    "invalidType-" + rejected.type() + '-' + rejected.value(),
+                    Map.of(
+                            name("baseline"),
+                                    new PropertyValue.DoubleValue(
+                                            BigDecimal.valueOf(24)),
+                            name("baselineType"), rejected),
+                    null);
+            ValidationIssue enumIssue = onlyIssue(
+                    validator().validate(
+                            document(invalidType),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/baselineType", enumIssue.path());
+        }
+    }
+
+    @Test
+    void baselineChildStillEnforcesGlobalFlexParentDataPlacementRules() {
+        WidgetNode child = expanded(
+                "baselineExpanded", Map.of(), text("baselineExpandedText"));
+        WidgetNode baseline = baseline(
+                "baseline",
+                Map.of(
+                        name("baseline"),
+                                new PropertyValue.DoubleValue(
+                                        BigDecimal.valueOf(24)),
+                        name("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "alphabetic")),
+                child);
+
+        ValidationIssue issue = onlyIssue(
+                validator().validate(
+                        document(baseline),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+
+        assertEquals("/root/slots/child/child", issue.path());
+        assertTrue(issue.message().contains("flutter.widgets.Baseline.child"));
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2346,6 +2463,16 @@ class WidgetTreeValidatorTest {
             String idSeed,
             Map<PropertyName, PropertyValue> properties) {
         return node(idSeed, "flutter.widgets.Spacer", properties, Map.of());
+    }
+
+    private static WidgetNode baseline(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.Baseline", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
     }
 
     private static PropertyValue.ImageProviderValue imageProvider() {

@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.Baseline`](https://api.flutter.dev/flutter/widgets/Baseline/Baseline.html)
+  vertical slice is the ninth post-core Palette addition, at Layout order 150
+  immediately after Spacer. Its complete pinned Flutter 3.44.8 non-`key`
+  contract exposes required finite-double `baseline`, required
+  `TextBaseline.alphabetic`/`ideographic` `baselineType`, and one optional
+  single any-widget `child`. Flutter defines no constructor defaults, so a new
+  Designer prototype stores the reviewed visible starting values
+  `baseline: 24.0` and `baselineType: TextBaseline.alphabetic`; NaN, infinity,
+  wrong enum types and raw Dart remain rejected. Generated Dart and native and
+  exact-Web Canvas construct the real Flutter Baseline. An empty Baseline keeps
+  framework `constraints.smallest` layout (often zero) while a
+  non-layout-affecting Designer target supplies selection and child insertion.
+  Properties, exact-slot editing,
+  Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
+  Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
+  contract. The catalog now contains 29 widgets, 24 reviewed const constructors
+  and 664 writable rows, including 647 across the 28 non-`Scaffold`
+  definitions. Twenty-nine sources across 26 insertable any-widget and two
+  trait-bound destinations form 812 DnD candidates: 684 accepted and 128
+  rejected. Layout contains 21 items, and the practical 92-widget backlog is
+  29/92 complete with 63 remaining. `.fd` schema v7, Catalog API 6, Canvas model
+  v12 and NBFC framing/control/wire v1 remain unchanged.
+- The accepted const
   [`flutter.widgets.Spacer`](https://api.flutter.dev/flutter/widgets/Spacer/Spacer.html)
   vertical slice is the eighth post-core Palette addition, at Layout order 140
   immediately after Flexible. Its pinned Flutter 3.44.8 contract exposes one

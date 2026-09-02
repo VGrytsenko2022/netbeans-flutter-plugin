@@ -304,6 +304,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
+      'flutter.widgets.Baseline' ||
       'flutter.widgets.Center' ||
       'flutter.widgets.ConstrainedBox' ||
       'flutter.widgets.UnconstrainedBox' ||

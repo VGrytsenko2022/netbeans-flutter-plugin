@@ -998,6 +998,27 @@ accepted architecture is documented in
   123 rejected. The practical 92-widget backlog is 28/92 complete with 64
   remaining. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
   framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`Baseline`](https://api.flutter.dev/flutter/widgets/Baseline/Baseline.html)
+  as the ninth post-core Palette vertical slice at Layout order 150,
+  immediately after Spacer. Expose required finite-double `baseline`, required
+  `TextBaseline.alphabetic`/`ideographic` `baselineType`, and one optional
+  single any-widget `child`. Flutter supplies no constructor defaults, so a
+  detached Designer prototype persists the reviewed visible starting values
+  `baseline: 24.0` and `baselineType: TextBaseline.alphabetic`; reject NaN,
+  infinity, wrong enum types and raw Dart. Generated Dart and both Canvas
+  projections construct the real Flutter Baseline. Preserve childless framework
+  `constraints.smallest` layout (often zero) while supplying selection and
+  insertion through a bounded, non-layout-affecting Designer target. Complete
+  Properties, exact-slot
+  editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
+  generation, Save/reopen, Undo/Redo, reviewed light/dark SVG icons and focused
+  contract tests. The current surface is 29 widgets, 24 const definitions and
+  664 rows (647 outside Scaffold), with 21 Layout items. Twenty-nine sources
+  across 26 insertable any-widget plus two trait destinations form 812
+  candidates: 684 accepted and 128 rejected. The practical 92-widget backlog is
+  29/92 complete with 63 remaining. `.fd` schema v7, Catalog API 6, Canvas model
+  v12 and NBFC framing/control/wire v1 remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1015,8 +1036,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Spacer has yet been assigned an
-  explicit order. The current typed Properties slice spans all twenty-eight
+  vertical slices. No specific widget after Baseline has yet been assigned an
+  explicit order. The current typed Properties slice spans all twenty-nine
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

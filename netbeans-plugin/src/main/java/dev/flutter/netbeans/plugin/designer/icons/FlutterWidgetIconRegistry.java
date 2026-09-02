@@ -43,6 +43,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg"),
             Map.entry("flutter.widgets.Flexible", ICON_ROOT + "flexible.svg"),
             Map.entry("flutter.widgets.Spacer", ICON_ROOT + "spacer.svg"),
+            Map.entry("flutter.widgets.Baseline", ICON_ROOT + "baseline.svg"),
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),

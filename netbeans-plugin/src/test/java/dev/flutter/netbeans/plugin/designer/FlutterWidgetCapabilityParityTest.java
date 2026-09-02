@@ -25,9 +25,10 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(28, javaTypes.size(),
+        assertEquals(29, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
-                + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, and Spacer");
+                + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
+                + "and Baseline");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -43,6 +44,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
         assertTrue(javaTypes.contains("flutter.widgets.Flexible"));
         assertTrue(javaTypes.contains("flutter.widgets.Spacer"));
+        assertTrue(javaTypes.contains("flutter.widgets.Baseline"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
@@ -109,6 +111,8 @@ class FlutterWidgetCapabilityParityTest {
                 "Flexible.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Spacer"),
                 "Spacer has no child slot and is never a DnD destination");
+        assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
+                "Baseline.child must remain a Java-admitted DnD target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

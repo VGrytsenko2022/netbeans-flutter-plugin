@@ -3144,7 +3144,7 @@ void main() {
   test('AspectRatio reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.AspectRatio\n');
-    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    final end = contract.indexOf('W|flutter.widgets.Baseline\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -3152,6 +3152,192 @@ void main() {
       'W|flutter.widgets.AspectRatio\n'
       'P|aspectRatio|double|1|double:1|double:0:0:*:1|'
       'double:range:0:0:*:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test(
+    'decodes every finite Baseline value, baseline type, and child shape',
+    () {
+      Map<String, Object?> model({
+        required double baseline,
+        required String baselineType,
+        Map<String, Object?>? child,
+        bool includeSlot = true,
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae',
+          'flutter.widgets.Baseline',
+          properties: {
+            'baseline': {'kind': 'double', 'value': baseline},
+            'baselineType': {
+              'kind': 'enum',
+              'type': 'TextBaseline',
+              'value': baselineType,
+            },
+          },
+          slots: includeSlot ? {'child': _single(child)} : const {},
+        );
+        return json;
+      }
+
+      final child = _node(
+        '0197b4c0-11f0-45b2-a191-d9b1b00a21ce',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Baseline child'},
+        },
+      );
+      for (final baselineCase in const [
+        (value: -24.5, type: 'alphabetic'),
+        (value: 0.0, type: 'ideographic'),
+        (value: 175.25, type: 'alphabetic'),
+      ]) {
+        final decoded = _decode(
+          model(
+            baseline: baselineCase.value,
+            baselineType: baselineCase.type,
+            child: child,
+          ),
+        ).root;
+        expect(decoded.type, 'flutter.widgets.Baseline');
+        expect(decoded.properties.keys, const ['baseline', 'baselineType']);
+        expect(decoded.properties['baseline']!.kind, 'double');
+        expect(decoded.properties['baseline']!.value, baselineCase.value);
+        final type =
+            decoded.properties['baselineType']!.value as CanvasEnumValue;
+        expect(type.type, 'TextBaseline');
+        expect(type.value, baselineCase.type);
+        expect(decoded.slot('child')!.child!.id, child['id']);
+      }
+
+      expect(
+        _decode(
+          model(baseline: 24, baselineType: 'alphabetic'),
+        ).root.slot('child')!.child,
+        isNull,
+      );
+      expect(
+        _decode(
+          model(baseline: 24, baselineType: 'alphabetic', includeSlot: false),
+        ).root.slot('child'),
+        isNull,
+      );
+    },
+  );
+
+  test('rejects malformed Baseline properties and child slots', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '0197b4c0-11f0-45b1-bfe8-cc84ef5a6fae',
+        'flutter.widgets.Baseline',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    const validProperties = <String, Object?>{
+      'baseline': {'kind': 'double', 'value': 24.0},
+      'baselineType': {
+        'kind': 'enum',
+        'type': 'TextBaseline',
+        'value': 'alphabetic',
+      },
+    };
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'baselineType': {
+          'kind': 'enum',
+          'type': 'TextBaseline',
+          'value': 'alphabetic',
+        },
+      },
+      const {
+        'baseline': {'kind': 'double', 'value': 24.0},
+      },
+      {
+        ...validProperties,
+        'baseline': const {'kind': 'integer', 'value': 24},
+      },
+      {
+        ...validProperties,
+        'baselineType': const {
+          'kind': 'enum',
+          'type': 'TextBaseline',
+          'value': 'central',
+        },
+      },
+      {
+        ...validProperties,
+        'baselineType': const {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'alphabetic',
+        },
+      },
+      {
+        ...validProperties,
+        'unknown': const {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(
+        model(properties: validProperties, slots: {'child': _list(const [])}),
+      ),
+      throwsFormatException,
+    );
+
+    final finiteJson = jsonEncode(
+      model(
+        properties: const {
+          'baseline': {'kind': 'double', 'value': 987654321.125},
+          'baselineType': {
+            'kind': 'enum',
+            'type': 'TextBaseline',
+            'value': 'ideographic',
+          },
+        },
+      ),
+    );
+    final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+    expect(
+      () => CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('must be finite'),
+        ),
+      ),
+    );
+  });
+
+  test('Baseline reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Baseline\n');
+    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Baseline\n'
+      'P|baseline|double|1|double:24|double:*:1:*:1|'
+      'double:range:*:1:*:1\n'
+      'P|baselineType|enum|1|enum:TextBaseline:alphabetic|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextBaseline:alphabetic,ideographic\n'
       'S|child|single|0|0|1|any\n',
     );
   });

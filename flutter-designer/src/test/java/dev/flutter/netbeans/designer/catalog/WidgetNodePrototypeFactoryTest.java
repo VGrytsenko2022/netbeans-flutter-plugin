@@ -287,6 +287,64 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsBaselineWithVisibleReviewedDefaultsAndEmptyChildSlot() {
+        WidgetDefinition definition = definition("flutter.widgets.Baseline");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Baseline"), prototype.type());
+        assertEquals(List.of(
+                        new PropertyName("baseline"),
+                        new PropertyName("baselineType")),
+                prototype.properties().keySet().stream().toList());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(24)),
+                prototype.properties().get(new PropertyName("baseline")));
+        assertEquals(new PropertyValue.EnumValue("TextBaseline", "alphabetic"),
+                prototype.properties().get(new PropertyName("baselineType")));
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
+    void baselineCreationAcceptsSignedDoubleAndExactTextBaselineOverrideOnly() {
+        WidgetDefinition definition = definition("flutter.widgets.Baseline");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("baseline"),
+                                new PropertyValue.DoubleValue(new BigDecimal("-12.5")),
+                        new PropertyName("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "ideographic")));
+
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("-12.5")),
+                prototype.properties().get(new PropertyName("baseline")));
+        assertEquals(new PropertyValue.EnumValue("TextBaseline", "ideographic"),
+                prototype.properties().get(new PropertyName("baselineType")));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("baseline"),
+                                new PropertyValue.IntegerValue(java.math.BigInteger.ONE))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("baselineType"),
+                                new PropertyValue.EnumValue(
+                                        "TextBaseline", "central"))));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

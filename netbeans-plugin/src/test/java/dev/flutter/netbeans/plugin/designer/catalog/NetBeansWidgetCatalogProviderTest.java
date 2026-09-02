@@ -55,6 +55,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.Baseline"));
         assertTrue(typeIds(result).contains("flutter.widgets.IntrinsicHeight"));
         assertTrue(typeIds(result).contains("flutter.widgets.IntrinsicWidth"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Offstage"));
     }
 
     @Test
@@ -142,7 +143,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(31, result.catalog().definitions().size());
+        assertEquals(32, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -175,7 +176,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(31, result.catalog().definitions().size());
+        assertEquals(32, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

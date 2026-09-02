@@ -281,6 +281,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(intrinsicWidth));
     }
 
+    @Test
+    void offstageIsAnOrdinaryInsertableWidgetWithRestrictedAnyWidgetChild() {
+        WidgetDefinition offstage = definition("flutter.widgets.Offstage");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(offstage).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), offstage));
+        assertTrue(WidgetPlacementRules.accepts(
+                offstage, slot(offstage, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    offstage,
+                    slot(offstage, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.Offstage.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(offstage));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(offstage));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(offstage));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

@@ -2900,6 +2900,140 @@ void main() {
     );
   });
 
+  test('decodes omitted, true, and false Offstage with optional child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
+        'flutter.widgets.Offstage',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final omitted = _decode(model()).root;
+    expect(omitted.type, 'flutter.widgets.Offstage');
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+
+    final explicitTrue = _decode(
+      model(
+        properties: const {
+          'offstage': {'kind': 'boolean', 'value': true},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    expect(explicitTrue.properties['offstage']!.value, isTrue);
+    expect(explicitTrue.slot('child')!.child, isNull);
+
+    final text = _node(
+      'eea084e6-c139-421b-8a62-4e82a877b72c',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Visible child'},
+      },
+    );
+    final explicitFalse = _decode(
+      model(
+        properties: const {
+          'offstage': {'kind': 'boolean', 'value': false},
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+    expect(explicitFalse.properties['offstage']!.value, isFalse);
+    expect(explicitFalse.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test('rejects non-contract Offstage values, slots, and flex child', () {
+    Map<String, Object?> offstage({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
+      'flutter.widgets.Offstage',
+      properties: properties,
+      slots: slots,
+    );
+
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    for (final invalid in <Map<String, Object?>>[
+      const {
+        'offstage': {'kind': 'integer', 'value': 1},
+      },
+      const {
+        'offstage': {'kind': 'string', 'value': 'true'},
+      },
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(rootWith(offstage(properties: invalid))),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+    expect(
+      () => _decode(rootWith(offstage(slots: {'child': _list(const [])}))),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(rootWith(offstage(slots: {'children': _list(const [])}))),
+      throwsFormatException,
+    );
+
+    final text = _node(
+      'eea084e6-c139-421b-8a62-4e82a877b72c',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Flex child'},
+      },
+    );
+    for (final flexType in const [
+      'flutter.widgets.Expanded',
+      'flutter.widgets.Flexible',
+      'flutter.widgets.Spacer',
+    ]) {
+      final flexChild = _node(
+        '52f7536c-b092-47dc-aa34-ad28d8bad093',
+        flexType,
+        slots: flexType == 'flutter.widgets.Spacer'
+            ? const {}
+            : {'child': _single(text)},
+      );
+      expect(
+        () => _decode(rootWith(offstage(slots: {'child': _single(flexChild)}))),
+        throwsFormatException,
+        reason: '$flexType is legal only in Row.children or Column.children',
+      );
+    }
+  });
+
+  test('Offstage reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Offstage\n');
+    final end = contract.indexOf('W|flutter.widgets.Opacity\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Offstage\n'
+      'P|offstage|boolean|0|-|-|boolean:any\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes all 17 reviewed ListView leaves and its ordered children', () {
     final json = _modelJson();
     json['root'] = _node(
@@ -3035,7 +3169,7 @@ void main() {
   test('ListView reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ListView\n');
-    final end = contract.indexOf('W|flutter.widgets.Opacity\n', start);
+    final end = contract.indexOf('W|flutter.widgets.Offstage\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);

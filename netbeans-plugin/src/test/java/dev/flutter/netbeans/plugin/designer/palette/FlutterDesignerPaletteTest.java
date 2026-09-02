@@ -66,6 +66,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicHeight",
             "flutter.widgets.IntrinsicWidth",
+            "flutter.widgets.Offstage",
             "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
@@ -88,7 +89,7 @@ class FlutterDesignerPaletteTest {
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
-                "IntrinsicWidth"),
+                "IntrinsicWidth", "Offstage"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -116,7 +117,7 @@ class FlutterDesignerPaletteTest {
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
-                "IntrinsicWidth"),
+                "IntrinsicWidth", "Offstage"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -607,6 +608,38 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void offstagePaletteSelectionExplainsHiddenActiveChildAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Offstage";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        180,
+                        "Offstage"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Offstage", node.getDisplayName());
+        assertEquals(
+                "Keep an optional child laid out and active while optionally removing it "
+                + "from paint, hit testing, and the parent layout space. An offstage child "
+                + "can still receive focus and run animations; remove it from the tree "
+                + "instead when hiding it long-term.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Image";
@@ -935,7 +968,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void thirtyOneCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyTwoCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -954,7 +987,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(31, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(32, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

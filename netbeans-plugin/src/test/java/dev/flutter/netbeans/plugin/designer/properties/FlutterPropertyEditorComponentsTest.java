@@ -2214,7 +2214,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(88, booleanProperties.size(),
+        assertEquals(89, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
 
         onEdt(() -> {

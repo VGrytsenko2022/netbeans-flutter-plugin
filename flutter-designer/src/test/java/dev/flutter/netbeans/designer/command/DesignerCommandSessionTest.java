@@ -76,6 +76,7 @@ class DesignerCommandSessionTest {
     private static final PropertyName BASELINE_TYPE = property("baselineType");
     private static final PropertyName STEP_WIDTH = property("stepWidth");
     private static final PropertyName STEP_HEIGHT = property("stepHeight");
+    private static final PropertyName OFFSTAGE = property("offstage");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -595,6 +596,129 @@ class DesignerCommandSessionTest {
         assertTrue(editedDart.contains("const IntrinsicWidth("), editedDart);
         assertTrue(editedDart.contains("stepWidth: 8.25"), editedDart);
         assertTrue(editedDart.contains("stepHeight: 12.5"), editedDart);
+    }
+
+    @Test
+    void offstagePrototypeBooleanResetUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Offstage")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty(),
+                "omission preserves Flutter's offstage=true default");
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Offstage child")));
+        DesignerCommandSession explicitFalse = applied(
+                childAdded,
+                new SetProperty(
+                        WRAPPER_ID,
+                        OFFSTAGE,
+                        new PropertyValue.BooleanValue(false)));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                find(explicitFalse.current().document().root(), WRAPPER_ID)
+                        .properties().get(OFFSTAGE));
+        String falseDart = new String(
+                explicitFalse.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(falseDart.contains("const Offstage("), falseDart);
+        assertTrue(falseDart.contains("offstage: false"), falseDart);
+        assertTrue(falseDart.contains(
+                "child: const Text('Offstage child')"), falseDart);
+        assertTrue(falseDart.indexOf("offstage: false")
+                < falseDart.indexOf("child: const Text('Offstage child')"),
+                falseDart);
+
+        DesignerCommandSession explicitTrue = applied(
+                explicitFalse,
+                new SetProperty(
+                        WRAPPER_ID,
+                        OFFSTAGE,
+                        new PropertyValue.BooleanValue(true)));
+        assertEquals(new PropertyValue.BooleanValue(true),
+                find(explicitTrue.current().document().root(), WRAPPER_ID)
+                        .properties().get(OFFSTAGE));
+        String trueDart = new String(
+                explicitTrue.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(trueDart.contains("offstage: true"), trueDart);
+        assertFalse(Arrays.equals(
+                explicitFalse.current().fdBytes(), explicitTrue.current().fdBytes()));
+        assertFalse(Arrays.equals(
+                explicitFalse.current().dartCandidateBytes(),
+                explicitTrue.current().dartCandidateBytes()));
+
+        assertRejected(explicitTrue, new SetProperty(
+                WRAPPER_ID,
+                OFFSTAGE,
+                new PropertyValue.StringValue("true")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                explicitTrue,
+                new ResetProperty(WRAPPER_ID, OFFSTAGE));
+        assertFalse(find(reset.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(OFFSTAGE));
+        String resetDart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(resetDart.contains("const Offstage("), resetDart);
+        assertFalse(resetDart.contains("offstage:"), resetDart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertArrayEquals(explicitTrue.current().fdBytes(),
+                undoReset.current().fdBytes());
+        assertArrayEquals(explicitTrue.current().dartCandidateBytes(),
+                undoReset.current().dartCandidateBytes());
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.undo().session().markSaved();
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+        assertEquals(new PropertyValue.BooleanValue(true),
+                find(reopened.current().document().root(), WRAPPER_ID)
+                        .properties().get(OFFSTAGE));
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened,
+                new SetProperty(
+                        WRAPPER_ID,
+                        OFFSTAGE,
+                        new PropertyValue.BooleanValue(false)));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(OFFSTAGE));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) find(
+                        editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .slots().get(CHILD)).child().orElseThrow().id());
+        String editedDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("const Offstage("), editedDart);
+        assertTrue(editedDart.contains("offstage: false"), editedDart);
+        assertTrue(editedDart.contains(
+                "child: const Text('Offstage child')"), editedDart);
     }
 
     @Test

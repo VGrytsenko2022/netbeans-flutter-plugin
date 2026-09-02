@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-31 reviewed Canvas widgets. Palette insertion evaluates 930 exact
-source/destination cells across 31 draggable sources and 30 insertable reviewed
-slots; 792 are accepted and 138 cells are rejected. Expanded and Flexible are
+32 reviewed Canvas widgets. Palette insertion evaluates 992 exact
+source/destination cells across 32 draggable sources and 31 insertable reviewed
+slots; 849 are accepted and 143 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -471,11 +471,35 @@ and exact-Web renderers construct the real Flutter IntrinsicWidth and preserve
 its speculative intrinsic-width pass. The Palette contract warns that intrinsic
 measurement is relatively expensive and can be O(N²) in tree depth. An empty or
 collapsed instance retains a bounded 36 x 36 Designer selection/drop target
-without changing generated Dart or Flutter layout. The aggregate catalog now
-has 31 widgets, 26 reviewed const constructors and 666 writable properties,
-including 649 outside Scaffold. Thirty-one sources across 28 insertable
-any-widget and two trait destinations form 930 candidates: 792 accepted and 138
-rejected. The practical Material/Base Designer backlog is 31/92 complete with
-61 remaining, the Palette Layout category contains 23 items, and no later widget
-has an explicit order. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+without changing generated Dart or Flutter layout. At that milestone the
+aggregate catalog had 31 widgets, 26 reviewed const constructors and 666
+writable properties, including 649 outside Scaffold. Thirty-one sources across
+28 insertable any-widget and two trait destinations formed 930 candidates: 792
+accepted and 138 rejected. The practical Material/Base Designer backlog was
+31/92 complete with 61 remaining, and the Palette Layout category contained 23
+items. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
 framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.Offstage`](https://api.flutter.dev/flutter/widgets/Offstage-class.html)
+is the twelfth post-core Canvas widget, at Palette Layout order 180 immediately
+after IntrinsicWidth. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes optional boolean `offstage` with runtime
+default `true`, plus one optional single any-widget `child`. Omission and
+explicit `true` remain distinct model, history and Dart states even though both
+hide the child; explicit `false` participates normally. Palette, tree and Canvas
+creation admit Offstage as an ordinary widget; generic placement rules reject
+Expanded, Flexible and Spacer in its child slot. Native and exact-Web renderers
+construct the real Flutter Offstage. When hidden, Flutter still lays the child
+out and keeps it active and focusable, including animations, but suppresses
+paint, hit testing and semantics and normally reports zero size under loose
+constraints. The Palette contract exposes that resource cost and recommends
+removing long-hidden subtrees when ongoing work is undesirable. Selection and
+drop instrumentation remains outside the Offstage effect; an actual zero-sized
+result alone receives a bounded 36 x 36 non-layout-affecting target. The
+aggregate catalog now has 32 widgets, 27 reviewed const constructors and 667
+writable properties, including 650 outside Scaffold. Thirty-two sources across
+29 insertable any-widget and two trait destinations form 992 candidates: 849
+accepted and 143 rejected. The practical Material/Base Designer backlog is
+32/92 complete with 60 remaining, the Palette Layout category contains 24
+items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
+6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.

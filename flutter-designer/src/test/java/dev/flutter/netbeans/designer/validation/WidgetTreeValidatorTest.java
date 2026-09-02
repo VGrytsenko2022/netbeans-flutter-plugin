@@ -865,6 +865,74 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsOffstageOmissionDistinctBooleansAndOrdinaryOptionalChild() {
+        WidgetNode omitted = offstage("offstageOmitted", Map.of(), null);
+        WidgetNode explicitTrue = offstage(
+                "offstageTrue",
+                Map.of(name("offstage"), new PropertyValue.BooleanValue(true)),
+                null);
+        WidgetNode explicitFalse = offstage(
+                "offstageFalse",
+                Map.of(name("offstage"), new PropertyValue.BooleanValue(false)),
+                text("offstageText"));
+
+        for (WidgetNode accepted : List.of(omitted, explicitTrue, explicitFalse)) {
+            assertTrue(validator().validate(
+                    document(accepted), BuiltInWidgetCatalog.getDefault()).valid(),
+                    accepted.type().value());
+        }
+    }
+
+    @Test
+    void offstageRejectsWrongKindAndUnknownPropertyAtExactPaths() {
+        WidgetNode wrongKind = offstage(
+                "offstageWrongKind",
+                Map.of(name("offstage"),
+                        new PropertyValue.StringValue("true")),
+                null);
+        ValidationIssue kind = onlyIssue(
+                validator().validate(
+                        document(wrongKind), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/offstage", kind.path());
+
+        WidgetNode unknownProperty = offstage(
+                "offstageUnknown",
+                Map.of(name("hidden"), new PropertyValue.BooleanValue(true)),
+                null);
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/hidden", unknown.path());
+    }
+
+    @Test
+    void offstageChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("offstageExpanded", Map.of(),
+                        text("offstageExpandedText")),
+                flexible("offstageFlexible", Map.of(),
+                        text("offstageFlexibleText")),
+                spacer("offstageSpacer", Map.of()))) {
+            WidgetNode offstage = offstage(
+                    "offstage-" + restricted.type().value(),
+                    Map.of(),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(offstage),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.Offstage.child"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2621,6 +2689,16 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.IntrinsicWidth", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode offstage(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.Offstage", properties, Map.of(
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));

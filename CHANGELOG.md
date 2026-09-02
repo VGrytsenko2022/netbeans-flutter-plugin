@@ -7,6 +7,32 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html)
+  vertical slice is the twelfth post-core Palette addition, at Layout order
+  180 immediately after IntrinsicWidth. Its complete pinned Flutter 3.44.8
+  non-`key` contract exposes the optional boolean `offstage` value (constructor
+  default `true`) plus one optional single any-widget `child`. Omission and
+  explicit `true` remain distinct Designer states even though both hide the
+  child; explicit `false` participates in layout, painting, hit testing and
+  semantics normally. Generated Dart and native and exact-Web Canvas construct
+  the real Flutter Offstage. When hidden, Flutter still lays the child out and
+  keeps it active and focusable, including running animations, while suppressing
+  paint, hit testing and semantics and normally contributing no parent space.
+  Palette and Properties descriptions therefore recommend removing a
+  long-hidden subtree instead of using Offstage when ongoing work would waste
+  resources. A real zero-sized result keeps a bounded 36x36,
+  non-layout-affecting Designer selection/drop target outside the Offstage
+  effect. Exact property and slot editing, Palette/tree/Canvas DnD, same-tree
+  movement, deterministic generation, Save/reopen, Undo/Redo and reviewed
+  light/dark SVG icons share one closed contract. The catalog now contains 32
+  widgets, 27 reviewed const constructors and 667 writable rows, including 650
+  across the 31 non-`Scaffold` definitions. Thirty-two sources across 29
+  insertable any-widget and two trait-bound destinations form 992 DnD
+  candidates: 849 accepted and 143 rejected. Layout contains 24 items, and the
+  practical 92-widget backlog is 32/92 complete with 60 remaining. `.fd` schema
+  v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
+- The accepted const
   [`flutter.widgets.IntrinsicWidth`](https://api.flutter.dev/flutter/widgets/IntrinsicWidth/IntrinsicWidth.html)
   vertical slice is the eleventh post-core Palette addition, at Layout order
   170 immediately after IntrinsicHeight. Its complete pinned Flutter 3.44.8
@@ -22,12 +48,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   non-layout-affecting Designer selection/drop target. Exact property and slot
   editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
   generation, Save/reopen, Undo/Redo and reviewed light/dark SVG icons share
-  one closed contract. The catalog now contains 31 widgets, 26 reviewed const
-  constructors and 666 writable rows, including 649 across the 30
-  non-`Scaffold` definitions. Thirty-one sources across 28 insertable
-  any-widget and two trait-bound destinations form 930 DnD candidates: 792
-  accepted and 138 rejected. Layout contains 23 items, and the practical
-  92-widget backlog is 31/92 complete with 61 remaining. `.fd` schema v7,
+  one closed contract. At that milestone the catalog contained 31 widgets, 26
+  reviewed const constructors and 666 writable rows, including 649 across the
+  30 non-`Scaffold` definitions. Thirty-one sources across 28 insertable
+  any-widget and two trait-bound destinations formed 930 DnD candidates: 792
+  accepted and 138 rejected. Layout contained 23 items, and the practical
+  92-widget backlog was 31/92 complete with 61 remaining. `.fd` schema v7,
   Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
   unchanged.
 - The accepted const

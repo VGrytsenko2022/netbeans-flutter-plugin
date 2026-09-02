@@ -101,6 +101,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
+                "flutter.widgets.Offstage",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -502,6 +503,30 @@ class CanvasModelPayloadCodecTest {
                 "\"stepHeight\":{\"kind\":\"double\",\"value\":12.5}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"65c34b52-ff29-40a4-895a-6bddfb757483\""), json);
+    }
+
+    @Test
+    void projectsExplicitOffstageBooleanAndChildWithoutChangingProtocolV12()
+            throws Exception {
+        WidgetNode offstage = new WidgetNode(
+                id("c70084d4-2ccf-423e-b5ce-8108bbf22f3c"),
+                type("flutter.widgets.Offstage"),
+                Map.of(new PropertyName("offstage"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "592e6585-79bd-4da2-a6f5-3c0b8d528258",
+                        "Visible child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), offstage))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Offstage\""), json);
+        assertTrue(json.contains(
+                "\"offstage\":{\"kind\":\"boolean\",\"value\":false}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"592e6585-79bd-4da2-a6f5-3c0b8d528258\""), json);
     }
 
     @Test

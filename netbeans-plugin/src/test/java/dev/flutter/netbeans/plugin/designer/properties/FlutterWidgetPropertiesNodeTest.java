@@ -688,6 +688,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
+                "flutter.widgets.Offstage",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -725,7 +726,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(666, writableCount,
+        assertEquals(667, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -733,9 +734,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
-                + "ListView, "
+                + "Offstage, ListView, "
                 + "and Image leaves");
-        assertEquals(649, nonScaffoldWritableCount,
+        assertEquals(650, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1212,6 +1213,111 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(child.getShortDescription().contains("O(N²)")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void offstageProjectsNullableCheckboxResetAndActiveHiddenChildContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Offstage");
+        StableId id = StableId.parse("75fd302b-5d49-453b-a55a-d491a85ec6c4");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, id);
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(new PropertyName("offstage"),
+                        new PropertyValue.BooleanValue(true)),
+                prototype.slots(),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("offstage"), names(properties.getProperties()));
+        assertEquals(
+                "Visibility, layout participation, focus, animation, and optional "
+                + "child contract for the selected Offstage widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> offstage = cellProperty(
+                property(node, "offstage"));
+        assertAll(
+                () -> assertEquals("Offstage", offstage.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.BooleanValue(true)),
+                        offstage.getValue()),
+                () -> assertNull(offstage.getPropertyEditor().getTags(),
+                        "boolean values must use the global checkbox editor, not a combo"),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "still lays out the child")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "does not paint or hit-test")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "takes no parent layout space")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "can receive focus")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "animations continue to run")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "default true")),
+                () -> assertTrue(offstage.getShortDescription().contains(
+                        "hiding it long-term")),
+                () -> assertTrue(offstage.supportsDefaultValue()),
+                () -> assertFalse(offstage.isDefaultValue()));
+
+        PropertyEditor editor = offstage.getPropertyEditor();
+        editor.setAsText(FlutterWidgetPropertiesNode.NOT_SET);
+        assertEquals(FlutterPropertyCellValue.unset(), cell(editor),
+                "<not set> remains a valid nullable boolean value");
+        editor.setAsText("false");
+        FlutterPropertyCellValue shown = cell(editor);
+        assertEquals(new PropertyValue.BooleanValue(false),
+                shown.explicitValue().orElseThrow());
+
+        offstage.setValue(shown);
+        offstage.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(
+                        id,
+                        new PropertyName("offstage"),
+                        new PropertyValue.BooleanValue(false)),
+                new ResetProperty(id, new PropertyName("offstage"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "remains laid out and active")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "is not painted")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "cannot be hit tested")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "occupies no parent layout space")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "receive focus and run animations")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "hiding it long-term")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+
+        WidgetNode omitted = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("0ab6f58f-29e1-4faf-b54f-321cd4e5c611"));
+        FlutterWidgetPropertiesNode omittedNode = new FlutterWidgetPropertiesNode(
+                Children.LEAF, omitted, definition, ignored -> { });
+        Node.Property<FlutterPropertyCellValue> omittedOffstage = cellProperty(
+                property(omittedNode, "offstage"));
+        assertAll(
+                () -> assertEquals(FlutterPropertyCellValue.unset(),
+                        omittedOffstage.getValue()),
+                () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        omittedOffstage.getPropertyEditor().getAsText()),
+                () -> assertTrue(omittedOffstage.isDefaultValue()));
     }
 
     @Test
@@ -3244,7 +3350,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyOneCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyTwoCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3274,6 +3380,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
+                "flutter.widgets.Offstage",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3305,7 +3412,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(31, iconPaths.size(),
+        assertEquals(32, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

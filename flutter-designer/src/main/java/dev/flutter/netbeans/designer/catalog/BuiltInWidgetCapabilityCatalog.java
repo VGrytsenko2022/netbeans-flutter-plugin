@@ -171,6 +171,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Baseline", STATIC_EDITABLE),
             Map.entry("flutter.widgets.IntrinsicHeight", STATIC_STRUCTURAL),
             Map.entry("flutter.widgets.IntrinsicWidth", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Offstage", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -436,6 +437,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                     "stepHeight", numericSchema(
                             NON_NEGATIVE_DOUBLE_BOUNDS,
                             PropertyValueKind.DOUBLE)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Offstage", projection(Map.ofEntries(
+                    property("offstage", PropertyValueKind.BOOLEAN)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),

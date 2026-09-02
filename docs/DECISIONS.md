@@ -18,10 +18,10 @@ with `ListView`, ADR-048 begins the post-core surface with `Wrap`, ADR-049 adds
 `FittedBox`, ADR-050 adds `ConstrainedBox`, ADR-051 adds `UnconstrainedBox`,
 ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, ADR-054 adds `Flexible`,
 ADR-055 adds `Spacer`, ADR-056 adds `Baseline`, ADR-057 adds `IntrinsicHeight`,
-and ADR-058 establishes the current `IntrinsicWidth` surface: 666 typed rows
-across thirty-one widgets, twenty-six const-constructor definitions and 930
-Palette/DnD candidates, including 792 accepted and 138 rejected cells. The
-649-field
+ADR-058 adds `IntrinsicWidth`, and ADR-059 establishes the current `Offstage`
+surface: 667 typed rows across thirty-two widgets, twenty-seven
+const-constructor definitions and 992 Palette/DnD candidates, including 849
+accepted and 143 rejected cells. The 650-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -274,7 +274,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-058 make 649 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-059 make 650 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -287,8 +287,8 @@ FittedBox properties, the required ConstrainedBox constraints property, four
 UnconstrainedBox properties, two LimitedBox properties, six OverflowBox
 properties, Flexible's two properties, Spacer's one property, Baseline's two
 required properties plus optional child slot, IntrinsicHeight's property-free
-optional child slot, and IntrinsicWidth's two optional step properties plus
-optional child slot.
+optional child slot, IntrinsicWidth's two optional step properties plus optional
+child slot, and Offstage's optional boolean plus optional child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -317,8 +317,10 @@ matrix (631 accepted and 98 rejected), ADR-055 established the
 twenty-eight-source, 756-candidate matrix (633 accepted and 123 rejected), and
 ADR-056 established the twenty-nine-source, 812-candidate matrix (684 accepted
 and 128 rejected), ADR-057 established the thirty-source, 870-candidate matrix
-(737 accepted and 133 rejected), and ADR-058 establishes the current
-thirty-one-source, 930-candidate matrix (792 accepted and 138 rejected).
+(737 accepted and 133 rejected), ADR-058 established the thirty-one-source,
+930-candidate matrix (792 accepted and 138 rejected), and ADR-059 establishes
+the current thirty-two-source, 992-candidate matrix (849 accepted and 143
+rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -328,7 +330,7 @@ protocol-v12 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `ListView`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -343,12 +345,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-one-widget model for Mobile, Tablet,
+Canvas now renders the validated thirty-two-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty-one Create-capable definitions, and the DnD-capable set uses the
-reviewed 930-cell candidate matrix across twenty-eight insertable any-widget and
-two trait-bound destination slots; 792 cells are accepted and 138 rejected.
+those thirty-two Create-capable definitions, and the DnD-capable set uses the
+reviewed 992-cell candidate matrix across twenty-nine insertable any-widget and
+two trait-bound destination slots; 849 cells are accepted and 143 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
@@ -2248,7 +2250,7 @@ retains real framework layout while a bounded, non-layout-affecting Designer
 target supplies selection and empty-child drop.
 
 IntrinsicWidth adds two writable rows, one ordinary source and one insertable
-any-widget destination to ADR-057. The current surface contains 666 writable
+any-widget destination to ADR-057. At that milestone the surface contained 666 writable
 rows, with 649 outside Scaffold, across 31 widgets and 26 const-constructor
 definitions. Thirty-one sources across 28 any-widget plus two trait-bound
 destinations form 930 candidates. The new IntrinsicWidth destination accepts
@@ -2258,7 +2260,53 @@ trait-bound destination. This adds 55 accepted and five rejected cells,
 producing 792 accepted and 138 rejected overall. The Layout Palette contains 23
 items.
 
-The practical Material/Base Designer backlog is now 31/92 complete, with 61
+The practical Material/Base Designer backlog was then 31/92 complete, with 61
+remaining. This is a project planning target, not a normative complete list of
+Flutter widgets. Offstage became the next complete vertical slice. Existing encodings cover this contract, so
+`.fd` remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC
+framing plus Canvas control/wire remain version 1.
+
+## ADR-059 — Offstage completes active-but-hidden layout
+
+Accepted. The canonical built-in is the const
+[`flutter.widgets.Offstage(...)`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html)
+constructor from `package:flutter/widgets.dart`, published in the **Layout**
+Palette category at order 180 immediately after IntrinsicWidth. It supports
+typed Properties and exact-slot presentation, Create, native and exact-Web
+Canvas, Palette/tree/Canvas DnD, same-tree movement, deterministic Dart
+generation, Save/reopen and further editing, and chronological Undo/Redo.
+Reviewed light/dark SVG icons at 16 and 32 pixels provide its Palette identity.
+
+The complete reviewed non-`key` Flutter 3.44.8 constructor surface contains the
+optional named boolean `offstage`, whose constructor default is `true`, and one
+optional single any-widget `child`, in that constructor order. Detached
+Designer prototypes omit `offstage` and start with an empty child slot.
+Omission and explicit `true` remain distinct model, history and generated-Dart
+states even though they have the same runtime effect; explicit `false` is also
+accepted. Wrong-typed values and raw Dart fail closed.
+
+Generated Dart and both Canvas projections construct the real Flutter Offstage.
+When `offstage` is omitted or true, Flutter lays the child out but suppresses
+painting, hit testing and semantics; the widget reports the parent's minimum
+permitted size, normally zero under loose constraints. The child remains active
+and focusable and animations continue to consume resources. Palette, property
+and slot descriptions expose those semantics and recommend removing a subtree
+for long-term hiding when background work is undesirable. The Designer keeps
+selection and drop instrumentation outside the Offstage effect and adds a
+bounded 36x36 target only when the real result is zero-sized, without changing
+Flutter layout.
+
+Offstage adds one writable row, one ordinary source and one insertable
+any-widget destination to ADR-058. The current surface contains 667 writable
+rows, with 650 outside Scaffold, across 32 widgets and 27 const-constructor
+definitions. Thirty-two sources across 29 any-widget plus two trait-bound
+destinations form 992 candidates. The new Offstage destination accepts 28 old
+unrestricted sources and rejects Expanded, Flexible and Spacer; the new
+Offstage source enters all 29 any-widget destinations and neither trait-bound
+destination. This adds 57 accepted and five rejected cells, producing 849
+accepted and 143 rejected overall. The Layout Palette contains 24 items.
+
+The practical Material/Base Designer backlog is now 32/92 complete, with 60
 remaining. This is a project planning target, not a normative complete list of
 Flutter widgets. No later widget has an explicit order; the next admission must
 again be a complete vertical slice. Existing encodings cover this contract, so

@@ -25,10 +25,10 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(31, javaTypes.size(),
+        assertEquals(32, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
-                + "Baseline, IntrinsicHeight, and IntrinsicWidth");
+                + "Baseline, IntrinsicHeight, IntrinsicWidth, and Offstage");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -47,6 +47,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.Baseline"));
         assertTrue(javaTypes.contains("flutter.widgets.IntrinsicHeight"));
         assertTrue(javaTypes.contains("flutter.widgets.IntrinsicWidth"));
+        assertTrue(javaTypes.contains("flutter.widgets.Offstage"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
@@ -119,6 +120,8 @@ class FlutterWidgetCapabilityParityTest {
                 "IntrinsicHeight.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicWidth"),
                 "IntrinsicWidth.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.Offstage"),
+                "Offstage.child must remain a Java-admitted DnD target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

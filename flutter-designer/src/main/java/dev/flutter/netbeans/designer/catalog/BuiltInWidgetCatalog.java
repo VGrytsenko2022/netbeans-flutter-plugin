@@ -52,6 +52,7 @@ public final class BuiltInWidgetCatalog {
             baseline(),
             intrinsicHeight(),
             intrinsicWidth(),
+            offstage(),
             listView(),
             image(),
             elevatedButton(),
@@ -1012,6 +1013,23 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("stepWidth", 0, false, nonNegativeDoubles()),
                         namedProperty("stepHeight", 1, false, nonNegativeDoubles())),
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition offstage() {
+        return widget(
+                "flutter.widgets.Offstage",
+                "Offstage",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 180, "Offstage"),
+                List.of(namedProperty(
+                        "offstage",
+                        0,
+                        false,
+                        any(PropertyValueKind.BOOLEAN))),
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

@@ -3758,6 +3758,12 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Offstage': _WidgetSpec(
+    {
+      'offstage': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5194,6 +5200,9 @@ P|scrollDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Ax
 P|semanticChildCount|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
 P|shrinkWrap|boolean|0|-|-|boolean:any
 S|children|list|0|0|10000|any
+W|flutter.widgets.Offstage
+P|offstage|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.Opacity
 P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
 P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1

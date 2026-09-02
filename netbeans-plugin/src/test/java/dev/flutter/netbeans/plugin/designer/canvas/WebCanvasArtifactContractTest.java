@@ -98,9 +98,9 @@ class WebCanvasArtifactContractTest {
         assertEquals("0cd610717bde95fd88343c64f81c11ba4e5c0010",
                 expected.engineRevision());
         assertEquals(35, expected.files().size());
-        assertEquals(2_790_173L,
+        assertEquals(2_790_481L,
                 expected.files().get("main.dart.js").size());
-        assertEquals("6e5b07bff0476cd0aa6afb4586916400816040aac88d06f8b8659d3fc54fbe81",
+        assertEquals("ec76b4860a9f21c9241f0b556aa1a55ef7de0f091779764e97fdcf0889be127d",
                 expected.files().get("main.dart.js").sha256());
     }
 

@@ -65,6 +65,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.IntrinsicHeight");
     private static final WidgetTypeId INTRINSIC_WIDTH_TYPE =
             new WidgetTypeId("flutter.widgets.IntrinsicWidth");
+    private static final WidgetTypeId OFFSTAGE_TYPE =
+            new WidgetTypeId("flutter.widgets.Offstage");
+    private static final PropertyName OFFSTAGE_PROPERTY =
+            new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
             new PropertyName("baseline");
     private static final PropertyName BASELINE_TYPE_PROPERTY =
@@ -664,6 +668,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (OFFSTAGE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child that remains laid out and active while offstage, but "
+                    + "is not painted, cannot be hit tested, and occupies no parent layout "
+                    + "space. It can still receive focus and run animations; remove it from "
+                    + "the tree instead when hiding it long-term. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -804,6 +819,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean baseline = BASELINE_TYPE.equals(widget.type());
         boolean intrinsicHeight = INTRINSIC_HEIGHT_TYPE.equals(widget.type());
         boolean intrinsicWidth = INTRINSIC_WIDTH_TYPE.equals(widget.type());
+        boolean offstage = OFFSTAGE_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -835,6 +851,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                         + "step snapping, parent constraints, and optional child "
                                         + "for the selected IntrinsicWidth widget. Flutter performs "
                                         + "a speculative layout pass that can be O(N²) in tree depth."
+                        : offstage
+                                ? "Visibility, layout participation, focus, animation, and optional "
+                                        + "child contract for the selected Offstage widget."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -925,6 +944,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(),
                         intrinsicWidthPropertyDisplayName(property.name()),
                         intrinsicWidthPropertyDescription(property.name())));
+            } else if (offstage && OFFSTAGE_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Offstage",
+                        "When true, Flutter still lays out the child but does not paint or "
+                                + "hit-test it, and this widget takes no parent layout space. "
+                                + "The child remains active, can receive focus, and its animations "
+                                + "continue to run. Omission preserves Flutter's default true; "
+                                + "remove the child from the tree when hiding it long-term."));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,

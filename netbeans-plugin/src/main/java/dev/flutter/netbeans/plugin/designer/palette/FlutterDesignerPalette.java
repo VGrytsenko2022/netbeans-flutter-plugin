@@ -302,6 +302,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.IntrinsicWidth".equals(
                     definition.typeId().value())) {
                 setShortDescription(message("Widget.IntrinsicWidth.Description"));
+            } else if ("flutter.widgets.Offstage".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.Offstage.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

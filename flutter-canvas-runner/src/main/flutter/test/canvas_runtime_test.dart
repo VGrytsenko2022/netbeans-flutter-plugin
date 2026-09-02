@@ -2585,6 +2585,84 @@ void main() {
   );
 
   testWidgets(
+    'admits Offstage as an exact source and empty child destination',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyOffstageModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      const offstageId = 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090';
+      runtime.setDropResolver(
+        (_, _, [source]) => source?.widgetType == 'flutter.widgets.Offstage'
+            ? const CanvasDropTarget(
+                parentWidgetId: offstageId,
+                slotName: 'child',
+                insertionIndex: 0,
+              )
+            : null,
+      );
+      const token =
+          'nbfdnd:v1:c4c9544e-d9ab-4bd8-9e95-a6807666185c:'
+          '19bad4fc-8f59-486c-92f7-ad9e406f57f0';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request,
+          widgetType: 'flutter.widgets.Offstage',
+        ),
+        isTrue,
+      );
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (_decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('token', token));
+      expect(drops.single['body'], containsPair('parentWidgetId', offstageId));
+      expect(drops.single['body'], containsPair('slotName', 'child'));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'publishes exact ADD into an empty Center child and rejects other slots',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -3778,6 +3856,25 @@ Uint8List _emptyIntrinsicWidthModelBytes() {
     'properties': <String, Object?>{
       'stepWidth': {'kind': 'double', 'value': 0.0},
       'stepHeight': {'kind': 'double', 'value': 12.0},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyOffstageModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(_emptyScaffoldModelBytes()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  ((root['slots']! as Map<String, Object?>)['body']!
+      as Map<String, Object?>)['child'] = <String, Object?>{
+    'id': 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
+    'type': 'flutter.widgets.Offstage',
+    'properties': <String, Object?>{
+      'offstage': {'kind': 'boolean', 'value': true},
     },
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': null},

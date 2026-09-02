@@ -162,17 +162,17 @@ BoxConstraints finite-or-positive-infinity semantic domain makes contributor
 Catalog API 6 the exact current boundary; API 1 through API 5 contributors fail
 closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, thirty-one-item context Palette, selected-node
+Canvas/tree selection edge, thirty-two-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 666 catalog-backed fields across
+Properties are writable for exactly 667 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
 `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`,
-`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Twenty-six of the thirty-one definitions use reviewed const
-constructors; the thirty non-`Scaffold` definitions account for 649 rows.
+`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
+and `Image`. Twenty-seven of the thirty-two definitions use reviewed const
+constructors; the thirty-one non-`Scaffold` definitions account for 650 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -483,16 +483,36 @@ Canvas projections construct the real IntrinsicWidth under parent constraints.
 Palette, property and slot descriptions expose the relatively expensive
 speculative layout pass and worst-case O(N²) tree-depth behavior. Empty or
 collapsed nodes retain real layout behind a bounded, non-layout-affecting
-Designer selection/drop target. The current surface has 31 widgets, 26 reviewed
-const definitions, 666 writable rows (649 outside Scaffold) and 23 Layout
-items. The practical Material/Base Designer backlog is 31/92 complete with 61
-remaining; no later widget currently has an explicit order. Existing encodings
+Designer selection/drop target. At that milestone the surface had 31 widgets,
+26 reviewed const definitions, 666 writable rows (649 outside Scaffold) and 23
+Layout items. The practical Material/Base Designer backlog was 31/92 complete
+with 61 remaining. Existing encodings
 cover this contract, so `.fd` remains v7, Catalog API remains 6, Canvas model
 remains v12, and NBFC framing plus Canvas control/wire remain version 1.
 
-The current contract admits thirty-one exact capability-gated Palette sources
-across twenty-eight insertable any-widget and two `PreferredSizeWidget`
-destination slots: 930 candidates, of which 792 are accepted and 138 rejected.
+[`Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html) is
+the twelfth post-core built-in, at Layout order 180 immediately after
+IntrinsicWidth. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes optional boolean `offstage` (default
+`true`) plus one optional single any-widget `child`. Omission and explicit
+`true` remain distinct persisted/history values even though both hide the
+child; explicit `false` restores normal layout, painting, hit testing and
+semantics. Generated Dart and both Canvas projections construct the real
+Offstage. A hidden child is still laid out, remains active and focusable, and
+continues animations, while paint, hit testing and semantics are suppressed
+and the widget normally contributes no parent space. Palette and Properties
+surface that resource warning. A real zero-sized result keeps a bounded 36x36,
+non-layout-affecting Designer selection/drop target outside the Offstage
+effect. The current surface has 32 widgets, 27 reviewed const definitions, 667
+writable rows (650 outside Scaffold) and 24 Layout items. The practical
+Material/Base Designer backlog is 32/92 complete with 60 remaining; no later
+widget currently has an explicit order. Existing encodings cover this contract,
+so `.fd` remains v7, Catalog API remains 6, Canvas model remains v12, and NBFC
+framing plus Canvas control/wire remain version 1.
+
+The current contract admits thirty-two exact capability-gated Palette sources
+across twenty-nine insertable any-widget and two `PreferredSizeWidget`
+destination slots: 992 candidates, of which 849 are accepted and 143 rejected.
 Expanded and Flexible enter only direct `Row.children` and `Column.children`
 wrapper targets; Spacer enters those two list slots by ordinary insertion. The
 wrappers' required child slots are replacement-only and excluded
@@ -669,7 +689,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current thirty-one-definition
+historical source restriction is superseded by the current thirty-two-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -711,7 +731,7 @@ Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 before stable-ID allocation and fails closed when inventory is unavailable. DnD
-outside the thirty-one-source, 930-candidate matrix (792 accepted, 138 rejected)
+outside the thirty-two-source, 992-candidate matrix (849 accepted, 143 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -936,9 +956,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact thirty-one widgets carrying
-the Create capability. All thirty-one built-ins, including `Scaffold`, admit the
-reviewed 666-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact thirty-two widgets carrying
+the Create capability. All thirty-two built-ins, including `Scaffold`, admit the
+reviewed 667-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

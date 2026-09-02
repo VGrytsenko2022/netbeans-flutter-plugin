@@ -1054,12 +1054,35 @@ accepted architecture is documented in
   bounded, non-layout-affecting Designer target. Complete property and slot
   editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
   generation, Save/reopen, Undo/Redo, reviewed light/dark SVG icons and focused
-  contract tests. The current surface is 31 widgets, 26 const definitions and
-  666 rows (649 outside Scaffold), with 23 Layout items. Thirty-one sources
-  across 28 insertable any-widget plus two trait destinations form 930
-  candidates: 792 accepted and 138 rejected. The practical 92-widget backlog
-  is 31/92 complete with 61 remaining. `.fd` schema v7, Catalog API 6, Canvas
+  contract tests. At that milestone the surface was 31 widgets, 26 const
+  definitions and 666 rows (649 outside Scaffold), with 23 Layout items.
+  Thirty-one sources across 28 insertable any-widget plus two trait destinations
+  formed 930 candidates: 792 accepted and 138 rejected. The practical 92-widget
+  backlog was 31/92 complete with 61 remaining. `.fd` schema v7, Catalog API 6, Canvas
   model v12 and NBFC framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html)
+  as the twelfth post-core Palette vertical slice at Layout order 180,
+  immediately after IntrinsicWidth. Its complete non-`key` Flutter 3.44.8
+  constructor surface exposes optional boolean `offstage` with constructor
+  default `true`, plus one optional single any-widget `child`. Preserve omission
+  and explicit `true` as distinct model/Dart/history values even though both
+  hide the child, and support explicit `false` for normal participation.
+  Generated Dart and both Canvas projections construct the real Offstage. When
+  hidden, the child is still laid out, remains active and focusable, and keeps
+  animations running, while paint, hit testing and semantics are suppressed
+  and the widget normally contributes no parent space. Expose that resource
+  warning and recommend subtree removal for long-term hiding. Keep the
+  selection/drop overlay outside the Offstage effect and use a bounded 36x36
+  target only for a real zero-sized result. Complete property and exact-slot
+  editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
+  generation, Save/reopen, further editing, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. The current surface is 32 widgets, 27 const
+  definitions and 667 rows (650 outside Scaffold), with 24 Layout items.
+  Thirty-two sources across 29 insertable any-widget plus two trait destinations
+  form 992 candidates: 849 accepted and 143 rejected. The practical 92-widget
+  backlog is 32/92 complete with 60 remaining. `.fd` schema v7, Catalog API 6,
+  Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1077,8 +1100,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after IntrinsicWidth has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-one
+  vertical slices. No specific widget after Offstage has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty-two
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

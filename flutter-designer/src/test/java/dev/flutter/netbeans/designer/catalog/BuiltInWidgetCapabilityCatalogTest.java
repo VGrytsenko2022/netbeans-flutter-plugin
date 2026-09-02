@@ -49,6 +49,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicHeight",
             "flutter.widgets.IntrinsicWidth",
+            "flutter.widgets.Offstage",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -81,6 +82,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Spacer",
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicWidth",
+            "flutter.widgets.Offstage",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -95,7 +97,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtyOneSourcesAndThirtyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyTwoSourcesAndThirtyOneInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -118,9 +120,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(31, sources.size());
-        assertEquals(30, destinations.size());
-        assertEquals(28, destinations.stream()
+        assertEquals(32, sources.size());
+        assertEquals(31, destinations.size());
+        assertEquals(29, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -128,9 +130,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(930, candidates);
-        assertEquals(792, accepted);
-        assertEquals(138, candidates - accepted);
+        assertEquals(992, candidates);
+        assertEquals(849, accepted);
+        assertEquals(143, candidates - accepted);
     }
 
     @Test
@@ -809,6 +811,36 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void offstageHasStaticEditableCapabilitiesAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Offstage");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("offstage")),
+                projection.properties().keySet());
+        var hidden = projection.propertyContracts().get(
+                new PropertyName("offstage"));
+        assertFalse(hidden.required());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), hidden.acceptedKinds());
+        assertTrue(hidden.creationDefaultFingerprint().isEmpty());
+        assertTrue(hidden.numericBounds().isEmpty());
+        assertEquals("any", hidden.constraintFingerprints()
+                .get(PropertyValueKind.BOOLEAN));
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1404,6 +1436,10 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "double:range:0:1:*:1\n"
                 + "P|stepWidth|double|0|-|double:0:1:*:1|"
                 + "double:range:0:1:*:1\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Offstage\n"
+                + "P|offstage|boolean|0|-|-|boolean:any\n"
                 + "S|child|single|0|0|1|any\n"));
     }
 

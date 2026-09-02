@@ -71,6 +71,7 @@ class FlutterDesignerWidgetMovePlannerTest {
             type("flutter.widgets.IntrinsicHeight");
     private static final WidgetTypeId INTRINSIC_WIDTH =
             type("flutter.widgets.IntrinsicWidth");
+    private static final WidgetTypeId OFFSTAGE = type("flutter.widgets.Offstage");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -907,6 +908,73 @@ class FlutterDesignerWidgetMovePlannerTest {
                             source.node().id(),
                             new FlutterDesignerWidgetMovePlanner.On(
                                     intrinsicWidth.id())),
+                    source.label());
+            assertEquals(
+                    FlutterDesignerWidgetMovePlanner.RejectionCode
+                            .NO_COMPATIBLE_DESTINATION,
+                    rejected.code(),
+                    source.label());
+            assertTrue(rejected.reason().contains(source.label()), source.label());
+            assertTrue(rejected.reason().contains(
+                    "direct child of Row.children or Column.children"),
+                    source.label());
+        }));
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyOffstageChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into Offstage");
+        WidgetNode emptyOffstage = WidgetNodePrototypeFactory.create(
+                definition(OFFSTAGE), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyOffstage)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyOffstage.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyOffstage.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void offstageChildRejectsAllFlexParentDataSourcesOnMove() {
+        record RejectedSource(String label, WidgetNode node) {
+        }
+        List<RejectedSource> sources = List.of(
+                new RejectedSource(
+                        "Expanded",
+                        expanded(A_ID, validText(C_ID, "expanded child"))),
+                new RejectedSource(
+                        "Flexible",
+                        flexible(A_ID, validText(C_ID, "flexible child"))),
+                new RejectedSource("Spacer", node(A_ID, SPACER)));
+
+        assertAll(sources.stream().map(source -> () -> {
+            WidgetNode offstage = WidgetNodePrototypeFactory.create(
+                    definition(OFFSTAGE), B_ID);
+            DesignerDocument document = document(listParent(
+                    ROOT_ID,
+                    ROW,
+                    CHILDREN,
+                    List.of(source.node(), offstage)));
+
+            FlutterDesignerWidgetMovePlanner.Rejected rejected = assertInstanceOf(
+                    FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(
+                            document,
+                            BUILT_INS,
+                            source.node().id(),
+                            new FlutterDesignerWidgetMovePlanner.On(offstage.id())),
                     source.label());
             assertEquals(
                     FlutterDesignerWidgetMovePlanner.RejectionCode

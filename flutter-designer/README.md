@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical thirty-one-widget Canvas
+responsive render profiles and the bounded canonical thirty-two-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,17 +40,17 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for all thirty-one canonical widgets: `Scaffold`,
+bounded typed read/write slice for all thirty-two canonical widgets: `Scaffold`,
 `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`,
-`ListView`, `Container`, `Opacity`, `Text`, `Icon` and `Image`. Twenty-six
-definitions use reviewed const constructors. The exact catalog currently contains 666 writable property
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
+`ListView`, `Container`, `Opacity`, `Text`, `Icon` and `Image`. Twenty-seven
+definitions use reviewed const constructors. The exact catalog currently contains 667 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-930-cell candidate matrix: thirty-one exact capability-reviewed sources target
-twenty-eight insertable any-widget and two `PreferredSizeWidget` destinations,
-with exactly 792 accepted and 138 rejected cells, subject to
+992-cell candidate matrix: thirty-two exact capability-reviewed sources target
+twenty-nine insertable any-widget and two `PreferredSizeWidget` destinations,
+with exactly 849 accepted and 143 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -116,7 +116,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical thirty-one-widget model, renders it
+tests. The isolated runner decodes the canonical thirty-two-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -228,10 +228,10 @@ property rows across the ten pre-Container non-`Scaffold` widgets. `Container`
 adds 13 reviewed rows, `Opacity` two, Align and FractionallySizedBox three each,
 Stack four, Expanded one, Image 22, TextField 54, ListView 17, Wrap nine,
 FittedBox three, ConstrainedBox one, UnconstrainedBox four, LimitedBox two,
-OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero
-and IntrinsicWidth two, bringing the non-`Scaffold` total to 649;
-`Scaffold` adds 17 reviewed scalar rows, so the current exact total is 666
-writable rows across thirty-one
+OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero,
+IntrinsicWidth two and Offstage one, bringing the non-`Scaffold` total to 650;
+`Scaffold` adds 17 reviewed scalar rows, so the current exact total is 667
+writable rows across thirty-two
 canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
@@ -462,11 +462,33 @@ descriptions expose the relatively expensive speculative layout pass and
 worst-case O(N²) tree-depth behavior. An empty or collapsed node receives only
 the bounded, non-layout-affecting Designer selection and child insertion target.
 Property and exact-slot editing, Palette/tree/Canvas DnD, same-tree movement,
-Save/reopen, Undo/Redo and reviewed light/dark SVG icons complete the slice. The
-practical backlog is now 31/92 complete with 61 remaining; Layout contains 23
-items. No later widget has an explicit order. `.fd` remains v7, Catalog API
+Save/reopen, Undo/Redo and reviewed light/dark SVG icons complete the slice. At
+that milestone the practical backlog was 31/92 complete with 61 remaining;
+Layout contained 23 items. `.fd` remains v7, Catalog API
 remains 6, Canvas model remains v12, and NBFC framing plus Canvas control/wire
 remain version 1.
+
+The const
+[`Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html) is
+the twelfth post-core vertical slice, at Layout order 180 immediately after
+IntrinsicWidth. Its complete non-`key` constructor surface exposes optional
+boolean `offstage` with default `true` plus one optional single any-widget
+`child`. Omission and explicit `true` remain distinct stored and generated
+values even though both hide the child; explicit `false` restores normal
+participation. Generated Dart and both Canvas projections construct the real
+Flutter Offstage. While hidden, Flutter still lays the child out and keeps it
+active and focusable, including animations, but suppresses paint, hit testing
+and semantics and normally contributes no parent space. Palette, property and
+slot descriptions expose this resource warning and recommend removing a
+long-hidden subtree when ongoing work is undesirable. A zero-sized result keeps
+a bounded 36x36, non-layout-affecting Designer selection and child insertion
+target outside the Offstage effect. Property and exact-slot editing,
+Palette/tree/Canvas DnD, same-tree movement, Save/reopen, further editing,
+Undo/Redo and reviewed light/dark SVG icons complete the slice. The practical
+backlog is now 32/92 complete with 60 remaining; Layout contains 24 items. No
+later widget has an explicit order. `.fd` remains v7, Catalog API remains 6,
+Canvas model remains v12, and NBFC framing plus Canvas control/wire remain
+version 1.
 
 `Container` exposes its complete reviewed non-widget constructor surface; its
 optional single `child` remains a slot at constructor position 12 and is not
@@ -824,24 +846,24 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the thirty-one-source insertion matrix
+disconnected. That stage is superseded by the thirty-two-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled Apache NetBeans IDE 31 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, thirty-one-widget projection, responsive
-profiles, stable-ID tree selection, exact thirty-one-item context Palette and
+Windows native read-only `FlutterView`, thirty-two-widget projection, responsive
+profiles, stable-ID tree selection, exact thirty-two-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-666 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+667 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
 `AppBar`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
 `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the thirty-one exact capability-reviewed source
-definitions and thirty insertable catalog-authorized slots, for 930
-candidate cells: 792 admitted and 138 rejected. Expanded and Flexible each
+Palette DnD is enabled for the thirty-two exact capability-reviewed source
+definitions and thirty-one insertable catalog-authorized slots, for 992
+candidate cells: 849 admitted and 143 rejected. Expanded and Flexible each
 admit only direct `Row.children` or `Column.children` wrapping, while Spacer is
 inserted only into those two slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix.

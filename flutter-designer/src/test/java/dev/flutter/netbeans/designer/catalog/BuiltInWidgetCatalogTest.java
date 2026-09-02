@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtyOneTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyTwoTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -56,6 +56,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.LimitedBox",
                 "flutter.widgets.ListView",
+                "flutter.widgets.Offstage",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
@@ -70,8 +71,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(31, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(26, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(32, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(27, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -84,10 +85,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(666, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(667, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(649, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(650, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -118,6 +119,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.IntrinsicWidth", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.LimitedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ListView", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Offstage", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.OverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
@@ -236,6 +238,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Baseline",
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
+                "flutter.widgets.Offstage",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -1501,6 +1504,41 @@ class BuiltInWidgetCatalogTest {
         SlotDefinition child = intrinsicWidth.slot(new SlotName("child"))
                 .orElseThrow();
         assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void offstageExposesExactFlutter344ConstEditableSurface() {
+        WidgetDefinition offstage = definition("flutter.widgets.Offstage");
+
+        assertEquals("Offstage", offstage.dartClassName());
+        assertTrue(offstage.constConstructor());
+        assertEquals(WIDGETS_IMPORT, offstage.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), offstage.importUris());
+        assertTrue(offstage.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                        "flutter.layout", 200, 180, "Offstage"),
+                offstage.palette());
+        assertEquals(List.of("offstage"),
+                offstage.properties().stream()
+                        .map(value -> value.name().value()).toList());
+
+        PropertyDefinition hidden = offstage.properties().getFirst();
+        assertEquals(DartParameter.named(0, false), hidden.parameter());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), hidden.acceptedKinds());
+        assertTrue(hidden.creationDefault().isEmpty(),
+                "omission must preserve Flutter's true default");
+        PropertyValueConstraint booleanValues = hidden.constraints().getFirst();
+        assertTrue(booleanValues.accepts(new PropertyValue.BooleanValue(true)));
+        assertTrue(booleanValues.accepts(new PropertyValue.BooleanValue(false)));
+        assertFalse(booleanValues.accepts(new PropertyValue.StringValue("true")));
+
+        SlotDefinition child = offstage.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(1, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());

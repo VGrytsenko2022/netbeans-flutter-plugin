@@ -1071,6 +1071,69 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void offstageChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Offstage");
+        WidgetNode offstage = WidgetNodePrototypeFactory.create(
+                definition,
+                id("4b8abfd8-a011-401b-b839-de9115567e3d"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(offstage),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                offstage,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "Offstage.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(offstage.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted Offstage child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
     void stackChildrenAddsNewFrontLayerAtExactTerminalPaintOrderIndex()
             throws Exception {
         WidgetDefinition stackDefinition = definition("flutter.widgets.Stack");
@@ -1707,6 +1770,8 @@ class FlutterWidgetSlotPropertyEditorTest {
                 definition("flutter.widgets.IntrinsicHeight");
         WidgetDefinition intrinsicWidthDefinition =
                 definition("flutter.widgets.IntrinsicWidth");
+        WidgetDefinition offstageDefinition =
+                definition("flutter.widgets.Offstage");
         WidgetNode row = new WidgetNode(
                 id("7bdabf33-2e62-4548-b884-8a39c24be5e2"),
                 rowDefinition.typeId(),
@@ -1728,12 +1793,17 @@ class FlutterWidgetSlotPropertyEditorTest {
         WidgetNode intrinsicWidth = WidgetNodePrototypeFactory.create(
                 intrinsicWidthDefinition,
                 id("b7471604-ee00-4f79-bc84-e71321eb9d9b"));
+        WidgetNode offstage = WidgetNodePrototypeFactory.create(
+                offstageDefinition,
+                id("4633a75e-982c-4325-8be8-4215015a3bd5"));
         WidgetNode column = new WidgetNode(
                 id("6869194a-729d-4a84-aa0d-2b853c0c77d2"),
                 columnDefinition.typeId(),
                 Map.of(),
                 Map.of(CHILDREN, new WidgetSlot.ListSlot(
-                        List.of(row, stack, baseline, intrinsicHeight, intrinsicWidth))),
+                        List.of(
+                                row, stack, baseline, intrinsicHeight, intrinsicWidth,
+                                offstage))),
                 Extensions.empty());
         FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
                 document(column), CATALOG, List.of(type("flutter.widgets.Spacer")));
@@ -1771,6 +1841,13 @@ class FlutterWidgetSlotPropertyEditorTest {
                         intrinsicWidthDefinition.slot(CHILD).orElseThrow(),
                         context);
         intrinsicWidthEditor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        FlutterWidgetSlotPropertyEditor offstageEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        offstage,
+                        offstageDefinition,
+                        offstageDefinition.slot(CHILD).orElseThrow(),
+                        context);
+        offstageEditor.attachEnv(PropertyEnv.create(descriptor("Child")));
 
         onEdt(() -> {
             JComboBox<?> rowAddType = component(
@@ -1793,11 +1870,16 @@ class FlutterWidgetSlotPropertyEditorTest {
                     intrinsicWidthEditor.getCustomEditor(),
                     FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
                     JComboBox.class);
+            JComboBox<?> offstageAddType = component(
+                    offstageEditor.getCustomEditor(),
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
             assertEquals(List.of("Spacer"), labels(rowAddType));
             assertEquals(List.of(), labels(stackAddType));
             assertEquals(List.of(), labels(baselineAddType));
             assertEquals(List.of(), labels(intrinsicHeightAddType));
             assertEquals(List.of(), labels(intrinsicWidthAddType));
+            assertEquals(List.of(), labels(offstageAddType));
             return null;
         });
     }

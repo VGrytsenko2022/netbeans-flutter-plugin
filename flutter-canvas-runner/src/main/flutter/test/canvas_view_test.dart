@@ -160,6 +160,40 @@ void main() {
         reason: '$flexType requires a direct Row or Column children slot',
       );
     }
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Offstage'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Offstage',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.Offstage',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-offstage-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+        reason: '$flexType requires a direct Row or Column children slot',
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -255,7 +289,7 @@ void main() {
     );
   });
 
-  test('closes the 31-source by 30-destination compatibility matrix', () {
+  test('closes the 32-source by 31-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -266,6 +300,7 @@ void main() {
       'flutter.widgets.Baseline',
       'flutter.widgets.IntrinsicHeight',
       'flutter.widgets.IntrinsicWidth',
+      'flutter.widgets.Offstage',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Wrap',
@@ -297,8 +332,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(31));
-    expect(destinations, hasLength(30));
+    expect(sourceTypes, hasLength(32));
+    expect(destinations, hasLength(31));
 
     var accepted = 0;
     var rejected = 0;
@@ -324,9 +359,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 792);
-    expect(rejected, 138);
-    expect(accepted + rejected, 930);
+    expect(accepted, 849);
+    expect(rejected, 143);
+    expect(accepted + rejected, 992);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -6097,6 +6132,211 @@ void main() {
   );
 
   testWidgets(
+    'renders real Offstage defaults and exact hidden or normal child behavior',
+    (tester) async {
+      const offstageId = 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090';
+      const childId = 'eea084e6-c139-421b-8a62-4e82a877b72c';
+
+      Future<({Offstage widget, RenderOffstage render})> pump(
+        Map<String, Object?> properties,
+      ) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredOffstage(
+                  properties: properties,
+                  child: _viewSizedBoxNode(childId, width: 40, height: 10),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        final finder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$offstageId')),
+              matching: find.byType(Offstage),
+            )
+            .first;
+        return (
+          widget: tester.widget<Offstage>(finder),
+          render: tester.renderObject<RenderOffstage>(finder),
+        );
+      }
+
+      final omitted = await pump(const {});
+      expect(omitted.widget.offstage, isTrue);
+      expect(omitted.render.offstage, isTrue);
+      expect(omitted.render.size, Size.zero);
+      expect(omitted.render.child!.size, const Size(40, 10));
+      expect(omitted.render.paintsChild(omitted.render.child!), isFalse);
+      expect(
+        omitted.render.hitTest(BoxHitTestResult(), position: Offset.zero),
+        isFalse,
+      );
+
+      final explicitTrue = await pump(const {
+        'offstage': {'kind': 'boolean', 'value': true},
+      });
+      expect(explicitTrue.widget.offstage, isTrue);
+      expect(explicitTrue.render.offstage, isTrue);
+      expect(explicitTrue.render.size, Size.zero);
+      expect(explicitTrue.render.child!.size, const Size(40, 10));
+      expect(
+        explicitTrue.render.paintsChild(explicitTrue.render.child!),
+        isFalse,
+      );
+
+      final visible = await pump(const {
+        'offstage': {'kind': 'boolean', 'value': false},
+      });
+      expect(visible.widget.offstage, isFalse);
+      expect(visible.render.offstage, isFalse);
+      expect(visible.render.size, const Size(40, 10));
+      expect(visible.render.child!.size, const Size(40, 10));
+      expect(visible.render.paintsChild(visible.render.child!), isTrue);
+      expect(
+        visible.render.hitTest(
+          BoxHitTestResult(),
+          position: visible.render.size.center(Offset.zero),
+        ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps zero-size Offstage selectable and exposes only an empty child drop',
+    (tester) async {
+      const offstageId = 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090';
+      const childId = 'eea084e6-c139-421b-8a62-4e82a877b72c';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+
+      Future<void> pump({
+        required Map<String, Object?> properties,
+        required Map<String, Object?>? child,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredOffstage(
+                  properties: properties,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) => CanvasModelApp(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      CanvasDropTarget? resolveAt(Offset point) {
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      RenderOffstage offstageRender() => tester.renderObject<RenderOffstage>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$offstageId')),
+              matching: find.byType(Offstage),
+            )
+            .first,
+      );
+
+      await pump(
+        properties: const {},
+        child: _viewSizedBoxNode(childId, width: 40, height: 10),
+      );
+      final hiddenTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$offstageId'),
+      );
+      expect(offstageRender().size, Size.zero);
+      expect(hiddenTarget, findsOneWidget);
+      expect(tester.getSize(hiddenTarget), const Size.square(36));
+      final hiddenRect = tester.getRect(hiddenTarget);
+      await tester.tap(hiddenTarget);
+      await tester.pump();
+      expect(selectedWidgetId, offstageId);
+      expect(
+        resolveAt(hiddenRect.center)?.parentWidgetId,
+        isNot(offstageId),
+        reason: 'the hidden but active child still occupies the model slot',
+      );
+
+      selectedWidgetId = null;
+      await pump(
+        properties: const {
+          'offstage': {'kind': 'boolean', 'value': false},
+        },
+        child: _viewSizedBoxNode(childId, width: 40, height: 10),
+      );
+      expect(offstageRender().size, const Size(40, 10));
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$offstageId'),
+        ),
+        findsNothing,
+      );
+      final visibleNode = find.byKey(
+        const ValueKey('canvas-widget-$offstageId'),
+      );
+      await tester.tapAt(tester.getRect(visibleNode).center);
+      await tester.pump();
+      expect(selectedWidgetId, childId);
+
+      selectedWidgetId = null;
+      await pump(
+        properties: const {
+          'offstage': {'kind': 'boolean', 'value': false},
+        },
+        child: null,
+      );
+      final emptyTarget = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$offstageId'),
+      );
+      expect(offstageRender().size, Size.zero);
+      expect(emptyTarget, findsOneWidget);
+      expect(tester.getSize(emptyTarget), const Size.square(36));
+      final emptyRect = tester.getRect(emptyTarget);
+      final surfaceRect = tester.getRect(find.byType(CanvasDocumentView));
+      expect(surfaceRect.intersect(emptyRect), emptyRect);
+      final emptyDrop = resolveAt(emptyRect.center);
+      expect(emptyDrop?.parentWidgetId, offstageId);
+      expect(emptyDrop?.slotName, 'child');
+      expect(emptyDrop?.insertionIndex, 0);
+      expect(emptyDrop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
     (tester) async {
       const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
@@ -8720,6 +8960,35 @@ Map<String, Object?> _modelWithCenteredIntrinsicWidth({
         'child': <String, Object?>{
           'id': 'bbce8cc2-8ff1-4337-83e2-46f70a579075',
           'type': 'flutter.widgets.IntrinsicWidth',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredOffstage({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '3041fd16-502f-42aa-8073-b30fb54014dc',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
+          'type': 'flutter.widgets.Offstage',
           'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},

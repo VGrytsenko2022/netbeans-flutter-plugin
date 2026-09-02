@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -408,6 +409,48 @@ class WidgetNodePrototypeFactoryTest {
                         Map.of(new PropertyName("stepWidth"),
                                 new PropertyValue.DoubleValue(
                                         new BigDecimal("-0.01")))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
+    void createsOffstageWithOmittedFrameworkDefaultAndDistinctExplicitBooleans() {
+        WidgetDefinition definition = definition("flutter.widgets.Offstage");
+
+        WidgetNode omitted = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Offstage"), omitted.type());
+        assertTrue(omitted.properties().isEmpty(),
+                "omission must preserve Flutter's offstage=true default");
+        assertEquals(List.of(new SlotName("child")),
+                omitted.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                omitted.slots().get(new SlotName("child"))).child().isEmpty());
+
+        WidgetNode explicitTrue = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("offstage"),
+                        new PropertyValue.BooleanValue(true)));
+        WidgetNode explicitFalse = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("offstage"),
+                        new PropertyValue.BooleanValue(false)));
+        assertEquals(new PropertyValue.BooleanValue(true),
+                explicitTrue.properties().get(new PropertyName("offstage")));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                explicitFalse.properties().get(new PropertyName("offstage")));
+        assertFalse(explicitTrue.equals(explicitFalse));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("offstage"),
+                                new PropertyValue.StringValue("true"))));
         assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
                 WidgetPlacementRules.creationMode(definition));
         assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));

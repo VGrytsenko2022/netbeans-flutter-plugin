@@ -160,7 +160,7 @@ enum CanvasDropZonePlacement {
   /// The complete rendered parent is the insertion target.
   fullNode,
 
-  /// Only the visual terminal edge of a Row or Column is exposed.
+  /// Only the visual terminal edge of a linear Row, Column, or ListView is exposed.
   terminalList,
 
   /// The rendered bounds of one existing direct list child.
@@ -198,6 +198,14 @@ const canvasExpandedWrapDropSlot = CanvasDropSlotSemantics.wrapExisting(
 const canvasExpandedWidgetType = 'flutter.widgets.Expanded';
 
 const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
+  slotName: 'children',
+  maximumChildren: 10000,
+  zonePlacement: CanvasDropZonePlacement.fullNode,
+);
+
+/// Wrap can break children into multiple runs, so there is no stable linear
+/// terminal edge. The complete rendered Wrap is the deterministic append zone.
+const canvasWrapChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
   maximumChildren: 10000,
   zonePlacement: CanvasDropZonePlacement.fullNode,
@@ -274,12 +282,19 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         canvasAppBarBottomDropSlot,
       ],
       'flutter.widgets.Column' ||
-      'flutter.widgets.Row' => const [canvasChildrenAppendDropSlot],
+      'flutter.widgets.Row' ||
+      'flutter.widgets.ListView' => const [canvasChildrenAppendDropSlot],
+      'flutter.widgets.Wrap' => const [canvasWrapChildrenAppendDropSlot],
       'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Center' ||
+      'flutter.widgets.ConstrainedBox' ||
+      'flutter.widgets.UnconstrainedBox' ||
+      'flutter.widgets.LimitedBox' ||
+      'flutter.widgets.OverflowBox' ||
       'flutter.widgets.Container' ||
+      'flutter.widgets.FittedBox' ||
       'flutter.widgets.FractionallySizedBox' ||
       'flutter.widgets.Opacity' ||
       'flutter.widgets.Padding' ||

@@ -28,6 +28,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
+            "flutter.widgets.Wrap",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -36,8 +37,14 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Opacity",
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
+            "flutter.widgets.FittedBox",
+            "flutter.widgets.ConstrainedBox",
+            "flutter.widgets.UnconstrainedBox",
+            "flutter.widgets.LimitedBox",
+            "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
+            "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -49,6 +56,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
+            "flutter.widgets.Wrap",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -57,8 +65,14 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Opacity",
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
+            "flutter.widgets.FittedBox",
+            "flutter.widgets.ConstrainedBox",
+            "flutter.widgets.UnconstrainedBox",
+            "flutter.widgets.LimitedBox",
+            "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
+            "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -72,7 +86,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasNineteenSourcesAndTwentyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasTwentySixSourcesAndTwentySevenInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -95,9 +109,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(19, sources.size());
-        assertEquals(20, destinations.size());
-        assertEquals(18, destinations.stream()
+        assertEquals(26, sources.size());
+        assertEquals(27, destinations.size());
+        assertEquals(25, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -105,9 +119,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(380, candidates);
-        assertEquals(328, accepted);
-        assertEquals(52, candidates - accepted);
+        assertEquals(702, candidates);
+        assertEquals(629, accepted);
+        assertEquals(73, candidates - accepted);
     }
 
     @Test
@@ -178,6 +192,50 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),
                 projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void wrapHasTheExactStaticEditableProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Wrap");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("direction"),
+                        new PropertyName("alignment"),
+                        new PropertyName("spacing"),
+                        new PropertyName("runAlignment"),
+                        new PropertyName("runSpacing"),
+                        new PropertyName("crossAxisAlignment"),
+                        new PropertyName("textDirection"),
+                        new PropertyName("verticalDirection"),
+                        new PropertyName("clipBehavior")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("children")), projection.slots());
+        assertEquals("*:1:*:1", projection.propertyContracts()
+                .get(new PropertyName("spacing")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertEquals("*:1:*:1", projection.propertyContracts()
+                .get(new PropertyName("runSpacing")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("alignment")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("crossAxisAlignment")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":WrapCrossAlignment:center,end,start"));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10_000),
+                projection.slotContracts().get(new SlotName("children")));
     }
 
     @Test
@@ -317,6 +375,235 @@ class BuiltInWidgetCapabilityCatalogTest {
                     factor.constraintFingerprints().get(PropertyValueKind.DOUBLE), name);
         }
 
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void fittedBoxHasTheExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.FittedBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("fit"),
+                        new PropertyName("alignment"),
+                        new PropertyName("clipBehavior")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertTrue(alignment.numericBounds().isEmpty());
+
+        String widgetsLibrary =
+                "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA";
+        assertEquals("enum:" + widgetsLibrary
+                        + ":BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown",
+                projection.propertyContracts().get(new PropertyName("fit"))
+                        .constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals("enum:" + widgetsLibrary
+                        + ":Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none",
+                projection.propertyContracts().get(new PropertyName("clipBehavior"))
+                        .constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertTrue(projection.propertyContracts().values().stream()
+                .allMatch(value -> !value.required()
+                        && value.creationDefaultFingerprint().isEmpty()));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void constrainedBoxHasRequiredCompleteConstraintsAndOptionalChild() {
+        WidgetDefinition definition = definition("flutter.widgets.ConstrainedBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("constraints")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var constraints = projection.propertyContracts().get(
+                new PropertyName("constraints"));
+        assertTrue(constraints.required());
+        assertEquals(Set.of(PropertyValueKind.BOX_CONSTRAINTS),
+                constraints.acceptedKinds());
+        assertEquals(Optional.of("boxConstraints:0,inf,0,inf"),
+                constraints.creationDefaultFingerprint());
+        assertEquals("boxConstraints:v2:finiteOrPositiveInfinity",
+                constraints.constraintFingerprints()
+                        .get(PropertyValueKind.BOX_CONSTRAINTS));
+        assertTrue(constraints.numericBounds().isEmpty());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void unconstrainedBoxHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.UnconstrainedBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("textDirection"),
+                        new PropertyName("alignment"),
+                        new PropertyName("constrainedAxis"),
+                        new PropertyName("clipBehavior")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+        assertTrue(alignment.numericBounds().isEmpty());
+
+        String widgetsLibrary =
+                "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA";
+        assertEquals("enum:" + widgetsLibrary + ":TextDirection:ltr,rtl",
+                projection.propertyContracts().get(new PropertyName("textDirection"))
+                        .constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals("enum:" + widgetsLibrary + ":Axis:horizontal,vertical",
+                projection.propertyContracts().get(new PropertyName("constrainedAxis"))
+                        .constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals("enum:" + widgetsLibrary
+                        + ":Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none",
+                projection.propertyContracts().get(new PropertyName("clipBehavior"))
+                        .constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertTrue(projection.propertyContracts().values().stream()
+                .allMatch(value -> !value.required()
+                        && value.creationDefaultFingerprint().isEmpty()));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void limitedBoxHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.LimitedBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("maxWidth"),
+                        new PropertyName("maxHeight")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        for (String name : List.of("maxWidth", "maxHeight")) {
+            var dimension = projection.propertyContracts().get(
+                    new PropertyName(name));
+            assertFalse(dimension.required(), name);
+            assertEquals(Set.of(PropertyValueKind.DOUBLE),
+                    dimension.acceptedKinds(), name);
+            assertTrue(dimension.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("0:1:*:1", dimension.numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+            assertEquals("range:0:1:*:1",
+                    dimension.constraintFingerprints().get(PropertyValueKind.DOUBLE),
+                    name);
+        }
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
+    void overflowBoxHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("alignment"),
+                        new PropertyName("minWidth"),
+                        new PropertyName("maxWidth"),
+                        new PropertyName("minHeight"),
+                        new PropertyName("maxHeight"),
+                        new PropertyName("fit")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+
+        for (String name : List.of(
+                "minWidth", "maxWidth", "minHeight", "maxHeight")) {
+            var dimension = projection.propertyContracts().get(
+                    new PropertyName(name));
+            assertFalse(dimension.required(), name);
+            assertEquals(Set.of(PropertyValueKind.DOUBLE),
+                    dimension.acceptedKinds(), name);
+            assertTrue(dimension.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("0:1:*:1", dimension.numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+            assertEquals("range:0:1:*:1",
+                    dimension.constraintFingerprints().get(PropertyValueKind.DOUBLE),
+                    name);
+        }
+
+        var fit = projection.propertyContracts().get(new PropertyName("fit"));
+        assertFalse(fit.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), fit.acceptedKinds());
+        assertTrue(fit.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "OverflowBoxFit:deferToChild,max",
+                fit.constraintFingerprints().get(PropertyValueKind.ENUM));
         assertEquals(
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.SINGLE, false, 0, 1),
@@ -566,7 +853,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals("alignmentGeometry", projection.propertyContracts()
                 .get(new PropertyName("alignment"))
                 .constraintFingerprints().get(PropertyValueKind.ALIGNMENT_GEOMETRY));
-        assertEquals("boxConstraints", projection.propertyContracts()
+        assertEquals("boxConstraints:v2:finiteOrPositiveInfinity", projection.propertyContracts()
                 .get(new PropertyName("constraints"))
                 .constraintFingerprints().get(PropertyValueKind.BOX_CONSTRAINTS));
         assertEquals("matrix4", projection.propertyContracts()
@@ -825,6 +1112,60 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "double:0:1:*:1;integer:0:1:9007199254740991:1|"
                 + "double:range:0:1:*:1;"
                 + "integer:range:0:1:9007199254740991:1\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.FittedBox\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|clipBehavior|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|fit|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.ConstrainedBox\n"
+                + "P|constraints|boxConstraints|1|"
+                + "boxConstraints:0,inf,0,inf|-|"
+                + "boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.UnconstrainedBox\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|clipBehavior|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|constrainedAxis|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Axis:horizontal,vertical\n"
+                + "P|textDirection|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "TextDirection:ltr,rtl\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.LimitedBox\n"
+                + "P|maxHeight|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "P|maxWidth|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.OverflowBox\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|fit|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "OverflowBoxFit:deferToChild,max\n"
+                + "P|maxHeight|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "P|maxWidth|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "P|minHeight|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
+                + "P|minWidth|double|0|-|double:0:1:*:1|"
+                + "double:range:0:1:*:1\n"
                 + "S|child|single|0|0|1|any\n"));
         assertTrue(contract.contains(
                 "W|flutter.widgets.Stack\n"

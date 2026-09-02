@@ -341,7 +341,8 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final boolean isPaintable() {
-            return binding.editorKind() == EditorKind.COLOR
+            return binding.editorKind() == EditorKind.BOOLEAN
+                    || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
                     || FlutterPropertyValuePreview.isPaintable(
                             binding.editorKind());
@@ -349,7 +350,10 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.COLOR
+            if (binding.editorKind() == EditorKind.BOOLEAN) {
+                FlutterPropertyEditorComponents.paintBooleanValue(
+                        graphics, box, cellValue());
+            } else if (binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR) {
                 FlutterPropertyEditorComponents.paintColorValue(
                         graphics, box, cellValue());
@@ -480,18 +484,8 @@ final class FlutterTypedPropertyEditors {
     }
 
     private static final class BooleanEditor extends TypedEditor {
-        private final String[] tags;
-
         BooleanEditor(Binding binding) {
             super(binding);
-            tags = binding.optional()
-                    ? new String[]{FlutterPropertyCellValue.NOT_SET_TEXT, "true", "false"}
-                    : new String[]{"true", "false"};
-        }
-
-        @Override
-        public String[] getTags() {
-            return tags.clone();
         }
 
         @Override

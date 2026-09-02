@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -28,10 +29,11 @@ class BuiltInWidgetCatalogTest {
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String RENDERING_IMPORT = "package:flutter/rendering.dart";
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedNineteenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedTwentySixTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -41,37 +43,46 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Center",
                 "flutter.widgets.Column",
+                "flutter.widgets.ConstrainedBox",
                 "flutter.widgets.Container",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.FittedBox",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
+                "flutter.widgets.LimitedBox",
+                "flutter.widgets.ListView",
                 "flutter.widgets.Opacity",
+                "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Row",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.Stack",
-                "flutter.widgets.Text"), typeIds(BuiltInWidgetCatalog.getDefault().definitions()));
+                "flutter.widgets.Text",
+                "flutter.widgets.UnconstrainedBox",
+                "flutter.widgets.Wrap"), typeIds(BuiltInWidgetCatalog.getDefault().definitions()));
     }
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(19, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(16, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(26, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(21, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
                         "flutter.material.AppBar",
                         "flutter.material.ElevatedButton",
-                        "flutter.widgets.Container"),
+                        "flutter.widgets.ConstrainedBox",
+                        "flutter.widgets.Container",
+                        "flutter.widgets.ListView"),
                 BuiltInWidgetCatalog.getDefault().definitions().stream()
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(617, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(659, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(600, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(642, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -89,17 +100,24 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ConstrainedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FractionallySizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.LimitedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ListView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.OverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Stack", WIDGETS_IMPORT),
-                Map.entry("flutter.widgets.Text", WIDGETS_IMPORT));
+                Map.entry("flutter.widgets.Text", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.UnconstrainedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Wrap", WIDGETS_IMPORT));
 
         Map<String, String> actual = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .collect(java.util.stream.Collectors.toMap(
@@ -118,6 +136,11 @@ class BuiltInWidgetCatalogTest {
                         DART_UI_IMPORT, GESTURES_IMPORT, MATERIAL_IMPORT,
                         SERVICES_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.material.TextField").importUris());
+        assertEquals(List.of(GESTURES_IMPORT, RENDERING_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.widgets.ListView").importUris());
+        assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.widgets.OverflowBox").importUris(),
+                "OverflowBoxFit is owned by rendering.dart in Flutter 3.44.8");
     }
 
     @Test
@@ -133,6 +156,7 @@ class BuiltInWidgetCatalogTest {
                 .toList();
 
         assertEquals(List.of(
+                new DartSymbolReference(WIDGETS_IMPORT, "Axis"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BlendMode"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BorderStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BoxFit"),
@@ -145,11 +169,15 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "FilterQuality"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
+                new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
                 new DartSymbolReference(WIDGETS_IMPORT, "ImageRepeat"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
                 new DartSymbolReference(SERVICES_IMPORT, "MaxLengthEnforcement"),
+                new DartSymbolReference(RENDERING_IMPORT, "OverflowBoxFit"),
+                new DartSymbolReference(
+                        WIDGETS_IMPORT, "ScrollViewKeyboardDismissBehavior"),
                 new DartSymbolReference(SERVICES_IMPORT, "SmartDashesType"),
                 new DartSymbolReference(SERVICES_IMPORT, "SmartQuotesType"),
                 new DartSymbolReference(WIDGETS_IMPORT, "StackFit"),
@@ -162,7 +190,9 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "TextLeadingDistribution"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextOverflow"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextWidthBasis"),
-                new DartSymbolReference(WIDGETS_IMPORT, "VerticalDirection")), enumTypes);
+                new DartSymbolReference(WIDGETS_IMPORT, "VerticalDirection"),
+                new DartSymbolReference(WIDGETS_IMPORT, "WrapAlignment"),
+                new DartSymbolReference(WIDGETS_IMPORT, "WrapCrossAlignment")), enumTypes);
     }
 
     @Test
@@ -174,6 +204,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
+                "flutter.widgets.Wrap",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
@@ -182,8 +213,14 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.FittedBox",
+                "flutter.widgets.ConstrainedBox",
+                "flutter.widgets.UnconstrainedBox",
+                "flutter.widgets.LimitedBox",
+                "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
@@ -217,6 +254,11 @@ class BuiltInWidgetCatalogTest {
         assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
                 property(catalog, "flutter.widgets.Opacity", "opacity")
                         .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.ZERO, java.util.Optional.empty(),
+                        BigDecimal.ZERO, java.util.Optional.empty()),
+                property(catalog, "flutter.widgets.ConstrainedBox", "constraints")
+                        .creationDefault().orElseThrow());
         assertTrue(property(catalog, "flutter.widgets.Opacity", "alwaysIncludeSemantics")
                 .creationDefault().isEmpty());
         for (String type : List.of(
@@ -231,6 +273,30 @@ class BuiltInWidgetCatalogTest {
                 "alignment", "textDirection", "fit", "clipBehavior")) {
             assertTrue(property(catalog, "flutter.widgets.Stack", property)
                     .creationDefault().isEmpty(), "Stack." + property);
+        }
+        for (String property : List.of(
+                "direction", "alignment", "spacing", "runAlignment", "runSpacing",
+                "crossAxisAlignment", "textDirection", "verticalDirection", "clipBehavior")) {
+            assertTrue(property(catalog, "flutter.widgets.Wrap", property)
+                    .creationDefault().isEmpty(), "Wrap." + property);
+        }
+        for (String property : List.of("fit", "alignment", "clipBehavior")) {
+            assertTrue(property(catalog, "flutter.widgets.FittedBox", property)
+                    .creationDefault().isEmpty(), "FittedBox." + property);
+        }
+        for (String property : List.of(
+                "textDirection", "alignment", "constrainedAxis", "clipBehavior")) {
+            assertTrue(property(catalog, "flutter.widgets.UnconstrainedBox", property)
+                    .creationDefault().isEmpty(), "UnconstrainedBox." + property);
+        }
+        for (String property : List.of("maxWidth", "maxHeight")) {
+            assertTrue(property(catalog, "flutter.widgets.LimitedBox", property)
+                    .creationDefault().isEmpty(), "LimitedBox." + property);
+        }
+        for (String property : List.of(
+                "alignment", "minWidth", "maxWidth", "minHeight", "maxHeight", "fit")) {
+            assertTrue(property(catalog, "flutter.widgets.OverflowBox", property)
+                    .creationDefault().isEmpty(), "OverflowBox." + property);
         }
         assertTrue(property(catalog, "flutter.widgets.Expanded", "flex")
                 .creationDefault().isEmpty());
@@ -619,6 +685,30 @@ class BuiltInWidgetCatalogTest {
     }
 
     @Test
+    void wrapExposesTheExactFlutter344ConstructorSurfaceAndOrderedChildren() {
+        WidgetDefinition wrap = definition("flutter.widgets.Wrap");
+
+        assertTrue(wrap.constConstructor());
+        assertEquals("Wrap", wrap.dartClassName());
+        assertEquals(List.of(
+                        "direction", "alignment", "spacing", "runAlignment", "runSpacing",
+                        "crossAxisAlignment", "textDirection", "verticalDirection", "clipBehavior"),
+                wrap.properties().stream().map(value -> value.name().value()).toList());
+        for (int index = 0; index < wrap.properties().size(); index++) {
+            assertEquals(DartParameter.named(index, false),
+                    wrap.properties().get(index).parameter());
+            assertTrue(wrap.properties().get(index).creationDefault().isEmpty());
+        }
+
+        SlotDefinition children = wrap.slot(new SlotName("children")).orElseThrow();
+        assertEquals(DartParameter.named(9, false), children.parameter());
+        assertEquals(SlotCardinality.LIST, children.cardinality());
+        assertEquals(0, children.minChildren());
+        assertEquals(10_000, children.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, children.acceptance());
+    }
+
+    @Test
     void opacityExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
         WidgetDefinition opacity = definition("flutter.widgets.Opacity");
 
@@ -754,6 +844,304 @@ class BuiltInWidgetCatalogTest {
 
         SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
         assertEquals(DartParameter.named(3, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void fittedBoxExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
+        WidgetDefinition box = definition("flutter.widgets.FittedBox");
+
+        assertEquals("FittedBox", box.dartClassName());
+        assertTrue(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata("flutter.layout", 200, 105, "FittedBox"),
+                box.palette());
+        assertEquals(List.of("fit", "alignment", "clipBehavior"),
+                box.properties().stream().map(value -> value.name().value()).toList());
+
+        PropertyDefinition fit = box.property(new PropertyName("fit")).orElseThrow();
+        assertEquals(DartParameter.named(0, false), fit.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), fit.acceptedKinds());
+        PropertyValueConstraint.EnumValues fitValues = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                fit.constraints().getFirst());
+        assertEquals(new DartSymbolReference(WIDGETS_IMPORT, "BoxFit"),
+                fitValues.dartType());
+        assertEquals(List.of(
+                        "fill", "contain", "cover", "fitWidth", "fitHeight", "none",
+                        "scaleDown"),
+                fitValues.values());
+
+        PropertyDefinition alignment = box.property(new PropertyName("alignment"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(1, false), alignment.parameter());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertInstanceOf(PropertyValueConstraint.AlignmentGeometryValues.class,
+                alignment.constraints().getFirst());
+
+        PropertyDefinition clip = box.property(new PropertyName("clipBehavior"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(2, false), clip.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), clip.acceptedKinds());
+        PropertyValueConstraint.EnumValues clipValues = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                clip.constraints().getFirst());
+        assertEquals(new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
+                clipValues.dartType());
+        assertEquals(List.of(
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                clipValues.values());
+        assertTrue(box.properties().stream()
+                .allMatch(value -> value.creationDefault().isEmpty()));
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(3, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void constrainedBoxExposesCompleteFlutter344ConstraintsAndOptionalAnyWidgetChild() {
+        WidgetDefinition box = definition("flutter.widgets.ConstrainedBox");
+
+        assertEquals("ConstrainedBox", box.dartClassName());
+        assertFalse(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                "flutter.layout", 200, 106, "ConstrainedBox"), box.palette());
+        assertEquals(List.of("constraints"),
+                box.properties().stream().map(value -> value.name().value()).toList());
+
+        PropertyDefinition constraints = box.property(new PropertyName("constraints"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, true), constraints.parameter());
+        assertEquals(Set.of(PropertyValueKind.BOX_CONSTRAINTS),
+                constraints.acceptedKinds());
+        PropertyValueConstraint.BoxConstraintsValues values = assertInstanceOf(
+                PropertyValueConstraint.BoxConstraintsValues.class,
+                constraints.constraints().getFirst());
+        PropertyValue.BoxConstraintsValue unconstrained = assertInstanceOf(
+                PropertyValue.BoxConstraintsValue.class,
+                constraints.creationDefault().orElseThrow());
+        assertEquals(Optional.of(BigDecimal.ZERO),
+                unconstrained.minWidth().finiteValue());
+        assertTrue(unconstrained.maxWidth().infinite());
+        assertEquals(Optional.of(BigDecimal.ZERO),
+                unconstrained.minHeight().finiteValue());
+        assertTrue(unconstrained.maxHeight().infinite());
+        assertTrue(values.accepts(unconstrained));
+        assertTrue(values.accepts(new PropertyValue.BoxConstraintsValue(
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                PropertyValue.BoxConstraintBound.finite(BigDecimal.ZERO),
+                PropertyValue.BoxConstraintBound.finite(BigDecimal.valueOf(240)))));
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(1, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void unconstrainedBoxExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
+        WidgetDefinition box = definition("flutter.widgets.UnconstrainedBox");
+
+        assertEquals("UnconstrainedBox", box.dartClassName());
+        assertTrue(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                "flutter.layout", 200, 107, "UnconstrainedBox"), box.palette());
+        assertEquals(List.of(
+                        "textDirection", "alignment", "constrainedAxis", "clipBehavior"),
+                box.properties().stream().map(value -> value.name().value()).toList());
+
+        Map<String, List<String>> enumValues = Map.of(
+                "textDirection", List.of("rtl", "ltr"),
+                "constrainedAxis", List.of("horizontal", "vertical"),
+                "clipBehavior", List.of(
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"));
+        Map<String, String> enumTypes = Map.of(
+                "textDirection", "TextDirection",
+                "constrainedAxis", "Axis",
+                "clipBehavior", "Clip");
+        for (int order = 0; order < box.properties().size(); order++) {
+            PropertyDefinition property = box.properties().get(order);
+            assertEquals(DartParameter.named(order + 1, false), property.parameter(),
+                    property.name().value());
+            assertTrue(property.creationDefault().isEmpty(), property.name().value());
+            if (!property.name().value().equals("alignment")) {
+                PropertyValueConstraint.EnumValues values = assertInstanceOf(
+                        PropertyValueConstraint.EnumValues.class,
+                        property.constraints().getFirst());
+                assertEquals(new DartSymbolReference(
+                        WIDGETS_IMPORT, enumTypes.get(property.name().value())),
+                        values.dartType());
+                assertEquals(enumValues.get(property.name().value()), values.values());
+            }
+        }
+
+        PropertyDefinition alignment = box.property(new PropertyName("alignment"))
+                .orElseThrow();
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        PropertyValueConstraint.AlignmentGeometryValues alignmentValues =
+                assertInstanceOf(PropertyValueConstraint.AlignmentGeometryValues.class,
+                        alignment.constraints().getFirst());
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                BigDecimal.ZERO, BigDecimal.ZERO)));
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                BigDecimal.ONE, BigDecimal.ONE.negate())));
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(0, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void limitedBoxExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
+        WidgetDefinition box = definition("flutter.widgets.LimitedBox");
+
+        assertEquals("LimitedBox", box.dartClassName());
+        assertTrue(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                "flutter.layout", 200, 108, "LimitedBox"), box.palette());
+        assertEquals(List.of("maxWidth", "maxHeight"),
+                box.properties().stream().map(value -> value.name().value()).toList());
+
+        for (int order = 0; order < box.properties().size(); order++) {
+            PropertyDefinition property = box.properties().get(order);
+            assertEquals(DartParameter.named(order, false), property.parameter(),
+                    property.name().value());
+            assertEquals(Set.of(PropertyValueKind.DOUBLE), property.acceptedKinds(),
+                    property.name().value());
+            assertTrue(property.creationDefault().isEmpty(), property.name().value());
+            PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                    PropertyValueConstraint.DoubleRange.class,
+                    property.constraints().getFirst());
+            assertEquals(BigDecimal.ZERO, range.minimum(), property.name().value());
+            assertTrue(range.minimumInclusive(), property.name().value());
+            assertNull(range.maximum(), property.name().value());
+            assertTrue(range.maximumInclusive(), property.name().value());
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                    property.name().value());
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("2048.5"))), property.name().value());
+            assertFalse(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("-0.5"))), property.name().value());
+            assertFalse(range.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                    property.name().value());
+        }
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+        assertTrue(child.acceptance().accepts(box));
+    }
+
+    @Test
+    void overflowBoxExposesExactFlutter344SurfaceAndOptionalAnyWidgetChild() {
+        WidgetDefinition box = definition("flutter.widgets.OverflowBox");
+
+        assertEquals("OverflowBox", box.dartClassName());
+        assertTrue(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                "flutter.layout", 200, 109, "OverflowBox"), box.palette());
+        assertEquals(List.of(
+                        "alignment", "minWidth", "maxWidth",
+                        "minHeight", "maxHeight", "fit"),
+                box.properties().stream().map(value -> value.name().value()).toList());
+
+        PropertyDefinition alignment = box.property(new PropertyName("alignment"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, false), alignment.parameter());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefault().isEmpty());
+        PropertyValueConstraint.AlignmentGeometryValues alignmentValues =
+                assertInstanceOf(PropertyValueConstraint.AlignmentGeometryValues.class,
+                        alignment.constraints().getFirst());
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                BigDecimal.ZERO, BigDecimal.ZERO)));
+        assertTrue(alignmentValues.accepts(new PropertyValue.AlignmentGeometryValue(
+                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                BigDecimal.ONE.negate(), BigDecimal.ONE)));
+
+        for (String name : List.of(
+                "minWidth", "maxWidth", "minHeight", "maxHeight")) {
+            PropertyDefinition dimension = box.property(new PropertyName(name))
+                    .orElseThrow();
+            int order = List.of(
+                    "alignment", "minWidth", "maxWidth",
+                    "minHeight", "maxHeight", "fit").indexOf(name);
+            assertEquals(DartParameter.named(order, false), dimension.parameter(), name);
+            assertEquals(Set.of(PropertyValueKind.DOUBLE),
+                    dimension.acceptedKinds(), name);
+            assertTrue(dimension.creationDefault().isEmpty(), name);
+            PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                    PropertyValueConstraint.DoubleRange.class,
+                    dimension.constraints().getFirst());
+            assertEquals(BigDecimal.ZERO, range.minimum(), name);
+            assertTrue(range.minimumInclusive(), name);
+            assertNull(range.maximum(), name);
+            assertTrue(range.maximumInclusive(), name);
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO)), name);
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("2048.5"))), name);
+            assertFalse(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("-0.5"))), name);
+            assertFalse(range.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)), name);
+        }
+
+        PropertyDefinition fit = box.property(new PropertyName("fit")).orElseThrow();
+        assertEquals(DartParameter.named(5, false), fit.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), fit.acceptedKinds());
+        assertTrue(fit.creationDefault().isEmpty());
+        PropertyValueConstraint.EnumValues fitValues = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class, fit.constraints().getFirst());
+        assertEquals(new DartSymbolReference(RENDERING_IMPORT, "OverflowBoxFit"),
+                fitValues.dartType());
+        assertEquals(List.of("max", "deferToChild"), fitValues.values());
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(6, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());

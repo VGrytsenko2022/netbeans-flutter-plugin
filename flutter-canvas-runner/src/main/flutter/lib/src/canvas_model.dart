@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 11;
+const canvasModelProtocolVersion = 12;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -815,6 +815,7 @@ class CanvasNode {
         );
       }
     }
+    _validateNodeSlotRelationships(type, properties, slots, path);
     return CanvasNode(
       id: id,
       type: type,
@@ -822,6 +823,24 @@ class CanvasNode {
       slots: Map.unmodifiable(slots),
     );
   }
+}
+
+void _validateNodeSlotRelationships(
+  String type,
+  Map<String, CanvasValue> properties,
+  Map<String, CanvasSlot> slots,
+  String path,
+) {
+  if (type != 'flutter.widgets.ListView') {
+    return;
+  }
+  final semanticChildCount = properties['semanticChildCount']?.value as int?;
+  final childCount = slots['children']?.children.length ?? 0;
+  _expect(
+    semanticChildCount == null || semanticChildCount <= childCount,
+    'Canvas ListView semanticChildCount cannot exceed children.length: '
+    '$path/properties/semanticChildCount',
+  );
 }
 
 class CanvasSlot {
@@ -1270,9 +1289,9 @@ class CanvasBoxConstraintsValue {
     required this.maxHeight,
   });
 
-  final double minWidth;
+  final double? minWidth;
   final double? maxWidth;
-  final double minHeight;
+  final double? minHeight;
   final double? maxHeight;
 }
 
@@ -2060,28 +2079,28 @@ CanvasBoxConstraintsValue _decodeBoxConstraints(
     'minHeight',
     'maxHeight',
   });
-  final minWidth = _finiteNumber(
-    object['minWidth'],
-    '$path/minWidth',
-    minimum: 0,
-  );
+  final minWidth = object['minWidth'] == null
+      ? null
+      : _finiteNumber(object['minWidth'], '$path/minWidth', minimum: 0);
   final maxWidth = object['maxWidth'] == null
       ? null
       : _finiteNumber(object['maxWidth'], '$path/maxWidth', minimum: 0);
-  final minHeight = _finiteNumber(
-    object['minHeight'],
-    '$path/minHeight',
-    minimum: 0,
-  );
+  final minHeight = object['minHeight'] == null
+      ? null
+      : _finiteNumber(object['minHeight'], '$path/minHeight', minimum: 0);
   final maxHeight = object['maxHeight'] == null
       ? null
       : _finiteNumber(object['maxHeight'], '$path/maxHeight', minimum: 0);
   _expect(
-    maxWidth == null || maxWidth >= minWidth,
+    minWidth == null
+        ? maxWidth == null
+        : maxWidth == null || maxWidth >= minWidth,
     'Canvas BoxConstraints maxWidth is less than minWidth: $path',
   );
   _expect(
-    maxHeight == null || maxHeight >= minHeight,
+    minHeight == null
+        ? maxHeight == null
+        : maxHeight == null || maxHeight >= minHeight,
     'Canvas BoxConstraints maxHeight is less than minHeight: $path',
   );
   return CanvasBoxConstraintsValue(
@@ -3138,6 +3157,7 @@ const _widgetsLibraryUri = 'package:flutter/widgets.dart';
 const _materialLibraryUri = 'package:flutter/material.dart';
 const _servicesLibraryUri = 'package:flutter/services.dart';
 const _gesturesLibraryUri = 'package:flutter/gestures.dart';
+const _renderingLibraryUri = 'package:flutter/rendering.dart';
 const _dartUiLibraryUri = 'dart:ui';
 
 const _fontWeightProperty = _PropertySpec(
@@ -3651,6 +3671,27 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.FittedBox': _WidgetSpec(
+    {
+      'fit': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'BoxFit',
+        enumValues: {
+          'fill',
+          'contain',
+          'cover',
+          'fitWidth',
+          'fitHeight',
+          'none',
+          'scaleDown',
+        },
+      ),
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Expanded': _WidgetSpec(
     {
       'flex': _PropertySpec({
@@ -3784,6 +3825,68 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.Wrap': _WidgetSpec(
+    {
+      'direction': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'alignment': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'WrapAlignment',
+        enumValues: {
+          'start',
+          'end',
+          'center',
+          'spaceBetween',
+          'spaceAround',
+          'spaceEvenly',
+        },
+      ),
+      'spacing': _PropertySpec({
+        'double',
+      }, numericBounds: _unboundedDoubleBounds),
+      'runAlignment': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'WrapAlignment',
+        enumValues: {
+          'start',
+          'end',
+          'center',
+          'spaceBetween',
+          'spaceAround',
+          'spaceEvenly',
+        },
+      ),
+      'runSpacing': _PropertySpec({
+        'double',
+      }, numericBounds: _unboundedDoubleBounds),
+      'crossAxisAlignment': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'WrapCrossAlignment',
+        enumValues: {'start', 'end', 'center'},
+      ),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'verticalDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'VerticalDirection',
+        enumValues: {'up', 'down'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.Stack': _WidgetSpec(
     {
       'alignment': _PropertySpec({'alignmentGeometry'}),
@@ -3861,6 +3964,70 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       'transform': _PropertySpec({'matrix4'}),
       'transformAlignment': _PropertySpec({'alignmentGeometry'}),
       'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.ConstrainedBox': _WidgetSpec(
+    {
+      'constraints': _PropertySpec(
+        {'boxConstraints'},
+        required: true,
+        creationDefaultFingerprint: 'boxConstraints:0,inf,0,inf',
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.UnconstrainedBox': _WidgetSpec(
+    {
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'constrainedAxis': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.LimitedBox': _WidgetSpec(
+    {
+      'maxWidth': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'maxHeight': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.OverflowBox': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'minWidth': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'maxWidth': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'minHeight': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'maxHeight': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'fit': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'OverflowBoxFit',
+        enumValues: {'max', 'deferToChild'},
+      ),
     },
     {'child': _optionalSingleSlot},
   ),
@@ -3972,6 +4139,69 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       enumValues: {'none', 'low', 'medium', 'high'},
     ),
   }, {}),
+  'flutter.widgets.ListView': _WidgetSpec(
+    {
+      'scrollDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'reverse': _PropertySpec({'boolean'}),
+      'primary': _PropertySpec({'boolean'}),
+      'physics': _PropertySpec(
+        {'string'},
+        stringPattern:
+            r'(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)',
+      ),
+      'shrinkWrap': _PropertySpec({'boolean'}),
+      'padding': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
+      'itemExtent': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'addAutomaticKeepAlives': _PropertySpec({'boolean'}),
+      'addRepaintBoundaries': _PropertySpec({'boolean'}),
+      'addSemanticIndexes': _PropertySpec({'boolean'}),
+      'scrollCacheExtent': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'semanticChildCount': _PropertySpec({
+        'integer',
+      }, numericBounds: _nonNegativeIntegerBounds),
+      'dragStartBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _gesturesLibraryUri,
+        enumType: 'DragStartBehavior',
+        enumValues: {'down', 'start'},
+      ),
+      'keyboardDismissBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'ScrollViewKeyboardDismissBehavior',
+        enumValues: {'manual', 'onDrag'},
+      ),
+      'restorationId': _PropertySpec(
+        {'string'},
+        minimumStringLength: 1,
+        maximumStringLength: 256,
+        explicitStringLength: true,
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+      'hitTestBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'HitTestBehavior',
+        enumValues: {'deferToChild', 'opaque', 'translucent'},
+      ),
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.SizedBox': _WidgetSpec(
     {
       'width': _PropertySpec({
@@ -4803,11 +5033,14 @@ P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextB
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
 S|children|list|0|0|10000|any
+W|flutter.widgets.ConstrainedBox
+P|constraints|boxConstraints|1|boxConstraints:0,inf,0,inf|-|boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity
+S|child|single|0|0|1|any
 W|flutter.widgets.Container
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
-P|constraints|boxConstraints|0|-|-|boxConstraints:boxConstraints
+P|constraints|boxConstraints|0|-|-|boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity
 P|decoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|foregroundDecoration|boxDecoration|0|-|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -4824,6 +5057,11 @@ S|child|single|1|1|1|any
 R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Column|children
 R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Row|children
 C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child
+W|flutter.widgets.FittedBox
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown
+S|child|single|0|0|1|any
 W|flutter.widgets.FractionallySizedBox
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -4866,9 +5104,40 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.LimitedBox
+P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+S|child|single|0|0|1|any
+W|flutter.widgets.ListView
+P|addAutomaticKeepAlives|boolean|0|-|-|boolean:any
+P|addRepaintBoundaries|boolean|0|-|-|boolean:any
+P|addSemanticIndexes|boolean|0|-|-|boolean:any
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
+P|hitTestBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:HitTestBehavior:deferToChild,opaque,translucent
+P|itemExtent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|keyboardDismissBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ScrollViewKeyboardDismissBehavior:manual,onDrag
+P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|physics|string|0|-|-|string:pattern:KD86YWx3YXlzU2Nyb2xsYWJsZXxib3VuY2luZ3xjbGFtcGluZ3xuZXZlclNjcm9sbGFibGV8cGFnZXxyYW5nZU1haW50YWluaW5nKQ
+P|primary|boolean|0|-|-|boolean:any
+P|restorationId|string|0|-|-|string:length:1:256
+P|reverse|boolean|0|-|-|boolean:any
+P|scrollCacheExtent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|scrollDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+P|semanticChildCount|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
+P|shrinkWrap|boolean|0|-|-|boolean:any
+S|children|list|0|0|10000|any
 W|flutter.widgets.Opacity
 P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
 P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1
+S|child|single|0|0|1|any
+W|flutter.widgets.OverflowBox
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:OverflowBoxFit:deferToChild,max
+P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|minHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|minWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 S|child|single|0|0|1|any
 W|flutter.widgets.Padding
 P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
@@ -4952,6 +5221,23 @@ P|textHeightApplyLastDescent|boolean|0|-|-|boolean:any
 P|textHeightLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
 P|textScalerFactor|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|textWidthBasis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextWidthBasis:longestLine,parent
+W|flutter.widgets.UnconstrainedBox
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|constrainedAxis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+S|child|single|0|0|1|any
+W|flutter.widgets.Wrap
+P|alignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|crossAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:WrapCrossAlignment:center,end,start
+P|direction|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+P|runAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
+P|runSpacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|spacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
+S|children|list|0|0|10000|any
 ''';
 
 String canvasRuntimeWidgetSchemaContractForTesting() {
@@ -5082,9 +5368,10 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   if (kind == 'fontVariationList') {
     return 'fontVariationList';
   }
-  if (kind == 'alignmentGeometry' ||
-      kind == 'boxConstraints' ||
-      kind == 'matrix4') {
+  if (kind == 'boxConstraints') {
+    return 'boxConstraints:v2:finiteOrPositiveInfinity';
+  }
+  if (kind == 'alignmentGeometry' || kind == 'matrix4') {
     return kind;
   }
   if (kind == 'imageProvider') {
@@ -5149,6 +5436,23 @@ void _validatePropertyRelationships(
         '$path/properties/textBaseline',
       );
     }
+  }
+
+  if (type == 'flutter.widgets.OverflowBox') {
+    final minWidth = properties['minWidth']?.value as double?;
+    final maxWidth = properties['maxWidth']?.value as double?;
+    final minHeight = properties['minHeight']?.value as double?;
+    final maxHeight = properties['maxHeight']?.value as double?;
+    _expect(
+      minWidth == null || maxWidth == null || minWidth <= maxWidth,
+      'Canvas OverflowBox minWidth cannot exceed maxWidth: '
+      '$path/properties/minWidth',
+    );
+    _expect(
+      minHeight == null || maxHeight == null || minHeight <= maxHeight,
+      'Canvas OverflowBox minHeight cannot exceed maxHeight: '
+      '$path/properties/minHeight',
+    );
   }
 
   if (type == 'flutter.material.AppBar') {

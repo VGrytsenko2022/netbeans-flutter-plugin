@@ -21,6 +21,7 @@ public final class BuiltInWidgetCatalog {
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String RENDERING_IMPORT = "package:flutter/rendering.dart";
     private static final String DART_UI_IMPORT = "dart:ui";
     private static final SlotAcceptance ANY_WIDGET = new SlotAcceptance.AnyWidget();
     private static final WidgetCatalog INSTANCE = WidgetCatalog.strict(List.of(
@@ -28,6 +29,7 @@ public final class BuiltInWidgetCatalog {
             appBar(),
             column(),
             row(),
+            wrap(),
             padding(),
             center(),
             text(),
@@ -38,8 +40,14 @@ public final class BuiltInWidgetCatalog {
             opacity(),
             align(),
             fractionallySizedBox(),
+            fittedBox(),
+            constrainedBox(),
+            unconstrainedBox(),
+            limitedBox(),
+            overflowBox(),
             stack(),
             expanded(),
+            listView(),
             image(),
             elevatedButton(),
             textField()));
@@ -299,6 +307,38 @@ public final class BuiltInWidgetCatalog {
 
     private static WidgetDefinition row() {
         return flexWidget("flutter.widgets.Row", "Row", 20);
+    }
+
+    private static WidgetDefinition wrap() {
+        return widget(
+                "flutter.widgets.Wrap",
+                "Wrap",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 25, "Wrap"),
+                List.of(
+                        namedProperty("direction", 0, false,
+                                enumValues("Axis", "horizontal", "vertical")),
+                        namedProperty("alignment", 1, false,
+                                enumValues("WrapAlignment", "start", "end", "center",
+                                        "spaceBetween", "spaceAround", "spaceEvenly")),
+                        namedProperty("spacing", 2, false, finiteDoubles()),
+                        namedProperty("runAlignment", 3, false,
+                                enumValues("WrapAlignment", "start", "end", "center",
+                                        "spaceBetween", "spaceAround", "spaceEvenly")),
+                        namedProperty("runSpacing", 4, false, finiteDoubles()),
+                        namedProperty("crossAxisAlignment", 5, false,
+                                enumValues("WrapCrossAlignment", "start", "end", "center")),
+                        namedProperty("textDirection", 6, false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty("verticalDirection", 7, false,
+                                enumValues("VerticalDirection", "up", "down")),
+                        namedProperty("clipBehavior", 8, false,
+                                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                        "antiAliasWithSaveLayer"))),
+                List.of(listSlot("children", 9, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition flexWidget(String typeId, String className, int itemOrder) {
@@ -679,6 +719,164 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition fittedBox() {
+        return widget(
+                "flutter.widgets.FittedBox",
+                "FittedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 105, "FittedBox"),
+                List.of(
+                        namedProperty(
+                                "fit",
+                                0,
+                                false,
+                                enumValues(
+                                        "BoxFit", "fill", "contain", "cover",
+                                        "fitWidth", "fitHeight", "none", "scaleDown")),
+                        namedProperty(
+                                "alignment",
+                                1,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "clipBehavior",
+                                2,
+                                false,
+                                enumValues(
+                                        "Clip", "none", "hardEdge", "antiAlias",
+                                        "antiAliasWithSaveLayer"))),
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition constrainedBox() {
+        PropertyValue.BoxConstraintsValue initialConstraints =
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.ZERO,
+                        Optional.empty(),
+                        BigDecimal.ZERO,
+                        Optional.empty());
+        return widget(
+                "flutter.widgets.ConstrainedBox",
+                "ConstrainedBox",
+                false,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 106, "ConstrainedBox"),
+                List.of(namedProperty(
+                        "constraints",
+                        0,
+                        true,
+                        List.of(new PropertyValueConstraint.BoxConstraintsValues()),
+                        initialConstraints)),
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition unconstrainedBox() {
+        return widget(
+                "flutter.widgets.UnconstrainedBox",
+                "UnconstrainedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 107, "UnconstrainedBox"),
+                List.of(
+                        namedProperty(
+                                "textDirection",
+                                1,
+                                false,
+                                enumValues("TextDirection", "rtl", "ltr")),
+                        namedProperty(
+                                "alignment",
+                                2,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "constrainedAxis",
+                                3,
+                                false,
+                                enumValues("Axis", "horizontal", "vertical")),
+                        namedProperty(
+                                "clipBehavior",
+                                4,
+                                false,
+                                enumValues(
+                                        "Clip", "none", "hardEdge", "antiAlias",
+                                        "antiAliasWithSaveLayer"))),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition limitedBox() {
+        return widget(
+                "flutter.widgets.LimitedBox",
+                "LimitedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 108, "LimitedBox"),
+                List.of(
+                        namedProperty(
+                                "maxWidth",
+                                0,
+                                false,
+                                nonNegativeDoubles()),
+                        namedProperty(
+                                "maxHeight",
+                                1,
+                                false,
+                                nonNegativeDoubles())),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition overflowBox() {
+        return widget(
+                "flutter.widgets.OverflowBox",
+                "OverflowBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 109, "OverflowBox"),
+                List.of(
+                        namedProperty(
+                                "alignment",
+                                0,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "minWidth",
+                                1,
+                                false,
+                                nonNegativeDoubles()),
+                        namedProperty(
+                                "maxWidth",
+                                2,
+                                false,
+                                nonNegativeDoubles()),
+                        namedProperty(
+                                "minHeight",
+                                3,
+                                false,
+                                nonNegativeDoubles()),
+                        namedProperty(
+                                "maxHeight",
+                                4,
+                                false,
+                                nonNegativeDoubles()),
+                        namedProperty(
+                                "fit",
+                                5,
+                                false,
+                                renderingEnumValues(
+                                        "OverflowBoxFit", "max", "deferToChild"))),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition stack() {
         return widget(
                 "flutter.widgets.Stack",
@@ -724,6 +922,60 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 120, "Expanded"),
                 List.of(namedProperty("flex", 0, false, nonNegativeIntegers())),
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition listView() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("primary", 2, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("physics", 3, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("shrinkWrap", 4, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("padding", 5, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("itemExtent", 6, false, nonNegativeNumbers()),
+                namedProperty("addAutomaticKeepAlives", 7, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addRepaintBoundaries", 8, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addSemanticIndexes", 9, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("scrollCacheExtent", 10, false,
+                        nonNegativeNumbers()),
+                namedProperty("semanticChildCount", 12, false,
+                        nonNegativeIntegers()),
+                namedProperty("dragStartBehavior", 13, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("keyboardDismissBehavior", 14, false,
+                        enumValues("ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                namedProperty("restorationId", 15, false,
+                        stringLength(1, 256)),
+                namedProperty("clipBehavior", 16, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 17, false,
+                        renderingEnumValues(
+                                "HitTestBehavior", "deferToChild", "opaque", "translucent")));
+        if (properties.size() != ListViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ListView catalog/property schema count mismatch");
+        }
+        return widget(
+                ListViewWidgetPropertySchema.LIST_VIEW_TYPE.value(),
+                "ListView",
+                false,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT),
+                Set.of(),
+                palette("flutter.scrolling", 250, 10, "ListView"),
+                properties,
+                List.of(listSlot("children", 11, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition image() {
@@ -1315,6 +1567,12 @@ public final class BuiltInWidgetCatalog {
             String type, String... values) {
         return List.of(new PropertyValueConstraint.EnumValues(
                 new DartSymbolReference(GESTURES_IMPORT, type), List.of(values)));
+    }
+
+    private static List<PropertyValueConstraint> renderingEnumValues(
+            String type, String... values) {
+        return List.of(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference(RENDERING_IMPORT, type), List.of(values)));
     }
 
     private static List<PropertyValueConstraint> servicesEnumValues(

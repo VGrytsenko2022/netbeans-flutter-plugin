@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 11;
+    public static final int VERSION = 12;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -518,17 +518,20 @@ public final class CanvasModelPayloadCodec {
             JsonGenerator json,
             PropertyValue.BoxConstraintsValue constraints) throws IOException {
         json.writeStringField("kind", "boxConstraints");
-        json.writeNumberField("minWidth", constraints.minWidth());
-        if (constraints.maxWidth().isPresent()) {
-            json.writeNumberField("maxWidth", constraints.maxWidth().orElseThrow());
+        writeBoxConstraintBound(json, "minWidth", constraints.minWidth());
+        writeBoxConstraintBound(json, "maxWidth", constraints.maxWidth());
+        writeBoxConstraintBound(json, "minHeight", constraints.minHeight());
+        writeBoxConstraintBound(json, "maxHeight", constraints.maxHeight());
+    }
+
+    private static void writeBoxConstraintBound(
+            JsonGenerator json,
+            String name,
+            PropertyValue.BoxConstraintBound bound) throws IOException {
+        if (bound instanceof PropertyValue.BoxConstraintBound.Finite finite) {
+            json.writeNumberField(name, finite.value());
         } else {
-            json.writeNullField("maxWidth");
-        }
-        json.writeNumberField("minHeight", constraints.minHeight());
-        if (constraints.maxHeight().isPresent()) {
-            json.writeNumberField("maxHeight", constraints.maxHeight().orElseThrow());
-        } else {
-            json.writeNullField("maxHeight");
+            json.writeNullField(name);
         }
     }
 

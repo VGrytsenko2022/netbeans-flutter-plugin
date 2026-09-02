@@ -83,6 +83,12 @@ class DesignerCommandSessionTest {
     private static final PropertyName COLOR = property("color");
     private static final PropertyName DECORATION = property("decoration");
     private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
+    private static final PropertyName CONSTRAINTS = property("constraints");
+    private static final PropertyName CONSTRAINED_AXIS = property("constrainedAxis");
+    private static final PropertyName MIN_WIDTH = property("minWidth");
+    private static final PropertyName MAX_WIDTH = property("maxWidth");
+    private static final PropertyName MIN_HEIGHT = property("minHeight");
+    private static final PropertyName MAX_HEIGHT = property("maxHeight");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
 
@@ -551,6 +557,495 @@ class DesignerCommandSessionTest {
         DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
                 reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
         assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void fittedBoxEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.FittedBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside fitted box")));
+        DesignerCommandSession fitted = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                FIT,
+                new PropertyValue.EnumValue("BoxFit", "cover")));
+        DesignerCommandSession aligned = applied(fitted, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE)));
+        DesignerCommandSession clipped = applied(aligned, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer")));
+
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                FIT,
+                new PropertyValue.EnumValue("BoxFit", "expand")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "visible")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(clipped, new ResetProperty(
+                WRAPPER_ID, FIT));
+        WidgetNode finalBox = find(reset.current().document().root(), WRAPPER_ID);
+        assertFalse(finalBox.properties().containsKey(FIT));
+        assertEquals(new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE.negate(),
+                        BigDecimal.ONE),
+                finalBox.properties().get(ALIGNMENT));
+        assertEquals(new PropertyValue.EnumValue(
+                        "Clip", "antiAliasWithSaveLayer"),
+                finalBox.properties().get(CLIP_BEHAVIOR));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const FittedBox("), dart);
+        assertFalse(dart.contains("fit:"), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(-1.0, 1.0)"), dart);
+        assertTrue(dart.contains(
+                "clipBehavior: Clip.antiAliasWithSaveLayer"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Inside fitted box')"), dart);
+
+        DesignerCommandSession fitRestored = reset.undo().session();
+        assertEquals(new PropertyValue.EnumValue("BoxFit", "cover"),
+                find(fitRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(FIT));
+        DesignerCommandSession resetRedone = fitRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(), () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void constrainedBoxExpandingEditChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.ConstrainedBox")).orElseThrow(),
+                WRAPPER_ID);
+        PropertyValue.BoxConstraintsValue neutral =
+                (PropertyValue.BoxConstraintsValue) prototype.properties()
+                        .get(CONSTRAINTS);
+        assertEquals(0, neutral.minWidth().finiteValue().orElseThrow()
+                .compareTo(BigDecimal.ZERO));
+        assertTrue(neutral.maxWidth().infinite());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside constrained box")));
+        PropertyValue.BoxConstraintsValue expandingWidth =
+                new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.finite(
+                                BigDecimal.valueOf(24)),
+                        PropertyValue.BoxConstraintBound.finite(
+                                BigDecimal.valueOf(96)));
+        DesignerCommandSession constrained = applied(childAdded, new SetProperty(
+                WRAPPER_ID, CONSTRAINTS, expandingWidth));
+
+        assertRejected(constrained, new ResetProperty(WRAPPER_ID, CONSTRAINTS),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+        WidgetNode finalBox = find(
+                constrained.current().document().root(), WRAPPER_ID);
+        assertEquals(expandingWidth, finalBox.properties().get(CONSTRAINTS));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                constrained.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("ConstrainedBox("), dart);
+        assertFalse(dart.contains("const ConstrainedBox("), dart);
+        assertTrue(dart.contains("constraints: const BoxConstraints("), dart);
+        assertTrue(dart.contains("minWidth: double.infinity"), dart);
+        assertTrue(dart.contains("minHeight: 24.0"), dart);
+        assertTrue(dart.contains("maxHeight: 96.0"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Inside constrained box')"), dart);
+        String fd = new String(constrained.current().fdBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"minWidth\": null"), fd);
+        assertTrue(fd.contains("\"maxWidth\": null"), fd);
+
+        DesignerCommandSession reverted = constrained.undo().session();
+        assertEquals(neutral,
+                find(reverted.current().document().root(), WRAPPER_ID)
+                        .properties().get(CONSTRAINTS));
+        DesignerCommandSession redone = reverted.redo().session();
+        assertArrayEquals(constrained.current().fdBytes(), redone.current().fdBytes());
+        assertArrayEquals(constrained.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = constrained.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void unconstrainedBoxEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.UnconstrainedBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside unconstrained box")));
+        DesignerCommandSession directed = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                TEXT_DIRECTION,
+                new PropertyValue.EnumValue("TextDirection", "rtl")));
+        DesignerCommandSession aligned = applied(directed, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("0.75"),
+                        new BigDecimal("-0.25"))));
+        DesignerCommandSession constrained = applied(aligned, new SetProperty(
+                WRAPPER_ID,
+                CONSTRAINED_AXIS,
+                new PropertyValue.EnumValue("Axis", "vertical")));
+        DesignerCommandSession clipped = applied(constrained, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "hardEdge")));
+
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                CONSTRAINED_AXIS,
+                new PropertyValue.EnumValue("Axis", "diagonal")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(clipped, new SetProperty(
+                WRAPPER_ID,
+                CLIP_BEHAVIOR,
+                new PropertyValue.EnumValue("Clip", "visible")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(clipped, new ResetProperty(
+                WRAPPER_ID, TEXT_DIRECTION));
+        WidgetNode finalBox = find(reset.current().document().root(), WRAPPER_ID);
+        assertFalse(finalBox.properties().containsKey(TEXT_DIRECTION));
+        assertEquals(new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("0.75"),
+                        new BigDecimal("-0.25")),
+                finalBox.properties().get(ALIGNMENT));
+        assertEquals(new PropertyValue.EnumValue("Axis", "vertical"),
+                finalBox.properties().get(CONSTRAINED_AXIS));
+        assertEquals(new PropertyValue.EnumValue("Clip", "hardEdge"),
+                finalBox.properties().get(CLIP_BEHAVIOR));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const UnconstrainedBox("), dart);
+        assertFalse(dart.contains("textDirection:"), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(0.75, -0.25)"), dart);
+        assertTrue(dart.contains("constrainedAxis: Axis.vertical"), dart);
+        assertTrue(dart.contains("clipBehavior: Clip.hardEdge"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Inside unconstrained box')"), dart);
+        String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.UnconstrainedBox\""), fd);
+        assertTrue(fd.contains("\"type\": \"Axis\""), fd);
+        assertTrue(fd.contains("\"value\": \"vertical\""), fd);
+
+        DesignerCommandSession directionRestored = reset.undo().session();
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "rtl"),
+                find(directionRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(TEXT_DIRECTION));
+        DesignerCommandSession resetRedone = directionRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void limitedBoxEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.LimitedBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside limited box")));
+        DesignerCommandSession widthSet = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                MAX_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("320.5"))));
+        DesignerCommandSession dimensionsSet = applied(widthSet, new SetProperty(
+                WRAPPER_ID,
+                MAX_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("180"))));
+
+        assertRejected(dimensionsSet, new SetProperty(
+                WRAPPER_ID,
+                MAX_WIDTH,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(320))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(dimensionsSet, new SetProperty(
+                WRAPPER_ID,
+                MAX_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("-0.5"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(dimensionsSet, new ResetProperty(
+                WRAPPER_ID, MAX_WIDTH));
+        WidgetNode finalBox = find(reset.current().document().root(), WRAPPER_ID);
+        assertFalse(finalBox.properties().containsKey(MAX_WIDTH));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("180")),
+                finalBox.properties().get(MAX_HEIGHT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const LimitedBox("), dart);
+        assertFalse(dart.contains("maxWidth:"), dart);
+        assertTrue(dart.contains("maxHeight: 180.0"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Inside limited box')"), dart);
+        String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.LimitedBox\""), fd);
+        assertTrue(fd.contains("\"maxHeight\""), fd);
+        assertTrue(fd.contains("\"value\": 180"), fd);
+
+        DesignerCommandSession widthRestored = reset.undo().session();
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("320.5")),
+                find(widthRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(MAX_WIDTH));
+        DesignerCommandSession resetRedone = widthRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+    }
+
+    @Test
+    void overflowBoxEditResetChildUndoRedoAndReopenAreByteExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.OverflowBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Inside overflow box")));
+        DesignerCommandSession aligned = applied(childAdded, new SetProperty(
+                WRAPPER_ID,
+                ALIGNMENT,
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("0.75"),
+                        new BigDecimal("-0.25"))));
+        DesignerCommandSession minWidthSet = applied(aligned, new SetProperty(
+                WRAPPER_ID, MIN_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("40"))));
+        DesignerCommandSession widthSet = applied(minWidthSet, new SetProperty(
+                WRAPPER_ID, MAX_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("320.5"))));
+        DesignerCommandSession minHeightSet = applied(widthSet, new SetProperty(
+                WRAPPER_ID, MIN_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("20"))));
+        DesignerCommandSession dimensionsSet = applied(minHeightSet, new SetProperty(
+                WRAPPER_ID, MAX_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("180"))));
+        DesignerCommandSession fitted = applied(dimensionsSet, new SetProperty(
+                WRAPPER_ID, FIT,
+                new PropertyValue.EnumValue(
+                        "OverflowBoxFit", "deferToChild")));
+
+        assertRejected(fitted, new SetProperty(
+                WRAPPER_ID,
+                MIN_WIDTH,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(40))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(fitted, new SetProperty(
+                WRAPPER_ID,
+                MAX_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("-0.5"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejectedUnchanged(fitted, new SetProperty(
+                WRAPPER_ID,
+                MAX_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("20"))),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+        assertRejectedUnchanged(fitted, new SetProperty(
+                WRAPPER_ID,
+                MIN_WIDTH,
+                new PropertyValue.DoubleValue(new BigDecimal("400"))),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+        assertRejectedUnchanged(fitted, new SetProperty(
+                WRAPPER_ID,
+                MAX_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("10"))),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+        assertRejectedUnchanged(fitted, new SetProperty(
+                WRAPPER_ID,
+                MIN_HEIGHT,
+                new PropertyValue.DoubleValue(new BigDecimal("200"))),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        DesignerCommandSession reset = applied(fitted, new ResetProperty(
+                WRAPPER_ID, MIN_WIDTH));
+        WidgetNode finalBox = find(reset.current().document().root(), WRAPPER_ID);
+        assertFalse(finalBox.properties().containsKey(MIN_WIDTH));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("320.5")),
+                finalBox.properties().get(MAX_WIDTH));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("20")),
+                finalBox.properties().get(MIN_HEIGHT));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("180")),
+                finalBox.properties().get(MAX_HEIGHT));
+        assertEquals(new PropertyValue.EnumValue(
+                        "OverflowBoxFit", "deferToChild"),
+                finalBox.properties().get(FIT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const OverflowBox("), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(0.75, -0.25)"), dart);
+        assertFalse(dart.contains("minWidth:"), dart);
+        assertTrue(dart.contains("maxWidth: 320.5"), dart);
+        assertTrue(dart.contains("minHeight: 20.0"), dart);
+        assertTrue(dart.contains("maxHeight: 180.0"), dart);
+        assertTrue(dart.contains(
+                "fit: _nbfd_17010c97c53e.OverflowBoxFit.deferToChild"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Inside overflow box')"), dart);
+        String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBox\""), fd);
+        assertTrue(fd.contains("\"basis\": \"directional\""), fd);
+        assertTrue(fd.contains("\"maxWidth\""), fd);
+        assertTrue(fd.contains("\"value\": 320.5"), fd);
+        assertTrue(fd.contains("\"value\": \"deferToChild\""), fd);
+
+        DesignerCommandSession minWidthRestored = reset.undo().session();
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("40")),
+                find(minWidthRestored.current().document().root(), WRAPPER_ID)
+                        .properties().get(MIN_WIDTH));
+        DesignerCommandSession resetRedone = minWidthRestored.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), resetRedone.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                resetRedone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = reset.markSaved();
+        OriginalFdBytes reopenedFd = OriginalFdBytes.copyOf(
+                saved.current().fdBytes(), FdCodecLimits.defaults());
+        DesignerCommandSessionOpenResult reopenedResult = DesignerCommandSession.open(
+                reopenedFd, saved.current().dartCandidateBytes(), CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
         DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
         assertEquals(saved.current().document(), reopened.current().document());
         assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());

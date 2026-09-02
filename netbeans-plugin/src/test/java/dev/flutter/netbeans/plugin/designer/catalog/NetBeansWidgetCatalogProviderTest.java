@@ -42,7 +42,13 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.Text"));
         assertTrue(typeIds(result).contains("flutter.widgets.Align"));
         assertTrue(typeIds(result).contains("flutter.widgets.FractionallySizedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.FittedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.ConstrainedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.UnconstrainedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.LimitedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.OverflowBox"));
         assertTrue(typeIds(result).contains("flutter.widgets.Stack"));
+        assertTrue(typeIds(result).contains("flutter.widgets.Wrap"));
         assertTrue(typeIds(result).contains("flutter.widgets.Expanded"));
     }
 
@@ -131,7 +137,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(19, result.catalog().definitions().size());
+        assertEquals(26, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -164,7 +170,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(19, result.catalog().definitions().size());
+        assertEquals(26, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

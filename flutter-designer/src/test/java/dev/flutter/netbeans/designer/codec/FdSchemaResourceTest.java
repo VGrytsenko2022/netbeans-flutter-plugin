@@ -25,6 +25,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v5.schema.json");
     private static final Path V6_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v6.schema.json");
+    private static final Path V7_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v7.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -136,8 +138,6 @@ class FdSchemaResourceTest {
 
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v6 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v6");
         String schema = new String(packaged, StandardCharsets.UTF_8);
         assertFalse(schema.contains("\r"));
         assertTrue(schema.contains(
@@ -166,6 +166,34 @@ class FdSchemaResourceTest {
                 "(?!.*[\\\\u0000-\\\\u0020]$)(?!/)(?!~)(?!.*%)"),
                 "Image asset names must reject trailing whitespace, home-relative, "
                 + "and percent syntax");
+    }
+
+    @Test
+    void packagesTheCanonicalV7SchemaWithPositiveInfinityOnEveryBoxConstraintBound()
+            throws IOException {
+        byte[] packaged = loadPackagedV7Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V7_DOCUMENTATION_SCHEMA));
+
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v7 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v7");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:7\""));
+        assertTrue(schema.contains("\"const\": 7"));
+        assertTrue(schema.contains("\"required\": [\"kind\", \"minWidth\", \"maxWidth\", \"minHeight\", \"maxHeight\"]"));
+        int constraints = schema.indexOf("\"boxConstraintsValue\"");
+        for (String bound : new String[]{
+                "minWidth", "maxWidth", "minHeight", "maxHeight"}) {
+            int start = schema.indexOf("\"" + bound + "\": {", constraints);
+            int end = schema.indexOf("\n        }", start);
+            assertTrue(start >= 0 && end > start, bound);
+            assertTrue(schema.substring(start, end).contains("{\"type\": \"null\"}"),
+                    bound + " must encode positive infinity as null");
+        }
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {
@@ -224,6 +252,16 @@ class FdSchemaResourceTest {
                 "The canonical schema v6 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV6()) {
             assertNotNull(input, "The canonical schema v6 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV7Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V7_RESOURCE),
+                "The canonical schema v7 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV7()) {
+            assertNotNull(input, "The canonical schema v7 resource must be readable");
             return input.readAllBytes();
         }
     }

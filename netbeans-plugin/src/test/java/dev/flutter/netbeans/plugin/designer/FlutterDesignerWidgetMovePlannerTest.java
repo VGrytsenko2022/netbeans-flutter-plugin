@@ -52,6 +52,16 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId FITTED_BOX =
+            type("flutter.widgets.FittedBox");
+    private static final WidgetTypeId CONSTRAINED_BOX =
+            type("flutter.widgets.ConstrainedBox");
+    private static final WidgetTypeId UNCONSTRAINED_BOX =
+            type("flutter.widgets.UnconstrainedBox");
+    private static final WidgetTypeId LIMITED_BOX =
+            type("flutter.widgets.LimitedBox");
+    private static final WidgetTypeId OVERFLOW_BOX =
+            type("flutter.widgets.OverflowBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
@@ -492,6 +502,131 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyFractionallySizedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyFittedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into FittedBox");
+        WidgetNode emptyFittedBox = WidgetNodePrototypeFactory.create(
+                definition(FITTED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyFittedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyFittedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyFittedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyConstrainedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into ConstrainedBox");
+        WidgetNode emptyConstrainedBox = WidgetNodePrototypeFactory.create(
+                definition(CONSTRAINED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyConstrainedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyConstrainedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyConstrainedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyUnconstrainedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into UnconstrainedBox");
+        WidgetNode emptyUnconstrainedBox = WidgetNodePrototypeFactory.create(
+                definition(UNCONSTRAINED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyUnconstrainedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyUnconstrainedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyUnconstrainedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyLimitedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into LimitedBox");
+        WidgetNode emptyLimitedBox = WidgetNodePrototypeFactory.create(
+                definition(LIMITED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyLimitedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyLimitedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyLimitedBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyOverflowBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into OverflowBox");
+        WidgetNode emptyOverflowBox = WidgetNodePrototypeFactory.create(
+                definition(OVERFLOW_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyOverflowBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyOverflowBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyOverflowBox.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

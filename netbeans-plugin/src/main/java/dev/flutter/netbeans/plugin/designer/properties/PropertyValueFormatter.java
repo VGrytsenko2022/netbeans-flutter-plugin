@@ -77,9 +77,13 @@ public final class PropertyValueFormatter {
     }
 
     private static String range(
-            BigDecimal minimum, java.util.Optional<BigDecimal> maximum) {
-        return number(minimum) + "…" + maximum.map(PropertyValueFormatter::number)
-                .orElse("∞");
+            PropertyValue.BoxConstraintBound minimum,
+            PropertyValue.BoxConstraintBound maximum) {
+        return bound(minimum) + "…" + bound(maximum);
+    }
+
+    private static String bound(PropertyValue.BoxConstraintBound value) {
+        return value.finiteValue().map(PropertyValueFormatter::number).orElse("∞");
     }
 
     private static boolean isIdentity(PropertyValue.Matrix4Value value) {

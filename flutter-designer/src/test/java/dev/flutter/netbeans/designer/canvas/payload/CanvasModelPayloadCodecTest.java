@@ -80,6 +80,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
+                "flutter.widgets.Wrap",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
@@ -88,8 +89,14 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.FittedBox",
+                "flutter.widgets.ConstrainedBox",
+                "flutter.widgets.UnconstrainedBox",
+                "flutter.widgets.LimitedBox",
+                "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"),
@@ -111,7 +118,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":11"));
+        assertTrue(json.contains("\"protocolVersion\":12"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -130,6 +137,10 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"type\":\"flutter.widgets.Align\""));
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.FractionallySizedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.FittedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.ConstrainedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.UnconstrainedBox\""));
+        assertTrue(json.contains("\"type\":\"flutter.widgets.LimitedBox\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Stack\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Text\""));
         assertTrue(json.contains("\"type\":\"flutter.widgets.Icon\""));
@@ -146,6 +157,8 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"widthFactor\":{\"kind\":\"double\",\"value\":0.625}"));
         assertTrue(json.contains("\"heightFactor\":{\"kind\":\"integer\",\"value\":2}"));
         assertTrue(json.contains("\"basis\":\"physical\",\"horizontal\":0.125,"));
+        assertTrue(json.contains("\"fit\":{\"kind\":\"enum\","
+                + "\"type\":\"BoxFit\",\"value\":\"cover\"}"));
         assertTrue(json.contains("\"fit\":{\"kind\":\"enum\","
                 + "\"type\":\"StackFit\",\"value\":\"passthrough\"}"));
         assertTrue(json.contains("\"clipBehavior\":{\"kind\":\"enum\","
@@ -182,6 +195,168 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
+    void projectsConstrainedBoxRequiredBoundsAndOptionalChildInProtocolV12()
+            throws Exception {
+        PropertyValue.BoxConstraintsValue constraints =
+                new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.finite(
+                                BigDecimal.valueOf(24)),
+                        PropertyValue.BoxConstraintBound.finite(
+                                BigDecimal.valueOf(96)));
+        WidgetNode constrained = new WidgetNode(
+                id("12f4f4b7-c842-49b0-b670-802f78ae4985"),
+                type("flutter.widgets.ConstrainedBox"),
+                Map.of(new PropertyName("constraints"), constraints),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "730b8499-781d-43b6-a38e-69720fe10047", "Bounded"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), constrained))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.ConstrainedBox\""), json);
+        assertTrue(json.contains(
+                "\"constraints\":{\"kind\":\"boxConstraints\""), json);
+        assertTrue(json.contains("\"minWidth\":null,\"maxWidth\":null"), json);
+        assertTrue(json.contains("\"minHeight\":24,\"maxHeight\":96"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"730b8499-781d-43b6-a38e-69720fe10047\""), json);
+    }
+
+    @Test
+    void projectsUnconstrainedBoxTypedArgumentsAndOptionalChildInProtocolV12()
+            throws Exception {
+        WidgetNode unconstrained = new WidgetNode(
+                id("882f9b5e-b65f-424f-95a4-b76dd6d4d66e"),
+                type("flutter.widgets.UnconstrainedBox"),
+                Map.of(
+                        new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue(
+                                        "TextDirection", "rtl"),
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.DIRECTIONAL,
+                                        new BigDecimal("0.75"),
+                                        new BigDecimal("-0.25")),
+                        new PropertyName("constrainedAxis"),
+                                new PropertyValue.EnumValue("Axis", "vertical"),
+                        new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "38d53ad7-dc28-4a50-803e-c8723eb82098", "Natural"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), unconstrained))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.UnconstrainedBox\""), json);
+        assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
+                + "\"type\":\"TextDirection\",\"value\":\"rtl\"}"), json);
+        assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","
+                + "\"basis\":\"directional\",\"horizontal\":0.75,"
+                + "\"vertical\":-0.25}"), json);
+        assertTrue(json.contains("\"constrainedAxis\":{\"kind\":\"enum\","
+                + "\"type\":\"Axis\",\"value\":\"vertical\"}"), json);
+        assertTrue(json.contains("\"clipBehavior\":{\"kind\":\"enum\","
+                + "\"type\":\"Clip\",\"value\":\"hardEdge\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"38d53ad7-dc28-4a50-803e-c8723eb82098\""), json);
+    }
+
+    @Test
+    void projectsLimitedBoxFiniteDoubleArgumentsAndOptionalChildInProtocolV12()
+            throws Exception {
+        WidgetNode limited = new WidgetNode(
+                id("6602f016-01cb-44f0-b1ac-bf965968170c"),
+                type("flutter.widgets.LimitedBox"),
+                Map.of(
+                        new PropertyName("maxWidth"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("320.5")),
+                        new PropertyName("maxHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("180.25"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "48ee7298-8eed-47f5-8915-9231c42afadb", "Limited"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), limited))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.LimitedBox\""), json);
+        assertTrue(json.contains(
+                "\"maxWidth\":{\"kind\":\"double\",\"value\":320.5}"), json);
+        assertTrue(json.contains(
+                "\"maxHeight\":{\"kind\":\"double\",\"value\":180.25}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"48ee7298-8eed-47f5-8915-9231c42afadb\""), json);
+    }
+
+    @Test
+    void projectsOverflowBoxTypedArgumentsAndOptionalChildInProtocolV12()
+            throws Exception {
+        WidgetNode overflow = new WidgetNode(
+                id("3c6cb681-ff4b-47bb-860e-a73f409b56df"),
+                type("flutter.widgets.OverflowBox"),
+                Map.of(
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.DIRECTIONAL,
+                                        new BigDecimal("0.75"),
+                                        new BigDecimal("-0.25")),
+                        new PropertyName("minWidth"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("32.5")),
+                        new PropertyName("maxWidth"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("640.25")),
+                        new PropertyName("minHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("24")),
+                        new PropertyName("maxHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("420.5")),
+                        new PropertyName("fit"),
+                                new PropertyValue.EnumValue(
+                                        "OverflowBoxFit", "deferToChild")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "59fea0be-4f87-4ed3-b70a-0a4975af3189", "Overflow"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), overflow))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.OverflowBox\""), json);
+        assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","
+                + "\"basis\":\"directional\",\"horizontal\":0.75,"
+                + "\"vertical\":-0.25}"), json);
+        assertTrue(json.contains(
+                "\"minWidth\":{\"kind\":\"double\",\"value\":32.5}"), json);
+        assertTrue(json.contains(
+                "\"maxWidth\":{\"kind\":\"double\",\"value\":640.25}"), json);
+        assertTrue(json.contains(
+                "\"minHeight\":{\"kind\":\"double\",\"value\":24}"), json);
+        assertTrue(json.contains(
+                "\"maxHeight\":{\"kind\":\"double\",\"value\":420.5}"), json);
+        assertTrue(json.contains("\"fit\":{\"kind\":\"enum\","
+                + "\"type\":\"OverflowBoxFit\",\"value\":\"deferToChild\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"59fea0be-4f87-4ed3-b70a-0a4975af3189\""), json);
+    }
+
+    @Test
     void mapInsertionOrderCannotChangeCanonicalBytes() throws Exception {
         byte[] first = new CanvasModelPayloadCodec().encode(request(document(false)));
         byte[] second = new CanvasModelPayloadCodec().encode(request(document(true)));
@@ -213,7 +388,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV11() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV12() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -253,7 +428,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":11"), json);
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -277,7 +452,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV11Order()
+    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV12Order()
             throws Exception {
         CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
                 Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
@@ -378,7 +553,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsStructuredContainerValuesInProtocolV11() throws Exception {
+    void projectsStructuredContainerValuesInProtocolV12() throws Exception {
         PropertyValue.AlignmentGeometryValue alignment =
                 new PropertyValue.AlignmentGeometryValue(
                         PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
@@ -431,7 +606,7 @@ class CanvasModelPayloadCodecTest {
                 request(new DesignerDocument(DOCUMENT_ID, source(), container))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":11"), json);
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
         assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
@@ -518,7 +693,7 @@ class CanvasModelPayloadCodecTest {
                         PROFILE, document, bundle)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":11"), json);
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
         assertTrue(json.contains("\"image\":{\"image\":{"), json);
         assertTrue(json.contains("\"kind\":\"asset\""), json);
         assertTrue(json.contains("\"assetName\":\"assets/background.png\""), json);
@@ -684,6 +859,45 @@ class CanvasModelPayloadCodecTest {
                 Map.of(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
                         "4508c721-215c-4059-be29-3e38fd02b411", "World"))));
+        WidgetNode limited = new WidgetNode(
+                id("54e955a9-27e7-44ba-af99-9c2f8704e46d"),
+                type("flutter.widgets.LimitedBox"),
+                Map.of(
+                        new PropertyName("maxWidth"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("320.5")),
+                        new PropertyName("maxHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("180.25"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+        WidgetNode unconstrained = new WidgetNode(
+                id("2627534b-1391-4a86-b676-2682afe43a82"),
+                type("flutter.widgets.UnconstrainedBox"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(limited)));
+        WidgetNode constrained = new WidgetNode(
+                id("c8ff02c4-d10c-4b5b-94ef-f412221595d7"),
+                type("flutter.widgets.ConstrainedBox"),
+                Map.of(new PropertyName("constraints"),
+                        new PropertyValue.BoxConstraintsValue(
+                                BigDecimal.ZERO, Optional.empty(),
+                                BigDecimal.ZERO, Optional.empty())),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(unconstrained)));
+        WidgetNode fitted = new WidgetNode(
+                id("36e98233-03c4-40de-bf0c-8480a20abe45"),
+                type("flutter.widgets.FittedBox"),
+                Map.of(
+                        new PropertyName("fit"),
+                                new PropertyValue.EnumValue("BoxFit", "cover"),
+                        new PropertyName("alignment"),
+                                new PropertyValue.AlignmentGeometryValue(
+                                        PropertyValue.AlignmentGeometryValue
+                                                .HorizontalBasis.DIRECTIONAL,
+                                        new BigDecimal("0.5"),
+                                        new BigDecimal("-0.25")),
+                        new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(constrained)));
         WidgetNode fractional = new WidgetNode(
                 id("c7068cbf-70b6-439d-a25e-d70eec7fc942"),
                 type("flutter.widgets.FractionallySizedBox"),
@@ -698,7 +912,7 @@ class CanvasModelPayloadCodecTest {
                                 new PropertyValue.DoubleValue(new BigDecimal("0.625")),
                         new PropertyName("heightFactor"),
                                 new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
-                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(centered)));
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(fitted)));
         WidgetNode stack = new WidgetNode(
                 id("447f1126-7b29-40c6-8595-7ae6c182bc06"),
                 type("flutter.widgets.Stack"),

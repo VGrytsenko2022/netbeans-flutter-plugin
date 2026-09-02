@@ -53,8 +53,16 @@ final class FlutterContainerPropertyEditorComponents {
     static final String ALIGNMENT_VERTICAL_NAME = "flutter.container.alignment.vertical";
     static final String CONSTRAINTS_MIN_WIDTH_NAME = "flutter.container.constraints.minWidth";
     static final String CONSTRAINTS_MAX_WIDTH_NAME = "flutter.container.constraints.maxWidth";
+    static final String CONSTRAINTS_UNBOUNDED_WIDTH_NAME =
+            "flutter.container.constraints.unboundedWidth";
+    static final String CONSTRAINTS_EXPANDING_WIDTH_NAME =
+            "flutter.container.constraints.expandingWidth";
     static final String CONSTRAINTS_MIN_HEIGHT_NAME = "flutter.container.constraints.minHeight";
     static final String CONSTRAINTS_MAX_HEIGHT_NAME = "flutter.container.constraints.maxHeight";
+    static final String CONSTRAINTS_UNBOUNDED_HEIGHT_NAME =
+            "flutter.container.constraints.unboundedHeight";
+    static final String CONSTRAINTS_EXPANDING_HEIGHT_NAME =
+            "flutter.container.constraints.expandingHeight";
     static final String MATRIX_TABLE_NAME = "flutter.container.matrix.table";
     static final String DECORATION_TABS_NAME = "flutter.container.decoration.tabs";
     static final String DECORATION_COLOR_MODE_NAME = "flutter.container.decoration.color.mode";
@@ -293,9 +301,11 @@ final class FlutterContainerPropertyEditorComponents {
         private final JTextField minWidth = new JTextField(12);
         private final JTextField maxWidth = new JTextField(12);
         private final JCheckBox unboundedWidth = new JCheckBox("Unbounded (∞)");
+        private final JCheckBox expandingWidth = new JCheckBox("Expand width (∞…∞)");
         private final JTextField minHeight = new JTextField(12);
         private final JTextField maxHeight = new JTextField(12);
         private final JCheckBox unboundedHeight = new JCheckBox("Unbounded (∞)");
+        private final JCheckBox expandingHeight = new JCheckBox("Expand height (∞…∞)");
         private final JComboBox<String> preset = new JComboBox<>(new String[]{
             "Custom bounds", "Unconstrained", "Square 0…100", "Viewport 0…1000"
         });
@@ -304,15 +314,34 @@ final class FlutterContainerPropertyEditorComponents {
                 PropertyEnv environment) {
             super(editor, binding, environment);
             setLayout(new BorderLayout(0, 8));
-            setPreferredSize(new Dimension(530, 310));
+            setPreferredSize(new Dimension(560, 365));
             setName("flutter.container.constraints.custom");
-            getAccessibleContext().setAccessibleName("Container box constraints editor");
+            getAccessibleContext().setAccessibleName("Flutter box constraints editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits normalized minimum and optional infinite maximum width and height.");
+                    "Edits normalized width and height bounds, including independent "
+                    + "expanding axes from positive infinity through positive infinity.");
             minWidth.setName(CONSTRAINTS_MIN_WIDTH_NAME);
             maxWidth.setName(CONSTRAINTS_MAX_WIDTH_NAME);
+            unboundedWidth.setName(CONSTRAINTS_UNBOUNDED_WIDTH_NAME);
+            expandingWidth.setName(CONSTRAINTS_EXPANDING_WIDTH_NAME);
             minHeight.setName(CONSTRAINTS_MIN_HEIGHT_NAME);
             maxHeight.setName(CONSTRAINTS_MAX_HEIGHT_NAME);
+            unboundedHeight.setName(CONSTRAINTS_UNBOUNDED_HEIGHT_NAME);
+            expandingHeight.setName(CONSTRAINTS_EXPANDING_HEIGHT_NAME);
+            minWidth.getAccessibleContext().setAccessibleName("Minimum width");
+            maxWidth.getAccessibleContext().setAccessibleName("Maximum width");
+            unboundedWidth.getAccessibleContext().setAccessibleName(
+                    "Unbounded maximum width");
+            expandingWidth.getAccessibleContext().setAccessibleName("Expanding width");
+            minHeight.getAccessibleContext().setAccessibleName("Minimum height");
+            maxHeight.getAccessibleContext().setAccessibleName("Maximum height");
+            unboundedHeight.getAccessibleContext().setAccessibleName(
+                    "Unbounded maximum height");
+            expandingHeight.getAccessibleContext().setAccessibleName("Expanding height");
+            expandingWidth.getAccessibleContext().setAccessibleDescription(
+                    "Sets both the minimum and maximum width to positive infinity.");
+            expandingHeight.getAccessibleContext().setAccessibleDescription(
+                    "Sets both the minimum and maximum height to positive infinity.");
 
             JPanel form = new JPanel(new GridBagLayout());
             int row = 0;
@@ -322,8 +351,10 @@ final class FlutterContainerPropertyEditorComponents {
             addRow(form, row++, "Preset:", preset);
             addRow(form, row++, "Minimum width:", minWidth);
             addRow(form, row++, "Maximum width:", maxWidth, unboundedWidth);
+            addWideRow(form, row++, expandingWidth);
             addRow(form, row++, "Minimum height:", minHeight);
-            addRow(form, row, "Maximum height:", maxHeight, unboundedHeight);
+            addRow(form, row++, "Maximum height:", maxHeight, unboundedHeight);
+            addWideRow(form, row, expandingHeight);
             add(form, BorderLayout.NORTH);
 
             PropertyValue.BoxConstraintsValue value = initialValue().explicitValue()
@@ -332,18 +363,22 @@ final class FlutterContainerPropertyEditorComponents {
                     BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty()));
             updating = true;
             useDefault.setSelected(initialValue().explicitValue().isEmpty());
-            minWidth.setText(value.minWidth().toPlainString());
-            maxWidth.setText(value.maxWidth().map(BigDecimal::toPlainString).orElse(""));
-            unboundedWidth.setSelected(value.maxWidth().isEmpty());
-            minHeight.setText(value.minHeight().toPlainString());
-            maxHeight.setText(value.maxHeight().map(BigDecimal::toPlainString).orElse(""));
-            unboundedHeight.setSelected(value.maxHeight().isEmpty());
+            minWidth.setText(finiteTextOrZero(value.minWidth()));
+            maxWidth.setText(finiteText(value.maxWidth()));
+            unboundedWidth.setSelected(value.maxWidth().infinite());
+            expandingWidth.setSelected(value.expandingWidth());
+            minHeight.setText(finiteTextOrZero(value.minHeight()));
+            maxHeight.setText(finiteText(value.maxHeight()));
+            unboundedHeight.setSelected(value.maxHeight().infinite());
+            expandingHeight.setSelected(value.expandingHeight());
             updating = false;
 
             useDefault.addActionListener(ignored -> refresh());
             preset.addActionListener(ignored -> applyPreset());
             unboundedWidth.addActionListener(ignored -> manualRefresh());
+            expandingWidth.addActionListener(ignored -> manualRefresh());
             unboundedHeight.addActionListener(ignored -> manualRefresh());
+            expandingHeight.addActionListener(ignored -> manualRefresh());
             for (JTextField field : List.of(minWidth, maxWidth, minHeight, maxHeight)) {
                 field.getDocument().addDocumentListener(listener(this::manualRefresh));
             }
@@ -368,6 +403,8 @@ final class FlutterContainerPropertyEditorComponents {
             boolean unbounded = preset.getSelectedIndex() == 1;
             unboundedWidth.setSelected(unbounded);
             unboundedHeight.setSelected(unbounded);
+            expandingWidth.setSelected(false);
+            expandingHeight.setSelected(false);
             updating = false;
             refresh();
         }
@@ -383,28 +420,65 @@ final class FlutterContainerPropertyEditorComponents {
 
         private void refresh() {
             boolean unset = binding.optional() && useDefault.isSelected();
-            maxWidth.setEnabled(!unset && !unboundedWidth.isSelected());
-            maxHeight.setEnabled(!unset && !unboundedHeight.isSelected());
-            for (JComponent component : List.of(
-                    preset, minWidth, unboundedWidth, minHeight, unboundedHeight)) {
-                component.setEnabled(!unset);
+            boolean expandWidth = expandingWidth.isSelected();
+            boolean expandHeight = expandingHeight.isSelected();
+            if (expandWidth) {
+                unboundedWidth.setSelected(true);
             }
+            if (expandHeight) {
+                unboundedHeight.setSelected(true);
+            }
+            preset.setEnabled(!unset);
+            expandingWidth.setEnabled(!unset);
+            expandingHeight.setEnabled(!unset);
+            minWidth.setEnabled(!unset && !expandWidth);
+            unboundedWidth.setEnabled(!unset && !expandWidth);
+            maxWidth.setEnabled(!unset && !expandWidth && !unboundedWidth.isSelected());
+            minHeight.setEnabled(!unset && !expandHeight);
+            unboundedHeight.setEnabled(!unset && !expandHeight);
+            maxHeight.setEnabled(!unset && !expandHeight && !unboundedHeight.isSelected());
             if (unset) {
                 submitUnset();
                 return;
             }
             try {
                 PropertyValue.BoxConstraintsValue value = new PropertyValue.BoxConstraintsValue(
-                        decimal(minWidth, "Minimum width"),
-                        unboundedWidth.isSelected() ? Optional.empty()
-                                : Optional.of(decimal(maxWidth, "Maximum width")),
-                        decimal(minHeight, "Minimum height"),
-                        unboundedHeight.isSelected() ? Optional.empty()
-                                : Optional.of(decimal(maxHeight, "Maximum height")));
+                        minimumBound(expandWidth, minWidth, "Minimum width"),
+                        maximumBound(expandWidth, unboundedWidth, maxWidth, "Maximum width"),
+                        minimumBound(expandHeight, minHeight, "Minimum height"),
+                        maximumBound(
+                                expandHeight, unboundedHeight, maxHeight, "Maximum height"));
                 submitOptional(unset, value);
             } catch (IllegalArgumentException failure) {
                 markInvalid(failure.getMessage(), this);
             }
+        }
+
+        private static String finiteText(PropertyValue.BoxConstraintBound bound) {
+            return bound.finiteValue().map(BigDecimal::toPlainString).orElse("");
+        }
+
+        private static String finiteTextOrZero(PropertyValue.BoxConstraintBound bound) {
+            return bound.finiteValue().map(BigDecimal::toPlainString).orElse("0");
+        }
+
+        private static PropertyValue.BoxConstraintBound minimumBound(
+                boolean expanding,
+                JTextField field,
+                String label) {
+            return expanding
+                    ? PropertyValue.BoxConstraintBound.Infinity.INSTANCE
+                    : new PropertyValue.BoxConstraintBound.Finite(decimal(field, label));
+        }
+
+        private static PropertyValue.BoxConstraintBound maximumBound(
+                boolean expanding,
+                JCheckBox unbounded,
+                JTextField field,
+                String label) {
+            return expanding || unbounded.isSelected()
+                    ? PropertyValue.BoxConstraintBound.Infinity.INSTANCE
+                    : new PropertyValue.BoxConstraintBound.Finite(decimal(field, label));
         }
     }
 

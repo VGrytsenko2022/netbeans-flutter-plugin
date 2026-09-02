@@ -4,6 +4,7 @@
 /docs/flutter-designer/fd-v4.schema.json text eol=lf
 /docs/flutter-designer/fd-v5.schema.json text eol=lf
 /docs/flutter-designer/fd-v6.schema.json text eol=lf
+/docs/flutter-designer/fd-v7.schema.json text eol=lf
 /docs/flutter-designer/project-theme-v*.schema.json text eol=lf
 /flutter-designer/src/main/resources/META-INF/netbeans-flutter-designer/schema/fd-v1.schema.json text eol=lf
 /flutter-canvas-runner/src/main/flutter/** text eol=lf

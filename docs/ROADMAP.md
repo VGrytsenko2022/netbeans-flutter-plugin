@@ -798,7 +798,8 @@ accepted architecture is documented in
   selection/drop feedback outside the widget, including an IDE-only target when
   an empty factor-driven Align has zero size. Existing alignment, numeric and
   single-slot encodings keep `.fd` schema v6, Catalog API 5, Canvas model v11 and
-  version-1 framing/control unchanged. The active surface is 14 widgets and 533
+  version-1 framing/control unchanged. At that milestone the active surface was
+  14 widgets and 533
   writable rows. Fourteen sources across 16 any-widget plus two trait-bound
   destinations form 252 candidates: 226 accepted and 26 rejected.
 - [x] Complete `FractionallySizedBox` as a const Layout slice with optional
@@ -824,10 +825,132 @@ accepted architecture is documented in
   closed presets, strict callback identifiers, atomic radius/padding compounds
   and no stored runtime text/controller/focus state. Generated Dart and Canvas
   use the robust `LayoutBuilder`/`SizedBox` guard for unbounded width and
-  expanding unbounded height. The current surface is 19 widgets, 16 const
-  definitions and 617 rows (600 outside Scaffold). Nineteen sources across 18
-  any-widget plus two trait destinations form 380 candidates: 328 accepted and
+  expanding unbounded height. At that milestone the surface was 19 widgets, 16
+  const definitions and 617 rows (600 outside Scaffold). Nineteen sources across 18
+  any-widget plus two trait destinations formed 380 candidates: 328 accepted and
   52 rejected. All schema/protocol versions remain unchanged.
+- [x] Complete non-const `ListView(children: ...)` as the final item in the
+  originally agreed core Palette. Its 17 optional constructor-intent rows cover
+  scrolling (5), layout (4), caching/children (4), semantics (2) and restoration
+  (2), with one ordered any-widget `children` slot. Keep controller-owned state,
+  builders/delegates, `itemExtentBuilder`, `prototypeItem`, deprecated
+  `cacheExtent`, `key` and raw Dart outside the slice. Generate the six reviewed
+  physics presets and `ScrollCacheExtent.pixels`, enforce
+  `semanticChildCount <= children.length`, and render the real Flutter ListView
+  with vertical/horizontal, reverse and LTR/RTL drop geometry plus a generated/
+  Canvas 120-high or 240-wide constraint guard for every unbounded viewport
+  cross axis and for a non-shrink-wrapped unbounded main axis. At that core
+  milestone the surface was 20 widgets, 16 const definitions and 634 rows (617
+  outside Scaffold).
+  Twenty sources across 19 any-widget plus two trait destinations form 420
+  candidates: 365 accepted and 55 rejected. `.fd` schema v6, Catalog API 5,
+  Canvas model v11 and version-1 framing/control stay unchanged. The originally
+  agreed list—`Container`, `Row`, `Column`, `Text`, `Image`, Button through
+  `ElevatedButton`, `TextField` and `ListView`—is complete 8/8; this explicitly
+  does not mean that every Flutter widget is implemented.
+- [x] Complete const `Wrap(children: ...)` as the first post-core Palette
+  vertical slice. Expose all nine non-`key` constructor arguments with closed
+  axis/alignment/direction/clip enums and finite signed `spacing`/`runSpacing`,
+  plus one ordered any-widget `children` slot. Generated Dart and Canvas build
+  the real Flutter Wrap. Empty instances retain the bounded 36-pixel Designer
+  target, while both empty and populated instances use the complete rendered
+  rectangle for deterministic terminal append because wrapped runs have no
+  single stable terminal edge. At that milestone the surface was 21 widgets, 17 const
+  definitions and 643 rows (626 outside Scaffold), with 13 Layout items.
+  Twenty-one sources across 20 any-widget plus two trait destinations form 462
+  candidates: 404 accepted and 58 rejected. All schema/protocol versions remain
+  unchanged. This begins a practical 92-widget Material/Base Designer backlog;
+  71 remain after Wrap. The number is a planning target, not a normative full
+  Flutter widget list.
+- [x] Complete const `FittedBox` as the second post-core Palette vertical slice.
+  Expose optional `BoxFit fit`, physical/directional `AlignmentGeometry
+  alignment`, `Clip clipBehavior` and one optional single any-widget `child`,
+  preserving the omitted `contain`, centered and unclipped framework defaults.
+  Generated Dart and both Canvas projections build the real Flutter FittedBox,
+  including all seven fits, LTR/RTL directional alignment and all four clip
+  behaviors. Empty zero-size instances retain the bounded 36-pixel Designer
+  selection/drop target without changing Flutter layout. Complete Properties,
+  Create, Palette/tree/Canvas DnD, exact-slot editing, same-tree movement,
+  deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. At that milestone the surface was 22 widgets, 18 const
+  definitions and 646 rows (629 outside Scaffold), with 14 Layout items.
+  Twenty-two sources across 21 any-widget plus two trait destinations form 506
+  candidates: 445 accepted and 61 rejected. The practical 92-widget backlog is
+  22/92 complete with 70 remaining. All schema/protocol versions remain
+  unchanged.
+- [x] Complete non-const `ConstrainedBox` as the third post-core Palette vertical
+  slice. Expose required typed `BoxConstraints constraints` and one optional
+  single any-widget `child`. Support finite, unbounded and expanding states on
+  each axis, including `double.infinity` minima only when the corresponding
+  maximum is also infinite; reject negative finite bounds and finite minimums
+  above maximums. Generated Dart and both Canvas projections build the real
+  Flutter ConstrainedBox. Empty zero-size instances retain a bounded,
+  non-layout-affecting Designer selection/drop target. Complete Properties,
+  Create, Palette/tree/Canvas DnD, exact-slot editing, same-tree movement,
+  deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. At that milestone the surface was 23 widgets, 18 const
+  definitions and 647 rows (630 outside Scaffold), with 15 Layout items.
+  Twenty-three sources across 22 any-widget plus two trait destinations form 552
+  candidates: 488 accepted and 64 rejected. The practical 92-widget backlog is
+  23/92 complete with 69 remaining. Canonical nullable infinity for all four
+  BoxConstraints bounds advances `.fd` to schema v7, the exported value domain
+  advances Catalog API to 6 and Canvas model to v12; NBFC framing and
+  control/wire remain v1.
+- [x] Complete const
+  [`UnconstrainedBox`](https://api.flutter.dev/flutter/widgets/UnconstrainedBox/UnconstrainedBox.html)
+  as the fourth post-core Palette vertical slice at Layout order 107. Expose
+  optional `textDirection`, `alignment`, `constrainedAxis` and `clipBehavior`
+  plus one optional single any-widget `child`, with no persisted creation
+  defaults. Omission preserves centered alignment, no retained axis and
+  `Clip.none`; ambient `Directionality` resolves directional alignment when
+  `textDirection` is omitted. Generated Dart and both Canvas projections build
+  the real Flutter UnconstrainedBox. Empty zero-size instances retain a bounded,
+  non-layout-affecting Designer selection/drop target. Complete Properties,
+  Create, Palette/tree/Canvas DnD, exact-slot editing, same-tree movement,
+  deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. At that milestone the surface was 24 widgets, 19 const
+  definitions and 651 rows (634 outside Scaffold), with 16 Layout items.
+  Twenty-four sources across 23 any-widget plus two trait destinations form 600
+  candidates: 533 accepted and 67 rejected. The practical 92-widget backlog was
+  24/92 complete with 68 remaining. `.fd` schema v7, Catalog API 6, Canvas model
+  v12 and NBFC framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`LimitedBox`](https://api.flutter.dev/flutter/widgets/LimitedBox/LimitedBox.html)
+  as the fifth post-core Palette vertical slice at Layout order 108. Expose
+  optional non-negative finite `maxWidth` and `maxHeight` plus one optional
+  single any-widget `child`. Persist no creation defaults; omission canonically
+  preserves each `double.infinity` framework default. Generated Dart and both
+  Canvas projections build the real Flutter LimitedBox and prove that a selected
+  maximum applies only when the incoming maximum constraint on that axis is
+  unbounded. Complete Properties, Create, Palette/tree/Canvas DnD, exact-slot
+  editing, same-tree movement, deterministic generation, Save/reopen, Undo/Redo,
+  reviewed light/dark SVG icons and focused contract tests. At that milestone
+  the surface was 25 widgets, 20 const definitions and 653 rows (636 outside Scaffold), with
+  17 Layout items. Twenty-five sources across 24 any-widget plus two trait
+  destinations form 650 candidates: 580 accepted and 70 rejected. The practical
+  92-widget backlog was 25/92 complete with 67 remaining. `.fd` schema v7,
+  Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
+- [x] Complete const
+  [`OverflowBox`](https://api.flutter.dev/flutter/widgets/OverflowBox/OverflowBox.html)
+  as the sixth post-core Palette vertical slice at Layout order 109. Expose
+  optional physical/directional alignment, finite non-negative double
+  `minWidth`, `maxWidth`, `minHeight` and `maxHeight` overrides, exact
+  `OverflowBoxFit.max`/`deferToChild`, and one optional single any-widget
+  `child`. Persist no creation defaults: omitted bounds inherit the
+  corresponding parent constraints, while omitted alignment and fit preserve
+  `Alignment.center` and `OverflowBoxFit.max`. Reject non-normalized pairs and
+  explicit non-finite overrides. Generated Dart and both Canvas projections
+  build the real Flutter OverflowBox and prove constraint override, overflow,
+  LTR/RTL directional alignment and both fit modes. Complete Properties,
+  Create, Palette/tree/Canvas DnD, exact-slot editing, same-tree movement,
+  deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. The current surface is 26 widgets, 21 const
+  definitions and 659 rows (642 outside Scaffold), with 18 Layout items.
+  Twenty-six sources across 25 any-widget plus two trait destinations form 702
+  candidates: 629 accepted and 73 rejected. The practical 92-widget backlog is
+  26/92 complete with 66 remaining. `.fd` schema v7, Catalog API 6, Canvas model
+  v12 and NBFC framing/control/wire v1 remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -844,11 +967,10 @@ accepted architecture is documented in
     Split Document heavyweight-peer teardown/recreation now pass the physical
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
-- [ ] Admit further built-ins only as complete vertical slices after the
-  current pair-save/editor-operation regression is green and Palette-expansion
-  work is resumed. The dormant dedicated-shell/exact-Web product gates above
-  remain independently disabled and do not block catalog expansion. The
-  current typed Properties slice spans all nineteen admitted built-ins and does not
+- [ ] Continue admitting the practical post-core backlog only as complete
+  vertical slices. No specific widget after OverflowBox has yet been assigned
+  an explicit order. The current typed Properties slice spans all twenty-six
+  admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

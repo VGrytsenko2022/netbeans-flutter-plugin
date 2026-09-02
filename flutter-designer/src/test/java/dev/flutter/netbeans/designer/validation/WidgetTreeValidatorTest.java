@@ -686,6 +686,621 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void fittedBoxAcceptsExactFitAlignmentClipAndOptionalChildContract() {
+        WidgetNode omitted = node(
+                "fitted-omitted", "flutter.widgets.FittedBox", Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(),
+                () -> "Issues were: " + omittedResult.issues());
+
+        WidgetNode child = node(
+                "fitted-child", "flutter.widgets.Text",
+                Map.of(name("data"), new PropertyValue.StringValue("Inside")),
+                Map.of());
+        for (PropertyValue.AlignmentGeometryValue.HorizontalBasis basis
+                : PropertyValue.AlignmentGeometryValue.HorizontalBasis.values()) {
+            WidgetNode valid = node(
+                    "fitted-alignment-" + basis.name(),
+                    "flutter.widgets.FittedBox",
+                    Map.of(name("alignment"),
+                            new PropertyValue.AlignmentGeometryValue(
+                                    basis,
+                                    new BigDecimal("1.5"),
+                                    new BigDecimal("-0.5"))),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+        }
+
+        Map<String, List<String>> accepted = Map.of(
+                "fit", List.of(
+                        "fill", "contain", "cover", "fitWidth", "fitHeight",
+                        "none", "scaleDown"),
+                "clipBehavior", List.of(
+                        "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer"));
+        Map<String, String> enumTypes = Map.of(
+                "fit", "BoxFit",
+                "clipBehavior", "Clip");
+        for (Map.Entry<String, List<String>> entry : accepted.entrySet()) {
+            for (String value : entry.getValue()) {
+                WidgetNode valid = node(
+                        "fitted-enum-" + entry.getKey() + '-' + value,
+                        "flutter.widgets.FittedBox",
+                        Map.of(name(entry.getKey()), new PropertyValue.EnumValue(
+                                enumTypes.get(entry.getKey()), value)),
+                        Map.of());
+                ValidationResult result = validator().validate(
+                        document(valid), BuiltInWidgetCatalog.getDefault());
+                assertTrue(result.valid(), () -> "Issues were: " + result.issues());
+            }
+        }
+
+        Map<String, PropertyValue> rejectedEnums = Map.of(
+                "fit", new PropertyValue.EnumValue("BoxFit", "expand"),
+                "clipBehavior", new PropertyValue.EnumValue("Clip", "visible"));
+        for (Map.Entry<String, PropertyValue> entry : rejectedEnums.entrySet()) {
+            WidgetNode invalid = node(
+                    "fitted-enum-invalid-" + entry.getKey(),
+                    "flutter.widgets.FittedBox",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        WidgetNode wrongEnumType = node(
+                "fitted-enum-type", "flutter.widgets.FittedBox",
+                Map.of(name("fit"),
+                        new PropertyValue.EnumValue("StackFit", "contain")),
+                Map.of());
+        assertEquals("/root/properties/fit", onlyIssue(
+                validator().validate(
+                        document(wrongEnumType), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+
+        for (Map.Entry<String, PropertyValue> entry : Map.<String, PropertyValue>of(
+                "fit", new PropertyValue.StringValue("contain"),
+                "alignment", new PropertyValue.StringValue("Alignment.center"),
+                "clipBehavior", new PropertyValue.IntegerValue(BigInteger.ZERO))
+                .entrySet()) {
+            WidgetNode invalid = node(
+                    "fitted-kind-" + entry.getKey(),
+                    "flutter.widgets.FittedBox",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        WidgetNode wrongSlot = node(
+                "fitted-list-child", "flutter.widgets.FittedBox", Map.of(),
+                Map.of(slotName("child"), new WidgetSlot.ListSlot(List.of(child))));
+        assertEquals("/root/slots/child", onlyIssue(
+                validator().validate(
+                        document(wrongSlot), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_KIND).path());
+
+        WidgetNode unknownProperty = node(
+                "fitted-unknown", "flutter.widgets.FittedBox",
+                Map.of(name("filterQuality"),
+                        new PropertyValue.EnumValue("FilterQuality", "high")),
+                Map.of());
+        assertEquals("/root/properties/filterQuality", onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY).path());
+    }
+
+    @Test
+    void constrainedBoxRequiresCompleteConstraintsAndAcceptsEveryAxisState() {
+        record Axis(
+                PropertyValue.BoxConstraintBound minimum,
+                PropertyValue.BoxConstraintBound maximum) {
+        }
+        PropertyValue.BoxConstraintBound infinity =
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE;
+        java.util.function.Function<Integer, PropertyValue.BoxConstraintBound> finite =
+                value -> PropertyValue.BoxConstraintBound.finite(
+                        BigDecimal.valueOf(value));
+        List<Axis> states = List.of(
+                new Axis(finite.apply(0), infinity),
+                new Axis(finite.apply(0), finite.apply(100)),
+                new Axis(finite.apply(10), infinity),
+                new Axis(finite.apply(10), finite.apply(100)),
+                new Axis(finite.apply(48), finite.apply(48)),
+                new Axis(infinity, infinity));
+
+        for (int index = 0; index < states.size(); index++) {
+            Axis width = states.get(index);
+            WidgetNode validWidth = node(
+                    "constrained-width-" + index,
+                    "flutter.widgets.ConstrainedBox",
+                    Map.of(name("constraints"),
+                            new PropertyValue.BoxConstraintsValue(
+                                    width.minimum(), width.maximum(),
+                                    finite.apply(0), infinity)),
+                    Map.of());
+            ValidationResult widthResult = validator().validate(
+                    document(validWidth), BuiltInWidgetCatalog.getDefault());
+            assertTrue(widthResult.valid(), () -> widthResult.issues().toString());
+
+            Axis height = states.get(index);
+            WidgetNode validHeight = node(
+                    "constrained-height-" + index,
+                    "flutter.widgets.ConstrainedBox",
+                    Map.of(name("constraints"),
+                            new PropertyValue.BoxConstraintsValue(
+                                    finite.apply(0), infinity,
+                                    height.minimum(), height.maximum())),
+                    Map.of());
+            ValidationResult heightResult = validator().validate(
+                    document(validHeight), BuiltInWidgetCatalog.getDefault());
+            assertTrue(heightResult.valid(), () -> heightResult.issues().toString());
+        }
+
+        WidgetNode child = text("constrained-child");
+        WidgetNode withChild = node(
+                "constrained-with-child", "flutter.widgets.ConstrainedBox",
+                Map.of(name("constraints"),
+                        new PropertyValue.BoxConstraintsValue(
+                                infinity, infinity, infinity, infinity)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+        ValidationResult childResult = validator().validate(
+                document(withChild), BuiltInWidgetCatalog.getDefault());
+        assertTrue(childResult.valid(), () -> childResult.issues().toString());
+
+        WidgetNode missing = node(
+                "constrained-missing", "flutter.widgets.ConstrainedBox",
+                Map.of(), Map.of());
+        assertEquals("/root/properties/constraints", onlyIssue(
+                validator().validate(
+                        document(missing), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY).path());
+
+        WidgetNode wrongKind = node(
+                "constrained-kind", "flutter.widgets.ConstrainedBox",
+                Map.of(name("constraints"),
+                        new PropertyValue.StringValue("BoxConstraints()")),
+                Map.of());
+        assertEquals("/root/properties/constraints", onlyIssue(
+                validator().validate(
+                        document(wrongKind), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND).path());
+
+        PropertyValue.BoxConstraintsValue neutral =
+                new PropertyValue.BoxConstraintsValue(
+                        BigDecimal.ZERO, Optional.empty(),
+                        BigDecimal.ZERO, Optional.empty());
+        WidgetNode unknownProperty = node(
+                "constrained-unknown", "flutter.widgets.ConstrainedBox",
+                Map.of(
+                        name("constraints"), neutral,
+                        name("alignment"), new PropertyValue.StringValue("center")),
+                Map.of());
+        assertEquals("/root/properties/alignment", onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY).path());
+
+        WidgetNode wrongSlot = node(
+                "constrained-list-child", "flutter.widgets.ConstrainedBox",
+                Map.of(name("constraints"), neutral),
+                Map.of(slotName("child"),
+                        new WidgetSlot.ListSlot(List.of(child))));
+        assertEquals("/root/slots/child", onlyIssue(
+                validator().validate(
+                        document(wrongSlot), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_KIND).path());
+
+        WidgetNode expandedChild = expanded(
+                "constrained-expanded", Map.of(), text("expanded-text"));
+        WidgetNode invalidPlacement = node(
+                "constrained-expanded-parent", "flutter.widgets.ConstrainedBox",
+                Map.of(name("constraints"), neutral),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(expandedChild)));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(invalidPlacement), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertEquals("/root/slots/child/child", placement.path());
+        assertTrue(placement.message().contains(
+                "flutter.widgets.ConstrainedBox.child"));
+    }
+
+    @Test
+    void unconstrainedBoxAcceptsExactOptionalSurfaceAndSingleChildContract() {
+        WidgetNode omitted = node(
+                "unconstrained-omitted", "flutter.widgets.UnconstrainedBox",
+                Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> omittedResult.issues().toString());
+
+        WidgetNode child = text("unconstrained-child");
+        for (PropertyValue.AlignmentGeometryValue.HorizontalBasis basis
+                : PropertyValue.AlignmentGeometryValue.HorizontalBasis.values()) {
+            WidgetNode valid = node(
+                    "unconstrained-alignment-" + basis.name(),
+                    "flutter.widgets.UnconstrainedBox",
+                    Map.of(name("alignment"),
+                            new PropertyValue.AlignmentGeometryValue(
+                                    basis,
+                                    new BigDecimal("1.5"),
+                                    new BigDecimal("-0.5"))),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+
+        Map<String, List<String>> accepted = Map.of(
+                "textDirection", List.of("rtl", "ltr"),
+                "constrainedAxis", List.of("horizontal", "vertical"),
+                "clipBehavior", List.of(
+                        "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer"));
+        Map<String, String> enumTypes = Map.of(
+                "textDirection", "TextDirection",
+                "constrainedAxis", "Axis",
+                "clipBehavior", "Clip");
+        for (Map.Entry<String, List<String>> entry : accepted.entrySet()) {
+            for (String value : entry.getValue()) {
+                WidgetNode valid = node(
+                        "unconstrained-enum-" + entry.getKey() + '-' + value,
+                        "flutter.widgets.UnconstrainedBox",
+                        Map.of(name(entry.getKey()), new PropertyValue.EnumValue(
+                                enumTypes.get(entry.getKey()), value)),
+                        Map.of());
+                ValidationResult result = validator().validate(
+                        document(valid), BuiltInWidgetCatalog.getDefault());
+                assertTrue(result.valid(), () -> result.issues().toString());
+            }
+        }
+
+        Map<String, PropertyValue> rejectedEnums = Map.of(
+                "textDirection", new PropertyValue.EnumValue(
+                        "TextDirection", "up"),
+                "constrainedAxis", new PropertyValue.EnumValue(
+                        "Axis", "diagonal"),
+                "clipBehavior", new PropertyValue.EnumValue("Clip", "visible"));
+        for (Map.Entry<String, PropertyValue> entry : rejectedEnums.entrySet()) {
+            WidgetNode invalid = node(
+                    "unconstrained-enum-invalid-" + entry.getKey(),
+                    "flutter.widgets.UnconstrainedBox",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        WidgetNode wrongEnumType = node(
+                "unconstrained-enum-type", "flutter.widgets.UnconstrainedBox",
+                Map.of(name("constrainedAxis"),
+                        new PropertyValue.EnumValue("TextDirection", "horizontal")),
+                Map.of());
+        assertEquals("/root/properties/constrainedAxis", onlyIssue(
+                validator().validate(
+                        document(wrongEnumType), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+
+        for (Map.Entry<String, PropertyValue> entry : Map.<String, PropertyValue>of(
+                "textDirection", new PropertyValue.StringValue("ltr"),
+                "alignment", new PropertyValue.StringValue("Alignment.center"),
+                "constrainedAxis", new PropertyValue.StringValue("horizontal"),
+                "clipBehavior", new PropertyValue.IntegerValue(BigInteger.ZERO))
+                .entrySet()) {
+            WidgetNode invalid = node(
+                    "unconstrained-kind-" + entry.getKey(),
+                    "flutter.widgets.UnconstrainedBox",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        WidgetNode unknownProperty = node(
+                "unconstrained-unknown", "flutter.widgets.UnconstrainedBox",
+                Map.of(name("fit"), new PropertyValue.EnumValue("BoxFit", "contain")),
+                Map.of());
+        assertEquals("/root/properties/fit", onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY).path());
+
+        WidgetNode wrongSlot = node(
+                "unconstrained-list-child", "flutter.widgets.UnconstrainedBox",
+                Map.of(), Map.of(slotName("child"),
+                        new WidgetSlot.ListSlot(List.of(child))));
+        assertEquals("/root/slots/child", onlyIssue(
+                validator().validate(
+                        document(wrongSlot), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_KIND).path());
+
+        WidgetNode expandedChild = expanded(
+                "unconstrained-expanded", Map.of(), text("expanded-text"));
+        WidgetNode invalidPlacement = node(
+                "unconstrained-expanded-parent", "flutter.widgets.UnconstrainedBox",
+                Map.of(), Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(expandedChild)));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(invalidPlacement), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertEquals("/root/slots/child/child", placement.path());
+        assertTrue(placement.message().contains(
+                "flutter.widgets.UnconstrainedBox.child"));
+    }
+
+    @Test
+    void limitedBoxAcceptsOnlyFiniteNonNegativeDoubleBoundsAndOptionalSingleChild() {
+        WidgetNode omitted = node(
+                "limited-omitted", "flutter.widgets.LimitedBox",
+                Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> omittedResult.issues().toString());
+
+        WidgetNode child = text("limited-child");
+        WidgetNode valid = node(
+                "limited-valid", "flutter.widgets.LimitedBox",
+                Map.of(
+                        name("maxWidth"),
+                                new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                        name("maxHeight"),
+                                new PropertyValue.DoubleValue(
+                                        new BigDecimal("720.5"))),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+        ValidationResult validResult = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(validResult.valid(), () -> validResult.issues().toString());
+
+        for (Map.Entry<String, PropertyValue> entry : Map.<String, PropertyValue>of(
+                "maxWidth", new PropertyValue.DoubleValue(
+                        new BigDecimal("-0.5")),
+                "maxHeight", new PropertyValue.DoubleValue(
+                        new BigDecimal("1E+309"))).entrySet()) {
+            WidgetNode invalid = node(
+                    "limited-constraint-" + entry.getKey(),
+                    "flutter.widgets.LimitedBox",
+                    Map.of(name(entry.getKey()), entry.getValue()),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + entry.getKey(), issue.path());
+        }
+
+        for (String property : List.of("maxWidth", "maxHeight")) {
+            WidgetNode invalid = node(
+                    "limited-kind-" + property,
+                    "flutter.widgets.LimitedBox",
+                    Map.of(name(property),
+                            new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                    Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND);
+            assertEquals("/root/properties/" + property, issue.path());
+        }
+
+        WidgetNode unknownProperty = node(
+                "limited-unknown", "flutter.widgets.LimitedBox",
+                Map.of(name("minWidth"),
+                        new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                Map.of());
+        assertEquals("/root/properties/minWidth", onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY).path());
+
+        WidgetNode wrongSlot = node(
+                "limited-list-child", "flutter.widgets.LimitedBox",
+                Map.of(), Map.of(slotName("child"),
+                        new WidgetSlot.ListSlot(List.of(child))));
+        assertEquals("/root/slots/child", onlyIssue(
+                validator().validate(
+                        document(wrongSlot), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_KIND).path());
+
+        WidgetNode expandedChild = expanded(
+                "limited-expanded", Map.of(), text("expanded-text"));
+        WidgetNode invalidPlacement = node(
+                "limited-expanded-parent", "flutter.widgets.LimitedBox",
+                Map.of(), Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(expandedChild)));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(invalidPlacement), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertEquals("/root/slots/child/child", placement.path());
+        assertTrue(placement.message().contains(
+                "flutter.widgets.LimitedBox.child"));
+    }
+
+    @Test
+    void overflowBoxValidatesExactTypedSurfaceAxisRelationshipsAndOptionalChild() {
+        WidgetNode omitted = node(
+                "overflow-omitted", "flutter.widgets.OverflowBox",
+                Map.of(), Map.of());
+        ValidationResult omittedResult = validator().validate(
+                document(omitted), BuiltInWidgetCatalog.getDefault());
+        assertTrue(omittedResult.valid(), () -> omittedResult.issues().toString());
+
+        WidgetNode child = text("overflow-child");
+        for (PropertyValue.AlignmentGeometryValue.HorizontalBasis basis
+                : PropertyValue.AlignmentGeometryValue.HorizontalBasis.values()) {
+            WidgetNode valid = node(
+                    "overflow-valid-" + basis.name(),
+                    "flutter.widgets.OverflowBox",
+                    Map.of(
+                            name("alignment"),
+                                    new PropertyValue.AlignmentGeometryValue(
+                                            basis,
+                                            new BigDecimal("-1.25"),
+                                            new BigDecimal("0.75")),
+                            name("minWidth"),
+                                    new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                            name("maxWidth"),
+                                    new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                            name("minHeight"),
+                                    new PropertyValue.DoubleValue(
+                                            new BigDecimal("24.5")),
+                            name("maxHeight"),
+                                    new PropertyValue.DoubleValue(
+                                            new BigDecimal("720.5")),
+                            name("fit"),
+                                    new PropertyValue.EnumValue(
+                                            "OverflowBoxFit", "deferToChild")),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(child)));
+            ValidationResult validResult = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(validResult.valid(), () -> validResult.issues().toString());
+        }
+
+        for (String fit : List.of("max", "deferToChild")) {
+            WidgetNode valid = node(
+                    "overflow-fit-" + fit,
+                    "flutter.widgets.OverflowBox",
+                    Map.of(name("fit"),
+                            new PropertyValue.EnumValue("OverflowBoxFit", fit)),
+                    Map.of());
+            ValidationResult result = validator().validate(
+                    document(valid), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+
+        for (String property : List.of(
+                "minWidth", "maxWidth", "minHeight", "maxHeight")) {
+            WidgetNode wrongKind = node(
+                    "overflow-kind-" + property,
+                    "flutter.widgets.OverflowBox",
+                    Map.of(name(property),
+                            new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                    Map.of());
+            assertEquals("/root/properties/" + property, onlyIssue(
+                    validator().validate(
+                            document(wrongKind), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_KIND).path());
+
+            for (PropertyValue.DoubleValue value : List.of(
+                    new PropertyValue.DoubleValue(new BigDecimal("-0.5")),
+                    new PropertyValue.DoubleValue(new BigDecimal("1E+309")))) {
+                WidgetNode outOfRange = node(
+                        "overflow-range-" + property,
+                        "flutter.widgets.OverflowBox",
+                        Map.of(name(property), value), Map.of());
+                assertEquals("/root/properties/" + property, onlyIssue(
+                        validator().validate(
+                                document(outOfRange),
+                                BuiltInWidgetCatalog.getDefault()),
+                        WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+            }
+        }
+
+        for (Map<String, PropertyValue> invalidFit : List.of(
+                Map.<String, PropertyValue>of(
+                        "fit", new PropertyValue.EnumValue("StackFit", "expand")),
+                Map.<String, PropertyValue>of(
+                        "fit", new PropertyValue.EnumValue(
+                        "OverflowBoxFit", "invalid")))) {
+            WidgetNode invalid = node(
+                    "overflow-fit-invalid", "flutter.widgets.OverflowBox",
+                    invalidFit.entrySet().stream().collect(
+                            java.util.stream.Collectors.toMap(
+                                    entry -> name(entry.getKey()), Map.Entry::getValue)),
+                    Map.of());
+            assertEquals("/root/properties/fit", onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT).path());
+        }
+
+        WidgetNode wrongAlignmentKind = node(
+                "overflow-alignment-kind", "flutter.widgets.OverflowBox",
+                Map.of(name("alignment"),
+                        new PropertyValue.StringValue("center")), Map.of());
+        assertEquals("/root/properties/alignment", onlyIssue(
+                validator().validate(
+                        document(wrongAlignmentKind), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND).path());
+
+        for (Map<PropertyName, PropertyValue> invalidAxis : List.of(
+                Map.<PropertyName, PropertyValue>of(
+                        name("minWidth"),
+                                new PropertyValue.DoubleValue(new BigDecimal("80")),
+                        name("maxWidth"),
+                                new PropertyValue.DoubleValue(new BigDecimal("40"))),
+                Map.<PropertyName, PropertyValue>of(
+                        name("minHeight"),
+                                new PropertyValue.DoubleValue(new BigDecimal("48")),
+                        name("maxHeight"),
+                                new PropertyValue.DoubleValue(new BigDecimal("24"))))) {
+            WidgetNode invalid = node(
+                    "overflow-axis-invalid", "flutter.widgets.OverflowBox",
+                    invalidAxis, Map.of());
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(invalid), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            String maximum = invalidAxis.containsKey(name("maxWidth"))
+                    ? "maxWidth" : "maxHeight";
+            assertEquals("/root/properties/" + maximum, issue.path());
+            assertTrue(issue.message().contains("cannot be greater"));
+        }
+
+        WidgetNode unknownProperty = node(
+                "overflow-unknown", "flutter.widgets.OverflowBox",
+                Map.of(name("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "none")),
+                Map.of());
+        assertEquals("/root/properties/clipBehavior", onlyIssue(
+                validator().validate(
+                        document(unknownProperty), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY).path());
+
+        WidgetNode wrongSlot = node(
+                "overflow-list-child", "flutter.widgets.OverflowBox",
+                Map.of(), Map.of(slotName("child"),
+                        new WidgetSlot.ListSlot(List.of(child))));
+        assertEquals("/root/slots/child", onlyIssue(
+                validator().validate(
+                        document(wrongSlot), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_KIND).path());
+
+        WidgetNode expandedChild = expanded(
+                "overflow-expanded", Map.of(), text("expanded-text"));
+        WidgetNode invalidPlacement = node(
+                "overflow-expanded-parent", "flutter.widgets.OverflowBox",
+                Map.of(), Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(expandedChild)));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(invalidPlacement), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertEquals("/root/slots/child/child", placement.path());
+        assertTrue(placement.message().contains(
+                "flutter.widgets.OverflowBox.child"));
+    }
+
+    @Test
     void stackAcceptsReviewedAlignmentEnumsAndOptionalAnyWidgetChildren() {
         WidgetNode omitted = node(
                 "stack-omitted", "flutter.widgets.Stack", Map.of(), Map.of());
@@ -1457,6 +2072,36 @@ class WidgetTreeValidatorTest {
                 "/root/slots/a/children/1",
                 "/root/slots/b/child"),
                 result.issues().stream().map(ValidationIssue::path).toList());
+    }
+
+    @Test
+    void listViewSemanticChildCountCannotExceedItsStaticChildren() {
+        WidgetNode first = text("first-list-child");
+        WidgetNode invalid = node(
+                "list-view-invalid",
+                "flutter.widgets.ListView",
+                Map.of(name("semanticChildCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of(slotName("children"),
+                        new WidgetSlot.ListSlot(List.of(first))));
+
+        ValidationIssue issue = onlyIssue(
+                validator().validate(document(invalid), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+
+        assertEquals("/root/properties/semanticChildCount", issue.path());
+        assertTrue(issue.message().contains("exceeds the current children count 1"));
+
+        WidgetNode valid = node(
+                "list-view-valid",
+                "flutter.widgets.ListView",
+                Map.of(name("semanticChildCount"),
+                        new PropertyValue.IntegerValue(BigInteger.ONE)),
+                Map.of(slotName("children"),
+                        new WidgetSlot.ListSlot(List.of(text("valid-list-child")))));
+        ValidationResult result = validator().validate(
+                document(valid), BuiltInWidgetCatalog.getDefault());
+        assertTrue(result.valid(), () -> result.issues().toString());
     }
 
     private static WidgetTreeValidator validator() {

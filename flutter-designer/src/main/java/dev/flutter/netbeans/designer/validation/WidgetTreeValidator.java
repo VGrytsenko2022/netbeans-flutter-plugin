@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.validation;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -337,8 +338,18 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE.value())) {
+            validateListViewSemanticChildCount(node, propertiesPath, issues);
+            return;
+        }
+
         if (type.equals("flutter.widgets.Image")) {
             validateImageCenterSlice(node, propertiesPath, issues);
+            return;
+        }
+
+        if (type.equals("flutter.widgets.OverflowBox")) {
+            validateOverflowBoxConstraints(node, propertiesPath, issues);
             return;
         }
 
@@ -448,6 +459,59 @@ public final class WidgetTreeValidator {
                         + "' duplicates the identifier first declared at '" + firstPath + "'."));
             }
         }
+    }
+
+    private static void validateListViewSemanticChildCount(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        BigInteger semanticCount = integerValue(node, "semanticChildCount");
+        if (semanticCount == null) {
+            return;
+        }
+        WidgetSlot children = node.slots().get(new SlotName("children"));
+        int childCount = children instanceof WidgetSlot.ListSlot list
+                ? list.children().size() : 0;
+        if (semanticCount.compareTo(BigInteger.valueOf(childCount)) > 0) {
+            issues.add(issue(
+                    PROPERTY_CONFLICT,
+                    propertiesPath + "/semanticChildCount",
+                    node.id(),
+                    "ListView semanticChildCount " + semanticCount
+                    + " exceeds the current children count " + childCount + "."));
+        }
+    }
+
+    private static void validateOverflowBoxConstraints(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        validateOverflowBoxAxis(
+                node, propertiesPath, issues, "minWidth", "maxWidth", "width");
+        validateOverflowBoxAxis(
+                node, propertiesPath, issues, "minHeight", "maxHeight", "height");
+    }
+
+    private static void validateOverflowBoxAxis(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues,
+            String minimumName,
+            String maximumName,
+            String axis) {
+        PropertyValue minimumValue = node.properties().get(new PropertyName(minimumName));
+        PropertyValue maximumValue = node.properties().get(new PropertyName(maximumName));
+        if (!(minimumValue instanceof PropertyValue.DoubleValue minimum)
+                || !(maximumValue instanceof PropertyValue.DoubleValue maximum)
+                || minimum.value().compareTo(maximum.value()) <= 0) {
+            return;
+        }
+        issues.add(issue(
+                PROPERTY_CONSTRAINT,
+                propertiesPath + '/' + maximumName,
+                node.id(),
+                "OverflowBox " + minimumName + " cannot be greater than "
+                + maximumName + " for the " + axis + " axis."));
     }
 
     private static void validateTextField(

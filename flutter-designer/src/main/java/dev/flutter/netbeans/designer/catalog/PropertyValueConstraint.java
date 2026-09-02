@@ -201,7 +201,7 @@ public sealed interface PropertyValueConstraint permits
         }
     }
 
-    /** Accepts normalized, Dart-representable finite BoxConstraints bounds. */
+    /** Accepts normalized, Dart-representable finite or positive-infinite bounds. */
     record BoxConstraintsValues() implements PropertyValueConstraint {
         @Override
         public PropertyValueKind kind() {
@@ -211,17 +211,21 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public boolean accepts(PropertyValue value) {
             return value instanceof PropertyValue.BoxConstraintsValue constraints
-                    && DartNumericLiterals.isRepresentableDouble(constraints.minWidth())
-                    && constraints.maxWidth().map(DartNumericLiterals::isRepresentableDouble)
-                            .orElse(true)
-                    && DartNumericLiterals.isRepresentableDouble(constraints.minHeight())
-                    && constraints.maxHeight().map(DartNumericLiterals::isRepresentableDouble)
-                            .orElse(true);
+                    && representable(constraints.minWidth())
+                    && representable(constraints.maxWidth())
+                    && representable(constraints.minHeight())
+                    && representable(constraints.maxHeight());
         }
 
         @Override
         public String description() {
-            return "normalized BoxConstraints with optional infinite maxima";
+            return "normalized BoxConstraints with finite or positive-infinite bounds";
+        }
+
+        private static boolean representable(PropertyValue.BoxConstraintBound bound) {
+            return bound.finiteValue()
+                    .map(DartNumericLiterals::isRepresentableDouble)
+                    .orElse(true);
         }
     }
 

@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.designer.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -316,11 +317,28 @@ class PropertyValueTest {
                         BigDecimal.TEN, Optional.empty(), BigDecimal.ZERO,
                         Optional.of(new BigDecimal("200.0")));
         assertEquals(PropertyValueKind.BOX_CONSTRAINTS, constraints.kind());
-        assertTrue(constraints.maxWidth().isEmpty());
+        assertEquals(0, constraints.minWidth().finiteValue().orElseThrow()
+                .compareTo(BigDecimal.TEN));
+        assertTrue(constraints.maxWidth().infinite());
         assertThrows(IllegalArgumentException.class, () ->
                 new PropertyValue.BoxConstraintsValue(
                         BigDecimal.TEN, Optional.of(BigDecimal.ONE),
                         BigDecimal.ZERO, Optional.empty()));
+
+        PropertyValue.BoxConstraintsValue expanding =
+                new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.finite(BigDecimal.ZERO),
+                        PropertyValue.BoxConstraintBound.finite(new BigDecimal("200")));
+        assertTrue(expanding.expandingWidth());
+        assertFalse(expanding.expandingHeight());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.finite(BigDecimal.TEN),
+                        PropertyValue.BoxConstraintBound.finite(BigDecimal.ZERO),
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE));
 
         List<BigDecimal> storage = java.util.stream.IntStream.range(0, 16)
                 .mapToObj(BigDecimal::valueOf).toList();

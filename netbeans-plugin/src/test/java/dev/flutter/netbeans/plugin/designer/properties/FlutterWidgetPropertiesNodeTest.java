@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
+import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -54,12 +56,64 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterWidgetPropertiesNodeTest {
+
+    @Test
+    void listViewProjectsAllStaticPropertiesWithClosedPhysicsChoicesAndChildrenSlot()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ListView");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("49b6f6b9-c7c8-4eab-9807-bdb99ae62aac"));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + ListViewWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(17, Arrays.stream(sets)
+                .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
+                        set.getName()))
+                .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
+                        set.getName()))
+                .mapToInt(set -> set.getProperties().length).sum());
+        for (ListViewWidgetPropertySchema.Group group
+                : ListViewWidgetPropertySchema.Group.values()) {
+            Node.PropertySet set = propertySet(node, group.setName());
+            assertEquals(group.displayName(), set.getDisplayName());
+            assertEquals("General", set.getValue(
+                    FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        }
+
+        Node.Property<?> physics = property(node, "physics");
+        assertTrue(physics.canWrite());
+        assertEquals(java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(FlutterWidgetPropertiesNode.NOT_SET),
+                        ListViewWidgetPropertySchema.PHYSICS_PRESETS.stream()).toList(),
+                Arrays.asList(physics.getPropertyEditor().getTags()));
+        cellProperty(physics).setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.StringValue("bouncing")));
+        SetProperty command = assertInstanceOf(SetProperty.class, commands.getFirst());
+        assertEquals(new PropertyName("physics"), command.propertyName());
+        assertEquals(new PropertyValue.StringValue("bouncing"), command.value());
+
+        Node.PropertySet slots = propertySet(
+                node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(List.of("children"), names(slots.getProperties()));
+        assertTrue(slots.getProperties()[0].getShortDescription().contains(
+                "laid out linearly along the selected scroll axis"));
+        assertEquals("Slots", slots.getValue(
+                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+    }
 
     @Test
     void containerProjectsAllThirteenPropertiesIntoGeneralGroupsAndOneChildSlot()
@@ -145,6 +199,127 @@ class FlutterWidgetPropertiesNodeTest {
                 ((PatchProperties.SetPatch) clipPatch.patches().get(1)).value());
         assertEquals(Optional.of(new dev.flutter.netbeans.designer.model.ColorSource.Literal(
                         0xFF123456L)), migrated.color());
+    }
+
+    @Test
+    void readOnlyPresentationRefreshKeepsPropertyIdentityAndUpdatesFormattedValue()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Text");
+        StableId id = StableId.parse(
+                "df8819d0-7e10-44d3-98cc-96175a87d933");
+        PropertyName softWrap = new PropertyName("softWrap");
+        WidgetNode before = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(softWrap, new PropertyValue.BooleanValue(false)),
+                Map.of(),
+                Extensions.empty());
+        WidgetNode after = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(softWrap, new PropertyValue.BooleanValue(true)),
+                Map.of(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, before, definition);
+        Node.Property<?> stableProperty = property(node, "softWrap");
+
+        assertFalse(stableProperty.canWrite());
+        assertEquals(String.class, stableProperty.getValueType());
+        assertEquals("false", stableProperty.getValue());
+
+        node.refreshPresentation(
+                after,
+                definition,
+                null,
+                null,
+                null,
+                FlutterImageAssetChoices.empty());
+
+        assertSame(stableProperty, property(node, "softWrap"));
+        assertFalse(stableProperty.canWrite());
+        assertEquals("true", stableProperty.getValue(),
+                "a null-handler Property must read the current immutable presentation");
+        assertSame(after, node.getLookup().lookup(WidgetNode.class));
+    }
+
+    @Test
+    void refreshPublishesAtomicWidgetAndHandlerPairToConcurrentPropertyEdits()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Container");
+        StableId id = StableId.parse(
+                "ef7e61dc-ec95-49c9-b5d2-c934592c5b06");
+        PropertyName color = new PropertyName("color");
+        WidgetNode colored = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(color, PropertyValue.ColorValue.fromWireArgb(
+                        "0xFF123456")),
+                Map.of(),
+                Extensions.empty());
+        WidgetNode empty = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(),
+                Map.of(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode.PropertyMutationHandler coloredHandler =
+                command -> assertContainerClipCommand(command, true);
+        FlutterWidgetPropertiesNode.PropertyMutationHandler emptyHandler =
+                command -> assertContainerClipCommand(command, false);
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, colored, definition, coloredHandler);
+        Node.Property<FlutterPropertyCellValue> clip = cellProperty(
+                property(node, "clipBehavior"));
+        FlutterPropertyCellValue antiAlias = FlutterPropertyCellValue.explicit(
+                new PropertyValue.EnumValue("Clip", "antiAlias"));
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        int iterations = 10_000;
+
+        Thread refresher = Thread.ofVirtual().start(() -> {
+            try {
+                start.await();
+                for (int index = 0; index < iterations; index++) {
+                    boolean useColored = (index & 1) == 0;
+                    node.refreshPresentation(
+                            useColored ? colored : empty,
+                            definition,
+                            useColored ? coloredHandler : emptyHandler,
+                            null,
+                            null,
+                            FlutterImageAssetChoices.empty());
+                    if ((index & 31) == 0) {
+                        Thread.yield();
+                    }
+                }
+            } catch (Throwable thrown) {
+                failure.compareAndSet(null, thrown);
+            }
+        });
+        Thread editor = Thread.ofVirtual().start(() -> {
+            try {
+                start.await();
+                for (int index = 0; index < iterations; index++) {
+                    clip.setValue(antiAlias);
+                    if ((index & 31) == 0) {
+                        Thread.yield();
+                    }
+                }
+            } catch (Throwable thrown) {
+                failure.compareAndSet(null, thrown);
+            }
+        });
+
+        start.countDown();
+        refresher.join(TimeUnit.SECONDS.toMillis(10));
+        editor.join(TimeUnit.SECONDS.toMillis(10));
+
+        assertFalse(refresher.isAlive(), "presentation refresh thread timed out");
+        assertFalse(editor.isAlive(), "property edit thread timed out");
+        assertNull(failure.get(),
+                () -> "widget/handler pairing was torn: " + failure.get());
+        assertSame(clip, property(node, "clipBehavior"));
     }
 
     @Test
@@ -469,6 +644,11 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Opacity", Map.of(
                         new PropertyName("opacity"),
                         new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                "flutter.widgets.ConstrainedBox", Map.of(
+                        new PropertyName("constraints"),
+                        new PropertyValue.BoxConstraintsValue(
+                                BigDecimal.ZERO, Optional.empty(),
+                                BigDecimal.ZERO, Optional.empty())),
                 "flutter.widgets.Image", Map.of(
                         new PropertyName("image"),
                         new PropertyValue.ImageProviderValue(
@@ -482,6 +662,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
+                "flutter.widgets.Wrap",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
@@ -490,13 +671,20 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.FittedBox",
+                "flutter.widgets.ConstrainedBox",
+                "flutter.widgets.UnconstrainedBox",
+                "flutter.widgets.LimitedBox",
+                "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image");
 
         int writableCount = 0;
+        int nonScaffoldWritableCount = 0;
         for (String type : types) {
             WidgetDefinition definition = definition(type);
             WidgetNode widget = new WidgetNode(
@@ -521,14 +709,23 @@ class FlutterWidgetPropertiesNodeTest {
                 assertEquals(FlutterPropertyCellValue.class,
                         property.getValueType(), property.getName());
                 writableCount++;
+                if (!"flutter.material.Scaffold".equals(type)) {
+                    nonScaffoldWritableCount++;
+                }
             }
         }
 
-        assertEquals(617, writableCount,
+        assertEquals(659, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
-                + "FractionallySizedBox, Stack, Expanded, and Image leaves");
+                + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
+                + "LimitedBox, OverflowBox, "
+                + "Wrap, Stack, "
+                + "Expanded, ListView, "
+                + "and Image leaves");
+        assertEquals(642, nonScaffoldWritableCount,
+                "all non-Scaffold built-ins expose their complete writable surface");
     }
 
     @Test
@@ -995,6 +1192,465 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void fittedBoxProjectsExactFitAlignmentClippingAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.FittedBox");
+        StableId id = StableId.parse("b587a092-9a65-420a-9d1c-e127cc752f8d");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("fit", "alignment", "clipBehavior"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Scaling discipline, positioning, clipping, and optional child "
+                + "for the selected FittedBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> fit = cellProperty(
+                property(node, "fit"));
+        assertEquals("Fit", fit.getDisplayName());
+        assertEquals(List.of(
+                        "<not set>", "fill", "contain", "cover", "fitWidth",
+                        "fitHeight", "none", "scaleDown"),
+                List.of(fit.getPropertyEditor().getTags()));
+        assertAll(
+                () -> assertTrue(fit.getShortDescription().contains("Contain is the default")),
+                () -> assertTrue(fit.getShortDescription().contains("scaleDown")),
+                () -> assertTrue(fit.supportsDefaultValue()));
+        PropertyEditor fitEditor = fit.getPropertyEditor();
+        fitEditor.setAsText("cover");
+        assertEquals(new PropertyValue.EnumValue("BoxFit", "cover"),
+                cell(fitEditor).explicitValue().orElseThrow());
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("1.5"),
+                        new BigDecimal("-2"));
+        assertAll(
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("defaults to center")),
+                () -> assertTrue(alignment.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("not from the theme")),
+                () -> assertTrue(alignment.supportsDefaultValue()));
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        assertEquals(List.of(new SetProperty(
+                id, new PropertyName("alignment"), directional)), commands);
+
+        Node.Property<FlutterPropertyCellValue> clip = cellProperty(
+                property(node, "clipBehavior"));
+        assertEquals("Clip behavior", clip.getDisplayName());
+        assertEquals(List.of(
+                        "<not set>", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer"),
+                List.of(clip.getPropertyEditor().getTags()));
+        assertTrue(clip.getShortDescription().contains("defaults to none"));
+        assertTrue(clip.getShortDescription().contains("visual overflow"));
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("laid out unconstrained")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("without changing the child's own layout size")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void constrainedBoxProjectsRequiredConstraintsAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ConstrainedBox");
+        StableId id = StableId.parse("8362400e-cf39-4f3c-b024-277e45cfb8f6");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("constraints"), names(properties.getProperties()));
+        assertEquals(
+                "Required normalized width and height constraints, including independently "
+                + "expanding axes, and an optional child for the selected "
+                + "ConstrainedBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> constraints = cellProperty(
+                property(node, "constraints"));
+        PropertyValue.BoxConstraintsValue neutral = new PropertyValue.BoxConstraintsValue(
+                BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty());
+        assertAll(
+                () -> assertEquals("Constraints", constraints.getDisplayName()),
+                () -> assertEquals(neutral,
+                        constraints.getValue().explicitValue().orElseThrow()),
+                () -> assertTrue(constraints.canWrite()),
+                () -> assertFalse(constraints.supportsDefaultValue()),
+                () -> assertFalse(constraints.isDefaultValue()),
+                () -> assertTrue(constraints.getPropertyEditor().supportsCustomEditor()),
+                () -> assertTrue(constraints.getShortDescription()
+                        .contains("finite maximum not below its minimum")),
+                () -> assertTrue(constraints.getShortDescription().contains("∞…∞")),
+                () -> assertTrue(constraints.getShortDescription()
+                        .contains("required constructor argument cannot be unset")));
+
+        constraints.restoreDefaultValue();
+        assertTrue(commands.isEmpty(), "required constraints cannot expose a reset command");
+        assertThrows(IllegalArgumentException.class,
+                () -> constraints.setValue(FlutterPropertyCellValue.unset()));
+        assertTrue(commands.isEmpty(), "rejected unset must not submit a command");
+
+        PropertyValue.BoxConstraintsValue expandingWidth =
+                new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.ZERO),
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE);
+        constraints.setValue(FlutterPropertyCellValue.explicit(expandingWidth));
+        assertEquals(List.of(new SetProperty(
+                id, new PropertyName("constraints"), expandingWidth)), commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("additional normalized BoxConstraints")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("bounded incoming maximum")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void unconstrainedBoxProjectsDirectionAlignmentAxisClippingAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.UnconstrainedBox");
+        StableId id = StableId.parse("cf4a5c37-32df-47e2-b19c-7b92e7762cb9");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                "textDirection", "alignment", "constrainedAxis", "clipBehavior"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Constraint removal, optional retained axis, positioning, clipping, "
+                + "direction, and optional child for the selected UnconstrainedBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> textDirection = cellProperty(
+                property(node, "textDirection"));
+        assertAll(
+                () -> assertEquals("Text direction", textDirection.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(),
+                        textDirection.getValue()),
+                () -> assertEquals(List.of("<not set>", "rtl", "ltr"),
+                        List.of(textDirection.getPropertyEditor().getTags())),
+                () -> assertTrue(textDirection.getShortDescription()
+                        .contains("ambient Directionality")),
+                () -> assertTrue(textDirection.getShortDescription()
+                        .contains("not read from the theme")),
+                () -> assertTrue(textDirection.supportsDefaultValue()),
+                () -> assertTrue(textDirection.isDefaultValue()));
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("1.25"), new BigDecimal("-0.5"));
+        assertAll(
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), alignment.getValue()),
+                () -> assertTrue(alignment.getPropertyEditor().supportsCustomEditor()),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("defaults to center")),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("ambient Directionality")),
+                () -> assertTrue(alignment.supportsDefaultValue()));
+
+        Node.Property<FlutterPropertyCellValue> constrainedAxis = cellProperty(
+                property(node, "constrainedAxis"));
+        assertAll(
+                () -> assertEquals("Constrained axis", constrainedAxis.getDisplayName()),
+                () -> assertEquals(List.of("<not set>", "horizontal", "vertical"),
+                        List.of(constrainedAxis.getPropertyEditor().getTags())),
+                () -> assertTrue(constrainedAxis.getShortDescription()
+                        .contains("removes constraints from both axes")),
+                () -> assertTrue(constrainedAxis.supportsDefaultValue()));
+
+        Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
+                property(node, "clipBehavior"));
+        assertAll(
+                () -> assertEquals("Clip behavior", clipBehavior.getDisplayName()),
+                () -> assertEquals(List.of(
+                                "<not set>", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer"),
+                        List.of(clipBehavior.getPropertyEditor().getTags())),
+                () -> assertTrue(clipBehavior.getShortDescription()
+                        .contains("defaults to none")),
+                () -> assertTrue(clipBehavior.supportsDefaultValue()));
+
+        PropertyValue.EnumValue rtl =
+                new PropertyValue.EnumValue("TextDirection", "rtl");
+        PropertyValue.EnumValue vertical =
+                new PropertyValue.EnumValue("Axis", "vertical");
+        PropertyValue.EnumValue antiAlias =
+                new PropertyValue.EnumValue("Clip", "antiAlias");
+        textDirection.setValue(FlutterPropertyCellValue.explicit(rtl));
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        constrainedAxis.setValue(FlutterPropertyCellValue.explicit(vertical));
+        clipBehavior.setValue(FlutterPropertyCellValue.explicit(antiAlias));
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("textDirection"), rtl),
+                new SetProperty(id, new PropertyName("alignment"), directional),
+                new SetProperty(id, new PropertyName("constrainedAxis"), vertical),
+                new SetProperty(id, new PropertyName("clipBehavior"), antiAlias)),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("without incoming constraints on both axes")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("selected constrained axis retained")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("paint overflow follows clip behavior")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void limitedBoxProjectsOptionalTypedFallbackLimitsAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.LimitedBox");
+        StableId id = StableId.parse("ced82319-7a4e-4dc6-ab99-55193af55f37");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, id);
+        PropertyValue.DoubleValue initialWidth =
+                new PropertyValue.DoubleValue(new BigDecimal("120"));
+        PropertyValue.DoubleValue initialHeight =
+                new PropertyValue.DoubleValue(new BigDecimal("240.5"));
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(
+                        new PropertyName("maxWidth"), initialWidth,
+                        new PropertyName("maxHeight"), initialHeight),
+                prototype.slots(),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("maxWidth", "maxHeight"), names(properties.getProperties()));
+        assertEquals(
+                "Fallback maximum width and height for unbounded incoming axes, and an "
+                + "optional child for the selected LimitedBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> maxWidth = cellProperty(
+                property(node, "maxWidth"));
+        Node.Property<FlutterPropertyCellValue> maxHeight = cellProperty(
+                property(node, "maxHeight"));
+        assertAll(
+                () -> assertEquals("Max Width", maxWidth.getDisplayName()),
+                () -> assertEquals("Max Height", maxHeight.getDisplayName()),
+                () -> assertEquals(initialWidth,
+                        maxWidth.getValue().explicitValue().orElseThrow()),
+                () -> assertEquals(initialHeight,
+                        maxHeight.getValue().explicitValue().orElseThrow()),
+                () -> assertTrue(maxWidth.getShortDescription().contains("incoming width is unbounded")),
+                () -> assertTrue(maxHeight.getShortDescription().contains("incoming height is unbounded")),
+                () -> assertTrue(maxWidth.getShortDescription().contains("default positive infinity")),
+                () -> assertTrue(maxHeight.getShortDescription().contains("zero is valid")),
+                () -> assertTrue(maxWidth.supportsDefaultValue()),
+                () -> assertTrue(maxHeight.supportsDefaultValue()),
+                () -> assertFalse(maxWidth.isDefaultValue()),
+                () -> assertFalse(maxHeight.isDefaultValue()));
+
+        PropertyEditor widthEditor = maxWidth.getPropertyEditor();
+        widthEditor.setAsText("0");
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                cell(widthEditor).explicitValue().orElseThrow());
+        PropertyEditor heightEditor = maxHeight.getPropertyEditor();
+        heightEditor.setAsText("96.5");
+        PropertyValue.DoubleValue updatedWidth =
+                new PropertyValue.DoubleValue(new BigDecimal("96.5"));
+        assertEquals(updatedWidth, cell(heightEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("-0.1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("NaN"));
+        assertThrows(IllegalArgumentException.class,
+                () -> widthEditor.setAsText("Infinity"));
+        assertThrows(IllegalArgumentException.class,
+                () -> maxWidth.setValue(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.IntegerValue(BigInteger.ZERO))));
+        assertTrue(commands.isEmpty(), "editor validation must not partially submit a command");
+
+        maxWidth.setValue(FlutterPropertyCellValue.explicit(updatedWidth));
+        maxHeight.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("maxWidth"), updatedWidth),
+                new ResetProperty(id, new PropertyName("maxHeight"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("corresponding incoming axis is unbounded")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("bounded incoming constraints pass through unchanged")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void overflowBoxProjectsConstraintOverridesAlignmentFitAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBox");
+        StableId id = StableId.parse("bf0274b6-a3e4-49a8-86d2-2fcfa319462d");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                "alignment", "minWidth", "maxWidth", "minHeight", "maxHeight", "fit"),
+                names(properties.getProperties()));
+        assertAll(
+                () -> assertTrue(properties.getShortDescription()
+                        .contains("Constraint overrides")),
+                () -> assertTrue(properties.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(properties.getShortDescription()
+                        .contains("not from the theme")));
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        new BigDecimal("1.25"), new BigDecimal("-0.5"));
+        assertAll(
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertTrue(alignment.getPropertyEditor().supportsCustomEditor()),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("defaults to center")),
+                () -> assertTrue(alignment.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(alignment.getShortDescription()
+                        .contains("outside -1 through 1")),
+                () -> assertTrue(alignment.supportsDefaultValue()),
+                () -> assertTrue(alignment.isDefaultValue()));
+
+        List<String> numericNames = List.of(
+                "minWidth", "maxWidth", "minHeight", "maxHeight");
+        List<String> numericLabels = List.of(
+                "Min Width", "Max Width", "Min Height", "Max Height");
+        List<PropertyValue.DoubleValue> values = List.of(
+                new PropertyValue.DoubleValue(BigDecimal.ZERO),
+                new PropertyValue.DoubleValue(new BigDecimal("320.5")),
+                new PropertyValue.DoubleValue(new BigDecimal("12.25")),
+                new PropertyValue.DoubleValue(new BigDecimal("240")));
+        for (int index = 0; index < numericNames.size(); index++) {
+            String name = numericNames.get(index);
+            Node.Property<FlutterPropertyCellValue> property = cellProperty(
+                    property(node, name));
+            PropertyEditor editor = property.getPropertyEditor();
+            editor.setAsText(values.get(index).value().toPlainString());
+            assertAll(
+                    () -> assertEquals(numericLabels.get(numericNames.indexOf(name)),
+                            property.getDisplayName()),
+                    () -> assertEquals(values.get(numericNames.indexOf(name)),
+                            cell(editor).explicitValue().orElseThrow()),
+                    () -> assertTrue(property.getShortDescription().contains("inherits")),
+                    () -> assertTrue(property.supportsDefaultValue()),
+                    () -> assertTrue(property.isDefaultValue()),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> editor.setAsText("-0.1")),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> editor.setAsText("Infinity")),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> property.setValue(FlutterPropertyCellValue.explicit(
+                                    new PropertyValue.IntegerValue(BigInteger.ZERO)))));
+        }
+        assertAll(
+                () -> assertTrue(property(node, "minWidth").getShortDescription()
+                        .contains("minimum width must not exceed maximum width")),
+                () -> assertTrue(property(node, "maxWidth").getShortDescription()
+                        .contains("overflow is allowed")),
+                () -> assertTrue(property(node, "minHeight").getShortDescription()
+                        .contains("minimum height must not exceed maximum height")),
+                () -> assertTrue(property(node, "maxHeight").getShortDescription()
+                        .contains("overflow is allowed")));
+
+        Node.Property<FlutterPropertyCellValue> fit = cellProperty(property(node, "fit"));
+        assertAll(
+                () -> assertEquals("Fit", fit.getDisplayName()),
+                () -> assertEquals(List.of("<not set>", "max", "deferToChild"),
+                        List.of(fit.getPropertyEditor().getTags())),
+                () -> assertTrue(fit.getShortDescription().contains("Flutter's default")),
+                () -> assertTrue(fit.getShortDescription().contains("smallest size")),
+                () -> assertTrue(fit.getShortDescription()
+                        .contains("only when the child does not overflow")),
+                () -> assertTrue(fit.supportsDefaultValue()),
+                () -> assertTrue(fit.isDefaultValue()));
+
+        PropertyValue.EnumValue deferToChild =
+                new PropertyValue.EnumValue("OverflowBoxFit", "deferToChild");
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        for (int index = 0; index < numericNames.size(); index++) {
+            cellProperty(property(node, numericNames.get(index))).setValue(
+                    FlutterPropertyCellValue.explicit(values.get(index)));
+        }
+        fit.setValue(FlutterPropertyCellValue.explicit(deferToChild));
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("alignment"), directional),
+                new SetProperty(id, new PropertyName("minWidth"), values.get(0)),
+                new SetProperty(id, new PropertyName("maxWidth"), values.get(1)),
+                new SetProperty(id, new PropertyName("minHeight"), values.get(2)),
+                new SetProperty(id, new PropertyName("maxHeight"), values.get(3)),
+                new SetProperty(id, new PropertyName("fit"), deferToChild)),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("minimum and maximum constraint overrides")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("physical or directional alignment")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("paint outside this box")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("follows the child within the parent constraints")),
+                () -> assertTrue(child.getShortDescription()
+                        .contains("Occupancy: 0/1")));
+    }
+
+    @Test
     void stackProjectsExactLayerPropertiesAndOrderedChildrenContract()
             throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Stack");
@@ -1090,6 +1746,78 @@ class FlutterWidgetPropertiesNodeTest {
                         + "(LTR/RTL), not from the theme. Occupancy: 0/10000; minimum: 0. "
                         + "Open the custom editor to add, move, reorder, or remove a widget.",
                         children.getShortDescription()));
+    }
+
+    @Test
+    void wrapProjectsEveryRunPropertyAndOrderedChildrenContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Wrap");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("0cdde885-b68c-4b21-bd47-246721c4e8b2"));
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                        "direction", "alignment", "spacing", "runAlignment", "runSpacing",
+                        "crossAxisAlignment", "textDirection", "verticalDirection",
+                        "clipBehavior"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Run direction, spacing, alignment, clipping, and ordered children "
+                + "for the selected Wrap widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> direction = cellProperty(
+                property(node, "direction"));
+        assertEquals("Direction", direction.getDisplayName());
+        assertEquals(List.of("<not set>", "horizontal", "vertical"),
+                List.of(direction.getPropertyEditor().getTags()));
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        assertEquals("Alignment", alignment.getDisplayName());
+        assertEquals(List.of(
+                        "<not set>", "start", "end", "center", "spaceBetween",
+                        "spaceAround", "spaceEvenly"),
+                List.of(alignment.getPropertyEditor().getTags()));
+
+        Node.Property<FlutterPropertyCellValue> spacing = cellProperty(
+                property(node, "spacing"));
+        assertTrue(spacing.getShortDescription().contains(
+                "negative values intentionally overlap"));
+        PropertyEditor spacingEditor = spacing.getPropertyEditor();
+        spacingEditor.setAsText("-4.5");
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("-4.5")),
+                cell(spacingEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> spacingEditor.setAsText("NaN"));
+
+        Node.Property<FlutterPropertyCellValue> runSpacing = cellProperty(
+                property(node, "runSpacing"));
+        assertTrue(runSpacing.getShortDescription().contains(
+                "negative values intentionally overlap"));
+        assertEquals(List.of("<not set>", "start", "end", "center"),
+                List.of(property(node, "crossAxisAlignment")
+                        .getPropertyEditor().getTags()));
+        assertEquals(List.of(
+                        "<not set>", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer"),
+                List.of(property(node, "clipBehavior")
+                        .getPropertyEditor().getTags()));
+
+        Node.Property<?> children = property(node, "children");
+        assertAll(
+                () -> assertEquals("Children", children.getDisplayName()),
+                () -> assertEquals("Empty", children.getValue()),
+                () -> assertTrue(children.getShortDescription()
+                        .contains("flowed into one or more runs")),
+                () -> assertTrue(children.getShortDescription()
+                        .contains("exact source, paint, and semantic order")),
+                () -> assertTrue(children.getShortDescription()
+                        .contains("Occupancy: 0/10000")));
     }
 
     @Test
@@ -1791,7 +2519,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void booleanAndEnumEditorsExposeExplicitUnsetTagsAndTypedValues()
+    void booleanUsesCheckboxContractWhileEnumKeepsExplicitUnsetTags()
             throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Text");
         FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
@@ -1805,8 +2533,10 @@ class FlutterWidgetPropertiesNodeTest {
 
         bool.setValue(FlutterPropertyCellValue.unset());
         assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT, bool.getAsText());
-        assertEquals(List.of(FlutterPropertyCellValue.NOT_SET_TEXT, "true", "false"),
-                List.of(bool.getTags()));
+        assertNull(bool.getTags(),
+                "boolean values must never select the combo renderer");
+        assertTrue(bool.isPaintable(),
+                "boolean values use the checkbox cell renderer");
         bool.setAsText("false");
         assertEquals(FlutterPropertyCellValue.explicit(
                         new PropertyValue.BooleanValue(false)),
@@ -2109,7 +2839,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void nineteenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentySixCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -2118,6 +2848,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.TextField",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
+                "flutter.widgets.Wrap",
                 "flutter.widgets.Padding",
                 "flutter.widgets.Center",
                 "flutter.widgets.SizedBox",
@@ -2126,8 +2857,14 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.Align",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.FittedBox",
+                "flutter.widgets.ConstrainedBox",
+                "flutter.widgets.UnconstrainedBox",
+                "flutter.widgets.LimitedBox",
+                "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image");
@@ -2158,7 +2895,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(19, iconPaths.size(),
+        assertEquals(26, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 
@@ -2235,6 +2972,21 @@ class FlutterWidgetPropertiesNodeTest {
                 Optional.empty(), Optional.empty(), Optional.empty(), List.of(),
                 Optional.empty(), Optional.empty(),
                 PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+    }
+
+    private static void assertContainerClipCommand(
+            DesignerCommand command,
+            boolean coloredPresentation) {
+        PatchProperties patch = assertInstanceOf(PatchProperties.class, command);
+        List<String> propertyNames = patch.patches().stream()
+                .map(item -> item.propertyName().value())
+                .toList();
+        assertEquals(
+                coloredPresentation
+                        ? List.of("color", "decoration", "clipBehavior")
+                        : List.of("decoration", "clipBehavior"),
+                propertyNames,
+                "the handler must receive a command derived from its own Widget snapshot");
     }
 
     private static Node.Property<?> property(

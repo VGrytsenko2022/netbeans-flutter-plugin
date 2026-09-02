@@ -184,6 +184,40 @@ final class FlutterPropertyEditorComponents {
         graphics.setColor(original);
     }
 
+    static void paintBooleanValue(
+            Graphics graphics,
+            Rectangle box,
+            FlutterPropertyCellValue cell) {
+        Objects.requireNonNull(graphics, "graphics");
+        Objects.requireNonNull(box, "box");
+        Objects.requireNonNull(cell, "cell");
+        if (cell.explicitValue().orElse(null)
+                instanceof PropertyValue.BooleanValue explicit) {
+            JCheckBox renderer = new JCheckBox();
+            renderer.setOpaque(false);
+            renderer.setBorder(null);
+            renderer.setFocusable(false);
+            renderer.setSelected(explicit.value());
+            renderer.setFont(graphics.getFont());
+            renderer.setForeground(graphics.getColor());
+            renderer.setSize(Math.max(0, box.width), Math.max(0, box.height));
+            Graphics childGraphics = graphics.create(
+                    box.x, box.y, Math.max(0, box.width), Math.max(0, box.height));
+            try {
+                renderer.paint(childGraphics);
+            } finally {
+                childGraphics.dispose();
+            }
+            return;
+        }
+        FontMetrics metrics = graphics.getFontMetrics();
+        graphics.drawString(
+                FlutterPropertyCellValue.NOT_SET_TEXT,
+                box.x + 2,
+                box.y + (box.height + metrics.getAscent()
+                - metrics.getDescent()) / 2);
+    }
+
     private static FlutterPropertyCellValue parse(
             FlutterTypedPropertyEditors.Binding binding,
             String text) {
@@ -321,7 +355,7 @@ final class FlutterPropertyEditorComponents {
             checkBox.setName(BOOLEAN_COMPONENT_NAME);
             checkBox.setOpaque(false);
             checkBox.addActionListener(ignored -> {
-                value = nextValue(value, binding.optional());
+                value = nextValue(value);
                 showValue();
                 fireSuccess();
             });
@@ -372,30 +406,31 @@ final class FlutterPropertyEditorComponents {
 
         private void showValue() {
             Object indeterminate = null;
-            String text;
             if (value.explicitValue().orElse(null)
                     instanceof PropertyValue.BooleanValue explicit) {
                 checkBox.setSelected(explicit.value());
-                text = Boolean.toString(explicit.value());
+                checkBox.setText("");
             } else {
                 // FlatLaf renders the native indeterminate mark; the explicit
-                // text keeps the third state unambiguous on every NetBeans LAF.
-                checkBox.setSelected(true);
+                // text keeps the inactive value unambiguous on every NetBeans LAF.
+                checkBox.setSelected(false);
                 indeterminate = "indeterminate";
-                text = FlutterPropertyCellValue.NOT_SET_TEXT;
+                checkBox.setText(FlutterPropertyCellValue.NOT_SET_TEXT);
             }
             checkBox.putClientProperty("JButton.selectedState", indeterminate);
-            checkBox.setText(text);
+            String accessibleValue = value.explicitValue().orElse(null)
+                    instanceof PropertyValue.BooleanValue explicit
+                    ? Boolean.toString(explicit.value())
+                    : FlutterPropertyCellValue.NOT_SET_TEXT;
             checkBox.getAccessibleContext().setAccessibleDescription(
-                    "Boolean value " + text
+                    "Boolean value " + accessibleValue
                     + (binding.optional()
-                            ? "; cycles through default, true, and false."
+                            ? "; toggles true or false; Restore Default removes the explicit value."
                             : "; toggles true or false."));
         }
 
         private static FlutterPropertyCellValue nextValue(
-                FlutterPropertyCellValue current,
-                boolean optional) {
+                FlutterPropertyCellValue current) {
             PropertyValue explicit = current.explicitValue().orElse(null);
             if (explicit == null) {
                 return FlutterPropertyCellValue.explicit(
@@ -406,10 +441,8 @@ final class FlutterPropertyEditorComponents {
                 return FlutterPropertyCellValue.explicit(
                         new PropertyValue.BooleanValue(false));
             }
-            return optional
-                    ? FlutterPropertyCellValue.unset()
-                    : FlutterPropertyCellValue.explicit(
-                            new PropertyValue.BooleanValue(true));
+            return FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true));
         }
     }
 

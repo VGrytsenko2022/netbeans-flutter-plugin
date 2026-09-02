@@ -605,12 +605,13 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:2",
                     "urn:netbeans-flutter-designer:schema:fd:3",
                     "urn:netbeans-flutter-designer:schema:fd:4",
-                    "urn:netbeans-flutter-designer:schema:fd:5" ->
-                    "urn:netbeans-flutter-designer:schema:fd:6";
+                    "urn:netbeans-flutter-designer:schema:fd:5",
+                    "urn:netbeans-flutter-designer:schema:fd:6" ->
+                    "urn:netbeans-flutter-designer:schema:fd:7";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
-                    "../fd-v5.schema.json" ->
-                    "../fd-v6.schema.json";
+                    "../fd-v5.schema.json", "../fd-v6.schema.json" ->
+                    "../fd-v7.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1348,12 +1349,19 @@ final class FdJsonDecoder {
                 enforceAllowedFields(
                         parser, fields, base,
                         Set.of("kind", "minWidth", "maxWidth", "minHeight", "maxHeight"));
-                BigDecimal minWidth = jsonDartDouble(fields, "minWidth", base);
+                Optional<BigDecimal> minWidth = sourceVersion >= 7
+                        ? jsonOptionalDartDouble(fields, "minWidth", base)
+                        : Optional.of(jsonDartDouble(fields, "minWidth", base));
                 Optional<BigDecimal> maxWidth = jsonOptionalDartDouble(fields, "maxWidth", base);
-                BigDecimal minHeight = jsonDartDouble(fields, "minHeight", base);
+                Optional<BigDecimal> minHeight = sourceVersion >= 7
+                        ? jsonOptionalDartDouble(fields, "minHeight", base)
+                        : Optional.of(jsonDartDouble(fields, "minHeight", base));
                 Optional<BigDecimal> maxHeight = jsonOptionalDartDouble(fields, "maxHeight", base);
                 yield modelValue(base, () -> new PropertyValue.BoxConstraintsValue(
-                        minWidth, maxWidth, minHeight, maxHeight));
+                        PropertyValue.BoxConstraintBound.finiteOrInfinity(minWidth),
+                        PropertyValue.BoxConstraintBound.finiteOrInfinity(maxWidth),
+                        PropertyValue.BoxConstraintBound.finiteOrInfinity(minHeight),
+                        PropertyValue.BoxConstraintBound.finiteOrInfinity(maxHeight)));
             }
             case "matrix4" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "storage"));

@@ -50,12 +50,13 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly nineteen
+The current capability-gated Palette and native Canvas admit exactly twenty-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
-`Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
-`FractionallySizedBox`, `Stack`, `Expanded`, `Text`, `Icon` and `Image`. Sixteen
+`Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
+`Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
+`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `ListView`, `Text`, `Icon` and `Image`. Twenty-one
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 617 typed writable rows: 600 across the eighteen
+exactly 659 typed writable rows: 642 across the twenty-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -118,6 +119,86 @@ compound value. Generated Dart and Canvas keep direct Row/Column placement safe
 with a `LayoutBuilder`/`SizedBox`: unbounded width receives 240 logical pixels,
 and `expands: true` under unbounded height receives 120.
 
+`ListView` is the non-const static `ListView(children: ...)` slice. Its 17
+optional rows cover scrolling (5), layout (4), caching and children (4),
+semantics (2), and restoration (2); its ordered `children` list is managed in
+the `Slots` tab. Closed presets cover axis, six physics choices, drag start,
+keyboard dismissal, clipping and hit testing. Padding and item/cache extents are
+non-negative, `semanticChildCount` cannot exceed the current child count, and a
+numeric cache extent is emitted as `ScrollCacheExtent.pixels`. Controller-owned
+state, builders/delegates, `itemExtentBuilder`, `prototypeItem`, deprecated
+`cacheExtent`, `key` and raw Dart are not admitted. Generated Dart and Canvas use
+a real ListView, including horizontal/vertical, reverse and LTR/RTL behavior.
+Their constraint guard supplies width 240 or height 120 for an unbounded
+viewport cross axis, and for an unbounded main axis only when `shrinkWrap` is
+false.
+The originally agreed eight-item core Palette—`Container`, `Row`, `Column`,
+`Text`, `Image`, Button through `ElevatedButton`, `TextField` and `ListView`—is
+complete 8/8. This is completion of that agreed list, not of every Flutter
+widget.
+
+`Wrap` is the first Palette slice after that core milestone. It exposes all
+nine non-`key` constructor properties: direction, child/run alignment, finite
+signed spacing and run spacing, cross-axis alignment, text/vertical direction
+and clipping. Its ordered `children` list appears in `Slots`. Generated Dart and
+Canvas build the real Flutter Wrap. An empty Wrap retains a 36-pixel Designer
+selection target, and Palette/tree drops on either an empty or populated Wrap
+append at `children.length` through the complete visible Wrap rectangle.
+
+`FittedBox` is the second post-core Palette slice. It exposes optional `fit`,
+physical/directional `alignment`, `clipBehavior` and one optional single
+any-widget `child`. Leaving them unset preserves `BoxFit.contain`, centered
+alignment and no clipping. The fit chooser contains all seven `BoxFit` values,
+and the clip chooser contains all four reviewed `Clip` values. Generated Dart
+and Canvas build the real Flutter FittedBox, so scaling and clipping match the
+framework and directional alignment flips under LTR/RTL. An empty zero-size
+instance retains a 36-pixel Designer selection/drop target.
+
+`ConstrainedBox` is the third post-core Palette slice. Its required
+`constraints` row cannot be left unset; a new instance starts with `0..∞` for
+both width and height. Open its structured editor to select finite, unbounded
+or expanding axes. Finite bounds must be non-negative and each minimum must not
+exceed its maximum; an expanding axis is `∞..∞`. The optional `child` is edited
+through Slots. Generated Dart and Canvas build the real Flutter ConstrainedBox,
+  and an empty zero-size instance keeps a bounded Designer selection/drop target.
+
+[`UnconstrainedBox`](https://api.flutter.dev/flutter/widgets/UnconstrainedBox/UnconstrainedBox.html)
+is the fourth post-core Palette slice, at Layout order 107 immediately after
+ConstrainedBox. Its four optional Properties are `textDirection`, `alignment`,
+`constrainedAxis` and `clipBehavior`; its optional `child` is edited through
+Slots. New instances store no property defaults. Leaving values unset preserves
+centered alignment, no retained constrained axis and `Clip.none`, and ambient
+`Directionality` resolves directional alignment when `textDirection` is unset.
+Generated Dart and Canvas build the real Flutter UnconstrainedBox. An empty
+zero-size instance keeps a bounded Designer selection/drop target. At that
+milestone the practical Material/Base backlog was 24/92 complete with 68
+remaining, and Layout contained 16 items.
+
+[`LimitedBox`](https://api.flutter.dev/flutter/widgets/LimitedBox/LimitedBox.html)
+is the fifth post-core Palette slice, at Layout order 108. Its optional
+`maxWidth` and `maxHeight` Properties accept finite non-negative values; leaving
+either unset canonically preserves Flutter's `double.infinity` default. Its
+optional `child` is edited through Slots. Generated Dart and Canvas build the
+real Flutter LimitedBox, so a configured maximum affects an axis only when its
+incoming maximum constraint is unbounded. At that milestone the practical
+Material/Base backlog was 25/92 complete with 67 remaining, and Layout contained
+17 items.
+
+[`OverflowBox`](https://api.flutter.dev/flutter/widgets/OverflowBox/OverflowBox.html)
+is the sixth post-core Palette slice, at Layout order 109. Its optional
+`alignment`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight` and `fit`
+Properties are followed by an optional `child` in Slots. The four override
+bounds accept finite non-negative doubles; each unset value inherits that bound
+from the parent, and a present minimum cannot exceed its matching maximum.
+Leaving alignment and fit unset preserves `Alignment.center` and
+`OverflowBoxFit.max`; `deferToChild` is also available. Explicit non-finite
+overrides are outside this bounded contract. Generated Dart and Canvas build
+the real Flutter OverflowBox, preserving overflow, physical/directional
+alignment and both fit modes. The practical Material/Base backlog is now 26/92
+complete with 66 remaining. It is a planning backlog rather than a normative
+full Flutter widget list; no later widget currently has an explicit order.
+Layout contains 18 items.
+
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
 `foregroundDecoration`, `width`, `height`, `constraints`, `margin`, `transform`,
@@ -152,7 +233,7 @@ The asset list comes only from app/package `pubspec.yaml` declarations resolved
 through `.dart_tool/package_config.json`. PNG/JPEG/GIF/WebP candidates are
 checked for safe POSIX-relative identity, root/symlink confinement, magic and
 dimensions. Canvas receives no filesystem path or callback name: Canvas model
-protocol v11 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
+protocol v12 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
 only referenced immutable compressed bytes under exact revision, order, size
 and SHA-256 checks. Native
 preview and the internal exact-Web runtime build the same real
@@ -164,13 +245,13 @@ without removing Container selection/layout/drop overlays. Exact-Web product
 selection is still gated; the routed Web choice remains the native-engine
 responsive layout preview.
 
-The current surface uses `.fd` schema v6, contributor Catalog API 5 and Canvas
-model protocol 11. Schema v1-v5 files migrate in memory with no image and are written
-as v6 only after an admitted edit. The five newer widget slices reuse the
-existing API-5 value, asset, slot and command contracts; TextField's constraint
-guard is generated presentation code, not a persisted kind. None changes those
-versions. Nineteen sources across eighteen any-widget and two trait-bound slots
-produce 380 compatibility candidates: 328 accepted and 52 rejected.
+The current surface uses `.fd` schema v7, contributor Catalog API 6 and Canvas
+model protocol 12. Schema v1-v6 files migrate in memory and are written as v7
+only after an admitted edit. Version 7 represents positive infinity as `null`
+in all four BoxConstraints bounds; older finite minima and nullable maxima
+migrate losslessly. Twenty-six sources across twenty-five any-widget and two
+trait-bound slots produce 702 compatibility candidates: 629 accepted and 73
+rejected. NBFC framing and Canvas control/wire remain v1.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and

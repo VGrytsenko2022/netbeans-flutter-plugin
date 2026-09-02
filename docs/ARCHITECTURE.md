@@ -62,7 +62,7 @@ Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith` and the component themes. Canvas model protocol v11 carries
+`TextTheme.copyWith` and the component themes. Canvas model protocol v12 carries
 the same resolved role and component tables and applies that order before
 form-local widget overrides. Theme
 definitions remain independent of every form `.fd` model.
@@ -130,13 +130,14 @@ The 0.1.3 designer foundation follows the accepted contract in
 form maps `lib/<relative>/<name>.dart` to
 `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual
 widget model, while guarded `imports` and `build` regions in the paired Dart
-file own only generated source. Current schema v6 keeps `source.dartFile` as
+file own only generated source. Current schema v7 keeps `source.dartFile` as
 the exact Dart basename, without a path separator; retains v4's closed typed
 nullable `IconData` and v5's structured `AlignmentGeometry`, `BoxConstraints`,
 `Matrix4` and `BoxDecoration`; and adds top-level asset-only
-`ImageProviderValue` plus `BoxDecoration.image`. Schema-v1 through schema-v5
-documents migrate in memory with no decoration image and become canonical v6
-only on an admitted edit. The mirrored relative directory is enforced by the
+`ImageProviderValue` plus `BoxDecoration.image`, and represents positive
+infinity in every BoxConstraints bound as JSON `null`. Schema-v1 through
+schema-v6 documents migrate in memory and become canonical v7 only on an
+admitted edit. The mirrored relative directory is enforced by the
 NetBeans project adapter. The legacy generic `AssetValue` remains relative to
 the Flutter project/pubspec root, never the `.fd` location. The new image
 provider stores only normalized logical app/package asset identity; it stores
@@ -156,20 +157,23 @@ Designer Form` creates both files atomically and accepts targets only in `lib`
 or its subfolders. `flutter-designer` owns the implemented NetBeans-independent
 schema, model, validation, generation, preparation, pair-rename, pair-copy and
 Dart Move-dependency planners, bounded undoable command session and canonical
-Canvas model projection, including migration of schema v1-v5 to v6. The sealed
-`IMAGE_PROVIDER` property-kind change makes contributor Catalog API 5 the exact
-current boundary; API 1 through API 4 contributors fail closed.
+Canvas model projection, including migration of schema v1-v6 to v7. The
+BoxConstraints finite-or-positive-infinity semantic domain makes contributor
+Catalog API 6 the exact current boundary; API 1 through API 5 contributors fail
+closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, nineteen-item context Palette, selected-node
+Canvas/tree selection edge, twenty-six-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 617 catalog-backed fields across
+Properties are writable for exactly 659 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
-`Center`, `Align`, `FractionallySizedBox`, `SizedBox`, `AspectRatio`, `Stack`,
-`Expanded`, `Container`, `Opacity`, `Text`, `Icon` and `Image`. Sixteen of the
-nineteen definitions use reviewed const constructors; the eighteen
-non-`Scaffold` definitions account for 600 rows. AspectRatio adds one required
+`Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
+`UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`,
+`Expanded`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon` and
+`Image`. Twenty-one of the twenty-six definitions use reviewed const
+constructors; the twenty-five non-`Scaffold` definitions account for 642 rows.
+AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
 scalar slice; ElevatedButton contributes 286 typed leaves; AppBar contributes
@@ -277,7 +281,7 @@ second inventory before image bytes can be published, closing the initial
 snapshot/listener race while retaining conservative invalidation for arbitrary
 or extensionless Flutter assets.
 
-Canvas model protocol v11 over NBFC framing v1 negotiates
+Canvas model protocol v12 over NBFC framing v1 negotiates
 `asset.imageBytes.v1` and projects only
 referenced immutable compressed resources after the model descriptor, under
 exact revision, order, byte-count and lowercase raw SHA-256 validation. The
@@ -305,9 +309,99 @@ subsets of `ElevatedButtonTheme`, `AppBarTheme` and `IconTheme` are preserved;
 explicit local values remain local overrides. The bundled Material Icons
 registry contains 8,825 entries locked to Flutter 3.44.8.
 
-The current contract admits nineteen exact capability-gated Palette sources
-across eighteen any-widget and two `PreferredSizeWidget` destination slots:
-380 candidates, of which 328 are accepted and 52 rejected. Same-tree existing-
+ListView contributes 17 optional static-constructor rows and one ordered
+any-widget `children` slot. The closed contract covers axis/reverse/primary,
+six physics presets, shrink-wrap, non-negative padding/item/cache extents, three
+child-delegate flags, bounded semantic count, drag and keyboard behavior,
+restoration, clipping and hit testing. `semanticChildCount` may not exceed the
+static child count; cache extent is generated through
+`ScrollCacheExtent.pixels`. Controller-owned state, builders/delegates,
+`itemExtentBuilder`, `prototypeItem`, deprecated `cacheExtent`, `key` and raw
+Dart remain excluded. Generated Dart, native Canvas and exact-Web projections
+construct a real ListView and preserve vertical/horizontal, reverse and LTR/RTL
+ordering. A shared `LayoutBuilder`/`SizedBox` guard supplies width 240 or height
+120 whenever the viewport cross axis is unbounded, and on an unbounded main axis
+only when `shrinkWrap` is false.
+
+ListView remains the slice that completed the originally agreed core at 8/8;
+Wrap is the first post-core built-in. Its const default constructor contributes
+nine optional typed properties and one ordered any-widget `children` slot.
+Finite signed spacing values preserve Flutter 3.44.8 behavior; the remaining
+axis, alignment, direction and clip values are closed enums. Generated Dart and
+Canvas construct a real Wrap. Empty nodes retain a 36-pixel Designer target,
+and the complete rendered node is the terminal append zone for both empty and
+populated Wraps because run wrapping has no stable linear terminal edge. This
+raised the Layout category to thirteen items at the Wrap milestone.
+
+FittedBox is the second post-core built-in. Its const default constructor adds
+three optional typed properties—`fit`, `alignment` and `clipBehavior`—and one
+optional single any-widget `child`. Omission preserves `BoxFit.contain`,
+`Alignment.center` and `Clip.none`; the closed domains include all seven fits,
+finite physical/directional alignment and all four clip behaviors. Generated
+Dart and Canvas construct a real FittedBox, so scaling, LTR/RTL resolution and
+overflow clipping remain framework-owned. An empty zero-size node receives only
+the 36-pixel Designer selection/drop target. Properties, deterministic
+generation, Palette/tree/Canvas DnD, slot/move commands and focused tests share
+the closed catalog; Palette identity uses reviewed light/dark 16- and 32-pixel
+SVG resources. Those numbers remain the historical FittedBox milestone.
+
+ConstrainedBox is the third post-core built-in. Its pinned non-const constructor
+adds one required typed `constraints` property and one optional single
+any-widget `child`. The BoxConstraints value distinguishes finite and positive-
+infinity bounds on all four edges, covering loose, bounded, lower-bounded,
+tight and expanding axis states. A finite minimum cannot exceed its maximum;
+an infinite minimum requires an infinite maximum. New prototypes use `0..∞` on
+both axes. Generated Dart and Canvas construct a real ConstrainedBox, leaving
+parent/additional-constraint combination and authentic bounded/unbounded
+behavior to Flutter. Empty zero-size nodes retain only the bounded Designer
+  selection/drop target. At that milestone the surface had 23 widgets, 18
+  reviewed const definitions, 647 writable rows (630 outside Scaffold) and 15
+  Layout items.
+
+[`UnconstrainedBox`](https://api.flutter.dev/flutter/widgets/UnconstrainedBox/UnconstrainedBox.html)
+is the fourth post-core built-in, at Layout order 107 immediately after
+ConstrainedBox. Its pinned Flutter 3.44.8 const constructor adds four optional
+typed properties—`textDirection`, `alignment`, `constrainedAxis` and
+`clipBehavior`—and one optional single any-widget `child`. New prototypes store
+no properties. Omission preserves centered alignment, no retained constrained
+axis and `Clip.none`; omitted `textDirection` uses ambient `Directionality` for
+directional alignment. Generated Dart and Canvas construct a real
+UnconstrainedBox, so Flutter removes both incoming axes or retains exactly the
+selected horizontal or vertical axis. Empty zero-size nodes retain only the
+bounded Designer selection/drop target. At that milestone the surface had 24
+widgets, 19 reviewed const definitions, 651 writable rows (634 outside Scaffold)
+and 16 Layout items.
+
+[`LimitedBox`](https://api.flutter.dev/flutter/widgets/LimitedBox/LimitedBox.html)
+is the fifth post-core built-in, at Layout order 108 between UnconstrainedBox and
+Stack. Its pinned Flutter 3.44.8 const constructor adds optional non-negative
+finite `maxWidth` and `maxHeight` properties followed by one optional single
+any-widget `child`. New prototypes store no properties; omission canonically
+preserves the `double.infinity` defaults. Generated Dart and Canvas construct a
+real LimitedBox, so each selected maximum applies only when its incoming axis is
+unbounded. At that milestone the surface had 25 widgets, 20 reviewed const
+definitions, 653 writable rows (636 outside Scaffold) and 17 Layout items. The
+practical Material/Base Designer backlog was 25/92 complete with 67 remaining.
+
+[`OverflowBox`](https://api.flutter.dev/flutter/widgets/OverflowBox/OverflowBox.html)
+is the sixth post-core built-in, at Layout order 109 between LimitedBox and
+Stack. Its pinned Flutter 3.44.8 const constructor adds optional alignment,
+four optional finite non-negative double constraint overrides, exact
+`OverflowBoxFit.max`/`deferToChild`, and one optional single any-widget child.
+New prototypes store no properties. Omitted bounds inherit the corresponding
+parent constraints; omitted alignment and fit preserve `Alignment.center` and
+`OverflowBoxFit.max`. Validation rejects a present minimum above its matching
+maximum and all explicit non-finite overrides. Generated Dart and Canvas
+construct a real OverflowBox, preserving constraint replacement, overflow,
+physical/directional alignment and both fit modes. The current surface has 26
+widgets, 21 reviewed const definitions, 659 writable rows (642 outside
+Scaffold) and 18 Layout items. The practical Material/Base Designer backlog is
+26/92 complete with 66 remaining; no later widget currently has an explicit
+order.
+
+The current contract admits twenty-six exact capability-gated Palette sources
+across twenty-five any-widget and two `PreferredSizeWidget` destination slots:
+702 candidates, of which 629 are accepted and 73 rejected. Same-tree existing-
 widget move/reorder uses the shared compatibility planner. The Slots editor
 exposes atomic occupied-single replacement and single/list clear operations
 with exact revision/child fences and one chronological Undo step. Cross-form
@@ -480,7 +574,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current nineteen-definition
+historical source restriction is superseded by the current twenty-six-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -521,7 +615,7 @@ Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 before stable-ID allocation and fails closed when inventory is unavailable. DnD
-outside the nineteen-source, 380-candidate matrix (328 accepted, 52 rejected)
+outside the twenty-six-source, 702-candidate matrix (629 accepted, 73 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -533,10 +627,11 @@ publishes one exact validated revision, acknowledges its layout, synchronizes
 selection and capability-gates the narrowly typed `runner.paletteDrop` and
 `runner.textEditCommit` intents.
 Protocol negotiation and decoding do not authorize mutation. The canonical
-protocol-v11 model payload admits only exact reviewed built-in definitions with
-the Canvas capability: `Scaffold`, `AppBar`, `Column`, `Row`, `Text`, `Icon`,
-`Padding`, `Center`, `Align`, `SizedBox`, `AspectRatio`, `Container`, `Opacity` and
-`ElevatedButton`.
+protocol-v12 model payload admits only exact reviewed built-in definitions with
+the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
+`Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
+`FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`, `Expanded`,
+`ListView`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
@@ -745,9 +840,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact nineteen widgets carrying
-the Create capability. All nineteen built-ins, including `Scaffold`, admit the
-reviewed 617-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact twenty-six widgets carrying
+the Create capability. All twenty-six built-ins, including `Scaffold`, admit the
+reviewed 659-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then
@@ -892,7 +987,7 @@ AWT-parent/runner/`FLUTTERVIEW` HWNDs, exact surface metrics and rendered/idle
 state remain unchanged, with no Retry.
 
 The Canvas remains a real Flutter surface rather than a transferred raster.
-Canvas model protocol v11 adds only revision-scoped, content-addressed compressed asset
+Canvas model protocol v12 adds only revision-scoped, content-addressed compressed asset
 resources through negotiated `IMAGE_BYTES`; it never transfers screenshots or
 framebuffer pixels. The narrow ADR-025 path is publicly
 enabled after live assembled NetBeans 30 acceptance of drop → Save → Undo →

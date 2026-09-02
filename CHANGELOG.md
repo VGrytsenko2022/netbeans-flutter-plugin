@@ -6,6 +6,86 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted const
+  [`flutter.widgets.OverflowBox`](https://api.flutter.dev/flutter/widgets/OverflowBox/OverflowBox.html)
+  vertical slice is the sixth post-core Palette addition, at Layout order 109
+  between LimitedBox and Stack. Its pinned Flutter 3.44.8 contract exposes
+  optional alignment, four finite non-negative double constraint overrides,
+  `OverflowBoxFit.max`/`deferToChild`, and one optional single any-widget
+  `child`. A new prototype stores no defaults: omitted bounds inherit the
+  corresponding parent constraints, while omitted alignment and fit preserve
+  `Alignment.center` and `OverflowBoxFit.max`. Present minimum/maximum pairs
+  must remain normalized; explicit non-finite overrides are rejected by the
+  bounded Designer contract. Generated Dart and native/exact-Web Canvas
+  construct the real Flutter OverflowBox, including physical/directional
+  alignment and both fit modes. Properties, creation, Palette/tree/Canvas DnD,
+  exact-slot editing, same-tree movement, deterministic generation,
+  Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
+  contract. The catalog now contains 26 widgets, 21 reviewed const constructors
+  and 659 writable rows, including 642 across the 25 non-`Scaffold`
+  definitions. Twenty-six sources across 25 any-widget and two trait-bound
+  destinations form 702 DnD candidates: 629 accepted and 73 rejected. Layout
+  contains 18 items, and the practical 92-widget backlog is 26/92 complete with
+  66 remaining. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+  framing/control/wire v1 remain unchanged.
+- The accepted const
+  [`flutter.widgets.LimitedBox`](https://api.flutter.dev/flutter/widgets/LimitedBox/LimitedBox.html)
+  vertical slice is the fifth post-core Palette addition, at Layout order 108
+  between UnconstrainedBox and Stack. Its pinned Flutter 3.44.8 contract exposes
+  optional finite non-negative `maxWidth` and `maxHeight` Properties plus one optional
+  single any-widget `child`. A new prototype stores no property defaults;
+  omission canonically preserves each `double.infinity` framework default.
+  Generated Dart and native/exact-Web Canvas construct the real Flutter
+  LimitedBox, applying a selected maximum only while the incoming axis is
+  unbounded. Properties, creation, Palette/tree/Canvas DnD, exact-slot editing,
+  same-tree movement, deterministic generation, Save/reopen, Undo/Redo and
+  reviewed light/dark SVG icons share one closed contract. At that milestone
+  the catalog contained 25 widgets, 20 reviewed const constructors and 653 writable rows,
+  including 636 across the 24 non-`Scaffold` definitions. Twenty-five sources
+  across 24 any-widget and two trait-bound destinations form 650 DnD candidates:
+  580 accepted and 70 rejected. Layout contained 17 items, and the practical
+  92-widget backlog was 25/92 complete with 67 remaining. `.fd` schema v7,
+  Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
+- The accepted const
+  [`flutter.widgets.UnconstrainedBox`](https://api.flutter.dev/flutter/widgets/UnconstrainedBox/UnconstrainedBox.html)
+  vertical slice is the fourth post-core Palette addition, at Layout order 107
+  immediately after ConstrainedBox. Its pinned Flutter 3.44.8 contract exposes
+  optional `textDirection`, `alignment`, `constrainedAxis` and `clipBehavior`
+  Properties plus one optional single any-widget `child`. A new prototype stores
+  no property defaults: omission preserves centered alignment, no retained axis
+  and `Clip.none`, while omitted `textDirection` resolves directional alignment
+  through the ambient `Directionality`. Generated Dart and native/exact-Web
+  Canvas construct the real Flutter UnconstrainedBox; an empty zero-size instance
+  keeps only the bounded Designer selection/drop target. Properties, creation,
+  Palette/tree/Canvas DnD, exact-slot editing, same-tree movement, deterministic
+  generation, Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one
+  closed contract. At that milestone the catalog contained 24 widgets, 19 reviewed const
+  constructors and 651 writable rows, including 634 across the 23
+  non-`Scaffold` definitions. Twenty-four sources across 23 any-widget and two
+  trait-bound destinations formed 600 DnD candidates: 533 accepted and 67
+  rejected. Layout contained 16 items, and the practical 92-widget backlog was
+  24/92 complete with 68 remaining. `.fd` schema v7, Catalog API 6, Canvas model
+  v12 and NBFC framing/control/wire v1 remain unchanged.
+- The accepted non-const `flutter.widgets.ConstrainedBox` vertical slice is the
+  third post-core Palette addition. It exposes required typed `constraints` and
+  one optional single any-widget `child`. The shared BoxConstraints model/editor
+  now represents finite, unbounded and expanding axes, rejects negative finite
+  bounds, finite minima above maxima, and an infinite minimum paired with a
+  finite maximum. Generated Dart and native/exact-Web Canvas construct the real
+  Flutter ConstrainedBox; an empty zero-size instance keeps only the bounded
+  Designer selection/drop target. Properties, creation, Palette/tree/Canvas
+  DnD, exact-slot editing, same-tree movement, deterministic generation,
+  Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
+  contract. At that milestone the catalog contained 23 widgets, 18 reviewed const constructors
+  and 647 writable rows, including 630 across the 22 non-`Scaffold`
+  definitions. Twenty-three sources across 22 any-widget and two trait-bound
+  destinations form 552 DnD candidates: 488 accepted and 64 rejected. Layout
+  contained 15 items, and the practical 92-widget backlog was 23/92 complete with
+  69 remaining. Nullable infinity in all four canonical constraint bounds
+  advances `.fd` to schema v7, the exported semantic domain advances Catalog
+  API to 6, and the Canvas model advances to v12; NBFC framing and Canvas
+  control/wire remain v1.
 - Typed `IconData` values now show the exact Material glyph beside their
   readable `Icons.*` name in both the NetBeans Properties value cell and every
   row of the searchable chooser. One shared UI renderer loads the pinned
@@ -14,6 +94,70 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Canvas artifact manifest, and never falls back to a platform icon font.
   Missing, linked, changed or mismatched font content produces a neutral vector
   placeholder while the searchable text and accessibility labels remain usable.
+- The accepted const `flutter.widgets.FittedBox` vertical slice is the second
+  post-core Palette addition. It exposes optional `fit`, `alignment` and
+  `clipBehavior` Properties plus one optional single any-widget `child`, with
+  omission preserving Flutter's `BoxFit.contain`, `Alignment.center` and
+  `Clip.none` defaults. The closed fit domain contains all seven `BoxFit`
+  values; alignment admits finite physical and directional coordinates; and
+  clipping uses all four reviewed `Clip` values. Generated Dart and native/
+  exact-Web Canvas construct the real Flutter FittedBox, preserving framework
+  scaling, LTR/RTL directional alignment and overflow clipping. An empty
+  zero-size instance receives only the 36-pixel Designer selection/drop target.
+  Standard Properties, Palette/tree/Canvas DnD, exact-slot editing, same-tree
+  movement, Save/reopen and Undo/Redo share the same catalog contract, and four
+  reviewed SVG resources cover light/dark 16- and 32-pixel Palette icons. The
+  catalog at that milestone contained 22 widgets, 18 reviewed const constructors and 646
+  writable rows, including 629 across the 21 non-`Scaffold` definitions.
+  Twenty-two sources across 21 any-widget and two trait-bound destinations form
+  506 DnD candidates: 445 accepted and 61 rejected. The Layout category contains
+  14 items. The practical 92-widget Material/Base backlog was 22/92 complete,
+  with 70 remaining; `ConstrainedBox` was the next complete slice. Existing
+  schema, Catalog API, Canvas model and framing/control versions remain
+  unchanged.
+- The accepted const `flutter.widgets.Wrap` vertical slice is the first
+  post-core Palette addition. It exposes all nine non-`key` constructor
+  arguments (`direction`, `alignment`, `spacing`, `runAlignment`, `runSpacing`,
+  `crossAxisAlignment`, `textDirection`, `verticalDirection` and
+  `clipBehavior`) plus one ordered any-widget `children` slot. Spacing values
+  are finite and may be negative, matching pinned Flutter 3.44.8. Generated
+  Dart and native/exact-Web Canvas build the real Flutter `Wrap`; horizontal or
+  vertical runs, alignment, directionality and clipping remain framework-owned.
+  Empty Wrap instances retain a 36-pixel Designer selection target, and both
+  empty and populated instances expose their full rendered rectangle as the
+  deterministic terminal append zone because a wrapped run has no single
+  stable terminal edge. At the Wrap milestone the catalog contained 21 widgets, 17 reviewed
+  const constructors and 643 writable rows, including 626 across the 20
+  non-`Scaffold` definitions. Twenty-one sources across 20 any-widget and two
+  trait-bound destinations form 462 DnD candidates: 404 accepted and 58
+  rejected, and the Layout category contained 13 items. The practical
+  Material/Base Designer backlog targets 92 widgets;
+  71 remain after Wrap. This is a planning target, not a normative complete
+  list of Flutter widgets; `FittedBox` was the next planned slice. Existing
+  schema, Catalog API, Canvas model and framing/control versions remain
+  unchanged.
+- The accepted non-const `flutter.widgets.ListView` vertical slice completes the
+  originally agreed eight-item core Palette, with Button represented by
+  `ElevatedButton`; that agreed scope is now 8/8 and does not claim support for
+  every Flutter widget. The static `ListView(children: ...)` definition exposes
+  17 optional constructor-intent rows and one ordered any-widget `children`
+  slot. It admits closed axis, physics, drag, keyboard-dismiss, clip and hit-test
+  presets; non-negative padding/item/cache extents; child-delegate flags;
+  bounded restoration metadata; and `semanticChildCount` no greater than the
+  current static child count. Numeric cache extent generates
+  `ScrollCacheExtent.pixels`; controller-owned state, builders/delegates,
+  `itemExtentBuilder`, `prototypeItem`, deprecated `cacheExtent`, `key` and raw
+  Dart remain excluded. Generated Dart, native Canvas and exact-Web Canvas build
+  a real ListView and preserve horizontal/vertical, reverse and LTR/RTL
+  insertion geometry. Their shared constraint guard supplies width 240 or
+  height 120 for an unbounded viewport cross axis, and for an unbounded main
+  axis only when `shrinkWrap` is false. At that core-completion milestone the
+  catalog contained 20 widgets, 16 const-constructor
+  definitions and 634 writable rows, including 617 across the 19
+  non-`Scaffold` definitions. Twenty sources across 19 any-widget and two
+  trait-bound destinations form 420 DnD candidates: 365 accepted and 55
+  rejected. `.fd` schema v6, Catalog API 5, Canvas model v11 and version-1
+  framing/control contracts remain unchanged.
 - The accepted Material `flutter.material.TextField` vertical slice is a const,
   leaf Palette definition named **Text Field** with 54 optional named constructor
   leaves and no creation dialog or stored creation defaults. Properties group the
@@ -26,10 +170,11 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   pairs/quartets. Generated Dart and the real non-interactive Canvas TextField use
   a `LayoutBuilder`/`SizedBox` constraint guard: unbounded width receives 240
   logical pixels, while `expands: true` under unbounded height receives 120.
-  The current catalog contains 19 widgets, 16 const-constructor definitions and
-  617 writable rows, including 600 across the 18 non-`Scaffold` definitions.
-  Nineteen sources across 18 any-widget and two trait-bound destinations form
-  380 DnD candidates: 328 accepted and 52 rejected. `.fd` schema v6, Catalog API
+  At the TextField milestone the catalog contained 19 widgets, 16
+  const-constructor definitions and 617 writable rows, including 600 across the
+  18 non-`Scaffold` definitions. Nineteen sources across 18 any-widget and two
+  trait-bound destinations formed 380 DnD candidates: 328 accepted and 52
+  rejected. `.fd` schema v6, Catalog API
   5, Canvas model v11 and version-1 framing/control contracts remain unchanged.
 - The accepted const `flutter.widgets.Image` leaf exposes its required typed
   asset-only `ImageProvider` plus 21 reviewed callback, accessibility, sizing,
@@ -345,6 +490,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Fixed
 
+- Property-only Designer revisions now refresh the existing selected Explorer
+  `Node` and its stable `Node.Property` instances in place. The standard
+  NetBeans PropertySheet therefore retains its active editor, selected row,
+  keyboard focus, scroll position and tab instead of reloading every property
+  set for the intermediate `APPLYING` and confirmed `READY` snapshots. Exact
+  named repaint events make each cell read the atomically swapped immutable
+  values and revision-bound mutation handlers; real widget-tree topology or
+  catalog-schema changes still use a complete Explorer rebuild.
+- Catalog-backed boolean Properties now render and edit explicit `true`/`false`
+  values as native checkboxes across every supported widget instead of exposing
+  the editor tags as a combo box. Optional constructor arguments retain the
+  distinct `<not set>` state and return to it through **Restore Default**;
+  unchecked therefore remains the explicit Flutter value `false`.
 - Native Windows Canvas activation now joins the Java caller to both the exact
   AWT parent input queue and the verified `FLUTTERVIEW` queue before `SetFocus`,
   then detaches them in reverse order and revalidates HWND, PID, thread and

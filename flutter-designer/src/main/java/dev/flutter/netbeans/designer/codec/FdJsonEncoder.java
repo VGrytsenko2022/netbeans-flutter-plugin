@@ -474,10 +474,14 @@ final class FdJsonEncoder {
         } else if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
             writeAlignmentFields(alignment, pointer, context);
         } else if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
-            writeDartDoubleField("minWidth", constraints.minWidth(), pointer, context);
-            writeOptionalDartDoubleField("maxWidth", constraints.maxWidth(), pointer, context);
-            writeDartDoubleField("minHeight", constraints.minHeight(), pointer, context);
-            writeOptionalDartDoubleField("maxHeight", constraints.maxHeight(), pointer, context);
+            writeOptionalDartDoubleField(
+                    "minWidth", constraints.minWidth().finiteValue(), pointer, context);
+            writeOptionalDartDoubleField(
+                    "maxWidth", constraints.maxWidth().finiteValue(), pointer, context);
+            writeOptionalDartDoubleField(
+                    "minHeight", constraints.minHeight().finiteValue(), pointer, context);
+            writeOptionalDartDoubleField(
+                    "maxHeight", constraints.maxHeight().finiteValue(), pointer, context);
         } else if (value instanceof PropertyValue.Matrix4Value matrix) {
             context.fieldName("storage", pointer + "/storage");
             context.startArray(pointer + "/storage");

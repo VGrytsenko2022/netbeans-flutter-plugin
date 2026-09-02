@@ -122,6 +122,91 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsFittedBoxWithoutMaterializingDefaultsAndWithEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.FittedBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.FittedBox"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
+    void createsConstrainedBoxWithNeutralRequiredConstraintsAndEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.ConstrainedBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.ConstrainedBox"),
+                prototype.type());
+        assertEquals(List.of(new PropertyName("constraints")),
+                prototype.properties().keySet().stream().toList());
+        PropertyValue.BoxConstraintsValue constraints = assertInstanceOf(
+                PropertyValue.BoxConstraintsValue.class,
+                prototype.properties().get(new PropertyName("constraints")));
+        assertEquals(0, constraints.minWidth().finiteValue().orElseThrow()
+                .compareTo(BigDecimal.ZERO));
+        assertTrue(constraints.maxWidth().infinite());
+        assertEquals(0, constraints.minHeight().finiteValue().orElseThrow()
+                .compareTo(BigDecimal.ZERO));
+        assertTrue(constraints.maxHeight().infinite());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
+    void createsUnconstrainedBoxWithoutMaterializingDefaultsAndWithEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.UnconstrainedBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.UnconstrainedBox"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
+    void createsLimitedBoxWithoutMaterializingInfinityDefaultsAndWithEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.LimitedBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.LimitedBox"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
+    void createsOverflowBoxWithoutMaterializingFrameworkDefaultsAndWithEmptyChild() {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.OverflowBox"), ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.OverflowBox"),
+                prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+    }
+
+    @Test
     void createsStackWithoutMaterializingDefaultsAndWithEmptyChildrenList() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Stack"), ID);

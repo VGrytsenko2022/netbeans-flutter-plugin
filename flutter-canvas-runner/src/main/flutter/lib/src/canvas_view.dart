@@ -4,6 +4,7 @@ import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit, ScrollCacheExtent;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
@@ -516,8 +517,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
+        node.type == 'flutter.widgets.ConstrainedBox' ||
+        node.type == 'flutter.widgets.UnconstrainedBox' ||
+        node.type == 'flutter.widgets.LimitedBox' ||
+        node.type == 'flutter.widgets.OverflowBox' ||
+        node.type == 'flutter.widgets.FittedBox' ||
         node.type == 'flutter.widgets.Expanded' ||
         node.type == 'flutter.widgets.Stack' ||
+        node.type == 'flutter.widgets.Wrap' ||
+        node.type == 'flutter.widgets.ListView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
@@ -932,7 +940,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     int insertionIndex,
     String slotName,
   ) {
-    if (parentNode.type == 'flutter.widgets.Stack' && slotName == 'children') {
+    if ((parentNode.type == 'flutter.widgets.Stack' ||
+            parentNode.type == 'flutter.widgets.Wrap') &&
+        slotName == 'children') {
       return parentRect;
     }
     if (children.isEmpty) {
@@ -940,8 +950,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     }
     final horizontal =
         parentNode.type == 'flutter.widgets.Row' ||
-        parentNode.type == 'flutter.material.AppBar';
-    final reverse = horizontal
+        parentNode.type == 'flutter.material.AppBar' ||
+        _isHorizontalListView(parentNode);
+    final reverse = parentNode.type == 'flutter.widgets.ListView'
+        ? _isVisuallyReversedListView(parentNode)
+        : horizontal
         ? _resolvedTextDirection(parentNode) == TextDirection.rtl
         : _enumValue(parentNode, 'verticalDirection') == 'up';
     final referenceIndex = insertionIndex < children.length
@@ -1182,7 +1195,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (children.isEmpty) {
       // With no siblings there is only one legal ordering result: index 0.
       // Expose the complete visible container instead of making users find a
-      // synthetic terminal edge on an otherwise blank Row or Column.
+      // synthetic terminal edge on an otherwise blank linear container.
       if (node.type == 'flutter.material.AppBar' && slotName == 'actions') {
         final width = math.min(parent.width, math.max(72.0, parent.width / 3));
         return _resolvedTextDirection(node) == TextDirection.rtl
@@ -1206,8 +1219,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       return Rect.zero;
     }
     final lastRect = _globalRect(last);
-    if (node.type == 'flutter.widgets.Column') {
-      final upward = _enumValue(node, 'verticalDirection') == 'up';
+    if (node.type == 'flutter.widgets.Column' ||
+        (node.type == 'flutter.widgets.ListView' &&
+            !_isHorizontalListView(node))) {
+      final upward = node.type == 'flutter.widgets.ListView'
+          ? _booleanValue(node, 'reverse') == true
+          : _enumValue(node, 'verticalDirection') == 'up';
       final band = _minimumTerminalBand.clamp(1.0, parent.height);
       return upward
           ? Rect.fromLTRB(
@@ -1223,7 +1240,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               parent.bottom,
             );
     }
-    final rightToLeft = _resolvedTextDirection(node) == TextDirection.rtl;
+    final rightToLeft = node.type == 'flutter.widgets.ListView'
+        ? _isVisuallyReversedListView(node)
+        : _resolvedTextDirection(node) == TextDirection.rtl;
     final band = _minimumTerminalBand.clamp(1.0, parent.width);
     return rightToLeft
         ? Rect.fromLTRB(
@@ -1252,6 +1271,19 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     return context == null
         ? TextDirection.ltr
         : Directionality.maybeOf(context) ?? TextDirection.ltr;
+  }
+
+  static bool _isHorizontalListView(CanvasNode node) =>
+      node.type == 'flutter.widgets.ListView' &&
+      _enumValue(node, 'scrollDirection') == 'horizontal';
+
+  bool _isVisuallyReversedListView(CanvasNode node) {
+    final reversed = _booleanValue(node, 'reverse') == true;
+    if (!_isHorizontalListView(node)) {
+      return reversed;
+    }
+    final rightToLeft = _resolvedTextDirection(node) == TextDirection.rtl;
+    return rightToLeft != reversed;
   }
 
   Rect _appBarToolbarZone(CanvasNode node, Rect parent) {
@@ -1343,6 +1375,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static String? _enumValue(CanvasNode node, String propertyName) {
     final value = node.properties[propertyName]?.value;
     return value is CanvasEnumValue ? value.value : null;
+  }
+
+  static bool? _booleanValue(CanvasNode node, String propertyName) {
+    final property = node.properties[propertyName];
+    return property?.kind == 'boolean' ? property!.value as bool : null;
   }
 
   static double? _numberValue(CanvasNode node, String propertyName) {
@@ -1809,13 +1846,20 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
+      'flutter.widgets.Wrap' => _wrap(),
+      'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
       'flutter.widgets.Center' => _center(),
+      'flutter.widgets.ConstrainedBox' => _constrainedBox(),
+      'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
+      'flutter.widgets.LimitedBox' => _limitedBox(),
+      'flutter.widgets.OverflowBox' => _overflowBox(),
       'flutter.widgets.Container' => _container(context),
+      'flutter.widgets.FittedBox' => _fittedBox(),
       'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
       'flutter.widgets.Opacity' => _opacity(),
       'flutter.widgets.SizedBox' => _sizedBox(),
@@ -2706,7 +2750,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   static bool _isEmptyLinearContainer(CanvasNode node) =>
       (node.type == 'flutter.widgets.Row' ||
-          node.type == 'flutter.widgets.Column') &&
+          node.type == 'flutter.widgets.Column' ||
+          node.type == 'flutter.widgets.Wrap' ||
+          node.type == 'flutter.widgets.ListView') &&
       (node.slot('children')?.children.isEmpty ?? false);
 
   Widget _row() => Row(
@@ -2719,6 +2765,101 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     spacing: _number('spacing') ?? 0.0,
     children: _children('children'),
   );
+
+  Widget _wrap() => Wrap(
+    direction: _enum('direction') == 'vertical'
+        ? Axis.vertical
+        : Axis.horizontal,
+    alignment: _wrapAlignment('alignment'),
+    spacing: _number('spacing') ?? 0.0,
+    runAlignment: _wrapAlignment('runAlignment'),
+    runSpacing: _number('runSpacing') ?? 0.0,
+    crossAxisAlignment: _wrapCrossAxisAlignment(),
+    textDirection: _textDirection(),
+    verticalDirection: _verticalDirection(),
+    clipBehavior: _clipBehavior() ?? Clip.none,
+    children: _children('children'),
+  );
+
+  Widget _listView() {
+    final scrollDirection = _enum('scrollDirection') == 'horizontal'
+        ? Axis.horizontal
+        : Axis.vertical;
+    final shrinkWrap = _boolean('shrinkWrap') ?? false;
+
+    Widget buildListView() => ListView(
+      scrollDirection: scrollDirection,
+      reverse: _boolean('reverse') ?? false,
+      primary: _boolean('primary'),
+      physics: _listViewPhysics(),
+      shrinkWrap: shrinkWrap,
+      padding: _edgeInsetsGeometry('padding'),
+      itemExtent: _number('itemExtent'),
+      addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+      addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+      addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+      scrollCacheExtent: _listViewScrollCacheExtent(),
+      semanticChildCount: _integer('semanticChildCount'),
+      dragStartBehavior: _dragStartBehavior(),
+      keyboardDismissBehavior: _listViewKeyboardDismissBehavior(),
+      restorationId: _string('restorationId'),
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      hitTestBehavior: _listViewHitTestBehavior(),
+      children: _children('children'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fallbackWidth =
+            !constraints.hasBoundedWidth &&
+                (scrollDirection == Axis.vertical || !shrinkWrap)
+            ? 240.0
+            : null;
+        final fallbackHeight =
+            !constraints.hasBoundedHeight &&
+                (scrollDirection == Axis.horizontal || !shrinkWrap)
+            ? 120.0
+            : null;
+        if (fallbackWidth != null || fallbackHeight != null) {
+          return SizedBox(
+            width: fallbackWidth,
+            height: fallbackHeight,
+            child: buildListView(),
+          );
+        }
+        return buildListView();
+      },
+    );
+  }
+
+  ScrollPhysics? _listViewPhysics() => switch (_string('physics')) {
+    'alwaysScrollable' => const AlwaysScrollableScrollPhysics(),
+    'bouncing' => const BouncingScrollPhysics(),
+    'clamping' => const ClampingScrollPhysics(),
+    'neverScrollable' => const NeverScrollableScrollPhysics(),
+    'page' => const PageScrollPhysics(),
+    'rangeMaintaining' => const RangeMaintainingScrollPhysics(),
+    _ => null,
+  };
+
+  ScrollCacheExtent? _listViewScrollCacheExtent() {
+    final pixels = _number('scrollCacheExtent');
+    return pixels == null ? null : ScrollCacheExtent.pixels(pixels);
+  }
+
+  ScrollViewKeyboardDismissBehavior? _listViewKeyboardDismissBehavior() =>
+      switch (_enum('keyboardDismissBehavior')) {
+        'manual' => ScrollViewKeyboardDismissBehavior.manual,
+        'onDrag' => ScrollViewKeyboardDismissBehavior.onDrag,
+        _ => null,
+      };
+
+  HitTestBehavior _listViewHitTestBehavior() =>
+      switch (_enum('hitTestBehavior')) {
+        'deferToChild' => HitTestBehavior.deferToChild,
+        'translucent' => HitTestBehavior.translucent,
+        _ => HitTestBehavior.opaque,
+      };
 
   Widget _stack() => Stack(
     alignment: _alignmentGeometry('alignment') ?? AlignmentDirectional.topStart,
@@ -2770,9 +2911,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       return null;
     }
     return BoxConstraints(
-      minWidth: value.minWidth,
+      minWidth: value.minWidth ?? double.infinity,
       maxWidth: value.maxWidth ?? double.infinity,
-      minHeight: value.minHeight,
+      minHeight: value.minHeight ?? double.infinity,
       maxHeight: value.maxHeight ?? double.infinity,
     );
   }
@@ -3266,6 +3407,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
+  Widget _fittedBox() => FittedBox(
+    fit: _boxFit(_enum('fit') ?? 'contain'),
+    alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+    clipBehavior: _clipBehavior() ?? Clip.none,
+    child: _single('child'),
+  );
+
   Widget _opacity() => Opacity(
     opacity: _number('opacity')!,
     alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
@@ -3275,6 +3423,42 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _center() => Center(
     widthFactor: _number('widthFactor'),
     heightFactor: _number('heightFactor'),
+    child: _single('child'),
+  );
+
+  Widget _constrainedBox() => ConstrainedBox(
+    constraints: _boxConstraints('constraints')!,
+    child: _single('child'),
+  );
+
+  Widget _unconstrainedBox() => UnconstrainedBox(
+    textDirection: _textDirection(),
+    alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+    constrainedAxis: switch (_enum('constrainedAxis')) {
+      'horizontal' => Axis.horizontal,
+      'vertical' => Axis.vertical,
+      _ => null,
+    },
+    clipBehavior: _clipBehavior() ?? Clip.none,
+    child: _single('child'),
+  );
+
+  Widget _limitedBox() => LimitedBox(
+    maxWidth: _number('maxWidth') ?? double.infinity,
+    maxHeight: _number('maxHeight') ?? double.infinity,
+    child: _single('child'),
+  );
+
+  Widget _overflowBox() => OverflowBox(
+    alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+    minWidth: _number('minWidth'),
+    maxWidth: _number('maxWidth'),
+    minHeight: _number('minHeight'),
+    maxHeight: _number('maxHeight'),
+    fit: switch (_enum('fit')) {
+      'deferToChild' => OverflowBoxFit.deferToChild,
+      _ => OverflowBoxFit.max,
+    },
     child: _single('child'),
   );
 
@@ -3964,6 +4148,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         'stretch' => CrossAxisAlignment.stretch,
         'baseline' => CrossAxisAlignment.baseline,
         _ => CrossAxisAlignment.center,
+      };
+
+  WrapAlignment _wrapAlignment(String name) => switch (_enum(name)) {
+    'end' => WrapAlignment.end,
+    'center' => WrapAlignment.center,
+    'spaceBetween' => WrapAlignment.spaceBetween,
+    'spaceAround' => WrapAlignment.spaceAround,
+    'spaceEvenly' => WrapAlignment.spaceEvenly,
+    _ => WrapAlignment.start,
+  };
+
+  WrapCrossAlignment _wrapCrossAxisAlignment() =>
+      switch (_enum('crossAxisAlignment')) {
+        'end' => WrapCrossAlignment.end,
+        'center' => WrapCrossAlignment.center,
+        _ => WrapCrossAlignment.start,
       };
 
   TextDirection? _textDirection() => switch (_enum('textDirection')) {

@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
+import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -57,6 +58,7 @@ public final class DartRegionGenerator {
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
+    private static final String RENDERING_IMPORT = "package:flutter/rendering.dart";
     private static final String DART_UI_IMPORT = "dart:ui";
     private static final int INLINE_CONSTRUCTOR_LIMIT = 100;
     private static final Comparator<ConstructorArgument> ARGUMENT_ORDER = Comparator
@@ -227,6 +229,7 @@ public final class DartRegionGenerator {
         boolean requiresMaterialTheme = false;
         boolean requiresServices = false;
         boolean requiresGestures = false;
+        boolean requiresRendering = false;
         boolean requiresDartUi = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
@@ -256,6 +259,12 @@ public final class DartRegionGenerator {
                     current.node(), definition, SERVICES_IMPORT);
             requiresGestures |= usesEnumLibrary(
                     current.node(), definition, GESTURES_IMPORT);
+            requiresRendering |= usesEnumLibrary(
+                    current.node(), definition, RENDERING_IMPORT);
+            requiresRendering |= current.node().type().equals(
+                    ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
+                    && current.node().properties().containsKey(
+                            new PropertyName("scrollCacheExtent"));
             requiresDartUi |= usesEnumLibrary(
                     current.node(), definition, DART_UI_IMPORT);
 
@@ -280,7 +289,7 @@ public final class DartRegionGenerator {
 
         ImportPlanner planner = ImportPlanner.create(
                 usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
-                requiresServices, requiresGestures, requiresDartUi);
+                requiresServices, requiresGestures, requiresRendering, requiresDartUi);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
     }
 
@@ -313,7 +322,10 @@ public final class DartRegionGenerator {
                     + "' disappeared from the generation catalog.")));
         boolean textField = node.type().equals(
                 TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE);
-        int constructorBaseIndent = textField ? baseIndent + 4 : baseIndent;
+        boolean listView = node.type().equals(
+                ListViewWidgetPropertySchema.LIST_VIEW_TYPE);
+        int constructorBaseIndent = textField || listView
+                ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
@@ -339,6 +351,10 @@ public final class DartRegionGenerator {
             }
             if (node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)
                     && TextFieldWidgetPropertySchema.isSynthesized(property.name())) {
+                continue;
+            }
+            if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
+                    && ListViewWidgetPropertySchema.isSynthesized(property.name())) {
                 continue;
             }
             PropertyValue value = node.properties().get(property.name());
@@ -391,6 +407,10 @@ public final class DartRegionGenerator {
             appendTextFieldSynthesizedArguments(
                     node, definition, path, context, arguments);
         }
+        if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)) {
+            appendListViewSynthesizedArguments(
+                    node, definition, path, context, arguments);
+        }
         arguments.sort(ARGUMENT_ORDER);
 
         boolean constant = definition.constConstructor()
@@ -416,10 +436,8 @@ public final class DartRegionGenerator {
                     node.id(),
                     context,
                     List.of(classOccurrence));
-            return textField
-                    ? wrapTextFieldConstraintGuard(
-                            node, path, baseIndent, context, rendered)
-                    : rendered;
+            return wrapConstraintGuardIfNeeded(
+                    node, path, baseIndent, context, rendered);
         }
 
         if (arguments.stream().noneMatch(ConstructorArgument::slot)
@@ -452,10 +470,8 @@ public final class DartRegionGenerator {
                         node.id(),
                         context,
                         inlineOccurrences);
-                return textField
-                        ? wrapTextFieldConstraintGuard(
-                                node, path, baseIndent, context, rendered)
-                        : rendered;
+                return wrapConstraintGuardIfNeeded(
+                        node, path, baseIndent, context, rendered);
             }
         }
 
@@ -479,10 +495,25 @@ public final class DartRegionGenerator {
         }
         lines.add(spaces(constructorBaseIndent) + ')');
         RenderedValue rendered = lines.build(constant);
-        return textField
-                ? wrapTextFieldConstraintGuard(
-                        node, path, baseIndent, context, rendered)
-                : rendered;
+        return wrapConstraintGuardIfNeeded(
+                node, path, baseIndent, context, rendered);
+    }
+
+    private RenderedValue wrapConstraintGuardIfNeeded(
+            WidgetNode node,
+            String path,
+            int baseIndent,
+            GenerationContext context,
+            RenderedValue rendered) {
+        if (node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)) {
+            return wrapTextFieldConstraintGuard(
+                    node, path, baseIndent, context, rendered);
+        }
+        if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)) {
+            return wrapListViewConstraintGuard(
+                    node, path, baseIndent, context, rendered);
+        }
+        return rendered;
     }
 
     /**
@@ -533,6 +564,73 @@ public final class DartRegionGenerator {
         lines.addBlock(
                 childPrefix + field.joined() + ',',
                 field.symbolOccurrences(),
+                childPrefix.length());
+        lines.add(spaces(baseIndent + 2) + "),");
+        lines.add(spaces(baseIndent) + ')');
+        return lines.build(false);
+    }
+
+    /**
+     * Keeps the modeled ListView valid under arbitrary flex ancestors. The
+     * viewport always needs a bounded cross axis; a non-shrink-wrapped list
+     * additionally needs a bounded main axis.
+     */
+    private RenderedValue wrapListViewConstraintGuard(
+            WidgetNode node,
+            String path,
+            int baseIndent,
+            GenerationContext context,
+            RenderedValue listView) {
+        RenderedSymbol layoutBuilder = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "LayoutBuilder");
+        RenderedSymbol sizedBox = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "SizedBox");
+        boolean horizontal = node.properties().get(
+                new PropertyName("scrollDirection"))
+                instanceof PropertyValue.EnumValue direction
+                && "horizontal".equals(direction.value());
+        boolean shrinkWrap = node.properties().get(
+                new PropertyName("shrinkWrap"))
+                instanceof PropertyValue.BooleanValue value
+                && value.value();
+        boolean guardWidth = !horizontal || !shrinkWrap;
+        boolean guardHeight = horizontal || !shrinkWrap;
+
+        LineAccumulator lines = new LineAccumulator(
+                context.maxRenderedUtf8Bytes(), path, node.id());
+        lines.add(
+                layoutBuilder.text() + '(',
+                List.of(occurrence(
+                        "widget:" + node.id() + ":list-view-guard:layout-builder",
+                        layoutBuilder.nameOffset(),
+                        layoutBuilder.name(),
+                        layoutBuilder.libraryUri(),
+                        path,
+                        Optional.of(node.id()))));
+        String builderPrefix = spaces(baseIndent + 2)
+                + "builder: (_, constraints) => ";
+        lines.add(
+                builderPrefix + sizedBox.text() + '(',
+                List.of(occurrence(
+                        "widget:" + node.id() + ":list-view-guard:sized-box",
+                        builderPrefix.length() + sizedBox.nameOffset(),
+                        sizedBox.name(),
+                        sizedBox.libraryUri(),
+                        path,
+                        Optional.of(node.id()))));
+        int argumentIndent = baseIndent + 4;
+        if (guardWidth) {
+            lines.add(spaces(argumentIndent)
+                    + "width: constraints.hasBoundedWidth ? null : 240,");
+        }
+        if (guardHeight) {
+            lines.add(spaces(argumentIndent)
+                    + "height: constraints.hasBoundedHeight ? null : 120,");
+        }
+        String childPrefix = spaces(argumentIndent) + "child: ";
+        lines.addBlock(
+                childPrefix + listView.joined() + ',',
+                listView.symbolOccurrences(),
                 childPrefix.length());
         lines.add(spaces(baseIndent + 2) + "),");
         lines.add(spaces(baseIndent) + ')');
@@ -3590,19 +3688,23 @@ public final class DartRegionGenerator {
             GenerationContext context) {
         ArrayList<CompositeMember> members = new ArrayList<>();
         members.add(new CompositeMember("minWidth", 0,
-                scalar(dartDouble(value.minWidth()), true, path + "/minWidth",
+                scalar(dartBoxConstraintBound(value.minWidth()), true, path + "/minWidth",
                         widgetId, context)));
-        value.maxWidth().ifPresent(maximum -> members.add(new CompositeMember(
-                "maxWidth", 1,
-                scalar(dartDouble(maximum), true, path + "/maxWidth",
-                        widgetId, context))));
+        if (!value.maxWidth().infinite()) {
+            members.add(new CompositeMember(
+                    "maxWidth", 1,
+                    scalar(dartBoxConstraintBound(value.maxWidth()), true,
+                            path + "/maxWidth", widgetId, context)));
+        }
         members.add(new CompositeMember("minHeight", 2,
-                scalar(dartDouble(value.minHeight()), true, path + "/minHeight",
+                scalar(dartBoxConstraintBound(value.minHeight()), true, path + "/minHeight",
                         widgetId, context)));
-        value.maxHeight().ifPresent(maximum -> members.add(new CompositeMember(
-                "maxHeight", 3,
-                scalar(dartDouble(maximum), true, path + "/maxHeight",
-                        widgetId, context))));
+        if (!value.maxHeight().infinite()) {
+            members.add(new CompositeMember(
+                    "maxHeight", 3,
+                    scalar(dartBoxConstraintBound(value.maxHeight()), true,
+                            path + "/maxHeight", widgetId, context)));
+        }
         return renderNamedCompositeMembers(
                 "BoxConstraints", Optional.empty(), members, valueIndent,
                 path, widgetId, context);
@@ -3673,6 +3775,12 @@ public final class DartRegionGenerator {
         return renderNamedCompositeMembers(
                 "BoxDecoration", Optional.empty(), members, valueIndent,
                 path, widgetId, context);
+    }
+
+    private static String dartBoxConstraintBound(
+            PropertyValue.BoxConstraintBound bound) {
+        return bound.finiteValue().map(DartRegionGenerator::dartDouble)
+                .orElse("double.infinity");
     }
 
     private RenderedValue renderImageProvider(
@@ -4883,6 +4991,112 @@ public final class DartRegionGenerator {
                 ? flag.value() : null;
     }
 
+    private void appendListViewSynthesizedArguments(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        appendListViewPhysics(node, definition, path, context, arguments);
+        appendListViewScrollCacheExtent(
+                node, definition, path, context, arguments);
+    }
+
+    private void appendListViewPhysics(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition
+                .property(new PropertyName("physics")).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return;
+        }
+        String propertyPath = path + "/properties/physics";
+        if (!(value instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "ListView physics must be a validated string preset.");
+        }
+        String dartClass = switch (preset.value()) {
+            case "alwaysScrollable" -> "AlwaysScrollableScrollPhysics";
+            case "bouncing" -> "BouncingScrollPhysics";
+            case "clamping" -> "ClampingScrollPhysics";
+            case "neverScrollable" -> "NeverScrollableScrollPhysics";
+            case "page" -> "PageScrollPhysics";
+            case "rangeMaintaining" -> "RangeMaintainingScrollPhysics";
+            default -> throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "Unsupported validated ListView physics preset '"
+                    + preset.value() + "'.");
+        };
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, dartClass);
+        String rendered = "const " + symbol.text() + "()";
+        arguments.add(new ConstructorArgument(
+                property.parameter(),
+                "physics",
+                false,
+                scalar(
+                        rendered,
+                        true,
+                        propertyPath,
+                        node.id(),
+                        context,
+                        List.of(occurrence(
+                                "widget:" + node.id() + ":list-view-physics",
+                                "const ".length() + symbol.nameOffset(),
+                                symbol.name(),
+                                symbol.libraryUri(),
+                                propertyPath,
+                                Optional.of(node.id()))))));
+    }
+
+    private void appendListViewScrollCacheExtent(
+            WidgetNode node,
+            WidgetDefinition definition,
+            String path,
+            GenerationContext context,
+            List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition
+                .property(new PropertyName("scrollCacheExtent")).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            return;
+        }
+        String propertyPath = path + "/properties/scrollCacheExtent";
+        if (!(value instanceof PropertyValue.IntegerValue)
+                && !(value instanceof PropertyValue.DoubleValue)) {
+            throw catalogInconsistency(
+                    propertyPath, node.id(),
+                    "ListView scrollCacheExtent must be a validated numeric value.");
+        }
+        RenderedValue amount = renderProperty(
+                value, property, propertyPath, node.id(), context);
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                RENDERING_IMPORT, "ScrollCacheExtent");
+        String prefix = "const " + symbol.text() + ".pixels(";
+        String rendered = prefix + amount.joined() + ')';
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + node.id() + ":list-view-scroll-cache-extent",
+                "const ".length() + symbol.nameOffset(),
+                symbol.name(),
+                symbol.libraryUri(),
+                propertyPath,
+                Optional.of(node.id())));
+        shiftInto(occurrences, amount.symbolOccurrences(), prefix.length());
+        arguments.add(new ConstructorArgument(
+                property.parameter(),
+                "scrollCacheExtent",
+                false,
+                scalar(
+                        rendered, true, propertyPath, node.id(), context,
+                        occurrences)));
+    }
+
     private RenderedValue renderProperty(
             PropertyValue value,
             PropertyDefinition definition,
@@ -5671,6 +5885,7 @@ public final class DartRegionGenerator {
                 boolean requiresMaterialTheme,
                 boolean requiresServices,
                 boolean requiresGestures,
+                boolean requiresRendering,
                 boolean requiresDartUi) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
@@ -5683,6 +5898,9 @@ public final class DartRegionGenerator {
                         continue;
                     }
                     if (uri.equals(SERVICES_IMPORT) && !requiresServices) {
+                        continue;
+                    }
+                    if (uri.equals(RENDERING_IMPORT) && !requiresRendering) {
                         continue;
                     }
                     if (uri.equals(DART_UI_IMPORT) && !requiresDartUi) {

@@ -30,7 +30,9 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
+import java.awt.image.BufferedImage;
 import java.beans.FeatureDescriptor;
 import java.beans.PropertyEditor;
 import java.math.BigDecimal;
@@ -41,10 +43,13 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.accessibility.AccessibleRole;
+import javax.accessibility.AccessibleState;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JSpinner;
@@ -53,11 +58,13 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.table.TableCellRenderer;
 import org.junit.jupiter.api.Test;
 import org.openide.explorer.propertysheet.ExPropertyEditor;
 import org.openide.explorer.propertysheet.InplaceEditor;
 import org.openide.explorer.propertysheet.PropertyEnv;
 import org.openide.explorer.propertysheet.PropertyPanel;
+import org.openide.explorer.propertysheet.PropertySheet;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
@@ -445,6 +452,66 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void constrainedBoxRequiredConstraintsEditorSupportsIndependentExpandingAxes()
+            throws Exception {
+        assertRequiredConstrainedBoxExpansion(true);
+        assertRequiredConstrainedBoxExpansion(false);
+    }
+
+    @Test
+    void constrainedBoxConstraintsEditorRejectsInvertedRangeWithoutPartialCommit()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.ConstrainedBox", "constraints"));
+        PropertyValue.BoxConstraintsValue initial = new PropertyValue.BoxConstraintsValue(
+                BigDecimal.ZERO, java.util.Optional.of(BigDecimal.valueOf(100)),
+                BigDecimal.ZERO, java.util.Optional.empty());
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(initial));
+        AtomicInteger commits = new AtomicInteger();
+        editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Constraints", "Required ConstrainedBox constraints."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            JComponent panel = assertInstanceOf(JComponent.class, editor.getCustomEditor());
+            JTextField minWidth = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_WIDTH_NAME);
+            JTextField maxWidth = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MAX_WIDTH_NAME);
+            assertNotNull(minWidth);
+            assertNotNull(maxWidth);
+
+            minWidth.setText("100");
+            maxWidth.setText("50");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", panel.getClientProperty("JComponent.outline"));
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue());
+            assertEquals(0, commits.get());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "an inverted local draft must never partially replace the value");
+            assertEquals(0, commits.get());
+
+            maxWidth.setText("150");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertNull(panel.getClientProperty("JComponent.outline"));
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            assertEquals(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BoxConstraintsValue(
+                            BigDecimal.valueOf(100),
+                            java.util.Optional.of(BigDecimal.valueOf(150)),
+                            BigDecimal.ZERO, java.util.Optional.empty())), editor.getValue());
+            assertEquals(1, commits.get(), "the repaired four-bound draft commits atomically");
+            return null;
+        });
+    }
+
+    @Test
     void decorationImageUsesDeclaredTypedChoicesAndCommitsEveryDependentDomain()
             throws Exception {
         FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
@@ -704,15 +771,18 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
-    void realNetBeansPropertyPanelInstallsTheTriStateCheckbox()
+    void realNetBeansPropertyPanelInstallsBooleanCheckboxWithoutCombo()
             throws Exception {
         WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow();
         WidgetNode widget = new WidgetNode(
                 StableId.parse("fd96a765-01c9-45cb-aeb8-fe5613db4f79"),
                 definition.typeId(),
-                Map.of(new PropertyName("data"),
-                        new PropertyValue.StringValue("Text")),
+                Map.of(
+                        new PropertyName("data"),
+                        new PropertyValue.StringValue("Text"),
+                        new PropertyName("softWrap"),
+                        new PropertyValue.BooleanValue(false)),
                 Map.of(),
                 Extensions.empty());
         FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
@@ -731,13 +801,131 @@ class FlutterPropertyEditorComponentsTest {
                         FlutterPropertyEditorComponents.BOOLEAN_COMPONENT_NAME);
                 assertNotNull(checkbox,
                         "NetBeans PropertyPanel must honor ExPropertyEditor.attachEnv");
-                assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT,
-                        checkbox.getText());
+                assertFalse(checkbox.isSelected());
+                assertEquals("", checkbox.getText());
+                assertNull(findFirst(panel, JComboBox.class),
+                        "a boolean editor must never fall back to a combo box");
             } finally {
                 panel.removeNotify();
             }
             return null;
         });
+    }
+
+    @Test
+    void realNetBeansRendererModeNeverExposesBooleanCombo()
+            throws Exception {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow();
+        WidgetNode widget = new WidgetNode(
+                StableId.parse("0a5d3e99-8c01-4c0d-87ec-2dcacb1531c5"),
+                definition.typeId(),
+                Map.of(
+                        new PropertyName("data"),
+                        new PropertyValue.StringValue("Text"),
+                        new PropertyName("softWrap"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+        Node.Property<?> softWrap = findProperty(node, "softWrap");
+
+        onEdt(() -> {
+            PropertyPanel panel = new PropertyPanel(
+                    softWrap, PropertyPanel.PREF_TABLEUI);
+            panel.setSize(320, 28);
+            panel.addNotify();
+            panel.doLayout();
+            try {
+                assertNull(findFirst(panel, JComboBox.class),
+                        "the inactive NetBeans renderer must not expose a boolean combo box");
+                assertTrue(softWrap.getPropertyEditor().isPaintable(),
+                        "the inactive value cell must delegate to the checkbox painter");
+            } finally {
+                panel.removeNotify();
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void fullPropertySheetUsesPaintedBooleanAndCheckboxEditor()
+            throws Exception {
+        assertFullPropertySheetBoolean(false,
+                "aa05f63a-04ec-4713-b0fe-cc367a2bd2a6");
+        assertFullPropertySheetBoolean(true,
+                "aa05f63a-04ec-4713-b0fe-cc367a2bd2a7");
+    }
+
+    private static void assertFullPropertySheetBoolean(
+            boolean explicitValue,
+            String stableId) throws Exception {
+        WidgetTypeId type = new WidgetTypeId("flutter.material.TextField");
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(type).orElseThrow();
+        WidgetNode widget = new WidgetNode(
+                StableId.parse(stableId),
+                type,
+                Map.of(new PropertyName("onTapAlwaysCalled"),
+                        new PropertyValue.BooleanValue(explicitValue)),
+                Map.of(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+        Node.Property<?> booleanProperty = findProperty(
+                node, "onTapAlwaysCalled");
+
+        PropertySheet sheet = onEdt(() -> {
+            PropertySheet result = new PropertySheet();
+            result.setDescriptionAreaVisible(false);
+            result.setSize(520, 900);
+            result.addNotify();
+            result.setNodes(new Node[]{node});
+            return result;
+        });
+        try {
+            JTable table = onEdt(() -> findFirst(sheet, JTable.class));
+            assertNotNull(table);
+            int row = awaitPropertyRow(table, "onTapAlwaysCalled");
+            onEdt(() -> {
+                Object value = table.getValueAt(row, 1);
+                TableCellRenderer provider = table.getCellRenderer(row, 1);
+                Component rendered = provider.getTableCellRendererComponent(
+                        table, value, false, false, row, 1);
+                assertEquals(
+                        "org.openide.explorer.propertysheet.RendererFactory$StringRenderer",
+                        rendered.getClass().getName());
+                assertFalse(rendered instanceof JComboBox,
+                        "the inactive boolean row must not render as a combo box");
+
+                int width = Math.max(160,
+                        table.getColumnModel().getColumn(1).getWidth());
+                int height = table.getRowHeight(row);
+                int[] expectedPixels = paintExpectedBooleanRenderer(
+                        rendered, booleanProperty, width, height);
+                int[] actualPixels = paintRenderer(rendered, width, height);
+                assertTrue(java.util.Arrays.equals(
+                                expectedPixels, actualPixels),
+                        "the real PropertySheet renderer must invoke the "
+                        + "boolean checkbox painter for explicit " + explicitValue);
+
+                assertTrue(table.editCellAt(row, 1));
+                JCheckBox editor = assertInstanceOf(
+                        JCheckBox.class, table.getEditorComponent());
+                assertEquals(FlutterPropertyEditorComponents.BOOLEAN_COMPONENT_NAME,
+                        editor.getName());
+                assertEquals(explicitValue, editor.isSelected());
+                assertNull(findFirst(editor, JComboBox.class));
+                table.getCellEditor().cancelCellEditing();
+                return null;
+            });
+        } finally {
+            onEdt(() -> {
+                sheet.removeNotify();
+                return null;
+            });
+        }
     }
 
     @Test
@@ -793,7 +981,7 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
-    void optionalBooleanUsesAccessibleTriStateCheckboxAndOneTypedCommit()
+    void optionalBooleanLeavesUnsetThenTogglesExplicitValues()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(
                 property("flutter.widgets.Text", "softWrap"));
@@ -820,21 +1008,36 @@ class FlutterPropertyEditorComponentsTest {
                     checkbox.getName());
             assertEquals("Soft Wrap",
                     checkbox.getAccessibleContext().getAccessibleName());
+            assertEquals(AccessibleRole.CHECK_BOX,
+                    checkbox.getAccessibleContext().getAccessibleRole());
             assertTrue(checkbox.getAccessibleContext()
-                    .getAccessibleDescription().contains("default"));
+                    .getAccessibleDescription().contains("Restore Default"));
             assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT,
                     checkbox.getText());
+            assertFalse(checkbox.getAccessibleContext().getAccessibleStateSet()
+                    .contains(AccessibleState.CHECKED));
 
             checkbox.doClick();
             assertEquals(FlutterPropertyCellValue.explicit(
                             new PropertyValue.BooleanValue(true)),
                     inplace.getValue());
+            assertTrue(checkbox.isSelected());
+            assertTrue(checkbox.getAccessibleContext().getAccessibleStateSet()
+                    .contains(AccessibleState.CHECKED));
+            assertEquals("", checkbox.getText());
             checkbox.doClick();
             assertEquals(FlutterPropertyCellValue.explicit(
                             new PropertyValue.BooleanValue(false)),
                     inplace.getValue());
+            assertFalse(checkbox.isSelected());
+            assertFalse(checkbox.getAccessibleContext().getAccessibleStateSet()
+                    .contains(AccessibleState.CHECKED));
+            assertEquals("", checkbox.getText());
             checkbox.doClick();
-            assertEquals(FlutterPropertyCellValue.unset(), inplace.getValue());
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.BooleanValue(true)),
+                    inplace.getValue(),
+                    "Restore Default, not a third checkbox click, returns to unset");
             assertEquals(3, events.get());
             inplace.clear();
             assertNull(inplace.getPropertyEditor());
@@ -1893,6 +2096,232 @@ class FlutterPropertyEditorComponentsTest {
         return List.copyOf(labels);
     }
 
+    private static void assertRequiredConstrainedBoxExpansion(boolean expandWidth)
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.ConstrainedBox", "constraints"));
+        assertFalse(binding.optional());
+        PropertyValue.BoxConstraintsValue initial = new PropertyValue.BoxConstraintsValue(
+                BigDecimal.ZERO, java.util.Optional.empty(),
+                BigDecimal.ZERO, java.util.Optional.empty());
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(initial));
+        AtomicInteger commits = new AtomicInteger();
+        editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Constraints", "Required ConstrainedBox constraints."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertNull(findByText(panel, JCheckBox.class,
+                    "Use inherited/default value (omit argument)"),
+                    "a required constructor argument must not expose omit/reset UI");
+            JCheckBox unboundedWidth = findNamed(panel, JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_UNBOUNDED_WIDTH_NAME);
+            JCheckBox expandingWidth = findNamed(panel, JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_EXPANDING_WIDTH_NAME);
+            JCheckBox unboundedHeight = findNamed(panel, JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_UNBOUNDED_HEIGHT_NAME);
+            JCheckBox expandingHeight = findNamed(panel, JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_EXPANDING_HEIGHT_NAME);
+            JTextField minWidth = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_WIDTH_NAME);
+            JTextField maxWidth = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MAX_WIDTH_NAME);
+            JTextField minHeight = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_HEIGHT_NAME);
+            JTextField maxHeight = findNamed(panel, JTextField.class,
+                    FlutterContainerPropertyEditorComponents.CONSTRAINTS_MAX_HEIGHT_NAME);
+            assertNotNull(unboundedWidth);
+            assertNotNull(expandingWidth);
+            assertNotNull(unboundedHeight);
+            assertNotNull(expandingHeight);
+            assertNotNull(minWidth);
+            assertNotNull(maxWidth);
+            assertNotNull(minHeight);
+            assertNotNull(maxHeight);
+            assertEquals("Expanding width",
+                    expandingWidth.getAccessibleContext().getAccessibleName());
+            assertEquals("Expanding height",
+                    expandingHeight.getAccessibleContext().getAccessibleName());
+
+            PropertyValue.BoxConstraintsValue expected;
+            if (expandWidth) {
+                expandingWidth.doClick();
+                assertTrue(unboundedWidth.isSelected(),
+                        "expanding width must force an infinite maximum");
+                assertFalse(unboundedWidth.isEnabled());
+                assertFalse(minWidth.isEnabled());
+                assertFalse(maxWidth.isEnabled());
+                assertTrue(expandingHeight.isEnabled());
+
+                unboundedHeight.doClick();
+                minHeight.setText("24");
+                maxHeight.setText("120");
+                expected = new PropertyValue.BoxConstraintsValue(
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.valueOf(24)),
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.valueOf(120)));
+            } else {
+                expandingHeight.doClick();
+                assertTrue(unboundedHeight.isSelected(),
+                        "expanding height must force an infinite maximum");
+                assertFalse(unboundedHeight.isEnabled());
+                assertFalse(minHeight.isEnabled());
+                assertFalse(maxHeight.isEnabled());
+                assertTrue(expandingWidth.isEnabled());
+
+                unboundedWidth.doClick();
+                minWidth.setText("10");
+                maxWidth.setText("100");
+                expected = new PropertyValue.BoxConstraintsValue(
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.TEN),
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.valueOf(100)),
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                        PropertyValue.BoxConstraintBound.Infinity.INSTANCE);
+            }
+
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "all four bounds must remain a local draft until dialog OK");
+            assertEquals(0, commits.get());
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(expected), editor.getValue());
+            assertEquals(1, commits.get());
+
+            environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION);
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(1, commits.get(), "one editor dialog may commit only once");
+            return null;
+        });
+    }
+
+    @Test
+    void everyCatalogBooleanUsesPaintedCheckboxAndNoValueTags()
+            throws Exception {
+        List<String> booleanProperties = BuiltInWidgetCatalog.getDefault()
+                .definitions().stream()
+                .flatMap(widget -> widget.properties().stream()
+                        .filter(property -> property.acceptedKinds().equals(
+                                Set.of(PropertyValueKind.BOOLEAN)))
+                        .map(property -> widget.typeId().value() + "."
+                                + property.name().value()))
+                .toList();
+        assertEquals(88, booleanProperties.size(),
+                "every current built-in BOOLEAN-only property is covered");
+
+        onEdt(() -> {
+            for (String qualifiedName : booleanProperties) {
+                int separator = qualifiedName.lastIndexOf('.');
+                FlutterTypedPropertyEditors.Binding binding = binding(property(
+                        qualifiedName.substring(0, separator),
+                        qualifiedName.substring(separator + 1)));
+                PropertyEditor editor = binding.createEditor();
+                editor.setValue(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.BooleanValue(false)));
+
+                assertEquals(FlutterTypedPropertyEditors.EditorKind.BOOLEAN,
+                        binding.editorKind(), qualifiedName);
+                assertNull(editor.getTags(), qualifiedName
+                        + " must not advertise combo-box tags");
+                assertTrue(editor.isPaintable(), qualifiedName
+                        + " must use the checkbox cell renderer");
+                InplaceEditor inplace = FlutterPropertyEditorComponents
+                        .inplaceFactory(binding).orElseThrow().getInplaceEditor();
+                inplace.connect(editor, PropertyEnv.create(descriptor(
+                        qualifiedName, qualifiedName)));
+                assertInstanceOf(JCheckBox.class, inplace.getComponent(),
+                        qualifiedName);
+                inplace.clear();
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void booleanCellPainterDistinguishesUnsetUncheckedAndChecked()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Text", "softWrap"));
+        PropertyEditor editor = binding.createEditor();
+
+        onEdt(() -> {
+            int[] unset = paintBoolean(editor, FlutterPropertyCellValue.unset());
+            int[] unchecked = paintBoolean(editor, FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(false)));
+            int[] checked = paintBoolean(editor, FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true)));
+
+            assertFalse(java.util.Arrays.equals(unset, unchecked),
+                    "<not set> text and an unchecked checkbox must render differently");
+            assertFalse(java.util.Arrays.equals(unchecked, checked),
+                    "checked and unchecked checkbox glyphs must render differently");
+            return null;
+        });
+    }
+
+    private static int[] paintBoolean(
+            PropertyEditor editor,
+            FlutterPropertyCellValue value) {
+        int width = 140;
+        int height = 24;
+        BufferedImage image = new BufferedImage(
+                width, height, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, width, height);
+            graphics.setColor(Color.BLACK);
+            editor.setValue(value);
+            editor.paintValue(graphics, new Rectangle(0, 0, width, height));
+        } finally {
+            graphics.dispose();
+        }
+        return image.getRGB(0, 0, width, height, null, 0, width);
+    }
+
+    private static int[] paintExpectedBooleanRenderer(
+            Component renderer,
+            Node.Property<?> property,
+            int width,
+            int height) throws Exception {
+        FlutterPropertyCellValue value = assertInstanceOf(
+                FlutterPropertyCellValue.class, property.getValue());
+        BufferedImage image = new BufferedImage(
+                width, height, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(renderer.getBackground());
+            graphics.fillRect(0, 0, width, height);
+            graphics.setColor(renderer.getForeground());
+            // RELEASE300's table StringRenderer reserves the same three-pixel
+            // value margin before delegating to PropertyEditor.paintValue().
+            FlutterPropertyEditorComponents.paintBooleanValue(
+                    graphics, new Rectangle(3, 0, width - 3, height), value);
+        } finally {
+            graphics.dispose();
+        }
+        return image.getRGB(0, 0, width, height, null, 0, width);
+    }
+
+    private static int[] paintRenderer(
+            Component renderer,
+            int width,
+            int height) {
+        renderer.setBounds(0, 0, width, height);
+        BufferedImage image = new BufferedImage(
+                width, height, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        try {
+            renderer.paint(graphics);
+        } finally {
+            graphics.dispose();
+        }
+        return image.getRGB(0, 0, width, height, null, 0, width);
+    }
+
     private static void selectLabel(JComboBox<?> combo, String label) {
         for (int index = 0; index < combo.getItemCount(); index++) {
             if (label.equals(String.valueOf(combo.getItemAt(index)))) {
@@ -2005,6 +2434,29 @@ class FlutterPropertyEditorComponentsTest {
         for (String word : words) {
             assertTrue(normalized.contains(word), name);
         }
+    }
+
+    private static int awaitPropertyRow(JTable table, String name)
+            throws Exception {
+        long deadline = System.nanoTime()
+                + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            int row = onEdt(() -> {
+                for (int index = 0; index < table.getRowCount(); index++) {
+                    Object value = table.getValueAt(index, 1);
+                    if (value instanceof FeatureDescriptor descriptor
+                            && name.equals(descriptor.getName())) {
+                        return index;
+                    }
+                }
+                return -1;
+            });
+            if (row >= 0) {
+                return row;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("PropertySheet row not loaded: " + name);
     }
 
     private static Node.Property<?> findProperty(

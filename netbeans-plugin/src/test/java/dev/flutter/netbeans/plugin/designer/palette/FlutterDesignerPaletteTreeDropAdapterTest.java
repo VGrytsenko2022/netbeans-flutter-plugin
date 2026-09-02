@@ -56,6 +56,16 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId FITTED_BOX =
+            type("flutter.widgets.FittedBox");
+    private static final WidgetTypeId CONSTRAINED_BOX =
+            type("flutter.widgets.ConstrainedBox");
+    private static final WidgetTypeId UNCONSTRAINED_BOX =
+            type("flutter.widgets.UnconstrainedBox");
+    private static final WidgetTypeId LIMITED_BOX =
+            type("flutter.widgets.LimitedBox");
+    private static final WidgetTypeId OVERFLOW_BOX =
+            type("flutter.widgets.OverflowBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
@@ -67,6 +77,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final PropertyName ASPECT_RATIO_VALUE =
             new PropertyName("aspectRatio");
     private static final PropertyName OPACITY_VALUE = new PropertyName("opacity");
+    private static final PropertyName CONSTRAINTS = new PropertyName("constraints");
     private static final StableId DOCUMENT_ID =
             id("f56a6bbb-fe08-4977-9597-a8273aa143eb");
     private static final StableId ROOT_ID =
@@ -487,6 +498,227 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void fittedBoxTokenPreviewsAndCommitsOptionalPropertiesAndEmptyChild() {
+        Fixture fixture = fixture(FITTED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(FITTED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(FITTED_BOX, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the FittedBox palette authority once"));
+    }
+
+    @Test
+    void constrainedBoxTokenPreviewsAndCommitsRequiredDefaultAndEmptyChild() {
+        Fixture fixture = fixture(CONSTRAINED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(CONSTRAINED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(CONSTRAINED_BOX, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(CONSTRAINTS, new PropertyValue.BoxConstraintsValue(
+                                BigDecimal.ZERO,
+                                Optional.empty(),
+                                BigDecimal.ZERO,
+                                Optional.empty())),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ConstrainedBox palette authority once"));
+    }
+
+    @Test
+    void unconstrainedBoxTokenPreviewsAndCommitsOptionalDefaultsAndEmptyChild() {
+        Fixture fixture = fixture(UNCONSTRAINED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(UNCONSTRAINED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(UNCONSTRAINED_BOX, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the UnconstrainedBox palette authority once"));
+    }
+
+    @Test
+    void limitedBoxTokenPreviewsAndCommitsOptionalDefaultsAndEmptyChild() {
+        Fixture fixture = fixture(LIMITED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(LIMITED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(LIMITED_BOX, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the LimitedBox palette authority once"));
+    }
+
+    @Test
+    void overflowBoxTokenPreviewsAndCommitsOptionalDefaultsAndEmptyChild() {
+        Fixture fixture = fixture(OVERFLOW_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(OVERFLOW_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(OVERFLOW_BOX, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the OverflowBox palette authority once"));
+    }
+
+    @Test
     void stackTokenPreviewsAndCommitsOptionalPropertiesAndEmptyOrderedChildren() {
         Fixture fixture = fixture(STACK);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -585,6 +817,22 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty Center",
                         document(prototype(CENTER)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty ConstrainedBox",
+                        document(prototype(CONSTRAINED_BOX)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty UnconstrainedBox",
+                        document(prototype(UNCONSTRAINED_BOX)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty LimitedBox",
+                        document(prototype(LIMITED_BOX)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty OverflowBox",
+                        document(prototype(OVERFLOW_BOX)),
                         CHILD));
 
         assertAll(accepted.stream().map(testCase -> () -> {

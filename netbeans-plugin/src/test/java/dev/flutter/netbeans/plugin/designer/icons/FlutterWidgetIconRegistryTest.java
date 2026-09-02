@@ -413,6 +413,269 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(dark16.paint(), dark32.paint());
     }
 
+    @Test
+    void listViewFamilyUsesExactReviewedScrollableListGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "listview.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=2.2, rx=.6, width=8.5, x=3, y=3.2]",
+                "rect[height=2.2, rx=.6, width=8.5, x=3, y=6.9]",
+                "rect[height=2.2, rx=.6, width=8.5, x=3, y=10.6]",
+                "rect[height=9.6, rx=.4, width=.8, x=12.4, y=3.2]",
+                "rect[height=3.8, rx=.6, width=1.2, x=12.2, y=5]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=4.4, rx=1.2, width=17, x=6, y=6.4]",
+                "rect[height=4.4, rx=1.2, width=17, x=6, y=13.8]",
+                "rect[height=4.4, rx=1.2, width=17, x=6, y=21.2]",
+                "rect[height=19.2, rx=.8, width=1.6, x=24.8, y=6.4]",
+                "rect[height=7.6, rx=1.2, width=2.4, x=24.4, y=10]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#42A5F5]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#26C6DA]",
+                "rect[fill=#B0BEC5]",
+                "rect[fill=#40566D]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#64B5F6]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#80DEEA]",
+                "rect[fill=#607D8B]",
+                "rect[fill=#E0E8EF]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "wrap.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=3, rx=.6, width=3, x=3, y=3.5]",
+                "rect[height=3, rx=.6, width=3, x=7, y=3.5]",
+                "rect[height=3, rx=.6, width=2, x=11, y=3.5]",
+                "rect[height=3, rx=.6, width=4, x=3, y=9.5]",
+                "rect[height=3, rx=.6, width=3, x=8, y=9.5]",
+                "path[d=M12.5 7.4v1.1h-1.1, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1]"), light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=6, rx=1.2, width=6, x=6, y=7]",
+                "rect[height=6, rx=1.2, width=6, x=14, y=7]",
+                "rect[height=6, rx=1.2, width=4, x=22, y=7]",
+                "rect[height=6, rx=1.2, width=8, x=6, y=19]",
+                "rect[height=6, rx=1.2, width=6, x=16, y=19]",
+                "path[d=M25 14.8V17h-2.2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=2]"), light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#42A5F5]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#26C6DA]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#26C6DA]",
+                "path[fill=none, stroke=#40566D]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#64B5F6]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#80DEEA]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#80DEEA]",
+                "path[fill=none, stroke=#C5D3DF]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void fittedBoxFamilyUsesExactReviewedScaleGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "fittedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=6, rx=1, stroke-width=1, width=8, x=4, y=5]",
+                "path[d=M5.3 5.8L3.2 3.7m0 0h2m-2 0v2M10.7 10.2l2.1 2.1m0 0h-2m2 0v-2, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=12, rx=2, stroke-width=2, width=16, x=8, y=10]",
+                "path[d=M10.6 11.6L6.4 7.4m0 0h4m-4 0v4M21.4 20.4l4.2 4.2m0 0h-4m4 0v-4, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#29B6F6]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void constrainedBoxFamilyUsesExactReviewedBoundsGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "constrainedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=8, rx=1, stroke-width=1, width=6, x=5, y=4]",
+                "path[d=M3 8h2m-1-1 1 1-1 1M13 8h-2m1-1-1 1 1 1, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=16, rx=2, stroke-width=2, width=12, x=10, y=8]",
+                "path[d=M6 16h4m-2-2 2 2-2 2M26 16h-4m2-2-2 2 2 2, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void unconstrainedBoxFamilyUsesExactReviewedOverflowGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "unconstrainedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=10, rx=1.5, stroke-dasharray=1.5 1.2, "
+                + "stroke-width=1, width=10, x=3, y=3]",
+                "rect[height=6, rx=1, stroke-width=1, width=13, x=1.5, y=5]",
+                "path[d=M4.5 8h-2m1-1-1 1 1 1M11.5 8h2m-1-1 1 1-1 1, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=20, rx=3, stroke-dasharray=3 2.4, "
+                + "stroke-width=2, width=20, x=6, y=6]",
+                "rect[height=12, rx=2, stroke-width=2, width=26, x=3, y=10]",
+                "path[d=M9 16H5m2-2-2 2 2 2M23 16h4m-2-2 2 2-2 2, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void limitedBoxFamilyUsesExactReviewedFallbackLimitGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "limitedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-dasharray=1.5 1.2, "
+                + "stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=7, rx=1, stroke-width=1, width=7, x=4, y=4]",
+                "path[d=M4 12.5h7m-7-.8v1.6m7-1.6v1.6M12.5 4v7m-.8-7h1.6m-1.6 7h1.6, "
+                + "stroke-linecap=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-dasharray=3 2.4, "
+                + "stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=14, rx=2, stroke-width=2, width=14, x=8, y=8]",
+                "path[d=M8 25h14m-14-1.6v3.2m14-3.2v3.2M25 8v14m-1.6-14h3.2m-3.2 14h3.2, "
+                + "stroke-linecap=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
+    void overflowBoxFamilyUsesExactReviewedConstraintOverrideGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "overflowbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=10, rx=1.5, stroke-dasharray=1.5 1.2, "
+                + "stroke-width=1, width=8, x=4, y=3]",
+                "rect[height=6, rx=1, stroke-width=1, width=13, x=1.5, y=5]",
+                "path[d=M4 8H2m1-1-1 1 1 1M12 8h2m-1-1 1 1-1 1M8 5V3.5m-1 1 1-1 "
+                + "1 1M8 11v1.5m-1-1 1 1 1-1, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=20, rx=3, stroke-dasharray=3 2.4, "
+                + "stroke-width=2, width=16, x=8, y=6]",
+                "rect[height=12, rx=2, stroke-width=2, width=26, x=3, y=10]",
+                "path[d=M8 16H4m2-2-2 2 2 2M24 16h4m-2-2 2 2-2 2M16 10V7m-2 2 2-2 "
+                + "2 2M16 22v3m-2-2 2 2 2-2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
     private static SvgResource readSvg(String resource, int expectedSize) throws Exception {
         byte[] bytes = readResource(resource);
         String source = new String(bytes, StandardCharsets.UTF_8);
@@ -567,6 +830,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Image", ICON_ROOT + "image.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
+        expected.put("flutter.widgets.Wrap", ICON_ROOT + "wrap.svg");
         expected.put("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg");
         expected.put("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg");
         expected.put("flutter.widgets.Container", ICON_ROOT + "container.svg");
@@ -574,8 +838,16 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Align", ICON_ROOT + "align.svg");
         expected.put("flutter.widgets.FractionallySizedBox",
                 ICON_ROOT + "fractionallysizedbox.svg");
+        expected.put("flutter.widgets.FittedBox", ICON_ROOT + "fittedbox.svg");
+        expected.put("flutter.widgets.ConstrainedBox",
+                ICON_ROOT + "constrainedbox.svg");
+        expected.put("flutter.widgets.UnconstrainedBox",
+                ICON_ROOT + "unconstrainedbox.svg");
+        expected.put("flutter.widgets.LimitedBox", ICON_ROOT + "limitedbox.svg");
+        expected.put("flutter.widgets.OverflowBox", ICON_ROOT + "overflowbox.svg");
         expected.put("flutter.widgets.Stack", ICON_ROOT + "stack.svg");
         expected.put("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg");
+        expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

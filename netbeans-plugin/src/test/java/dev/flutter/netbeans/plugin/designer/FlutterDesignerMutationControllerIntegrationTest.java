@@ -55,8 +55,12 @@ import dev.flutter.netbeans.plugin.project.FlutterProject;
 import dev.flutter.netbeans.plugin.project.FlutterProjectSavePreflight;
 import dev.flutter.netbeans.plugin.settings.FlutterSettings;
 import dev.flutter.netbeans.plugin.settings.FlutterToolchainConfig;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
+import java.beans.FeatureDescriptor;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -79,16 +83,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.Action;
 import javax.swing.JProgressBar;
+import javax.swing.JTable;
 import javax.swing.text.StyledDocument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.spi.editor.guards.GuardedEditorSupport;
 import org.openide.cookies.SaveCookie;
+import org.openide.explorer.ExplorerManager;
+import org.openide.explorer.propertysheet.PropertySheet;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.nodes.Node;
 import org.openide.text.CloneableEditorSupport;
+import org.openide.util.Lookup;
+import org.openide.util.LookupListener;
+import org.openide.util.Task;
 
 /** Exact DataObject-owned mutation path through analyzer and pair staging. */
 class FlutterDesignerMutationControllerIntegrationTest {
@@ -221,7 +231,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
-    void multiViewTextDataMutationRebuildsPropertiesTreeAndCanvasFromExactSnapshot()
+    void multiViewTextDataMutationRefreshesPropertiesTreeAndCanvasFromExactSnapshot()
             throws Exception {
         MutationFixture fixture = fixture("mutation_multiview_properties");
         CompletableFuture<DartCandidateAnalysisResult> analyzerGate =
@@ -277,6 +287,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Node applyingNode = awaitSelectedTextNode(
                         design, "before", false);
                 onEdt(() -> {
+                    assertSame(baselineNode, applyingNode,
+                            "APPLYING must disable the stable Node without replacing it");
                     assertTextProperties(applyingNode, "before", false);
                     assertTrue(mutationProgress(design).isVisible(),
                             "APPLYING must be visible in the standard progress indicator");
@@ -301,8 +313,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Node appliedNode = awaitSelectedTextNode(
                         design, "after", true);
                 onEdt(() -> {
-                    assertNotSame(baselineNode, appliedNode,
-                            "a confirmed immutable snapshot must rebuild the selected node");
+                    assertSame(baselineNode, appliedNode,
+                            "a property-only snapshot must refresh the selected node in place");
                     assertEquals(TEXT_ID,
                             appliedNode.getLookup().lookup(StableId.class),
                             "selection must remain anchored to the same StableId");
@@ -320,6 +332,160 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     onEdt(design::componentClosed);
                 }
                 analyzerGate.cancel(false);
+            }
+        }
+    }
+
+    @Test
+    void propertyOnlyMutationPreservesSelectedNodeAndActivePropertySheetEditor()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_multiview_property_sheet_editor_continuity");
+        AtomicReference<FlutterDesignerMultiViewDesign> designRef =
+                new AtomicReference<>();
+        AtomicReference<PropertySheet> sheetRef = new AtomicReference<>();
+        AtomicReference<JTable> tableRef = new AtomicReference<>();
+        AtomicReference<Lookup.Result<Node>> selectionRef =
+                new AtomicReference<>();
+        AtomicReference<LookupListener> selectionListenerRef =
+                new AtomicReference<>();
+        AtomicReference<PropertyChangeListener> explorerListenerRef =
+                new AtomicReference<>();
+        AtomicInteger rootContextChanges = new AtomicInteger();
+        AtomicInteger selectedNodeChanges = new AtomicInteger();
+        AtomicReference<Component> editorRef = new AtomicReference<>();
+        AtomicReference<Node.Property<?>> dataPropertyRef =
+                new AtomicReference<>();
+        AtomicReference<Node.Property<?>> softWrapPropertyRef =
+                new AtomicReference<>();
+
+        try (fixture) {
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    designRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign design = designRef.get();
+                assertNotNull(design);
+
+                Node baselineNode = awaitSelectedTextSoftWrap(
+                        design, null, true);
+                onEdt(() -> {
+                    PropertySheet sheet = new PropertySheet();
+                    sheet.setDescriptionAreaVisible(false);
+                    sheet.setSize(520, 900);
+                    sheet.addNotify();
+
+                    Lookup.Result<Node> selection =
+                            design.getLookup().lookupResult(Node.class);
+                    LookupListener listener = ignored ->
+                            publishSelectedNodes(sheet, selection);
+                    selection.addLookupListener(listener);
+                    publishSelectedNodes(sheet, selection);
+
+                    PropertyChangeListener explorerListener = event -> {
+                        if (ExplorerManager.PROP_ROOT_CONTEXT.equals(
+                                event.getPropertyName())) {
+                            rootContextChanges.incrementAndGet();
+                        } else if (ExplorerManager.PROP_SELECTED_NODES.equals(
+                                event.getPropertyName())) {
+                            selectedNodeChanges.incrementAndGet();
+                        }
+                    };
+                    design.getExplorerManager().addPropertyChangeListener(
+                            explorerListener);
+
+                    sheetRef.set(sheet);
+                    selectionRef.set(selection);
+                    selectionListenerRef.set(listener);
+                    explorerListenerRef.set(explorerListener);
+                    JTable table = findFirst(sheet, JTable.class);
+                    assertNotNull(table);
+                    tableRef.set(table);
+                });
+
+                JTable table = tableRef.get();
+                int dataRow = awaitPropertyRow(table, "data");
+                awaitPropertySheetSetNodesSettled(
+                        sheetRef.get(), baselineNode);
+                onEdt(() -> {
+                    table.changeSelection(dataRow, 1, false, false);
+                    assertTrue(table.editCellAt(dataRow, 1),
+                            "the ordinary text property must start in-place editing");
+                    Component editor = table.getEditorComponent();
+                    assertNotNull(editor);
+                    editorRef.set(editor);
+                    assertEquals(dataRow, table.getEditingRow());
+                    assertEquals(dataRow, table.getSelectedRow());
+
+                    Node.Property<?> data = findPropertyOrNull(
+                            baselineNode, "data");
+                    assertNotNull(data);
+                    dataPropertyRef.set(data);
+                    Node.Property<FlutterPropertyCellValue> softWrap =
+                            cellProperty(baselineNode, "softWrap");
+                    softWrapPropertyRef.set(softWrap);
+                    softWrap.setValue(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.BooleanValue(false)));
+                });
+
+                awaitReadyWithSoftWrap(fixture.mutations(), false);
+                Node refreshedNode = awaitSelectedTextSoftWrap(
+                        design, false, true);
+                onEdt(() -> {
+                    assertTrue(table.isEditing(),
+                            () -> "publishing the confirmed property value must not cancel "
+                            + "another editor; sameNode=" + (baselineNode == refreshedNode)
+                            + ", rootContextChanges=" + rootContextChanges.get()
+                            + ", selectedNodeChanges=" + selectedNodeChanges.get());
+                    assertSame(editorRef.get(), table.getEditorComponent(),
+                            "the active in-place editor component must be preserved");
+                    assertEquals(dataRow, table.getEditingRow(),
+                            "the active property row must be preserved");
+                    assertEquals(dataRow, table.getSelectedRow(),
+                            "row selection/focus must remain on the edited property");
+                    assertSame(baselineNode, refreshedNode,
+                            "a property-only mutation must refresh the existing selected Node");
+                    assertSame(dataPropertyRef.get(),
+                            findPropertyOrNull(refreshedNode, "data"),
+                            "unrelated Property objects must retain identity");
+                    assertSame(softWrapPropertyRef.get(),
+                            findPropertyOrNull(refreshedNode, "softWrap"),
+                            "the changed Property must refresh in place");
+                    assertEquals(0, rootContextChanges.get(),
+                            "a property-only mutation must not replace the Explorer root");
+                    assertEquals(0, selectedNodeChanges.get(),
+                            "a property-only mutation must not republish selected Nodes");
+                });
+            } finally {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design = designRef.get();
+                    PropertyChangeListener explorerListener =
+                            explorerListenerRef.get();
+                    if (design != null && explorerListener != null) {
+                        design.getExplorerManager().removePropertyChangeListener(
+                                explorerListener);
+                    }
+                    Lookup.Result<Node> selection = selectionRef.get();
+                    LookupListener listener = selectionListenerRef.get();
+                    if (selection != null && listener != null) {
+                        selection.removeLookupListener(listener);
+                    }
+                    JTable table = tableRef.get();
+                    if (table != null && table.isEditing()) {
+                        table.getCellEditor().cancelCellEditing();
+                    }
+                    PropertySheet sheet = sheetRef.get();
+                    if (sheet != null) {
+                        sheet.removeNotify();
+                    }
+                    if (design != null) {
+                        design.componentClosed();
+                    }
+                });
             }
         }
     }
@@ -1286,7 +1452,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
-    void multiViewTypedBooleanSetAndResetAreOneShotAndRebuildExactProperties()
+    void multiViewTypedBooleanSetAndResetAreOneShotAndRefreshExactProperties()
             throws Exception {
         MutationFixture fixture = fixture("mutation_multiview_typed_properties");
         AtomicReference<FlutterDesignerMultiViewDesign> designRef =
@@ -1333,8 +1499,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
                         .contains("textAlign:"));
                 Node appliedNode = awaitSelectedTextSoftWrap(
                         design, false, true);
-                assertNotSame(baselineNode, appliedNode,
-                        "the confirmed typed value must rebuild the selected Node");
+                assertSame(baselineNode, appliedNode,
+                        "the confirmed typed value must refresh the selected Node in place");
                 assertEquals("before", textData(applied));
 
                 onEdt(() -> {
@@ -1350,8 +1516,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
                         "resetting to the exact durable baseline must reuse its validation");
                 Node resetNode = awaitSelectedTextSoftWrap(
                         design, null, true);
-                assertNotSame(appliedNode, resetNode,
-                        "ResetProperty must rebuild the immutable Properties Node");
+                assertSame(appliedNode, resetNode,
+                        "ResetProperty must refresh the selected Properties Node in place");
                 assertEquals("before", textData(reset));
                 assertArrayEquals(fixture.baselineDart(),
                         fixture.editor().liveSnapshot().markerBearingUtf8());
@@ -1481,12 +1647,12 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
-    void multiViewRejectsAnUnusedStalePropertyNodeBeforeAnalyzerAdmission()
+    void multiViewRefreshesStablePropertyNodeWithNextRevisionAuthority()
             throws Exception {
-        MutationFixture fixture = fixture("mutation_multiview_stale_property_node");
+        MutationFixture fixture = fixture(
+                "mutation_multiview_stable_property_node_authority");
         AtomicReference<FlutterDesignerMultiViewDesign> designRef =
                 new AtomicReference<>();
-        AtomicBoolean designClosed = new AtomicBoolean();
 
         try (fixture) {
             try {
@@ -1499,7 +1665,9 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 });
                 FlutterDesignerMultiViewDesign design = designRef.get();
                 assertNotNull(design);
-                Node staleNode = awaitSelectedTextSoftWrap(design, null, true);
+                Node stableNode = awaitSelectedTextSoftWrap(design, null, true);
+                Node.Property<FlutterPropertyCellValue> stableSoftWrap =
+                        cellProperty(stableNode, "softWrap");
 
                 FlutterDesignerMutationController.Snapshot baseline =
                         fixture.mutations().snapshot();
@@ -1513,25 +1681,44 @@ class FlutterDesignerMutationControllerIntegrationTest {
                         external.outcome(), external::reason);
                 awaitReadyWithData(fixture.mutations(), "external");
                 Node currentNode = awaitSelectedTextNode(design, "external", true);
-                assertNotSame(staleNode, currentNode);
+                assertSame(stableNode, currentNode,
+                        "an external property-only revision must refresh the Node in place");
+                assertSame(stableSoftWrap,
+                        cellProperty(currentNode, "softWrap"),
+                        "property identity must remain stable across READY revisions");
                 assertEquals(1, fixture.analysisCalls().get());
 
-                // Closing only the view suppresses the expected stale-result
-                // dialog; the DataObject-owned controller remains alive so the
-                // captured exact token is still checked by the real bridge.
-                onEdt(design::componentClosed);
-                designClosed.set(true);
-                onEdt(() -> cellProperty(staleNode, "softWrap").setValue(
+                FlutterPropertyCellValue explicitFalse =
                         FlutterPropertyCellValue.explicit(
-                                new PropertyValue.BooleanValue(false))));
+                                new PropertyValue.BooleanValue(false));
+                onEdt(() -> {
+                    stableSoftWrap.setValue(explicitFalse);
+                    stableSoftWrap.setValue(explicitFalse);
+                });
+                awaitReadyWithSoftWrap(fixture.mutations(), false);
+                Node falseNode = awaitSelectedTextSoftWrap(design, false, true);
+                assertSame(stableNode, falseNode);
+                assertSame(stableSoftWrap, cellProperty(falseNode, "softWrap"));
+                assertEquals(explicitFalse, stableSoftWrap.getValue(),
+                        "the stable Property must expose the confirmed value");
+                assertEquals(2, fixture.analysisCalls().get(),
+                        "one refreshed revision lease must still submit only once");
 
-                assertEquals(1, fixture.analysisCalls().get(),
-                        "the stale MultiView token must reject before analyzer admission");
+                FlutterPropertyCellValue explicitTrue =
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.BooleanValue(true));
+                onEdt(() -> stableSoftWrap.setValue(explicitTrue));
+                awaitReadyWithSoftWrap(fixture.mutations(), true);
+                Node trueNode = awaitSelectedTextSoftWrap(design, true, true);
+                assertSame(stableNode, trueNode);
+                assertSame(stableSoftWrap, cellProperty(trueNode, "softWrap"));
+                assertEquals(explicitTrue, stableSoftWrap.getValue(),
+                        "the same Property must be rearmed for the next READY revision");
+                assertEquals(3, fixture.analysisCalls().get());
                 assertEquals("external", textData(fixture.mutations().snapshot()));
-                assertNull(textSoftWrap(fixture.mutations().snapshot()));
             } finally {
                 FlutterDesignerMultiViewDesign design = designRef.get();
-                if (design != null && !designClosed.get()) {
+                if (design != null) {
                     onEdt(design::componentClosed);
                 }
             }
@@ -4630,7 +4817,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
             FlutterDesignerMultiViewDesign design,
             String expectedData,
             boolean expectedWritable) throws Exception {
-        Object expectedDisplay = textDataDisplay(expectedData, expectedWritable);
+        Object expectedDisplay = textDataDisplay(expectedData);
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         AtomicReference<Node> matching = new AtomicReference<>();
         AtomicReference<String> lastPresentation = new AtomicReference<>("<none>");
@@ -4736,7 +4923,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
         }
         Node.Property<?> data = findPropertyOrNull(node, "data");
         assertNotNull(data);
-        assertEquals(textDataDisplay(expectedData, dataWritable), data.getValue());
+        assertEquals(textDataDisplay(expectedData), data.getValue());
         assertEquals(dataWritable, data.canWrite());
         int projectedProperties = Arrays.stream(node.getPropertySets())
                 .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME
@@ -4745,18 +4932,13 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 .sum();
         assertEquals(dataWritable ? projectedProperties : 0, writable,
                 "every property in the admitted Text Node must share the exact snapshot writer");
-        if (dataWritable) {
-            assertEquals(FlutterPropertyCellValue.class, data.getValueType());
-        } else {
-            assertEquals(String.class, data.getValueType());
-        }
+        assertEquals(FlutterPropertyCellValue.class, data.getValueType(),
+                "APPLYING must disable the stable typed Property, not replace its descriptor");
     }
 
-    private static Object textDataDisplay(String value, boolean writable) {
-        return writable
-                ? FlutterPropertyCellValue.explicit(
-                        new PropertyValue.StringValue(value))
-                : '"' + value + '"';
+    private static Object textDataDisplay(String value) {
+        return FlutterPropertyCellValue.explicit(
+                new PropertyValue.StringValue(value));
     }
 
     private static Node.Property<?> findPropertyOrNull(Node node, String name) {
@@ -4796,6 +4978,101 @@ class FlutterDesignerMutationControllerIntegrationTest {
         Field field = FlutterDesignerMultiViewDesign.class.getDeclaredField("progress");
         field.setAccessible(true);
         return (JProgressBar) field.get(design);
+    }
+
+    private static void publishSelectedNodes(
+            PropertySheet sheet,
+            Lookup.Result<Node> selection) {
+        Runnable publish = () -> sheet.setNodes(
+                selection.allInstances().toArray(Node[]::new));
+        if (EventQueue.isDispatchThread()) {
+            publish.run();
+        } else {
+            EventQueue.invokeLater(publish);
+        }
+    }
+
+    private static int awaitPropertyRow(JTable table, String name)
+            throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            AtomicInteger matchingRow = new AtomicInteger(-1);
+            onEdt(() -> {
+                for (int row = 0; row < table.getRowCount(); row++) {
+                    Object value = table.getValueAt(row, 1);
+                    if (value instanceof FeatureDescriptor descriptor
+                            && name.equals(descriptor.getName())) {
+                        matchingRow.set(row);
+                        break;
+                    }
+                }
+            });
+            if (matchingRow.get() >= 0) {
+                return matchingRow.get();
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("PropertySheet row not loaded: " + name);
+    }
+
+    private static void awaitPropertySheetSetNodesSettled(
+            PropertySheet sheet,
+            Node expectedNode) throws Exception {
+        assertNotNull(sheet);
+        Field scheduleTaskField = PropertySheet.class.getDeclaredField(
+                "scheduleTask");
+        scheduleTaskField.setAccessible(true);
+        Field listenerField = PropertySheet.class.getDeclaredField(
+                "pclistener");
+        listenerField.setAccessible(true);
+
+        AtomicReference<Task> scheduled = new AtomicReference<>();
+        onEdt(() -> scheduled.set((Task) scheduleTaskField.get(sheet)));
+        Task initialSelection = scheduled.get();
+        assertNotNull(initialSelection,
+                "PropertySheet must have scheduled its initial Node publication");
+        assertTrue(initialSelection.waitFinished(
+                TimeUnit.SECONDS.toMillis(5)),
+                "PropertySheet initial Node publication did not finish");
+
+        // The RequestProcessor task publishes doSetNodes through invokeLater.
+        // Crossing the EDT after it finishes drains that final publication, so
+        // an editor cannot be opened between PropertySheet's immediate and
+        // delayed initializers.
+        onEdt(() -> { });
+
+        AtomicReference<Node> currentNode = new AtomicReference<>();
+        AtomicBoolean taskFinished = new AtomicBoolean();
+        onEdt(() -> {
+            Task latest = (Task) scheduleTaskField.get(sheet);
+            taskFinished.set(latest != null && latest.isFinished());
+            Object listener = listenerField.get(sheet);
+            Field currentNodeField = listener.getClass().getDeclaredField(
+                    "currNode");
+            currentNodeField.setAccessible(true);
+            currentNode.set((Node) currentNodeField.get(listener));
+        });
+        assertTrue(taskFinished.get(),
+                "PropertySheet selection scheduler must be quiescent");
+        assertSame(expectedNode, currentNode.get(),
+                "PropertySheet must listen to the selected Node before editing");
+    }
+
+    private static <T extends Component> T findFirst(
+            Component root,
+            Class<T> type) {
+        if (type.isInstance(root)) {
+            return type.cast(root);
+        }
+        if (root instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                T match = findFirst(child, type);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
     }
 
     private static void awaitDesignerSessionInactive(

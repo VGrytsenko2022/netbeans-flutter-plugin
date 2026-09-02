@@ -25,15 +25,23 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(19, javaTypes.size(),
-                "the reviewed Canvas source set includes TextField");
+        assertEquals(26, javaTypes.size(),
+                "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
+                + "ConstrainedBox, UnconstrainedBox, LimitedBox, and OverflowBox");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
         assertTrue(javaTypes.contains("flutter.widgets.Align"));
         assertTrue(javaTypes.contains("flutter.widgets.FractionallySizedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.FittedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.ConstrainedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.UnconstrainedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.LimitedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.OverflowBox"));
         assertTrue(javaTypes.contains("flutter.widgets.Stack"));
+        assertTrue(javaTypes.contains("flutter.widgets.Wrap"));
         assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
+        assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
@@ -77,8 +85,22 @@ class FlutterWidgetCapabilityParityTest {
                 "Align.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.FractionallySizedBox"),
                 "FractionallySizedBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.FittedBox"),
+                "FittedBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.ConstrainedBox"),
+                "ConstrainedBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.UnconstrainedBox"),
+                "UnconstrainedBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.LimitedBox"),
+                "LimitedBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.OverflowBox"),
+                "OverflowBox.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Stack"),
                 "Stack.children must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.Wrap"),
+                "Wrap.children must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.ListView"),
+                "ListView.children must remain a Java-admitted DnD target");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
                 "Expanded.child is required replacement-only, not an insertion target");
 

@@ -10,6 +10,7 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
@@ -36,7 +37,8 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.nodes.PropertySupport;
 import org.openide.nodes.Sheet;
-import org.openide.util.lookup.Lookups;
+import org.openide.util.lookup.AbstractLookup;
+import org.openide.util.lookup.InstanceContent;
 
 /**
  * Standard NetBeans node projection for one selected Flutter Designer widget.
@@ -67,8 +69,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX_TYPE =
             new WidgetTypeId("flutter.widgets.FractionallySizedBox");
+    private static final WidgetTypeId FITTED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.FittedBox");
+    private static final WidgetTypeId CONSTRAINED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.ConstrainedBox");
+    private static final WidgetTypeId UNCONSTRAINED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.UnconstrainedBox");
+    private static final WidgetTypeId LIMITED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.LimitedBox");
+    private static final WidgetTypeId OVERFLOW_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.OverflowBox");
     private static final WidgetTypeId STACK_TYPE =
             new WidgetTypeId("flutter.widgets.Stack");
+    private static final WidgetTypeId WRAP_TYPE =
+            new WidgetTypeId("flutter.widgets.Wrap");
     private static final WidgetTypeId EXPANDED_TYPE =
             new WidgetTypeId("flutter.widgets.Expanded");
     private static final WidgetTypeId IMAGE_TYPE =
@@ -79,6 +93,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("widthFactor");
     private static final PropertyName HEIGHT_FACTOR_PROPERTY =
             new PropertyName("heightFactor");
+    private static final PropertyName CONSTRAINTS_PROPERTY =
+            new PropertyName("constraints");
     private static final SlotName CHILD_SLOT = new SlotName("child");
     private static final SlotName CHILDREN_SLOT = new SlotName("children");
     private static final PropertyName TEXT_DIRECTION_PROPERTY =
@@ -103,12 +119,38 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     new PropertyName("scrollPaddingRight"),
                     new PropertyName("scrollPaddingBottom"));
 
+    private final InstanceContent lookupContent;
+    private final boolean propertyMutationProjection;
+    private final boolean slotMutationProjection;
     private final WidgetNode widget;
     private final WidgetDefinition definition;
-    private final PropertyMutationHandler mutationHandler;
-    private final FlutterWidgetSlotEditorContext slotEditorContext;
-    private final SlotMutationHandler slotMutationHandler;
-    private final FlutterImageAssetChoices imageAssetChoices;
+    private volatile Presentation presentation;
+
+    private record Presentation(
+            WidgetNode widget,
+            WidgetDefinition definition,
+            PropertyMutationHandler mutationHandler,
+            FlutterWidgetSlotEditorContext slotEditorContext,
+            SlotMutationHandler slotMutationHandler,
+            java.util.Map<SlotName, AtomicBoolean> slotMutationGates,
+            FlutterImageAssetChoices imageAssetChoices) {
+
+        private Presentation {
+            Objects.requireNonNull(widget, "widget");
+            Objects.requireNonNull(definition, "definition");
+            Objects.requireNonNull(slotMutationGates, "slotMutationGates");
+            Objects.requireNonNull(imageAssetChoices, "imageAssetChoices");
+            if (slotMutationHandler != null && slotEditorContext == null) {
+                throw new IllegalArgumentException(
+                        "A slot mutation handler requires a slot editor context.");
+            }
+        }
+    }
+
+    private static final class MutableLookup {
+        private final InstanceContent content = new InstanceContent();
+        private final AbstractLookup lookup = new AbstractLookup(content);
+    }
 
     /** Dispatches one exact command from the immutable selected-widget snapshot. */
     @FunctionalInterface
@@ -186,28 +228,50 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             FlutterWidgetSlotEditorContext slotEditorContext,
             SlotMutationHandler slotMutationHandler,
             FlutterImageAssetChoices imageAssetChoices) {
+        this(
+                children,
+                widget,
+                definition,
+                mutationHandler,
+                slotEditorContext,
+                slotMutationHandler,
+                imageAssetChoices,
+                new MutableLookup());
+    }
+
+    private FlutterWidgetPropertiesNode(
+            Children children,
+            WidgetNode widget,
+            WidgetDefinition definition,
+            PropertyMutationHandler mutationHandler,
+            FlutterWidgetSlotEditorContext slotEditorContext,
+            SlotMutationHandler slotMutationHandler,
+            FlutterImageAssetChoices imageAssetChoices,
+            MutableLookup mutableLookup) {
         super(
                 Objects.requireNonNull(children, "children"),
-                Lookups.fixed(
-                        Objects.requireNonNull(widget, "widget").id(),
-                        widget,
-                        Objects.requireNonNull(definition, "definition")));
+                Objects.requireNonNull(mutableLookup, "mutableLookup").lookup);
+        Objects.requireNonNull(widget, "widget");
+        Objects.requireNonNull(definition, "definition");
         if (!widget.type().equals(definition.typeId())) {
             throw new IllegalArgumentException(
                     "Widget type " + widget.type() + " does not match catalog definition "
                     + definition.typeId());
         }
+        this.lookupContent = mutableLookup.content;
+        this.propertyMutationProjection = mutationHandler != null;
+        this.slotMutationProjection = slotMutationHandler != null;
         this.widget = widget;
         this.definition = definition;
-        this.mutationHandler = mutationHandler;
-        this.slotEditorContext = slotEditorContext;
-        this.slotMutationHandler = slotMutationHandler;
-        this.imageAssetChoices = Objects.requireNonNull(
-                imageAssetChoices, "imageAssetChoices");
-        if (slotMutationHandler != null && slotEditorContext == null) {
-            throw new IllegalArgumentException(
-                    "A slot mutation handler requires a slot editor context.");
-        }
+        this.presentation = new Presentation(
+                widget,
+                definition,
+                mutationHandler,
+                slotEditorContext,
+                slotMutationHandler,
+                newSlotMutationGates(definition),
+                imageAssetChoices);
+        updateLookupContent(presentation);
         String displayName = definition.palette().displayName();
         setName(widget.id().toString());
         setDisplayName(displayName);
@@ -221,6 +285,126 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         FlutterWidgetIconRegistry.findIconPath(widget.type())
                 .ifPresent(this::setIconBaseWithExtension);
+    }
+
+    /**
+     * Returns whether this stable Explorer node can accept a newer immutable
+     * snapshot without changing its PropertySheet schema.
+     */
+    public boolean canRefreshPresentation(
+            WidgetNode nextWidget,
+            WidgetDefinition nextDefinition,
+            PropertyMutationHandler nextMutationHandler,
+            SlotMutationHandler nextSlotMutationHandler) {
+        Objects.requireNonNull(nextWidget, "nextWidget");
+        Objects.requireNonNull(nextDefinition, "nextDefinition");
+        return widget.id().equals(nextWidget.id())
+                && widget.type().equals(nextWidget.type())
+                && definition.equals(nextDefinition)
+                && (nextMutationHandler == null || propertyMutationProjection)
+                && (nextSlotMutationHandler == null || slotMutationProjection);
+    }
+
+    /**
+     * Refreshes values and revision-bound mutation authority while retaining
+     * the Node, property-set and property identities used by PropertySheet.
+     */
+    public void refreshPresentation(
+            WidgetNode nextWidget,
+            WidgetDefinition nextDefinition,
+            PropertyMutationHandler nextMutationHandler,
+            FlutterWidgetSlotEditorContext nextSlotEditorContext,
+            SlotMutationHandler nextSlotMutationHandler,
+            FlutterImageAssetChoices nextImageAssetChoices) {
+        if (!canRefreshPresentation(
+                nextWidget,
+                nextDefinition,
+                nextMutationHandler,
+                nextSlotMutationHandler)) {
+            throw new IllegalArgumentException(
+                    "A widget Properties node can only refresh an unchanged schema.");
+        }
+        Objects.requireNonNull(nextImageAssetChoices, "nextImageAssetChoices");
+        if (nextSlotMutationHandler != null && nextSlotEditorContext == null) {
+            throw new IllegalArgumentException(
+                    "A slot mutation handler requires a slot editor context.");
+        }
+
+        Presentation previousPresentation = presentation;
+        WidgetNode previousWidget = previousPresentation.widget();
+        Presentation nextPresentation = new Presentation(
+                nextWidget,
+                nextDefinition,
+                nextMutationHandler,
+                nextSlotEditorContext,
+                nextSlotMutationHandler,
+                slotMutationGatesFor(
+                        previousPresentation,
+                        nextDefinition,
+                        nextSlotMutationHandler),
+                nextImageAssetChoices);
+        boolean imageChoicesChanged = !previousPresentation.imageAssetChoices()
+                .equals(nextImageAssetChoices);
+        presentation = nextPresentation;
+        updateLookupContent(nextPresentation);
+
+        if (imageChoicesChanged) {
+            for (Node.PropertySet set : getPropertySets()) {
+                for (Node.Property<?> property : set.getProperties()) {
+                    property.setValue(
+                            FlutterImageAssetChoices.FEATURE_ATTRIBUTE,
+                            nextImageAssetChoices);
+                }
+            }
+        }
+
+        for (PropertyDefinition property : definition.properties()) {
+            PropertyValue previous = previousWidget.properties().get(property.name());
+            PropertyValue next = nextWidget.properties().get(property.name());
+            if (!Objects.equals(previous, next)) {
+                firePropertyChange(property.name().value(), null, null);
+            }
+        }
+        for (SlotDefinition slot : definition.slots()) {
+            String previous = slotSummary(slot, previousWidget.slots().get(slot.name()));
+            String next = slotSummary(slot, nextWidget.slots().get(slot.name()));
+            if (!previous.equals(next)) {
+                firePropertyChange(slot.name().value(), null, null);
+            }
+        }
+    }
+
+    private void updateLookupContent(Presentation current) {
+        lookupContent.set(java.util.List.of(
+                current.widget().id(),
+                current.widget(),
+                current.definition()), null);
+    }
+
+    private static java.util.Map<SlotName, AtomicBoolean> slotMutationGatesFor(
+            Presentation previous,
+            WidgetDefinition nextDefinition,
+            SlotMutationHandler nextHandler) {
+        if (previous.slotMutationHandler() == nextHandler) {
+            return previous.slotMutationGates();
+        }
+        return newSlotMutationGates(nextDefinition);
+    }
+
+    private static java.util.Map<SlotName, AtomicBoolean> newSlotMutationGates(
+            WidgetDefinition currentDefinition) {
+        java.util.LinkedHashMap<SlotName, AtomicBoolean> gates =
+                new java.util.LinkedHashMap<>();
+        for (SlotDefinition slot : currentDefinition.slots()) {
+            gates.put(slot.name(), new AtomicBoolean());
+        }
+        return java.util.Collections.unmodifiableMap(gates);
+    }
+
+    private static FlutterPropertyCellValue propertyCellValue(PropertyValue value) {
+        return value == null
+                ? FlutterPropertyCellValue.unset()
+                : FlutterPropertyCellValue.explicit(value);
     }
 
     @Override
@@ -258,6 +442,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             addTextFieldPropertySets(sheet, hasSlotTab);
+        } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
+            addListViewPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -290,7 +476,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetSlot modelSlot = widget.slots().get(slot.name());
             String summary = slotSummary(slot, modelSlot);
             String description = slotDescription(slot, modelSlot);
-            if (slotEditorContext != null && slotMutationHandler != null) {
+            if (slotMutationProjection
+                    && presentation.slotEditorContext() != null) {
                 slots.put(writableSlotProperty(slot, summary, description));
             } else {
                 slots.put(readOnly(
@@ -308,9 +495,6 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     SlotDefinition slot,
                     String summary,
                     String description) {
-        FlutterWidgetSlotCellValue captured =
-                FlutterWidgetSlotCellValue.current(summary);
-        AtomicBoolean submitted = new AtomicBoolean();
         PropertySupport.ReadWrite<FlutterWidgetSlotCellValue> result =
                 new PropertySupport.ReadWrite<>(
                 slot.name().value(),
@@ -319,28 +503,50 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 description) {
             @Override
             public FlutterWidgetSlotCellValue getValue() {
-                return captured;
+                Presentation current = presentation;
+                return FlutterWidgetSlotCellValue.current(
+                        slotSummary(
+                                slot,
+                                current.widget().slots().get(slot.name()),
+                                current.slotEditorContext()));
             }
 
             @Override
-            public void setValue(FlutterWidgetSlotCellValue value) {
+            public void setValue(FlutterWidgetSlotCellValue value)
+                    throws IllegalAccessException {
                 Objects.requireNonNull(value, "value");
                 value.mutation().ifPresent(mutation -> {
-                    if (!widget.id().equals(mutation.ownerId())
+                    Presentation current = presentation;
+                    if (!current.widget().id().equals(mutation.ownerId())
                             || !slot.name().equals(mutation.slotName())) {
                         throw new IllegalArgumentException(
                                 "Slot edit targets another widget or named slot.");
                     }
-                    if (submitted.compareAndSet(false, true)) {
-                        slotMutationHandler.submit(mutation);
+                    SlotMutationHandler currentHandler =
+                            current.slotMutationHandler();
+                    AtomicBoolean submitted =
+                            current.slotMutationGates().get(slot.name());
+                    if (currentHandler != null
+                            && submitted != null
+                            && submitted.compareAndSet(false, true)) {
+                        currentHandler.submit(mutation);
                     }
                 });
             }
 
             @Override
+            public boolean canWrite() {
+                return presentation.slotMutationHandler() != null;
+            }
+
+            @Override
             public PropertyEditor getPropertyEditor() {
+                Presentation current = presentation;
                 return new FlutterWidgetSlotPropertyEditor(
-                        widget, definition, slot, slotEditorContext);
+                        current.widget(),
+                        current.definition(),
+                        slot,
+                        current.slotEditorContext());
             }
         };
         result.setValue("changeImmediate", Boolean.FALSE);
@@ -349,6 +555,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private String slotSummary(SlotDefinition slot, WidgetSlot value) {
+        return slotSummary(slot, value, presentation.slotEditorContext());
+    }
+
+    private String slotSummary(
+            SlotDefinition slot,
+            WidgetSlot value,
+            FlutterWidgetSlotEditorContext currentSlotEditorContext) {
         if (value == null) {
             return "Empty";
         }
@@ -357,7 +570,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         return switch (value) {
             case WidgetSlot.SingleSlot single -> single.child()
-                    .map(this::widgetDisplayName)
+                    .map(child -> widgetDisplayName(
+                            child, currentSlotEditorContext))
                     .orElse("Empty");
             case WidgetSlot.ListSlot list -> list.children().isEmpty()
                     ? "Empty"
@@ -367,9 +581,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         };
     }
 
-    private String widgetDisplayName(WidgetNode child) {
-        if (slotEditorContext != null) {
-            return slotEditorContext.catalog().find(child.type())
+    private String widgetDisplayName(
+            WidgetNode child,
+            FlutterWidgetSlotEditorContext currentSlotEditorContext) {
+        if (currentSlotEditorContext != null) {
+            return currentSlotEditorContext.catalog().find(child.type())
                     .map(value -> value.palette().displayName())
                     .orElseGet(() -> displayType(child));
         }
@@ -428,6 +644,55 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (FITTED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out unconstrained, then scaled and positioned by "
+                    + "FittedBox without changing the child's own layout size. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (CONSTRAINED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out under the additional normalized BoxConstraints. "
+                    + "Expanding width or height requires a bounded incoming maximum on that "
+                    + "axis. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (UNCONSTRAINED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out without incoming constraints on both axes, or "
+                    + "with exactly the selected constrained axis retained. The child is "
+                    + "positioned by physical or directional alignment, and paint overflow "
+                    + "follows clip behavior. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (LIMITED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child whose maximum width and height are limited only when "
+                    + "the corresponding incoming axis is unbounded; bounded incoming "
+                    + "constraints pass through unchanged. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (OVERFLOW_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out with the selected minimum and maximum constraint "
+                    + "overrides, then positioned by physical or directional alignment. "
+                    + "The child may paint outside this box; fit controls whether the box uses "
+                    + "its largest allowed size or follows the child within the parent "
+                    + "constraints. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (STACK_TYPE.equals(widget.type())
                 && CHILDREN_SLOT.equals(slot.name())) {
             return "Ordered Stack children painted from first (back) to last (front). "
@@ -435,6 +700,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "they use Stack alignment and fit. Directional alignment resolves from "
                     + "the explicit or ambient TextDirection "
                     + "(LTR/RTL), not from the theme. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (WRAP_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children flowed into one or more runs along the selected axis. "
+                    + "The order in this slot is the exact source, paint, and semantic order; "
+                    + "direction settings only change visual placement. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children laid out linearly along the selected scroll axis. "
+                    + "Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
@@ -465,7 +746,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
+        boolean fittedBox = FITTED_BOX_TYPE.equals(widget.type());
+        boolean constrainedBox = CONSTRAINED_BOX_TYPE.equals(widget.type());
+        boolean unconstrainedBox = UNCONSTRAINED_BOX_TYPE.equals(widget.type());
+        boolean limitedBox = LIMITED_BOX_TYPE.equals(widget.type());
+        boolean overflowBox = OVERFLOW_BOX_TYPE.equals(widget.type());
         boolean stack = STACK_TYPE.equals(widget.type());
+        boolean wrap = WRAP_TYPE.equals(widget.type());
         boolean expanded = EXPANDED_TYPE.equals(widget.type());
         boolean image = IMAGE_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
@@ -485,6 +772,27 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                         + "the selected FractionallySizedBox widget; directional "
                                         + "alignment resolves from TextDirection (LTR/RTL), not "
                                         + "from the theme."
+                        : fittedBox
+                                ? "Scaling discipline, positioning, clipping, and optional child "
+                                        + "for the selected FittedBox widget."
+                         : constrainedBox
+                                 ? "Required normalized width and height constraints, including "
+                                         + "independently expanding axes, and an optional child "
+                                         + "for the selected ConstrainedBox widget."
+                        : unconstrainedBox
+                                ? "Constraint removal, optional retained axis, positioning, "
+                                        + "clipping, direction, and optional child for the "
+                                        + "selected UnconstrainedBox widget."
+                        : limitedBox
+                                ? "Fallback maximum width and height for unbounded incoming axes, "
+                                        + "and an optional child for the selected LimitedBox widget."
+                        : overflowBox
+                                ? "Constraint overrides, positioning, fit, and optional child for "
+                                        + "the selected OverflowBox widget; directional alignment "
+                                        + "resolves from TextDirection (LTR/RTL), not from the theme."
+                        : wrap
+                                ? "Run direction, spacing, alignment, clipping, and ordered "
+                                        + "children for the selected Wrap widget."
                         : stack
                                 ? "Layer alignment, direction, sizing, clipping, and ordered "
                                         + "non-Positioned children for the selected Stack widget."
@@ -581,6 +889,46 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "height, imposed as a tight child height. Zero and values above "
                                 + "one are valid; omission passes vertical constraints through. "
                                 + "Do not set it when the incoming maximum height is unbounded."));
+            } else if (fittedBox) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        fittedBoxPropertyDisplayName(property.name()),
+                        fittedBoxPropertyDescription(property.name())));
+            } else if (constrainedBox && CONSTRAINTS_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Constraints",
+                        "Required normalized BoxConstraints imposed on the optional child. "
+                                + "Each axis supports a finite non-negative minimum, a finite "
+                                + "maximum not below its minimum, an unbounded maximum (∞), "
+                                + "or an expanding ∞…∞ range. Expanding width or height "
+                                 + "requires a bounded incoming maximum on that axis."));
+            } else if (unconstrainedBox) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        unconstrainedBoxPropertyDisplayName(property.name()),
+                        unconstrainedBoxPropertyDescription(property.name())));
+            } else if (limitedBox) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        displayName(property.name()),
+                        limitedBoxPropertyDescription(property.name())));
+            } else if (overflowBox) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        overflowBoxPropertyDisplayName(property.name()),
+                        overflowBoxPropertyDescription(property.name())));
+            } else if (wrap) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        displayName(property.name()),
+                        wrapPropertyDescription(property.name())));
             } else if (stack && ALIGNMENT_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -634,6 +982,151 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             }
         }
         return properties;
+    }
+
+    private static String unconstrainedBoxPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "textDirection" ->
+                "Optional LTR or RTL override used to resolve directional alignment. "
+                + "Omission preserves ambient Directionality; this value is not read "
+                + "from the theme.";
+            case "alignment" ->
+                "Physical or directional position of an overflowing child inside the "
+                + "incoming box. Flutter defaults to center; directional values use the "
+                + "explicit text direction when set, otherwise ambient Directionality.";
+            case "constrainedAxis" ->
+                "Optional axis whose incoming constraints remain in force. Horizontal "
+                + "retains width constraints, vertical retains height constraints, and "
+                + "omission removes constraints from both axes.";
+            case "clipBehavior" ->
+                "How paint outside the UnconstrainedBox bounds is clipped. Flutter "
+                + "defaults to none; hard edge, anti-alias, and anti-alias with save "
+                + "layer are emitted unchanged.";
+            default -> "Explicit UnconstrainedBox value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String unconstrainedBoxPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "textDirection" -> "Text direction";
+            case "constrainedAxis" -> "Constrained axis";
+            case "clipBehavior" -> "Clip behavior";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String limitedBoxPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "maxWidth" ->
+                "Optional finite non-negative fallback maximum width applied only when the "
+                + "incoming width is unbounded. Omission preserves Flutter's default positive "
+                + "infinity; zero is valid.";
+            case "maxHeight" ->
+                "Optional finite non-negative fallback maximum height applied only when the "
+                + "incoming height is unbounded. Omission preserves Flutter's default positive "
+                + "infinity; zero is valid.";
+            default -> "Explicit LimitedBox value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String overflowBoxPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "alignment" ->
+                "Physical or directional position of the child within the OverflowBox. Flutter "
+                + "defaults to center; directional values resolve from ambient TextDirection "
+                + "(LTR/RTL), not from the theme. Coordinates outside -1 through 1 can place "
+                + "the child beyond the box.";
+            case "minWidth" ->
+                "Optional finite non-negative minimum width override for the child. Omission "
+                + "inherits the incoming minimum width. When both width overrides are set, "
+                + "minimum width must not exceed maximum width; zero is valid.";
+            case "maxWidth" ->
+                "Optional finite non-negative maximum width override for the child. Omission "
+                + "inherits the incoming maximum width. When both width overrides are set, "
+                + "maximum width must not be below minimum width; overflow is allowed.";
+            case "minHeight" ->
+                "Optional finite non-negative minimum height override for the child. Omission "
+                + "inherits the incoming minimum height. When both height overrides are set, "
+                + "minimum height must not exceed maximum height; zero is valid.";
+            case "maxHeight" ->
+                "Optional finite non-negative maximum height override for the child. Omission "
+                + "inherits the incoming maximum height. When both height overrides are set, "
+                + "maximum height must not be below minimum height; overflow is allowed.";
+            case "fit" ->
+                "How the OverflowBox chooses its own size. Max, Flutter's default, uses the "
+                + "largest size allowed by the incoming constraints; deferToChild matches the "
+                + "child within the parent constraints, or uses the parent's smallest size "
+                + "when there is no child. This matters only when the child does not overflow.";
+            default -> "Explicit OverflowBox value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String overflowBoxPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "minWidth" -> "Min Width";
+            case "maxWidth" -> "Max Width";
+            case "minHeight" -> "Min Height";
+            case "maxHeight" -> "Max Height";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String wrapPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "direction" ->
+                "Main axis used to place children into runs. Horizontal is Flutter's "
+                + "default; vertical creates top-to-bottom runs and then adds columns.";
+            case "alignment" ->
+                "How children are distributed within each run along the main axis. "
+                + "Flutter defaults to start; the spacing value remains the minimum gap.";
+            case "spacing" ->
+                "Finite logical-pixel spacing added between adjacent children inside one "
+                + "run. Flutter defaults to 0; negative values intentionally overlap them.";
+            case "runAlignment" ->
+                "How complete runs are distributed along the cross axis. Flutter defaults "
+                + "to start; the run-spacing value remains the minimum gap.";
+            case "runSpacing" ->
+                "Finite logical-pixel spacing added between adjacent runs. Flutter defaults "
+                + "to 0; negative values intentionally overlap the runs.";
+            case "crossAxisAlignment" ->
+                "How children within each run align to that run's cross axis. Flutter "
+                + "supports start, end, and center and defaults to start.";
+            case "textDirection" ->
+                "Optional LTR or RTL override used for horizontal child order and for "
+                + "directional start/end resolution. Omission preserves ambient Directionality.";
+            case "verticalDirection" ->
+                "Vertical placement order and vertical start/end resolution. Flutter "
+                + "defaults to down.";
+            case "clipBehavior" ->
+                "How Wrap clips child paint that overflows its own bounds. Flutter defaults "
+                + "to none; the selected enum value is emitted unchanged.";
+            default -> "Explicit model value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String fittedBoxPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "fit" ->
+                "How Flutter scales the unconstrained child into the FittedBox bounds. "
+                + "Contain is the default; fill may distort, cover may crop, fitWidth and "
+                + "fitHeight preserve one complete axis, none keeps the source scale, and "
+                + "scaleDown only shrinks an oversized child.";
+            case "alignment" ->
+                "Physical or directional position of the fitted child inside the available "
+                + "box. Flutter defaults to center; directional values resolve from the "
+                + "ambient TextDirection (LTR/RTL), not from the theme.";
+            case "clipBehavior" ->
+                "How visual overflow is clipped after fitting. Flutter defaults to none; "
+                + "cover, fitWidth, fitHeight, and none can require an explicit clipping mode.";
+            default -> "Explicit model value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String fittedBoxPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "clipBehavior" -> "Clip behavior";
+            default -> displayName(propertyName);
+        };
     }
 
     private static String imagePropertyDescription(PropertyName propertyName) {
@@ -925,6 +1418,38 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addListViewPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ListViewWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ListViewWidgetPropertySchema.Group.class);
+        for (ListViewWidgetPropertySchema.Group group
+                : ListViewWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ListViewWidgetPropertySchema.Definition schema =
+                    ListViewWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ListView property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets =
+                    schema.target() == ListViewWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? ListViewWidgetPropertySchema.PHYSICS_PRESETS
+                            : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    false,
+                    presets));
+        }
+    }
+
     private static java.util.List<String> elevatedButtonStringPresets(
             PropertyName propertyName) {
         String name = propertyName.value();
@@ -1019,14 +1544,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     binding.orElseThrow(), explicitValue,
                     projectedDisplayName, projectedDescription);
         }
-        String value = explicitValue == null
-                ? NOT_SET
-                : PropertyValueFormatter.format(explicitValue);
-        return readOnly(
-                property.name().value(),
+        return readOnlyProperty(
+                property.name(),
                 projectedDisplayName,
-                projectedDescription,
-                value);
+                projectedDescription);
     }
 
     private java.util.Optional<FlutterTypedPropertyEditors.Binding> writableBinding(
@@ -1041,7 +1562,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             Optional<TextWidgetPropertySchema.Definition> textSchema,
             boolean newlineStringList,
             java.util.List<String> stringPresets) {
-        if (mutationHandler == null
+        if (!propertyMutationProjection
                 || !BuiltInWidgetCapabilityCatalog.supports(
                         definition, WidgetCapability.PROPERTIES)) {
             return java.util.Optional.empty();
@@ -1057,10 +1578,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             String schemaDescription) {
         PropertyDefinition property = binding.definition();
         PropertyName propertyName = property.name();
-        FlutterPropertyCellValue captured = explicitValue == null
-                ? FlutterPropertyCellValue.unset()
-                : FlutterPropertyCellValue.explicit(explicitValue);
-        binding.validate(captured);
+        FlutterPropertyCellValue initial = propertyCellValue(explicitValue);
+        binding.validate(initial);
         String description = propertyDescription(property, schemaDescription);
         PropertySupport.ReadWrite<FlutterPropertyCellValue> result =
                 new PropertySupport.ReadWrite<>(
@@ -1070,18 +1589,35 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 description) {
             @Override
             public FlutterPropertyCellValue getValue() {
-                return captured;
+                Presentation current = presentation;
+                return propertyCellValue(
+                        current.widget().properties().get(propertyName));
             }
 
             @Override
-            public void setValue(FlutterPropertyCellValue value) {
+            public void setValue(FlutterPropertyCellValue value)
+                    throws IllegalAccessException {
                 FlutterPropertyCellValue accepted = binding.validate(value);
-                if (captured.equals(accepted)) {
+                Presentation current = presentation;
+                FlutterPropertyCellValue currentValue = propertyCellValue(
+                        current.widget().properties().get(propertyName));
+                if (currentValue.equals(accepted)) {
                     return;
                 }
+                PropertyMutationHandler currentHandler =
+                        current.mutationHandler();
+                if (currentHandler == null) {
+                    throw new IllegalAccessException(
+                            "Flutter property mutation admission is not ready.");
+                }
                 DesignerCommand command = propertyMutationCommand(
-                        propertyName, accepted);
-                mutationHandler.submit(command);
+                        current.widget(), propertyName, accepted);
+                currentHandler.submit(command);
+            }
+
+            @Override
+            public boolean canWrite() {
+                return presentation.mutationHandler() != null;
             }
 
             @Override
@@ -1096,15 +1632,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
             @Override
             public boolean isDefaultValue() {
-                return !captured.isExplicit();
+                return !getValue().isExplicit();
             }
 
             @Override
             public void restoreDefaultValue()
                     throws IllegalAccessException, InvocationTargetException {
-                if (binding.optional() && captured.isExplicit()) {
-                    mutationHandler.submit(propertyMutationCommand(
-                            propertyName, FlutterPropertyCellValue.unset()));
+                Presentation current = presentation;
+                FlutterPropertyCellValue currentValue = propertyCellValue(
+                        current.widget().properties().get(propertyName));
+                if (binding.optional() && currentValue.isExplicit()) {
+                    PropertyMutationHandler currentHandler =
+                            current.mutationHandler();
+                    if (currentHandler == null) {
+                        throw new IllegalAccessException(
+                                "Flutter property mutation admission is not ready.");
+                    }
+                    currentHandler.submit(propertyMutationCommand(
+                            current.widget(),
+                            propertyName,
+                            FlutterPropertyCellValue.unset()));
                 }
             }
         };
@@ -1115,45 +1662,49 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         result.setValue("changeImmediate", Boolean.FALSE);
         result.setValue(
                 FlutterImageAssetChoices.FEATURE_ATTRIBUTE,
-                imageAssetChoices);
+                presentation.imageAssetChoices());
         return result;
     }
 
     private DesignerCommand propertyMutationCommand(
+            WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
-        if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
+        if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(
+                currentWidget.type())) {
             java.util.List<PropertyName> compound =
                     textFieldCompoundProperties(propertyName);
             if (!compound.isEmpty()) {
                 return textFieldCompoundPropertyCommand(
-                        compound, propertyName, accepted);
+                        currentWidget, compound, propertyName, accepted);
             }
         }
-        if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
-            return ordinaryPropertyCommand(propertyName, accepted);
+        if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(
+                currentWidget.type())) {
+            return ordinaryPropertyCommand(currentWidget, propertyName, accepted);
         }
         java.util.ArrayList<PatchProperties.Patch> patches =
                 new java.util.ArrayList<>();
         boolean setting = accepted.explicitValue().isPresent();
         if (CONTAINER_DECORATION.equals(propertyName)) {
-            if (setting && widget.properties().containsKey(CONTAINER_COLOR)) {
+            if (setting && currentWidget.properties().containsKey(CONTAINER_COLOR)) {
                 patches.add(new PatchProperties.ResetPatch(CONTAINER_COLOR));
-            } else if (!setting && hasNonNoneContainerClip()) {
+            } else if (!setting && hasNonNoneContainerClip(currentWidget)) {
                 patches.add(new PatchProperties.ResetPatch(CONTAINER_CLIP));
             }
         } else if (CONTAINER_COLOR.equals(propertyName) && setting) {
-            if (widget.properties().containsKey(CONTAINER_DECORATION)) {
+            if (currentWidget.properties().containsKey(CONTAINER_DECORATION)) {
                 patches.add(new PatchProperties.ResetPatch(CONTAINER_DECORATION));
             }
-            if (hasNonNoneContainerClip()) {
+            if (hasNonNoneContainerClip(currentWidget)) {
                 patches.add(new PatchProperties.ResetPatch(CONTAINER_CLIP));
             }
         } else if (CONTAINER_CLIP.equals(propertyName)
                 && setting
                 && nonNoneClip(accepted.explicitValue().orElseThrow())
-                && !widget.properties().containsKey(CONTAINER_DECORATION)) {
-            PropertyValue backgroundColor = widget.properties().get(CONTAINER_COLOR);
+                && !currentWidget.properties().containsKey(CONTAINER_DECORATION)) {
+            PropertyValue backgroundColor =
+                    currentWidget.properties().get(CONTAINER_COLOR);
             if (backgroundColor != null) {
                 patches.add(new PatchProperties.ResetPatch(CONTAINER_COLOR));
             }
@@ -1166,11 +1717,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     new PatchProperties.SetPatch(propertyName, value))
                 .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
         return patches.size() == 1
-                ? ordinaryPropertyCommand(propertyName, accepted)
-                : new PatchProperties(widget.id(), patches);
+                ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
     }
 
     private DesignerCommand textFieldCompoundPropertyCommand(
+            WidgetNode currentWidget,
             java.util.List<PropertyName> compound,
             PropertyName editedProperty,
             FlutterPropertyCellValue accepted) {
@@ -1188,11 +1740,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 // never fabricate a numeric zero or constructor default.
                 PropertyValue value = property.equals(editedProperty)
                         ? entered
-                        : widget.properties().getOrDefault(property, entered);
+                        : currentWidget.properties().getOrDefault(property, entered);
                 patches.add(new PatchProperties.SetPatch(property, value));
             }
         }
-        return new PatchProperties(widget.id(), patches);
+        return new PatchProperties(currentWidget.id(), patches);
     }
 
     private static java.util.List<PropertyName> textFieldCompoundProperties(
@@ -1208,16 +1760,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private DesignerCommand ordinaryPropertyCommand(
+            WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
         return accepted.explicitValue()
                 .<DesignerCommand>map(explicit ->
-                    new SetProperty(widget.id(), propertyName, explicit))
-                .orElseGet(() -> new ResetProperty(widget.id(), propertyName));
+                    new SetProperty(currentWidget.id(), propertyName, explicit))
+                .orElseGet(() -> new ResetProperty(
+                        currentWidget.id(), propertyName));
     }
 
-    private boolean hasNonNoneContainerClip() {
-        PropertyValue value = widget.properties().get(CONTAINER_CLIP);
+    private static boolean hasNonNoneContainerClip(WidgetNode currentWidget) {
+        PropertyValue value = currentWidget.properties().get(CONTAINER_CLIP);
         return value != null && nonNoneClip(value);
     }
 
@@ -1313,6 +1867,24 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         set.setDisplayName(displayName);
         set.setShortDescription(description);
         return set;
+    }
+
+    private PropertySupport.ReadOnly<String> readOnlyProperty(
+            PropertyName propertyName,
+            String displayName,
+            String description) {
+        return new PropertySupport.ReadOnly<>(
+                propertyName.value(), String.class, displayName, description) {
+            @Override
+            public String getValue() {
+                Presentation current = presentation;
+                PropertyValue value =
+                        current.widget().properties().get(propertyName);
+                return value == null
+                        ? NOT_SET
+                        : PropertyValueFormatter.format(value);
+            }
+        };
     }
 
     private static PropertySupport.ReadOnly<String> readOnly(

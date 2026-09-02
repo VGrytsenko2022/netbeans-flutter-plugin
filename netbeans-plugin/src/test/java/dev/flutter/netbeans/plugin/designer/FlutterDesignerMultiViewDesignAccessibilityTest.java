@@ -752,6 +752,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.TextField",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
+                    "flutter.widgets.Wrap",
                     "flutter.widgets.Padding",
                     "flutter.widgets.Center",
                     "flutter.widgets.SizedBox",
@@ -760,8 +761,14 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Opacity",
                     "flutter.widgets.Align",
                     "flutter.widgets.FractionallySizedBox",
+                    "flutter.widgets.FittedBox",
+                    "flutter.widgets.ConstrainedBox",
+                    "flutter.widgets.UnconstrainedBox",
+                    "flutter.widgets.LimitedBox",
+                    "flutter.widgets.OverflowBox",
                     "flutter.widgets.Stack",
                     "flutter.widgets.Expanded",
+                    "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
                     "flutter.widgets.Image"),
@@ -1786,12 +1793,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             FdDecodeResult.UnsupportedNewer future = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(("{\"format\":\"netbeans-flutter-designer\","
-                            + "\"schemaVersion\":7}")
+                            + "\"schemaVersion\":8}")
                             .getBytes(StandardCharsets.UTF_8)));
             publish(design, new FlutterDesignerDocumentState.UnsupportedNewer(future));
             assertEquals("Flutter Designer model opened read-only.",
                     status.getAccessibleContext().getAccessibleDescription());
-            assertEquals("Schema version 7 is newer than supported version 6.",
+            assertEquals("Schema version 8 is newer than supported version 7.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

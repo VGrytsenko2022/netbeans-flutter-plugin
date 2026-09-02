@@ -141,6 +141,7 @@ public final class FlutterDesignerPalette {
         return switch (categoryId) {
             case "flutter.material" -> message("Category.Material");
             case "flutter.layout" -> message("Category.Layout");
+            case "flutter.scrolling" -> message("Category.Scrolling");
             case "flutter.basic" -> message("Category.Basic");
             default -> categoryId;
         };
@@ -267,6 +268,24 @@ public final class FlutterDesignerPalette {
                         + "dialog or stored constructor defaults. Runtime typed text, "
                         + "selection, controller state, and focus state are not stored "
                         + "by Designer.");
+            } else if ("flutter.widgets.ListView".equals(
+                    definition.typeId().value())) {
+                setShortDescription(
+                        "Create an ordered static ListView. Controller-owned state, "
+                        + "builders, prototypeItem, and deprecated cacheExtent are outside "
+                        + "this Designer slice.");
+            } else if ("flutter.widgets.ConstrainedBox".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.ConstrainedBox.Description"));
+            } else if ("flutter.widgets.UnconstrainedBox".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.UnconstrainedBox.Description"));
+            } else if ("flutter.widgets.LimitedBox".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.LimitedBox.Description"));
+            } else if ("flutter.widgets.OverflowBox".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.OverflowBox.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

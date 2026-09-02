@@ -680,6 +680,893 @@ void main() {
     );
   });
 
+  test('decodes every optional FittedBox leaf and its child slot', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'b587a092-9a65-420a-9d1c-e127cc752f8d',
+        'flutter.widgets.FittedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      'feea5045-2de2-4d34-b08d-79e5ee710f7e',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Fitted child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'cover'},
+          'alignment': _canvasAlignment(
+            basis: 'directional',
+            horizontal: 1.5,
+            vertical: -0.5,
+          ),
+          'clipBehavior': {
+            'kind': 'enum',
+            'type': 'Clip',
+            'value': 'antiAliasWithSaveLayer',
+          },
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.FittedBox');
+    expect(decoded.properties.keys, const ['fit', 'alignment', 'clipBehavior']);
+    expect(
+      (decoded.properties['fit']!.value as CanvasEnumValue).value,
+      'cover',
+    );
+    final alignment =
+        decoded.properties['alignment']!.value as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, 1.5);
+    expect(alignment.vertical, -0.5);
+    expect(
+      (decoded.properties['clipBehavior']!.value as CanvasEnumValue).value,
+      'antiAliasWithSaveLayer',
+    );
+    expect(decoded.slot('child')!.child!.id, child['id']);
+
+    expect(_decode(model()).root.slot('child'), isNull);
+    expect(
+      _decode(model(slots: {'child': _single(null)})).root.slot('child')!.child,
+      isNull,
+    );
+  });
+
+  test('rejects values outside the reviewed FittedBox projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'b587a092-9a65-420a-9d1c-e127cc752f8d',
+        'flutter.widgets.FittedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'stretch'},
+      },
+      const {
+        'fit': {'kind': 'enum', 'type': 'ImageRepeat', 'value': 'repeat'},
+      },
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'alignment': {'kind': 'string', 'value': 'center'},
+      },
+      {'alignment': _canvasAlignment(basis: 'fractional')},
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+  });
+
+  test('FittedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.FittedBox\n');
+    final end = contract.indexOf(
+      'W|flutter.widgets.FractionallySizedBox\n',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.FittedBox\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|fit|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test(
+    'decodes finite, unbounded, expanding, and mixed ConstrainedBox axes',
+    () {
+      Map<String, Object?> model(
+        Map<String, Object?> constraints, {
+        Map<String, Object?>? child,
+        bool includeSlot = true,
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '93d89766-af04-4fee-af57-a56c4ed5e37c',
+          'flutter.widgets.ConstrainedBox',
+          properties: {'constraints': constraints},
+          slots: includeSlot ? {'child': _single(child)} : const {},
+        );
+        return json;
+      }
+
+      final child = _node(
+        'bacaf0a6-b27a-4c98-9f88-8c8eb91597c1',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Constrained child'},
+        },
+      );
+      final cases =
+          <
+            ({
+              Map<String, Object?> wire,
+              double? minWidth,
+              double? maxWidth,
+              double? minHeight,
+              double? maxHeight,
+            })
+          >[
+            (
+              wire: _canvasBoxConstraints(10, 80, 20, 90),
+              minWidth: 10,
+              maxWidth: 80,
+              minHeight: 20,
+              maxHeight: 90,
+            ),
+            (
+              wire: _canvasBoxConstraints(0, null, 0, null),
+              minWidth: 0,
+              maxWidth: null,
+              minHeight: 0,
+              maxHeight: null,
+            ),
+            (
+              wire: _canvasBoxConstraints(null, null, null, null),
+              minWidth: null,
+              maxWidth: null,
+              minHeight: null,
+              maxHeight: null,
+            ),
+            (
+              wire: _canvasBoxConstraints(null, null, 12.5, 40),
+              minWidth: null,
+              maxWidth: null,
+              minHeight: 12.5,
+              maxHeight: 40,
+            ),
+            (
+              wire: _canvasBoxConstraints(4, null, null, null),
+              minWidth: 4,
+              maxWidth: null,
+              minHeight: null,
+              maxHeight: null,
+            ),
+          ];
+
+      for (final axisCase in cases) {
+        final decoded = _decode(model(axisCase.wire, child: child)).root;
+        final value =
+            decoded.properties['constraints']!.value
+                as CanvasBoxConstraintsValue;
+        expect(value.minWidth, axisCase.minWidth, reason: '${axisCase.wire}');
+        expect(value.maxWidth, axisCase.maxWidth, reason: '${axisCase.wire}');
+        expect(value.minHeight, axisCase.minHeight, reason: '${axisCase.wire}');
+        expect(value.maxHeight, axisCase.maxHeight, reason: '${axisCase.wire}');
+        expect(decoded.slot('child')!.child!.id, child['id']);
+      }
+
+      expect(
+        _decode(
+          model(_canvasBoxConstraints(0, null, 0, null)),
+        ).root.slot('child')!.child,
+        isNull,
+      );
+      expect(
+        _decode(
+          model(_canvasBoxConstraints(0, null, 0, null), includeSlot: false),
+        ).root.slot('child'),
+        isNull,
+      );
+    },
+  );
+
+  test('rejects every malformed ConstrainedBox boundary and shape', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '93d89766-af04-4fee-af57-a56c4ed5e37c',
+        'flutter.widgets.ConstrainedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final valid = _canvasBoxConstraints(0, null, 0, null);
+    final invalidConstraints = <Map<String, Object?>>[
+      for (final missing in const [
+        'minWidth',
+        'maxWidth',
+        'minHeight',
+        'maxHeight',
+      ])
+        Map<String, Object?>.from(valid)..remove(missing),
+      {...valid, 'extra': 0},
+      _canvasBoxConstraints(-0.001, null, 0, null),
+      _canvasBoxConstraints(0, -0.001, 0, null),
+      _canvasBoxConstraints(0, null, -0.001, null),
+      _canvasBoxConstraints(0, null, 0, -0.001),
+      _canvasBoxConstraints(20, 19.999, 0, null),
+      _canvasBoxConstraints(0, null, 20, 19.999),
+      _canvasBoxConstraints(null, 100, 0, null),
+      _canvasBoxConstraints(0, null, null, 100),
+      _canvasBoxConstraints('0', null, 0, null),
+      _canvasBoxConstraints(0, true, 0, null),
+    ];
+
+    expect(() => _decode(model()), throwsFormatException);
+    expect(
+      () => _decode(
+        model(
+          properties: {
+            'constraints': {'kind': 'string', 'value': '0..infinity'},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    for (final constraints in invalidConstraints) {
+      expect(
+        () => _decode(model(properties: {'constraints': constraints})),
+        throwsFormatException,
+        reason: constraints.toString(),
+      );
+    }
+    for (final field in const [
+      'minWidth',
+      'maxWidth',
+      'minHeight',
+      'maxHeight',
+    ]) {
+      final constraints = Map<String, Object?>.from(valid)
+        ..[field] = 987654321.125;
+      final finiteJson = jsonEncode(
+        model(properties: {'constraints': constraints}),
+      );
+      final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+      expect(
+        () =>
+            CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+        throwsFormatException,
+        reason: field,
+      );
+    }
+    expect(
+      () => _decode(
+        model(
+          properties: {'constraints': valid},
+          slots: {'child': _list(const [])},
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        model(
+          properties: {
+            'constraints': valid,
+            'unknown': {'kind': 'boolean', 'value': true},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('ConstrainedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ConstrainedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Container\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ConstrainedBox\n'
+      'P|constraints|boxConstraints|1|'
+      'boxConstraints:0,inf,0,inf|-|'
+      'boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity\n'
+      'S|child|single|0|0|1|any\n',
+    );
+    expect(
+      RegExp(
+        r'^P\|constraints\|boxConstraints\|',
+        multiLine: true,
+      ).allMatches(contract),
+      hasLength(2),
+    );
+  });
+
+  test('decodes both LimitedBox limits, omission, and its optional child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '57b8ce90-edde-4988-a4b7-bbf2eec66922',
+        'flutter.widgets.LimitedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      'f28acc9b-e654-4b3a-ad07-59d75742b433',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Limited child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'maxWidth': {'kind': 'double', 'value': 120.0},
+          'maxHeight': {'kind': 'double', 'value': 47.5},
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.LimitedBox');
+    expect(decoded.properties.keys, const ['maxWidth', 'maxHeight']);
+    expect(decoded.properties['maxWidth']!.value, 120.0);
+    expect(decoded.properties['maxHeight']!.value, 47.5);
+    expect(decoded.slot('child')!.child!.id, child['id']);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+    expect(
+      _decode(model(slots: {'child': _single(null)})).root.slot('child')!.child,
+      isNull,
+    );
+    final zero = _decode(
+      model(
+        properties: const {
+          'maxWidth': {'kind': 'double', 'value': 0.0},
+          'maxHeight': {'kind': 'double', 'value': 0.0},
+        },
+      ),
+    ).root;
+    expect(zero.properties['maxWidth']!.value, 0.0);
+    expect(zero.properties['maxHeight']!.value, 0.0);
+  });
+
+  test('rejects values outside the reviewed LimitedBox projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '57b8ce90-edde-4988-a4b7-bbf2eec66922',
+        'flutter.widgets.LimitedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'maxWidth': {'kind': 'integer', 'value': 1},
+      },
+      const {
+        'maxHeight': {'kind': 'double', 'value': -0.001},
+      },
+      const {
+        'maxHeight': {'kind': 'string', 'value': '100'},
+      },
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+
+    final finiteJson = jsonEncode(
+      model(
+        properties: const {
+          'maxWidth': {'kind': 'double', 'value': 987654321.125},
+        },
+      ),
+    );
+    final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+    expect(
+      () => CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+      throwsFormatException,
+    );
+  });
+
+  test('LimitedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.LimitedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.ListView\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.LimitedBox\n'
+      'P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test('decodes the complete optional OverflowBox contract and child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4',
+        'flutter.widgets.OverflowBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      'f72283ea-320c-4733-9072-963bc8281e7b',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Overflow child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'alignment': _canvasAlignment(
+            basis: 'directional',
+            horizontal: -1.25,
+            vertical: 0.75,
+          ),
+          'minWidth': {'kind': 'double', 'value': 120.0},
+          'maxWidth': {'kind': 'double', 'value': 240.5},
+          'minHeight': {'kind': 'double', 'value': 0.0},
+          'maxHeight': {'kind': 'double', 'value': 160.25},
+          'fit': {
+            'kind': 'enum',
+            'type': 'OverflowBoxFit',
+            'value': 'deferToChild',
+          },
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.OverflowBox');
+    expect(decoded.properties.keys, const [
+      'alignment',
+      'minWidth',
+      'maxWidth',
+      'minHeight',
+      'maxHeight',
+      'fit',
+    ]);
+    final alignment =
+        decoded.properties['alignment']!.value as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, -1.25);
+    expect(alignment.vertical, 0.75);
+    expect(decoded.properties['minWidth']!.value, 120.0);
+    expect(decoded.properties['maxWidth']!.value, 240.5);
+    expect(decoded.properties['minHeight']!.value, 0.0);
+    expect(decoded.properties['maxHeight']!.value, 160.25);
+    expect(
+      (decoded.properties['fit']!.value as CanvasEnumValue).value,
+      'deferToChild',
+    );
+    expect(decoded.slot('child')!.child!.id, child['id']);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+    expect(
+      _decode(model(slots: {'child': _single(null)})).root.slot('child')!.child,
+      isNull,
+    );
+    final equalBounds = _decode(
+      model(
+        properties: const {
+          'minWidth': {'kind': 'double', 'value': 42.0},
+          'maxWidth': {'kind': 'double', 'value': 42.0},
+          'minHeight': {'kind': 'double', 'value': 17.0},
+          'maxHeight': {'kind': 'double', 'value': 17.0},
+        },
+      ),
+    ).root;
+    expect(equalBounds.properties, hasLength(4));
+  });
+
+  test('rejects every value outside the reviewed OverflowBox projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4',
+        'flutter.widgets.OverflowBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'minWidth': {'kind': 'integer', 'value': 1},
+      },
+      const {
+        'maxWidth': {'kind': 'double', 'value': -0.001},
+      },
+      const {
+        'minHeight': {'kind': 'string', 'value': '0'},
+      },
+      const {
+        'minWidth': {'kind': 'double', 'value': 81.0},
+        'maxWidth': {'kind': 'double', 'value': 80.0},
+      },
+      const {
+        'minHeight': {'kind': 'double', 'value': 41.0},
+        'maxHeight': {'kind': 'double', 'value': 40.0},
+      },
+      const {
+        'fit': {'kind': 'enum', 'type': 'OverflowBoxFit', 'value': 'expand'},
+      },
+      const {
+        'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'contain'},
+      },
+      const {
+        'alignment': {'kind': 'string', 'value': 'center'},
+      },
+      {'alignment': _canvasAlignment(basis: 'fractional')},
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+
+    for (final property in const [
+      'minWidth',
+      'maxWidth',
+      'minHeight',
+      'maxHeight',
+    ]) {
+      expect(
+        () => _decode(
+          model(
+            properties: {
+              property: {'kind': 'integer', 'value': 1},
+            },
+          ),
+        ),
+        throwsFormatException,
+        reason: '$property rejects integer wire values',
+      );
+      expect(
+        () => _decode(
+          model(
+            properties: {
+              property: {'kind': 'double', 'value': -0.001},
+            },
+          ),
+        ),
+        throwsFormatException,
+        reason: '$property rejects negative values',
+      );
+      final finiteJson = jsonEncode(
+        model(
+          properties: {
+            property: {'kind': 'double', 'value': 987654321.125},
+          },
+        ),
+      );
+      final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+      expect(
+        () =>
+            CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+        throwsFormatException,
+        reason: property,
+      );
+    }
+  });
+
+  test('OverflowBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.OverflowBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Padding\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.OverflowBox\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|fit|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:'
+      'OverflowBoxFit:deferToChild,max\n'
+      'P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'P|minHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'P|minWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test(
+    'decodes every optional UnconstrainedBox property and its child slot',
+    () {
+      Map<String, Object?> model({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '67247867-79f8-470f-b109-59971aa7392c',
+          'flutter.widgets.UnconstrainedBox',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final child = _node(
+        'ff6ed199-2782-4be8-873b-e61ed6422664',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Natural size'},
+        },
+      );
+      final decoded = _decode(
+        model(
+          properties: {
+            'textDirection': {
+              'kind': 'enum',
+              'type': 'TextDirection',
+              'value': 'rtl',
+            },
+            'alignment': _canvasAlignment(
+              basis: 'directional',
+              horizontal: -1.25,
+              vertical: 0.5,
+            ),
+            'constrainedAxis': {
+              'kind': 'enum',
+              'type': 'Axis',
+              'value': 'vertical',
+            },
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': 'antiAliasWithSaveLayer',
+            },
+          },
+          slots: {'child': _single(child)},
+        ),
+      ).root;
+
+      expect(decoded.type, 'flutter.widgets.UnconstrainedBox');
+      expect(decoded.properties.keys, const [
+        'textDirection',
+        'alignment',
+        'constrainedAxis',
+        'clipBehavior',
+      ]);
+      expect(
+        (decoded.properties['textDirection']!.value as CanvasEnumValue).value,
+        'rtl',
+      );
+      final alignment =
+          decoded.properties['alignment']!.value
+              as CanvasAlignmentGeometryValue;
+      expect(alignment.basis, 'directional');
+      expect(alignment.horizontal, -1.25);
+      expect(alignment.vertical, 0.5);
+      expect(
+        (decoded.properties['constrainedAxis']!.value as CanvasEnumValue).value,
+        'vertical',
+      );
+      expect(
+        (decoded.properties['clipBehavior']!.value as CanvasEnumValue).value,
+        'antiAliasWithSaveLayer',
+      );
+      expect(decoded.slot('child')!.child!.id, child['id']);
+
+      final omitted = _decode(model()).root;
+      expect(omitted.properties, isEmpty);
+      expect(omitted.slot('child'), isNull);
+      expect(
+        _decode(
+          model(slots: {'child': _single(null)}),
+        ).root.slot('child')!.child,
+        isNull,
+      );
+      for (final axis in const ['horizontal', 'vertical']) {
+        final axisNode = _decode(
+          model(
+            properties: {
+              'constrainedAxis': {
+                'kind': 'enum',
+                'type': 'Axis',
+                'value': axis,
+              },
+            },
+          ),
+        ).root;
+        expect(
+          (axisNode.properties['constrainedAxis']!.value as CanvasEnumValue)
+              .value,
+          axis,
+        );
+      }
+    },
+  );
+
+  test('rejects values outside the reviewed UnconstrainedBox projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '67247867-79f8-470f-b109-59971aa7392c',
+        'flutter.widgets.UnconstrainedBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'auto',
+        },
+      },
+      const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+      },
+      const {
+        'constrainedAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'both'},
+      },
+      const {
+        'constrainedAxis': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'ltr',
+        },
+      },
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'alignment': {'kind': 'string', 'value': 'center'},
+      },
+      {'alignment': _canvasAlignment(basis: 'fractional')},
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+  });
+
+  test('UnconstrainedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.UnconstrainedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Wrap\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.UnconstrainedBox\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|constrainedAxis|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Axis:horizontal,vertical\n'
+      'P|textDirection|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextDirection:ltr,rtl\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes the exact optional Stack contract and ordered children', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},
@@ -850,6 +1737,209 @@ void main() {
     );
   });
 
+  test('decodes every optional Wrap leaf and preserves ordered children', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '0cdde885-b68c-4b21-bd47-246721c4e8b2',
+        'flutter.widgets.Wrap',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final first = _node(
+      'a4fe95c8-6b3e-45bb-a430-2fced89a6d19',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'First'},
+      },
+    );
+    final second = _node(
+      '6cd6814d-f127-43d7-9348-11d5df75cd0e',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Second'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: {
+          'direction': {'kind': 'enum', 'type': 'Axis', 'value': 'vertical'},
+          'alignment': {
+            'kind': 'enum',
+            'type': 'WrapAlignment',
+            'value': 'spaceEvenly',
+          },
+          'spacing': {'kind': 'double', 'value': -2.5},
+          'runAlignment': {
+            'kind': 'enum',
+            'type': 'WrapAlignment',
+            'value': 'center',
+          },
+          'runSpacing': {'kind': 'double', 'value': 4.5},
+          'crossAxisAlignment': {
+            'kind': 'enum',
+            'type': 'WrapCrossAlignment',
+            'value': 'end',
+          },
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': 'rtl',
+          },
+          'verticalDirection': {
+            'kind': 'enum',
+            'type': 'VerticalDirection',
+            'value': 'up',
+          },
+          'clipBehavior': {
+            'kind': 'enum',
+            'type': 'Clip',
+            'value': 'antiAliasWithSaveLayer',
+          },
+        },
+        slots: {
+          'children': _list([first, second]),
+        },
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.Wrap');
+    expect(decoded.properties.keys, const [
+      'direction',
+      'alignment',
+      'spacing',
+      'runAlignment',
+      'runSpacing',
+      'crossAxisAlignment',
+      'textDirection',
+      'verticalDirection',
+      'clipBehavior',
+    ]);
+    for (final expected in const <String, String>{
+      'direction': 'vertical',
+      'alignment': 'spaceEvenly',
+      'runAlignment': 'center',
+      'crossAxisAlignment': 'end',
+      'textDirection': 'rtl',
+      'verticalDirection': 'up',
+      'clipBehavior': 'antiAliasWithSaveLayer',
+    }.entries) {
+      expect(
+        (decoded.properties[expected.key]!.value as CanvasEnumValue).value,
+        expected.value,
+      );
+    }
+    expect(decoded.properties['spacing']!.value, -2.5);
+    expect(decoded.properties['runSpacing']!.value, 4.5);
+    expect(decoded.slot('children')!.children.map((child) => child.id), [
+      first['id'],
+      second['id'],
+    ]);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('children'), isNull);
+    final explicitEmpty = _decode(
+      model(slots: {'children': _list(const [])}),
+    ).root;
+    expect(explicitEmpty.slot('children')!.children, isEmpty);
+  });
+
+  test('rejects values outside the reviewed Wrap projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '0cdde885-b68c-4b21-bd47-246721c4e8b2',
+        'flutter.widgets.Wrap',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'direction': {'kind': 'enum', 'type': 'Axis', 'value': 'diagonal'},
+      },
+      const {
+        'alignment': {
+          'kind': 'enum',
+          'type': 'MainAxisAlignment',
+          'value': 'center',
+        },
+      },
+      const {
+        'crossAxisAlignment': {
+          'kind': 'enum',
+          'type': 'WrapCrossAlignment',
+          'value': 'stretch',
+        },
+      },
+      const {
+        'spacing': {'kind': 'integer', 'value': 2},
+      },
+      const {
+        'runSpacing': {'kind': 'string', 'value': '4'},
+      },
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'children': _single(null)})),
+      throwsFormatException,
+    );
+  });
+
+  test('Wrap reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Wrap\n');
+    expect(start, greaterThanOrEqualTo(0));
+    expect(
+      contract.substring(start),
+      'W|flutter.widgets.Wrap\n'
+      'P|alignment|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|crossAxisAlignment|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'WrapCrossAlignment:center,end,start\n'
+      'P|direction|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Axis:horizontal,vertical\n'
+      'P|runAlignment|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start\n'
+      'P|runSpacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1\n'
+      'P|spacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1\n'
+      'P|textDirection|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextDirection:ltr,rtl\n'
+      'P|verticalDirection|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'VerticalDirection:down,up\n'
+      'S|children|list|0|0|10000|any\n',
+    );
+  });
+
   test(
     'decodes exact Expanded contract only in direct Row or Column slots',
     () {
@@ -1000,10 +2090,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Expanded\n');
-      final end = contract.indexOf(
-        'W|flutter.widgets.FractionallySizedBox\n',
-        start,
-      );
+      final end = contract.indexOf('W|flutter.widgets.FittedBox\n', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(
@@ -1180,7 +2267,7 @@ void main() {
   test('Image reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Image\n');
-    final end = contract.indexOf('W|flutter.widgets.Opacity\n', start);
+    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));
@@ -1199,6 +2286,150 @@ void main() {
         'resize(1..16384,exact,fit,allowUpscaling)\n',
       ),
     );
+  });
+
+  test('decodes all 17 reviewed ListView leaves and its ordered children', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '810bc9c3-0189-4bc4-bf7f-cea660474a58',
+      'flutter.widgets.ListView',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+        'reverse': {'kind': 'boolean', 'value': true},
+        'primary': {'kind': 'boolean', 'value': false},
+        'physics': {'kind': 'string', 'value': 'rangeMaintaining'},
+        'shrinkWrap': {'kind': 'boolean', 'value': true},
+        'padding': {
+          'kind': 'edgeInsetsDirectional',
+          'start': 1,
+          'top': 2,
+          'end': 3,
+          'bottom': 4,
+        },
+        'itemExtent': {'kind': 'double', 'value': 48.5},
+        'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
+        'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
+        'addSemanticIndexes': {'kind': 'boolean', 'value': false},
+        'scrollCacheExtent': {'kind': 'integer', 'value': 240},
+        'semanticChildCount': {'kind': 'integer', 'value': 2},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'keyboardDismissBehavior': {
+          'kind': 'enum',
+          'type': 'ScrollViewKeyboardDismissBehavior',
+          'value': 'onDrag',
+        },
+        'restorationId': {'kind': 'string', 'value': 'primary-list'},
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+        'hitTestBehavior': {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'translucent',
+        },
+      },
+      slots: {
+        'children': _list([
+          _node(
+            '7a6d767e-9d7b-4cf1-9bfd-83f75383a08f',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'First'},
+            },
+          ),
+          _node(
+            '99de11d2-8f49-4efc-bb79-c6d0e89fcae6',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Second'},
+            },
+          ),
+        ]),
+      },
+    );
+
+    final listView = _decode(json).root;
+    expect(listView.properties, hasLength(17));
+    expect(listView.slot('children')!.children, hasLength(2));
+    expect(listView.properties['physics']!.value, 'rangeMaintaining');
+    expect(listView.properties['scrollCacheExtent']!.value, 240);
+    expect(
+      (listView.properties['hitTestBehavior']!.value as CanvasEnumValue).value,
+      'translucent',
+    );
+  });
+
+  test('rejects ListView values outside the reviewed closed contract', () {
+    Map<String, Object?> invalid(String name, Map<String, Object?> value) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '6ea67702-c5b3-4332-a790-4a77a8a0d903',
+        'flutter.widgets.ListView',
+        properties: {name: value},
+        slots: {'children': _list([])},
+      );
+      return json;
+    }
+
+    for (final json in <Map<String, Object?>>[
+      invalid('physics', {'kind': 'string', 'value': 'custom'}),
+      invalid('itemExtent', {'kind': 'double', 'value': -0.1}),
+      invalid('scrollCacheExtent', {'kind': 'integer', 'value': -1}),
+      invalid('restorationId', {'kind': 'string', 'value': ''}),
+      invalid('scrollDirection', {
+        'kind': 'enum',
+        'type': 'Axis',
+        'value': 'diagonal',
+      }),
+      invalid('hitTestBehavior', {
+        'kind': 'enum',
+        'type': 'HitTestBehavior',
+        'value': 'ignore',
+      }),
+    ]) {
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
+  test('rejects ListView semanticChildCount above children length', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '0654a243-6805-4131-a3fd-80f9873f424c',
+      'flutter.widgets.ListView',
+      properties: {
+        'semanticChildCount': {'kind': 'integer', 'value': 1},
+      },
+      slots: {'children': _list([])},
+    );
+
+    expect(
+      () => _decode(json),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('/properties/semanticChildCount'),
+        ),
+      ),
+    );
+  });
+
+  test('ListView reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ListView\n');
+    final end = contract.indexOf('W|flutter.widgets.Opacity\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final block = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(17));
+    expect(block, contains('S|children|list|0|0|10000|any\n'));
+    expect(block, contains('P|scrollCacheExtent|double,integer|0|-|'));
   });
 
   test('decodes all 54 reviewed TextField constructor leaves exactly', () {
@@ -1691,7 +2922,7 @@ void main() {
   test('Opacity reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Opacity\n');
-    final end = contract.indexOf('W|flutter.widgets.Padding\n', start);
+    final end = contract.indexOf('W|flutter.widgets.OverflowBox\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -3246,7 +4477,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 9;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 11;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -4346,6 +5577,19 @@ Map<String, Object?> _containerModel({
   return model;
 }
 
+Map<String, Object?> _canvasBoxConstraints(
+  Object? minWidth,
+  Object? maxWidth,
+  Object? minHeight,
+  Object? maxHeight,
+) => {
+  'kind': 'boxConstraints',
+  'minWidth': minWidth,
+  'maxWidth': maxWidth,
+  'minHeight': minHeight,
+  'maxHeight': maxHeight,
+};
+
 Map<String, Object?> _canvasAlignment({
   String basis = 'physical',
   num horizontal = 0,
@@ -4627,7 +5871,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 11,
+  'protocolVersion': 12,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

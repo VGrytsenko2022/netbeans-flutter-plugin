@@ -651,23 +651,97 @@ public sealed interface PropertyValue permits
         }
     }
 
-    /** Finite Flutter box-constraint bounds; empty maxima represent infinity. */
+    /** One normalized Flutter {@code BoxConstraints} bound. */
+    sealed interface BoxConstraintBound permits
+            BoxConstraintBound.Finite,
+            BoxConstraintBound.Infinity {
+
+        /** A finite, non-negative bound. */
+        record Finite(BigDecimal value) implements BoxConstraintBound {
+            public Finite {
+                value = nonNegative(value, "box constraint bound");
+            }
+        }
+
+        /** Positive infinity. Negative infinity is never a valid box bound. */
+        enum Infinity implements BoxConstraintBound {
+            INSTANCE
+        }
+
+        static BoxConstraintBound finite(BigDecimal value) {
+            return new Finite(value);
+        }
+
+        static BoxConstraintBound finiteOrInfinity(Optional<BigDecimal> value) {
+            Objects.requireNonNull(value, "value");
+            return value.<BoxConstraintBound>map(Finite::new)
+                    .orElse(Infinity.INSTANCE);
+        }
+
+        default Optional<BigDecimal> finiteValue() {
+            return this instanceof Finite finite
+                    ? Optional.of(finite.value()) : Optional.empty();
+        }
+
+        default boolean infinite() {
+            return this == Infinity.INSTANCE;
+        }
+    }
+
+    /**
+     * Complete normalized Flutter box constraints. Infinity is admitted for
+     * every bound; an infinite minimum requires the matching maximum to be
+     * infinite, which represents an expanding axis.
+     */
     record BoxConstraintsValue(
-            BigDecimal minWidth,
-            Optional<BigDecimal> maxWidth,
-            BigDecimal minHeight,
-            Optional<BigDecimal> maxHeight) implements PropertyValue {
+            BoxConstraintBound minWidth,
+            BoxConstraintBound maxWidth,
+            BoxConstraintBound minHeight,
+            BoxConstraintBound maxHeight) implements PropertyValue {
 
         public BoxConstraintsValue {
-            minWidth = nonNegative(minWidth, "minWidth");
-            maxWidth = normalizedOptionalNonNegative(maxWidth, "maxWidth");
-            minHeight = nonNegative(minHeight, "minHeight");
-            maxHeight = normalizedOptionalNonNegative(maxHeight, "maxHeight");
-            if (maxWidth.isPresent() && maxWidth.orElseThrow().compareTo(minWidth) < 0) {
-                throw new IllegalArgumentException("maxWidth must not be less than minWidth");
+            minWidth = Objects.requireNonNull(minWidth, "minWidth");
+            maxWidth = Objects.requireNonNull(maxWidth, "maxWidth");
+            minHeight = Objects.requireNonNull(minHeight, "minHeight");
+            maxHeight = Objects.requireNonNull(maxHeight, "maxHeight");
+            validateAxis(minWidth, maxWidth, "width");
+            validateAxis(minHeight, maxHeight, "height");
+        }
+
+        /** Compatibility constructor for finite minima and optional maxima. */
+        public BoxConstraintsValue(
+                BigDecimal minWidth,
+                Optional<BigDecimal> maxWidth,
+                BigDecimal minHeight,
+                Optional<BigDecimal> maxHeight) {
+            this(
+                    BoxConstraintBound.finite(minWidth),
+                    BoxConstraintBound.finiteOrInfinity(maxWidth),
+                    BoxConstraintBound.finite(minHeight),
+                    BoxConstraintBound.finiteOrInfinity(maxHeight));
+        }
+
+        public boolean expandingWidth() {
+            return minWidth.infinite();
+        }
+
+        public boolean expandingHeight() {
+            return minHeight.infinite();
+        }
+
+        private static void validateAxis(
+                BoxConstraintBound minimum,
+                BoxConstraintBound maximum,
+                String axis) {
+            if (minimum.infinite() && !maximum.infinite()) {
+                throw new IllegalArgumentException(
+                        "Infinite minimum " + axis + " requires an infinite maximum");
             }
-            if (maxHeight.isPresent() && maxHeight.orElseThrow().compareTo(minHeight) < 0) {
-                throw new IllegalArgumentException("maxHeight must not be less than minHeight");
+            if (minimum instanceof BoxConstraintBound.Finite finiteMinimum
+                    && maximum instanceof BoxConstraintBound.Finite finiteMaximum
+                    && finiteMaximum.value().compareTo(finiteMinimum.value()) < 0) {
+                throw new IllegalArgumentException(
+                        "Maximum " + axis + " must not be less than minimum " + axis);
             }
         }
 

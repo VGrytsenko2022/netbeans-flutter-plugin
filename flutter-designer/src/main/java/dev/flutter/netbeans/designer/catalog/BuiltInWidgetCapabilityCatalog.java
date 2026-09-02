@@ -59,6 +59,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.DOUBLE,
                     PropertyValueKind.EDGE_INSETS));
     private static final String WIDGETS_LIBRARY = "package:flutter/widgets.dart";
+    private static final String RENDERING_LIBRARY = "package:flutter/rendering.dart";
     private static final String MATERIAL_LIBRARY = "package:flutter/material.dart";
     private static final String GESTURES_LIBRARY = "package:flutter/gestures.dart";
     private static final String SERVICES_LIBRARY = "package:flutter/services.dart";
@@ -147,6 +148,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Wrap", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Padding", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Center", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Text", STATIC_EDITABLE),
@@ -157,8 +159,14 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Opacity", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Align", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FractionallySizedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.FittedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ConstrainedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.UnconstrainedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.LimitedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.OverflowBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Stack", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -243,6 +251,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
+            Map.entry("flutter.widgets.Wrap", wrapProjection()),
             Map.entry("flutter.widgets.Padding", projection(Map.of(
                     "padding", requiredDefaultEdgeInsetsSchema(
                             "edgeInsets:16,16,16,16",
@@ -309,6 +318,67 @@ public final class BuiltInWidgetCapabilityCatalog {
                             PropertyValueKind.INTEGER,
                             PropertyValueKind.DOUBLE)),
                     Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.FittedBox", projection(Map.ofEntries(
+                    enumProperty(
+                            "fit", "BoxFit", "fill", "contain", "cover",
+                            "fitWidth", "fitHeight", "none", "scaleDown"),
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ConstrainedBox", projection(Map.ofEntries(
+                    requiredDefaultConstrainedProperty(
+                            "constraints",
+                            "boxConstraints:0,inf,0,inf",
+                            PropertyValueKind.BOX_CONSTRAINTS,
+                            "boxConstraints:v2:finiteOrPositiveInfinity")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.UnconstrainedBox", projection(Map.ofEntries(
+                    enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    enumProperty(
+                            "constrainedAxis", "Axis", "horizontal", "vertical"),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.LimitedBox", projection(Map.of(
+                    "maxWidth", numericSchema(
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    "maxHeight", numericSchema(
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.OverflowBox", projection(Map.ofEntries(
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    numericProperty(
+                            "minWidth",
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    numericProperty(
+                            "maxWidth",
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    numericProperty(
+                            "minHeight",
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    numericProperty(
+                            "maxHeight",
+                            NON_NEGATIVE_DOUBLE_BOUNDS,
+                            PropertyValueKind.DOUBLE),
+                    enumPropertyForLibrary(
+                            "fit", RENDERING_LIBRARY,
+                            "OverflowBoxFit", "max", "deferToChild")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Stack", projection(Map.ofEntries(
                     Map.entry("alignment", constrainedSchema(
                             PropertyValueKind.ALIGNMENT_GEOMETRY,
@@ -325,6 +395,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                             NON_NEGATIVE_INTEGER_BOUNDS,
                             PropertyValueKind.INTEGER)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
@@ -505,6 +576,72 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Map.of("children", listSlotSchema(false, 0, 10_000)));
     }
 
+    private static CanvasProjection wrapProjection() {
+        return projection(Map.ofEntries(
+                enumProperty("direction", "Axis", "horizontal", "vertical"),
+                enumProperty(
+                        "alignment", "WrapAlignment",
+                        "start", "end", "center", "spaceBetween",
+                        "spaceAround", "spaceEvenly"),
+                numericProperty(
+                        "spacing", UNBOUNDED_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                enumProperty(
+                        "runAlignment", "WrapAlignment",
+                        "start", "end", "center", "spaceBetween",
+                        "spaceAround", "spaceEvenly"),
+                numericProperty(
+                        "runSpacing", UNBOUNDED_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                enumProperty(
+                        "crossAxisAlignment", "WrapCrossAlignment",
+                        "start", "end", "center"),
+                enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                enumProperty("verticalDirection", "VerticalDirection", "up", "down"),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge",
+                        "antiAlias", "antiAliasWithSaveLayer")),
+                Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection listViewProjection() {
+        return projection(Map.ofEntries(
+                enumProperty("scrollDirection", "Axis", "horizontal", "vertical"),
+                property("reverse", PropertyValueKind.BOOLEAN),
+                property("primary", PropertyValueKind.BOOLEAN),
+                stringPatternProperty(
+                        "physics",
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)"),
+                property("shrinkWrap", PropertyValueKind.BOOLEAN),
+                edgeInsetsProperty("padding", true),
+                numericProperty(
+                        "itemExtent", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                property("addAutomaticKeepAlives", PropertyValueKind.BOOLEAN),
+                property("addRepaintBoundaries", PropertyValueKind.BOOLEAN),
+                property("addSemanticIndexes", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "scrollCacheExtent", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "semanticChildCount", NON_NEGATIVE_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                enumPropertyForLibrary(
+                        "dragStartBehavior", GESTURES_LIBRARY,
+                        "DragStartBehavior", "down", "start"),
+                enumProperty(
+                        "keyboardDismissBehavior",
+                        "ScrollViewKeyboardDismissBehavior", "manual", "onDrag"),
+                stringLengthProperty("restorationId", 1, 256),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge",
+                        "antiAlias", "antiAliasWithSaveLayer"),
+                enumPropertyForLibrary(
+                        "hitTestBehavior", RENDERING_LIBRARY,
+                        "HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
     private static CanvasProjection containerProjection() {
         String decorationFingerprint = boxDecorationFingerprint(
                 REVIEWED_COLOR_THEME_TOKENS);
@@ -529,7 +666,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                         PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                 Map.entry("constraints", constrainedSchema(
                         PropertyValueKind.BOX_CONSTRAINTS,
-                        "boxConstraints")),
+                        "boxConstraints:v2:finiteOrPositiveInfinity")),
                 edgeInsetsProperty("margin", true),
                 Map.entry("transform", constrainedSchema(
                         PropertyValueKind.MATRIX4,
@@ -1659,7 +1796,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             return "alignmentGeometry";
         }
         if (constraint instanceof PropertyValueConstraint.BoxConstraintsValues) {
-            return "boxConstraints";
+            return "boxConstraints:v2:finiteOrPositiveInfinity";
         }
         if (constraint instanceof PropertyValueConstraint.Matrix4Values) {
             return "matrix4";
@@ -1743,6 +1880,13 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + decimalText(insets.end()) + ','
                     + decimalText(insets.bottom());
         }
+        if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
+            return "boxConstraints:"
+                    + boxConstraintBoundFingerprint(constraints.minWidth()) + ','
+                    + boxConstraintBoundFingerprint(constraints.maxWidth()) + ','
+                    + boxConstraintBoundFingerprint(constraints.minHeight()) + ','
+                    + boxConstraintBoundFingerprint(constraints.maxHeight());
+        }
         if (value instanceof PropertyValue.IconDataValue icon) {
             return "iconData:"
                     + icon.codePoint().map(String::valueOf).orElse("-") + ':'
@@ -1765,6 +1909,13 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static String base64(String value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(
                 value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String boxConstraintBoundFingerprint(
+            PropertyValue.BoxConstraintBound bound) {
+        return bound.finiteValue()
+                .map(BuiltInWidgetCapabilityCatalog::decimalText)
+                .orElse("inf");
     }
 
     private static boolean validSlotAcceptanceFingerprint(String value) {

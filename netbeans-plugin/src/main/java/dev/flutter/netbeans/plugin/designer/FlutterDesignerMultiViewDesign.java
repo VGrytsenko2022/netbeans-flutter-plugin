@@ -2598,6 +2598,7 @@ public final class FlutterDesignerMultiViewDesign
             FlutterWidgetPropertiesNode.SlotMutationHandler slotMutationHandler) {
         invalidatePaletteDragAuthority();
         StableId retainedSelection = selectedWidgetId().orElse(null);
+        DesignerDocument previousDocument = currentCanvasDocument;
         currentCanvasDocument = Objects.requireNonNull(document, "document");
         currentCanvasCatalog = Objects.requireNonNull(catalog, "catalog");
         currentCanvasMutationEnabled = mutationHandler != null;
@@ -2608,20 +2609,30 @@ public final class FlutterDesignerMultiViewDesign
                             .initialMode(currentCanvasDocument.canvas());
             refreshPreviewChoices(null, initial);
         }
-        rebuildWidgetTree(
-                currentCanvasDocument.root(),
-                currentCanvasCatalog,
-                retainedSelection,
-                mutationHandler,
+        FlutterWidgetSlotEditorContext slotEditorContext =
                 new FlutterWidgetSlotEditorContext(
-                        currentCanvasDocument,
-                        currentCanvasCatalog,
-                        currentCanvasCatalog.paletteDefinitions().stream()
-                                .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
-                                        definition, WidgetCapability.CREATE))
-                                .map(definition -> definition.typeId())
-                                .toList()),
-                slotMutationHandler);
+                currentCanvasDocument,
+                currentCanvasCatalog,
+                currentCanvasCatalog.paletteDefinitions().stream()
+                        .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                                definition, WidgetCapability.CREATE))
+                        .map(definition -> definition.typeId())
+                        .toList());
+        if (!refreshWidgetTree(
+                previousDocument,
+                currentCanvasDocument,
+                currentCanvasCatalog,
+                mutationHandler,
+                slotEditorContext,
+                slotMutationHandler)) {
+            rebuildWidgetTree(
+                    currentCanvasDocument.root(),
+                    currentCanvasCatalog,
+                    retainedSelection,
+                    mutationHandler,
+                    slotEditorContext,
+                    slotMutationHandler);
+        }
         presentCurrentCanvas();
     }
 
@@ -3243,6 +3254,133 @@ public final class FlutterDesignerMultiViewDesign
             synchronizingSelection = false;
         }
         updateDeleteWidgetAction();
+    }
+
+    /**
+     * Applies a property-only document revision to the existing Explorer
+     * projection. Keeping the same Node and Node.Property instances prevents
+     * NetBeans PropertySheet from discarding its active row, editor and focus.
+     */
+    private boolean refreshWidgetTree(
+            DesignerDocument previousDocument,
+            DesignerDocument nextDocument,
+            WidgetCatalog nextCatalog,
+            FlutterWidgetPropertiesNode.PropertyMutationHandler mutationHandler,
+            FlutterWidgetSlotEditorContext slotEditorContext,
+            FlutterWidgetPropertiesNode.SlotMutationHandler slotMutationHandler) {
+        if (previousDocument == null
+                || widgetNodes.isEmpty()
+                || !sameWidgetTreeStructure(
+                        previousDocument.root(), nextDocument.root())) {
+            return false;
+        }
+
+        LinkedHashMap<StableId, WidgetNode> nextWidgets = new LinkedHashMap<>();
+        collectWidgets(nextDocument.root(), nextWidgets);
+        if (nextWidgets.size() != widgetNodes.size()
+                || !nextWidgets.keySet().equals(widgetNodes.keySet())) {
+            return false;
+        }
+
+        LinkedHashMap<StableId, WidgetDefinition> nextDefinitions =
+                new LinkedHashMap<>();
+        for (Map.Entry<StableId, WidgetNode> entry : nextWidgets.entrySet()) {
+            Node projected = widgetNodes.get(entry.getKey());
+            WidgetDefinition definition = nextCatalog.find(entry.getValue().type())
+                    .orElse(null);
+            if (!(projected instanceof FlutterWidgetPropertiesNode propertiesNode)
+                    || definition == null
+                    || !propertiesNode.canRefreshPresentation(
+                            entry.getValue(),
+                            definition,
+                            mutationHandler,
+                            slotMutationHandler)) {
+                return false;
+            }
+            nextDefinitions.put(entry.getKey(), definition);
+        }
+
+        for (Map.Entry<StableId, WidgetNode> entry : nextWidgets.entrySet()) {
+            FlutterWidgetPropertiesNode propertiesNode =
+                    (FlutterWidgetPropertiesNode) widgetNodes.get(entry.getKey());
+            propertiesNode.refreshPresentation(
+                    entry.getValue(),
+                    nextDefinitions.get(entry.getKey()),
+                    mutationHandler,
+                    slotEditorContext,
+                    slotMutationHandler,
+                    currentImageAssetChoices);
+        }
+        updateDeleteWidgetAction();
+        return true;
+    }
+
+    private static void collectWidgets(
+            WidgetNode widget,
+            Map<StableId, WidgetNode> result) {
+        WidgetNode previous = result.putIfAbsent(widget.id(), widget);
+        if (previous != null) {
+            throw new IllegalArgumentException(
+                    "Duplicate stable widget ID in validated Designer tree: "
+                    + widget.id());
+        }
+        for (WidgetSlot slot : widget.slots().values()) {
+            switch (slot) {
+                case WidgetSlot.SingleSlot single ->
+                    single.child().ifPresent(child -> collectWidgets(child, result));
+                case WidgetSlot.ListSlot list ->
+                    list.children().forEach(child -> collectWidgets(child, result));
+            }
+        }
+    }
+
+    private static boolean sameWidgetTreeStructure(
+            WidgetNode previous,
+            WidgetNode next) {
+        if (!previous.id().equals(next.id())
+                || !previous.type().equals(next.type())
+                || !previous.slots().keySet().equals(next.slots().keySet())) {
+            return false;
+        }
+        for (SlotName name : previous.slots().keySet()) {
+            WidgetSlot previousSlot = previous.slots().get(name);
+            WidgetSlot nextSlot = next.slots().get(name);
+            if (!sameWidgetSlotStructure(previousSlot, nextSlot)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean sameWidgetSlotStructure(
+            WidgetSlot previous,
+            WidgetSlot next) {
+        if (previous instanceof WidgetSlot.SingleSlot previousSingle
+                && next instanceof WidgetSlot.SingleSlot nextSingle) {
+            if (previousSingle.child().isEmpty()
+                    || nextSingle.child().isEmpty()) {
+                return previousSingle.child().isEmpty()
+                        && nextSingle.child().isEmpty();
+            }
+            return sameWidgetTreeStructure(
+                    previousSingle.child().orElseThrow(),
+                    nextSingle.child().orElseThrow());
+        }
+        if (previous instanceof WidgetSlot.ListSlot previousList
+                && next instanceof WidgetSlot.ListSlot nextList) {
+            if (previousList.children().size() != nextList.children().size()) {
+                return false;
+            }
+            for (int index = 0; index < previousList.children().size(); index++) {
+                if (!sameWidgetTreeStructure(
+                        previousList.children().get(index),
+                        nextList.children().get(index))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     private Node buildWidgetNode(

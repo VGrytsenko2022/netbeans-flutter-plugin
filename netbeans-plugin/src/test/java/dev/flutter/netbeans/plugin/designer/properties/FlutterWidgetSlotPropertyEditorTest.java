@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -240,6 +241,76 @@ class FlutterWidgetSlotPropertyEditorTest {
             assertEquals(List.of(add), submitted);
             return null;
         });
+    }
+
+    @Test
+    void stableSlotPropertyRearmsItsLocalGateForEachRefreshedHandler()
+            throws Exception {
+        WidgetDefinition scaffoldDefinition = definition(
+                "flutter.material.Scaffold");
+        WidgetNode scaffold = new WidgetNode(
+                id("9ed02795-dd94-4277-91fc-b643d5260d7b"),
+                scaffoldDefinition.typeId(),
+                Map.of(),
+                Map.of(BODY, WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext firstContext =
+                new FlutterWidgetSlotEditorContext(
+                        document(scaffold),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Center")));
+        FlutterWidgetSlotEditorContext secondContext =
+                new FlutterWidgetSlotEditorContext(
+                        document(scaffold),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> firstRevision = new ArrayList<>();
+        List<FlutterWidgetSlotMutation> secondRevision = new ArrayList<>();
+        FlutterWidgetPropertiesNode.PropertyMutationHandler propertyHandler =
+                ignored -> { };
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                scaffold,
+                scaffoldDefinition,
+                propertyHandler,
+                firstContext,
+                firstRevision::add);
+        Node.Property<FlutterWidgetSlotCellValue> stableBody =
+                slotProperty(node, "body");
+        FlutterWidgetSlotMutation.Add addCenter =
+                new FlutterWidgetSlotMutation.Add(
+                        scaffold.id(), BODY,
+                        type("flutter.widgets.Center"), 0);
+        FlutterWidgetSlotCellValue firstIntent =
+                FlutterWidgetSlotCellValue.staged("Add Center", addCenter);
+
+        stableBody.setValue(firstIntent);
+        stableBody.setValue(firstIntent);
+        assertEquals(List.of(addCenter), firstRevision,
+                "one handler/revision may consume the staged intent once");
+
+        node.refreshPresentation(
+                scaffold,
+                scaffoldDefinition,
+                propertyHandler,
+                secondContext,
+                secondRevision::add,
+                FlutterImageAssetChoices.empty());
+
+        assertSame(stableBody, slotProperty(node, "body"));
+        FlutterWidgetSlotMutation.Add addText =
+                new FlutterWidgetSlotMutation.Add(
+                        scaffold.id(), BODY,
+                        type("flutter.widgets.Text"), 0);
+        FlutterWidgetSlotCellValue secondIntent =
+                FlutterWidgetSlotCellValue.staged("Add Text", addText);
+        stableBody.setValue(secondIntent);
+        stableBody.setValue(secondIntent);
+
+        assertEquals(List.of(addCenter), firstRevision,
+                "refresh must never redispatch through the prior revision handler");
+        assertEquals(List.of(addText), secondRevision,
+                "a new handler must rearm the stable Property for exactly one intent");
     }
 
     @Test
@@ -491,6 +562,321 @@ class FlutterWidgetSlotPropertyEditorTest {
             child.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted FractionallySizedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
+    void fittedBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.FittedBox");
+        WidgetNode fittedBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("b587a092-9a65-420a-9d1c-e127cc752f8d"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(fittedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                fittedBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "FittedBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(fittedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted FittedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
+    void constrainedBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ConstrainedBox");
+        WidgetNode constrainedBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("dc8305ac-41e7-431b-91d4-14addcaac591"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(constrainedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                constrainedBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "ConstrainedBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(constrainedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted ConstrainedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
+    void unconstrainedBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.UnconstrainedBox");
+        WidgetNode unconstrainedBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("88db0707-d034-40ae-98ac-69a4e1002b35"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(unconstrainedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                unconstrainedBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "UnconstrainedBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(unconstrainedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted UnconstrainedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
+    void limitedBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.LimitedBox");
+        WidgetNode limitedBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("8d958c9c-fc08-45b0-b4a3-63236c71cf27"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(limitedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                limitedBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "LimitedBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(limitedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted LimitedBox child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
+    void overflowBoxChildAddsTextAsOneExactTransactionalIntent() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBox");
+        WidgetNode overflowBox = WidgetNodePrototypeFactory.create(
+                definition,
+                id("b9d91c9d-81c1-47ce-8d14-110e31ef75ae"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(overflowBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                overflowBox,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "OverflowBox.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(overflowBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted OverflowBox child edit consumes one lease");
             return null;
         });
     }

@@ -92,9 +92,26 @@ void main() {
       canvasEmptyChildDropSlot,
     ]);
     expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.ConstrainedBox'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.UnconstrainedBox'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.LimitedBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.OverflowBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(
       canvasDropSlotsForWidgetType('flutter.widgets.FractionallySizedBox'),
       const [canvasEmptyChildDropSlot],
     );
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.FittedBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -106,6 +123,9 @@ void main() {
     ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
       canvasStackChildrenAppendDropSlot,
+    ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.ListView'), const [
+      canvasChildrenAppendDropSlot,
     ]);
     expect(
       canvasStackChildrenAppendDropSlot.zonePlacement,
@@ -144,7 +164,7 @@ void main() {
     expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
   });
 
-  test('closes the 19-source by 20-destination compatibility matrix', () {
+  test('closes the 26-source by 27-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -154,14 +174,21 @@ void main() {
       'flutter.widgets.AspectRatio',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
+      'flutter.widgets.Wrap',
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
+      'flutter.widgets.ConstrainedBox',
+      'flutter.widgets.UnconstrainedBox',
+      'flutter.widgets.LimitedBox',
+      'flutter.widgets.OverflowBox',
       'flutter.widgets.Container',
       'flutter.widgets.Expanded',
+      'flutter.widgets.FittedBox',
       'flutter.widgets.FractionallySizedBox',
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.Image',
+      'flutter.widgets.ListView',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
       'flutter.widgets.Text',
@@ -174,8 +201,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(19));
-    expect(destinations, hasLength(20));
+    expect(sourceTypes, hasLength(26));
+    expect(destinations, hasLength(27));
 
     var accepted = 0;
     var rejected = 0;
@@ -199,9 +226,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 328);
-    expect(rejected, 52);
-    expect(accepted + rejected, 380);
+    expect(accepted, 629);
+    expect(rejected, 73);
+    expect(accepted + rejected, 702);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2110,6 +2137,1418 @@ void main() {
   );
 
   testWidgets(
+    'renders real FittedBox defaults and every reviewed fit and clip value',
+    (tester) async {
+      const widgetId = 'b587a092-9a65-420a-9d1c-e127cc752f8d';
+      final child = <String, Object?>{
+        'id': 'feea5045-2de2-4d34-b08d-79e5ee710f7e',
+        'type': 'flutter.widgets.SizedBox',
+        'properties': <String, Object?>{
+          'width': {'kind': 'integer', 'value': 40},
+          'height': {'kind': 'integer', 'value': 20},
+        },
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': null},
+        },
+      };
+
+      Finder fittedFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(FittedBox),
+          )
+          .first;
+
+      Future<RenderFittedBox> pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredFittedBox(
+                  properties: properties,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderFittedBox>(fittedFinder());
+      }
+
+      final omitted = await pump(const {});
+      final omittedWidget = tester.widget<FittedBox>(fittedFinder());
+      expect(omittedWidget.fit, BoxFit.contain);
+      expect(omittedWidget.alignment, Alignment.center);
+      expect(omittedWidget.clipBehavior, Clip.none);
+      expect(omitted.size, const Size(200, 100));
+      expect(omitted.child!.size, const Size(40, 20));
+
+      const fits = <String, BoxFit>{
+        'fill': BoxFit.fill,
+        'contain': BoxFit.contain,
+        'cover': BoxFit.cover,
+        'fitWidth': BoxFit.fitWidth,
+        'fitHeight': BoxFit.fitHeight,
+        'none': BoxFit.none,
+        'scaleDown': BoxFit.scaleDown,
+      };
+      for (final entry in fits.entries) {
+        final render = await pump({
+          'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': entry.key},
+        });
+        expect(tester.widget<FittedBox>(fittedFinder()).fit, entry.value);
+        expect(render.child!.size, const Size(40, 20), reason: entry.key);
+      }
+
+      const clips = <String, Clip>{
+        'none': Clip.none,
+        'hardEdge': Clip.hardEdge,
+        'antiAlias': Clip.antiAlias,
+        'antiAliasWithSaveLayer': Clip.antiAliasWithSaveLayer,
+      };
+      for (final entry in clips.entries) {
+        await pump({
+          'alignment': _viewAlignment(horizontal: 2, vertical: -2),
+          'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': entry.key},
+        });
+        final widget = tester.widget<FittedBox>(fittedFinder());
+        expect(widget.alignment, const Alignment(2, -2));
+        expect(widget.clipBehavior, entry.value);
+      }
+    },
+  );
+
+  testWidgets(
+    'resolves FittedBox directional alignment and applies overflow clipping',
+    (tester) async {
+      const widgetId = 'b587a092-9a65-420a-9d1c-e127cc752f8d';
+      const childId = 'feea5045-2de2-4d34-b08d-79e5ee710f7e';
+
+      Future<({Offset offset, TextDirection direction})> directional(
+        String locale,
+      ) async {
+        final json = _modelWithCenteredFittedBox(
+          properties: {
+            'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'none'},
+            'alignment': _viewAlignment(
+              basis: 'directional',
+              horizontal: -1,
+              vertical: 0,
+            ),
+          },
+          child: <String, Object?>{
+            'id': childId,
+            'type': 'flutter.widgets.SizedBox',
+            'properties': <String, Object?>{
+              'width': {'kind': 'integer', 'value': 40},
+              'height': {'kind': 'integer', 'value': 20},
+            },
+            'slots': <String, Object?>{},
+          },
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = locale;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final node = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+        final finder = find
+            .descendant(of: node, matching: find.byType(FittedBox))
+            .first;
+        final render = tester.renderObject<RenderFittedBox>(finder);
+        final childRect = MatrixUtils.transformRect(
+          render.child!.getTransformTo(render),
+          Offset.zero & render.child!.size,
+        );
+        return (offset: childRect.topLeft, direction: render.textDirection!);
+      }
+
+      final ltr = await directional('en-US');
+      expect(ltr.direction, TextDirection.ltr);
+      expect(ltr.offset, const Offset(0, 40));
+      final rtl = await directional('ar-SA');
+      expect(rtl.direction, TextDirection.rtl);
+      expect(rtl.offset, const Offset(160, 40));
+
+      Future<({Clip clip, Rect childRect, Size size})> overflow(
+        String clip,
+      ) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredFittedBox(
+                  properties: {
+                    'fit': {'kind': 'enum', 'type': 'BoxFit', 'value': 'none'},
+                    'clipBehavior': {
+                      'kind': 'enum',
+                      'type': 'Clip',
+                      'value': clip,
+                    },
+                  },
+                  child: <String, Object?>{
+                    'id': childId,
+                    'type': 'flutter.widgets.SizedBox',
+                    'properties': <String, Object?>{
+                      'width': {'kind': 'integer', 'value': 300},
+                      'height': {'kind': 'integer', 'value': 200},
+                    },
+                    'slots': <String, Object?>{},
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final render = tester.renderObject<RenderFittedBox>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+                matching: find.byType(FittedBox),
+              )
+              .first,
+        );
+        return (
+          clip: render.clipBehavior,
+          childRect: MatrixUtils.transformRect(
+            render.child!.getTransformTo(render),
+            Offset.zero & render.child!.size,
+          ),
+          size: render.size,
+        );
+      }
+
+      final unclipped = await overflow('none');
+      expect(unclipped.clip, Clip.none);
+      expect(unclipped.size, const Size(200, 100));
+      expect(unclipped.childRect, const Rect.fromLTWH(-50, -50, 300, 200));
+      final clipped = await overflow('hardEdge');
+      expect(clipped.clip, Clip.hardEdge);
+      expect(clipped.size, const Size(200, 100));
+      expect(clipped.childRect, const Rect.fromLTWH(-50, -50, 300, 200));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps an empty zero-size FittedBox selectable and exposes child DnD',
+    (tester) async {
+      const widgetId = 'b587a092-9a65-420a-9d1c-e127cc752f8d';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredFittedBox(
+                properties: const {},
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+    },
+  );
+
+  testWidgets(
+    'renders finite, unbounded, expanding, and mixed ConstrainedBox axes',
+    (tester) async {
+      const widgetId = '93d89766-af04-4fee-af57-a56c4ed5e37c';
+      final child = _viewSizedBoxNode(
+        'bacaf0a6-b27a-4c98-9f88-8c8eb91597c1',
+        width: 50,
+        height: 30,
+      );
+
+      Finder constrainedFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(ConstrainedBox),
+          )
+          .first;
+
+      Future<({BoxConstraints constraints, Size size, Size? childSize})> pump({
+        required Map<String, Object?> constraints,
+        required Map<String, Object?>? child,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredConstrainedBox(
+                  constraints: constraints,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final widget = tester.widget<ConstrainedBox>(constrainedFinder());
+        final render = tester.renderObject<RenderConstrainedBox>(
+          constrainedFinder(),
+        );
+        expect(tester.takeException(), isNull);
+        return (
+          constraints: widget.constraints,
+          size: render.size,
+          childSize: render.child?.size,
+        );
+      }
+
+      final finite = await pump(
+        constraints: _viewBoxConstraints(10, 80, 20, 90),
+        child: child,
+      );
+      expect(
+        finite.constraints,
+        const BoxConstraints(
+          minWidth: 10,
+          maxWidth: 80,
+          minHeight: 20,
+          maxHeight: 90,
+        ),
+      );
+      expect(finite.size, const Size(50, 30));
+      expect(finite.childSize, const Size(50, 30));
+
+      final finiteEmpty = await pump(
+        constraints: _viewBoxConstraints(10, 80, 20, 90),
+        child: null,
+      );
+      expect(finiteEmpty.size, const Size(10, 20));
+      expect(finiteEmpty.childSize, isNull);
+
+      final unbounded = await pump(
+        constraints: _viewBoxConstraints(0, null, 0, null),
+        child: child,
+      );
+      expect(unbounded.constraints.minWidth, 0);
+      expect(unbounded.constraints.maxWidth, double.infinity);
+      expect(unbounded.constraints.minHeight, 0);
+      expect(unbounded.constraints.maxHeight, double.infinity);
+      expect(unbounded.size, const Size(50, 30));
+
+      final unboundedEmpty = await pump(
+        constraints: _viewBoxConstraints(0, null, 0, null),
+        child: null,
+      );
+      expect(unboundedEmpty.size, Size.zero);
+
+      final expanding = await pump(
+        constraints: _viewBoxConstraints(null, null, null, null),
+        child: child,
+      );
+      expect(expanding.constraints.minWidth, double.infinity);
+      expect(expanding.constraints.maxWidth, double.infinity);
+      expect(expanding.constraints.minHeight, double.infinity);
+      expect(expanding.constraints.maxHeight, double.infinity);
+      expect(expanding.size, const Size(200, 100));
+      expect(expanding.childSize, const Size(200, 100));
+
+      final expandingWidth = await pump(
+        constraints: _viewBoxConstraints(null, null, 10, 40),
+        child: child,
+      );
+      expect(expandingWidth.size, const Size(200, 30));
+      expect(expandingWidth.childSize, const Size(200, 30));
+
+      final expandingHeight = await pump(
+        constraints: _viewBoxConstraints(25, 70, null, null),
+        child: child,
+      );
+      expect(expandingHeight.size, const Size(50, 100));
+      expect(expandingHeight.childSize, const Size(50, 100));
+
+      final mixedEmpty = await pump(
+        constraints: _viewBoxConstraints(0, null, 12, 40),
+        child: null,
+      );
+      expect(mixedEmpty.size, const Size(0, 12));
+    },
+  );
+
+  testWidgets(
+    'lets finite parent constraints enforce ConstrainedBox invalid boundary',
+    (tester) async {
+      const widgetId = '93d89766-af04-4fee-af57-a56c4ed5e37c';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredConstrainedBox(
+                constraints: _viewBoxConstraints(300, 400, 150, 200),
+                child: _viewSizedBoxNode(
+                  'bacaf0a6-b27a-4c98-9f88-8c8eb91597c1',
+                  width: 500,
+                  height: 500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final finder = find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(ConstrainedBox),
+          )
+          .first;
+      final render = tester.renderObject<RenderConstrainedBox>(finder);
+      expect(
+        render.additionalConstraints,
+        const BoxConstraints(
+          minWidth: 300,
+          maxWidth: 400,
+          minHeight: 150,
+          maxHeight: 200,
+        ),
+      );
+      expect(
+        render.constraints,
+        const BoxConstraints(
+          minWidth: 0,
+          maxWidth: 200,
+          minHeight: 0,
+          maxHeight: 100,
+        ),
+      );
+      expect(render.size, const Size(200, 100));
+      expect(render.child!.size, const Size(200, 100));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps empty default ConstrainedBox layout zero while exposing bounded DnD',
+    (tester) async {
+      const widgetId = '93d89766-af04-4fee-af57-a56c4ed5e37c';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredConstrainedBox(
+                constraints: _viewBoxConstraints(0, null, 0, null),
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'renders real UnconstrainedBox defaults, both retained axes, and every clip',
+    (tester) async {
+      const widgetId = '67247867-79f8-470f-b109-59971aa7392c';
+      final child = _viewSizedBoxNode(
+        'ff6ed199-2782-4be8-873b-e61ed6422664',
+        width: 300,
+        height: 200,
+      );
+      var overflowObserved = false;
+
+      Finder widgetFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(UnconstrainedBox),
+          )
+          .first;
+      Finder renderFinder() => find
+          .descendant(
+            of: widgetFinder(),
+            matching: find.byType(ConstraintsTransformBox),
+          )
+          .first;
+
+      Future<({UnconstrainedBox widget, RenderConstraintsTransformBox render})>
+      pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredUnconstrainedBox(
+                  properties: properties,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final overflow = tester.takeException();
+        if (overflow != null) {
+          overflowObserved = true;
+          expect(overflow, isA<FlutterError>());
+          expect(
+            overflow.toString(),
+            contains('A RenderConstraintsTransformBox overflowed'),
+          );
+        }
+        return (
+          widget: tester.widget<UnconstrainedBox>(widgetFinder()),
+          render: tester.renderObject<RenderConstraintsTransformBox>(
+            renderFinder(),
+          ),
+        );
+      }
+
+      final omitted = await pump(const {});
+      expect(overflowObserved, isTrue);
+      expect(omitted.widget.textDirection, isNull);
+      expect(omitted.widget.alignment, Alignment.center);
+      expect(omitted.widget.constrainedAxis, isNull);
+      expect(omitted.widget.clipBehavior, Clip.none);
+      expect(omitted.render.size, const Size(200, 100));
+      expect(omitted.render.child!.size, const Size(300, 200));
+      expect(
+        (omitted.render.child!.parentData! as BoxParentData).offset,
+        const Offset(-50, -50),
+      );
+
+      final horizontal = await pump(const {
+        'constrainedAxis': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+      });
+      expect(horizontal.widget.constrainedAxis, Axis.horizontal);
+      expect(horizontal.render.size, const Size(200, 100));
+      expect(horizontal.render.child!.size, const Size(200, 200));
+      expect(
+        (horizontal.render.child!.parentData! as BoxParentData).offset,
+        const Offset(0, -50),
+      );
+
+      final vertical = await pump(const {
+        'constrainedAxis': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'vertical',
+        },
+      });
+      expect(vertical.widget.constrainedAxis, Axis.vertical);
+      expect(vertical.render.size, const Size(200, 100));
+      expect(vertical.render.child!.size, const Size(300, 100));
+      expect(
+        (vertical.render.child!.parentData! as BoxParentData).offset,
+        const Offset(-50, 0),
+      );
+
+      const clips = <String, Clip>{
+        'none': Clip.none,
+        'hardEdge': Clip.hardEdge,
+        'antiAlias': Clip.antiAlias,
+        'antiAliasWithSaveLayer': Clip.antiAliasWithSaveLayer,
+      };
+      for (final entry in clips.entries) {
+        final result = await pump({
+          'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': entry.key},
+        });
+        expect(result.widget.clipBehavior, entry.value, reason: entry.key);
+        expect(result.render.clipBehavior, entry.value, reason: entry.key);
+      }
+    },
+  );
+
+  testWidgets(
+    'resolves UnconstrainedBox physical and directional alignment exactly',
+    (tester) async {
+      const widgetId = '67247867-79f8-470f-b109-59971aa7392c';
+      final child = _viewSizedBoxNode(
+        'ff6ed199-2782-4be8-873b-e61ed6422664',
+        width: 40,
+        height: 20,
+      );
+
+      Future<({Offset offset, TextDirection direction})> pump({
+        required String locale,
+        required String basis,
+        required double horizontal,
+        String? explicitDirection,
+      }) async {
+        final properties = <String, Object?>{
+          'alignment': _viewAlignment(
+            basis: basis,
+            horizontal: horizontal,
+            vertical: 0,
+          ),
+        };
+        if (explicitDirection != null) {
+          properties['textDirection'] = {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': explicitDirection,
+          };
+        }
+        final json = _modelWithCenteredUnconstrainedBox(
+          properties: properties,
+          child: child,
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = locale;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final render = tester.renderObject<RenderConstraintsTransformBox>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+                matching: find.byType(ConstraintsTransformBox),
+              )
+              .first,
+        );
+        expect(tester.takeException(), isNull);
+        return (
+          offset: (render.child!.parentData! as BoxParentData).offset,
+          direction: render.textDirection!,
+        );
+      }
+
+      final physicalLtr = await pump(
+        locale: 'en-US',
+        basis: 'physical',
+        horizontal: 1,
+      );
+      final physicalRtl = await pump(
+        locale: 'ar-SA',
+        basis: 'physical',
+        horizontal: 1,
+      );
+      expect(physicalLtr.offset, const Offset(160, 40));
+      expect(physicalRtl.offset, const Offset(160, 40));
+
+      final ambientLtr = await pump(
+        locale: 'en-US',
+        basis: 'directional',
+        horizontal: -1,
+      );
+      final ambientRtl = await pump(
+        locale: 'ar-SA',
+        basis: 'directional',
+        horizontal: -1,
+      );
+      expect(ambientLtr.direction, TextDirection.ltr);
+      expect(ambientLtr.offset, const Offset(0, 40));
+      expect(ambientRtl.direction, TextDirection.rtl);
+      expect(ambientRtl.offset, const Offset(160, 40));
+
+      final explicitLtr = await pump(
+        locale: 'ar-SA',
+        basis: 'directional',
+        horizontal: -1,
+        explicitDirection: 'ltr',
+      );
+      final explicitRtl = await pump(
+        locale: 'en-US',
+        basis: 'directional',
+        horizontal: -1,
+        explicitDirection: 'rtl',
+      );
+      expect(explicitLtr.direction, TextDirection.ltr);
+      expect(explicitLtr.offset, const Offset(0, 40));
+      expect(explicitRtl.direction, TextDirection.rtl);
+      expect(explicitRtl.offset, const Offset(160, 40));
+    },
+  );
+
+  testWidgets(
+    'keeps empty UnconstrainedBox selectable and exposes only its empty child slot',
+    (tester) async {
+      const widgetId = '67247867-79f8-470f-b109-59971aa7392c';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredUnconstrainedBox(
+                properties: const {},
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'renders real LimitedBox limits only on unbounded incoming axes',
+    (tester) async {
+      const widgetId = '57b8ce90-edde-4988-a4b7-bbf2eec66922';
+      final child = _viewSizedBoxNode(
+        'f28acc9b-e654-4b3a-ad07-59d75742b433',
+        width: 150,
+        height: 75,
+      );
+
+      Finder limitedFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(LimitedBox),
+          )
+          .first;
+
+      Future<({LimitedBox widget, RenderLimitedBox render})> pump({
+        required Map<String, Object?> properties,
+        required String incoming,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredLimitedBox(
+                  properties: properties,
+                  child: child,
+                  incoming: incoming,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        return (
+          widget: tester.widget<LimitedBox>(limitedFinder()),
+          render: tester.renderObject<RenderLimitedBox>(limitedFinder()),
+        );
+      }
+
+      const limits = <String, Object?>{
+        'maxWidth': {'kind': 'double', 'value': 80.0},
+        'maxHeight': {'kind': 'double', 'value': 40.0},
+      };
+
+      final bounded = await pump(properties: limits, incoming: 'bounded');
+      expect(bounded.widget.maxWidth, 80);
+      expect(bounded.widget.maxHeight, 40);
+      expect(bounded.render.maxWidth, 80);
+      expect(bounded.render.maxHeight, 40);
+      expect(
+        bounded.render.constraints,
+        BoxConstraints.tight(const Size(200, 100)),
+      );
+      expect(bounded.render.size, const Size(200, 100));
+      expect(bounded.render.child!.size, const Size(200, 100));
+
+      final widthUnbounded = await pump(
+        properties: limits,
+        incoming: 'widthUnbounded',
+      );
+      expect(widthUnbounded.render.constraints.hasBoundedWidth, isFalse);
+      expect(widthUnbounded.render.constraints.hasBoundedHeight, isTrue);
+      expect(widthUnbounded.render.size, const Size(80, 100));
+      expect(widthUnbounded.render.child!.size, const Size(80, 100));
+
+      final heightUnbounded = await pump(
+        properties: limits,
+        incoming: 'heightUnbounded',
+      );
+      expect(heightUnbounded.render.constraints.hasBoundedWidth, isTrue);
+      expect(heightUnbounded.render.constraints.hasBoundedHeight, isFalse);
+      expect(heightUnbounded.render.size, const Size(200, 40));
+      expect(heightUnbounded.render.child!.size, const Size(200, 40));
+
+      final bothUnbounded = await pump(
+        properties: limits,
+        incoming: 'bothUnbounded',
+      );
+      expect(bothUnbounded.render.constraints.hasBoundedWidth, isFalse);
+      expect(bothUnbounded.render.constraints.hasBoundedHeight, isFalse);
+      expect(bothUnbounded.render.size, const Size(80, 40));
+      expect(bothUnbounded.render.child!.size, const Size(80, 40));
+
+      final omitted = await pump(
+        properties: const {},
+        incoming: 'bothUnbounded',
+      );
+      expect(omitted.widget.maxWidth, double.infinity);
+      expect(omitted.widget.maxHeight, double.infinity);
+      expect(omitted.render.maxWidth, double.infinity);
+      expect(omitted.render.maxHeight, double.infinity);
+      expect(omitted.render.size, const Size(150, 75));
+      expect(omitted.render.child!.size, const Size(150, 75));
+    },
+  );
+
+  testWidgets(
+    'keeps empty LimitedBox selectable with bounded child-drop geometry',
+    (tester) async {
+      const widgetId = '57b8ce90-edde-4988-a4b7-bbf2eec66922';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredLimitedBox(
+                properties: const {},
+                child: null,
+                incoming: 'bothUnbounded',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'renders real OverflowBox bound overrides, overflow, omission, and both fits',
+    (tester) async {
+      const widgetId = '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4';
+
+      Finder overflowFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(OverflowBox),
+          )
+          .first;
+
+      Future<({OverflowBox widget, RenderConstrainedOverflowBox render})> pump({
+        required Map<String, Object?> properties,
+        required Map<String, Object?>? child,
+        bool bounded = true,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredOverflowBox(
+                  properties: properties,
+                  child: child,
+                  bounded: bounded,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        return (
+          widget: tester.widget<OverflowBox>(overflowFinder()),
+          render: tester.renderObject<RenderConstrainedOverflowBox>(
+            overflowFinder(),
+          ),
+        );
+      }
+
+      final overflow = await pump(
+        properties: const {
+          'minWidth': {'kind': 'double', 'value': 300.0},
+          'maxWidth': {'kind': 'double', 'value': 300.0},
+          'minHeight': {'kind': 'double', 'value': 160.0},
+          'maxHeight': {'kind': 'double', 'value': 160.0},
+        },
+        child: _viewSizedBoxNode(
+          'f72283ea-320c-4733-9072-963bc8281e7b',
+          width: 10,
+          height: 10,
+        ),
+      );
+      expect(overflow.widget.minWidth, 300);
+      expect(overflow.widget.maxWidth, 300);
+      expect(overflow.widget.minHeight, 160);
+      expect(overflow.widget.maxHeight, 160);
+      expect(overflow.widget.fit, OverflowBoxFit.max);
+      expect(
+        overflow.render.constraints,
+        BoxConstraints.tight(const Size(200, 100)),
+      );
+      expect(overflow.render.size, const Size(200, 100));
+      expect(overflow.render.child!.size, const Size(300, 160));
+
+      final maxFit = await pump(
+        properties: const {
+          'fit': {'kind': 'enum', 'type': 'OverflowBoxFit', 'value': 'max'},
+        },
+        child: _viewSizedBoxNode(
+          'f72283ea-320c-4733-9072-963bc8281e7b',
+          width: 60,
+          height: 30,
+        ),
+        bounded: false,
+      );
+      expect(maxFit.widget.alignment, Alignment.center);
+      expect(maxFit.widget.minWidth, isNull);
+      expect(maxFit.widget.maxWidth, isNull);
+      expect(maxFit.widget.minHeight, isNull);
+      expect(maxFit.widget.maxHeight, isNull);
+      expect(maxFit.widget.fit, OverflowBoxFit.max);
+      expect(maxFit.render.child!.size, const Size(60, 30));
+      expect(maxFit.render.size.width, greaterThan(60));
+      expect(maxFit.render.size.height, greaterThan(30));
+
+      final deferToChild = await pump(
+        properties: const {
+          'fit': {
+            'kind': 'enum',
+            'type': 'OverflowBoxFit',
+            'value': 'deferToChild',
+          },
+        },
+        child: _viewSizedBoxNode(
+          'f72283ea-320c-4733-9072-963bc8281e7b',
+          width: 60,
+          height: 30,
+        ),
+        bounded: false,
+      );
+      expect(deferToChild.widget.fit, OverflowBoxFit.deferToChild);
+      expect(deferToChild.render.size, const Size(60, 30));
+      expect(deferToChild.render.child!.size, const Size(60, 30));
+    },
+  );
+
+  testWidgets(
+    'resolves OverflowBox physical and directional alignment in LTR and RTL',
+    (tester) async {
+      const widgetId = '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4';
+      final child = _viewSizedBoxNode(
+        'f72283ea-320c-4733-9072-963bc8281e7b',
+        width: 10,
+        height: 10,
+      );
+
+      Future<({Offset offset, TextDirection direction})> pump({
+        required String locale,
+        required String basis,
+        required double horizontal,
+      }) async {
+        final json = _modelWithCenteredOverflowBox(
+          properties: {
+            'alignment': _viewAlignment(
+              basis: basis,
+              horizontal: horizontal,
+              vertical: 0,
+            ),
+            'minWidth': {'kind': 'double', 'value': 300.0},
+            'maxWidth': {'kind': 'double', 'value': 300.0},
+            'minHeight': {'kind': 'double', 'value': 160.0},
+            'maxHeight': {'kind': 'double', 'value': 160.0},
+          },
+          child: child,
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = locale;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final render = tester.renderObject<RenderConstrainedOverflowBox>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+                matching: find.byType(OverflowBox),
+              )
+              .first,
+        );
+        expect(tester.takeException(), isNull);
+        return (
+          offset: (render.child!.parentData! as BoxParentData).offset,
+          direction: render.textDirection!,
+        );
+      }
+
+      final physicalLtr = await pump(
+        locale: 'en-US',
+        basis: 'physical',
+        horizontal: 1,
+      );
+      final physicalRtl = await pump(
+        locale: 'ar-SA',
+        basis: 'physical',
+        horizontal: 1,
+      );
+      expect(physicalLtr.offset, const Offset(-100, -30));
+      expect(physicalRtl.offset, const Offset(-100, -30));
+
+      final directionalLtr = await pump(
+        locale: 'en-US',
+        basis: 'directional',
+        horizontal: -1,
+      );
+      final directionalRtl = await pump(
+        locale: 'ar-SA',
+        basis: 'directional',
+        horizontal: -1,
+      );
+      expect(directionalLtr.direction, TextDirection.ltr);
+      expect(directionalLtr.offset, const Offset(0, -30));
+      expect(directionalRtl.direction, TextDirection.rtl);
+      expect(directionalRtl.offset, const Offset(-100, -30));
+    },
+  );
+
+  testWidgets(
+    'keeps empty zero-size OverflowBox selectable with child-drop geometry',
+    (tester) async {
+      const widgetId = '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredOverflowBox(
+                properties: const {
+                  'fit': {
+                    'kind': 'enum',
+                    'type': 'OverflowBoxFit',
+                    'value': 'deferToChild',
+                  },
+                },
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$widgetId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('renders every Wrap argument and flows children into runs', (
+    tester,
+  ) async {
+    const wrapId = '0cdde885-b68c-4b21-bd47-246721c4e8b2';
+    const firstId = 'f5d1751b-136a-4db0-9e22-2ecb498eb425';
+    const secondId = '0bdf25b7-ce2c-4cb7-9f04-270e53ad3157';
+    const thirdId = '26829bde-f9d3-4bbc-b557-51693708e35e';
+    CanvasDropResolver? resolver;
+    CanvasMovePreviewResolver? moveResolver;
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithConstrainedWrap(
+              properties: {
+                'direction': {
+                  'kind': 'enum',
+                  'type': 'Axis',
+                  'value': 'horizontal',
+                },
+                'alignment': {
+                  'kind': 'enum',
+                  'type': 'WrapAlignment',
+                  'value': 'center',
+                },
+                'spacing': {'kind': 'double', 'value': 10.0},
+                'runAlignment': {
+                  'kind': 'enum',
+                  'type': 'WrapAlignment',
+                  'value': 'end',
+                },
+                'runSpacing': {'kind': 'double', 'value': 5.0},
+                'crossAxisAlignment': {
+                  'kind': 'enum',
+                  'type': 'WrapCrossAlignment',
+                  'value': 'end',
+                },
+                'textDirection': {
+                  'kind': 'enum',
+                  'type': 'TextDirection',
+                  'value': 'ltr',
+                },
+                'verticalDirection': {
+                  'kind': 'enum',
+                  'type': 'VerticalDirection',
+                  'value': 'down',
+                },
+                'clipBehavior': {
+                  'kind': 'enum',
+                  'type': 'Clip',
+                  'value': 'antiAlias',
+                },
+              },
+              children: [
+                _viewSizedBoxNode(firstId, width: 40, height: 20),
+                _viewSizedBoxNode(secondId, width: 40, height: 30),
+                _viewSizedBoxNode(thirdId, width: 40, height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: (_) {},
+        onDropResolverChanged: (value) => resolver = value,
+        onMovePreviewResolverChanged: (value) => moveResolver = value,
+      ),
+    );
+    await tester.pump();
+
+    final node = find.byKey(const ValueKey('canvas-widget-$wrapId'));
+    final finder = find.descendant(of: node, matching: find.byType(Wrap)).first;
+    final widget = tester.widget<Wrap>(finder);
+    expect(widget.direction, Axis.horizontal);
+    expect(widget.alignment, WrapAlignment.center);
+    expect(widget.spacing, 10);
+    expect(widget.runAlignment, WrapAlignment.end);
+    expect(widget.runSpacing, 5);
+    expect(widget.crossAxisAlignment, WrapCrossAlignment.end);
+    expect(widget.textDirection, TextDirection.ltr);
+    expect(widget.verticalDirection, VerticalDirection.down);
+    expect(widget.clipBehavior, Clip.antiAlias);
+    expect(widget.children, hasLength(3));
+
+    final render = tester.renderObject<RenderWrap>(finder);
+    expect(render.size, const Size(90, 45));
+    final offsets = <Offset>[];
+    RenderBox? child = render.firstChild;
+    while (child != null) {
+      offsets.add((child.parentData! as WrapParentData).offset);
+      child = render.childAfter(child);
+    }
+    expect(offsets, const [Offset(0, 10), Offset(50, 0), Offset(25, 35)]);
+
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final wrapRect = tester.getRect(node);
+    final point = wrapRect.bottomRight - const Offset(1, 1);
+    final drop = resolver!(
+      ((point.dx - surface.left) / surface.width * 1000000).round(),
+      ((point.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(drop?.parentWidgetId, wrapId);
+    expect(drop?.slotName, 'children');
+    expect(drop?.insertionIndex, 3);
+    expect(
+      drop!.zone!.rightMicros - drop.zone!.leftMicros,
+      closeTo((wrapRect.width / surface.width * 1000000).round(), 2),
+      reason: 'multi-run Wrap exposes its complete rendered node',
+    );
+    final move = moveResolver!(firstId, wrapId, 'children', 0);
+    expect(move?.parentWidgetId, wrapId);
+    expect(move?.slotName, 'children');
+    expect(move?.insertionIndex, 0);
+    expect(move?.zone?.leftMicros, drop.zone!.leftMicros);
+    expect(move?.zone?.topMicros, drop.zone!.topMicros);
+    expect(move?.zone?.rightMicros, drop.zone!.rightMicros);
+    expect(move?.zone?.bottomMicros, drop.zone!.bottomMicros);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps an empty Wrap selectable and exposes its append slot', (
+    tester,
+  ) async {
+    const wrapId = '0cdde885-b68c-4b21-bd47-246721c4e8b2';
+    String? selectedWidgetId;
+    CanvasDropResolver? resolver;
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithConstrainedWrap(
+              properties: {
+                'spacing': {'kind': 'double', 'value': -4.0},
+                'runSpacing': {'kind': 'double', 'value': -2.0},
+              },
+              children: const [],
+              unboundedMainAxis: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) => CanvasModelApp(
+          model: model,
+          selectedWidgetId: selectedWidgetId,
+          onSelected: (id) => setState(() => selectedWidgetId = id),
+          onDropResolverChanged: (value) => resolver = value,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final node = find.byKey(const ValueKey('canvas-widget-$wrapId'));
+    final widget = tester.widget<Wrap>(
+      find.descendant(of: node, matching: find.byType(Wrap)).first,
+    );
+    expect(widget.spacing, -4);
+    expect(widget.runSpacing, -2);
+    expect(tester.getSize(node), Size.zero);
+    final target = find.byKey(
+      const ValueKey('canvas-zero-size-widget-target-$wrapId'),
+    );
+    expect(target, findsOneWidget);
+    expect(tester.getSize(target), const Size(36, 36));
+    await tester.tap(target);
+    await tester.pump();
+    expect(selectedWidgetId, wrapId);
+
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final point = tester.getRect(target).center;
+    final drop = resolver!(
+      ((point.dx - surface.left) / surface.width * 1000000).round(),
+      ((point.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(drop?.parentWidgetId, wrapId);
+    expect(drop?.slotName, 'children');
+    expect(drop?.insertionIndex, 0);
+    expect(drop?.zone?.isEmpty, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'renders real Stack defaults, exact fits, alignment, and z-order',
     (tester) async {
       const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
@@ -3187,6 +4626,358 @@ void main() {
     expect(field.canRequestFocus, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('renders every reviewed ListView argument with real Flutter', (
+    tester,
+  ) async {
+    const listViewId = '4febd2a9-b2ef-4f4d-8d67-2df913b46da2';
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithListView(
+              properties: {
+                'scrollDirection': {
+                  'kind': 'enum',
+                  'type': 'Axis',
+                  'value': 'horizontal',
+                },
+                'reverse': {'kind': 'boolean', 'value': true},
+                'primary': {'kind': 'boolean', 'value': false},
+                'physics': {'kind': 'string', 'value': 'rangeMaintaining'},
+                'shrinkWrap': {'kind': 'boolean', 'value': false},
+                'padding': {
+                  'kind': 'edgeInsetsDirectional',
+                  'start': 1,
+                  'top': 2,
+                  'end': 3,
+                  'bottom': 4,
+                },
+                'itemExtent': {'kind': 'double', 'value': 48.5},
+                'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
+                'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
+                'addSemanticIndexes': {'kind': 'boolean', 'value': false},
+                'scrollCacheExtent': {'kind': 'integer', 'value': 240},
+                'semanticChildCount': {'kind': 'integer', 'value': 2},
+                'dragStartBehavior': {
+                  'kind': 'enum',
+                  'type': 'DragStartBehavior',
+                  'value': 'down',
+                },
+                'keyboardDismissBehavior': {
+                  'kind': 'enum',
+                  'type': 'ScrollViewKeyboardDismissBehavior',
+                  'value': 'onDrag',
+                },
+                'restorationId': {'kind': 'string', 'value': 'primary-list'},
+                'clipBehavior': {
+                  'kind': 'enum',
+                  'type': 'Clip',
+                  'value': 'antiAlias',
+                },
+                'hitTestBehavior': {
+                  'kind': 'enum',
+                  'type': 'HitTestBehavior',
+                  'value': 'translucent',
+                },
+              },
+              children: [
+                <String, Object?>{
+                  'id': '7a6d767e-9d7b-4cf1-9bfd-83f75383a08f',
+                  'type': 'flutter.widgets.Text',
+                  'properties': <String, Object?>{
+                    'data': {'kind': 'string', 'value': 'First'},
+                  },
+                  'slots': <String, Object?>{},
+                },
+                <String, Object?>{
+                  'id': '99de11d2-8f49-4efc-bb79-c6d0e89fcae6',
+                  'type': 'flutter.widgets.Text',
+                  'properties': <String, Object?>{
+                    'data': {'kind': 'string', 'value': 'Second'},
+                  },
+                  'slots': <String, Object?>{},
+                },
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+    await tester.pump();
+
+    final node = find.byKey(const ValueKey('canvas-widget-$listViewId'));
+    final finder = find.descendant(of: node, matching: find.byType(ListView));
+    final listView = tester.widget<ListView>(finder);
+    expect(listView.scrollDirection, Axis.horizontal);
+    expect(listView.reverse, isTrue);
+    expect(listView.primary, isFalse);
+    expect(listView.physics, isA<RangeMaintainingScrollPhysics>());
+    expect(listView.shrinkWrap, isFalse);
+    expect(listView.padding, const EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4));
+    expect(listView.itemExtent, 48.5);
+    final delegate = listView.childrenDelegate as SliverChildListDelegate;
+    expect(delegate.addAutomaticKeepAlives, isFalse);
+    expect(delegate.addRepaintBoundaries, isFalse);
+    expect(delegate.addSemanticIndexes, isFalse);
+    expect(listView.scrollCacheExtent?.value, 240);
+    expect(listView.semanticChildCount, 2);
+    expect(listView.dragStartBehavior, DragStartBehavior.down);
+    expect(
+      listView.keyboardDismissBehavior,
+      ScrollViewKeyboardDismissBehavior.onDrag,
+    );
+    expect(listView.restorationId, 'primary-list');
+    expect(listView.clipBehavior, Clip.antiAlias);
+    expect(listView.hitTestBehavior, HitTestBehavior.translucent);
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('Second'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bounds every required ListView axis under flex constraints', (
+    tester,
+  ) async {
+    Future<Size> render({
+      required String parentType,
+      required Map<String, Object?> properties,
+    }) async {
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithListView(
+                properties: properties,
+                children: const [],
+                unboundedParentType: parentType,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      return tester.getSize(find.byType(ListView));
+    }
+
+    final vertical = await render(
+      parentType: 'flutter.widgets.Column',
+      properties: {},
+    );
+    expect(vertical.height, 120);
+
+    final horizontal = await render(
+      parentType: 'flutter.widgets.Row',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+      },
+    );
+    expect(horizontal.width, 240);
+
+    final verticalCrossAxis = await render(
+      parentType: 'flutter.widgets.Row',
+      properties: {
+        'shrinkWrap': {'kind': 'boolean', 'value': true},
+      },
+    );
+    expect(verticalCrossAxis.width, 240);
+
+    final horizontalCrossAxis = await render(
+      parentType: 'flutter.widgets.Column',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+        'shrinkWrap': {'kind': 'boolean', 'value': true},
+      },
+    );
+    expect(horizontalCrossAxis.height, 120);
+  });
+
+  testWidgets('exposes an empty ListView as a children insertion target', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(_modelWithListView(properties: {}, children: const [])),
+        ),
+      ),
+    );
+    CanvasDropResolver? resolver;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CanvasDocumentView(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+          onDropResolverChanged: (value) => resolver = value,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    const listViewId = '4febd2a9-b2ef-4f4d-8d67-2df913b46da2';
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final rect = tester.getRect(
+      find.byKey(const ValueKey('canvas-widget-$listViewId')),
+    );
+    final target = resolver!(
+      ((rect.center.dx - surface.left) / surface.width * 1000000).round(),
+      ((rect.center.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(target?.parentWidgetId, listViewId);
+    expect(target?.slotName, 'children');
+    expect(target?.insertionIndex, 0);
+    expect(target?.zone?.isEmpty, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'resolves populated ListView terminal and move edges for reverse and RTL',
+    (tester) async {
+      const listViewId = '4febd2a9-b2ef-4f4d-8d67-2df913b46da2';
+      const firstId = '1b7b8bc1-f72e-4059-8d60-a32add0a62ef';
+      const secondId = '493448dd-35a8-42ed-96b5-e14dff0764a2';
+
+      Future<({int actualMoveEdge, int expectedMoveEdge})> resolve({
+        required Axis axis,
+        required bool reverse,
+        required TextDirection direction,
+      }) async {
+        final properties = <String, Object?>{
+          'reverse': {'kind': 'boolean', 'value': reverse},
+          if (axis == Axis.horizontal)
+            'scrollDirection': {
+              'kind': 'enum',
+              'type': 'Axis',
+              'value': 'horizontal',
+            },
+        };
+        final json = _modelWithListView(
+          properties: properties,
+          children: [
+            _viewSizedBoxNode(firstId, width: 40, height: 30),
+            _viewSizedBoxNode(secondId, width: 40, height: 30),
+          ],
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] =
+            direction == TextDirection.rtl ? 'ar-SA' : 'en-US';
+        CanvasDropResolver? dropResolver;
+        CanvasMovePreviewResolver? moveResolver;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => dropResolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        );
+        await tester.pump();
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final listRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$listViewId')),
+        );
+        final retainedRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$secondId')),
+        );
+        final visuallyReversed = axis == Axis.vertical
+            ? reverse
+            : (direction == TextDirection.rtl) != reverse;
+        final terminalPoint = axis == Axis.vertical
+            ? Offset(
+                listRect.center.dx,
+                visuallyReversed ? listRect.top + 1 : listRect.bottom - 1,
+              )
+            : Offset(
+                visuallyReversed ? listRect.left + 1 : listRect.right - 1,
+                listRect.center.dy,
+              );
+        int micros(double value, double origin, double extent) =>
+            ((value - origin) / extent * 1000000).round();
+        final terminal = dropResolver!(
+          micros(terminalPoint.dx, surface.left, surface.width),
+          micros(terminalPoint.dy, surface.top, surface.height),
+        );
+        expect(terminal?.parentWidgetId, listViewId);
+        expect(terminal?.slotName, 'children');
+        expect(terminal?.insertionIndex, 2);
+        expect(terminal?.zone?.isEmpty, isFalse);
+
+        final move = moveResolver!(firstId, listViewId, 'children', 1);
+        expect(move?.parentWidgetId, listViewId);
+        expect(move?.slotName, 'children');
+        expect(move?.insertionIndex, 1);
+        expect(move?.zone?.isEmpty, isFalse);
+        final zone = move!.zone!;
+        final actualMoveEdge = axis == Axis.vertical
+            ? (zone.topMicros + zone.bottomMicros) ~/ 2
+            : (zone.leftMicros + zone.rightMicros) ~/ 2;
+        final physicalEdge = axis == Axis.vertical
+            ? (visuallyReversed ? retainedRect.top : retainedRect.bottom)
+            : (visuallyReversed ? retainedRect.left : retainedRect.right);
+        final expectedMoveEdge = axis == Axis.vertical
+            ? micros(physicalEdge, surface.top, surface.height)
+            : micros(physicalEdge, surface.left, surface.width);
+        expect(tester.takeException(), isNull);
+        return (
+          actualMoveEdge: actualMoveEdge,
+          expectedMoveEdge: expectedMoveEdge,
+        );
+      }
+
+      final verticalReverse = await resolve(
+        axis: Axis.vertical,
+        reverse: true,
+        direction: TextDirection.ltr,
+      );
+      expect(
+        verticalReverse.actualMoveEdge,
+        closeTo(verticalReverse.expectedMoveEdge, 2),
+      );
+
+      final rtlForward = await resolve(
+        axis: Axis.horizontal,
+        reverse: false,
+        direction: TextDirection.rtl,
+      );
+      expect(
+        rtlForward.actualMoveEdge,
+        closeTo(rtlForward.expectedMoveEdge, 2),
+      );
+
+      final rtlReverse = await resolve(
+        axis: Axis.horizontal,
+        reverse: true,
+        direction: TextDirection.rtl,
+      );
+      expect(
+        rtlReverse.actualMoveEdge,
+        closeTo(rtlReverse.expectedMoveEdge, 2),
+      );
+    },
+  );
 
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
@@ -5961,6 +7752,278 @@ Map<String, Object?> _modelWithCenteredFractionallySizedBox({
   return model;
 }
 
+Map<String, Object?> _modelWithCenteredConstrainedBox({
+  required Map<String, Object?> constraints,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final constrainedBox = <String, Object?>{
+    'id': '93d89766-af04-4fee-af57-a56c4ed5e37c',
+    'type': 'flutter.widgets.ConstrainedBox',
+    'properties': <String, Object?>{'constraints': constraints},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': '8fb51a53-f998-420d-bf96-f5cd3eaf66c6',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 200},
+            'height': {'kind': 'integer', 'value': 100},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{
+              'kind': 'single',
+              'child': <String, Object?>{
+                'id': 'a17a1cf7-a873-44d8-96bd-84b4e8089fa6',
+                'type': 'flutter.widgets.Center',
+                'properties': <String, Object?>{},
+                'slots': <String, Object?>{
+                  'child': <String, Object?>{
+                    'kind': 'single',
+                    'child': constrainedBox,
+                  },
+                },
+              },
+            },
+          },
+        }
+      : constrainedBox;
+  body['child'] = <String, Object?>{
+    'id': 'faef84b3-15d3-4a5c-9fc3-f3a833bb1e59',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _viewBoxConstraints(
+  Object? minWidth,
+  Object? maxWidth,
+  Object? minHeight,
+  Object? maxHeight,
+) => {
+  'kind': 'boxConstraints',
+  'minWidth': minWidth,
+  'maxWidth': maxWidth,
+  'minHeight': minHeight,
+  'maxHeight': maxHeight,
+};
+
+Map<String, Object?> _modelWithCenteredUnconstrainedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final unconstrainedBox = <String, Object?>{
+    'id': '67247867-79f8-470f-b109-59971aa7392c',
+    'type': 'flutter.widgets.UnconstrainedBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': '0b6f7f3b-d2dc-49ce-bf61-1834859cc478',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 200},
+            'height': {'kind': 'integer', 'value': 100},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{
+              'kind': 'single',
+              'child': unconstrainedBox,
+            },
+          },
+        }
+      : unconstrainedBox;
+  body['child'] = <String, Object?>{
+    'id': 'c7dd4e0d-a326-4bf9-84a3-f95a759bd1d8',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredLimitedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  required String incoming,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final limitedBox = <String, Object?>{
+    'id': '57b8ce90-edde-4988-a4b7-bbf2eec66922',
+    'type': 'flutter.widgets.LimitedBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final positionedChild = switch (incoming) {
+    'bounded' => limitedBox,
+    'widthUnbounded' => <String, Object?>{
+      'id': '3d96e466-b5f7-4bb9-b12c-4d78b3ae6a94',
+      'type': 'flutter.widgets.UnconstrainedBox',
+      'properties': <String, Object?>{
+        'constrainedAxis': <String, Object?>{
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'vertical',
+        },
+      },
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': limitedBox},
+      },
+    },
+    'heightUnbounded' => <String, Object?>{
+      'id': 'e20426cb-1ab5-4a15-817d-5cd5e582f8a1',
+      'type': 'flutter.widgets.UnconstrainedBox',
+      'properties': <String, Object?>{
+        'constrainedAxis': <String, Object?>{
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+      },
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': limitedBox},
+      },
+    },
+    'bothUnbounded' => <String, Object?>{
+      'id': 'b263333d-4c52-425f-a844-793339ccdc73',
+      'type': 'flutter.widgets.UnconstrainedBox',
+      'properties': <String, Object?>{},
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': limitedBox},
+      },
+    },
+    _ => throw ArgumentError.value(incoming, 'incoming'),
+  };
+  final boundedFrame = <String, Object?>{
+    'id': '2c0e55bf-3199-4895-9145-0b487099f3df',
+    'type': 'flutter.widgets.SizedBox',
+    'properties': <String, Object?>{
+      'width': {'kind': 'integer', 'value': 200},
+      'height': {'kind': 'integer', 'value': 100},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': positionedChild},
+    },
+  };
+  body['child'] = <String, Object?>{
+    'id': '66a0a157-152c-4bd5-8455-514a87aa4154',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': boundedFrame},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredOverflowBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final overflowBox = <String, Object?>{
+    'id': '7a59d693-7fd5-4c80-a4e2-3d0f908a41f4',
+    'type': 'flutter.widgets.OverflowBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': '04476d22-29cf-4b9e-aeb3-ee36d0275d08',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 200},
+            'height': {'kind': 'integer', 'value': 100},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': overflowBox},
+          },
+        }
+      : overflowBox;
+  body['child'] = <String, Object?>{
+    'id': '47924710-4a25-4cf0-9495-287483e941d6',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredFittedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final fittedBox = <String, Object?>{
+    'id': 'b587a092-9a65-420a-9d1c-e127cc752f8d',
+    'type': 'flutter.widgets.FittedBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': 'e5950c77-cf55-4fa5-8595-f62c9fb67662',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 200},
+            'height': {'kind': 'integer', 'value': 100},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': fittedBox},
+          },
+        }
+      : fittedBox;
+  body['child'] = <String, Object?>{
+    'id': 'c01d308e-653d-467f-a113-e77ab22c1775',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+    },
+  };
+  return model;
+}
+
 Map<String, Object?> _modelWithConstrainedStack({
   required Map<String, Object?> properties,
   required List<Map<String, Object?>> children,
@@ -6023,6 +8086,68 @@ Map<String, Object?> _modelWithConstrainedStack({
   return model;
 }
 
+Map<String, Object?> _modelWithConstrainedWrap({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  bool unboundedMainAxis = false,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final wrap = <String, Object?>{
+    'id': '0cdde885-b68c-4b21-bd47-246721c4e8b2',
+    'type': 'flutter.widgets.Wrap',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final constrained = unboundedMainAxis
+      ? <String, Object?>{
+          'id': 'fc7d6ad3-bafe-43f8-9da9-d1742116bc89',
+          'type': 'flutter.widgets.Row',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[wrap],
+            },
+          },
+        }
+      : <String, Object?>{
+          'id': '5b9856b4-1a5d-44d8-94a7-2106df659fba',
+          'type': 'flutter.widgets.Container',
+          'properties': <String, Object?>{
+            'constraints': <String, Object?>{
+              'kind': 'boxConstraints',
+              'minWidth': 0,
+              'maxWidth': 100,
+              'minHeight': 0,
+              'maxHeight': 100,
+            },
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': wrap},
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': 'a00ef225-fe97-46a1-bc4d-2298da4348dc',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': constrained},
+    },
+  };
+  return model;
+}
+
 Map<String, Object?> _viewExpandedNode(
   String id, {
   int? flex,
@@ -6074,6 +8199,63 @@ Map<String, Object?> _modelWithFixedFlex({
           },
         },
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithListView({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  String? unboundedParentType,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final listView = <String, Object?>{
+    'id': '4febd2a9-b2ef-4f4d-8d67-2df913b46da2',
+    'type': 'flutter.widgets.ListView',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final child = unboundedParentType == null
+      ? <String, Object?>{
+          'id': '3d80adae-3c10-4a2c-9b76-46179ea53b13',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': listView},
+          },
+        }
+      : <String, Object?>{
+          'id': 'f0f34b58-a9d5-46da-8fde-2daf20400796',
+          'type': unboundedParentType,
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[listView],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '31684f33-2e10-4fc6-9658-77cf0fe7eb55',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
     },
   };
   return model;

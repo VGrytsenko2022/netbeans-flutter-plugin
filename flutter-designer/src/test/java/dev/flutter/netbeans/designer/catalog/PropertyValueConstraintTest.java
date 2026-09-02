@@ -199,8 +199,20 @@ class PropertyValueConstraintTest {
                 new PropertyValueConstraint.BoxConstraintsValues();
         assertTrue(constraints.accepts(new PropertyValue.BoxConstraintsValue(
                 BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty())));
+        assertTrue(constraints.accepts(new PropertyValue.BoxConstraintsValue(
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                PropertyValue.BoxConstraintBound.finite(BigDecimal.ZERO),
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE)));
         assertFalse(constraints.accepts(new PropertyValue.BoxConstraintsValue(
                 BigDecimal.ZERO, Optional.of(huge), BigDecimal.ZERO, Optional.empty())));
+        assertFalse(constraints.accepts(new PropertyValue.BoxConstraintsValue(
+                PropertyValue.BoxConstraintBound.finite(huge),
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE,
+                PropertyValue.BoxConstraintBound.finite(BigDecimal.ZERO),
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE)));
+        assertEquals("normalized BoxConstraints with finite or positive-infinite bounds",
+                constraints.description());
 
         PropertyValueConstraint.Matrix4Values matrices =
                 new PropertyValueConstraint.Matrix4Values();

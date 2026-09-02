@@ -143,6 +143,27 @@ class PropertyValueFormatterTest {
     }
 
     @Test
+    void formatsUnboundedAndExpandingConstraintAxesUnambiguously() {
+        PropertyValue.BoxConstraintBound infinity =
+                PropertyValue.BoxConstraintBound.Infinity.INSTANCE;
+        assertEquals("w=∞…∞, h=0…∞", PropertyValueFormatter.format(
+                new PropertyValue.BoxConstraintsValue(
+                        infinity,
+                        infinity,
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.ZERO),
+                        infinity)));
+        assertEquals("w=10…100, h=∞…∞", PropertyValueFormatter.format(
+                new PropertyValue.BoxConstraintsValue(
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.TEN),
+                        new PropertyValue.BoxConstraintBound.Finite(BigDecimal.valueOf(100)),
+                        infinity,
+                        infinity)));
+        assertEquals("w=∞…∞, h=∞…∞", PropertyValueFormatter.format(
+                new PropertyValue.BoxConstraintsValue(
+                        infinity, infinity, infinity, infinity)));
+    }
+
+    @Test
     void rejectsNullInsteadOfConfusingItWithAnUnsetProperty() {
         assertThrows(NullPointerException.class, () -> PropertyValueFormatter.format(null));
     }

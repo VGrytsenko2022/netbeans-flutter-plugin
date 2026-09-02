@@ -41,6 +41,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.TextField",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
+            "flutter.widgets.Wrap",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
@@ -52,8 +53,14 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Opacity",
             "flutter.widgets.Align",
             "flutter.widgets.FractionallySizedBox",
+            "flutter.widgets.FittedBox",
+            "flutter.widgets.ConstrainedBox",
+            "flutter.widgets.UnconstrainedBox",
+            "flutter.widgets.LimitedBox",
+            "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
-            "flutter.widgets.Expanded");
+            "flutter.widgets.Expanded",
+            "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -62,19 +69,22 @@ class FlutterDesignerPaletteTest {
         Node[] categories = root(controller).getChildren().getNodes(true);
 
         assertEquals(
-                List.of("flutter.material", "flutter.layout", "flutter.basic"),
+                List.of("flutter.material", "flutter.layout", "flutter.scrolling",
+                        "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(
-                List.of("Material", "Layout", "Basic"),
+                List.of("Material", "Layout", "Scrolling", "Basic"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
-                "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity", "Align", "FractionallySizedBox", "Stack",
+                "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
+                "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
+                "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[2]));
+        assertEquals(List.of("ListView"), itemLabels(categories[2]));
+        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
                 .lookup(FlutterDesignerPaletteCategory.class);
@@ -89,16 +99,19 @@ class FlutterDesignerPaletteTest {
         Node[] categories = root(controller).getChildren().getNodes(true);
 
         assertEquals(
-                List.of("flutter.material", "flutter.layout", "flutter.basic"),
+                List.of("flutter.material", "flutter.layout", "flutter.scrolling",
+                        "flutter.basic"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
-                "Column", "Row", "Padding", "Center", "SizedBox", "AspectRatio",
-                "Container", "Opacity", "Align", "FractionallySizedBox", "Stack",
+                "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
+                "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
+                "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[2]));
+        assertEquals(List.of("ListView"), itemLabels(categories[2]));
+        assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
                 CATALOG,
@@ -223,6 +236,151 @@ class FlutterDesignerPaletteTest {
                 node.getLookup().lookup(FlutterDesignerPaletteItem.class));
         assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
         assertEquals("FractionallySizedBox", node.getDisplayName());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void fittedBoxPaletteSelectionExposesReviewedMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.FittedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        105,
+                        "FittedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("FittedBox", node.getDisplayName());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void constrainedBoxPaletteSelectionExposesReviewedMetadataIconAndDescription()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.ConstrainedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        106,
+                        "ConstrainedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("ConstrainedBox", node.getDisplayName());
+        assertEquals(
+                "Constrain an optional child with required minimum and maximum width and "
+                + "height bounds. Palette creation starts unconstrained; unbounded and "
+                + "expanding axes remain explicit.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void unconstrainedBoxPaletteSelectionExposesReviewedMetadataIconAndDescription()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.UnconstrainedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        107,
+                        "UnconstrainedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("UnconstrainedBox", node.getDisplayName());
+        assertEquals(
+                "Let an optional child keep its natural size by removing constraints from both "
+                + "axes or retaining exactly one axis, with explicit alignment, direction, and "
+                + "clipping controls.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void limitedBoxPaletteSelectionExposesReviewedMetadataIconAndDescription()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.LimitedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        108,
+                        "LimitedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("LimitedBox", node.getDisplayName());
+        assertEquals(
+                "Apply optional maximum width and height only when the corresponding incoming "
+                + "axis is unbounded, while preserving bounded parent constraints and an "
+                + "optional child.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void overflowBoxPaletteSelectionExposesReviewedMetadataIconAndDescription()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.OverflowBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        109,
+                        "OverflowBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("OverflowBox", node.getDisplayName());
+        assertEquals(
+                "Override any combination of the incoming minimum and maximum width or height "
+                + "constraints, align the optional child, and choose whether this box adopts "
+                + "the largest permitted size or follows its child within the parent constraints.",
+                node.getShortDescription());
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
@@ -612,7 +770,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void nineteenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentySixCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -631,7 +789,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(19, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(26, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

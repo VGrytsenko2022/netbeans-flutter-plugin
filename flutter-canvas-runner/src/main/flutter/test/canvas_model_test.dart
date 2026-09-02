@@ -3034,6 +3034,203 @@ void main() {
     );
   });
 
+  test('decodes required SizedOverflowBox size, alignment, and child', () {
+    Map<String, Object?> model({
+      required Map<String, Object?> properties,
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'd01c13f5-c20d-48bf-a360-5da7b6b36c67',
+        'flutter.widgets.SizedOverflowBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final zero = _decode(
+      model(
+        properties: const {
+          'size': {'kind': 'size', 'width': 0, 'height': 0},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    final zeroSize = zero.properties['size']!.value as CanvasSizeValue;
+    expect(zeroSize.width, 0.0);
+    expect(zeroSize.height, 0.0);
+    expect(zero.properties['alignment'], isNull);
+    expect(zero.slot('child')!.child, isNull);
+
+    final text = _node(
+      '04bf06da-4419-4d88-b504-25c93ba7a76a',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Overflow child'},
+      },
+    );
+    final configured = _decode(
+      model(
+        properties: const {
+          'size': {'kind': 'size', 'width': 120.5, 'height': 80.25},
+          'alignment': {
+            'kind': 'alignmentGeometry',
+            'basis': 'directional',
+            'horizontal': -1.0,
+            'vertical': 1.0,
+          },
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+    final size = configured.properties['size']!.value as CanvasSizeValue;
+    expect(size.width, 120.5);
+    expect(size.height, 80.25);
+    final alignment =
+        configured.properties['alignment']!.value
+            as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, -1.0);
+    expect(alignment.vertical, 1.0);
+    expect(configured.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test(
+    'rejects invalid SizedOverflowBox size, properties, slots, and child',
+    () {
+      Map<String, Object?> sizedOverflow({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) => _node(
+        'd01c13f5-c20d-48bf-a360-5da7b6b36c67',
+        'flutter.widgets.SizedOverflowBox',
+        properties: properties,
+        slots: slots,
+      );
+
+      Map<String, Object?> rootWith(Map<String, Object?> root) {
+        final json = _modelJson();
+        json['root'] = root;
+        return json;
+      }
+
+      for (final invalid in <Map<String, Object?>>[
+        const {},
+        const {
+          'size': {'kind': 'double', 'value': 100.0},
+        },
+        const {
+          'size': {'kind': 'size', 'width': -0.001, 'height': 10.0},
+        },
+        const {
+          'size': {'kind': 'size', 'width': 10.0, 'height': -0.001},
+        },
+        const {
+          'size': {'kind': 'size', 'width': '100', 'height': 10.0},
+        },
+        const {
+          'size': {'kind': 'size', 'width': 100.0},
+        },
+        const {
+          'size': {
+            'kind': 'size',
+            'width': 100.0,
+            'height': 100.0,
+            'depth': 1.0,
+          },
+        },
+        const {
+          'size': {'kind': 'size', 'width': 100.0, 'height': 100.0},
+          'alignment': {'kind': 'boolean', 'value': true},
+        },
+        const {
+          'size': {'kind': 'size', 'width': 100.0, 'height': 100.0},
+          'unknown': {'kind': 'boolean', 'value': true},
+        },
+      ]) {
+        expect(
+          () => _decode(rootWith(sizedOverflow(properties: invalid))),
+          throwsFormatException,
+          reason: invalid.toString(),
+        );
+      }
+      const validSize = {
+        'size': {'kind': 'size', 'width': 100.0, 'height': 100.0},
+      };
+      expect(
+        () => _decode(
+          rootWith(
+            sizedOverflow(
+              properties: validSize,
+              slots: {'child': _list(const [])},
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => _decode(
+          rootWith(
+            sizedOverflow(
+              properties: validSize,
+              slots: {'children': _list(const [])},
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+
+      final text = _node(
+        '04bf06da-4419-4d88-b504-25c93ba7a76a',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Flex child'},
+        },
+      );
+      for (final flexType in const [
+        'flutter.widgets.Expanded',
+        'flutter.widgets.Flexible',
+        'flutter.widgets.Spacer',
+      ]) {
+        final flexChild = _node(
+          '591255df-4442-4411-9bad-63eaf741a307',
+          flexType,
+          slots: flexType == 'flutter.widgets.Spacer'
+              ? const {}
+              : {'child': _single(text)},
+        );
+        expect(
+          () => _decode(
+            rootWith(
+              sizedOverflow(
+                properties: validSize,
+                slots: {'child': _single(flexChild)},
+              ),
+            ),
+          ),
+          throwsFormatException,
+          reason: '$flexType is legal only in Row.children or Column.children',
+        );
+      }
+    },
+  );
+
+  test('SizedOverflowBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.SizedOverflowBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Spacer\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.SizedOverflowBox\n'
+      'P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry\n'
+      'P|size|size|1|size:100,100|-|size:size:finiteNonNegative\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes all 17 reviewed ListView leaves and its ordered children', () {
     final json = _modelJson();
     json['root'] = _node(
@@ -5409,7 +5606,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 11;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 12;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -6803,7 +7000,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 12,
+  'protocolVersion': 13,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

@@ -31,6 +31,7 @@ public sealed interface PropertyValue permits
         PropertyValue.FontFeatureListValue,
         PropertyValue.FontVariationListValue,
         PropertyValue.AlignmentGeometryValue,
+        PropertyValue.SizeValue,
         PropertyValue.BoxConstraintsValue,
         PropertyValue.Matrix4Value,
         PropertyValue.ImageProviderValue,
@@ -648,6 +649,21 @@ public sealed interface PropertyValue permits
                         HorizontalBasis.values(), wireName,
                         HorizontalBasis::wireName, "alignment horizontal basis");
             }
+        }
+    }
+
+    /** A typed Flutter {@code Size} with normalized decimal dimensions. */
+    record SizeValue(BigDecimal width, BigDecimal height)
+            implements PropertyValue {
+
+        public SizeValue {
+            width = nonNegative(width, "size width");
+            height = nonNegative(height, "size height");
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.SIZE;
         }
     }
 

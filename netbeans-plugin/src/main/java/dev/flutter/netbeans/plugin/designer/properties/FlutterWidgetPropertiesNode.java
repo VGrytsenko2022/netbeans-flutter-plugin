@@ -67,6 +67,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.IntrinsicWidth");
     private static final WidgetTypeId OFFSTAGE_TYPE =
             new WidgetTypeId("flutter.widgets.Offstage");
+    private static final WidgetTypeId SIZED_OVERFLOW_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.SizedOverflowBox");
     private static final PropertyName OFFSTAGE_PROPERTY =
             new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
@@ -679,6 +681,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (SIZED_OVERFLOW_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out under the original incoming parent constraints, "
+                    + "rather than tight constraints from the requested Size. Alignment "
+                    + "positions a differently sized child, which may paint outside this box. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -820,6 +832,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean intrinsicHeight = INTRINSIC_HEIGHT_TYPE.equals(widget.type());
         boolean intrinsicWidth = INTRINSIC_WIDTH_TYPE.equals(widget.type());
         boolean offstage = OFFSTAGE_TYPE.equals(widget.type());
+        boolean sizedOverflowBox = SIZED_OVERFLOW_BOX_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -854,6 +867,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : offstage
                                 ? "Visibility, layout participation, focus, animation, and optional "
                                         + "child contract for the selected Offstage widget."
+                        : sizedOverflowBox
+                                ? "Required requested size, child alignment, parent-constraint "
+                                        + "behavior, and optional overflowing child contract for "
+                                        + "the selected SizedOverflowBox widget."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -954,6 +971,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "The child remains active, can receive focus, and its animations "
                                 + "continue to run. Omission preserves Flutter's default true; "
                                 + "remove the child from the tree when hiding it long-term."));
+            } else if (sizedOverflowBox) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        sizedOverflowBoxPropertyDisplayName(property.name()),
+                        sizedOverflowBoxPropertyDescription(property.name())));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -1214,6 +1237,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 + "constraints. Omission or zero gives the child unconstrained height; "
                 + "zero is valid.";
             default -> "Explicit IntrinsicWidth value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String sizedOverflowBoxPropertyDisplayName(
+            PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "size" -> "Size";
+            case "alignment" -> "Alignment";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String sizedOverflowBoxPropertyDescription(
+            PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "size" ->
+                "Required finite non-negative logical-pixel width and height requested for "
+                + "this box. Parent constraints still constrain the resulting box, while "
+                + "the original incoming constraints pass through unchanged to the child. "
+                + "Palette creation starts at 100 × 100.";
+            case "alignment" ->
+                "Physical position or directional position resolved from ambient "
+                + "TextDirection (LTR/RTL), not from the theme, used when the child and box "
+                + "sizes differ. Flutter defaults to center; coordinates outside -1 through "
+                + "1 can position the child beyond this box.";
+            default -> "Explicit SizedOverflowBox value for "
+                    + propertyName.value() + ".";
         };
     }
 

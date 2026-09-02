@@ -194,6 +194,41 @@ void main() {
         reason: '$flexType requires a direct Row or Column children slot',
       );
     }
+    expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.SizedOverflowBox'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.SizedOverflowBox',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.SizedOverflowBox',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-sized-overflow-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+        reason: '$flexType requires a direct Row or Column children slot',
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -289,7 +324,7 @@ void main() {
     );
   });
 
-  test('closes the 32-source by 31-destination compatibility matrix', () {
+  test('closes the 33-source by 32-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -301,6 +336,7 @@ void main() {
       'flutter.widgets.IntrinsicHeight',
       'flutter.widgets.IntrinsicWidth',
       'flutter.widgets.Offstage',
+      'flutter.widgets.SizedOverflowBox',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Wrap',
@@ -332,8 +368,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(32));
-    expect(destinations, hasLength(31));
+    expect(sourceTypes, hasLength(33));
+    expect(destinations, hasLength(32));
 
     var accepted = 0;
     var rejected = 0;
@@ -359,9 +395,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 849);
-    expect(rejected, 143);
-    expect(accepted + rejected, 992);
+    expect(accepted, 908);
+    expect(rejected, 148);
+    expect(accepted + rejected, 1056);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -6337,6 +6373,171 @@ void main() {
   );
 
   testWidgets(
+    'renders real SizedOverflowBox size, overflow constraints, and alignment',
+    (tester) async {
+      const widgetId = 'd01c13f5-c20d-48bf-a360-5da7b6b36c67';
+      const childId = '04bf06da-4419-4d88-b504-25c93ba7a76a';
+
+      Future<RenderSizedOverflowBox> pump({
+        required Map<String, Object?> properties,
+        required double childWidth,
+        required double childHeight,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredSizedOverflowBox(
+                  properties: properties,
+                  child: _viewSizedBoxNode(
+                    childId,
+                    width: childWidth,
+                    height: childHeight,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final finder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+              matching: find.byType(SizedOverflowBox),
+            )
+            .first;
+        final widget = tester.widget<SizedOverflowBox>(finder);
+        final render = tester.renderObject<RenderSizedOverflowBox>(finder);
+        expect(widget.size, render.requestedSize);
+        return render;
+      }
+
+      final centered = await pump(
+        properties: const {
+          'size': {'kind': 'size', 'width': 100.0, 'height': 80.0},
+        },
+        childWidth: 160,
+        childHeight: 30,
+      );
+      expect(centered.requestedSize, const Size(100, 80));
+      expect(centered.alignment, Alignment.center);
+      expect(centered.size, const Size(100, 80));
+      expect(
+        centered.child!.size,
+        const Size(160, 30),
+        reason: 'the original incoming constraints must reach the child',
+      );
+      expect(
+        (centered.child!.parentData! as BoxParentData).offset,
+        const Offset(-30, 25),
+      );
+      expect(
+        centered.hitTest(BoxHitTestResult(), position: const Offset(50, 40)),
+        isTrue,
+      );
+      expect(
+        centered.hitTest(BoxHitTestResult(), position: const Offset(-10, 40)),
+        isFalse,
+        reason: 'Flutter clips hit testing to the parent bounds, not painting',
+      );
+
+      final aligned = await pump(
+        properties: const {
+          'size': {'kind': 'size', 'width': 100.0, 'height': 80.0},
+          'alignment': {
+            'kind': 'alignmentGeometry',
+            'basis': 'directional',
+            'horizontal': -1.0,
+            'vertical': 1.0,
+          },
+        },
+        childWidth: 40,
+        childHeight: 20,
+      );
+      expect(aligned.alignment, AlignmentDirectional.bottomStart);
+      expect(aligned.size, const Size(100, 80));
+      expect(aligned.child!.size, const Size(40, 20));
+      expect(
+        (aligned.child!.parentData! as BoxParentData).offset,
+        const Offset(0, 60),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps zero SizedOverflowBox selectable and exposes its empty child slot',
+    (tester) async {
+      const widgetId = 'd01c13f5-c20d-48bf-a360-5da7b6b36c67';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredSizedOverflowBox(
+                properties: const {
+                  'size': {'kind': 'size', 'width': 0.0, 'height': 0.0},
+                },
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final finder = find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+            matching: find.byType(SizedOverflowBox),
+          )
+          .first;
+      final render = tester.renderObject<RenderSizedOverflowBox>(finder);
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+      );
+      expect(render.requestedSize, Size.zero);
+      expect(render.size, Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, widgetId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, widgetId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
     (tester) async {
       const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
@@ -8989,6 +9190,35 @@ Map<String, Object?> _modelWithCenteredOffstage({
         'child': <String, Object?>{
           'id': 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
           'type': 'flutter.widgets.Offstage',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredSizedOverflowBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '55a1a386-b45f-4a5d-aa5d-e124e9d53851',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'd01c13f5-c20d-48bf-a360-5da7b6b36c67',
+          'type': 'flutter.widgets.SizedOverflowBox',
           'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},

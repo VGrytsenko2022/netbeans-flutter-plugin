@@ -93,6 +93,9 @@ class PropertyValueFormatterTest {
                 new PropertyValue.AlignmentGeometryValue(
                         PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
                         new BigDecimal("0.25"), BigDecimal.ONE.negate())));
+        assertEquals("100 × 32.5", PropertyValueFormatter.format(
+                new PropertyValue.SizeValue(
+                        BigDecimal.valueOf(100), new BigDecimal("32.5"))));
         assertEquals("w=10…∞, h=20…200", PropertyValueFormatter.format(
                 new PropertyValue.BoxConstraintsValue(
                         BigDecimal.TEN, Optional.empty(), BigDecimal.valueOf(20),

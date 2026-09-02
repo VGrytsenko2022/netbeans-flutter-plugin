@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtyTwoTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyThreeTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -62,6 +62,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.Row",
                 "flutter.widgets.SizedBox",
+                "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Text",
@@ -71,8 +72,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(32, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(27, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(33, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(28, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -85,10 +86,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(667, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(669, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(650, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(652, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -125,6 +126,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.SizedOverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Spacer", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Stack", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Text", WIDGETS_IMPORT),
@@ -210,6 +212,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesAStablePaletteOrderSeparateFromCanonicalIteration() {
+        List<WidgetDefinition> palette =
+                BuiltInWidgetCatalog.getDefault().paletteDefinitions();
         assertEquals(List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -239,10 +243,15 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
+                "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
-                "flutter.widgets.Image"), typeIds(BuiltInWidgetCatalog.getDefault().paletteDefinitions()));
+                "flutter.widgets.Image"), typeIds(palette));
+        assertEquals(25, palette.stream()
+                .filter(definition -> definition.palette().categoryId()
+                        .equals("flutter.layout"))
+                .count());
     }
 
     @Test
@@ -277,6 +286,10 @@ class BuiltInWidgetCatalogTest {
                         BigDecimal.ZERO, java.util.Optional.empty(),
                         BigDecimal.ZERO, java.util.Optional.empty()),
                 property(catalog, "flutter.widgets.ConstrainedBox", "constraints")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.SizeValue(
+                        BigDecimal.valueOf(100), BigDecimal.valueOf(100)),
+                property(catalog, "flutter.widgets.SizedOverflowBox", "size")
                         .creationDefault().orElseThrow());
         assertTrue(property(catalog, "flutter.widgets.Opacity", "alwaysIncludeSemantics")
                 .creationDefault().isEmpty());
@@ -1539,6 +1552,53 @@ class BuiltInWidgetCatalogTest {
 
         SlotDefinition child = offstage.slot(new SlotName("child")).orElseThrow();
         assertEquals(DartParameter.named(1, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void sizedOverflowBoxExposesExactFlutter344ConstEditableSurface() {
+        WidgetDefinition box = definition("flutter.widgets.SizedOverflowBox");
+
+        assertEquals("SizedOverflowBox", box.dartClassName());
+        assertTrue(box.constConstructor());
+        assertEquals(WIDGETS_IMPORT, box.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), box.importUris());
+        assertTrue(box.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                        "flutter.layout", 200, 190, "SizedOverflowBox"),
+                box.palette());
+        assertEquals(List.of("size", "alignment"),
+                box.properties().stream()
+                        .map(value -> value.name().value()).toList());
+
+        PropertyDefinition size = box.properties().get(0);
+        assertEquals(DartParameter.named(0, true), size.parameter());
+        assertEquals(Set.of(PropertyValueKind.SIZE), size.acceptedKinds());
+        assertEquals(new PropertyValue.SizeValue(
+                        BigDecimal.valueOf(100), BigDecimal.valueOf(100)),
+                size.creationDefault().orElseThrow());
+        PropertyValueConstraint.SizeValues sizeValues = assertInstanceOf(
+                PropertyValueConstraint.SizeValues.class,
+                size.constraints().getFirst());
+        assertTrue(sizeValues.accepts(new PropertyValue.SizeValue(
+                BigDecimal.ZERO, new BigDecimal("12.5"))));
+        assertFalse(sizeValues.accepts(new PropertyValue.SizeValue(
+                new BigDecimal("1E+10000"), BigDecimal.ONE)));
+        assertFalse(sizeValues.accepts(new PropertyValue.StringValue("100x100")));
+
+        PropertyDefinition alignment = box.properties().get(1);
+        assertEquals(DartParameter.named(1, false), alignment.parameter());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefault().isEmpty(),
+                "omission must preserve Flutter's Alignment.center default");
+
+        SlotDefinition child = box.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());

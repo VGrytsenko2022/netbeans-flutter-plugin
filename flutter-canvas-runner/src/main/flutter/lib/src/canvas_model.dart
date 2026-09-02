@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 12;
+const canvasModelProtocolVersion = 13;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -1089,6 +1089,8 @@ class CanvasValue {
           kind as String,
           _decodeAlignmentGeometry(object, path),
         );
+      case 'size':
+        return CanvasValue(kind as String, _decodeSize(object, path));
       case 'boxConstraints':
         return CanvasValue(kind as String, _decodeBoxConstraints(object, path));
       case 'matrix4':
@@ -1279,6 +1281,13 @@ class CanvasAlignmentGeometryValue {
   final String basis;
   final double horizontal;
   final double vertical;
+}
+
+class CanvasSizeValue {
+  const CanvasSizeValue({required this.width, required this.height});
+
+  final double width;
+  final double height;
 }
 
 class CanvasBoxConstraintsValue {
@@ -2067,6 +2076,14 @@ CanvasAlignmentGeometryValue _decodeAlignmentGeometryFields(
   horizontal: _finiteNumber(object['horizontal'], '$path/horizontal'),
   vertical: _finiteNumber(object['vertical'], '$path/vertical'),
 );
+
+CanvasSizeValue _decodeSize(Map<String, Object?> object, String path) {
+  _exactKeys(object, path, const {'kind', 'width', 'height'});
+  return CanvasSizeValue(
+    width: _finiteNumber(object['width'], '$path/width', minimum: 0),
+    height: _finiteNumber(object['height'], '$path/height', minimum: 0),
+  );
+}
 
 CanvasBoxConstraintsValue _decodeBoxConstraints(
   Map<String, Object?> object,
@@ -3764,6 +3781,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.SizedOverflowBox': _WidgetSpec(
+    {
+      'size': _PropertySpec(
+        {'size'},
+        required: true,
+        creationDefaultFingerprint: 'size:100,100',
+      ),
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5231,6 +5259,10 @@ W|flutter.widgets.SizedBox
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.SizedOverflowBox
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|size|size|1|size:100,100|-|size:size:finiteNonNegative
+S|child|single|0|0|1|any
 W|flutter.widgets.Spacer
 P|flex|integer|0|-|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
 R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Column|children
@@ -5458,6 +5490,9 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   }
   if (kind == 'boxConstraints') {
     return 'boxConstraints:v2:finiteOrPositiveInfinity';
+  }
+  if (kind == 'size') {
+    return 'size:finiteNonNegative';
   }
   if (kind == 'alignmentGeometry' || kind == 'matrix4') {
     return kind;

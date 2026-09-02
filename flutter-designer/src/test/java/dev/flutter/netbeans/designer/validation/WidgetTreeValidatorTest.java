@@ -933,6 +933,108 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsSizedOverflowBoxRequiredSizeAlignmentAndOptionalChild() {
+        WidgetNode defaults = sizedOverflowBox(
+                "sizedOverflowDefaults",
+                Map.of(name("size"), new PropertyValue.SizeValue(
+                        BigDecimal.valueOf(100), BigDecimal.valueOf(100))),
+                null);
+        WidgetNode explicit = sizedOverflowBox(
+                "sizedOverflowExplicit",
+                Map.of(
+                        name("size"), new PropertyValue.SizeValue(
+                                BigDecimal.ZERO, new BigDecimal("240.5")),
+                        name("alignment"),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                                BigDecimal.ONE, BigDecimal.ONE.negate())),
+                text("sizedOverflowText"));
+
+        for (WidgetNode accepted : List.of(defaults, explicit)) {
+            assertTrue(validator().validate(
+                    document(accepted), BuiltInWidgetCatalog.getDefault()).valid(),
+                    accepted.type().value());
+        }
+    }
+
+    @Test
+    void sizedOverflowBoxRejectsMissingWrongUnknownAndInvalidSizeAtExactPaths() {
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(sizedOverflowBox("missingSize", Map.of(), null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/size", missing.path());
+
+        ValidationIssue kind = onlyIssue(
+                validator().validate(
+                        document(sizedOverflowBox(
+                                "wrongSizeKind",
+                                Map.of(name("size"),
+                                        new PropertyValue.StringValue("100x100")),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/size", kind.path());
+
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(sizedOverflowBox(
+                                "unknownRequestedSize",
+                                Map.of(
+                                        name("size"), new PropertyValue.SizeValue(
+                                                BigDecimal.ONE, BigDecimal.ONE),
+                                        name("requestedSize"),
+                                        new PropertyValue.SizeValue(
+                                                BigDecimal.ONE, BigDecimal.ONE)),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/requestedSize", unknown.path());
+
+        for (PropertyValue.SizeValue rejected : List.of(
+                new PropertyValue.SizeValue(
+                        new BigDecimal("1E+10000"), BigDecimal.ONE),
+                new PropertyValue.SizeValue(
+                        BigDecimal.ONE, new BigDecimal("1E+10000")))) {
+            ValidationIssue constraint = onlyIssue(
+                    validator().validate(
+                            document(sizedOverflowBox(
+                                    "invalidSize-" + rejected.hashCode(),
+                                    Map.of(name("size"), rejected),
+                                    null)),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/size", constraint.path());
+        }
+    }
+
+    @Test
+    void sizedOverflowBoxChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("sizedOverflowExpanded", Map.of(),
+                        text("sizedOverflowExpandedText")),
+                flexible("sizedOverflowFlexible", Map.of(),
+                        text("sizedOverflowFlexibleText")),
+                spacer("sizedOverflowSpacer", Map.of()))) {
+            WidgetNode box = sizedOverflowBox(
+                    "sized-overflow-" + restricted.type().value(),
+                    Map.of(name("size"), new PropertyValue.SizeValue(
+                            BigDecimal.valueOf(100), BigDecimal.valueOf(100))),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(box), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.SizedOverflowBox.child"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2699,6 +2801,16 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Offstage", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode sizedOverflowBox(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.SizedOverflowBox", properties, Map.of(
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));

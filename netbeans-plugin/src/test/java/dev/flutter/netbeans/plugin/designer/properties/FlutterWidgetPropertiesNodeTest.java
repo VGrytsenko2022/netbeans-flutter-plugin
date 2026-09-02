@@ -654,6 +654,10 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.BoxConstraintsValue(
                                 BigDecimal.ZERO, Optional.empty(),
                                 BigDecimal.ZERO, Optional.empty())),
+                "flutter.widgets.SizedOverflowBox", Map.of(
+                        new PropertyName("size"),
+                        new PropertyValue.SizeValue(
+                                BigDecimal.valueOf(100), BigDecimal.valueOf(100))),
                 "flutter.widgets.Image", Map.of(
                         new PropertyName("image"),
                         new PropertyValue.ImageProviderValue(
@@ -689,6 +693,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
+                "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -726,7 +731,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(667, writableCount,
+        assertEquals(669, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -734,9 +739,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
-                + "Offstage, ListView, "
+                + "Offstage, SizedOverflowBox, ListView, "
                 + "and Image leaves");
-        assertEquals(650, nonScaffoldWritableCount,
+        assertEquals(652, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1318,6 +1323,92 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
                         omittedOffstage.getPropertyEditor().getAsText()),
                 () -> assertTrue(omittedOffstage.isDefaultValue()));
+    }
+
+    @Test
+    void sizedOverflowBoxProjectsRequiredSizeAlignmentAndOverflowingChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.SizedOverflowBox");
+        StableId id = StableId.parse("c8c3690e-8642-4ee5-bb1b-62071dfa7f16");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("size", "alignment"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Required requested size, child alignment, parent-constraint behavior, "
+                + "and optional overflowing child contract for the selected "
+                + "SizedOverflowBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> size = cellProperty(
+                property(node, "size"));
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        PropertyValue.SizeValue initial = new PropertyValue.SizeValue(
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100));
+        PropertyEditor sizeEditor = size.getPropertyEditor();
+        sizeEditor.setValue(size.getValue());
+        assertAll(
+                () -> assertEquals("Size", size.getDisplayName()),
+                () -> assertEquals(initial,
+                        size.getValue().explicitValue().orElseThrow()),
+                () -> assertEquals("100 × 100", sizeEditor.getAsText()),
+                () -> assertTrue(sizeEditor.supportsCustomEditor()),
+                () -> assertFalse(size.supportsDefaultValue()),
+                () -> assertFalse(size.isDefaultValue()),
+                () -> assertTrue(size.getShortDescription().contains(
+                        "Required finite non-negative")),
+                () -> assertTrue(size.getShortDescription().contains(
+                        "Parent constraints still constrain")),
+                () -> assertTrue(size.getShortDescription().contains(
+                        "pass through unchanged to the child")),
+                () -> assertTrue(size.getShortDescription().contains("100 × 100")),
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(),
+                        alignment.getValue()),
+                () -> assertTrue(alignment.supportsDefaultValue()),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "ambient TextDirection")),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "defaults to center")));
+
+        size.restoreDefaultValue();
+        assertTrue(commands.isEmpty(),
+                "a required Size must never expose Restore Default");
+        assertThrows(IllegalArgumentException.class,
+                () -> size.setValue(FlutterPropertyCellValue.unset()));
+
+        PropertyValue.SizeValue firstEdit = new PropertyValue.SizeValue(
+                new BigDecimal("120.5"), new BigDecimal("64"));
+        size.setValue(FlutterPropertyCellValue.explicit(firstEdit));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE,
+                        BigDecimal.ONE.negate());
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("size"), firstEdit),
+                new SetProperty(id, new PropertyName("alignment"), directional)),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "original incoming parent constraints")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "rather than tight constraints")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "may paint outside")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
     }
 
     @Test
@@ -3350,7 +3441,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyTwoCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyThreeCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3381,6 +3472,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
+                "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3412,7 +3504,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(32, iconPaths.size(),
+        assertEquals(33, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

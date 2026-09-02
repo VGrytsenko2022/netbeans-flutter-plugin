@@ -3710,6 +3710,22 @@ public final class DartRegionGenerator {
                 path, widgetId, context);
     }
 
+    private RenderedValue renderSize(
+            PropertyValue.SizeValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Size");
+        String rendered = symbol.text() + '(' + dartDouble(value.width())
+                + ", " + dartDouble(value.height()) + ')';
+        return scalar(rendered, true, path, widgetId, context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":size:" + path,
+                        symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                        path, Optional.of(widgetId))));
+    }
+
     private RenderedValue renderMatrix4(
             PropertyValue.Matrix4Value value,
             String path,
@@ -5143,6 +5159,9 @@ public final class DartRegionGenerator {
         if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
             return renderAlignmentGeometry(
                     alignment, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.SizeValue size) {
+            return renderSize(size, path, widgetId, context);
         }
         if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
             return renderBoxConstraints(

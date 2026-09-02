@@ -4,7 +4,7 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v12 may additionally carry
+screenshots or framebuffer pixels. Model protocol v13 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
 
@@ -77,12 +77,12 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v12 carries the resolved project-theme id, seed, brightness,
+Model protocol v13 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-32 reviewed Canvas widgets. Palette insertion evaluates 992 exact
-source/destination cells across 32 draggable sources and 31 insertable reviewed
-slots; 849 are accepted and 143 cells are rejected. Expanded and Flexible are
+33 reviewed Canvas widgets. Palette insertion evaluates 1,056 exact
+source/destination cells across 33 draggable sources and 32 insertable reviewed
+slots; 908 are accepted and 148 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -495,11 +495,34 @@ paint, hit testing and semantics and normally reports zero size under loose
 constraints. The Palette contract exposes that resource cost and recommends
 removing long-hidden subtrees when ongoing work is undesirable. Selection and
 drop instrumentation remains outside the Offstage effect; an actual zero-sized
-result alone receives a bounded 36 x 36 non-layout-affecting target. The
-aggregate catalog now has 32 widgets, 27 reviewed const constructors and 667
-writable properties, including 650 outside Scaffold. Thirty-two sources across
-29 insertable any-widget and two trait destinations form 992 candidates: 849
-accepted and 143 rejected. The practical Material/Base Designer backlog is
-32/92 complete with 60 remaining, the Palette Layout category contains 24
-items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
-6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
+result alone receives a bounded 36 x 36 non-layout-affecting target. At that
+milestone the aggregate catalog had 32 widgets, 27 reviewed const constructors
+and 667 writable properties, including 650 outside Scaffold. Thirty-two sources
+across 29 insertable any-widget and two trait destinations formed 992
+candidates: 849 accepted and 143 rejected. The practical Material/Base Designer
+backlog was 32/92 complete with 60 remaining, and the Palette Layout category
+contained 24 items. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+framing/control/wire v1 remained unchanged.
+
+[`flutter.widgets.SizedOverflowBox`](https://api.flutter.dev/flutter/widgets/SizedOverflowBox-class.html)
+is the thirteenth post-core Canvas widget, at Palette Layout order 190
+immediately after Offstage. Its pinned Flutter 3.44.8 const constructor from
+`package:flutter/widgets.dart` exposes required structured `Size size`, optional
+`AlignmentGeometry alignment` with runtime default `Alignment.center`, and one
+optional single any-widget `child`. A new Designer instance persists the
+reviewed visible `Size(100, 100)` value; both dimensions are finite,
+non-negative and edited atomically. Palette, tree and Canvas creation admit
+SizedOverflowBox as an ordinary widget, while generic placement rules reject
+Expanded, Flexible and Spacer in its child slot. Native and exact-Web renderers
+construct the real Flutter SizedOverflowBox. Its own requested size is
+constrained by the parent, while the child receives the original incoming
+constraints and may paint outside according to alignment; hit testing remains
+inside the parent's bounds. A true zero-sized result retains a bounded 36 x 36
+non-layout-affecting Designer selection/drop target. The aggregate catalog now
+has 33 widgets, 28 reviewed const constructors and 669 writable properties,
+including 652 outside Scaffold. Thirty-three sources across 30 insertable
+any-widget and two trait destinations form 1,056 candidates: 908 accepted and
+148 rejected. The practical Material/Base Designer backlog is 33/92 complete
+with 59 remaining, and the Palette Layout category contains 25 items. The new
+closed atomic Size wire value advances `.fd` to schema v8, Catalog API to 7 and
+Canvas model to v13; NBFC framing/control/wire v1 remain unchanged.

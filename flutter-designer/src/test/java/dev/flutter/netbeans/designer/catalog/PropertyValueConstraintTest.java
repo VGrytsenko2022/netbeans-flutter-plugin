@@ -170,6 +170,9 @@ class PropertyValueConstraintTest {
                         PropertyValueKind.ALIGNMENT_GEOMETRY));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.SIZE));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.BOX_CONSTRAINTS));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.MATRIX4));
@@ -194,6 +197,14 @@ class PropertyValueConstraintTest {
         assertFalse(alignments.accepts(new PropertyValue.AlignmentGeometryValue(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
                 huge, BigDecimal.ONE)));
+
+        PropertyValueConstraint.SizeValues sizes =
+                new PropertyValueConstraint.SizeValues();
+        assertTrue(sizes.accepts(new PropertyValue.SizeValue(
+                BigDecimal.ZERO, new BigDecimal("12.5"))));
+        assertFalse(sizes.accepts(new PropertyValue.SizeValue(
+                huge, BigDecimal.ONE)));
+        assertEquals("finite non-negative Size dimensions", sizes.description());
 
         PropertyValueConstraint.BoxConstraintsValues constraints =
                 new PropertyValueConstraint.BoxConstraintsValues();

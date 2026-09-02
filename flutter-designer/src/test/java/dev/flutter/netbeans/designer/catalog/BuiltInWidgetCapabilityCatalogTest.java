@@ -50,6 +50,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IntrinsicHeight",
             "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.Offstage",
+            "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -83,6 +84,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Baseline",
             "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.Offstage",
+            "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -97,7 +99,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtyTwoSourcesAndThirtyOneInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyThreeSourcesAndThirtyTwoInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -120,9 +122,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(32, sources.size());
-        assertEquals(31, destinations.size());
-        assertEquals(29, destinations.stream()
+        assertEquals(33, sources.size());
+        assertEquals(32, destinations.size());
+        assertEquals(30, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -130,9 +132,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(992, candidates);
-        assertEquals(849, accepted);
-        assertEquals(143, candidates - accepted);
+        assertEquals(1056, candidates);
+        assertEquals(908, accepted);
+        assertEquals(148, candidates - accepted);
     }
 
     @Test
@@ -841,6 +843,51 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void sizedOverflowBoxHasStaticEditableCapabilitiesAndIndependentProjection() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.SizedOverflowBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("size"),
+                        new PropertyName("alignment")),
+                projection.properties().keySet());
+
+        var size = projection.propertyContracts().get(new PropertyName("size"));
+        assertTrue(size.required());
+        assertEquals(Set.of(PropertyValueKind.SIZE), size.acceptedKinds());
+        assertEquals(Optional.of("size:100,100"),
+                size.creationDefaultFingerprint());
+        assertTrue(size.numericBounds().isEmpty());
+        assertEquals("size:finiteNonNegative",
+                size.constraintFingerprints().get(PropertyValueKind.SIZE));
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertFalse(alignment.required());
+        assertEquals(Set.of(PropertyValueKind.ALIGNMENT_GEOMETRY),
+                alignment.acceptedKinds());
+        assertTrue(alignment.creationDefaultFingerprint().isEmpty());
+        assertTrue(alignment.numericBounds().isEmpty());
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1440,6 +1487,13 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertTrue(contract.contains(
                 "W|flutter.widgets.Offstage\n"
                 + "P|offstage|boolean|0|-|-|boolean:any\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.SizedOverflowBox\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|size|size|1|size:100,100|-|"
+                + "size:size:finiteNonNegative\n"
                 + "S|child|single|0|0|1|any\n"));
     }
 

@@ -123,6 +123,10 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.AlignmentGeometryValues.class::isInstance)) {
             editorKind = EditorKind.ALIGNMENT_GEOMETRY;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.SizeValues.class::isInstance)) {
+            editorKind = EditorKind.SIZE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_CONSTRAINTS))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxConstraintsValues.class::isInstance)) {
@@ -166,6 +170,7 @@ final class FlutterTypedPropertyEditors {
         FONT_VARIATION_LIST,
         ICON_DATA,
         ALIGNMENT_GEOMETRY,
+        SIZE,
         BOX_CONSTRAINTS,
         MATRIX4,
         IMAGE_PROVIDER,
@@ -256,7 +261,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
-                        ICON_DATA, ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4,
+                        ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, BOX_CONSTRAINTS, MATRIX4,
                         IMAGE_PROVIDER, BOX_DECORATION ->
                     new StructuredEditor(this);
             };

@@ -19,6 +19,7 @@ public enum PropertyValueKind {
     FONT_FEATURE_LIST("fontFeatureList"),
     FONT_VARIATION_LIST("fontVariationList"),
     ALIGNMENT_GEOMETRY("alignmentGeometry"),
+    SIZE("size"),
     BOX_CONSTRAINTS("boxConstraints"),
     MATRIX4("matrix4"),
     IMAGE_PROVIDER("imageProvider"),

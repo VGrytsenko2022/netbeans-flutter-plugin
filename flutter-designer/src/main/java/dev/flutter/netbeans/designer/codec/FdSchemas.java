@@ -18,7 +18,9 @@ final class FdSchemas {
             "META-INF/netbeans-flutter-designer/schema/fd-v6.schema.json";
     static final String V7_RESOURCE =
             "META-INF/netbeans-flutter-designer/schema/fd-v7.schema.json";
-    static final String CURRENT_RESOURCE = V7_RESOURCE;
+    static final String V8_RESOURCE =
+            "META-INF/netbeans-flutter-designer/schema/fd-v8.schema.json";
+    static final String CURRENT_RESOURCE = V8_RESOURCE;
 
     private FdSchemas() {
     }
@@ -49,6 +51,10 @@ final class FdSchemas {
 
     static InputStream openV7() {
         return open(V7_RESOURCE);
+    }
+
+    static InputStream openV8() {
+        return open(V8_RESOURCE);
     }
 
     static InputStream openCurrent() {

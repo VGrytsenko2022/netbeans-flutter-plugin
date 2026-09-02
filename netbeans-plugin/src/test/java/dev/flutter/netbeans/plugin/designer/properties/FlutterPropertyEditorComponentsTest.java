@@ -2274,6 +2274,113 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void requiredSizeEditorKeepsAValidatedLocalDraftAndNeverOffersUnset()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.SizedOverflowBox", "size"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.SIZE,
+                binding.editorKind());
+        assertTrue(binding.createEditor().supportsCustomEditor());
+        assertTrue(FlutterPropertyEditorComponents.inplaceFactory(binding).isEmpty());
+
+        PropertyEditor editor = binding.createEditor();
+        PropertyValue.SizeValue initial = new PropertyValue.SizeValue(
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100));
+        editor.setValue(FlutterPropertyCellValue.explicit(initial));
+        assertEquals("100 × 100", editor.getAsText());
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT));
+
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Size", "Required finite non-negative width and height."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        AtomicInteger committedChanges = new AtomicInteger();
+        editor.addPropertyChangeListener(ignored -> committedChanges.incrementAndGet());
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertSame(panel, editor.getCustomEditor(),
+                    "NetBeans may ask for the active custom editor repeatedly");
+            assertNull(findByText(panel, JCheckBox.class,
+                    "Use inherited/default value (omit argument)"));
+            JTextField width = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterSizePropertyEditorComponents.WIDTH_COMPONENT_NAME);
+            JTextField height = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterSizePropertyEditorComponents.HEIGHT_COMPONENT_NAME);
+            assertNotNull(width);
+            assertNotNull(height);
+            assertEquals("Size width",
+                    width.getAccessibleContext().getAccessibleName());
+            assertEquals("Size height",
+                    height.getAccessibleContext().getAccessibleName());
+            assertEquals("100", width.getText());
+            assertEquals("100", height.getText());
+
+            width.setText("-1");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", width.getClientProperty("JComponent.outline"));
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "invalid local typing must not replace the selected property");
+            assertEquals(0, committedChanges.get());
+
+            width.setText("1e400");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", width.getClientProperty("JComponent.outline"));
+            assertTrue(width.getToolTipText().contains("finite Dart double"));
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "non-finite local typing must not replace the selected property");
+            assertEquals(0, committedChanges.get());
+
+            width.setText("0");
+            height.setText("32.5");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "valid local typing remains a draft until dialog OK");
+            assertEquals(0, committedChanges.get());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.SizeValue(
+                                    BigDecimal.ZERO, new BigDecimal("32.5"))),
+                    editor.getValue());
+            assertEquals(1, committedChanges.get());
+            return null;
+        });
+
+        PropertyEditor reopened = binding.createEditor();
+        reopened.setValue(editor.getValue());
+        PropertyEnv reopenedEnvironment = PropertyEnv.create(descriptor(
+                "Size", "Required finite non-negative width and height."));
+        ((ExPropertyEditor) reopened).attachEnv(reopenedEnvironment);
+        onEdt(() -> {
+            Component panel = reopened.getCustomEditor();
+            JTextField width = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterSizePropertyEditorComponents.WIDTH_COMPONENT_NAME);
+            JTextField height = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterSizePropertyEditorComponents.HEIGHT_COMPONENT_NAME);
+            assertEquals("0", width.getText());
+            assertEquals("32.5", height.getText());
+            width.setText("48");
+            height.setText("64");
+            reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.SizeValue(
+                                    BigDecimal.valueOf(48), BigDecimal.valueOf(64))),
+                    reopened.getValue(),
+                    "a reopened Size editor must accept a further edit");
+            return null;
+        });
+    }
+
+    @Test
     void booleanCellPainterCentersExplicitCheckboxGlyph() throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(
                 property("flutter.widgets.Text", "softWrap"));

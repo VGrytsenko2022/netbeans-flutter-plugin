@@ -48,15 +48,15 @@ class FdV7BoxConstraintsValueCodecTest {
     }
 
     @Test
-    void canonicalV7UsesNullForPositiveInfinityOnAllFourBounds()
+    void canonicalCurrentSchemaUsesNullForPositiveInfinityOnAllFourBounds()
             throws Exception {
         PropertyValue.BoxConstraintsValue expanding = value(
                 Axis.expanding(), Axis.expanding());
         OriginalFdBytes encoded = codec.encode(document(expanding));
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 7"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v7.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 8"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v8.schema.json\""), json);
         assertTrue(json.contains("\"minWidth\": null"), json);
         assertTrue(json.contains("\"maxWidth\": null"), json);
         assertTrue(json.contains("\"minHeight\": null"), json);
@@ -69,15 +69,15 @@ class FdV7BoxConstraintsValueCodecTest {
     }
 
     @Test
-    void migratesFiniteV6BoundsLosslesslyAndReencodesCanonicalV7()
+    void migratesFiniteV6BoundsLosslesslyAndReencodesCanonicalCurrentSchema()
             throws Exception {
         PropertyValue.BoxConstraintsValue original = value(
                 axis(10, null), axis(20, 200));
         String current = new String(
                 codec.encode(document(original)).copyBytes(), StandardCharsets.UTF_8);
         String v6 = current
-                .replace("\"schemaVersion\": 7", "\"schemaVersion\": 6")
-                .replace("../fd-v7.schema.json", "../fd-v6.schema.json");
+                .replace("\"schemaVersion\": 8", "\"schemaVersion\": 6")
+                .replace("../fd-v8.schema.json", "../fd-v6.schema.json");
 
         FdDecodeResult.Current migrated = assertInstanceOf(
                 FdDecodeResult.Current.class,
@@ -85,13 +85,13 @@ class FdV7BoxConstraintsValueCodecTest {
         assertEquals(6, migrated.sourceSchemaVersion());
         assertTrue(migrated.migrated());
         assertEquals(original, constraints(migrated.document()));
-        assertEquals("../fd-v7.schema.json",
+        assertEquals("../fd-v8.schema.json",
                 migrated.document().schemaReference().orElseThrow());
 
         OriginalFdBytes canonical = codec.encode(migrated.document());
         String canonicalJson = new String(
                 canonical.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonicalJson.contains("\"schemaVersion\": 7"), canonicalJson);
+        assertTrue(canonicalJson.contains("\"schemaVersion\": 8"), canonicalJson);
         assertTrue(canonicalJson.contains("\"minWidth\": 10"), canonicalJson);
         assertTrue(canonicalJson.contains("\"maxWidth\": null"), canonicalJson);
         assertArrayEquals(canonical.copyBytes(), codec.encode(assertInstanceOf(
@@ -110,8 +110,8 @@ class FdV7BoxConstraintsValueCodecTest {
         assertInvalid(incoherentV7, "infinite minimum with finite maximum");
 
         String mislabeledV6 = current
-                .replace("\"schemaVersion\": 7", "\"schemaVersion\": 6")
-                .replace("../fd-v7.schema.json", "../fd-v6.schema.json")
+                .replace("\"schemaVersion\": 8", "\"schemaVersion\": 6")
+                .replace("../fd-v8.schema.json", "../fd-v6.schema.json")
                 .replace("\"minWidth\": 10", "\"minWidth\": null");
         assertInvalid(mislabeledV6, "schema v6 finite minimum gate");
 
@@ -126,7 +126,7 @@ class FdV7BoxConstraintsValueCodecTest {
         OriginalFdBytes first = codec.encode(document(value));
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(first), description);
-        assertEquals(7, decoded.sourceSchemaVersion(), description);
+        assertEquals(8, decoded.sourceSchemaVersion(), description);
         assertEquals(value, constraints(decoded.document()), description);
         assertArrayEquals(first.copyBytes(),
                 codec.encode(decoded.document()).copyBytes(), description);
@@ -175,7 +175,7 @@ class FdV7BoxConstraintsValueCodecTest {
                 Extensions.empty());
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v7.schema.json"),
+                Optional.of("../fd-v8.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "constraints_page.dart", "ConstraintsPage",

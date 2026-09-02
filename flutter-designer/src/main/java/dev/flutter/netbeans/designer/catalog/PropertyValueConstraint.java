@@ -24,6 +24,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.ShadowListValues,
         PropertyValueConstraint.FontVariationListValues,
         PropertyValueConstraint.AlignmentGeometryValues,
+        PropertyValueConstraint.SizeValues,
         PropertyValueConstraint.BoxConstraintsValues,
         PropertyValueConstraint.Matrix4Values,
         PropertyValueConstraint.ImageProviderValues,
@@ -53,6 +54,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.SHADOW_LIST
                     || kind == PropertyValueKind.FONT_VARIATION_LIST
                     || kind == PropertyValueKind.ALIGNMENT_GEOMETRY
+                    || kind == PropertyValueKind.SIZE
                     || kind == PropertyValueKind.BOX_CONSTRAINTS
                     || kind == PropertyValueKind.MATRIX4
                     || kind == PropertyValueKind.IMAGE_PROVIDER
@@ -198,6 +200,28 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "physical or directional AlignmentGeometry";
+        }
+    }
+
+    /** Accepts finite, non-negative dimensions exactly representable as Dart doubles. */
+    record SizeValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.SIZE;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.SizeValue size
+                    && size.width().signum() >= 0
+                    && size.height().signum() >= 0
+                    && DartNumericLiterals.isRepresentableDouble(size.width())
+                    && DartNumericLiterals.isRepresentableDouble(size.height());
+        }
+
+        @Override
+        public String description() {
+            return "finite non-negative Size dimensions";
         }
     }
 

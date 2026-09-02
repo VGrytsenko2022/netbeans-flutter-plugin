@@ -606,12 +606,14 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:3",
                     "urn:netbeans-flutter-designer:schema:fd:4",
                     "urn:netbeans-flutter-designer:schema:fd:5",
-                    "urn:netbeans-flutter-designer:schema:fd:6" ->
-                    "urn:netbeans-flutter-designer:schema:fd:7";
+                    "urn:netbeans-flutter-designer:schema:fd:6",
+                    "urn:netbeans-flutter-designer:schema:fd:7" ->
+                    "urn:netbeans-flutter-designer:schema:fd:8";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
-                    "../fd-v5.schema.json", "../fd-v6.schema.json" ->
-                    "../fd-v7.schema.json";
+                    "../fd-v5.schema.json", "../fd-v6.schema.json",
+                    "../fd-v7.schema.json" ->
+                    "../fd-v8.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1133,6 +1135,12 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "ImageProvider values require schema version 6.");
         }
+        if (sourceVersion < 8 && kind.equals("size")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "Size values require schema version 8.");
+        }
         return switch (kind) {
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
@@ -1344,6 +1352,15 @@ final class FdJsonDecoder {
                         parser, fields, base,
                         Set.of("kind", "basis", "horizontal", "vertical"));
                 yield readAlignment(fields, base);
+            }
+            case "size" -> {
+                enforceAllowedFields(
+                        parser, fields, base,
+                        Set.of("kind", "width", "height"));
+                BigDecimal width = jsonDartDouble(fields, "width", base);
+                BigDecimal height = jsonDartDouble(fields, "height", base);
+                yield modelValue(base,
+                        () -> new PropertyValue.SizeValue(width, height));
             }
             case "boxConstraints" -> {
                 enforceAllowedFields(

@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirty-two
+The current capability-gated Palette and native Canvas admit exactly thirty-three
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `Text`, `Icon` and `Image`. Twenty-seven
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `ListView`, `Text`, `Icon` and `Image`. Twenty-eight
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 667 typed writable rows: 650 across the thirty-one
+exactly 669 typed writable rows: 652 across the thirty-two
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -288,8 +288,22 @@ painting, hit testing and semantics and normally contributes no parent space.
 For long-term hiding, remove the subtree when that background activity would
 waste resources. A real zero-sized result retains a bounded 36x36 Designer
 selection/drop target outside the Offstage effect without changing layout. The
-practical Material/Base backlog is now 32/92 complete with 60 remaining; no
-later widget currently has an explicit order. Layout contains 24 items.
+practical Material/Base backlog was then 32/92 complete with 60 remaining.
+Layout contained 24 items.
+
+[`SizedOverflowBox`](https://api.flutter.dev/flutter/widgets/SizedOverflowBox/SizedOverflowBox.html)
+is the thirteenth post-core Palette slice, at Layout order 190 immediately after
+Offstage. Its required `size` is one structured value with finite non-negative
+width and height; a new prototype starts at `Size(100, 100)`. Its optional
+physical/directional `alignment` preserves the framework default
+`Alignment.center`, and its optional child uses the ordinary single-child slot
+editor. Generated Dart and Canvas construct the real SizedOverflowBox: the
+parent constrains the widget's requested size, but the child receives the
+original incoming constraints and can paint outside the resulting box according
+to alignment. Hit testing remains bounded by the parent box. A true zero-size
+result retains only the bounded 36x36 Designer selection/drop target. The
+practical Material/Base backlog is now 33/92 complete with 59 remaining, and
+Layout contains 25 items.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -325,7 +339,7 @@ The asset list comes only from app/package `pubspec.yaml` declarations resolved
 through `.dart_tool/package_config.json`. PNG/JPEG/GIF/WebP candidates are
 checked for safe POSIX-relative identity, root/symlink confinement, magic and
 dimensions. Canvas receives no filesystem path or callback name: Canvas model
-protocol v12 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
+protocol v13 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
 only referenced immutable compressed bytes under exact revision, order, size
 and SHA-256 checks. Native
 preview and the internal exact-Web runtime build the same real
@@ -337,13 +351,14 @@ without removing Container selection/layout/drop overlays. Exact-Web product
 selection is still gated; the routed Web choice remains the native-engine
 responsive layout preview.
 
-The current surface uses `.fd` schema v7, contributor Catalog API 6 and Canvas
-model protocol 12. Schema v1-v6 files migrate in memory and are written as v7
+The current surface uses `.fd` schema v8, contributor Catalog API 7 and Canvas
+model protocol 13. Schema v1-v7 files migrate in memory and are written as v8
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
-migrate losslessly. Thirty-two sources across twenty-nine insertable any-widget
-and two trait-bound slots produce 992 compatibility candidates: 849 accepted
-and 143 rejected. Expanded and Flexible enter only direct
+migrate losslessly, while version 8 adds the atomic finite non-negative `Size`
+wire value. Thirty-three sources across thirty insertable any-widget and two
+trait-bound slots produce 1,056 compatibility candidates: 908 accepted and 148
+rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. NBFC framing

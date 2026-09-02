@@ -1145,7 +1145,7 @@ final class FlutterDesignerNativeCanvasWindowsIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 7,
+                      "schemaVersion": 8,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",

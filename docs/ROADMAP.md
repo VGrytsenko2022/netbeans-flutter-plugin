@@ -1077,12 +1077,35 @@ accepted architecture is documented in
   target only for a real zero-sized result. Complete property and exact-slot
   editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
   generation, Save/reopen, further editing, Undo/Redo, reviewed light/dark SVG
-  icons and focused contract tests. The current surface is 32 widgets, 27 const
-  definitions and 667 rows (650 outside Scaffold), with 24 Layout items.
+  icons and focused contract tests. At that milestone the surface was 32
+  widgets, 27 const definitions and 667 rows (650 outside Scaffold), with 24
+  Layout items.
   Thirty-two sources across 29 insertable any-widget plus two trait destinations
   form 992 candidates: 849 accepted and 143 rejected. The practical 92-widget
-  backlog is 32/92 complete with 60 remaining. `.fd` schema v7, Catalog API 6,
-  Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.
+  backlog was 32/92 complete with 60 remaining. `.fd` schema v7, Catalog API 6,
+  Canvas model v12 and NBFC framing/control/wire v1 remained unchanged.
+- [x] Complete const
+  [`SizedOverflowBox`](https://api.flutter.dev/flutter/widgets/SizedOverflowBox/SizedOverflowBox.html)
+  as the thirteenth post-core Palette vertical slice at Layout order 190,
+  immediately after Offstage. Its complete non-`key` Flutter 3.44.8 constructor
+  surface exposes required structured `Size size`, optional
+  physical/directional `AlignmentGeometry alignment` with framework default
+  `Alignment.center`, and one optional single any-widget `child`. Add the first
+  atomic Size value to persistence with finite non-negative width and height;
+  detached prototypes start at the visible `Size(100, 100)`. Generated Dart
+  and both Canvas projections construct the real SizedOverflowBox, constrain
+  only its requested outer size, pass the original incoming constraints to the
+  child, preserve aligned visual overflow and keep hit testing within the
+  parent box. Use a bounded 36x36 Designer target only for a true zero-size
+  result. Complete property and exact-slot editing, Palette/tree/Canvas DnD,
+  same-tree movement, deterministic generation, Save/reopen and further
+  editing, Undo/Redo, reviewed light/dark SVG icons and focused contract tests.
+  The current surface is 33 widgets, 28 const definitions and 669 rows (652
+  outside Scaffold), with 25 Layout items. Thirty-three sources across 30
+  insertable any-widget plus two trait destinations form 1,056 candidates: 908
+  accepted and 148 rejected. The practical 92-widget backlog is 33/92 complete
+  with 59 remaining. `.fd` schema is v8, Catalog API is 7 and Canvas model is
+  v13; NBFC framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1100,8 +1123,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Offstage has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-two
+  vertical slices. No specific widget after SizedOverflowBox has yet been
+  assigned an explicit order. The current typed Properties slice spans all thirty-three
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

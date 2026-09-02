@@ -457,6 +457,60 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsSizedOverflowBoxWithTypedRequiredSizeAndOptionalSurface() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.SizedOverflowBox");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.SizedOverflowBox"),
+                prototype.type());
+        assertEquals(Map.of(
+                        new PropertyName("size"),
+                        new PropertyValue.SizeValue(
+                                BigDecimal.valueOf(100),
+                                BigDecimal.valueOf(100))),
+                prototype.properties());
+        assertFalse(prototype.properties().containsKey(
+                new PropertyName("alignment")));
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE, BigDecimal.ONE.negate());
+        WidgetNode explicit = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("size"),
+                        new PropertyValue.SizeValue(
+                                new BigDecimal("240.5"), BigDecimal.ZERO),
+                        new PropertyName("alignment"), directional));
+        assertEquals(directional, explicit.properties().get(
+                new PropertyName("alignment")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("size"),
+                                new PropertyValue.StringValue("100x100"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("size"),
+                                new PropertyValue.SizeValue(
+                                        BigDecimal.ONE.negate(), BigDecimal.ONE))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

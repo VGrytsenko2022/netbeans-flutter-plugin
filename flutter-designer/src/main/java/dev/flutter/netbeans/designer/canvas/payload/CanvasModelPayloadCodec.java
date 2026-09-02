@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 12;
+    public static final int VERSION = 13;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -378,6 +378,7 @@ public final class CanvasModelPayloadCodec {
                 writeFontVariations(json, variations);
             case PropertyValue.AlignmentGeometryValue alignment ->
                 writeAlignment(json, alignment);
+            case PropertyValue.SizeValue size -> writeSize(json, size);
             case PropertyValue.BoxConstraintsValue constraints ->
                 writeBoxConstraints(json, constraints);
             case PropertyValue.Matrix4Value matrix -> writeMatrix4(json, matrix);
@@ -512,6 +513,14 @@ public final class CanvasModelPayloadCodec {
         json.writeStringField("basis", alignment.basis().wireName());
         json.writeNumberField("horizontal", alignment.horizontal());
         json.writeNumberField("vertical", alignment.vertical());
+    }
+
+    private static void writeSize(
+            JsonGenerator json,
+            PropertyValue.SizeValue size) throws IOException {
+        json.writeStringField("kind", "size");
+        json.writeNumberField("width", size.width());
+        json.writeNumberField("height", size.height());
     }
 
     private static void writeBoxConstraints(

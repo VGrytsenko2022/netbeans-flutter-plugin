@@ -123,6 +123,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName SOFT_WRAP = new PropertyName("softWrap");
     private static final PropertyName TEXT_ALIGN = new PropertyName("textAlign");
+    private static final PropertyName SIZE = new PropertyName("size");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -701,6 +702,69 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     }
                 });
             }
+        }
+    }
+
+    @Test
+    void savedSizedOverflowBoxSizeSurvivesReloadAndAcceptsFurtherEdit()
+            throws Exception {
+        PropertyValue.SizeValue initial = new PropertyValue.SizeValue(
+                java.math.BigDecimal.valueOf(100),
+                java.math.BigDecimal.valueOf(100));
+        PropertyValue.SizeValue saved = new PropertyValue.SizeValue(
+                new java.math.BigDecimal("120.5"),
+                java.math.BigDecimal.valueOf(64));
+        ExactPair durablePair;
+        try (MutationFixture fixture = fixture(
+                "mutation_saved_size_reload_further_edit",
+                sizedOverflowBoxExactPair(initial))) {
+            awaitReadyWithSize(fixture.mutations(), initial);
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            fixture.mutations().snapshot().token().orElseThrow(),
+                            new SetProperty(TEXT_ID, SIZE, saved),
+                            "SizedOverflowBox.size")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            awaitReadyWithSize(fixture.mutations(), saved);
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] savedDart = evidence.candidateDartBytes();
+            byte[] savedFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), savedFd, savedDart);
+            awaitPairStatus(fixture.coordinator(), PairSaveCoordinatorStatus.CLEAN);
+            assertArrayEquals(savedDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(savedFd, Files.readAllBytes(fixture.fdPath()));
+            durablePair = new ExactPair(savedDart, savedFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_saved_size_reload_further_edit_reopened",
+                durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened =
+                    awaitReadyWithSize(fixture.mutations(), saved);
+
+            PropertyValue.SizeValue editedAgain = new PropertyValue.SizeValue(
+                    java.math.BigDecimal.valueOf(48),
+                    java.math.BigDecimal.valueOf(32));
+            FlutterDesignerMutationController.MutationResult second =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(TEXT_ID, SIZE, editedAgain),
+                            "SizedOverflowBox.size")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    second.outcome(), second::reason);
+            FlutterDesignerMutationController.Snapshot furtherEdit =
+                    awaitReadyWithSize(fixture.mutations(), editedAgain);
+            assertNotSame(reopened.token().orElseThrow(),
+                    furtherEdit.token().orElseThrow(),
+                    "editing Size after reload must publish a new revision");
         }
     }
 
@@ -4642,6 +4706,26 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new FdDocumentCodec().encode(exact).copyBytes());
     }
 
+    private ExactPair sizedOverflowBoxExactPair(PropertyValue.SizeValue size)
+            throws Exception {
+        DesignerDocument provisional = sizedOverflowBoxDocument(
+                descriptor("0".repeat(64), "0".repeat(64)), size);
+        GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
+                .generate(provisional, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DesignerDocument exact = sizedOverflowBoxDocument(
+                descriptor(
+                        provisionalGenerated.imports().normalizedSha256(),
+                        provisionalGenerated.build().normalizedSha256()),
+                size);
+        GeneratedDartRegions generated = new DartRegionGenerator()
+                .generate(exact, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        return new ExactPair(
+                source(generated).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+    }
+
     private ExactPair columnExactPair() throws Exception {
         DesignerDocument provisional = columnDocument(
                 descriptor("0".repeat(64), "0".repeat(64)));
@@ -5090,6 +5174,32 @@ class FlutterDesignerMutationControllerIntegrationTest {
             Thread.sleep(10);
         }
         throw new AssertionError("Timed out waiting for Text.softWrap="
+                + expectedValue + ": " + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot awaitReadyWithSize(
+            FlutterDesignerMutationController controller,
+            PropertyValue.SizeValue expectedValue) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            PropertyValue value = current.document().isPresent()
+                    ? current.document().orElseThrow().root().properties().get(SIZE)
+                    : null;
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && expectedValue.equals(value)) {
+                return current;
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for SizedOverflowBox.size="
                 + expectedValue + ": " + controller.snapshot());
     }
 
@@ -5852,6 +5962,17 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new WidgetTypeId("flutter.widgets.Text"),
                 Map.of(DATA, new PropertyValue.StringValue(text)),
                 Map.of());
+        return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static DesignerDocument sizedOverflowBoxDocument(
+            DartSourceDescriptor source,
+            PropertyValue.SizeValue size) {
+        WidgetNode root = new WidgetNode(
+                TEXT_ID,
+                new WidgetTypeId("flutter.widgets.SizedOverflowBox"),
+                Map.of(SIZE, size),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
         return new DesignerDocument(DOCUMENT_ID, source, root);
     }
 

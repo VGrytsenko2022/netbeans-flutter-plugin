@@ -305,6 +305,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.Offstage".equals(
                     definition.typeId().value())) {
                 setShortDescription(message("Widget.Offstage.Description"));
+            } else if ("flutter.widgets.SizedOverflowBox".equals(
+                    definition.typeId().value())) {
+                setShortDescription(message("Widget.SizedOverflowBox.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

@@ -77,6 +77,7 @@ class DesignerCommandSessionTest {
     private static final PropertyName STEP_WIDTH = property("stepWidth");
     private static final PropertyName STEP_HEIGHT = property("stepHeight");
     private static final PropertyName OFFSTAGE = property("offstage");
+    private static final PropertyName SIZE = property("size");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -722,6 +723,144 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void sizedOverflowBoxTypedEditResetUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.SizedOverflowBox"))
+                        .orElseThrow(),
+                WRAPPER_ID);
+        PropertyValue.SizeValue initialSize = new PropertyValue.SizeValue(
+                BigDecimal.valueOf(100), BigDecimal.valueOf(100));
+        assertEquals(initialSize, prototype.properties().get(SIZE));
+        assertFalse(prototype.properties().containsKey(ALIGNMENT));
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Overflow child")));
+        PropertyValue.SizeValue customSize = new PropertyValue.SizeValue(
+                new BigDecimal("120.5"), BigDecimal.ZERO);
+        DesignerCommandSession resized = applied(childAdded, new SetProperty(
+                WRAPPER_ID, SIZE, customSize));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE, BigDecimal.ONE.negate());
+        DesignerCommandSession configured = applied(resized, new SetProperty(
+                WRAPPER_ID, ALIGNMENT, directional));
+
+        WidgetNode finalBox = find(
+                configured.current().document().root(), WRAPPER_ID);
+        assertEquals(customSize, finalBox.properties().get(SIZE));
+        assertEquals(directional, finalBox.properties().get(ALIGNMENT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                configured.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const SizedOverflowBox("), dart);
+        assertTrue(dart.contains("size: Size(120.5, 0.0)"), dart);
+        assertTrue(dart.contains(
+                "alignment: const AlignmentDirectional(1.0, -1.0)"), dart);
+        assertTrue(dart.contains("child: const Text('Overflow child')"), dart);
+        assertTrue(dart.indexOf("size: Size(120.5, 0.0)")
+                < dart.indexOf("alignment: const AlignmentDirectional"), dart);
+        assertTrue(dart.indexOf("alignment: const AlignmentDirectional")
+                < dart.indexOf("child: const Text('Overflow child')"), dart);
+
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID,
+                SIZE,
+                new PropertyValue.StringValue("120x0")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID,
+                SIZE,
+                new PropertyValue.SizeValue(
+                        new BigDecimal("1E+10000"), BigDecimal.ONE)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(configured, new ResetProperty(WRAPPER_ID, SIZE),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+
+        DesignerCommandSession alignmentReset = applied(
+                configured,
+                new ResetProperty(WRAPPER_ID, ALIGNMENT));
+        assertFalse(find(alignmentReset.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(ALIGNMENT));
+        String resetDart = new String(
+                alignmentReset.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertFalse(resetDart.contains("alignment:"), resetDart);
+        assertTrue(resetDart.contains("size: Size(120.5, 0.0)"), resetDart);
+
+        DesignerCommandSession undoReset = alignmentReset.undo().session();
+        assertArrayEquals(configured.current().fdBytes(),
+                undoReset.current().fdBytes());
+        assertArrayEquals(configured.current().dartCandidateBytes(),
+                undoReset.current().dartCandidateBytes());
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(alignmentReset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(alignmentReset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.undo().session().markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"kind\": \"size\""), fd);
+        assertTrue(fd.contains("\"width\": 120.5"), fd);
+        assertTrue(fd.contains("\"height\": 0"), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+        assertEquals(customSize,
+                find(reopened.current().document().root(), WRAPPER_ID)
+                        .properties().get(SIZE));
+        assertEquals(directional,
+                find(reopened.current().document().root(), WRAPPER_ID)
+                        .properties().get(ALIGNMENT));
+
+        PropertyValue.SizeValue editedSize = new PropertyValue.SizeValue(
+                BigDecimal.valueOf(240), new BigDecimal("80.25"));
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened,
+                new SetProperty(WRAPPER_ID, SIZE, editedSize));
+        WidgetNode editedBox = find(
+                editedAfterReopen.current().document().root(), WRAPPER_ID);
+        assertEquals(editedSize, editedBox.properties().get(SIZE));
+        assertEquals(directional, editedBox.properties().get(ALIGNMENT));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) editedBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+        String editedDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("const SizedOverflowBox("), editedDart);
+        assertTrue(editedDart.contains("size: Size(240.0, 80.25)"), editedDart);
+        assertTrue(editedDart.contains(
+                "alignment: const AlignmentDirectional(1.0, -1.0)"), editedDart);
+        assertTrue(editedDart.contains(
+                "child: const Text('Overflow child')"), editedDart);
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());
@@ -1114,7 +1253,7 @@ class DesignerCommandSessionTest {
                 "child: const Text('Inside constrained box')"), dart);
         String fd = new String(constrained.current().fdBytes(),
                 StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
         assertTrue(fd.contains("\"minWidth\": null"), fd);
         assertTrue(fd.contains("\"maxWidth\": null"), fd);
 
@@ -1216,7 +1355,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside unconstrained box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.UnconstrainedBox\""), fd);
         assertTrue(fd.contains("\"type\": \"Axis\""), fd);
         assertTrue(fd.contains("\"value\": \"vertical\""), fd);
@@ -1298,7 +1437,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside limited box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.LimitedBox\""), fd);
         assertTrue(fd.contains("\"maxHeight\""), fd);
         assertTrue(fd.contains("\"value\": 180"), fd);
@@ -1428,7 +1567,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside overflow box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 7"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBox\""), fd);
         assertTrue(fd.contains("\"basis\": \"directional\""), fd);
         assertTrue(fd.contains("\"maxWidth\""), fd);

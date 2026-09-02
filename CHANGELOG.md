@@ -7,6 +7,30 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.SizedOverflowBox`](https://api.flutter.dev/flutter/widgets/SizedOverflowBox/SizedOverflowBox.html)
+  vertical slice is the thirteenth post-core Palette addition, at Layout order
+  190 immediately after Offstage. Its complete pinned Flutter 3.44.8 non-`key`
+  contract exposes required structured `Size size`, optional
+  `AlignmentGeometry alignment` (constructor default `Alignment.center`) and
+  one optional single any-widget `child`. New instances persist the reviewed
+  visible default `Size(100, 100)`; width and height are finite, non-negative
+  and edited atomically. Generated Dart and native and exact-Web Canvas
+  construct the real Flutter SizedOverflowBox: its requested outer size is
+  constrained by the parent, while the child receives the original incoming
+  constraints and may paint outside according to alignment; Flutter keeps hit
+  testing inside the parent's bounds. A real zero-sized result keeps only a
+  bounded 36x36, non-layout-affecting Designer selection/drop target. Exact
+  property and slot editing, Palette/tree/Canvas DnD, same-tree movement,
+  deterministic generation, Save/reopen and further editing, Undo/Redo and
+  reviewed light/dark SVG icons share one closed contract. The catalog now
+  contains 33 widgets, 28 reviewed const constructors and 669 writable rows,
+  including 652 across the 32 non-`Scaffold` definitions. Thirty-three sources
+  across 30 insertable any-widget and two trait-bound destinations form 1,056
+  DnD candidates: 908 accepted and 148 rejected. Layout contains 25 items, and
+  the practical 92-widget backlog is 33/92 complete with 59 remaining. The new
+  closed atomic `Size` value advances `.fd` to schema v8, Catalog API to 7 and
+  Canvas model to v13; NBFC framing/control/wire remain v1.
+- The accepted const
   [`flutter.widgets.Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html)
   vertical slice is the twelfth post-core Palette addition, at Layout order
   180 immediately after IntrinsicWidth. Its complete pinned Flutter 3.44.8
@@ -24,7 +48,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   non-layout-affecting Designer selection/drop target outside the Offstage
   effect. Exact property and slot editing, Palette/tree/Canvas DnD, same-tree
   movement, deterministic generation, Save/reopen, Undo/Redo and reviewed
-  light/dark SVG icons share one closed contract. The catalog now contains 32
+  light/dark SVG icons share one closed contract. At that milestone the catalog contained 32
   widgets, 27 reviewed const constructors and 667 writable rows, including 650
   across the 31 non-`Scaffold` definitions. Thirty-two sources across 29
   insertable any-widget and two trait-bound destinations form 992 DnD

@@ -53,6 +53,7 @@ public final class BuiltInWidgetCatalog {
             intrinsicHeight(),
             intrinsicWidth(),
             offstage(),
+            sizedOverflowBox(),
             listView(),
             image(),
             elevatedButton(),
@@ -1030,6 +1031,32 @@ public final class BuiltInWidgetCatalog {
                         false,
                         any(PropertyValueKind.BOOLEAN))),
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sizedOverflowBox() {
+        return widget(
+                "flutter.widgets.SizedOverflowBox",
+                "SizedOverflowBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 190, "SizedOverflowBox"),
+                List.of(
+                        namedProperty(
+                                "size",
+                                0,
+                                true,
+                                List.of(new PropertyValueConstraint.SizeValues()),
+                                new PropertyValue.SizeValue(
+                                        BigDecimal.valueOf(100),
+                                        BigDecimal.valueOf(100))),
+                        namedProperty(
+                                "alignment",
+                                1,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues()))),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

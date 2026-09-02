@@ -48,6 +48,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.FONT_FEATURE_LIST,
                     PropertyValueKind.FONT_VARIATION_LIST,
                     PropertyValueKind.ALIGNMENT_GEOMETRY,
+                    PropertyValueKind.SIZE,
                     PropertyValueKind.BOX_CONSTRAINTS,
                     PropertyValueKind.MATRIX4,
                     PropertyValueKind.IMAGE_PROVIDER,
@@ -172,6 +173,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.IntrinsicHeight", STATIC_STRUCTURAL),
             Map.entry("flutter.widgets.IntrinsicWidth", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Offstage", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.SizedOverflowBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -440,6 +442,16 @@ public final class BuiltInWidgetCapabilityCatalog {
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Offstage", projection(Map.ofEntries(
                     property("offstage", PropertyValueKind.BOOLEAN)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.SizedOverflowBox", projection(Map.ofEntries(
+                    requiredDefaultConstrainedProperty(
+                            "size",
+                            "size:100,100",
+                            PropertyValueKind.SIZE,
+                            "size:finiteNonNegative"),
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry"))),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
@@ -1841,6 +1853,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.AlignmentGeometryValues) {
             return "alignmentGeometry";
         }
+        if (constraint instanceof PropertyValueConstraint.SizeValues) {
+            return "size:finiteNonNegative";
+        }
         if (constraint instanceof PropertyValueConstraint.BoxConstraintsValues) {
             return "boxConstraints:v2:finiteOrPositiveInfinity";
         }
@@ -1928,6 +1943,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + decimalText(insets.top()) + ','
                     + decimalText(insets.end()) + ','
                     + decimalText(insets.bottom());
+        }
+        if (value instanceof PropertyValue.SizeValue size) {
+            return "size:" + decimalText(size.width()) + ','
+                    + decimalText(size.height());
         }
         if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
             return "boxConstraints:"

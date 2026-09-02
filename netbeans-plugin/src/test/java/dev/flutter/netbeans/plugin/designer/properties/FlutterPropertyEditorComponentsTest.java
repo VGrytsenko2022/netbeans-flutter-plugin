@@ -57,6 +57,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.TableCellRenderer;
 import org.junit.jupiter.api.Test;
@@ -916,6 +917,10 @@ class FlutterPropertyEditorComponentsTest {
                 assertEquals(FlutterPropertyEditorComponents.BOOLEAN_COMPONENT_NAME,
                         editor.getName());
                 assertEquals(explicitValue, editor.isSelected());
+                assertEquals(SwingConstants.CENTER,
+                        editor.getHorizontalAlignment());
+                assertEquals(SwingConstants.CENTER,
+                        editor.getVerticalAlignment());
                 assertNull(findFirst(editor, JComboBox.class));
                 table.getCellEditor().cancelCellEditing();
                 return null;
@@ -2232,8 +2237,14 @@ class FlutterPropertyEditorComponentsTest {
                         .inplaceFactory(binding).orElseThrow().getInplaceEditor();
                 inplace.connect(editor, PropertyEnv.create(descriptor(
                         qualifiedName, qualifiedName)));
-                assertInstanceOf(JCheckBox.class, inplace.getComponent(),
-                        qualifiedName);
+                JCheckBox checkBox = assertInstanceOf(
+                        JCheckBox.class, inplace.getComponent(), qualifiedName);
+                assertEquals(SwingConstants.CENTER,
+                        checkBox.getHorizontalAlignment(), qualifiedName
+                        + " must center the checkbox horizontally");
+                assertEquals(SwingConstants.CENTER,
+                        checkBox.getVerticalAlignment(), qualifiedName
+                        + " must center the checkbox vertically");
                 inplace.clear();
             }
             return null;
@@ -2262,6 +2273,29 @@ class FlutterPropertyEditorComponentsTest {
         });
     }
 
+    @Test
+    void booleanCellPainterCentersExplicitCheckboxGlyph() throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Text", "softWrap"));
+        PropertyEditor editor = binding.createEditor();
+
+        onEdt(() -> {
+            int width = 140;
+            int height = 24;
+            int[] checked = paintBoolean(editor, FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true)));
+            Rectangle glyph = nonBackgroundBounds(
+                    checked, width, Color.WHITE.getRGB());
+
+            assertNotNull(glyph, "the checked checkbox glyph must be painted");
+            assertEquals(width / 2.0, glyph.getCenterX(), 4.0,
+                    "the checkbox glyph must be horizontally centered");
+            assertEquals(height / 2.0, glyph.getCenterY(), 4.0,
+                    "the checkbox glyph must be vertically centered");
+            return null;
+        });
+    }
+
     private static int[] paintBoolean(
             PropertyEditor editor,
             FlutterPropertyCellValue value) {
@@ -2280,6 +2314,31 @@ class FlutterPropertyEditorComponentsTest {
             graphics.dispose();
         }
         return image.getRGB(0, 0, width, height, null, 0, width);
+    }
+
+    private static Rectangle nonBackgroundBounds(
+            int[] pixels,
+            int width,
+            int backgroundRgb) {
+        int minX = width;
+        int minY = pixels.length / width;
+        int maxX = -1;
+        int maxY = -1;
+        for (int index = 0; index < pixels.length; index++) {
+            if (pixels[index] == backgroundRgb) {
+                continue;
+            }
+            int x = index % width;
+            int y = index / width;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        return maxX < minX
+                ? null
+                : new Rectangle(minX, minY,
+                        maxX - minX + 1, maxY - minY + 1);
     }
 
     private static int[] paintExpectedBooleanRenderer(

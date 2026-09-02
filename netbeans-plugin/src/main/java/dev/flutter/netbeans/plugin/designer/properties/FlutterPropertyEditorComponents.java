@@ -43,6 +43,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
@@ -197,6 +198,8 @@ final class FlutterPropertyEditorComponents {
             renderer.setOpaque(false);
             renderer.setBorder(null);
             renderer.setFocusable(false);
+            renderer.setHorizontalAlignment(SwingConstants.CENTER);
+            renderer.setVerticalAlignment(SwingConstants.CENTER);
             renderer.setSelected(explicit.value());
             renderer.setFont(graphics.getFont());
             renderer.setForeground(graphics.getColor());
@@ -354,6 +357,8 @@ final class FlutterPropertyEditorComponents {
             super(binding);
             checkBox.setName(BOOLEAN_COMPONENT_NAME);
             checkBox.setOpaque(false);
+            checkBox.setHorizontalAlignment(SwingConstants.CENTER);
+            checkBox.setVerticalAlignment(SwingConstants.CENTER);
             checkBox.addActionListener(ignored -> {
                 value = nextValue(value);
                 showValue();

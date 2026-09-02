@@ -1424,7 +1424,7 @@ class CanvasRuntimeController extends ChangeNotifier
       return null;
     }
     final modelSlot = parent.slot(target.slotName);
-    if (authority.source.widgetType != canvasExpandedWidgetType) {
+    if (!isCanvasFlexParentDataWidgetType(authority.source.widgetType)) {
       final dropSlot = canvasDropSlotForWidgetSlot(
         parent.type,
         target.slotName,
@@ -1444,11 +1444,12 @@ class CanvasRuntimeController extends ChangeNotifier
     )) {
       return null;
     }
-    if (authority.source.widgetType == canvasExpandedWidgetType &&
+    if (isCanvasFlexParentDataWidgetType(authority.source.widgetType) &&
         (modelSlot == null ||
             modelSlot.kind != 'list' ||
-            modelSlot.children[target.insertionIndex].type ==
-                canvasExpandedWidgetType)) {
+            isCanvasFlexParentDataWidgetType(
+              modelSlot.children[target.insertionIndex].type,
+            ))) {
       return null;
     }
     return target;

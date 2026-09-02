@@ -77,7 +77,7 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`,
+`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`,
 `ListView`, `Wrap`, `Container` and `Opacity`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -229,9 +229,12 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-26 reviewed Canvas widgets. Palette insertion evaluates 702 exact
-source/destination cells across 26 draggable sources and 27 reviewed slots;
-629 are accepted and 73 cells are rejected. The negotiated
+27 reviewed Canvas widgets. Palette insertion evaluates 729 exact
+source/destination cells across 27 draggable sources and 27 insertable reviewed
+slots; 631 are accepted and 98 cells are rejected. Expanded and Flexible are
+admitted only as atomic wrappers over an existing direct Row/Column child,
+cannot wrap either wrapper type, and expose required replacement-only child
+slots that are excluded from the insertion matrix. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
@@ -361,11 +364,32 @@ parent constraints; omitted alignment and fit preserve `Alignment.center` and
 Native and exact-Web renderers construct the real Flutter OverflowBox and prove
 constraint override, overflow, physical/directional LTR/RTL alignment and both
 fit modes. Empty or zero-size nodes retain their real layout behind a bounded,
-non-layout-affecting Designer selection/drop target. The aggregate catalog now
-has 26 widgets, 21 reviewed const constructors and 659 writable properties,
-including 642 outside Scaffold. Twenty-six sources across 25 any-widget and two
-trait destinations form 702 candidates: 629 accepted and 73 rejected. The
-practical Material/Base Designer backlog is 26/92 complete with 66 remaining,
-and no later widget has an explicit order. The Palette Layout category contains
-18 items. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
+non-layout-affecting Designer selection/drop target. At that milestone the
+aggregate catalog had 26 widgets, 21 reviewed const constructors and 659
+writable properties, including 642 outside Scaffold. Twenty-six sources across
+25 any-widget and two trait destinations formed 702 candidates: 629 accepted
+and 73 rejected. The practical Material/Base Designer backlog was 26/92
+complete with 66 remaining, and the Palette Layout category contained 18
+items. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
 framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html)
+is the seventh post-core Canvas widget, at Palette Layout order 130 immediately
+after Expanded. Its pinned Flutter 3.44.8 const constructor exposes optional
+non-negative portable integer `flex`, optional exact
+`FlexFit.loose`/`FlexFit.tight`, and one required single any-widget `child`.
+Omission preserves `flex: 1` and `FlexFit.loose`; zero flex is valid and remains
+inflexible. The renderer constructs the real Flutter Flexible directly below
+Row or Column, placing Designer instrumentation inside its child so Flutter's
+ParentDataWidget path remains valid. Palette, tree and Canvas creation wrap an
+existing direct Row/Column child atomically; Flexible and Expanded cannot wrap
+either wrapper type. The occupied required child is replacement-only, cannot be
+cleared and is not an insertable destination. Positive loose flex may use less
+than its allocation, while positive tight flex fills it. The aggregate catalog
+now has 27 widgets, 22 reviewed const constructors and 661 writable properties,
+including 644 outside Scaffold. Twenty-seven sources across the unchanged 25
+insertable any-widget and two trait destinations form 729 candidates: 631
+accepted and 98 rejected. The practical Material/Base Designer backlog is
+27/92 complete with 65 remaining, the Palette Layout category contains 19
+items, and no later widget has an explicit order. `.fd` schema v7, Catalog API
+6, Canvas model v12 and NBFC framing/control/wire v1 remain unchanged.

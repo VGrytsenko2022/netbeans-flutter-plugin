@@ -945,12 +945,36 @@ accepted architecture is documented in
   LTR/RTL directional alignment and both fit modes. Complete Properties,
   Create, Palette/tree/Canvas DnD, exact-slot editing, same-tree movement,
   deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
-  icons and focused contract tests. The current surface is 26 widgets, 21 const
+  icons and focused contract tests. At that milestone the surface was 26 widgets, 21 const
   definitions and 659 rows (642 outside Scaffold), with 18 Layout items.
   Twenty-six sources across 25 any-widget plus two trait destinations form 702
   candidates: 629 accepted and 73 rejected. The practical 92-widget backlog is
   26/92 complete with 66 remaining. `.fd` schema v7, Catalog API 6, Canvas model
   v12 and NBFC framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html)
+  as the seventh post-core Palette vertical slice at Layout order 130,
+  immediately after Expanded. Expose optional non-negative portable integer
+  `flex`, optional `FlexFit.loose`/`tight`, and one required single any-widget
+  `child`. Persist no constructor defaults: omission preserves Flutter's
+  `flex: 1` and `FlexFit.loose`. Palette/tree/Canvas creation atomically wraps
+  an existing direct `Row.children` or `Column.children` child and never creates
+  a terminal required-child placeholder; Flexible and Expanded cannot wrap
+  either wrapper type because the inner parent-data widget would cease to be a
+  direct Flex child. The occupied required child is replacement-only, cannot be
+  cleared and is excluded from insertable DnD destinations. Generated Dart and
+  both Canvas projections construct
+  the real Flutter Flexible, including zero-flex inflexible layout and loose or
+  tight positive-flex allocation. Complete Properties, creation,
+  Palette/tree/Canvas DnD, required-child replacement, same-tree movement,
+  deterministic generation, Save/reopen, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. The current surface is 27 widgets, 22 const
+  definitions and 661 rows (644 outside Scaffold), with 19 Layout items.
+  Twenty-seven sources across the unchanged 25 insertable any-widget plus two
+  trait destinations form 729 candidates: 631 accepted and 98 rejected. The
+  practical 92-widget backlog is 27/92 complete with 65 remaining. `.fd` schema
+  v7, Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -968,8 +992,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after OverflowBox has yet been assigned
-  an explicit order. The current typed Properties slice spans all twenty-six
+  vertical slices. No specific widget after Flexible has yet been assigned an
+  explicit order. The current typed Properties slice spans all twenty-seven
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

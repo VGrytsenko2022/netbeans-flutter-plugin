@@ -793,10 +793,7 @@ void main() {
   test('FittedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.FittedBox\n');
-    final end = contract.indexOf(
-      'W|flutter.widgets.FractionallySizedBox\n',
-      start,
-    );
+    final end = contract.indexOf('W|flutter.widgets.Flexible\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -2071,18 +2068,23 @@ void main() {
     );
     expect(() => _decode(rootWith(invalidStack)), throwsFormatException);
 
-    final nested = expanded(
-      slots: {
-        'child': _single(
-          _node(
-            '67b222c1-a2d8-4f36-8650-e19c95cf8660',
-            'flutter.widgets.Expanded',
-            slots: {'child': _single(text)},
+    for (final nestedType in <String>[
+      'flutter.widgets.Expanded',
+      'flutter.widgets.Flexible',
+    ]) {
+      final nested = expanded(
+        slots: {
+          'child': _single(
+            _node(
+              '67b222c1-a2d8-4f36-8650-e19c95cf8660',
+              nestedType,
+              slots: {'child': _single(text)},
+            ),
           ),
-        ),
-      },
-    );
-    expect(() => _decode(rowWith(nested)), throwsFormatException);
+        },
+      );
+      expect(() => _decode(rowWith(nested)), throwsFormatException);
+    }
   });
 
   test(
@@ -2104,6 +2106,199 @@ void main() {
         'R|flutter.widgets.Expanded|directParentSlot|'
         'flutter.widgets.Row|children\n'
         'C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child\n',
+      );
+    },
+  );
+
+  test(
+    'decodes exact Flexible contract only in direct Row or Column slots',
+    () {
+      final text = _node(
+        '5de0fa9d-39cf-47b8-b808-e0f5698b7ad6',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Flexible child'},
+        },
+      );
+      Map<String, Object?> flexible({int? flex, String? fit}) => _node(
+        'd8105c14-b229-4392-b397-7398f30aeb44',
+        'flutter.widgets.Flexible',
+        properties: {
+          if (flex != null) 'flex': {'kind': 'integer', 'value': flex},
+          if (fit != null)
+            'fit': {'kind': 'enum', 'type': 'FlexFit', 'value': fit},
+        },
+        slots: {'child': _single(text)},
+      );
+      Map<String, Object?> flexParent(String type, {int? flex, String? fit}) {
+        final json = _modelJson();
+        json['root'] = _node(
+          'a465673d-110a-47b2-b3ce-064c9ba06335',
+          type,
+          slots: {
+            'children': _list([flexible(flex: flex, fit: fit)]),
+          },
+        );
+        return json;
+      }
+
+      final omitted = _decode(flexParent('flutter.widgets.Row')).root;
+      final omittedFlexible = omitted.slot('children')!.child!;
+      expect(omittedFlexible.type, 'flutter.widgets.Flexible');
+      expect(omittedFlexible.properties, isEmpty);
+      expect(
+        omittedFlexible.slot('child')!.child!.type,
+        'flutter.widgets.Text',
+      );
+
+      final explicit = _decode(
+        flexParent('flutter.widgets.Column', flex: 0, fit: 'tight'),
+      ).root.slot('children')!.child!;
+      expect(explicit.properties['flex']!.value, 0);
+      expect(
+        (explicit.properties['fit']!.value as CanvasEnumValue).value,
+        'tight',
+      );
+
+      final maximum = _decode(
+        flexParent(
+          'flutter.widgets.Row',
+          flex: maxCanvasSequence,
+          fit: 'loose',
+        ),
+      ).root.slot('children')!.child!;
+      expect(maximum.properties['flex']!.value, maxCanvasSequence);
+      expect(
+        (maximum.properties['fit']!.value as CanvasEnumValue).value,
+        'loose',
+      );
+    },
+  );
+
+  test(
+    'rejects invalid Flexible values, child, root, and parent placement',
+    () {
+      final text = _node(
+        '5de0fa9d-39cf-47b8-b808-e0f5698b7ad6',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Child'},
+        },
+      );
+      Map<String, Object?> flexible({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) => _node(
+        'd8105c14-b229-4392-b397-7398f30aeb44',
+        'flutter.widgets.Flexible',
+        properties: properties,
+        slots: slots,
+      );
+      Map<String, Object?> rootWith(Map<String, Object?> root) {
+        final json = _modelJson();
+        json['root'] = root;
+        return json;
+      }
+
+      Map<String, Object?> rowWith(Map<String, Object?> child) => rootWith(
+        _node(
+          'a465673d-110a-47b2-b3ce-064c9ba06335',
+          'flutter.widgets.Row',
+          slots: {
+            'children': _list([child]),
+          },
+        ),
+      );
+
+      expect(
+        () => _decode(rootWith(flexible(slots: {'child': _single(text)}))),
+        throwsFormatException,
+      );
+      expect(() => _decode(rowWith(flexible())), throwsFormatException);
+      expect(
+        () => _decode(rowWith(flexible(slots: {'child': _single(null)}))),
+        throwsFormatException,
+      );
+      for (final properties in <Map<String, Object?>>[
+        const {
+          'flex': {'kind': 'integer', 'value': -1},
+        },
+        const {
+          'flex': {'kind': 'double', 'value': 1.0},
+        },
+        const {
+          'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'loose'},
+        },
+        const {
+          'fit': {'kind': 'enum', 'type': 'FlexFit', 'value': 'invalid'},
+        },
+      ]) {
+        expect(
+          () => _decode(
+            rowWith(
+              flexible(properties: properties, slots: {'child': _single(text)}),
+            ),
+          ),
+          throwsFormatException,
+        );
+      }
+
+      final invalidStack = _node(
+        '96a547e2-e6c1-499a-a219-a6089b270573',
+        'flutter.widgets.Stack',
+        slots: {
+          'children': _list([
+            flexible(slots: {'child': _single(text)}),
+          ]),
+        },
+      );
+      expect(() => _decode(rootWith(invalidStack)), throwsFormatException);
+
+      for (final nestedType in <String>[
+        'flutter.widgets.Expanded',
+        'flutter.widgets.Flexible',
+      ]) {
+        final nested = flexible(
+          slots: {
+            'child': _single(
+              _node(
+                '3e611abb-ce3c-4c6a-8ad2-a945acbc19f3',
+                nestedType,
+                slots: {'child': _single(text)},
+              ),
+            ),
+          },
+        );
+        expect(() => _decode(rowWith(nested)), throwsFormatException);
+      }
+    },
+  );
+
+  test(
+    'Flexible reviewed schema, placement, and creation contract is exact',
+    () {
+      final contract = canvasRuntimeWidgetSchemaContractForTesting();
+      final start = contract.indexOf('W|flutter.widgets.Flexible\n');
+      final end = contract.indexOf(
+        'W|flutter.widgets.FractionallySizedBox\n',
+        start,
+      );
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      expect(
+        contract.substring(start, end),
+        'W|flutter.widgets.Flexible\n'
+        'P|fit|enum|0|-|-|enum:enum:'
+        'cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:'
+        'FlexFit:loose,tight\n'
+        'P|flex|integer|0|-|integer:0:1:9007199254740991:1|'
+        'integer:range:0:1:9007199254740991:1\n'
+        'S|child|single|1|1|1|any\n'
+        'R|flutter.widgets.Flexible|directParentSlot|'
+        'flutter.widgets.Column|children\n'
+        'R|flutter.widgets.Flexible|directParentSlot|'
+        'flutter.widgets.Row|children\n'
+        'C|flutter.widgets.Flexible|paletteCreate|wrapExistingChild|child\n',
       );
     },
   );

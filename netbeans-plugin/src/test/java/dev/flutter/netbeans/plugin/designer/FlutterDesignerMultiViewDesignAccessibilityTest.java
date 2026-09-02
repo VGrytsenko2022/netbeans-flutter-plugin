@@ -768,6 +768,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.OverflowBox",
                     "flutter.widgets.Stack",
                     "flutter.widgets.Expanded",
+                    "flutter.widgets.Flexible",
                     "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
@@ -804,6 +805,39 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 assertFalse(property.canWrite());
             }
         });
+    }
+
+    @Test
+    void flexiblePaletteSourceUsesExactMultiViewCanvasAuthorizationType() {
+        WidgetDefinition flexible = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.Flexible"))
+                .orElseThrow();
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> token = new AtomicReference<>();
+        AtomicReference<WidgetTypeId> type = new AtomicReference<>();
+
+        assertTrue(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
+                true,
+                "opaque-flexible-token",
+                flexible,
+                (candidateToken, candidateType) -> {
+                    calls.incrementAndGet();
+                    token.set(candidateToken);
+                    type.set(candidateType);
+                    return true;
+                }));
+        assertEquals(1, calls.get());
+        assertEquals("opaque-flexible-token", token.get());
+        assertEquals(new WidgetTypeId("flutter.widgets.Flexible"), type.get());
+
+        assertFalse(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
+                false,
+                "disabled-token",
+                flexible,
+                (ignoredToken, ignoredType) -> {
+                    throw new AssertionError(
+                            "disabled MultiView authority must not reach Canvas");
+                }));
     }
 
     @Test

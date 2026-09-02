@@ -13,11 +13,12 @@ import java.util.Optional;
  */
 public final class WidgetPlacementRules {
     public static final String EXPANDED_TYPE = "flutter.widgets.Expanded";
+    public static final String FLEXIBLE_TYPE = "flutter.widgets.Flexible";
 
     private static final String COLUMN_TYPE = "flutter.widgets.Column";
     private static final String ROW_TYPE = "flutter.widgets.Row";
     private static final String CHILDREN_SLOT = "children";
-    private static final String EXPANDED_DESTINATIONS =
+    private static final String FLEX_PARENT_DATA_DESTINATIONS =
             "'flutter.widgets.Column.children' or 'flutter.widgets.Row.children'";
     private static final Decision ACCEPTED =
             new Decision(true, Optional.empty(), "Placement is accepted.");
@@ -56,14 +57,15 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
-        if (!isExpanded(child)) {
+        if (!isFlexParentDataWidget(child)) {
             return ACCEPTED;
         }
+        String childType = child.typeId().value();
         return rejected(
                 RejectionKind.ROOT_PLACEMENT,
-                "Widget type '" + EXPANDED_TYPE
+                "Widget type '" + childType
                 + "' cannot be the Designer root; it must be a direct child of "
-                + EXPANDED_DESTINATIONS + ".");
+                + FLEX_PARENT_DATA_DESTINATIONS + ".");
     }
 
     /**
@@ -85,12 +87,14 @@ public final class WidgetPlacementRules {
                     "Catalog slot '" + destination + "' rejects widget type '"
                     + child.typeId().value() + "'.");
         }
-        if (isExpanded(child) && !isExpandedDestination(parent, slot)) {
+        if (isFlexParentDataWidget(child)
+                && !isFlexParentDataDestination(parent, slot)) {
             return rejected(
                     RejectionKind.DIRECT_PARENT_SLOT,
-                    "Widget type '" + EXPANDED_TYPE + "' cannot be placed in '"
+                    "Widget type '" + child.typeId().value()
+                    + "' cannot be placed in '"
                     + destination + "'; it must be a direct child of "
-                    + EXPANDED_DESTINATIONS + ".");
+                    + FLEX_PARENT_DATA_DESTINATIONS + ".");
         }
         return ACCEPTED;
     }
@@ -106,7 +110,7 @@ public final class WidgetPlacementRules {
     /** Returns the reviewed Palette creation behavior of one widget. */
     public static PaletteCreationMode creationMode(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        return isExpanded(definition)
+        return isFlexParentDataWidget(definition)
                 ? PaletteCreationMode.WRAP_EXISTING_CHILD
                 : PaletteCreationMode.INSERT_PROTOTYPE;
     }
@@ -122,20 +126,22 @@ public final class WidgetPlacementRules {
      */
     public static List<String> capabilityFingerprintLines(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        if (!isExpanded(definition)) {
+        if (!isFlexParentDataWidget(definition)) {
             return List.of();
         }
+        String type = definition.typeId().value();
         return List.of(
-                "R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Column|children",
-                "R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Row|children",
-                "C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child");
+                "R|" + type + "|directParentSlot|flutter.widgets.Column|children",
+                "R|" + type + "|directParentSlot|flutter.widgets.Row|children",
+                "C|" + type + "|paletteCreate|wrapExistingChild|child");
     }
 
-    private static boolean isExpanded(WidgetDefinition definition) {
-        return EXPANDED_TYPE.equals(definition.typeId().value());
+    private static boolean isFlexParentDataWidget(WidgetDefinition definition) {
+        String type = definition.typeId().value();
+        return EXPANDED_TYPE.equals(type) || FLEXIBLE_TYPE.equals(type);
     }
 
-    private static boolean isExpandedDestination(
+    private static boolean isFlexParentDataDestination(
             WidgetDefinition parent,
             SlotDefinition slot) {
         String parentType = parent.typeId().value();

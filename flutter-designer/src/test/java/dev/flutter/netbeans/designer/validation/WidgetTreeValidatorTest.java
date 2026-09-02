@@ -490,6 +490,89 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsFlexibleOnlyAsDirectRowOrColumnChildWithEveryReviewedValue() {
+        WidgetNode rowFlexible = flexible(
+                "rowFlexible",
+                Map.of(
+                        name("flex"), new PropertyValue.IntegerValue(BigInteger.ZERO),
+                        name("fit"), new PropertyValue.EnumValue("FlexFit", "loose")),
+                text("rowFlexibleText"));
+        WidgetNode row = node("row", "flutter.widgets.Row", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(rowFlexible))));
+        ValidationResult rowResult = validator().validate(
+                document(row), BuiltInWidgetCatalog.getDefault());
+        assertTrue(rowResult.valid(), () -> "Issues were: " + rowResult.issues());
+
+        WidgetNode columnFlexible = flexible(
+                "columnFlexible",
+                Map.of(
+                        name("flex"), new PropertyValue.IntegerValue(
+                                new BigInteger("9007199254740991")),
+                        name("fit"), new PropertyValue.EnumValue("FlexFit", "tight")),
+                text("columnFlexibleText"));
+        WidgetNode column = node("column", "flutter.widgets.Column", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(columnFlexible))));
+        ValidationResult columnResult = validator().validate(
+                document(column), BuiltInWidgetCatalog.getDefault());
+        assertTrue(columnResult.valid(), () -> "Issues were: " + columnResult.issues());
+    }
+
+    @Test
+    void rejectsFlexibleAtRootInNonFlexParentAndInsideExpanded() {
+        WidgetNode rootFlexible = flexible(
+                "rootFlexible", Map.of(), text("rootFlexibleText"));
+        ValidationIssue rootIssue = onlyIssue(
+                validator().validate(
+                        document(rootFlexible), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertEquals("/root", rootIssue.path());
+        assertTrue(rootIssue.message().contains("flutter.widgets.Flexible"));
+
+        WidgetNode stackFlexible = flexible(
+                "stackFlexible", Map.of(), text("stackFlexibleText"));
+        WidgetNode stack = node("stack", "flutter.widgets.Stack", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(stackFlexible))));
+        ValidationIssue stackIssue = onlyIssue(
+                validator().validate(document(stack), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(stackIssue.message().contains("flutter.widgets.Stack.children"));
+
+        WidgetNode nestedFlexible = flexible(
+                "nestedFlexible", Map.of(), text("nestedFlexibleText"));
+        WidgetNode expanded = expanded(
+                "expanded", Map.of(), nestedFlexible);
+        WidgetNode row = node("row", "flutter.widgets.Row", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(expanded))));
+        ValidationIssue nestedIssue = onlyIssue(
+                validator().validate(document(row), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(nestedIssue.message().contains("flutter.widgets.Expanded.child"));
+    }
+
+    @Test
+    void rejectsIncompleteFlexibleAndInvalidFlexOrFitValues() {
+        WidgetNode incomplete = node(
+                "incompleteFlexible",
+                "flutter.widgets.Flexible",
+                Map.of(
+                        name("flex"), new PropertyValue.IntegerValue(
+                                BigInteger.ONE.negate()),
+                        name("fit"), new PropertyValue.EnumValue("FlexFit", "expand")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode row = node("row", "flutter.widgets.Row", Map.of(), Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(List.of(incomplete))));
+
+        ValidationResult result = validator().validate(
+                document(row), BuiltInWidgetCatalog.getDefault());
+
+        assertEquals(List.of(
+                        WidgetTreeValidator.PROPERTY_CONSTRAINT,
+                        WidgetTreeValidator.PROPERTY_CONSTRAINT,
+                        WidgetTreeValidator.SLOT_NULL),
+                codes(result));
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2204,6 +2287,14 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Expanded", properties, Map.of(
+                slotName("child"), WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode flexible(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.Flexible", properties, Map.of(
                 slotName("child"), WidgetSlot.SingleSlot.of(child)));
     }
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -60,6 +61,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
+            "flutter.widgets.Flexible",
             "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
@@ -81,7 +83,7 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded"),
+                "Expanded", "Flexible"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -108,7 +110,7 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded"),
+                "Expanded", "Flexible"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -435,6 +437,37 @@ class FlutterDesignerPaletteTest {
                 "Wrap an existing direct child of Row.children or Column.children with "
                 + "Expanded. Drop Expanded on that child; terminal insertion and empty "
                 + "placeholders are unavailable because Expanded.child is required.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
+    void flexiblePaletteSelectionExposesReviewedWrapperMetadataAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Flexible";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        130,
+                        "Flexible"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Flexible", node.getDisplayName());
+        assertEquals(
+                "Wrap an existing direct child of Row.children or Column.children with "
+                + "Flexible. Drop Flexible on that child; terminal insertion and empty "
+                + "placeholders are unavailable because Flexible.child is required.",
                 node.getShortDescription());
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
@@ -770,7 +803,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void twentySixCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentySevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -789,7 +822,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(26, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(27, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

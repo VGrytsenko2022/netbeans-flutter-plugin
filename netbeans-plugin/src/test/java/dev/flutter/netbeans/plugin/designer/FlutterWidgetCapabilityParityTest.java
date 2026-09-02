@@ -25,7 +25,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(26, javaTypes.size(),
+        assertEquals(27, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, and OverflowBox");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
@@ -41,6 +41,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.Stack"));
         assertTrue(javaTypes.contains("flutter.widgets.Wrap"));
         assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
+        assertTrue(javaTypes.contains("flutter.widgets.Flexible"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
@@ -103,6 +104,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ListView.children must remain a Java-admitted DnD target");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
                 "Expanded.child is required replacement-only, not an insertion target");
+        assertTrue(!javaContainers.contains("flutter.widgets.Flexible"),
+                "Flexible.child is required replacement-only, not an insertion target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

@@ -1792,6 +1792,41 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void flexibleUsesTheSameAtomicWrapAndMutualNestingGateAsExpanded()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture(text(FIRST_ID, "first")));
+        WidgetDefinition flexibleDefinition = CATALOG.find(
+                type("flutter.widgets.Flexible")).orElseThrow();
+        DesignerCommandSession wrapped = applied(initial, new WrapWidget(
+                FIRST_ID,
+                WidgetNodePrototypeFactory.create(flexibleDefinition, WRAPPER_ID),
+                CHILD,
+                0));
+
+        WidgetNode flexible = rootChildren(wrapped).getFirst();
+        assertEquals(WRAPPER_ID, flexible.id());
+        assertTrue(flexible.properties().isEmpty());
+        assertEquals(FIRST_ID, singleChild(flexible, CHILD).id());
+        String dart = new String(
+                wrapped.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("Flexible("), dart);
+        assertTrue(dart.contains("child: const Text('first')"), dart);
+
+        WidgetDefinition expandedDefinition = CATALOG.find(
+                type("flutter.widgets.Expanded")).orElseThrow();
+        DesignerCommandSessionResult nestedExpanded = wrapped.apply(new WrapWidget(
+                FIRST_ID,
+                WidgetNodePrototypeFactory.create(expandedDefinition, THIRD_ID),
+                CHILD,
+                0));
+        assertEquals(DesignerCommandStatus.REJECTED, nestedExpanded.status());
+        assertEquals(DesignerCommandDiagnosticCode.WIDGET_PLACEMENT_REJECTED,
+                nestedExpanded.diagnostics().getFirst().code());
+        assertTrue(nestedExpanded.diagnostics().getFirst().message()
+                .contains("flutter.widgets.Flexible.child"));
+    }
+
+    @Test
     void removeFromCatalogRequiredSlotHasSpecificStableDiagnostic() {
         WidgetDefinition requiredParent = new WidgetDefinition(
                 type("test.RequiredParent"),

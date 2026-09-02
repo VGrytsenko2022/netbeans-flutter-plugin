@@ -47,6 +47,7 @@ public final class BuiltInWidgetCatalog {
             overflowBox(),
             stack(),
             expanded(),
+            flexible(),
             listView(),
             image(),
             elevatedButton(),
@@ -922,6 +923,25 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 120, "Expanded"),
                 List.of(namedProperty("flex", 0, false, nonNegativeIntegers())),
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition flexible() {
+        return widget(
+                WidgetPlacementRules.FLEXIBLE_TYPE,
+                "Flexible",
+                true,
+                WIDGETS_IMPORT,
+                List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 130, "Flexible"),
+                List.of(
+                        namedProperty("flex", 0, false, nonNegativeIntegers()),
+                        namedProperty(
+                                "fit",
+                                1,
+                                false,
+                                renderingEnumValues("FlexFit", "loose", "tight"))),
+                List.of(singleSlot("child", 2, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

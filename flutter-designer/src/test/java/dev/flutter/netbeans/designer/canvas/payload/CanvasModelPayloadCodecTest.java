@@ -96,6 +96,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -354,6 +355,40 @@ class CanvasModelPayloadCodecTest {
                 + "\"type\":\"OverflowBoxFit\",\"value\":\"deferToChild\"}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"59fea0be-4f87-4ed3-b70a-0a4975af3189\""), json);
+    }
+
+    @Test
+    void projectsFlexibleWithoutChangingProtocolV12() throws Exception {
+        WidgetNode flexible = new WidgetNode(
+                id("e201552d-d13d-4507-8aa1-35ea3ccad664"),
+                type("flutter.widgets.Flexible"),
+                Map.of(
+                        new PropertyName("flex"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                        new PropertyName("fit"),
+                                new PropertyValue.EnumValue("FlexFit", "tight")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "4ac0119f-f11b-4012-a08e-0aa2fe260dca", "Flexible"))));
+        WidgetNode row = new WidgetNode(
+                id("67cfc44e-39bc-4886-b849-6e7774563eb0"),
+                type("flutter.widgets.Row"),
+                Map.of(),
+                Map.of(new SlotName("children"),
+                        new WidgetSlot.ListSlot(List.of(flexible))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), row))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":12"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.Flexible\""), json);
+        assertTrue(json.contains(
+                "\"flex\":{\"kind\":\"integer\",\"value\":0}"), json);
+        assertTrue(json.contains("\"fit\":{\"kind\":\"enum\","
+                + "\"type\":\"FlexFit\",\"value\":\"tight\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"4ac0119f-f11b-4012-a08e-0aa2fe260dca\""), json);
     }
 
     @Test

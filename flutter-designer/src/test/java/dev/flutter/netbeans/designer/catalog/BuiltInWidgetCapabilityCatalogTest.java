@@ -44,6 +44,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
+            "flutter.widgets.Flexible",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -72,6 +73,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.OverflowBox",
             "flutter.widgets.Stack",
             "flutter.widgets.Expanded",
+            "flutter.widgets.Flexible",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -86,7 +88,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasTwentySixSourcesAndTwentySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasTwentySevenSourcesAndTwentySevenInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -109,7 +111,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(26, sources.size());
+        assertEquals(27, sources.size());
         assertEquals(27, destinations.size());
         assertEquals(25, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -119,9 +121,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(702, candidates);
-        assertEquals(629, accepted);
-        assertEquals(73, candidates - accepted);
+        assertEquals(729, candidates);
+        assertEquals(631, accepted);
+        assertEquals(98, candidates - accepted);
     }
 
     @Test
@@ -697,6 +699,46 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Flexible");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(new PropertyName("flex"), new PropertyName("fit")),
+                projection.properties().keySet());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var flex = projection.propertyContracts().get(new PropertyName("flex"));
+        assertFalse(flex.required());
+        assertEquals(Set.of(PropertyValueKind.INTEGER), flex.acceptedKinds());
+        assertTrue(flex.creationDefaultFingerprint().isEmpty());
+        assertEquals("0:1:9007199254740991:1", flex.numericBounds()
+                .get(PropertyValueKind.INTEGER).fingerprint());
+        assertEquals("range:0:1:9007199254740991:1",
+                flex.constraintFingerprints().get(PropertyValueKind.INTEGER));
+
+        var fit = projection.propertyContracts().get(new PropertyName("fit"));
+        assertFalse(fit.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), fit.acceptedKinds());
+        assertTrue(fit.creationDefaultFingerprint().isEmpty());
+        assertTrue(fit.numericBounds().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "FlexFit:loose,tight",
+                fit.constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, true, 1, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void textFieldHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.material.TextField");
         assertEquals(Set.of(
@@ -1191,6 +1233,20 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "R|flutter.widgets.Expanded|directParentSlot|"
                 + "flutter.widgets.Row|children\n"
                 + "C|flutter.widgets.Expanded|paletteCreate|"
+                + "wrapExistingChild|child\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Flexible\n"
+                + "P|fit|enum|0|-|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "FlexFit:loose,tight\n"
+                + "P|flex|integer|0|-|integer:0:1:9007199254740991:1|"
+                + "integer:range:0:1:9007199254740991:1\n"
+                + "S|child|single|1|1|1|any\n"
+                + "R|flutter.widgets.Flexible|directParentSlot|"
+                + "flutter.widgets.Column|children\n"
+                + "R|flutter.widgets.Flexible|directParentSlot|"
+                + "flutter.widgets.Row|children\n"
+                + "C|flutter.widgets.Flexible|paletteCreate|"
                 + "wrapExistingChild|child\n"));
     }
 

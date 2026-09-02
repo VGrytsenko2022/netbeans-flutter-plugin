@@ -85,6 +85,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Wrap");
     private static final WidgetTypeId EXPANDED_TYPE =
             new WidgetTypeId("flutter.widgets.Expanded");
+    private static final WidgetTypeId FLEXIBLE_TYPE =
+            new WidgetTypeId("flutter.widgets.Flexible");
     private static final WidgetTypeId IMAGE_TYPE =
             new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName ALIGNMENT_PROPERTY =
@@ -105,6 +107,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new PropertyName("clipBehavior");
     private static final PropertyName FLEX_PROPERTY =
             new PropertyName("flex");
+    private static final PropertyName FLEXIBLE_FIT_PROPERTY =
+            new PropertyName("fit");
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
     private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
@@ -727,6 +731,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to replace the child atomically; "
                     + "it cannot be removed or cleared.";
         }
+        if (FLEXIBLE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child allocated a share of the direct Row or Column "
+                    + "main axis using flex. Loose fit allows the child to remain smaller "
+                    + "than its allocation; tight fit requires it to fill that allocation. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to replace the child atomically; "
+                    + "it cannot be removed or cleared.";
+        }
         if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out inside Container padding, alignment, and "
@@ -754,6 +768,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean stack = STACK_TYPE.equals(widget.type());
         boolean wrap = WRAP_TYPE.equals(widget.type());
         boolean expanded = EXPANDED_TYPE.equals(widget.type());
+        boolean flexible = FLEXIBLE_TYPE.equals(widget.type());
         boolean image = IMAGE_TYPE.equals(widget.type());
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
@@ -799,6 +814,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : expanded
                                 ? "Remaining-space allocation and required child contract for "
                                         + "the selected direct Row or Column Expanded widget."
+                        : flexible
+                                ? "Loose or tight remaining-space allocation and required child "
+                                        + "contract for the selected direct Row or Column "
+                                        + "Flexible widget."
                         : image
                                 ? "Declared asset provider, layout, paint, nine-patch, callback, "
                                         + "and semantics settings for the selected Image widget."
@@ -977,6 +996,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "space. Flutter defaults to 1; zero is valid but makes the "
                                 + "child inflexible. Positive flex requires bounded width in "
                                 + "Row or bounded height in Column."));
+            } else if (flexible && FLEX_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Flex",
+                        "Non-negative integer share of remaining Row or Column main-axis "
+                                + "space. Flutter defaults to 1; zero is valid and makes the "
+                                + "child inflexible, so fit has no effect. Positive flex "
+                                + "requires bounded width in Row or bounded height in Column."));
+            } else if (flexible
+                    && FLEXIBLE_FIT_PROPERTY.equals(property.name())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Fit",
+                        "How a child with positive flex uses its allocated main-axis space. "
+                                + "Loose, Flutter's default, lets the child be smaller than "
+                                + "the allocation; tight requires it to fill the allocation. "
+                                + "The value is ignored when flex is zero."));
             } else {
                 properties.put(projectProperty(property, Optional.empty()));
             }

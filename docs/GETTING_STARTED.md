@@ -50,13 +50,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly twenty-six
+The current capability-gated Palette and native Canvas admit exactly twenty-seven
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
-`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `ListView`, `Text`, `Icon` and `Image`. Twenty-one
+`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `ListView`, `Text`,
+`Icon` and `Image`. Twenty-two
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 659 typed writable rows: 642 across the twenty-five
+exactly 661 typed writable rows: 644 across the twenty-six
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -98,10 +99,12 @@ and accepts a drop through an IDE-only target that does not alter generated Dart
 `FractionallySizedBox` exposes the same optional alignment domain plus optional
 finite non-negative width and height factors and one optional child. `Stack`
 exposes alignment, text direction, fit, clip behavior and an ordered list of
-non-positioned children. `Expanded` exposes optional non-negative flex and a
-required child; drop it on an existing direct Row/Column child to wrap that child
-atomically. It is unavailable as a terminal Add, and its child editor supports
-replacement but not add, remove or clear.
+non-positioned children. `Expanded` and `Flexible` are required-child wrappers;
+drop either on an existing direct Row/Column child to wrap that child atomically.
+They are unavailable as terminal Add operations, cannot wrap either wrapper
+type, and their child editors support replacement but not add, remove or clear.
+`Flexible` additionally exposes optional non-negative `flex` and optional
+`FlexFit.loose`/`tight`; omission preserves `flex: 1` and loose fit.
 
 `Image` is a leaf with a required asset-only provider and 21 optional reviewed
 fields. Add chooses the deterministic first sorted declared asset before a stable
@@ -194,10 +197,25 @@ Leaving alignment and fit unset preserves `Alignment.center` and
 `OverflowBoxFit.max`; `deferToChild` is also available. Explicit non-finite
 overrides are outside this bounded contract. Generated Dart and Canvas build
 the real Flutter OverflowBox, preserving overflow, physical/directional
-alignment and both fit modes. The practical Material/Base backlog is now 26/92
-complete with 66 remaining. It is a planning backlog rather than a normative
-full Flutter widget list; no later widget currently has an explicit order.
-Layout contains 18 items.
+alignment and both fit modes. At that milestone the practical Material/Base
+backlog was 26/92 complete with 66 remaining, and Layout contained 18 items.
+
+[`Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html) is
+the seventh post-core Palette slice, at Layout order 130 immediately after
+Expanded. Its optional `flex` accepts portable non-negative integers, including
+zero; optional `fit` accepts only `FlexFit.loose` or `FlexFit.tight`; and its
+single any-widget `child` is required. Leaving `flex` and `fit` unset preserves
+Flutter's defaults of `1` and `loose`. Create it by dropping Flexible on an
+existing direct `Row.children` or `Column.children` child. Palette, tree and
+Canvas use one atomic wrap command, never an empty terminal prototype. Flexible
+and Expanded cannot wrap either wrapper type because the inner ParentDataWidget
+would no longer be a direct Flex child. The occupied child is replacement-only,
+cannot be cleared and is not an insertable DnD destination. Generated Dart and
+Canvas build the real Flutter Flexible; zero flex is inflexible, positive loose
+flex may remain smaller than its allocation, and positive tight flex fills it.
+The practical Material/Base backlog is now 27/92 complete with 65 remaining.
+It is a planning backlog rather than a normative full Flutter widget list; no
+later widget currently has an explicit order. Layout contains 19 items.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -249,9 +267,12 @@ The current surface uses `.fd` schema v7, contributor Catalog API 6 and Canvas
 model protocol 12. Schema v1-v6 files migrate in memory and are written as v7
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
-migrate losslessly. Twenty-six sources across twenty-five any-widget and two
-trait-bound slots produce 702 compatibility candidates: 629 accepted and 73
-rejected. NBFC framing and Canvas control/wire remain v1.
+migrate losslessly. Twenty-seven sources across twenty-five insertable
+any-widget and two trait-bound slots produce 729 compatibility candidates: 631
+accepted and 98 rejected. Expanded and Flexible enter only direct
+`Row.children` and `Column.children` wrapper targets; their required child slots
+are replacement-only and excluded from the destination matrix. NBFC framing
+and Canvas control/wire remain v1.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,
 Layout, Drawer behavior and Restoration. They cover the closed location and
@@ -278,8 +299,10 @@ root, cyclic, cardinality-violating or minimum-violating requests are disabled
 or rejected without changing the model, generated Dart, saved pair or history.
 OK submits at most once, while Cancel submits nothing.
 
-Expanded is the exception to ordinary Palette prototype insertion: it wraps one
-existing direct Row/Column child and its required `child` slot is replacement-only.
+Expanded and Flexible are the exceptions to ordinary Palette prototype
+insertion: each wraps one existing direct Row/Column child and exposes a
+required replacement-only `child` slot. Neither wrapper can wrap Expanded or
+Flexible, and neither required child slot is an insertable DnD destination.
 Image Add and Replace New Widget additionally require a current declared asset
 inventory before allocating a stable ID. TextField is an ordinary immediate leaf
 insertion and never captures runtime editable state.

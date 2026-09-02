@@ -523,6 +523,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.OverflowBox' ||
         node.type == 'flutter.widgets.FittedBox' ||
         node.type == 'flutter.widgets.Expanded' ||
+        node.type == 'flutter.widgets.Flexible' ||
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Wrap' ||
         node.type == 'flutter.widgets.ListView' ||
@@ -1042,14 +1043,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     List<_DropCandidate> result,
     CanvasPaletteDragSource source,
   ) {
-    if (source.widgetType == canvasExpandedWidgetType &&
+    if (isCanvasFlexParentDataWidgetType(source.widgetType) &&
         (node.type == 'flutter.widgets.Row' ||
             node.type == 'flutter.widgets.Column')) {
       final modelSlot = node.slot('children');
       if (modelSlot?.kind == 'list') {
         for (var index = 0; index < modelSlot!.children.length; index++) {
           final child = modelSlot.children[index];
-          if (child.type == canvasExpandedWidgetType) {
+          if (isCanvasFlexParentDataWidgetType(child.type)) {
             continue;
           }
           final box = _renderBox(_nodeKeys[child.id]);
@@ -1063,7 +1064,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                 node,
                 depth + 1,
                 zone.width * zone.height,
-                canvasExpandedWrapDropSlot,
+                canvasFlexWrapDropSlot,
                 index,
                 zone,
               ),
@@ -1850,6 +1851,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
+      'flutter.widgets.Flexible' => _single('child')!,
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
       'flutter.widgets.AspectRatio' => _aspectRatio(),
@@ -1947,9 +1949,18 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
     );
-    return node.type == canvasExpandedWidgetType
-        ? Expanded(flex: _integer('flex') ?? 1, child: instrumented)
-        : instrumented;
+    return switch (node.type) {
+      'flutter.widgets.Expanded' => Expanded(
+        flex: _integer('flex') ?? 1,
+        child: instrumented,
+      ),
+      'flutter.widgets.Flexible' => Flexible(
+        flex: _integer('flex') ?? 1,
+        fit: _enum('fit') == 'tight' ? FlexFit.tight : FlexFit.loose,
+        child: instrumented,
+      ),
+      _ => instrumented,
+    };
   }
 
   Widget _scaffold(BuildContext context) {

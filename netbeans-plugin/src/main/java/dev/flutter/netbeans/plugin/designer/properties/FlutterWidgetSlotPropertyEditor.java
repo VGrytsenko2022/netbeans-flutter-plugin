@@ -43,9 +43,6 @@ import org.openide.util.ImageUtilities;
 /** Transactional native NetBeans custom editor for one exact named slot. */
 final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         implements ExPropertyEditor {
-    private static final WidgetTypeId EXPANDED_TYPE =
-            new WidgetTypeId("flutter.widgets.Expanded");
-    private static final SlotName CHILD_SLOT = new SlotName("child");
     static final String CURRENT_LIST_NAME = "flutter.slot.current";
     static final String ACTION_NAME = "flutter.slot.action";
     static final String ADD_TYPE_NAME = "flutter.slot.addType";
@@ -257,10 +254,12 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             if (structuralProblem.isPresent()) {
                 return structuralProblem.orElseThrow();
             }
-            if (EXPANDED_TYPE.equals(owner.type())
-                    && CHILD_SLOT.equals(slot.name())
+            if (slot.cardinality() == SlotCardinality.SINGLE
+                    && slot.minChildren() == 1
                     && occupiedSingle()) {
-                return "Expanded.child is required and cannot be removed or cleared; "
+                return ownerDefinition.palette().displayName() + "."
+                        + slot.name().value()
+                        + " is required and cannot be removed or cleared; "
                         + "choose Replace with new widget or Replace with existing widget.";
             }
             if (currentChildren.isEmpty() && addChoices.isEmpty()

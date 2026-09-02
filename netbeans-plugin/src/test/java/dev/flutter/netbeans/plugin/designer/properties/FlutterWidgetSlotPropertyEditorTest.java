@@ -1422,6 +1422,92 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void flexibleChildIsReplacementOnlyAndDirectFlexSlotsNeverOfferAddFlexible()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition flexibleDefinition = definition("flutter.widgets.Flexible");
+        WidgetNode current = text(
+                id("827983f4-76a6-4ef2-a7da-366acee3e093"), "current");
+        WidgetNode replacement = text(
+                id("37da84ab-0ef0-4410-a6db-e9d7b171cd48"), "replacement");
+        WidgetNode flexible = new WidgetNode(
+                id("b2745b7e-3585-4d12-80f0-e85e3fa9ae3d"),
+                flexibleDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("479f56bf-86d7-4379-b080-f458291e3bb5"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN,
+                        new WidgetSlot.ListSlot(List.of(flexible, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"),
+                        type("flutter.widgets.Expanded"),
+                        type("flutter.widgets.Flexible")));
+
+        FlutterWidgetSlotPropertyEditor columnEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        column,
+                        columnDefinition,
+                        columnDefinition.slot(CHILDREN).orElseThrow(),
+                        context);
+        PropertyEnv columnEnvironment = PropertyEnv.create(descriptor("Children"));
+        columnEditor.attachEnv(columnEnvironment);
+        onEdt(() -> {
+            Component custom = columnEditor.getCustomEditor();
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            assertEquals(List.of("Text"), labels(addType),
+                    "Expanded and Flexible are wrapping affordances and must not "
+                    + "appear as terminal Add new widget choices.");
+            return null;
+        });
+
+        FlutterWidgetSlotPropertyEditor flexibleEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        flexible,
+                        flexibleDefinition,
+                        flexibleDefinition.slot(CHILD).orElseThrow(),
+                        context);
+        PropertyEnv flexibleEnvironment = PropertyEnv.create(descriptor("Child"));
+        flexibleEditor.attachEnv(flexibleEnvironment);
+        onEdt(() -> {
+            Component custom = flexibleEditor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "Flexible.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> flexibleEditor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                flexible.id(), CHILD, current.id()))));
+    }
+
+    @Test
     void listClearAllStagesExactOrderedIdsAndConsumesPropertyLeaseOnce()
             throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");

@@ -29,14 +29,19 @@ import java.util.function.Supplier;
  * <p>Both source and destination authority come exclusively from the bound
  * catalog. A normal Palette widget may be appended to a list slot or inserted
  * into an empty single slot when the combined placement rules accept it.
- * Expanded instead interprets the supplied Row/Column tuple as an existing
- * child index and emits one atomic wrapper command; it never creates an empty
- * required-child placeholder. The planner performs no UI, session or protocol
- * work and never mutates the supplied document.</p>
+ * Parent-restricted flex wrappers such as Expanded and Flexible instead
+ * interpret the supplied Row/Column tuple as an existing child index and emit
+ * one atomic wrapper command; they never create an empty required-child
+ * placeholder. The planner performs no UI, session or protocol work and never
+ * mutates the supplied document.</p>
  */
 public final class FlutterDesignerPaletteDropPlanner {
     private static final WidgetTypeId EXPANDED_TYPE =
-            new WidgetTypeId("flutter.widgets.Expanded");
+            new WidgetTypeId(WidgetPlacementRules.EXPANDED_TYPE);
+    private static final WidgetTypeId FLEXIBLE_TYPE =
+            new WidgetTypeId(WidgetPlacementRules.FLEXIBLE_TYPE);
+    private static final Set<WidgetTypeId> FLEX_PARENT_DATA_TYPES =
+            Set.of(EXPANDED_TYPE, FLEXIBLE_TYPE);
     private static final SlotName CHILD_SLOT = new SlotName("child");
 
     /** Plans one Palette drop without changing the document. */
@@ -153,7 +158,7 @@ public final class FlutterDesignerPaletteDropPlanner {
         }
         if (WidgetPlacementRules.creationMode(sourceDefinition)
                 == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
-            return planExpandedWrap(
+            return planFlexParentDataWrap(
                     inventory,
                     sourceDefinition,
                     parent,
@@ -257,7 +262,7 @@ public final class FlutterDesignerPaletteDropPlanner {
                 child));
     }
 
-    private static Result planExpandedWrap(
+    private static Result planFlexParentDataWrap(
             TreeInventory inventory,
             WidgetDefinition sourceDefinition,
             WidgetNode parent,
@@ -266,21 +271,23 @@ public final class FlutterDesignerPaletteDropPlanner {
             WidgetSlot modelSlot,
             int childIndex,
             Supplier<StableId> stableIdSupplier) {
+        String wrapperName = sourceDefinition.palette().displayName();
         if (slotDefinition.cardinality() != SlotCardinality.LIST
                 || !(modelSlot instanceof WidgetSlot.ListSlot list)) {
             return rejected(
                     RejectionCode.WRAP_TARGET_REQUIRED,
-                    "Expanded requires an existing direct child to wrap in '"
+                    wrapperName + " requires an existing direct child to wrap in '"
                     + parentDefinition.typeId().value() + '.'
                     + slotDefinition.name().value() + "'.");
         }
         if (childIndex >= list.children().size()) {
             String reason = list.children().isEmpty()
-                    ? "Expanded requires a child to wrap. "
+                    ? wrapperName + " requires a child to wrap. "
                             + parentDefinition.palette().displayName() + " '"
                             + parent.id() + "'." + slotDefinition.name().value()
-                            + " is empty; add a widget first, then drop Expanded on that child."
-                    : "Expanded requires an existing child index in '"
+                            + " is empty; add a widget first, then drop " + wrapperName
+                            + " on that child."
+                    : wrapperName + " requires an existing child index in '"
                             + parent.id() + '.' + slotDefinition.name().value()
                             + "'; received " + childIndex + " for "
                             + list.children().size() + " children.";
@@ -288,11 +295,14 @@ public final class FlutterDesignerPaletteDropPlanner {
         }
 
         WidgetNode target = list.children().get(childIndex);
-        if (EXPANDED_TYPE.equals(target.type())) {
+        if (FLEX_PARENT_DATA_TYPES.contains(target.type())) {
+            String targetName = target.type().equals(EXPANDED_TYPE)
+                    ? "Expanded" : "Flexible";
             return rejected(
                     RejectionCode.WRAP_TARGET_REJECTED,
-                    "Cannot wrap Expanded '" + target.id()
-                    + "' with Expanded: nesting would move the inner Expanded out "
+                    "Cannot wrap " + targetName + " '" + target.id()
+                    + "' with " + wrapperName + ": nesting would move the inner "
+                    + targetName + " out "
                     + "of its required direct Row.children or Column.children parent.");
         }
 
@@ -302,18 +312,18 @@ public final class FlutterDesignerPaletteDropPlanner {
         } catch (RuntimeException allocationFailure) {
             return rejected(
                     RejectionCode.STABLE_ID_ALLOCATION_FAILED,
-                    "Stable id allocation for Expanded wrapper failed: "
+                    "Stable id allocation for " + wrapperName + " wrapper failed: "
                     + concreteMessage(allocationFailure) + '.');
         }
         if (newId == null) {
             return rejected(
                     RejectionCode.STABLE_ID_ALLOCATION_FAILED,
-                    "Stable id allocation for Expanded wrapper returned null.");
+                    "Stable id allocation for " + wrapperName + " wrapper returned null.");
         }
         if (inventory.ids().contains(newId)) {
             return rejected(
                     RejectionCode.STABLE_ID_CONFLICT,
-                    "Allocated Expanded wrapper id '" + newId
+                    "Allocated " + wrapperName + " wrapper id '" + newId
                     + "' already exists in the designer document.");
         }
 
@@ -323,7 +333,8 @@ public final class FlutterDesignerPaletteDropPlanner {
         } catch (RuntimeException invalidDefinition) {
             return rejected(
                     RejectionCode.CATALOG_DEFINITION_MISMATCH,
-                    "Catalog definition for Expanded cannot create a wrapper prototype: "
+                    "Catalog definition for " + wrapperName
+                    + " cannot create a wrapper prototype: "
                     + concreteMessage(invalidDefinition) + '.');
         }
         return new Wrapped(new WrapWidget(
@@ -334,10 +345,13 @@ public final class FlutterDesignerPaletteDropPlanner {
             WidgetDefinition parentDefinition,
             SlotName slotName,
             WidgetDefinition sourceDefinition) {
-        if (EXPANDED_TYPE.equals(sourceDefinition.typeId())) {
-            return "Cannot place Expanded in '"
+        if (WidgetPlacementRules.creationMode(sourceDefinition)
+                == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
+            String wrapperName = sourceDefinition.palette().displayName();
+            return "Cannot place " + wrapperName + " in '"
                     + parentDefinition.typeId().value() + '.' + slotName.value()
-                    + "': Expanded must be created around an existing direct child "
+                    + "': " + wrapperName
+                    + " must be created around an existing direct child "
                     + "of Row.children or Column.children.";
         }
         return "Catalog slot '" + parentDefinition.typeId().value() + '.'

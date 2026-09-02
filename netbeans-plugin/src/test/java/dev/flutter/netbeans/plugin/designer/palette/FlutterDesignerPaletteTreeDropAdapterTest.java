@@ -68,6 +68,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.OverflowBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
+    private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -954,6 +955,97 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void flexibleTreeDropWrapsTheExactDirectRowOrColumnChildWithOneNewId() {
+        for (WidgetTypeId flexType : List.of(COLUMN, ROW)) {
+            Fixture fixture = fixture(FLEXIBLE);
+            StringSelection transferable = new StringSelection(fixture.token());
+            WidgetNode target = text(FIRST_ID, "target");
+            DesignerDocument document = document(flexParent(flexType, List.of(target)));
+            AtomicInteger allocations = new AtomicInteger();
+
+            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                            fixture.adapter().preview(
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    document,
+                                    CATALOG,
+                                    FIRST_ID),
+                            flexType.value());
+            assertAll(
+                    () -> assertEquals(FLEXIBLE, prepared.widgetType()),
+                    () -> assertEquals(ROOT_ID, prepared.parentId()),
+                    () -> assertEquals(CHILDREN, prepared.slotName()),
+                    () -> assertEquals(0, prepared.insertionIndex()),
+                    () -> assertEquals(FIRST_ID, prepared.treeTargetId()),
+                    () -> assertEquals(Optional.of(FIRST_ID),
+                            prepared.wrapTargetId()));
+
+            FlutterDesignerPaletteTreeDropAdapter.Wrapped committed =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                            fixture.adapter().commit(
+                                    prepared,
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    document,
+                                    CATALOG,
+                                    () -> {
+                                        allocations.incrementAndGet();
+                                        return NEW_ID;
+                                    }));
+            WrapWidget command = committed.command();
+            assertAll(
+                    () -> assertEquals(FIRST_ID, command.widgetId()),
+                    () -> assertEquals(NEW_ID, command.wrapper().id()),
+                    () -> assertEquals(FLEXIBLE, command.wrapper().type()),
+                    () -> assertTrue(command.wrapper().properties().isEmpty(),
+                            "omitted flex and fit preserve Flutter defaults 1 and loose"),
+                    () -> assertEquals(CHILD, command.wrapperSlot()),
+                    () -> assertEquals(0, command.wrapperIndex()),
+                    () -> assertEquals(1, allocations.get()),
+                    () -> assertTrue(fixture.lifecycle()
+                            .resolve(transferable).isEmpty()));
+        }
+    }
+
+    @Test
+    void treeDropRejectsMutualExpandedFlexibleNestingBeforeIdAllocation() {
+        record NestedCase(String name, WidgetTypeId outer, WidgetNode inner) {
+        }
+        WidgetNode innerChild = text(
+                id("57984d01-8905-4664-b286-82c11af6197c"), "inner child");
+        List<NestedCase> cases = List.of(
+                new NestedCase("Expanded over Flexible", EXPANDED,
+                        flexible(FIRST_ID, innerChild)),
+                new NestedCase("Flexible over Expanded", FLEXIBLE,
+                        expanded(FIRST_ID, innerChild)));
+
+        assertAll(cases.stream().map(testCase -> () -> {
+            Fixture fixture = fixture(testCase.outer());
+            StringSelection transferable = new StringSelection(fixture.token());
+            FlutterDesignerPaletteTreeDropAdapter.Rejected failure =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                            fixture.adapter().preview(
+                                    transferable,
+                                    DnDConstants.ACTION_MOVE,
+                                    document(flexParent(ROW, List.of(testCase.inner()))),
+                                    CATALOG,
+                                    FIRST_ID),
+                            testCase.name());
+            assertEquals(
+                    FlutterDesignerPaletteTreeDropAdapter.RejectionCode
+                            .NO_COMPATIBLE_DESTINATION,
+                    failure.code(),
+                    testCase.name());
+            assertTrue(failure.reason().contains("nesting would move the inner"),
+                    failure.reason());
+        }));
+    }
+
+    @Test
     void expandedTreeDropBurnsStaleTargetAndRejectsInvalidParentsConcretely() {
         StableId secondId = id("305af782-f541-44c5-b9a7-78b133a7e0e2");
         WidgetNode first = text(FIRST_ID, "first");
@@ -1212,6 +1304,16 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static WidgetNode expanded(StableId id, WidgetNode child) {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 CATALOG.find(EXPANDED).orElseThrow(), id);
+        return new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode flexible(StableId id, WidgetNode child) {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(FLEXIBLE).orElseThrow(), id);
         return new WidgetNode(
                 prototype.id(),
                 prototype.type(),

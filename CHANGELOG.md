@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html)
+  vertical slice is the seventh post-core Palette addition, at Layout order 130
+  immediately after Expanded. Its pinned Flutter 3.44.8 contract exposes
+  optional non-negative portable integer `flex`, optional
+  `FlexFit.loose`/`tight`, and one required single any-widget `child`; omitted
+  values preserve `flex: 1` and `FlexFit.loose`. Palette/tree/Canvas creation
+  atomically wraps an existing direct Row or Column child and never creates an
+  empty required-child placeholder. Expanded and Flexible cannot wrap either
+  wrapper type because the inner ParentDataWidget would no longer be a direct
+  Flex child. Generated Dart and native/exact-Web Canvas construct the real
+  Flutter Flexible, including zero-flex inflexible layout and loose or tight
+  positive-flex allocation. Properties, required-child replacement, creation,
+  Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
+  Save/reopen, Undo/Redo and reviewed light/dark SVG icons share one closed
+  contract. The catalog now contains 27 widgets, 22 reviewed const constructors
+  and 661 writable rows, including 644 across the 26 non-`Scaffold`
+  definitions. Twenty-seven sources across the unchanged 25 insertable
+  any-widget and two trait-bound destinations form 729 DnD candidates: 631
+  accepted and 98 rejected. Layout contains 19 items, and the practical
+  92-widget backlog is 27/92 complete with 65 remaining. `.fd` schema v7,
+  Catalog API 6, Canvas model v12 and NBFC framing/control/wire v1 remain
+  unchanged.
+- The accepted const
   [`flutter.widgets.OverflowBox`](https://api.flutter.dev/flutter/widgets/OverflowBox/OverflowBox.html)
   vertical slice is the sixth post-core Palette addition, at Layout order 109
   between LimitedBox and Stack. Its pinned Flutter 3.44.8 contract exposes

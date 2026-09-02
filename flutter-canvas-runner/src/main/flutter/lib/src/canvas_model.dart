@@ -256,8 +256,8 @@ class CanvasModel {
     final budget = _NodeBudget();
     final root = CanvasNode._decode(object['root'], budget, 0, r'$/root');
     _expect(
-      root.type != 'flutter.widgets.Expanded',
-      'Canvas Expanded must be a direct child of Row.children or '
+      !_isFlexParentDataWidgetType(root.type),
+      'Canvas ${root.type} must be a direct child of Row.children or '
       'Column.children: \$/root',
     );
     return CanvasModel(
@@ -801,7 +801,7 @@ class CanvasNode {
         );
         _expect(
           _placementAccepts(type, entry.key, child.type),
-          'Canvas Expanded must be a direct child of Row.children or '
+          'Canvas ${child.type} must be a direct child of Row.children or '
           'Column.children: $path/slots/${entry.key}',
         );
       }
@@ -3700,6 +3700,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot},
   ),
+  'flutter.widgets.Flexible': _WidgetSpec(
+    {
+      'flex': _PropertySpec({
+        'integer',
+      }, numericBounds: _nonNegativeIntegerBounds),
+      'fit': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'FlexFit',
+        enumValues: {'loose', 'tight'},
+      ),
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.AspectRatio': _WidgetSpec(
     {
       'aspectRatio': _PropertySpec(
@@ -5062,6 +5076,13 @@ P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BoxFit:contain,cover,fill,fitHeight,fitWidth,none,scaleDown
 S|child|single|0|0|1|any
+W|flutter.widgets.Flexible
+P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:FlexFit:loose,tight
+P|flex|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
+S|child|single|1|1|1|any
+R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Column|children
+R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Row|children
+C|flutter.widgets.Flexible|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.FractionallySizedBox
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -5281,19 +5302,17 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
         '${slot.acceptance.fingerprint()}',
       );
     }
-    if (widgetType == 'flutter.widgets.Expanded') {
+    if (_isFlexParentDataWidgetType(widgetType)) {
       result
         ..writeln(
-          'R|flutter.widgets.Expanded|directParentSlot|'
+          'R|$widgetType|directParentSlot|'
           'flutter.widgets.Column|children',
         )
         ..writeln(
-          'R|flutter.widgets.Expanded|directParentSlot|'
+          'R|$widgetType|directParentSlot|'
           'flutter.widgets.Row|children',
         )
-        ..writeln(
-          'C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child',
-        );
+        ..writeln('C|$widgetType|paletteCreate|wrapExistingChild|child');
     }
   }
   return result.toString();
@@ -5304,13 +5323,17 @@ bool _placementAccepts(
   String slotName,
   String childWidgetType,
 ) {
-  if (childWidgetType != 'flutter.widgets.Expanded') {
+  if (!_isFlexParentDataWidgetType(childWidgetType)) {
     return true;
   }
   return slotName == 'children' &&
       (parentWidgetType == 'flutter.widgets.Row' ||
           parentWidgetType == 'flutter.widgets.Column');
 }
+
+bool _isFlexParentDataWidgetType(String widgetType) =>
+    widgetType == 'flutter.widgets.Expanded' ||
+    widgetType == 'flutter.widgets.Flexible';
 
 bool isCanvasReviewedWidgetType(String widgetType) =>
     _widgetSpecifications.containsKey(widgetType);

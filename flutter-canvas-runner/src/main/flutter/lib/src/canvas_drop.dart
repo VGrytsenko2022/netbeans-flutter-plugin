@@ -190,12 +190,22 @@ const canvasChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   maximumChildren: 10000,
 );
 
-const canvasExpandedWrapDropSlot = CanvasDropSlotSemantics.wrapExisting(
+const canvasFlexWrapDropSlot = CanvasDropSlotSemantics.wrapExisting(
   slotName: 'children',
   overlapPriority: 6,
 );
 
+const canvasExpandedWrapDropSlot = canvasFlexWrapDropSlot;
+
+const canvasFlexibleWrapDropSlot = canvasFlexWrapDropSlot;
+
 const canvasExpandedWidgetType = 'flutter.widgets.Expanded';
+
+const canvasFlexibleWidgetType = 'flutter.widgets.Flexible';
+
+bool isCanvasFlexParentDataWidgetType(String widgetType) =>
+    widgetType == canvasExpandedWidgetType ||
+    widgetType == canvasFlexibleWidgetType;
 
 const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
@@ -325,11 +335,11 @@ bool canvasDropTargetAcceptsSource({
   required int insertionIndex,
   required CanvasPaletteDragSource source,
 }) {
-  if (source.widgetType == canvasExpandedWidgetType) {
+  if (isCanvasFlexParentDataWidgetType(source.widgetType)) {
     return slotName == 'children' &&
         (parentWidgetType == 'flutter.widgets.Row' ||
             parentWidgetType == 'flutter.widgets.Column') &&
-        canvasExpandedWrapDropSlot.accepts(
+        canvasFlexWrapDropSlot.accepts(
           currentChildCount: currentChildCount,
           insertionIndex: insertionIndex,
         );

@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedTwentySixTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedTwentySevenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -47,6 +47,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Container",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.FittedBox",
+                "flutter.widgets.Flexible",
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
@@ -65,8 +66,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(26, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(21, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(27, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(22, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -79,10 +80,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(659, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(661, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(642, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(644, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -104,6 +105,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Flexible", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FractionallySizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
@@ -167,6 +169,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
                 new DartSymbolReference(GESTURES_IMPORT, "DragStartBehavior"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FilterQuality"),
+                new DartSymbolReference(RENDERING_IMPORT, "FlexFit"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
                 new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
@@ -220,6 +223,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -300,6 +304,10 @@ class BuiltInWidgetCatalogTest {
         }
         assertTrue(property(catalog, "flutter.widgets.Expanded", "flex")
                 .creationDefault().isEmpty());
+        for (String property : List.of("flex", "fit")) {
+            assertTrue(property(catalog, "flutter.widgets.Flexible", property)
+                    .creationDefault().isEmpty(), "Flexible." + property);
+        }
         assertTrue(definition("flutter.material.TextField").properties().stream()
                 .allMatch(value -> value.creationDefault().isEmpty()));
         assertTrue(property(catalog, "flutter.material.ElevatedButton", "onPressed")
@@ -1261,6 +1269,57 @@ class BuiltInWidgetCatalogTest {
 
         SlotDefinition child = expanded.slot(new SlotName("child")).orElseThrow();
         assertEquals(DartParameter.named(1, true), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(1, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void flexibleExposesExactFlutter344SurfaceAndRequiredAnyWidgetChild() {
+        WidgetDefinition flexible = definition("flutter.widgets.Flexible");
+
+        assertEquals("Flexible", flexible.dartClassName());
+        assertTrue(flexible.constConstructor());
+        assertEquals(WIDGETS_IMPORT, flexible.dartLibraryUri());
+        assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT), flexible.importUris());
+        assertTrue(flexible.traits().isEmpty());
+        assertEquals(new PaletteMetadata("flutter.layout", 200, 130, "Flexible"),
+                flexible.palette());
+        assertEquals(List.of("flex", "fit"), flexible.properties().stream()
+                .map(value -> value.name().value()).toList());
+
+        PropertyDefinition flex = flexible.property(new PropertyName("flex"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(0, false), flex.parameter());
+        assertEquals(Set.of(PropertyValueKind.INTEGER), flex.acceptedKinds());
+        assertTrue(flex.creationDefault().isEmpty());
+        PropertyValueConstraint.IntegerRange range = assertInstanceOf(
+                PropertyValueConstraint.IntegerRange.class,
+                flex.constraints().getFirst());
+        assertEquals(BigInteger.ZERO, range.minimum());
+        assertEquals(DartNumericLiterals.MAX_PORTABLE_INTEGER, range.maximum());
+        assertTrue(range.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        assertTrue(range.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MAX_PORTABLE_INTEGER)));
+        assertFalse(range.accepts(new PropertyValue.IntegerValue(
+                BigInteger.ONE.negate())));
+
+        PropertyDefinition fit = flexible.property(new PropertyName("fit"))
+                .orElseThrow();
+        assertEquals(DartParameter.named(1, false), fit.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), fit.acceptedKinds());
+        assertTrue(fit.creationDefault().isEmpty());
+        PropertyValueConstraint.EnumValues fitValues = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                fit.constraints().getFirst());
+        assertEquals(new DartSymbolReference(RENDERING_IMPORT, "FlexFit"),
+                fitValues.dartType());
+        assertEquals(List.of("loose", "tight"), fitValues.values());
+
+        SlotDefinition child = flexible.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(2, true), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(1, child.minChildren());
         assertEquals(1, child.maxChildren());

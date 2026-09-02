@@ -678,6 +678,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -715,16 +716,16 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(659, writableCount,
+        assertEquals(661, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
                 + "FractionallySizedBox, FittedBox, ConstrainedBox, UnconstrainedBox, "
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
-                + "Expanded, ListView, "
+                + "Expanded, Flexible, ListView, "
                 + "and Image leaves");
-        assertEquals(642, nonScaffoldWritableCount,
+        assertEquals(644, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1875,6 +1876,96 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void flexibleProjectsOptionalFlexAndFitEditorsAndRequiredChildContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Flexible");
+        WidgetDefinition textDefinition = definition("flutter.widgets.Text");
+        WidgetNode text = WidgetNodePrototypeFactory.create(
+                textDefinition,
+                StableId.parse("73d20841-67ad-474c-9714-07045ff0d2bd"));
+        StableId widgetId = StableId.parse(
+                "38dd6a54-2e2b-413f-af2c-a2a8262c464a");
+        WidgetNode widget = new WidgetNode(
+                widgetId,
+                definition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text)),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("flex", "fit"), names(properties.getProperties()));
+        assertEquals(
+                "Loose or tight remaining-space allocation and required child "
+                + "contract for the selected direct Row or Column Flexible widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> flex = cellProperty(
+                property(node, "flex"));
+        Node.Property<FlutterPropertyCellValue> fit = cellProperty(
+                property(node, "fit"));
+        assertAll(
+                () -> assertEquals("Flex", flex.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), flex.getValue()),
+                () -> assertTrue(flex.getShortDescription().contains(
+                        "zero is valid and makes the child inflexible")),
+                () -> assertTrue(flex.getShortDescription().contains(
+                        "fit has no effect")),
+                () -> assertEquals("Fit", fit.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), fit.getValue()),
+                () -> assertTrue(fit.getShortDescription().contains(
+                        "Loose, Flutter's default")),
+                () -> assertTrue(fit.getShortDescription().contains(
+                        "tight requires it to fill")));
+
+        PropertyEditor flexEditor = flex.getPropertyEditor();
+        flexEditor.setAsText("0");
+        assertEquals(
+                new PropertyValue.IntegerValue(BigInteger.ZERO),
+                cell(flexEditor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> flexEditor.setAsText("-1"));
+
+        PropertyEditor fitEditor = fit.getPropertyEditor();
+        assertEquals(List.of(
+                FlutterPropertyCellValue.NOT_SET_TEXT, "loose", "tight"),
+                List.of(fitEditor.getTags()));
+        fitEditor.setAsText("tight");
+        assertEquals(
+                new PropertyValue.EnumValue("FlexFit", "tight"),
+                cell(fitEditor).explicitValue().orElseThrow());
+
+        FlutterPropertyCellValue flexValue = FlutterPropertyCellValue.explicit(
+                new PropertyValue.IntegerValue(BigInteger.valueOf(3)));
+        FlutterPropertyCellValue fitValue = FlutterPropertyCellValue.explicit(
+                new PropertyValue.EnumValue("FlexFit", "tight"));
+        flex.setValue(flexValue);
+        fit.setValue(fitValue);
+        assertEquals(List.of(
+                new SetProperty(widgetId, new PropertyName("flex"),
+                        flexValue.explicitValue().orElseThrow()),
+                new SetProperty(widgetId, new PropertyName("fit"),
+                        fitValue.explicitValue().orElseThrow())),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Text", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Loose fit allows the child to remain smaller")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "tight fit requires it to fill")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "replace the child atomically")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "cannot be removed or cleared")));
+    }
+
+    @Test
     void scaffoldProjectsEnterpriseGroupsPresetsAndExactSetResetCommands()
             throws Exception {
         WidgetDefinition definition = definition("flutter.material.Scaffold");
@@ -2839,7 +2930,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void twentySixCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void twentySevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -2864,6 +2955,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
                 "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -2895,7 +2987,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(26, iconPaths.size(),
+        assertEquals(27, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

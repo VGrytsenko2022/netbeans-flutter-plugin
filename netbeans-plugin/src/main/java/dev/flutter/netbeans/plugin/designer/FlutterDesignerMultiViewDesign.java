@@ -26,6 +26,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -3587,6 +3588,10 @@ public final class FlutterDesignerMultiViewDesign
         String exactSlot = intent.ownerId() + "." + intent.slotName().value();
         return switch (intent) {
             case FlutterWidgetSlotMutation.Add add -> {
+                String displayName = catalog.find(add.widgetType())
+                        .map(WidgetDefinition::palette)
+                        .map(metadata -> metadata.displayName())
+                        .orElse(add.widgetType().value());
                 FlutterDesignerPaletteDropPlanner.Result planned =
                         paletteDropPlanner.plan(
                                 document,
@@ -3602,13 +3607,12 @@ public final class FlutterDesignerMultiViewDesign
                 }
                 if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
                     throw new IllegalArgumentException(
-                            "Expanded cannot be added as a terminal slot child; drop it "
+                            displayName
+                            + " cannot be added as a terminal slot child; drop it "
                             + "on an existing direct Row.children or Column.children "
                             + "widget to wrap that child.");
                 }
                 AddWidget command = accepted.command();
-                String displayName = catalog.find(add.widgetType()).orElseThrow()
-                        .palette().displayName();
                 yield new SlotMutationPlan(
                         command,
                         "Add Flutter " + displayName + " widget",
@@ -4324,9 +4328,23 @@ public final class FlutterDesignerMultiViewDesign
         }
         FlutterDesignerCanvasSession session = canvasOwner;
         return session != null
-                && isPaletteCatalogInsertDragEnabled()
-                && session.authorizePaletteDragSource(
-                        token, definition.typeId());
+                && authorizeCanvasPaletteDragSource(
+                        isPaletteCatalogInsertDragEnabled(),
+                        token,
+                        definition,
+                        session::authorizePaletteDragSource);
+    }
+
+    static boolean authorizeCanvasPaletteDragSource(
+            boolean authorityEnabled,
+            String token,
+            WidgetDefinition definition,
+            BiPredicate<String, WidgetTypeId> authorizer) {
+        Objects.requireNonNull(token, "token");
+        Objects.requireNonNull(definition, "definition");
+        Objects.requireNonNull(authorizer, "authorizer");
+        return authorityEnabled
+                && authorizer.test(token, definition.typeId());
     }
 
     private boolean isPaletteCatalogInsertDragAuthorityEnabled() {

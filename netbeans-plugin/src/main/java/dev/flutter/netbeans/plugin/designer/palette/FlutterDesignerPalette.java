@@ -249,11 +249,12 @@ public final class FlutterDesignerPalette {
             setDisplayName(item.displayName());
             if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
+                String wrapperName = definition.palette().displayName();
                 setShortDescription(
                         "Wrap an existing direct child of Row.children or Column.children "
-                        + "with Expanded. Drop Expanded on that child; terminal insertion "
-                        + "and empty placeholders are unavailable because Expanded.child "
-                        + "is required.");
+                        + "with " + wrapperName + ". Drop " + wrapperName
+                        + " on that child; terminal insertion and empty placeholders are "
+                        + "unavailable because " + wrapperName + ".child is required.");
             } else if (FlutterImageWidgetCreationValues.IMAGE_TYPE.equals(
                     definition.typeId())) {
                 setShortDescription(

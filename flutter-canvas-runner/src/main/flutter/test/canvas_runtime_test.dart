@@ -3213,7 +3213,7 @@ void main() {
   );
 
   testWidgets(
-    'authoritatively admits Expanded only as an existing Row child wrap',
+    'authoritatively admits flex wrappers only as existing Row child wraps',
     (tester) async {
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
@@ -3235,16 +3235,20 @@ void main() {
       expect(runtime.model, isNotNull);
       await tester.pump();
 
-      const token =
+      const expandedToken =
           'nbfdnd:v1:116980cc-4300-4b18-ab2c-b276a1c073a4:'
           'ab25fc0a-fb8b-4a49-91fc-577356325f06';
-      Map<String, Object?> request(int probeId) => {
-        'token': token,
-        'xMicros': 500000,
-        'yMicros': 500000,
-        'generation': 0,
-        'probeId': probeId,
-      };
+      const flexibleToken =
+          'nbfdnd:v1:257c964b-1a74-4fb3-8c50-15ad787ba48d:'
+          '344cba19-ff83-4bee-a740-87958be27bbf';
+      Map<String, Object?> request(String token, int generation, int probeId) =>
+          {
+            'token': token,
+            'xMicros': 500000,
+            'yMicros': 500000,
+            'generation': generation,
+            'probeId': probeId,
+          };
 
       runtime.setDropResolver(
         (_, _, [_]) => const CanvasDropTarget(
@@ -3257,7 +3261,7 @@ void main() {
         await _sourceAwareHover(
           runtime,
           input,
-          request(0),
+          request(expandedToken, 0, 0),
           widgetType: canvasExpandedWidgetType,
         ),
         isTrue,
@@ -3274,7 +3278,7 @@ void main() {
         await _sourceAwareHover(
           runtime,
           input,
-          request(1),
+          request(expandedToken, 0, 1),
           widgetType: canvasExpandedWidgetType,
         ),
         isFalse,
@@ -3292,11 +3296,46 @@ void main() {
         await _sourceAwareHover(
           runtime,
           input,
-          request(2),
+          request(expandedToken, 0, 2),
           widgetType: canvasExpandedWidgetType,
         ),
         isFalse,
         reason: 'Scaffold.body is not a reviewed Flex ParentData location',
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 0,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(flexibleToken, 1, 0),
+          widgetType: canvasFlexibleWidgetType,
+        ),
+        isTrue,
+      );
+
+      runtime.setDropResolver(
+        (_, _, [_]) => const CanvasDropTarget(
+          parentWidgetId: '1035b7df-df9b-442b-9af2-72b4c90f1462',
+          slotName: 'children',
+          insertionIndex: 1,
+        ),
+      );
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request(flexibleToken, 1, 1),
+          widgetType: canvasFlexibleWidgetType,
+        ),
+        isFalse,
+        reason: 'Flexible wraps an existing child, never terminal-appends',
       );
 
       await input.close();

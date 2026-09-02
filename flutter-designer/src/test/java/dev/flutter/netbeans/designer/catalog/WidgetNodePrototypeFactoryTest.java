@@ -252,6 +252,26 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsFlexibleOnlyAsAnIncompleteDetachedAtomicWrapperPayload() {
+        WidgetDefinition definition = definition("flutter.widgets.Flexible");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Flexible"), prototype.type());
+        assertTrue(prototype.properties().isEmpty(),
+                "Flutter's flex and loose-fit defaults are intentionally not materialized");
+        assertEquals(List.of(new SlotName("child")),
+                prototype.slots().keySet().stream().toList());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(1, definition.slot(new SlotName("child"))
+                .orElseThrow().minChildren());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD,
+                WidgetPlacementRules.creationMode(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

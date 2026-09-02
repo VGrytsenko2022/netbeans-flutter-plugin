@@ -64,6 +64,7 @@ class FlutterDesignerWidgetMovePlannerTest {
             type("flutter.widgets.OverflowBox");
     private static final WidgetTypeId STACK = type("flutter.widgets.Stack");
     private static final WidgetTypeId EXPANDED = type("flutter.widgets.Expanded");
+    private static final WidgetTypeId FLEXIBLE = type("flutter.widgets.Flexible");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -261,6 +262,70 @@ class FlutterDesignerWidgetMovePlannerTest {
                         childFailure.code()),
                 () -> assertTrue(childFailure.reason().contains(
                         "flutter.widgets.Expanded.child")));
+    }
+
+    @Test
+    void flexibleMovesOnlyBetweenDirectRowAndColumnChildrenAndKeepsItsSubtree() {
+        WidgetNode nested = validText(D_ID, "flexible child");
+        WidgetNode source = flexible(A_ID, nested);
+        WidgetNode row = listParent(B_ID, ROW, CHILDREN, List.of());
+        WidgetNode stack = listParent(C_ID, STACK, CHILDREN, List.of());
+        StableId targetFlexibleId = id(
+                "f33a0092-c584-4839-ad77-9b157369d48e");
+        StableId targetTextId = id(
+                "f5941d9a-3bf4-41bb-b696-110e8a08fbaa");
+        WidgetNode targetFlexible = flexible(
+                targetFlexibleId,
+                validText(targetTextId, "target child"));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, row, stack, targetFlexible)));
+
+        FlutterDesignerWidgetMovePlanner.Result rowMove = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(row.id()));
+        MoveWidget rowCommand = accepted(rowMove).command();
+        assertEquals(
+                new WidgetPlacement(row.id(), CHILDREN, 0),
+                rowCommand.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, rowMove);
+
+        FlutterDesignerWidgetMovePlanner.Rejected stackFailure =
+                assertInstanceOf(
+                        FlutterDesignerWidgetMovePlanner.Rejected.class,
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                source.id(),
+                                new FlutterDesignerWidgetMovePlanner.On(stack.id())));
+        FlutterDesignerWidgetMovePlanner.Rejected childFailure =
+                assertInstanceOf(
+                        FlutterDesignerWidgetMovePlanner.Rejected.class,
+                        planner.plan(
+                                document,
+                                BUILT_INS,
+                                source.id(),
+                                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                                        targetFlexible.id(), CHILD, 0)));
+        assertAll(
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .NO_COMPATIBLE_DESTINATION,
+                        stackFailure.code()),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "Flexible '" + source.id() + "'")),
+                () -> assertTrue(stackFailure.reason().contains(
+                        "direct child of Row.children or Column.children")),
+                () -> assertEquals(
+                        FlutterDesignerWidgetMovePlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        childFailure.code()),
+                () -> assertTrue(childFailure.reason().contains(
+                        "flutter.widgets.Flexible.child")));
     }
 
     @Test
@@ -1140,6 +1205,16 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static WidgetNode expanded(StableId id, WidgetNode child) {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition(EXPANDED), id);
+        return new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode flexible(StableId id, WidgetNode child) {
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition(FLEXIBLE), id);
         return new WidgetNode(
                 prototype.id(),
                 prototype.type(),

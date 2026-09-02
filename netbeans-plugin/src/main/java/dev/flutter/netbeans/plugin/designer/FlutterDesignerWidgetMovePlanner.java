@@ -36,9 +36,6 @@ import java.util.stream.Collectors;
  * The planner performs no Swing, session, persistence or model mutation.</p>
  */
 public final class FlutterDesignerWidgetMovePlanner {
-    private static final dev.flutter.netbeans.designer.model.WidgetTypeId EXPANDED_TYPE =
-            new dev.flutter.netbeans.designer.model.WidgetTypeId(
-                    "flutter.widgets.Expanded");
     /** Plans one move against an immutable document snapshot. */
     public Result plan(
             DesignerDocument document,
@@ -140,12 +137,15 @@ public final class FlutterDesignerWidgetMovePlanner {
                         parentDefinition, slot, sourceDefinition))
                 .toList();
         if (compatible.isEmpty()) {
-            if (EXPANDED_TYPE.equals(sourceDefinition.typeId())) {
+            if (isParentRestrictedWrapper(sourceDefinition)) {
+                String wrapperName = sourceDefinition.palette().displayName();
                 return rejected(
                         RejectionCode.NO_COMPATIBLE_DESTINATION,
-                        "Cannot move Expanded '" + source.node().id() + "' onto '"
+                        "Cannot move " + wrapperName + " '" + source.node().id()
+                        + "' onto '"
                         + parentDefinition.typeId().value()
-                        + "': Expanded must remain a direct child of Row.children "
+                        + "': " + wrapperName
+                        + " must remain a direct child of Row.children "
                         + "or Column.children.");
             }
             return rejected(
@@ -301,12 +301,15 @@ public final class FlutterDesignerWidgetMovePlanner {
             int destinationIndex) {
         if (!WidgetPlacementRules.accepts(
                 parentDefinition, slot, sourceDefinition)) {
-            if (EXPANDED_TYPE.equals(sourceDefinition.typeId())) {
+            if (isParentRestrictedWrapper(sourceDefinition)) {
+                String wrapperName = sourceDefinition.palette().displayName();
                 return rejected(
                         RejectionCode.SLOT_REJECTS_WIDGET,
-                        "Cannot move Expanded '" + source.node().id() + "' to '"
+                        "Cannot move " + wrapperName + " '" + source.node().id()
+                        + "' to '"
                         + parentDefinition.typeId().value() + '.'
-                        + slot.name().value() + "': Expanded must remain a direct "
+                        + slot.name().value() + "': " + wrapperName
+                        + " must remain a direct "
                         + "child of Row.children or Column.children.");
             }
             return rejected(
@@ -482,6 +485,12 @@ public final class FlutterDesignerWidgetMovePlanner {
             }
         }
         return List.copyOf(result);
+    }
+
+    private static boolean isParentRestrictedWrapper(
+            WidgetDefinition definition) {
+        return WidgetPlacementRules.creationMode(definition)
+                == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
     }
 
     private static TreeInventory inventory(WidgetNode root) {

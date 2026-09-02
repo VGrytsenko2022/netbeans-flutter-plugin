@@ -76,12 +76,15 @@ final class FlutterDesignerMutationController implements AutoCloseable {
     private volatile FdOnlyCommitter fdOnlyCommitter;
     private volatile SessionAdmissionHook sessionAdmissionHook = () -> { };
     private volatile CommitBoundaryHook commitBoundaryHook = () -> { };
+    private volatile Runnable reaffirmationHook = () -> { };
     private DesignerCommandSessionOrchestrator sessionOwner;
     /** Owner lifetime transferred from the closed UI to retained pair history. */
     private DesignerCommandSessionOrchestrator detachedHistoryOwner;
     private ChangeListener sessionListener;
     private DesignerCommandRevision boundRevision;
     private FlutterDesignerDocumentState.Current sessionCurrent;
+    /** Pair-side fence that minted the retained clean session Current. */
+    private PairSaveCoordinator.CloseRevision sessionCurrentPairRevision;
     private FlutterDesignerDocumentState.Current readyCurrent;
     private AnalysisEnvironment analysisEnvironment;
     private DartCandidateAnalysisOperation activeAnalysis;
@@ -183,7 +186,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         String operation = operationName(command);
         String target = requireText(targetLabel, "targetLabel");
         CompletableFuture<MutationResult> completion = new CompletableFuture<>();
-        PairSaveCoordinatorSnapshot pairState = pairCoordinator.state();
+        PairSaveCoordinator.BindingRevision pairBinding =
+                pairCoordinator.bindingRevision();
+        PairSaveCoordinatorSnapshot pairState = pairBinding.state();
         long operationId;
         FlutterDesignerDocumentState.Current current;
         AnalysisEnvironment environment;
@@ -205,6 +210,8 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     || expectedToken.commandRevisionIdentity != boundRevision
                     || expectedToken.pairEpoch != readyPairEpoch
                     || expectedToken.pairEpoch != pairState.epoch()
+                    || !expectedToken.pairRevision.sameRevision(
+                            pairBinding.closeRevision())
                     || readyCurrent == null
                     || analysisEnvironment == null) {
                 return completed(MutationResult.rejected(
@@ -277,7 +284,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         operationId,
                         owner,
                         admission.expectedRevision(),
-                        expectedToken.pairEpoch,
+                        expectedToken.pairRevision,
                         current,
                         environment,
                         command,
@@ -292,7 +299,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                                 operationId,
                                 owner,
                                 admission.expectedRevision(),
-                                expectedToken.pairEpoch,
+                                expectedToken.pairRevision,
                                 current,
                                 environment,
                                 command,
@@ -391,7 +398,10 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     throw new IOException(
                             "The semantic Designer session belongs to another exact pair revision.");
                 }
-                sessionCurrent = current;
+                if (sessionCurrent != current) {
+                    sessionCurrent = current;
+                    sessionCurrentPairRevision = null;
+                }
                 return new SessionAdmission(sessionOwner, expectedRevision);
             }
             if (expectedToken.commandRevisionIdentity != null) {
@@ -427,6 +437,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 sessionListener = listener;
                 boundRevision = candidateRevision;
                 sessionCurrent = current;
+                sessionCurrentPairRevision = null;
                 adopted = true;
                 return new SessionAdmission(candidate, candidateRevision);
             }
@@ -442,7 +453,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
             long operationId,
             DesignerCommandSessionOrchestrator owner,
             DesignerCommandRevision expectedRevision,
-            long expectedPairEpoch,
+            PairSaveCoordinator.CloseRevision expectedPairRevision,
             FlutterDesignerDocumentState.Current current,
             AnalysisEnvironment environment,
             DesignerCommand command,
@@ -461,6 +472,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 return executeInitialFdOnly(
                         operationId,
                         owner,
+                        expectedPairRevision,
                         current,
                         commandLease,
                         operation,
@@ -468,7 +480,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
             }
             try (PairSaveCoordinator.PairPreparation preparation =
                     pairCoordinator.beginPairPreparation(
-                            expectedPairEpoch, current, commandLease, live)) {
+                            expectedPairRevision, current, commandLease, live)) {
                 PairCandidateAnalysisTicket ticket = preparation.prepareAnalysis(
                         environment.projectRoot(), DartCandidateWarningPolicy.ALLOW);
                 DartCandidateAnalysisResult analysis = analyze(
@@ -493,15 +505,19 @@ final class FlutterDesignerMutationController implements AutoCloseable {
     private MutationResult executeInitialFdOnly(
             long operationId,
             DesignerCommandSessionOrchestrator owner,
+            PairSaveCoordinator.CloseRevision expectedPairRevision,
             FlutterDesignerDocumentState.Current current,
             DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
             String operation,
             String target) throws IOException, InterruptedException {
+        pairCoordinator.requireFdOnlyAdoptionFence(
+                expectedPairRevision, current);
         crossCommitBoundary(operationId);
         commandLease.adoptStaged();
         try (DesignerCommandSessionOrchestrator.DurableSaveLease durableLease =
                 owner.beginDurableSave()) {
-            fdOnlyCommitter.commit(current, durableLease);
+            fdOnlyCommitter.commit(
+                    expectedPairRevision, current, durableLease);
         }
         return MutationResult.applied(operation, target);
     }
@@ -631,7 +647,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         DesignerCommandSessionOrchestrator ownerToClose = null;
         ChangeListener listenerToRemove = null;
         boolean allowHistoryOwnerTransfer = false;
-        PairSaveCoordinatorSnapshot pairState = pairCoordinator.state();
+        PairSaveCoordinator.BindingRevision pairBinding =
+                pairCoordinator.bindingRevision();
+        PairSaveCoordinatorSnapshot pairState = pairBinding.state();
         synchronized (monitor) {
             if (activeOperationId != operationId) {
                 return;
@@ -652,6 +670,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     sessionListener = null;
                     boundRevision = null;
                     sessionCurrent = null;
+                    sessionCurrentPairRevision = null;
                     readyCurrent = null;
                     analysisEnvironment = null;
                     readyPairEpoch = -1L;
@@ -688,6 +707,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         sessionListener = null;
                         boundRevision = null;
                         sessionCurrent = null;
+                        sessionCurrentPairRevision = null;
                         readyCurrent = null;
                         analysisEnvironment = null;
                         readyPairEpoch = -1L;
@@ -708,7 +728,10 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         readyCurrent = sessionCurrent;
                         readyPairEpoch = pairState.epoch();
                         publishLocked(Snapshot.ready(
-                                this, sessionCurrent, finalRevision, readyPairEpoch));
+                                this,
+                                sessionCurrent,
+                                finalRevision,
+                                pairBinding.closeRevision()));
                     }
                 } else {
                     stateToRefresh = documentController.state();
@@ -882,7 +905,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 handleRetiredSessionOwner(retainedOwner);
                 return;
             }
-            PairSaveCoordinatorSnapshot pairState = pairCoordinator.state();
+            PairSaveCoordinator.BindingRevision pairBinding =
+                    pairCoordinator.bindingRevision();
+            PairSaveCoordinatorSnapshot pairState = pairBinding.state();
             String unavailable = currentUnavailableReason(current);
             if (unavailable == null) {
                 unavailable = pairMutationUnavailableReason(pairState);
@@ -893,13 +918,20 @@ final class FlutterDesignerMutationController implements AutoCloseable {
             }
             AnalysisEnvironment environment = resolveAnalysisEnvironment();
 
+            PairSaveCoordinator.BindingRevision verifiedPairBinding =
+                    pairCoordinator.bindingRevision();
+            if (!pairBinding.closeRevision().sameRevision(
+                    verifiedPairBinding.closeRevision())) {
+                documentController.reload();
+                return;
+            }
+
             DesignerCommandSessionOrchestrator previous = null;
             ChangeListener previousListener = null;
+            ReaffirmationCandidate reaffirmation = null;
+            boolean reloadRetainedCurrent = false;
             synchronized (monitor) {
                 if (!refreshStillCurrentLocked(generation, current)) {
-                    return;
-                }
-                if (pairCoordinator.state().epoch() != pairState.epoch()) {
                     return;
                 }
                 DesignerCommandSessionOrchestrator observedOwner = sessionOwner;
@@ -914,41 +946,106 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 boolean observedExactBaselineCurrent = observedExactRevision
                         && observedOwner.ownsExactBaselineCurrent(
                                 observedRevision, current);
-                if (observedSameCurrent) {
-                    boundRevision = observedRevision;
-                    readyCurrent = current;
-                    analysisEnvironment = environment;
-                    readyPairEpoch = pairState.epoch();
-                    publishLocked(Snapshot.ready(
-                            this, current, observedRevision, readyPairEpoch));
-                    return;
-                }
-                if (observedExactRevision
-                        && !observedExactBaselineCurrent) {
+                boolean retainedCleanFenceChanged = observedSameCurrent
+                        && sessionCurrentPairRevision != null
+                        && !sessionCurrentPairRevision.sameRevision(
+                                pairBinding.closeRevision());
+                if (retainedCleanFenceChanged) {
                     readyCurrent = null;
                     analysisEnvironment = null;
                     readyPairEpoch = -1L;
                     boundRevision = observedRevision;
-                    publishLocked(presentationSnapshotLocked().blocked(
-                            "Rebind Flutter Designer Properties",
+                    publishLocked(presentationSnapshotLocked().waitingFor(
+                            "Reload saved Flutter Designer pair",
                             dataObject.getModelFile().getNameExt(),
-                            "The loaded pair has matching bytes, but its exact "
-                            + "FD, source, three-way or widget-catalog identity "
-                            + "differs from retained Designer Undo/Redo history."));
-                    return;
+                            "The retained Designer pair revision changed; "
+                            + "waiting for a fresh exact reload."));
+                    reloadRetainedCurrent = true;
                 }
-                if (observedOwner != null
-                        && observedExactBaselineCurrent) {
+                if (!reloadRetainedCurrent && observedSameCurrent) {
                     boundRevision = observedRevision;
-                    sessionCurrent = current;
+                    sessionCurrentPairRevision = pairState.status()
+                                    == PairSaveCoordinatorStatus.CLEAN
+                            && observedExactBaselineCurrent
+                            ? pairBinding.closeRevision() : null;
                     readyCurrent = current;
                     analysisEnvironment = environment;
                     readyPairEpoch = pairState.epoch();
                     publishLocked(Snapshot.ready(
-                            this, current, observedRevision, readyPairEpoch));
+                            this,
+                            current,
+                            observedRevision,
+                            verifiedPairBinding.closeRevision()));
                     return;
                 }
-                if (observedOwner != null
+                if (!reloadRetainedCurrent
+                        && observedExactRevision
+                        && !observedExactBaselineCurrent) {
+                    FlutterDesignerDocumentState.Current retainedCurrent =
+                            sessionCurrent;
+                    PairSaveCoordinator.CloseRevision retainedPairRevision =
+                            sessionCurrentPairRevision;
+                    boolean exactReopen = pairState.status()
+                                    == PairSaveCoordinatorStatus.CLEAN
+                            && retainedCurrent != null
+                            && retainedPairRevision != null
+                            && retainedPairRevision.sameRevision(
+                                    pairBinding.closeRevision())
+                            && observedOwner.ownsExactBaselineCurrent(
+                                    observedRevision, retainedCurrent)
+                            && exactReloadMatchesRetainedCurrent(
+                                    retainedCurrent, current);
+                    if (exactReopen) {
+                        // A first-view reopen must perform a fresh bounded load,
+                        // but value-equal reload objects cannot replace the
+                        // identity-bound Current owned by retained Undo/Redo.
+                        // Reinstall that anchor only after the fresh load has
+                        // proved the exact bytes, document, validation and
+                        // unchanged catalog identity. The resulting Current
+                        // publication performs the ordinary READY rebind.
+                        reaffirmation = new ReaffirmationCandidate(
+                                generation,
+                                current,
+                                retainedCurrent,
+                                observedOwner,
+                                observedRevision,
+                                retainedPairRevision);
+                    } else {
+                        readyCurrent = null;
+                        analysisEnvironment = null;
+                        readyPairEpoch = -1L;
+                        boundRevision = observedRevision;
+                        publishLocked(presentationSnapshotLocked().blocked(
+                                "Rebind Flutter Designer Properties",
+                                dataObject.getModelFile().getNameExt(),
+                                "The loaded pair has matching bytes, but its exact "
+                                + "FD, source, three-way or widget-catalog identity "
+                                + "differs from retained Designer Undo/Redo history."));
+                        return;
+                    }
+                }
+                if (!reloadRetainedCurrent
+                        && reaffirmation == null
+                        && observedOwner != null
+                        && observedExactBaselineCurrent) {
+                    boundRevision = observedRevision;
+                    sessionCurrent = current;
+                    sessionCurrentPairRevision = pairState.status()
+                                    == PairSaveCoordinatorStatus.CLEAN
+                            ? pairBinding.closeRevision() : null;
+                    readyCurrent = current;
+                    analysisEnvironment = environment;
+                    readyPairEpoch = pairState.epoch();
+                    publishLocked(Snapshot.ready(
+                            this,
+                            current,
+                            observedRevision,
+                            verifiedPairBinding.closeRevision()));
+                    return;
+                }
+                if (!reloadRetainedCurrent
+                        && reaffirmation == null
+                        && observedOwner != null
                         && pairState.status() == PairSaveCoordinatorStatus.STAGED_PAIR
                         && pairCoordinator.ownsExactStagedRevision(
                                 pairState.epoch(),
@@ -956,14 +1053,20 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                                 observedRevision)) {
                     boundRevision = observedRevision;
                     sessionCurrent = current;
+                    sessionCurrentPairRevision = null;
                     readyCurrent = current;
                     analysisEnvironment = environment;
                     readyPairEpoch = pairState.epoch();
                     publishLocked(Snapshot.ready(
-                            this, current, observedRevision, readyPairEpoch));
+                            this,
+                            current,
+                            observedRevision,
+                            verifiedPairBinding.closeRevision()));
                     return;
                 }
-                if (observedOwner != null
+                if (!reloadRetainedCurrent
+                        && reaffirmation == null
+                        && observedOwner != null
                         && pairState.status() == PairSaveCoordinatorStatus.CLEAN) {
                     readyCurrent = null;
                     analysisEnvironment = null;
@@ -974,7 +1077,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                             "Waiting for the exact saved Dart and .fd snapshots to reload."));
                     return;
                 }
-                if (observedOwner != null && observedDirty) {
+                if (!reloadRetainedCurrent
+                        && reaffirmation == null
+                        && observedOwner != null && observedDirty) {
                     readyCurrent = null;
                     analysisEnvironment = null;
                     readyPairEpoch = -1L;
@@ -985,15 +1090,26 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                             "The loaded pair changed while unsaved Designer history is active."));
                     return;
                 }
-                previous = sessionOwner;
-                previousListener = sessionListener;
-                sessionOwner = null;
-                sessionListener = null;
-                boundRevision = null;
-                sessionCurrent = null;
-                readyCurrent = null;
-                analysisEnvironment = null;
-                readyPairEpoch = -1L;
+                if (!reloadRetainedCurrent && reaffirmation == null) {
+                    previous = sessionOwner;
+                    previousListener = sessionListener;
+                    sessionOwner = null;
+                    sessionListener = null;
+                    boundRevision = null;
+                    sessionCurrent = null;
+                    sessionCurrentPairRevision = null;
+                    readyCurrent = null;
+                    analysisEnvironment = null;
+                    readyPairEpoch = -1L;
+                }
+            }
+            if (reloadRetainedCurrent) {
+                documentController.reload();
+                return;
+            }
+            if (reaffirmation != null) {
+                reaffirmRetainedCurrent(reaffirmation);
+                return;
             }
             if (previous != null) {
                 if (previousListener != null) {
@@ -1010,7 +1126,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 analysisEnvironment = environment;
                 readyPairEpoch = pairState.epoch();
                 publishLocked(Snapshot.ready(
-                        this, current, readyPairEpoch));
+                        this, current, verifiedPairBinding.closeRevision()));
             }
         } catch (IOException | RuntimeException failure) {
             publishRefreshBlocked(
@@ -1084,7 +1200,9 @@ final class FlutterDesignerMutationController implements AutoCloseable {
             handleRetiredSessionOwner(owner);
             return;
         }
-        PairSaveCoordinatorSnapshot pairState = pairCoordinator.state();
+        PairSaveCoordinator.BindingRevision pairBinding =
+                pairCoordinator.bindingRevision();
+        PairSaveCoordinatorSnapshot pairState = pairBinding.state();
         synchronized (monitor) {
             if (closed || sessionOwner != owner || sessionCurrent == null) {
                 return;
@@ -1096,6 +1214,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 return;
             }
             boundRevision = revision;
+            sessionCurrentPairRevision = null;
             String pairUnavailable = pairMutationUnavailableReason(pairState);
             if (pairUnavailable != null) {
                 readyCurrent = null;
@@ -1113,14 +1232,17 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         this,
                         sessionCurrent,
                         revision,
-                        readyPairEpoch,
+                        pairBinding.closeRevision(),
                         snapshot.operation(),
                         snapshot.target(),
                         snapshot.message()));
             } else {
                 readyCurrent = sessionCurrent;
                 publishLocked(Snapshot.ready(
-                        this, sessionCurrent, revision, readyPairEpoch));
+                        this,
+                        sessionCurrent,
+                        revision,
+                        pairBinding.closeRevision()));
             }
         }
     }
@@ -1150,6 +1272,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
             sessionListener = null;
             boundRevision = null;
             sessionCurrent = null;
+            sessionCurrentPairRevision = null;
             readyCurrent = null;
             analysisEnvironment = null;
             readyPairEpoch = -1L;
@@ -1257,11 +1380,17 @@ final class FlutterDesignerMutationController implements AutoCloseable {
 
     private Snapshot presentationSnapshotLocked() {
         if (boundRevision != null && sessionCurrent != null) {
-            return Snapshot.ready(
-                    this,
-                    sessionCurrent,
-                    boundRevision,
-                    Math.max(0L, readyPairEpoch));
+            // This object is only an immutable presentation carrier for an
+            // immediate waiting/blocked/closed transformation. Never mint a
+            // writable token without an atomic pair BindingRevision.
+            return new Snapshot(
+                    Status.BLOCKED,
+                    Optional.of(boundRevision.document()),
+                    Optional.of(sessionCurrent.catalog()),
+                    Optional.empty(),
+                    snapshot.operation(),
+                    snapshot.target(),
+                    snapshot.message());
         }
         return snapshot;
     }
@@ -1309,6 +1438,111 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 && Arrays.equals(
                         revision.dartCandidateBytes(),
                         source.orElseThrow().original().orElseThrow().copyBytes());
+    }
+
+    private void reaffirmRetainedCurrent(ReaffirmationCandidate candidate) {
+        if (!sameCleanPairRevision(candidate.pairRevision())) {
+            documentController.reload();
+            return;
+        }
+
+        FlutterDesignerDocumentController.DeferredCurrentEffects effects;
+        try {
+            var ticket = documentController.openViewCurrentAdoptionTicket(
+                    candidate.loadedCurrent());
+            effects = documentController.adoptCurrentDeferred(
+                    ticket, candidate.retainedCurrent());
+        } catch (IllegalStateException staleCurrent) {
+            documentController.reload();
+            return;
+        }
+
+        reaffirmationHook.run();
+
+        boolean stillCurrent;
+        synchronized (monitor) {
+            stillCurrent = !closed
+                    && !mutationRunning
+                    && refreshGeneration == candidate.refreshGeneration()
+                    && sessionOwner == candidate.owner()
+                    && boundRevision == candidate.revision()
+                    && sessionCurrent == candidate.retainedCurrent()
+                    && sessionCurrentPairRevision == candidate.pairRevision()
+                    && documentController.state() == candidate.retainedCurrent();
+        }
+        if (!stillCurrent
+                || !sameCleanPairRevision(candidate.pairRevision())) {
+            // The deferred effects have not published the retained identity.
+            // A fresh load supersedes the private adoption and lets the normal
+            // exact-identity gate decide the new pair revision.
+            documentController.reload();
+            return;
+        }
+        effects.publish();
+    }
+
+    private boolean sameCleanPairRevision(
+            PairSaveCoordinator.CloseRevision expected) {
+        PairSaveCoordinator.BindingRevision observed =
+                pairCoordinator.bindingRevision();
+        return observed.state().status() == PairSaveCoordinatorStatus.CLEAN
+                && expected.sameRevision(observed.closeRevision());
+    }
+
+    /**
+     * Proves that a mandatory reopen load reconfirmed the retained baseline
+     * without changing any semantic input that is not represented by pair
+     * bytes. Object equality alone is deliberately insufficient here: the FD,
+     * source and three-way scanners mint fresh evidence identities on every
+     * load, while the command session must keep its original identities for
+     * exact Undo/Redo admission.
+     */
+    private static boolean exactReloadMatchesRetainedCurrent(
+            FlutterDesignerDocumentState.Current retained,
+            FlutterDesignerDocumentState.Current loaded) {
+        if (retained.catalog() != loaded.catalog()
+                || !retained.decoded().equals(loaded.decoded())
+                || !retained.validation().equals(loaded.validation())
+                || !retained.catalogDiagnostics().equals(
+                        loaded.catalogDiagnostics())
+                || !retained.contextIssues().equals(loaded.contextIssues())
+                || !retained.sourceIntegrity().equals(
+                        loaded.sourceIntegrity())
+                || retained.threeWayIntegrity().isEmpty()
+                || loaded.threeWayIntegrity().isEmpty()) {
+            return false;
+        }
+        var retainedThreeWay = retained.threeWayIntegrity().orElseThrow();
+        var loadedThreeWay = loaded.threeWayIntegrity().orElseThrow();
+        return retainedThreeWay.onDiskThreeWayMatch()
+                && loadedThreeWay.onDiskThreeWayMatch()
+                && retainedThreeWay.source().equals(loadedThreeWay.source())
+                && retainedThreeWay.generation().equals(
+                        loadedThreeWay.generation())
+                && retainedThreeWay.comparisons().equals(
+                        loadedThreeWay.comparisons())
+                && retainedThreeWay.diagnostics().equals(
+                        loadedThreeWay.diagnostics());
+    }
+
+    private record ReaffirmationCandidate(
+            long refreshGeneration,
+            FlutterDesignerDocumentState.Current loadedCurrent,
+            FlutterDesignerDocumentState.Current retainedCurrent,
+            DesignerCommandSessionOrchestrator owner,
+            DesignerCommandRevision revision,
+            PairSaveCoordinator.CloseRevision pairRevision) {
+        ReaffirmationCandidate {
+            if (refreshGeneration < 0) {
+                throw new IllegalArgumentException(
+                        "refreshGeneration must be non-negative");
+            }
+            Objects.requireNonNull(loadedCurrent, "loadedCurrent");
+            Objects.requireNonNull(retainedCurrent, "retainedCurrent");
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(revision, "revision");
+            Objects.requireNonNull(pairRevision, "pairRevision");
+        }
     }
 
     private String pairMutationUnavailableReason(
@@ -1500,6 +1734,10 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
     }
 
+    void setReaffirmationHookForTests(Runnable replacement) {
+        reaffirmationHook = replacement == null ? () -> { } : replacement;
+    }
+
     @Override
     public void close() {
         closeInternal(false);
@@ -1563,6 +1801,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     sessionListener = null;
                     boundRevision = null;
                     sessionCurrent = null;
+                    sessionCurrentPairRevision = null;
                     activeOperationId = -1L;
                     activeAnalysis = null;
                     activeCompletion = null;
@@ -1653,22 +1892,22 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         private final FlutterDesignerMutationController ownerIdentity;
         private final Object documentStateIdentity;
         private final Object commandRevisionIdentity;
+        private final PairSaveCoordinator.CloseRevision pairRevision;
         private final long pairEpoch;
 
         private RevisionToken(
                 FlutterDesignerMutationController ownerIdentity,
                 Object documentStateIdentity,
                 Object commandRevisionIdentity,
-                long pairEpoch) {
+                PairSaveCoordinator.CloseRevision pairRevision) {
             this.ownerIdentity = Objects.requireNonNull(
                     ownerIdentity, "ownerIdentity");
             this.documentStateIdentity = Objects.requireNonNull(
                     documentStateIdentity, "documentStateIdentity");
             this.commandRevisionIdentity = commandRevisionIdentity;
-            if (pairEpoch < 0) {
-                throw new IllegalArgumentException("pairEpoch must not be negative");
-            }
-            this.pairEpoch = pairEpoch;
+            this.pairRevision = Objects.requireNonNull(
+                    pairRevision, "pairRevision");
+            pairEpoch = pairRevision.stateEpoch();
         }
     }
 
@@ -1749,13 +1988,13 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         static Snapshot ready(
                 FlutterDesignerMutationController owner,
                 FlutterDesignerDocumentState.Current current,
-                long pairEpoch) {
+                PairSaveCoordinator.CloseRevision pairRevision) {
             return new Snapshot(
                     Status.READY,
                     Optional.of(current.decoded().document()),
                     Optional.of(current.catalog()),
                     Optional.of(new RevisionToken(
-                            owner, current, null, pairEpoch)),
+                            owner, current, null, pairRevision)),
                     "Edit Flutter Designer Properties",
                     "the selected Flutter widget",
                     "Flutter Designer properties are ready.");
@@ -1765,13 +2004,13 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 FlutterDesignerMutationController owner,
                 FlutterDesignerDocumentState.Current current,
                 DesignerCommandRevision revision,
-                long pairEpoch) {
+                PairSaveCoordinator.CloseRevision pairRevision) {
             return new Snapshot(
                     Status.READY,
                     Optional.of(revision.document()),
                     Optional.of(current.catalog()),
                     Optional.of(new RevisionToken(
-                            owner, current, revision, pairEpoch)),
+                            owner, current, revision, pairRevision)),
                     "Edit Flutter Designer Properties",
                     "the selected Flutter widget",
                     "Flutter Designer properties are ready.");
@@ -1781,7 +2020,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                 FlutterDesignerMutationController owner,
                 FlutterDesignerDocumentState.Current current,
                 DesignerCommandRevision revision,
-                long pairEpoch,
+                PairSaveCoordinator.CloseRevision pairRevision,
                 String operation,
                 String target,
                 String message) {
@@ -1790,7 +2029,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     Optional.of(revision.document()),
                     Optional.of(current.catalog()),
                     Optional.of(new RevisionToken(
-                            owner, current, revision, pairEpoch)),
+                            owner, current, revision, pairRevision)),
                     operation,
                     target,
                     message);
@@ -1919,6 +2158,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
     @FunctionalInterface
     interface FdOnlyCommitter {
         void commit(
+                PairSaveCoordinator.CloseRevision expectedRevision,
                 FlutterDesignerDocumentState.Current current,
                 DesignerCommandSessionOrchestrator.DurableSaveLease lease)
                 throws IOException;

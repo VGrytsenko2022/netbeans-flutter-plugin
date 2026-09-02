@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.Action;
+import javax.swing.JCheckBox;
 import javax.swing.JProgressBar;
 import javax.swing.JTable;
 import javax.swing.text.StyledDocument;
@@ -92,6 +93,7 @@ import org.netbeans.spi.editor.guards.GuardedEditorSupport;
 import org.openide.cookies.SaveCookie;
 import org.openide.explorer.ExplorerManager;
 import org.openide.explorer.propertysheet.PropertySheet;
+import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.nodes.Node;
@@ -486,6 +488,400 @@ class FlutterDesignerMutationControllerIntegrationTest {
                         design.componentClosed();
                     }
                 });
+            }
+        }
+    }
+
+    @Test
+    void savedBooleanRemainsEditableAfterLastViewCloseAndSameDataObjectReopen()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_saved_boolean_same_data_object_reopen");
+        AtomicReference<FlutterDesignerMultiViewDesign> firstDesignRef =
+                new AtomicReference<>();
+        AtomicReference<FlutterDesignerMultiViewDesign> reopenedDesignRef =
+                new AtomicReference<>();
+        AtomicReference<PropertySheet> sheetRef = new AtomicReference<>();
+
+        // fixture() primes the DataObject-owned controllers through one
+        // synthetic view. Release it so the two Design components below model
+        // a real last-view close followed by reopening the same DataObject.
+        fixture.controller().viewClosed();
+        try (fixture) {
+            try {
+                onEdt(() -> {
+                    FlutterDesignerMultiViewDesign design =
+                            new FlutterDesignerMultiViewDesign(
+                                    fixture.dataObject().getLookup());
+                    firstDesignRef.set(design);
+                    design.componentOpened();
+                });
+                FlutterDesignerMultiViewDesign firstDesign = firstDesignRef.get();
+                Node firstNode = awaitSelectedTextSoftWrap(
+                        firstDesign, null, true);
+                Node.Property<FlutterPropertyCellValue> firstSoftWrap =
+                        cellProperty(firstNode, "softWrap");
+                onEdt(() -> firstSoftWrap.setValue(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.BooleanValue(true))));
+
+                FlutterDesignerMutationController.Snapshot changed =
+                        awaitReadyWithSoftWrap(fixture.mutations(), true);
+                PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+                assertNotNull(evidence);
+                byte[] savedDart = evidence.candidateDartBytes();
+                byte[] savedFd = evidence.preparedPairIdentity()
+                        .prospectiveFdBytes();
+                SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+                assertNotNull(save);
+                save.save();
+                awaitCurrentWithPair(fixture.controller(), savedFd, savedDart);
+                FlutterDesignerMutationController.Snapshot savedReady =
+                        awaitReadyWithSoftWrap(fixture.mutations(), true);
+                awaitPairStatus(
+                        fixture.coordinator(), PairSaveCoordinatorStatus.CLEAN);
+                FlutterDesignerDocumentState.Current savedCurrent =
+                        assertInstanceOf(
+                                FlutterDesignerDocumentState.Current.class,
+                                fixture.controller().state());
+                DesignerCommandSessionOrchestrator savedOwner =
+                        assertInstanceOf(
+                                DesignerCommandSessionOrchestrator.class,
+                                sessionOwner(fixture.mutations()));
+                DesignerCombinedUndoRedo combined =
+                        fixture.dataObject().getCombinedUndoRedo();
+                StyledDocument originalDocument = fixture.editor().getDocument();
+                assertNotNull(originalDocument);
+
+                onEdt(() -> {
+                    firstDesign.componentClosed();
+                    firstDesignRef.set(null);
+                });
+
+                AtomicBoolean editorCloseAccepted = new AtomicBoolean();
+                onEdt(() -> editorCloseAccepted.set(fixture.editor().close()));
+                assertTrue(editorCloseAccepted.get());
+                onEdt(() -> { });
+                if (fixture.editor().getDocument() != null) {
+                    // The synthetic openDocument() fixture owns no editor pane,
+                    // so complete the same last-pane callback explicitly.
+                    onEdt(fixture.editor()::notifyClosed);
+                }
+                assertTrue(MutationFixture.awaitEditorDocumentClosed(
+                        fixture.editor()));
+                assertNull(fixture.editor().getDocument());
+                assertSame(fixture.mutations(),
+                        fixture.dataObject().mutationController());
+                assertSame(savedOwner, sessionOwner(fixture.mutations()));
+                assertTrue(combined.designerSessionActive());
+
+                StyledDocument reopenedDocument = openGuardedSourceDocument(
+                        fixture.editor());
+                assertNotSame(originalDocument, reopenedDocument);
+                assertArrayEquals(savedDart,
+                        fixture.editor().liveSnapshot().markerBearingUtf8());
+
+                CountDownLatch freshReloadPublished = new CountDownLatch(1);
+                PropertyChangeListener reloadListener = event -> {
+                    if (FlutterDesignerDocumentController.PROP_STATE.equals(
+                            event.getPropertyName())
+                            && event.getNewValue()
+                            instanceof FlutterDesignerDocumentState.Current current
+                            && current != savedCurrent) {
+                        freshReloadPublished.countDown();
+                    }
+                };
+                fixture.controller().addPropertyChangeListener(reloadListener);
+                try {
+                    onEdt(() -> {
+                        FlutterDesignerMultiViewDesign reopened =
+                                new FlutterDesignerMultiViewDesign(
+                                        fixture.dataObject().getLookup());
+                        reopenedDesignRef.set(reopened);
+                        reopened.componentOpened();
+                    });
+                    assertTrue(freshReloadPublished.await(10, TimeUnit.SECONDS),
+                            "reopen must verify a fresh durable pair snapshot");
+                    awaitReadyWithSoftWrap(fixture.mutations(), true);
+                    assertSame(savedCurrent, fixture.controller().state(),
+                            "an exact reload must restore the retained command anchor identity");
+                    assertSame(savedOwner, sessionOwner(fixture.mutations()));
+                    assertTrue(combined.designerSessionActive());
+                    assertNotSame(
+                            savedReady.token().orElseThrow(),
+                            fixture.mutations().snapshot().token().orElseThrow());
+                } finally {
+                    fixture.controller().removePropertyChangeListener(
+                            reloadListener);
+                }
+
+                FlutterDesignerMultiViewDesign reopenedDesign =
+                        reopenedDesignRef.get();
+                Node reopenedNode = awaitSelectedTextSoftWrap(
+                        reopenedDesign, true, true);
+                Node.Property<FlutterPropertyCellValue> reopenedSoftWrap =
+                        cellProperty(reopenedNode, "softWrap");
+                assertTrue(reopenedSoftWrap.getPropertyEditor().isPaintable(),
+                        "the saved explicit boolean must retain its checkbox renderer");
+                assertNull(reopenedSoftWrap.getPropertyEditor().getTags(),
+                        "the saved explicit boolean must not regress to a combo editor");
+
+                AtomicReference<JTable> tableRef = new AtomicReference<>();
+                onEdt(() -> {
+                    PropertySheet sheet = new PropertySheet();
+                    sheet.setDescriptionAreaVisible(false);
+                    sheet.setSize(520, 900);
+                    sheet.addNotify();
+                    sheet.setNodes(new Node[]{reopenedNode});
+                    sheetRef.set(sheet);
+                    JTable table = findFirst(sheet, JTable.class);
+                    assertNotNull(table);
+                    tableRef.set(table);
+                });
+                JTable table = tableRef.get();
+                int row = awaitPropertyRow(table, "softWrap");
+                awaitPropertySheetSetNodesSettled(sheetRef.get(), reopenedNode);
+                onEdt(() -> {
+                    table.changeSelection(row, 1, false, false);
+                    assertTrue(table.editCellAt(row, 1),
+                            "the reopened saved boolean must start editing");
+                    JCheckBox checkbox = assertInstanceOf(
+                            JCheckBox.class, table.getEditorComponent());
+                    assertTrue(checkbox.isSelected());
+                    assertEquals(javax.swing.SwingConstants.CENTER,
+                            checkbox.getHorizontalAlignment());
+                    assertEquals(javax.swing.SwingConstants.CENTER,
+                            checkbox.getVerticalAlignment());
+                    var editor = table.getCellEditor();
+                    checkbox.doClick();
+                    assertFalse(checkbox.isSelected());
+                    if (table.isEditing()) {
+                        assertTrue(editor.stopCellEditing(),
+                                "the reopened checkbox value must commit through "
+                                + "the real PropertySheet editor");
+                    }
+                });
+
+                FlutterDesignerMutationController.Snapshot editedAgain =
+                        awaitReadyWithSoftWrap(fixture.mutations(), false);
+                assertNotSame(changed.token().orElseThrow(),
+                        editedAgain.token().orElseThrow(),
+                        "editing after reopen must publish a new revision");
+                awaitSelectedTextSoftWrap(reopenedDesign, false, true);
+                assertTrue(combined.canUndo());
+                onEdt(combined::undo);
+                awaitReadyWithSoftWrap(fixture.mutations(), true);
+                awaitSelectedTextSoftWrap(reopenedDesign, true, true);
+
+                onEdt(() -> {
+                    assertTrue(combined.canRedo());
+                    combined.redo();
+                });
+                awaitReadyWithSoftWrap(fixture.mutations(), false);
+                awaitSelectedTextSoftWrap(reopenedDesign, false, true);
+            } finally {
+                onEdt(() -> {
+                    PropertySheet sheet = sheetRef.get();
+                    if (sheet != null) {
+                        JTable table = findFirst(sheet, JTable.class);
+                        if (table != null && table.isEditing()) {
+                            table.getCellEditor().cancelCellEditing();
+                        }
+                        sheet.removeNotify();
+                    }
+                    FlutterDesignerMultiViewDesign reopened =
+                            reopenedDesignRef.getAndSet(null);
+                    if (reopened != null) {
+                        reopened.componentClosed();
+                    }
+                    FlutterDesignerMultiViewDesign first =
+                            firstDesignRef.getAndSet(null);
+                    if (first != null) {
+                        first.componentClosed();
+                    }
+                });
+            }
+        }
+    }
+
+    @Test
+    void externalPairEventPreventsRetainedCurrentReaffirmationAfterReopen()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_reopen_external_event_fence");
+        try (fixture) {
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            fixture.ready().token().orElseThrow(),
+                            new SetProperty(
+                                    TEXT_ID,
+                                    SOFT_WRAP,
+                                    new PropertyValue.BooleanValue(true)),
+                            "Text.softWrap")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            awaitReadyWithSoftWrap(fixture.mutations(), true);
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] savedDart = evidence.candidateDartBytes();
+            byte[] savedFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), savedFd, savedDart);
+            awaitReadyWithSoftWrap(fixture.mutations(), true);
+            awaitPairStatus(
+                    fixture.coordinator(), PairSaveCoordinatorStatus.CLEAN);
+
+            FlutterDesignerDocumentState.Current retainedCurrent =
+                    assertInstanceOf(
+                            FlutterDesignerDocumentState.Current.class,
+                            fixture.controller().state());
+            Object retainedOwner = sessionOwner(fixture.mutations());
+            assertNotNull(retainedOwner);
+            PairSaveCoordinator.CloseRevision retainedPairRevision =
+                    fixture.coordinator().closeRevision();
+
+            fixture.controller().viewClosed();
+            assertFalse(fixture.coordinator().handleFileEvent(
+                    new FileEvent(fixture.dataObject().getModelFile())));
+            PairSaveCoordinator.CloseRevision afterExternalEvent =
+                    fixture.coordinator().closeRevision();
+            assertFalse(retainedPairRevision.sameRevision(afterExternalEvent));
+            assertEquals(retainedPairRevision.stateEpoch(),
+                    afterExternalEvent.stateEpoch(),
+                    "a clean event must be caught even without a state epoch change");
+
+            CountDownLatch freshReloadPublished = new CountDownLatch(1);
+            PropertyChangeListener reloadListener = event -> {
+                if (FlutterDesignerDocumentController.PROP_STATE.equals(
+                        event.getPropertyName())
+                        && event.getNewValue()
+                        instanceof FlutterDesignerDocumentState.Current current
+                        && current != retainedCurrent) {
+                    freshReloadPublished.countDown();
+                }
+            };
+            fixture.controller().addPropertyChangeListener(reloadListener);
+            try {
+                assertTrue(fixture.controller().viewOpened());
+                assertTrue(freshReloadPublished.await(10, TimeUnit.SECONDS));
+
+                FlutterDesignerMutationController.Snapshot blocked = awaitStatus(
+                        fixture.mutations(),
+                        FlutterDesignerMutationController.Status.BLOCKED);
+                assertNotSame(retainedCurrent, fixture.controller().state());
+                assertTrue(blocked.token().isEmpty());
+                assertTrue(blocked.message().contains(
+                        "differs from retained Designer Undo/Redo history"),
+                        blocked::message);
+                assertSame(retainedOwner, sessionOwner(fixture.mutations()));
+            } finally {
+                fixture.controller().removePropertyChangeListener(
+                        reloadListener);
+            }
+        }
+    }
+
+    @Test
+    void externalPairEventDuringReaffirmationNeverPublishesRetainedCurrent()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_reopen_external_event_during_reaffirmation");
+        AtomicInteger reaffirmationCalls = new AtomicInteger();
+        AtomicBoolean eventSuppressed = new AtomicBoolean(true);
+        AtomicReference<PairSaveCoordinator.CloseRevision> eventRevision =
+                new AtomicReference<>();
+        try (fixture) {
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            fixture.ready().token().orElseThrow(),
+                            new SetProperty(
+                                    TEXT_ID,
+                                    SOFT_WRAP,
+                                    new PropertyValue.BooleanValue(true)),
+                            "Text.softWrap")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            awaitReadyWithSoftWrap(fixture.mutations(), true);
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] savedDart = evidence.candidateDartBytes();
+            byte[] savedFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), savedFd, savedDart);
+            awaitReadyWithSoftWrap(fixture.mutations(), true);
+            awaitPairStatus(
+                    fixture.coordinator(), PairSaveCoordinatorStatus.CLEAN);
+
+            FlutterDesignerDocumentState.Current retainedCurrent =
+                    assertInstanceOf(
+                            FlutterDesignerDocumentState.Current.class,
+                            fixture.controller().state());
+            Object retainedOwner = sessionOwner(fixture.mutations());
+            assertNotNull(retainedOwner);
+            PairSaveCoordinator.CloseRevision retainedPairRevision =
+                    fixture.coordinator().closeRevision();
+
+            fixture.controller().viewClosed();
+
+            AtomicBoolean retainedCurrentPublished = new AtomicBoolean();
+            CountDownLatch freshReloadPublished = new CountDownLatch(1);
+            PropertyChangeListener reloadListener = event -> {
+                if (!FlutterDesignerDocumentController.PROP_STATE.equals(
+                        event.getPropertyName())) {
+                    return;
+                }
+                if (event.getNewValue() == retainedCurrent) {
+                    retainedCurrentPublished.set(true);
+                } else if (event.getNewValue()
+                        instanceof FlutterDesignerDocumentState.Current) {
+                    freshReloadPublished.countDown();
+                }
+            };
+            fixture.controller().addPropertyChangeListener(reloadListener);
+            fixture.mutations().setReaffirmationHookForTests(() -> {
+                reaffirmationCalls.incrementAndGet();
+                eventSuppressed.set(fixture.coordinator().handleFileEvent(
+                        new FileEvent(fixture.dataObject().getModelFile())));
+                eventRevision.set(fixture.coordinator().closeRevision());
+            });
+            try {
+                assertTrue(fixture.controller().viewOpened());
+                assertTrue(freshReloadPublished.await(10, TimeUnit.SECONDS),
+                        "reaffirmation rejection must publish a fresh reload");
+
+                FlutterDesignerMutationController.Snapshot blocked = awaitStatus(
+                        fixture.mutations(),
+                        FlutterDesignerMutationController.Status.BLOCKED);
+                assertEquals(1, reaffirmationCalls.get(),
+                        "the race must be injected after exactly one private adoption");
+                assertFalse(eventSuppressed.get(),
+                        "a clean external event must allow the mandatory reload");
+                assertNotNull(eventRevision.get());
+                assertFalse(retainedPairRevision.sameRevision(
+                        eventRevision.get()));
+                assertFalse(retainedCurrentPublished.get(),
+                        "the privately adopted retained Current must never be "
+                        + "published after the fence changes");
+                assertNotSame(retainedCurrent, fixture.controller().state());
+                assertTrue(blocked.token().isEmpty());
+                assertTrue(blocked.message().contains(
+                        "differs from retained Designer Undo/Redo history"),
+                        blocked::message);
+                assertSame(retainedOwner, sessionOwner(fixture.mutations()));
+            } finally {
+                fixture.mutations().setReaffirmationHookForTests(null);
+                fixture.controller().removePropertyChangeListener(
+                        reloadListener);
             }
         }
     }
@@ -2999,6 +3395,69 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void submitVsCleanExternalEventRejectsBeforePairedReservation()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_submit_clean_external_event");
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot baseline = fixture.ready();
+            FlutterDesignerMutationController.RevisionToken baselineToken =
+                    baseline.token().orElseThrow();
+            PairSaveCoordinator.CloseRevision before =
+                    fixture.coordinator().closeRevision();
+            AtomicInteger hookCalls = new AtomicInteger();
+            AtomicBoolean eventSuppressed = new AtomicBoolean(true);
+            AtomicReference<PairSaveCoordinator.CloseRevision> after =
+                    new AtomicReference<>();
+            fixture.mutations().setSessionAdmissionHookForTests(() -> {
+                hookCalls.incrementAndGet();
+                eventSuppressed.set(fixture.coordinator().handleFileEvent(
+                        new FileEvent(fixture.dataObject().getModelFile())));
+                after.set(fixture.coordinator().closeRevision());
+            });
+
+            FlutterDesignerMutationController.MutationResult rejected =
+                    fixture.mutations().submit(
+                            baselineToken,
+                            setText("must not publish"),
+                            "Text.data")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains(
+                    "full pair authority revision became stale"),
+                    rejected::reason);
+            assertEquals(1, hookCalls.get());
+            assertFalse(eventSuppressed.get());
+            assertNotNull(after.get());
+            assertEquals(before.stateEpoch(), after.get().stateEpoch(),
+                    "a clean event must not rely on the visible pair epoch");
+            assertFalse(before.sameRevision(after.get()));
+            assertEquals(0, fixture.analysisCalls().get());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertNull(fixture.coordinator().stagedEvidence());
+            assertNull(fixture.coordinator().stagedProofSnapshot());
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(fixture.baselineDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+
+            FlutterDesignerMutationController.Snapshot recovered =
+                    awaitReadyWithDataAfterToken(
+                            fixture.mutations(), "before", baselineToken);
+            assertNotSame(baselineToken, recovered.token().orElseThrow());
+            assertNull(sessionOwner(fixture.mutations()));
+            assertFalse(fixture.dataObject().getCombinedUndoRedo()
+                    .designerSessionActive());
+        }
+    }
+
+    @Test
     void controllerRecoversAfterExternalPairPreparationReturnsClean()
             throws Exception {
         MutationFixture fixture = fixture("mutation_preparation_recovery");
@@ -3167,6 +3626,83 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void submitVsCleanExternalEventRejectsBeforeFdOnlyAdoption()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_fd_only_clean_external_event", columnExactPair());
+        try (fixture) {
+            FlutterDesignerMutationController.Snapshot baseline = fixture.ready();
+            FlutterDesignerMutationController.RevisionToken baselineToken =
+                    baseline.token().orElseThrow();
+            PairSaveCoordinator.CloseRevision before =
+                    fixture.coordinator().closeRevision();
+            AtomicInteger hookCalls = new AtomicInteger();
+            AtomicInteger commitCalls = new AtomicInteger();
+            AtomicBoolean eventSuppressed = new AtomicBoolean(true);
+            AtomicReference<PairSaveCoordinator.CloseRevision> after =
+                    new AtomicReference<>();
+            fixture.mutations().setFdOnlyCommitterForTests((
+                    expectedRevision, current, lease) -> {
+                commitCalls.incrementAndGet();
+                fixture.coordinator().commitFdOnly(
+                        expectedRevision, current, lease);
+            });
+            fixture.mutations().setSessionAdmissionHookForTests(() -> {
+                hookCalls.incrementAndGet();
+                eventSuppressed.set(fixture.coordinator().handleFileEvent(
+                        new FileEvent(fixture.dataObject().getModelFile())));
+                after.set(fixture.coordinator().closeRevision());
+            });
+
+            FlutterDesignerMutationController.MutationResult rejected =
+                    fixture.mutations().submit(
+                            baselineToken,
+                            new MoveWidget(
+                                    FIRST_ID,
+                                    new WidgetPlacement(
+                                            COLUMN_ID, CHILDREN, 1)),
+                            "Column.children")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains(
+                    "full pair authority revision became stale"),
+                    rejected::reason);
+            assertEquals(1, hookCalls.get());
+            assertEquals(0, commitCalls.get(),
+                    "a stale FD_ONLY command must fail before durable commit");
+            assertFalse(eventSuppressed.get());
+            assertNotNull(after.get());
+            assertEquals(before.stateEpoch(), after.get().stateEpoch(),
+                    "a clean event must not rely on the visible pair epoch");
+            assertFalse(before.sameRevision(after.get()));
+            assertEquals(0, fixture.analysisCalls().get());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            assertNull(fixture.coordinator().stagedEvidence());
+            assertNull(fixture.coordinator().stagedProofSnapshot());
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertArrayEquals(fixture.baselineDart(),
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(),
+                    Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(),
+                    Files.readAllBytes(fixture.fdPath()));
+
+            FlutterDesignerMutationController.Snapshot recovered =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            baselineToken,
+                            List.of(FIRST_ID, SECOND_ID));
+            assertNotSame(baselineToken, recovered.token().orElseThrow());
+            assertNull(sessionOwner(fixture.mutations()));
+            assertFalse(fixture.dataObject().getCombinedUndoRedo()
+                    .designerSessionActive());
+        }
+    }
+
+    @Test
     void fdOnlyMoveAdoptsExactSavedRevisionAndAllowsNextPairedMutation()
             throws Exception {
         MutationFixture fixture = fixture(
@@ -3297,7 +3833,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
         MutationFixture fixture = fixture(
                 "mutation_fd_only_failure", columnExactPair());
         try (fixture) {
-            fixture.mutations().setFdOnlyCommitterForTests((current, lease) -> {
+            fixture.mutations().setFdOnlyCommitterForTests((
+                    expectedRevision, current, lease) -> {
                 assertSame(fixture.current(), current);
                 assertEquals(DesignerRevisionPersistenceKind.FD_ONLY,
                         lease.revision().persistenceKind());
@@ -3444,7 +3981,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
         try (fixture) {
             CountDownLatch enteredCommit = new CountDownLatch(1);
             CountDownLatch releaseCommit = new CountDownLatch(1);
-            fixture.mutations().setFdOnlyCommitterForTests((current, lease) -> {
+            fixture.mutations().setFdOnlyCommitterForTests((
+                    expectedRevision, current, lease) -> {
                 enteredCommit.countDown();
                 try {
                     if (!releaseCommit.await(10, TimeUnit.SECONDS)) {
@@ -3456,7 +3994,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     throw new IOException(
                             "FD_ONLY commit gate was interrupted", interrupted);
                 }
-                fixture.coordinator().commitFdOnly(current, lease);
+                fixture.coordinator().commitFdOnly(
+                        expectedRevision, current, lease);
             });
             CompletableFuture<FlutterDesignerMutationController.MutationResult>
                     pending = fixture.mutations().submit(

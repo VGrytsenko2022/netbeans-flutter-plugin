@@ -157,6 +157,30 @@ public final class FlutterDesignerDocumentController implements Node.Cookie {
     }
 
     /**
+     * Captures adoption authority for a Current verified by an active Design
+     * view reload.
+     *
+     * <p>Unlike durable save adoption, reopen re-anchoring has no authority
+     * once the last Design view closes. {@link #viewClosed()} advances the
+     * generation at that boundary, so a ticket captured here also becomes
+     * stale if the view closes before adoption.</p>
+     */
+    synchronized CurrentAdoptionTicket openViewCurrentAdoptionTicket(
+            FlutterDesignerDocumentState.Current expectedCurrent) {
+        Objects.requireNonNull(expectedCurrent, "expectedCurrent");
+        if (openViews == 0) {
+            throw new IllegalStateException(
+                    "Cannot adopt a Flutter Designer Current without an open Design view");
+        }
+        if (state != expectedCurrent) {
+            throw new IllegalStateException(
+                    "The expected Flutter Designer Current is no longer active");
+        }
+        return new CurrentAdoptionTicket(
+                this, expectedCurrent, generation.get());
+    }
+
+    /**
      * Installs one already-derived durable Current without running listeners.
      * The returned one-shot effects object is the sole publication authority.
      */

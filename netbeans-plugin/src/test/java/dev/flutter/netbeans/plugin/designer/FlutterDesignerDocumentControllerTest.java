@@ -445,6 +445,65 @@ class FlutterDesignerDocumentControllerTest {
     }
 
     @Test
+    void openViewAdoptionTicketRejectsAClosedViewEvenWhenCurrentIsRetained()
+            throws Exception {
+        Pair pair = pair("closed_view_adoption", validDocument(
+                "closed_view_adoption.dart", "flutter.widgets.SizedBox"));
+        FlutterDesignerDocumentController controller = controller(pair);
+        CountDownLatch initialPublished = new CountDownLatch(1);
+        controller.addPropertyChangeListener(event -> {
+            if (event.getNewValue() instanceof FlutterDesignerDocumentState.Current) {
+                initialPublished.countDown();
+            }
+        });
+        controller.viewOpened();
+        assertTrue(initialPublished.await(5, TimeUnit.SECONDS));
+        FlutterDesignerDocumentState.Current retained = assertInstanceOf(
+                FlutterDesignerDocumentState.Current.class,
+                controller.state());
+
+        controller.viewClosed();
+
+        assertSame(retained, controller.state(),
+                "closing the view retains presentation state only");
+        assertThrows(IllegalStateException.class,
+                () -> controller.openViewCurrentAdoptionTicket(retained));
+    }
+
+    @Test
+    void lastViewCloseInvalidatesAnOpenViewAdoptionTicket()
+            throws Exception {
+        Pair pair = pair("last_view_adoption", validDocument(
+                "last_view_adoption.dart", "flutter.widgets.SizedBox"));
+        Pair savedPair = pair("last_view_adoption", validDocument(
+                "last_view_adoption.dart", "flutter.widgets.Center"));
+        FlutterDesignerDocumentController controller = controller(pair);
+        CountDownLatch initialPublished = new CountDownLatch(1);
+        controller.addPropertyChangeListener(event -> {
+            if (event.getNewValue() instanceof FlutterDesignerDocumentState.Current) {
+                initialPublished.countDown();
+            }
+        });
+        controller.viewOpened();
+        assertTrue(initialPublished.await(5, TimeUnit.SECONDS));
+        FlutterDesignerDocumentState.Current expected = assertInstanceOf(
+                FlutterDesignerDocumentState.Current.class,
+                controller.state());
+        FlutterDesignerDocumentState.Current saved = assertInstanceOf(
+                FlutterDesignerDocumentState.Current.class,
+                load(savedPair));
+        FlutterDesignerDocumentController.CurrentAdoptionTicket ticket =
+                controller.openViewCurrentAdoptionTicket(expected);
+
+        controller.viewClosed();
+
+        assertThrows(IllegalStateException.class,
+                () -> controller.adoptCurrentDeferred(ticket, saved));
+        assertSame(expected, controller.state(),
+                "a ticket invalidated by the last close must not mutate state");
+    }
+
+    @Test
     void adoptedCurrentCannotBeOverwrittenByWorkerThatPassedAdvisoryChecks()
             throws Exception {
         Pair pair = pair("adoption_worker_race", validDocument(

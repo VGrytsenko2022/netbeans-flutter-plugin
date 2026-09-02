@@ -194,6 +194,19 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     /**
+     * Atomically samples the visible pair state and the stronger monotonic
+     * revision used to reject external-event and source-state ABA races.
+     */
+    BindingRevision bindingRevision() {
+        synchronized (this) {
+            return new BindingRevision(
+                    state,
+                    new CloseRevision(
+                            this, epoch, externalEventEpoch, sourceStateEpoch));
+        }
+    }
+
+    /**
      * One atomic, monotonic pair-authority token for an asynchronous editor
      * close.  The document itself is deliberately sampled outside this
      * monitor: entering CES while holding the pair coordinator would invert
@@ -206,6 +219,14 @@ final class PairSaveCoordinator implements Node.Cookie,
             return new CloseRevision(
                     this, epoch, externalEventEpoch, sourceStateEpoch);
         }
+    }
+
+    /** Caller must hold this coordinator's monitor. */
+    private boolean ownsCloseRevisionLocked(CloseRevision expected) {
+        return expected.coordinatorIdentity() == this
+                && expected.stateEpoch() == epoch
+                && expected.externalEventEpoch() == externalEventEpoch
+                && expected.sourceStateEpoch() == sourceStateEpoch;
     }
 
     boolean canBeginPairDelete() {
@@ -763,7 +784,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
             LiveDartDocumentSnapshot initialLive) throws IOException {
         return beginPairPreparationInternal(
-                null, expectedCurrent, commandLease, initialLive);
+                null, null, expectedCurrent, commandLease, initialLive);
     }
 
     /**
@@ -780,11 +801,32 @@ final class PairSaveCoordinator implements Node.Cookie,
                     "expectedEpoch must not be negative");
         }
         return beginPairPreparationInternal(
-                expectedEpoch, expectedCurrent, commandLease, initialLive);
+                expectedEpoch, null, expectedCurrent, commandLease, initialLive);
+    }
+
+    /**
+     * Reserves the CLEAN pair pipeline only if every authority counter which
+     * minted the writable presentation token is still exact. Unlike the
+     * compatibility epoch overload, this also rejects clean external-event and
+     * source-state ABA before the command lease is claimed.
+     */
+    PairPreparation beginPairPreparation(
+            CloseRevision expectedRevision,
+            FlutterDesignerDocumentState.Current expectedCurrent,
+            DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
+            LiveDartDocumentSnapshot initialLive) throws IOException {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        return beginPairPreparationInternal(
+                expectedRevision.stateEpoch(),
+                expectedRevision,
+                expectedCurrent,
+                commandLease,
+                initialLive);
     }
 
     private PairPreparation beginPairPreparationInternal(
             Long expectedEpoch,
+            CloseRevision expectedRevision,
             FlutterDesignerDocumentState.Current expectedCurrent,
             DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
             LiveDartDocumentSnapshot initialLive) throws IOException {
@@ -800,6 +842,13 @@ final class PairSaveCoordinator implements Node.Cookie,
         boolean commandClaimed = false;
         synchronized (this) {
             try {
+                if (expectedRevision != null
+                        && !ownsCloseRevisionLocked(expectedRevision)) {
+                    throw new StalePairEpochException(
+                            "The selected Flutter Designer pair epoch changed "
+                            + "before command reservation, or its full pair "
+                            + "authority revision became stale");
+                }
                 if (expectedEpoch != null && epoch != expectedEpoch) {
                     throw new StalePairEpochException(
                             "The selected Flutter Designer pair epoch changed before command reservation");
@@ -1040,12 +1089,59 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     /**
+     * Verifies the exact READY-side authority immediately before an FD-only
+     * command crosses its adoption boundary. The durable commit repeats this
+     * check while reserving the coordinator, so an event between the two
+     * checks also fails stale before disk I/O.
+     */
+    void requireFdOnlyAdoptionFence(
+            CloseRevision expectedRevision,
+            FlutterDesignerDocumentState.Current expectedCurrent)
+            throws IOException {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        Objects.requireNonNull(expectedCurrent, "expectedCurrent");
+        synchronized (this) {
+            if (!ownsCloseRevisionLocked(expectedRevision)) {
+                throw new StalePairEpochException(
+                        "The selected Flutter Designer pair epoch changed "
+                        + "before Designer-only command adoption, or its full "
+                        + "pair authority revision became stale");
+            }
+            ensureStageableLocked();
+            if (controller.state() != expectedCurrent) {
+                throw new StalePairEpochException(
+                        "The exact loaded Designer revision changed before "
+                        + "Designer-only command adoption");
+            }
+        }
+    }
+
+    /** Compatibility seam for direct coordinator callers without a UI token. */
+    void commitFdOnly(
+            FlutterDesignerDocumentState.Current expectedCurrent,
+            DesignerCommandSessionOrchestrator.DurableSaveLease lease)
+            throws IOException {
+        commitFdOnlyInternal(null, expectedCurrent, lease);
+    }
+
+    /**
      * Commits one identity-bound Designer revision which changes only the
-     * exact {@code .fd} bytes. This is an internal synchronous persistence
-     * boundary; it deliberately does not invoke the NetBeans editor
-     * serializer, source analyzer, live-document apply or source Undo/Redo.
+     * exact {@code .fd} bytes and still owns the READY-side pair authority.
+     * This is an internal synchronous persistence boundary; it deliberately
+     * does not invoke the NetBeans editor serializer, source analyzer,
+     * live-document apply or source Undo/Redo.
      */
     void commitFdOnly(
+            CloseRevision expectedRevision,
+            FlutterDesignerDocumentState.Current expectedCurrent,
+            DesignerCommandSessionOrchestrator.DurableSaveLease lease)
+            throws IOException {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        commitFdOnlyInternal(expectedRevision, expectedCurrent, lease);
+    }
+
+    private void commitFdOnlyInternal(
+            CloseRevision expectedRevision,
             FlutterDesignerDocumentState.Current expectedCurrent,
             DesignerCommandSessionOrchestrator.DurableSaveLease lease)
             throws IOException {
@@ -1054,6 +1150,16 @@ final class PairSaveCoordinator implements Node.Cookie,
 
         FdOnlyEvidence evidence;
         try {
+            if (expectedRevision != null) {
+                synchronized (this) {
+                    if (!ownsCloseRevisionLocked(expectedRevision)) {
+                        throw new StalePairEpochException(
+                                "The selected Flutter Designer pair epoch changed "
+                                + "before Designer-only save preflight, or its full "
+                                + "pair authority revision became stale");
+                    }
+                }
+            }
             evidence = verifyFdOnlyEvidence(expectedCurrent, lease);
             rejectForeignSaveCookie();
         } catch (IOException | RuntimeException failure) {
@@ -1065,6 +1171,13 @@ final class PairSaveCoordinator implements Node.Cookie,
         StateChange change;
         try {
             synchronized (this) {
+                if (expectedRevision != null
+                        && !ownsCloseRevisionLocked(expectedRevision)) {
+                    throw new StalePairEpochException(
+                            "The selected Flutter Designer pair epoch changed "
+                            + "before Designer-only save reservation, or its full "
+                            + "pair authority revision became stale");
+                }
                 ensureStageableLocked();
                 if (sourceDirty || failedSavePending || editor.sourceModified()) {
                     throw new IOException(
@@ -8655,6 +8768,20 @@ final class PairSaveCoordinator implements Node.Cookie,
                     && stateEpoch == other.stateEpoch
                     && externalEventEpoch == other.externalEventEpoch
                     && sourceStateEpoch == other.sourceStateEpoch;
+        }
+    }
+
+    /** One untorn pair snapshot for identity-sensitive controller binding. */
+    record BindingRevision(
+            PairSaveCoordinatorSnapshot state,
+            CloseRevision closeRevision) {
+        BindingRevision {
+            Objects.requireNonNull(state, "state");
+            Objects.requireNonNull(closeRevision, "closeRevision");
+            if (state.epoch() != closeRevision.stateEpoch()) {
+                throw new IllegalArgumentException(
+                        "Pair binding state and close revision must share one epoch");
+            }
         }
     }
 

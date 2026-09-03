@@ -658,6 +658,8 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyName("size"),
                         new PropertyValue.SizeValue(
                                 BigDecimal.valueOf(100), BigDecimal.valueOf(100))),
+                "flutter.widgets.Transform", Map.of(
+                        new PropertyName("transform"), identityMatrix()),
                 "flutter.widgets.Image", Map.of(
                         new PropertyName("image"),
                         new PropertyValue.ImageProviderValue(
@@ -694,6 +696,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
+                "flutter.widgets.Transform",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -731,7 +734,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(669, writableCount,
+        assertEquals(674, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -739,9 +742,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
-                + "Offstage, SizedOverflowBox, ListView, "
+                + "Offstage, SizedOverflowBox, Transform, ListView, "
                 + "and Image leaves");
-        assertEquals(652, nonScaffoldWritableCount,
+        assertEquals(657, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1407,6 +1410,126 @@ class FlutterWidgetPropertiesNodeTest {
                         "rather than tight constraints")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "may paint outside")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void transformProjectsMatrixPivotAlignmentHitTestsQualityAndChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Transform");
+        StableId id = StableId.parse("1bbc0435-da77-41ab-88b4-ae10f1e62712");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                "transform", "origin", "alignment", "transformHitTests", "filterQuality"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Paint-time Matrix4, pivot origin, alignment, hit-testing, filter quality, "
+                + "and optional child contract for the selected Transform widget; layout "
+                + "size is unchanged.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> transform = cellProperty(
+                property(node, "transform"));
+        Node.Property<FlutterPropertyCellValue> origin = cellProperty(
+                property(node, "origin"));
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        Node.Property<FlutterPropertyCellValue> hitTests = cellProperty(
+                property(node, "transformHitTests"));
+        Node.Property<FlutterPropertyCellValue> quality = cellProperty(
+                property(node, "filterQuality"));
+        PropertyEditor transformEditor = transform.getPropertyEditor();
+        transformEditor.setValue(transform.getValue());
+        PropertyEditor originEditor = origin.getPropertyEditor();
+        originEditor.setValue(origin.getValue());
+        assertAll(
+                () -> assertEquals("Transform", transform.getDisplayName()),
+                () -> assertEquals(identityMatrix(),
+                        transform.getValue().explicitValue().orElseThrow()),
+                () -> assertEquals("Identity matrix", transformEditor.getAsText()),
+                () -> assertTrue(transformEditor.supportsCustomEditor()),
+                () -> assertFalse(transform.supportsDefaultValue()),
+                () -> assertFalse(transform.isDefaultValue()),
+                () -> assertTrue(transform.getShortDescription().contains(
+                        "Required finite 4×4 column-major Matrix4")),
+                () -> assertTrue(transform.getShortDescription().contains(
+                        "identity matrix")),
+                () -> assertTrue(transform.getShortDescription().contains(
+                        "not the child's layout size")),
+                () -> assertEquals("Origin", origin.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), origin.getValue()),
+                () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        originEditor.getAsText()),
+                () -> assertTrue(originEditor.supportsCustomEditor()),
+                () -> assertTrue(origin.supportsDefaultValue()),
+                () -> assertTrue(origin.getShortDescription().contains("finite signed")),
+                () -> assertTrue(origin.getShortDescription().contains("negative dx and dy")),
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "ambient TextDirection")),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "Omission passes null and adds no alignment pivot")),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "Center defaults belong only to unsupported Transform convenience")),
+                () -> assertEquals("Transform hit tests", hitTests.getDisplayName()),
+                () -> assertTrue(hitTests.getShortDescription().contains("default true")),
+                () -> assertEquals("Filter quality", quality.getDisplayName()),
+                () -> assertEquals(
+                        List.of(FlutterWidgetPropertiesNode.NOT_SET,
+                                "none", "low", "medium", "high"),
+                        List.of(quality.getPropertyEditor().getTags())),
+                () -> assertTrue(quality.getShortDescription().contains(
+                        "higher quality can require more rendering work")));
+
+        transform.restoreDefaultValue();
+        assertTrue(commands.isEmpty(),
+                "a required Transform matrix must never expose Restore Default");
+        assertThrows(IllegalArgumentException.class,
+                () -> transform.setValue(FlutterPropertyCellValue.unset()));
+
+        PropertyValue.Matrix4Value translated = translatedMatrix("12.5", "-8");
+        PropertyValue.OffsetValue pivot = new PropertyValue.OffsetValue(
+                new BigDecimal("-4.25"), new BigDecimal("6.5"));
+        PropertyValue.AlignmentGeometryValue directional =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                        BigDecimal.ONE,
+                        BigDecimal.ONE.negate());
+        PropertyValue.BooleanValue untransformedHitTests =
+                new PropertyValue.BooleanValue(false);
+        PropertyValue.EnumValue highQuality =
+                new PropertyValue.EnumValue("FilterQuality", "high");
+        transform.setValue(FlutterPropertyCellValue.explicit(translated));
+        origin.setValue(FlutterPropertyCellValue.explicit(pivot));
+        alignment.setValue(FlutterPropertyCellValue.explicit(directional));
+        hitTests.setValue(FlutterPropertyCellValue.explicit(untransformedHitTests));
+        quality.setValue(FlutterPropertyCellValue.explicit(highQuality));
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("transform"), translated),
+                new SetProperty(id, new PropertyName("origin"), pivot),
+                new SetProperty(id, new PropertyName("alignment"), directional),
+                new SetProperty(id, new PropertyName("transformHitTests"),
+                        untransformedHitTests),
+                new SetProperty(id, new PropertyName("filterQuality"), highQuality)),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "laid out at its ordinary size")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "does not change parent layout")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "hit testing follows the painted child")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
@@ -3441,7 +3564,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyThreeCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyFourCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3473,6 +3596,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
+                "flutter.widgets.Transform",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3504,7 +3628,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(33, iconPaths.size(),
+        assertEquals(34, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 
@@ -3512,6 +3636,20 @@ class FlutterWidgetPropertiesNodeTest {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(typeId))
                 .orElseThrow();
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        return translatedMatrix("0", "0");
+    }
+
+    private static PropertyValue.Matrix4Value translatedMatrix(String dx, String dy) {
+        java.util.ArrayList<BigDecimal> storage = new java.util.ArrayList<>(16);
+        for (int index = 0; index < 16; index++) {
+            storage.add(index % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO);
+        }
+        storage.set(12, new BigDecimal(dx));
+        storage.set(13, new BigDecimal(dy));
+        return new PropertyValue.Matrix4Value(storage);
     }
 
     private static java.util.List<String> names(Node.Property<?>[] properties) {

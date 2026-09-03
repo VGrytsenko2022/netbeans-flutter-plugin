@@ -18,10 +18,11 @@ with `ListView`, ADR-048 begins the post-core surface with `Wrap`, ADR-049 adds
 `FittedBox`, ADR-050 adds `ConstrainedBox`, ADR-051 adds `UnconstrainedBox`,
 ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, ADR-054 adds `Flexible`,
 ADR-055 adds `Spacer`, ADR-056 adds `Baseline`, ADR-057 adds `IntrinsicHeight`,
-ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, and ADR-060 establishes
-the current `SizedOverflowBox` surface: 669 typed rows across thirty-three
-widgets, twenty-eight const-constructor definitions and 1,056 Palette/DnD
-candidates, including 908 accepted and 148 rejected cells. The 652-field
+ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, ADR-060 adds
+`SizedOverflowBox`, and ADR-061 establishes the current `Transform` surface:
+674 typed rows across thirty-four widgets, twenty-nine const-constructor
+definitions and 1,122 Palette/DnD candidates, including 969 accepted and 153
+rejected cells. The 657-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -31,7 +32,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-060 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-061 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -102,7 +103,8 @@ contract. Typed `IconDataValue` and `PropertyValueKind.ICON_DATA` established
 `API_VERSION == 4`. ADR-039 added exported `ImageProviderValue` and established
 `API_VERSION == 5`. ADR-050 added finite-or-positive-infinite box-constraint
 bounds and established `API_VERSION == 6`; ADR-060's atomic Size value
-establishes the current `API_VERSION == 7`, and API-1 through API-6
+established `API_VERSION == 7`; ADR-061's atomic signed Offset value establishes
+the current `API_VERSION == 8`, and API-1 through API-7
 contributors fail closed before their definitions are loaded. This is not yet a permanent 1.0
 compatibility promise. Further incompatible evolution should move the SPI to a
 dedicated module/new package boundary rather than silently breaking extensions
@@ -275,7 +277,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-060 make 652 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-061 make 657 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -291,7 +293,8 @@ required properties plus optional child slot, IntrinsicHeight's property-free
 optional child slot, IntrinsicWidth's two optional step properties plus optional
 child slot, Offstage's optional boolean plus optional child slot, and
 SizedOverflowBox's required structured size, optional alignment and optional
-child slot.
+child slot, and Transform's required matrix, optional origin/alignment/hit-test/
+filter values and optional child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -323,18 +326,19 @@ and 128 rejected), ADR-057 established the thirty-source, 870-candidate matrix
 (737 accepted and 133 rejected), ADR-058 established the thirty-one-source,
 930-candidate matrix (792 accepted and 138 rejected), ADR-059 established the
 thirty-two-source, 992-candidate matrix (849 accepted and 143 rejected), and
-ADR-060 establishes the current thirty-three-source, 1,056-candidate matrix
-(908 accepted and 148 rejected).
+ADR-060 established the thirty-three-source, 1,056-candidate matrix (908
+accepted and 148 rejected), and ADR-061 establishes the current
+thirty-four-source, 1,122-candidate matrix (969 accepted and 153 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v13 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `ListView`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `ListView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -349,16 +353,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-three-widget model for Mobile, Tablet,
+Canvas now renders the validated thirty-four-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty-three Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,056-cell candidate matrix across thirty insertable any-widget and two
-trait-bound destination slots; 908 cells are accepted and 148 rejected.
+those thirty-four Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,122-cell candidate matrix across thirty-one insertable any-widget and
+two trait-bound destination slots; 969 cells are accepted and 153 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
-protocol v13's
+protocol v14's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
 screenshot or framebuffer-pixel stream.
@@ -2346,7 +2350,7 @@ The Designer adds no sizing wrapper; it exposes a bounded 36x36 selection and
 empty-child drop target only when the real result is zero-sized.
 
 SizedOverflowBox adds two writable rows, one ordinary source and one insertable
-any-widget destination to ADR-059. The current surface contains 669 writable
+any-widget destination to ADR-059. That milestone contained 669 writable
 rows, with 652 outside Scaffold, across 33 widgets and 28 const-constructor
 definitions. Thirty-three sources across 30 any-widget plus two trait-bound
 destinations form 1,056 candidates. The new destination accepts 29 old
@@ -2355,8 +2359,69 @@ enters all 30 any-widget destinations and neither trait-bound destination. This
 adds 59 accepted and five rejected cells, producing 908 accepted and 148
 rejected overall. The Layout Palette contains 25 items.
 
-The practical Material/Base Designer backlog is now 33/92 complete, with 59
+The practical Material/Base Designer backlog was then 33/92 complete, with 59
 remaining. This is a project planning target, not a normative complete list of
 Flutter widgets. The first-class Size value advances `.fd` schema to v8 and the
 contributor Catalog API to 7; Canvas model advances to v13. NBFC framing plus
 Canvas control/wire remain version 1.
+
+## ADR-061 — Transform adds atomic Offset and paint-time geometry
+
+Accepted. The canonical built-in is the const
+[`flutter.widgets.Transform(...)`](https://api.flutter.dev/flutter/widgets/Transform/Transform.html)
+default constructor from `package:flutter/widgets.dart`, published in the
+**Layout** Palette category at order 200 immediately after SizedOverflowBox,
+matching Flutter's canonical Layout catalog. It supports typed Properties and
+exact-slot presentation, Create, native and exact-Web Canvas,
+Palette/tree/Canvas DnD, same-tree movement, deterministic Dart generation,
+Save/reopen and further editing, and chronological Undo/Redo. Reviewed
+light/dark SVG icons at 16 and 32 pixels provide its Palette identity.
+
+The complete reviewed non-`key` Flutter 3.44.8 `Transform.new` surface contains
+required named `Matrix4 transform`, optional named `Offset origin`, optional
+named `AlignmentGeometry alignment`, optional named boolean
+`transformHitTests` with framework default `true`, optional named
+`FilterQuality filterQuality`, and one optional single any-widget `child`, in
+constructor order. The model adds a first-class atomic `offset` value whose
+`dx` and `dy` are signed finite Dart-representable doubles. A detached prototype
+stores `Matrix4.identity()` so the required value is immediately editable;
+origin, alignment, hit-test behavior and filter quality remain omitted. Wrong
+kinds, missing/extra Offset fields, non-finite coordinates, invalid enum values
+and raw Dart fail closed. Physical and directional alignment values remain
+fully supported.
+
+Generated Dart and both Canvas projections construct the real Flutter
+Transform. Its RenderObject lays out the child without applying the matrix and
+uses the child's ordinary size; the transform is applied during paint. Origin
+and alignment are additive pivot inputs, optional filter quality is preserved,
+and child hit testing follows the inverse paint transform when
+`transformHitTests` is true; false retains the child's untransformed hit-test
+coordinates. Designer selection and drop geometry follow the same effective
+transform without changing Flutter layout and expose a bounded 36x36 target
+only when the real result is zero-sized. Non-finite projected bounds,
+projective-horizon crossings and non-invertible point projection omit the
+synthetic Canvas hit region rather than inventing one; finite rotated/skewed
+drop targeting verifies exact local containment instead of the transformed
+axis-aligned bounding-box corners. Singular and otherwise valid finite matrices
+remain legal Flutter values rather than being replaced by a Designer approximation.
+
+This slice intentionally models `Transform.new`. The `.rotate`, `.translate`,
+`.scale` and `.flip` convenience constructors remain outside the admitted
+constructor identity; their resulting effects remain expressible through the
+editable Matrix4.
+
+Transform adds five writable rows, one ordinary source and one insertable
+any-widget destination to ADR-060. The current surface contains 674 writable
+rows, with 657 outside Scaffold, across 34 widgets and 29 const-constructor
+definitions. Thirty-four sources across 31 any-widget plus two trait-bound
+destinations form 1,122 candidates. The new destination accepts 30 old
+unrestricted sources and rejects Expanded, Flexible and Spacer; the new source
+enters all 31 any-widget destinations and neither trait-bound destination. This
+adds 61 accepted and five rejected cells, producing 969 accepted and 153
+rejected overall. The Layout Palette contains 26 items.
+
+The practical Material/Base Designer backlog is now 34/92 complete, with 58
+remaining. This is a project planning target, not a normative complete list of
+Flutter widgets. The first-class Offset value advances `.fd` schema to v9 and
+the contributor Catalog API to 8; Canvas model advances to v14. NBFC framing
+plus Canvas control/wire remain version 1.

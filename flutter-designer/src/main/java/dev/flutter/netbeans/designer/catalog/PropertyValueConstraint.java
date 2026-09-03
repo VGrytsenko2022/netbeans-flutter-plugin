@@ -24,6 +24,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.ShadowListValues,
         PropertyValueConstraint.FontVariationListValues,
         PropertyValueConstraint.AlignmentGeometryValues,
+        PropertyValueConstraint.OffsetValues,
         PropertyValueConstraint.SizeValues,
         PropertyValueConstraint.BoxConstraintsValues,
         PropertyValueConstraint.Matrix4Values,
@@ -54,6 +55,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.SHADOW_LIST
                     || kind == PropertyValueKind.FONT_VARIATION_LIST
                     || kind == PropertyValueKind.ALIGNMENT_GEOMETRY
+                    || kind == PropertyValueKind.OFFSET
                     || kind == PropertyValueKind.SIZE
                     || kind == PropertyValueKind.BOX_CONSTRAINTS
                     || kind == PropertyValueKind.MATRIX4
@@ -200,6 +202,26 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "physical or directional AlignmentGeometry";
+        }
+    }
+
+    /** Accepts finite signed Offset coordinates exactly representable as Dart doubles. */
+    record OffsetValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.OFFSET;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.OffsetValue offset
+                    && DartNumericLiterals.isRepresentableDouble(offset.dx())
+                    && DartNumericLiterals.isRepresentableDouble(offset.dy());
+        }
+
+        @Override
+        public String description() {
+            return "finite signed Offset coordinates";
         }
     }
 

@@ -25,10 +25,11 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(33, javaTypes.size(),
+        assertEquals(34, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
-                + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, and SizedOverflowBox");
+                + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
+                + "and Transform");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -49,6 +50,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.IntrinsicWidth"));
         assertTrue(javaTypes.contains("flutter.widgets.Offstage"));
         assertTrue(javaTypes.contains("flutter.widgets.SizedOverflowBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.Transform"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
@@ -125,6 +127,8 @@ class FlutterWidgetCapabilityParityTest {
                 "Offstage.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.SizedOverflowBox"),
                 "SizedOverflowBox.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.Transform"),
+                "Transform.child must remain a Java-admitted DnD target");
 
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),

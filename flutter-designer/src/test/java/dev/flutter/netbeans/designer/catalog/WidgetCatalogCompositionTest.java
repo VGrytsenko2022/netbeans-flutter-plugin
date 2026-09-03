@@ -65,7 +65,7 @@ class WidgetCatalogCompositionTest {
         assertEquals("Text", text.dartClassName());
         assertTrue(result.diagnostics().stream()
                 .anyMatch(value -> value.code() == CatalogDiagnosticCode.RESERVED_WIDGET_TYPE));
-        assertEquals(33, result.catalog().definitions().size());
+        assertEquals(34, result.catalog().definitions().size());
     }
 
     @Test
@@ -87,17 +87,17 @@ class WidgetCatalogCompositionTest {
     }
 
     @Test
-    void previousApiVersionIsRejectedAfterBoxConstraintsExpandedItsBoundDomain() {
-        Contributor api5 = new Contributor(
-                "com.example", 5, List.of(definition("com.example.Card")));
+    void previousApiVersionIsRejectedAfterOffsetExpandedItsBoundDomain() {
+        Contributor api7 = new Contributor(
+                "com.example", 7, List.of(definition("com.example.Card")));
 
-        CatalogBuildResult result = WidgetCatalogComposition.compose(empty(), List.of(api5));
+        CatalogBuildResult result = WidgetCatalogComposition.compose(empty(), List.of(api7));
 
         assertTrue(result.catalog().definitions().isEmpty());
         CatalogDiagnostic diagnostic = result.diagnostics().getFirst();
         assertEquals(CatalogDiagnosticCode.UNSUPPORTED_API_VERSION, diagnostic.code());
-        assertTrue(diagnostic.message().contains("Expected catalog API 7"));
-        assertTrue(diagnostic.message().contains("received 5"));
+        assertTrue(diagnostic.message().contains("Expected catalog API 8"));
+        assertTrue(diagnostic.message().contains("received 7"));
     }
 
     @Test

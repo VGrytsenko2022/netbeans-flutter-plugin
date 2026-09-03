@@ -31,6 +31,7 @@ public sealed interface PropertyValue permits
         PropertyValue.FontFeatureListValue,
         PropertyValue.FontVariationListValue,
         PropertyValue.AlignmentGeometryValue,
+        PropertyValue.OffsetValue,
         PropertyValue.SizeValue,
         PropertyValue.BoxConstraintsValue,
         PropertyValue.Matrix4Value,
@@ -649,6 +650,19 @@ public sealed interface PropertyValue permits
                         HorizontalBasis.values(), wireName,
                         HorizontalBasis::wireName, "alignment horizontal basis");
             }
+        }
+    }
+
+    /** A typed Flutter {@code Offset} with normalized signed coordinates. */
+    record OffsetValue(BigDecimal dx, BigDecimal dy) implements PropertyValue {
+        public OffsetValue {
+            dx = ModelConstraints.normalizedNumber(dx, "offset dx");
+            dy = ModelConstraints.normalizedNumber(dy, "offset dy");
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.OFFSET;
         }
     }
 

@@ -1100,12 +1100,40 @@ accepted architecture is documented in
   result. Complete property and exact-slot editing, Palette/tree/Canvas DnD,
   same-tree movement, deterministic generation, Save/reopen and further
   editing, Undo/Redo, reviewed light/dark SVG icons and focused contract tests.
-  The current surface is 33 widgets, 28 const definitions and 669 rows (652
+  At that milestone the surface was 33 widgets, 28 const definitions and 669 rows (652
   outside Scaffold), with 25 Layout items. Thirty-three sources across 30
   insertable any-widget plus two trait destinations form 1,056 candidates: 908
-  accepted and 148 rejected. The practical 92-widget backlog is 33/92 complete
-  with 59 remaining. `.fd` schema is v8, Catalog API is 7 and Canvas model is
-  v13; NBFC framing/control/wire remains v1.
+  accepted and 148 rejected. The practical 92-widget backlog was 33/92 complete
+  with 59 remaining. `.fd` schema was v8, Catalog API was 7 and Canvas model was
+  v13; NBFC framing/control/wire remained v1.
+- [x] Complete const
+  [`Transform`](https://api.flutter.dev/flutter/widgets/Transform/Transform.html)
+  as the fourteenth post-core Palette vertical slice at Layout order 200,
+  immediately after SizedOverflowBox in Flutter's canonical Layout catalog.
+  Its complete non-`key` Flutter 3.44.8 `Transform.new` surface exposes required
+  structured `Matrix4 transform`, optional signed finite `Offset origin`,
+  optional physical/directional `AlignmentGeometry alignment`, optional boolean
+  `transformHitTests` with framework default `true`, optional
+  `FilterQuality.none/low/medium/high` and one optional single any-widget
+  `child`. Add the first atomic Offset value to persistence; detached prototypes
+  store only `Matrix4.identity()`, while all optional values remain omitted.
+  Generated Dart and both Canvas projections construct the real paint-time
+  Transform without changing layout size, compose origin and alignment, apply
+  optional filtering and transform child hit tests exactly when
+  `transformHitTests` resolves to true. Keep
+  Designer selection/drop geometry on the same effective transform without
+  changing layout, and use a bounded 36x36 target only for a true zero-size
+  result. Complete property and exact-slot editing, Palette/tree/Canvas DnD,
+  same-tree movement, deterministic
+  generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
+  SVG icons and focused contract tests. The named `.rotate`, `.translate`,
+  `.scale` and `.flip` convenience constructors remain explicitly outside this
+  slice. The current surface is 34 widgets, 29 const definitions and 674 rows
+  (657 outside Scaffold), with 26 Layout items. Thirty-four sources across 31
+  insertable any-widget plus two trait destinations form 1,122 candidates: 969
+  accepted and 153 rejected. The practical 92-widget backlog is 34/92 complete
+  with 58 remaining. `.fd` schema is v9, Catalog API is 8 and Canvas model is
+  v14; NBFC framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1123,8 +1151,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after SizedOverflowBox has yet been
-  assigned an explicit order. The current typed Properties slice spans all thirty-three
+  vertical slices. No specific widget after Transform has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty-four
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

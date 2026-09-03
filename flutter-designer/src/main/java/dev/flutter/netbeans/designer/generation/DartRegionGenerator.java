@@ -372,6 +372,13 @@ public final class DartRegionGenerator {
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
             if (value != null) {
+                if (node.type().value().equals("flutter.widgets.Transform")
+                        && !slot.parameter().required()
+                        && value instanceof WidgetSlot.SingleSlot single
+                        && single.child().isEmpty()) {
+                    // Preserve Transform.new's omitted nullable child in generated Dart.
+                    continue;
+                }
                 String slotPath = path + "/slots/" + pointer(slot.name().value());
                 arguments.add(new ConstructorArgument(
                         slot.parameter(),
@@ -3726,6 +3733,23 @@ public final class DartRegionGenerator {
                         path, Optional.of(widgetId))));
     }
 
+    private RenderedValue renderOffset(
+            PropertyValue.OffsetValue value,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "Offset");
+        String rendered = "const " + symbol.text() + '(' + dartDouble(value.dx())
+                + ", " + dartDouble(value.dy()) + ')';
+        return scalar(rendered, true, path, widgetId, context,
+                List.of(occurrence(
+                        "widget:" + widgetId + ":offset:" + path,
+                        "const ".length() + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path,
+                        Optional.of(widgetId))));
+    }
+
     private RenderedValue renderMatrix4(
             PropertyValue.Matrix4Value value,
             String path,
@@ -5159,6 +5183,9 @@ public final class DartRegionGenerator {
         if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
             return renderAlignmentGeometry(
                     alignment, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.OffsetValue offset) {
+            return renderOffset(offset, path, widgetId, context);
         }
         if (value instanceof PropertyValue.SizeValue size) {
             return renderSize(size, path, widgetId, context);

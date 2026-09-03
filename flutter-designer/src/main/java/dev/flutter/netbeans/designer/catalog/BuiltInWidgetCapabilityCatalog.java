@@ -48,6 +48,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.FONT_FEATURE_LIST,
                     PropertyValueKind.FONT_VARIATION_LIST,
                     PropertyValueKind.ALIGNMENT_GEOMETRY,
+                    PropertyValueKind.OFFSET,
                     PropertyValueKind.SIZE,
                     PropertyValueKind.BOX_CONSTRAINTS,
                     PropertyValueKind.MATRIX4,
@@ -174,6 +175,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.IntrinsicWidth", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Offstage", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SizedOverflowBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Transform", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -452,6 +454,23 @@ public final class BuiltInWidgetCapabilityCatalog {
                     Map.entry("alignment", constrainedSchema(
                             PropertyValueKind.ALIGNMENT_GEOMETRY,
                             "alignmentGeometry"))),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.Transform", projection(Map.ofEntries(
+                    requiredDefaultConstrainedProperty(
+                            "transform",
+                            "matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1",
+                            PropertyValueKind.MATRIX4,
+                            "matrix4"),
+                    Map.entry("origin", constrainedSchema(
+                            PropertyValueKind.OFFSET,
+                            "offset:finiteSigned")),
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    property("transformHitTests", PropertyValueKind.BOOLEAN),
+                    enumProperty(
+                            "filterQuality", "FilterQuality",
+                            "none", "low", "medium", "high")),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
@@ -1853,6 +1872,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.AlignmentGeometryValues) {
             return "alignmentGeometry";
         }
+        if (constraint instanceof PropertyValueConstraint.OffsetValues) {
+            return "offset:finiteSigned";
+        }
         if (constraint instanceof PropertyValueConstraint.SizeValues) {
             return "size:finiteNonNegative";
         }
@@ -1947,6 +1969,11 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (value instanceof PropertyValue.SizeValue size) {
             return "size:" + decimalText(size.width()) + ','
                     + decimalText(size.height());
+        }
+        if (value instanceof PropertyValue.Matrix4Value matrix) {
+            return "matrix4:" + matrix.storage().stream()
+                    .map(BuiltInWidgetCapabilityCatalog::decimalText)
+                    .collect(Collectors.joining(","));
         }
         if (value instanceof PropertyValue.BoxConstraintsValue constraints) {
             return "boxConstraints:"

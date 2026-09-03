@@ -29,6 +29,8 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v7.schema.json");
     private static final Path V8_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v8.schema.json");
+    private static final Path V9_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v9.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -203,8 +205,6 @@ class FdSchemaResourceTest {
                 V8_DOCUMENTATION_SCHEMA));
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v8 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v8");
         String schema = new String(packaged, StandardCharsets.UTF_8);
 
         assertFalse(schema.contains("\r"));
@@ -216,6 +216,32 @@ class FdSchemaResourceTest {
         assertTrue(schema.contains("\"minimum\": 0"));
         assertTrue(schema.contains(
                 "\"required\": [\n        \"kind\",\n        \"width\",\n        \"height\""));
+    }
+
+    @Test
+    void packagesCanonicalV9WithTypedFiniteSignedOffset() throws IOException {
+        byte[] packaged = loadPackagedV9Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V9_DOCUMENTATION_SCHEMA));
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v9 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v9");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:9\""));
+        assertTrue(schema.contains("\"const\": 9"));
+        assertTrue(schema.contains("\"$ref\": \"#/$defs/offsetValue\""));
+        assertTrue(schema.contains("\"const\": \"offset\""));
+        assertTrue(schema.contains(
+                "\"required\": [\n        \"kind\",\n        \"dx\",\n        \"dy\""));
+        int offset = schema.indexOf("\"offsetValue\"");
+        int size = schema.indexOf("\"sizeValue\"", offset);
+        assertTrue(offset >= 0 && size > offset);
+        assertFalse(schema.substring(offset, size).contains("\"minimum\""),
+                "Offset coordinates are signed");
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {
@@ -294,6 +320,16 @@ class FdSchemaResourceTest {
                 "The canonical schema v8 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV8()) {
             assertNotNull(input, "The canonical schema v8 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV9Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V9_RESOURCE),
+                "The canonical schema v9 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV9()) {
+            assertNotNull(input, "The canonical schema v9 resource must be readable");
             return input.readAllBytes();
         }
     }

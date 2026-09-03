@@ -581,6 +581,47 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void transformFamilyUsesExactReviewedMatrixPivotGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "transform.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=9, rx=1, stroke-dasharray=1.5 1, stroke-width=1, "
+                + "width=9, x=2, y=3]",
+                "polygon[points=5 2 13 5 11 14 3 11, stroke-linejoin=round, "
+                + "stroke-width=1]",
+                "circle[cx=8, cy=8, r=1, stroke-width=.5]",
+                "path[d=M11.5 2.5h2v2m0-2-2.25 2.25, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=18, rx=2, stroke-dasharray=3 2, stroke-width=2, "
+                + "width=18, x=4, y=6]",
+                "polygon[points=10 4 26 10 22 28 6 22, stroke-linejoin=round, "
+                + "stroke-width=2]",
+                "circle[cx=16, cy=16, r=2, stroke-width=1]",
+                "path[d=M23 5h4v4m0-4-4.5 4.5, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "polygon[fill=#D7F1FC, stroke=#42A5F5]",
+                "circle[fill=#D97706, stroke=#FFFFFF]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "polygon[fill=#294B5C, stroke=#64B5F6]",
+                "circle[fill=#FFB74D, stroke=#10202D]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void flexibleFamilyUsesExactReviewedLooseFlexGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "flexible.svg";
@@ -1090,6 +1131,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Offstage", ICON_ROOT + "offstage.svg");
         expected.put("flutter.widgets.SizedOverflowBox",
                 ICON_ROOT + "sizedoverflowbox.svg");
+        expected.put("flutter.widgets.Transform", ICON_ROOT + "transform.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);

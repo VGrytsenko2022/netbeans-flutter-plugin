@@ -4,7 +4,7 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v13 may additionally carry
+screenshots or framebuffer pixels. Model protocol v14 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
 
@@ -78,11 +78,11 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `Wrap`, `Container` and `Opacity`,
+`ListView`, `Wrap`, `Container`, `Opacity` and `Transform`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v13 carries the resolved project-theme id, seed, brightness,
+Model protocol v14 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-33 reviewed Canvas widgets. Palette insertion evaluates 1,056 exact
-source/destination cells across 33 draggable sources and 32 insertable reviewed
-slots; 908 are accepted and 148 cells are rejected. Expanded and Flexible are
+34 reviewed Canvas widgets. Palette insertion evaluates 1,122 exact
+source/destination cells across 34 draggable sources and 33 insertable reviewed
+slots; 969 are accepted and 153 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -526,3 +526,31 @@ any-widget and two trait destinations form 1,056 candidates: 908 accepted and
 with 59 remaining, and the Palette Layout category contains 25 items. The new
 closed atomic Size wire value advances `.fd` to schema v8, Catalog API to 7 and
 Canvas model to v13; NBFC framing/control/wire v1 remain unchanged.
+
+[`flutter.widgets.Transform`](https://api.flutter.dev/flutter/widgets/Transform/Transform.html)
+is the fourteenth post-core Canvas widget. Model protocol v14 adds the first
+atomic signed finite `Offset` value for its optional `origin`. The exact
+`Transform.new` projection requires a finite column-major 16-entry `Matrix4`,
+optionally resolves physical or directional `AlignmentGeometry`, preserves
+`transformHitTests` with its Flutter default of `true`, accepts nullable
+`FilterQuality.none/low/medium/high`, and exposes one optional single any-widget
+`child`. New prototypes send `Matrix4.identity()` while leaving every optional
+argument absent.
+
+Native and exact-Web views construct the real paint-time `Transform` outermost
+over Designer instrumentation. Layout therefore remains the child's real
+untransformed size, while painted content, selection geometry and drop-target
+geometry share Flutter's effective origin/alignment matrix. Child hit testing
+shares that matrix only when `transformHitTests` is true; false preserves the
+untransformed hit-test coordinate space.
+Non-finite projected bounds, projective-horizon crossings and non-invertible
+point projection fail closed without an invented drop region; finite
+rotated/skewed targets additionally require exact local containment rather than
+an axis-aligned bounding-box corner. Surface hover feedback is still outside
+the transformed subtree. Only a true
+zero-size result receives the bounded 36 x 36 non-layout-affecting Designer
+selection/drop target. The named rotate, translate, scale and flip convenience
+constructors are intentionally outside this slice. The aggregate catalog now
+has 34 widgets; 34 sources across 33 insertable destinations form 1,122 cells,
+with 969 accepted and 153 rejected. Canvas model protocol is v14; NBFC framing,
+control and wire remain v1.

@@ -124,6 +124,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName SOFT_WRAP = new PropertyName("softWrap");
     private static final PropertyName TEXT_ALIGN = new PropertyName("textAlign");
     private static final PropertyName SIZE = new PropertyName("size");
+    private static final PropertyName TRANSFORM = new PropertyName("transform");
+    private static final PropertyName ORIGIN = new PropertyName("origin");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -765,6 +767,70 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertNotSame(reopened.token().orElseThrow(),
                     furtherEdit.token().orElseThrow(),
                     "editing Size after reload must publish a new revision");
+        }
+    }
+
+    @Test
+    void savedTransformOriginSurvivesReloadAndAcceptsFurtherSignedEdit()
+            throws Exception {
+        PropertyValue.OffsetValue initial = new PropertyValue.OffsetValue(
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO);
+        PropertyValue.OffsetValue saved = new PropertyValue.OffsetValue(
+                new java.math.BigDecimal("-12.5"),
+                new java.math.BigDecimal("7.25"));
+        ExactPair durablePair;
+        try (MutationFixture fixture = fixture(
+                "mutation_saved_transform_origin_reload_further_edit",
+                transformExactPair(initial))) {
+            awaitReadyWithOrigin(fixture.mutations(), initial);
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            fixture.mutations().snapshot().token().orElseThrow(),
+                            new SetProperty(TEXT_ID, ORIGIN, saved),
+                            "Transform.origin")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            awaitReadyWithOrigin(fixture.mutations(), saved);
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] savedDart = evidence.candidateDartBytes();
+            byte[] savedFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), savedFd, savedDart);
+            awaitPairStatus(fixture.coordinator(), PairSaveCoordinatorStatus.CLEAN);
+            assertArrayEquals(savedDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(savedFd, Files.readAllBytes(fixture.fdPath()));
+            durablePair = new ExactPair(savedDart, savedFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_saved_transform_origin_reload_further_edit_reopened",
+                durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened =
+                    awaitReadyWithOrigin(fixture.mutations(), saved);
+
+            PropertyValue.OffsetValue editedAgain =
+                    new PropertyValue.OffsetValue(
+                            java.math.BigDecimal.valueOf(4),
+                            new java.math.BigDecimal("-8.5"));
+            FlutterDesignerMutationController.MutationResult second =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(TEXT_ID, ORIGIN, editedAgain),
+                            "Transform.origin")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    second.outcome(), second::reason);
+            FlutterDesignerMutationController.Snapshot furtherEdit =
+                    awaitReadyWithOrigin(fixture.mutations(), editedAgain);
+            assertNotSame(reopened.token().orElseThrow(),
+                    furtherEdit.token().orElseThrow(),
+                    "editing Offset after reload must publish a new revision");
         }
     }
 
@@ -4726,6 +4792,26 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new FdDocumentCodec().encode(exact).copyBytes());
     }
 
+    private ExactPair transformExactPair(PropertyValue.OffsetValue origin)
+            throws Exception {
+        DesignerDocument provisional = transformDocument(
+                descriptor("0".repeat(64), "0".repeat(64)), origin);
+        GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
+                .generate(provisional, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DesignerDocument exact = transformDocument(
+                descriptor(
+                        provisionalGenerated.imports().normalizedSha256(),
+                        provisionalGenerated.build().normalizedSha256()),
+                origin);
+        GeneratedDartRegions generated = new DartRegionGenerator()
+                .generate(exact, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        return new ExactPair(
+                source(generated).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+    }
+
     private ExactPair columnExactPair() throws Exception {
         DesignerDocument provisional = columnDocument(
                 descriptor("0".repeat(64), "0".repeat(64)));
@@ -5200,6 +5286,33 @@ class FlutterDesignerMutationControllerIntegrationTest {
             Thread.sleep(10);
         }
         throw new AssertionError("Timed out waiting for SizedOverflowBox.size="
+                + expectedValue + ": " + controller.snapshot());
+    }
+
+    private static FlutterDesignerMutationController.Snapshot awaitReadyWithOrigin(
+            FlutterDesignerMutationController controller,
+            PropertyValue.OffsetValue expectedValue) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            FlutterDesignerMutationController.Snapshot current =
+                    controller.snapshot();
+            PropertyValue value = current.document().isPresent()
+                    ? current.document().orElseThrow().root().properties()
+                            .get(ORIGIN)
+                    : null;
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.READY
+                    && expectedValue.equals(value)) {
+                return current;
+            }
+            if (current.status()
+                    == FlutterDesignerMutationController.Status.BLOCKED) {
+                throw new AssertionError(current.operation() + " failed for "
+                        + current.target() + ": " + current.message());
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for Transform.origin="
                 + expectedValue + ": " + controller.snapshot());
     }
 
@@ -5974,6 +6087,30 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Map.of(SIZE, size),
                 Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
         return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static DesignerDocument transformDocument(
+            DartSourceDescriptor source,
+            PropertyValue.OffsetValue origin) {
+        WidgetNode root = new WidgetNode(
+                TEXT_ID,
+                new WidgetTypeId("flutter.widgets.Transform"),
+                Map.of(
+                        TRANSFORM, identityMatrix(),
+                        ORIGIN, origin),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
+        return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        java.util.ArrayList<java.math.BigDecimal> storage =
+                new java.util.ArrayList<>(16);
+        for (int index = 0; index < 16; index++) {
+            storage.add(index % 5 == 0
+                    ? java.math.BigDecimal.ONE
+                    : java.math.BigDecimal.ZERO);
+        }
+        return new PropertyValue.Matrix4Value(storage);
     }
 
     private static DesignerDocument columnDocument(DartSourceDescriptor source) {

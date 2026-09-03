@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 13;
+const canvasModelProtocolVersion = 14;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -1089,6 +1089,8 @@ class CanvasValue {
           kind as String,
           _decodeAlignmentGeometry(object, path),
         );
+      case 'offset':
+        return CanvasValue(kind as String, _decodeOffset(object, path));
       case 'size':
         return CanvasValue(kind as String, _decodeSize(object, path));
       case 'boxConstraints':
@@ -1281,6 +1283,13 @@ class CanvasAlignmentGeometryValue {
   final String basis;
   final double horizontal;
   final double vertical;
+}
+
+class CanvasOffsetValue {
+  const CanvasOffsetValue({required this.dx, required this.dy});
+
+  final double dx;
+  final double dy;
 }
 
 class CanvasSizeValue {
@@ -2076,6 +2085,14 @@ CanvasAlignmentGeometryValue _decodeAlignmentGeometryFields(
   horizontal: _finiteNumber(object['horizontal'], '$path/horizontal'),
   vertical: _finiteNumber(object['vertical'], '$path/vertical'),
 );
+
+CanvasOffsetValue _decodeOffset(Map<String, Object?> object, String path) {
+  _exactKeys(object, path, const {'kind', 'dx', 'dy'});
+  return CanvasOffsetValue(
+    dx: _finiteNumber(object['dx'], '$path/dx'),
+    dy: _finiteNumber(object['dy'], '$path/dy'),
+  );
+}
 
 CanvasSizeValue _decodeSize(Map<String, Object?> object, String path) {
   _exactKeys(object, path, const {'kind', 'width', 'height'});
@@ -3792,6 +3809,25 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Transform': _WidgetSpec(
+    {
+      'transform': _PropertySpec(
+        {'matrix4'},
+        required: true,
+        creationDefaultFingerprint: 'matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1',
+      ),
+      'origin': _PropertySpec({'offset'}),
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'transformHitTests': _PropertySpec({'boolean'}),
+      'filterQuality': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'FilterQuality',
+        enumValues: {'none', 'low', 'medium', 'high'},
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Opacity': _WidgetSpec(
     {
       'opacity': _PropertySpec(
@@ -5333,6 +5369,13 @@ P|textHeightApplyLastDescent|boolean|0|-|-|boolean:any
 P|textHeightLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
 P|textScalerFactor|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|textWidthBasis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextWidthBasis:longestLine,parent
+W|flutter.widgets.Transform
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none
+P|origin|offset|0|-|-|offset:offset:finiteSigned
+P|transform|matrix4|1|matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1|-|matrix4:matrix4
+P|transformHitTests|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.UnconstrainedBox
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
@@ -5496,6 +5539,9 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   }
   if (kind == 'alignmentGeometry' || kind == 'matrix4') {
     return kind;
+  }
+  if (kind == 'offset') {
+    return 'offset:finiteSigned';
   }
   if (kind == 'imageProvider') {
     return 'imageProvider:v1:asset,exactAsset:package:exactScale:'

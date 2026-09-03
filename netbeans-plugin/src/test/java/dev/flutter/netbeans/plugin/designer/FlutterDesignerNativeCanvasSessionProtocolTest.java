@@ -507,8 +507,8 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             "9dd9e5e0-5364-4dcc-bd82-1a86345cd522");
     private static final WidgetTypeId TEXT = new WidgetTypeId(
             "flutter.widgets.Text");
-    private static final WidgetTypeId PADDING = new WidgetTypeId(
-            "flutter.widgets.Padding");
+    private static final WidgetTypeId TRANSFORM = new WidgetTypeId(
+            "flutter.widgets.Transform");
     private static final String DROP_TOKEN_A =
             "nbfdnd:v1:4f9719e3-fda7-46f4-8d75-57cc1d3bbc1b:"
             + "22d5a643-f6a2-4f56-bcef-b244c7c4c5a7";
@@ -944,11 +944,11 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
     }
 
     @Test
-    void exactCurrentVisiblePaletteDropIsDeliveredOnceAndReplayIsRejected()
+    void exactCurrentVisibleTransformPaletteDropIsDeliveredOnceAndReplayIsRejected()
             throws Exception {
         Harness harness = Harness.start(
                 document(DOCUMENT_A, ROOT, CHILD),
-                ignored -> Optional.of(PADDING));
+                ignored -> Optional.of(TRANSFORM));
         try {
             CanvasLayoutKey currentLayout = renderAndPresent(harness);
 
@@ -969,7 +969,7 @@ class FlutterDesignerNativeCanvasSessionProtocolTest {
             assertEquals(ROOT, delivered.parentWidgetId());
             assertEquals(new SlotName("children"), delivered.slotName());
             assertEquals(0, delivered.insertionIndex());
-            assertEquals(List.of(PADDING), harness.runnerPaletteDropTypes);
+            assertEquals(List.of(TRANSFORM), harness.runnerPaletteDropTypes);
         } finally {
             harness.close();
         }

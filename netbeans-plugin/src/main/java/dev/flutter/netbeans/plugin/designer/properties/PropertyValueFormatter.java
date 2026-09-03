@@ -66,6 +66,8 @@ public final class PropertyValueFormatter {
                     + number(alignment.vertical()) + ')';
             case PropertyValue.SizeValue size ->
                 number(size.width()) + " × " + number(size.height());
+            case PropertyValue.OffsetValue offset ->
+                "(" + number(offset.dx()) + ", " + number(offset.dy()) + ')';
             case PropertyValue.BoxConstraintsValue constraints ->
                 "w=" + range(constraints.minWidth(), constraints.maxWidth())
                     + ", h=" + range(constraints.minHeight(), constraints.maxHeight());

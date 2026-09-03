@@ -69,6 +69,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Offstage");
     private static final WidgetTypeId SIZED_OVERFLOW_BOX_TYPE =
             new WidgetTypeId("flutter.widgets.SizedOverflowBox");
+    private static final WidgetTypeId TRANSFORM_TYPE =
+            new WidgetTypeId("flutter.widgets.Transform");
     private static final PropertyName OFFSTAGE_PROPERTY =
             new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
@@ -691,6 +693,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (TRANSFORM_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out at its ordinary size before the required "
+                    + "Matrix4 is applied during painting. The transform does not change "
+                    + "parent layout or this widget's allocated size; Transform hit tests "
+                    + "controls whether hit testing follows the painted child. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -833,6 +846,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean intrinsicWidth = INTRINSIC_WIDTH_TYPE.equals(widget.type());
         boolean offstage = OFFSTAGE_TYPE.equals(widget.type());
         boolean sizedOverflowBox = SIZED_OVERFLOW_BOX_TYPE.equals(widget.type());
+        boolean transform = TRANSFORM_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -871,6 +885,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Required requested size, child alignment, parent-constraint "
                                         + "behavior, and optional overflowing child contract for "
                                         + "the selected SizedOverflowBox widget."
+                        : transform
+                                ? "Paint-time Matrix4, pivot origin, alignment, hit-testing, "
+                                        + "filter quality, and optional child contract for the "
+                                        + "selected Transform widget; layout size is unchanged."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -977,6 +995,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(),
                         sizedOverflowBoxPropertyDisplayName(property.name()),
                         sizedOverflowBoxPropertyDescription(property.name())));
+            } else if (transform) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        transformPropertyDisplayName(property.name()),
+                        transformPropertyDescription(property.name())));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -1264,6 +1288,48 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 + "1 can position the child beyond this box.";
             default -> "Explicit SizedOverflowBox value for "
                     + propertyName.value() + ".";
+        };
+    }
+
+    private static String transformPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "transform" -> "Transform";
+            case "origin" -> "Origin";
+            case "alignment" -> "Alignment";
+            case "transformHitTests" -> "Transform hit tests";
+            case "filterQuality" -> "Filter quality";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String transformPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "transform" ->
+                "Required finite 4×4 column-major Matrix4 applied while painting the "
+                + "optional child. Palette creation starts with the identity matrix. The "
+                + "matrix changes paint coordinates, not the child's layout size or the "
+                + "space allocated by the parent.";
+            case "origin" ->
+                "Optional finite signed logical-pixel Offset that shifts the transform "
+                + "origin relative to the widget's upper-left corner, or relative to the "
+                + "resolved alignment pivot when Alignment is also set. Omission applies "
+                + "no additional origin offset; negative dx and dy values are valid.";
+            case "alignment" ->
+                "Optional physical or directional point within this widget around which the "
+                + "Matrix4 is applied. Omission passes null and adds no alignment pivot, so "
+                + "the raw matrix uses the upper-left coordinate origin plus any explicit "
+                + "Origin offset. Center defaults belong only to unsupported Transform "
+                + "convenience constructors. Directional values resolve from ambient "
+                + "TextDirection (LTR/RTL), not from the theme.";
+            case "transformHitTests" ->
+                "When true, Flutter transforms hit-test coordinates so pointer interaction "
+                + "follows the painted child. False keeps hit testing in the untransformed "
+                + "coordinate space; omission preserves Flutter's default true.";
+            case "filterQuality" ->
+                "Optional sampling quality used while compositing the transformed child: "
+                + "none, low, medium, or high. Omission preserves Flutter's null default; "
+                + "higher quality can require more rendering work.";
+            default -> "Explicit Transform value for " + propertyName.value() + ".";
         };
     }
 

@@ -74,6 +74,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId OFFSTAGE = type("flutter.widgets.Offstage");
     private static final WidgetTypeId SIZED_OVERFLOW_BOX =
             type("flutter.widgets.SizedOverflowBox");
+    private static final WidgetTypeId TRANSFORM = type("flutter.widgets.Transform");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -1045,6 +1046,73 @@ class FlutterDesignerWidgetMovePlannerTest {
                             source.node().id(),
                             new FlutterDesignerWidgetMovePlanner.On(
                                     sizedOverflowBox.id())),
+                    source.label());
+            assertEquals(
+                    FlutterDesignerWidgetMovePlanner.RejectionCode
+                            .NO_COMPATIBLE_DESTINATION,
+                    rejected.code(),
+                    source.label());
+            assertTrue(rejected.reason().contains(source.label()), source.label());
+            assertTrue(rejected.reason().contains(
+                    "direct child of Row.children or Column.children"),
+                    source.label());
+        }));
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyTransformChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into Transform");
+        WidgetNode emptyTransform = WidgetNodePrototypeFactory.create(
+                definition(TRANSFORM), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyTransform)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyTransform.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyTransform.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void transformChildRejectsAllFlexParentDataSourcesOnMove() {
+        record RejectedSource(String label, WidgetNode node) {
+        }
+        List<RejectedSource> sources = List.of(
+                new RejectedSource(
+                        "Expanded",
+                        expanded(A_ID, validText(C_ID, "expanded child"))),
+                new RejectedSource(
+                        "Flexible",
+                        flexible(A_ID, validText(C_ID, "flexible child"))),
+                new RejectedSource("Spacer", node(A_ID, SPACER)));
+
+        assertAll(sources.stream().map(source -> () -> {
+            WidgetNode transform = WidgetNodePrototypeFactory.create(
+                    definition(TRANSFORM), B_ID);
+            DesignerDocument document = document(listParent(
+                    ROOT_ID,
+                    ROW,
+                    CHILDREN,
+                    List.of(source.node(), transform)));
+
+            FlutterDesignerWidgetMovePlanner.Rejected rejected = assertInstanceOf(
+                    FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(
+                            document,
+                            BUILT_INS,
+                            source.node().id(),
+                            new FlutterDesignerWidgetMovePlanner.On(transform.id())),
                     source.label());
             assertEquals(
                     FlutterDesignerWidgetMovePlanner.RejectionCode

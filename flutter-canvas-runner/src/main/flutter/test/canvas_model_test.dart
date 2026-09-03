@@ -3231,6 +3231,317 @@ void main() {
     );
   });
 
+  test('decodes the complete Transform.new contract and optional child', () {
+    Map<String, Object?> model({
+      required Map<String, Object?> properties,
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '6408cfe9-e227-43de-916c-bb9d66224de9',
+        'flutter.widgets.Transform',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final text = _node(
+      '3d93189a-6a63-49d1-abe5-cb32319428fd',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Transformed child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'transform': {
+            'kind': 'matrix4',
+            'storage': <Object?>[
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              24.5,
+              -8.25,
+              0,
+              1,
+            ],
+          },
+          'origin': {'kind': 'offset', 'dx': -12.5, 'dy': 8.25},
+          'alignment': {
+            'kind': 'alignmentGeometry',
+            'basis': 'directional',
+            'horizontal': -1.0,
+            'vertical': 0.5,
+          },
+          'transformHitTests': {'kind': 'boolean', 'value': false},
+          'filterQuality': {
+            'kind': 'enum',
+            'type': 'FilterQuality',
+            'value': 'high',
+          },
+        },
+        slots: {'child': _single(text)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.Transform');
+    expect(decoded.properties.keys, const [
+      'transform',
+      'origin',
+      'alignment',
+      'transformHitTests',
+      'filterQuality',
+    ]);
+    final matrix = decoded.properties['transform']!.value as CanvasMatrix4Value;
+    expect(matrix.storage, hasLength(16));
+    expect(matrix.storage[12], 24.5);
+    expect(matrix.storage[13], -8.25);
+    final origin = decoded.properties['origin']!.value as CanvasOffsetValue;
+    expect(origin.dx, -12.5);
+    expect(origin.dy, 8.25);
+    final alignment =
+        decoded.properties['alignment']!.value as CanvasAlignmentGeometryValue;
+    expect(alignment.basis, 'directional');
+    expect(alignment.horizontal, -1.0);
+    expect(alignment.vertical, 0.5);
+    expect(decoded.properties['transformHitTests']!.value, isFalse);
+    final filter =
+        decoded.properties['filterQuality']!.value as CanvasEnumValue;
+    expect(filter.type, 'FilterQuality');
+    expect(filter.value, 'high');
+    expect(decoded.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final defaults = _decode(
+      model(
+        properties: const {
+          'transform': {
+            'kind': 'matrix4',
+            'storage': <Object?>[
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+            ],
+          },
+        },
+      ),
+    ).root;
+    expect(defaults.properties.keys, const ['transform']);
+    expect(defaults.slot('child'), isNull);
+  });
+
+  test('keeps finite singular and perspective Transform matrices valid', () {
+    const matrices = <(String, List<Object?>)>[
+      (
+        'all-zero singular',
+        <Object?>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ),
+      (
+        'invertible perspective sending the local origin to infinity',
+        <Object?>[0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0],
+      ),
+    ];
+
+    for (final (description, storage) in matrices) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '6408cfe9-e227-43de-916c-bb9d66224de9',
+        'flutter.widgets.Transform',
+        properties: {
+          'transform': {'kind': 'matrix4', 'storage': storage},
+        },
+      );
+
+      final decoded = _decode(json).root;
+      final matrix =
+          decoded.properties['transform']!.value as CanvasMatrix4Value;
+      expect(
+        matrix.storage,
+        storage.map((value) => (value! as num).toDouble()).toList(),
+        reason: description,
+      );
+    }
+  });
+
+  test('rejects invalid Transform values, slots, and flex children', () {
+    Map<String, Object?> transform({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      '6408cfe9-e227-43de-916c-bb9d66224de9',
+      'flutter.widgets.Transform',
+      properties: properties,
+      slots: slots,
+    );
+
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    const identity = <String, Object?>{
+      'transform': {
+        'kind': 'matrix4',
+        'storage': <Object?>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      },
+    };
+    for (final invalid in <Map<String, Object?>>[
+      const {},
+      const {
+        'transform': {
+          'kind': 'matrix4',
+          'storage': <Object?>[1, 0],
+        },
+      },
+      const {
+        'transform': {'kind': 'boolean', 'value': true},
+      },
+      {
+        ...identity,
+        'origin': const {'kind': 'offset', 'dx': 1},
+      },
+      {
+        ...identity,
+        'origin': const {'kind': 'offset', 'dx': 1, 'dy': 2, 'dz': 3},
+      },
+      {
+        ...identity,
+        'origin': const {'kind': 'size', 'width': 1, 'height': 2},
+      },
+      {
+        ...identity,
+        'transformHitTests': const {'kind': 'double', 'value': 1.0},
+      },
+      {
+        ...identity,
+        'filterQuality': const {
+          'kind': 'enum',
+          'type': 'FilterQuality',
+          'value': 'ultra',
+        },
+      },
+      {
+        ...identity,
+        'filterQuality': const {
+          'kind': 'enum',
+          'type': 'BoxFit',
+          'value': 'high',
+        },
+      },
+      {
+        ...identity,
+        'unknown': const {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(rootWith(transform(properties: invalid))),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+    expect(
+      () => _decode(
+        rootWith(
+          transform(properties: identity, slots: {'child': _list(const [])}),
+        ),
+      ),
+      throwsFormatException,
+    );
+
+    final expanded = _node(
+      'b670b67a-f3f7-4fca-abd7-8bb297b06709',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            '3d93189a-6a63-49d1-abe5-cb32319428fd',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Invalid flex child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(
+        rootWith(
+          transform(properties: identity, slots: {'child': _single(expanded)}),
+        ),
+      ),
+      throwsFormatException,
+    );
+
+    final finiteJson = jsonEncode(
+      rootWith(
+        transform(
+          properties: {
+            ...identity,
+            'origin': const {'kind': 'offset', 'dx': 987654321.125, 'dy': 0},
+          },
+        ),
+      ),
+    );
+    final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+    expect(
+      () => CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('must be finite'),
+        ),
+      ),
+    );
+  });
+
+  test('Transform reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Transform\n');
+    final end = contract.indexOf('W|flutter.widgets.UnconstrainedBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.Transform\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|filterQuality|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'FilterQuality:high,low,medium,none\n'
+      'P|origin|offset|0|-|-|offset:offset:finiteSigned\n'
+      'P|transform|matrix4|1|'
+      'matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1|-|'
+      'matrix4:matrix4\n'
+      'P|transformHitTests|boolean|0|-|-|boolean:any\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes all 17 reviewed ListView leaves and its ordered children', () {
     final json = _modelJson();
     json['root'] = _node(
@@ -5606,7 +5917,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 12;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 13;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -7000,7 +7311,7 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 13,
+  'protocolVersion': 14,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

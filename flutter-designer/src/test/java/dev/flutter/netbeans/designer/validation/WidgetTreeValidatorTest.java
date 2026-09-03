@@ -1035,6 +1035,134 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsTransformNewIdentityAndCompleteOptionalSurface() {
+        WidgetNode defaults = transform(
+                "transformDefaults",
+                Map.of(name("transform"), identityMatrix()),
+                null);
+        WidgetNode explicit = transform(
+                "transformExplicit",
+                Map.of(
+                        name("transform"), new PropertyValue.Matrix4Value(List.of(
+                                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                                new BigDecimal("12.5"), new BigDecimal("-8.25"),
+                                BigDecimal.ZERO, BigDecimal.ONE)),
+                        name("origin"), new PropertyValue.OffsetValue(
+                                new BigDecimal("-4.5"), new BigDecimal("2.25")),
+                        name("alignment"),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                                BigDecimal.ONE, BigDecimal.ONE.negate()),
+                        name("transformHitTests"), new PropertyValue.BooleanValue(false),
+                        name("filterQuality"),
+                        new PropertyValue.EnumValue("FilterQuality", "high")),
+                text("transformText"));
+
+        for (WidgetNode accepted : List.of(defaults, explicit)) {
+            assertTrue(validator().validate(
+                    document(accepted), BuiltInWidgetCatalog.getDefault()).valid(),
+                    accepted.type().value());
+        }
+    }
+
+    @Test
+    void transformRejectsMissingWrongUnknownAndUnrepresentableValuesAtExactPaths() {
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(transform("missingTransform", Map.of(), null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/transform", missing.path());
+
+        ValidationIssue wrongKind = onlyIssue(
+                validator().validate(
+                        document(transform(
+                                "wrongTransformKind",
+                                Map.of(name("transform"),
+                                        new PropertyValue.StringValue("Matrix4.identity()")),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/transform", wrongKind.path());
+
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(transform(
+                                "unknownNamedConstructor",
+                                Map.of(
+                                        name("transform"), identityMatrix(),
+                                        name("angle"),
+                                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/angle", unknown.path());
+
+        PropertyValue.Matrix4Value hugeMatrix = new PropertyValue.Matrix4Value(
+                java.util.Collections.nCopies(16, new BigDecimal("1E+10000")));
+        ValidationIssue matrix = onlyIssue(
+                validator().validate(
+                        document(transform(
+                                "invalidTransform", Map.of(name("transform"), hugeMatrix), null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/transform", matrix.path());
+
+        ValidationIssue origin = onlyIssue(
+                validator().validate(
+                        document(transform(
+                                "invalidOrigin",
+                                Map.of(
+                                        name("transform"), identityMatrix(),
+                                        name("origin"), new PropertyValue.OffsetValue(
+                                                new BigDecimal("1E+10000"), BigDecimal.ZERO)),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/origin", origin.path());
+
+        for (PropertyValue.EnumValue invalid : List.of(
+                new PropertyValue.EnumValue("OtherQuality", "high"),
+                new PropertyValue.EnumValue("FilterQuality", "ultra"))) {
+            ValidationIssue quality = onlyIssue(
+                    validator().validate(
+                            document(transform(
+                                    "invalidQuality-" + invalid,
+                                    Map.of(
+                                            name("transform"), identityMatrix(),
+                                            name("filterQuality"), invalid),
+                                    null)),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/filterQuality", quality.path());
+        }
+    }
+
+    @Test
+    void transformChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("transformExpanded", Map.of(), text("transformExpandedText")),
+                flexible("transformFlexible", Map.of(), text("transformFlexibleText")),
+                spacer("transformSpacer", Map.of()))) {
+            WidgetNode transform = transform(
+                    "transform-" + restricted.type().value(),
+                    Map.of(name("transform"), identityMatrix()),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(transform), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.Transform.child"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -2814,6 +2942,24 @@ class WidgetTreeValidatorTest {
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode transform(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.Transform", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        return new PropertyValue.Matrix4Value(List.of(
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE));
     }
 
     private static PropertyValue.ImageProviderValue imageProvider() {

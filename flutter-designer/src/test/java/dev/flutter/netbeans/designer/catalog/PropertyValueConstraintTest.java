@@ -170,6 +170,9 @@ class PropertyValueConstraintTest {
                         PropertyValueKind.ALIGNMENT_GEOMETRY));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.OFFSET));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.SIZE));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(
@@ -197,6 +200,16 @@ class PropertyValueConstraintTest {
         assertFalse(alignments.accepts(new PropertyValue.AlignmentGeometryValue(
                 PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
                 huge, BigDecimal.ONE)));
+
+        PropertyValueConstraint.OffsetValues offsets =
+                new PropertyValueConstraint.OffsetValues();
+        assertTrue(offsets.accepts(new PropertyValue.OffsetValue(
+                new BigDecimal("-12.5"), new BigDecimal("8.25"))));
+        assertFalse(offsets.accepts(new PropertyValue.OffsetValue(
+                huge, BigDecimal.ONE)));
+        assertFalse(offsets.accepts(new PropertyValue.SizeValue(
+                BigDecimal.ONE, BigDecimal.ONE)));
+        assertEquals("finite signed Offset coordinates", offsets.description());
 
         PropertyValueConstraint.SizeValues sizes =
                 new PropertyValueConstraint.SizeValues();

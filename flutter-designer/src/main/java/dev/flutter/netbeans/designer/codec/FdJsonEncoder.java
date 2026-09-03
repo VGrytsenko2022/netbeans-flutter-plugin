@@ -473,6 +473,9 @@ final class FdJsonEncoder {
             writeFontVariationList(variationList, pointer, context);
         } else if (value instanceof PropertyValue.AlignmentGeometryValue alignment) {
             writeAlignmentFields(alignment, pointer, context);
+        } else if (value instanceof PropertyValue.OffsetValue offset) {
+            writeDartDoubleField("dx", offset.dx(), pointer, context);
+            writeDartDoubleField("dy", offset.dy(), pointer, context);
         } else if (value instanceof PropertyValue.SizeValue size) {
             writeDartDoubleField("width", size.width(), pointer, context);
             writeDartDoubleField("height", size.height(), pointer, context);

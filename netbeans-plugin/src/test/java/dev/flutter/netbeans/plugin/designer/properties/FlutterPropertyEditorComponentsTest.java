@@ -2214,7 +2214,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(89, booleanProperties.size(),
+        assertEquals(90, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
 
         onEdt(() -> {
@@ -2376,6 +2376,137 @@ class FlutterPropertyEditorComponentsTest {
                                     BigDecimal.valueOf(48), BigDecimal.valueOf(64))),
                     reopened.getValue(),
                     "a reopened Size editor must accept a further edit");
+            return null;
+        });
+    }
+
+    @Test
+    void optionalOffsetEditorPreservesUnsetAndAcceptsFiniteSignedCoordinates()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.Transform", "origin"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.OFFSET,
+                binding.editorKind());
+        assertTrue(binding.createEditor().supportsCustomEditor());
+        assertTrue(FlutterPropertyEditorComponents.inplaceFactory(binding).isEmpty());
+
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        assertEquals(FlutterPropertyCellValue.NOT_SET_TEXT, editor.getAsText());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Origin", "Optional finite signed Transform origin."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        AtomicInteger committedChanges = new AtomicInteger();
+        editor.addPropertyChangeListener(ignored -> committedChanges.incrementAndGet());
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertSame(panel, editor.getCustomEditor(),
+                    "NetBeans may ask for the active Offset editor repeatedly");
+            assertEquals("Flutter Offset editor",
+                    panel.getAccessibleContext().getAccessibleName());
+            JCheckBox useDefault = findNamed(
+                    panel,
+                    JCheckBox.class,
+                    FlutterOffsetPropertyEditorComponents.USE_DEFAULT_COMPONENT_NAME);
+            JTextField dx = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterOffsetPropertyEditorComponents.DX_COMPONENT_NAME);
+            JTextField dy = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterOffsetPropertyEditorComponents.DY_COMPONENT_NAME);
+            assertNotNull(useDefault);
+            assertNotNull(dx);
+            assertNotNull(dy);
+            assertTrue(useDefault.isSelected());
+            assertFalse(dx.isEnabled());
+            assertFalse(dy.isEnabled());
+            assertEquals("0", dx.getText(),
+                    "unset presentation text must never leak into the Offset fields");
+            assertEquals("0", dy.getText());
+            assertEquals("Offset horizontal delta",
+                    dx.getAccessibleContext().getAccessibleName());
+            assertEquals("Offset vertical delta",
+                    dy.getAccessibleContext().getAccessibleName());
+
+            useDefault.doClick();
+            assertTrue(dx.isEnabled());
+            assertTrue(dy.isEnabled());
+            dx.setText("-12.5");
+            dy.setText("not-a-number");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", dy.getClientProperty("JComponent.outline"));
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(),
+                    "invalid local typing must not replace the selected property");
+            assertEquals(0, committedChanges.get());
+
+            dy.setText("1e400");
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertTrue(dy.getToolTipText().contains("finite Dart double"));
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+
+            dy.setText("7.25");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(),
+                    "valid signed coordinates remain a local draft until dialog OK");
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.OffsetValue(
+                                    new BigDecimal("-12.5"), new BigDecimal("7.25"))),
+                    editor.getValue());
+            assertEquals(1, committedChanges.get());
+            return null;
+        });
+
+        PropertyEditor reopened = binding.createEditor();
+        reopened.setValue(editor.getValue());
+        PropertyEnv reopenedEnvironment = PropertyEnv.create(descriptor(
+                "Origin", "Optional finite signed Transform origin."));
+        ((ExPropertyEditor) reopened).attachEnv(reopenedEnvironment);
+        onEdt(() -> {
+            Component panel = reopened.getCustomEditor();
+            JCheckBox useDefault = findNamed(
+                    panel,
+                    JCheckBox.class,
+                    FlutterOffsetPropertyEditorComponents.USE_DEFAULT_COMPONENT_NAME);
+            JTextField dx = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterOffsetPropertyEditorComponents.DX_COMPONENT_NAME);
+            JTextField dy = findNamed(
+                    panel,
+                    JTextField.class,
+                    FlutterOffsetPropertyEditorComponents.DY_COMPONENT_NAME);
+            assertFalse(useDefault.isSelected());
+            assertEquals("-12.5", dx.getText());
+            assertEquals("7.25", dy.getText());
+            dx.setText("4");
+            dy.setText("-8.5");
+            reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.OffsetValue(
+                                    BigDecimal.valueOf(4), new BigDecimal("-8.5"))),
+                    reopened.getValue(),
+                    "a reopened Offset editor must accept a further signed edit");
+            return null;
+        });
+
+        PropertyEditor reset = binding.createEditor();
+        reset.setValue(reopened.getValue());
+        PropertyEnv resetEnvironment = PropertyEnv.create(descriptor(
+                "Origin", "Optional finite signed Transform origin."));
+        ((ExPropertyEditor) reset).attachEnv(resetEnvironment);
+        onEdt(() -> {
+            JCheckBox useDefault = findNamed(
+                    reset.getCustomEditor(),
+                    JCheckBox.class,
+                    FlutterOffsetPropertyEditorComponents.USE_DEFAULT_COMPONENT_NAME);
+            useDefault.doClick();
+            resetEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.unset(), reset.getValue(),
+                    "the optional Offset editor must preserve explicit not-set intent");
             return null;
         });
     }

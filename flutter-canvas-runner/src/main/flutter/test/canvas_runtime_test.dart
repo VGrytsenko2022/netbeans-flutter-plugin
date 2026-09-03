@@ -2742,6 +2742,165 @@ void main() {
   );
 
   testWidgets(
+    'admits Transform as an exact source and empty child destination',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyTransformModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      const widgetId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      runtime.setDropResolver(
+        (_, _, [source]) => source?.widgetType == 'flutter.widgets.Transform'
+            ? const CanvasDropTarget(
+                parentWidgetId: widgetId,
+                slotName: 'child',
+                insertionIndex: 0,
+              )
+            : null,
+      );
+      const token =
+          'nbfdnd:v1:96cd64d4-7845-4763-a605-4c2206507c32:'
+          '6408cfe9-e227-43de-916c-bb9d66224de9';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request,
+          widgetType: 'flutter.widgets.Transform',
+        ),
+        isTrue,
+      );
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (_decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('token', token));
+      expect(drops.single['body'], containsPair('parentWidgetId', widgetId));
+      expect(drops.single['body'], containsPair('slotName', 'child'));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
+    'fails closed for singular and perspective Transform runtime geometry',
+    (tester) async {
+      const cases = <(String, List<Object?>, String)>[
+        (
+          'all-zero singular matrix',
+          <Object?>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          'nbfdnd:v1:96cd64d4-7845-4763-a605-4c2206507c32:'
+              'd571f630-fb8d-4c0f-99e7-9cd7eb85337f',
+        ),
+        (
+          'invertible perspective matrix at infinity',
+          <Object?>[0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0],
+          'nbfdnd:v1:96cd64d4-7845-4763-a605-4c2206507c32:'
+              '16d61c3a-bf62-4dcb-a97d-354bedbd30d7',
+        ),
+      ];
+
+      for (final (description, storage, token) in cases) {
+        final input = StreamController<List<int>>();
+        final output = <List<int>>[];
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (bytes) => output.add(List<int>.from(bytes)),
+          flush: () async {},
+          diagnostic: fail,
+        );
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+        );
+        _addRender(input, _emptyTransformModelBytes(storage: storage));
+        await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+        for (
+          var attempt = 0;
+          attempt < 20 && runtime.presentedLayoutSequence == null;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        await tester.pump();
+        await tester.pump();
+
+        expect(runtime.presentedLayoutSequence, isNotNull, reason: description);
+        expect(
+          find.byKey(
+            const ValueKey(
+              'canvas-zero-size-widget-target-'
+              '6408cfe9-e227-43de-916c-bb9d66224de9',
+            ),
+          ),
+          findsNothing,
+          reason: '$description has no finite painted geometry to target',
+        );
+        final request = {
+          'token': token,
+          'xMicros': 500000,
+          'yMicros': 500000,
+          'generation': 1,
+          'probeId': 1,
+        };
+        expect(
+          await _sourceAwareHover(runtime, input, request),
+          isFalse,
+          reason: '$description must not publish an invented drop zone',
+        );
+        expect(runtime.dropHoverTarget, isNull, reason: description);
+        expect(tester.takeException(), isNull, reason: description);
+
+        final closing = input.close();
+        for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        await closing;
+        await running;
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    },
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
+
+  testWidgets(
     'publishes exact ADD into an empty Center child and rejects other slots',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -3973,6 +4132,44 @@ Uint8List _emptySizedOverflowBoxModelBytes() {
     'type': 'flutter.widgets.SizedOverflowBox',
     'properties': <String, Object?>{
       'size': {'kind': 'size', 'width': 0.0, 'height': 0.0},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyTransformModelBytes({
+  List<Object?> storage = const <Object?>[
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+  ],
+}) {
+  final json =
+      jsonDecode(utf8.decode(_emptyScaffoldModelBytes()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  ((root['slots']! as Map<String, Object?>)['body']!
+      as Map<String, Object?>)['child'] = <String, Object?>{
+    'id': '6408cfe9-e227-43de-916c-bb9d66224de9',
+    'type': 'flutter.widgets.Transform',
+    'properties': <String, Object?>{
+      'transform': {'kind': 'matrix4', 'storage': storage},
     },
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': null},

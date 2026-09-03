@@ -96,6 +96,9 @@ class PropertyValueFormatterTest {
         assertEquals("100 × 32.5", PropertyValueFormatter.format(
                 new PropertyValue.SizeValue(
                         BigDecimal.valueOf(100), new BigDecimal("32.5"))));
+        assertEquals("(-12.5, 7.25)", PropertyValueFormatter.format(
+                new PropertyValue.OffsetValue(
+                        new BigDecimal("-12.5"), new BigDecimal("7.25"))));
         assertEquals("w=10…∞, h=20…200", PropertyValueFormatter.format(
                 new PropertyValue.BoxConstraintsValue(
                         BigDecimal.TEN, Optional.empty(), BigDecimal.valueOf(20),

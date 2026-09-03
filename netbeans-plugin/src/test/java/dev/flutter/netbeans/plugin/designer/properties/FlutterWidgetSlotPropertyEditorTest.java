@@ -1198,6 +1198,70 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void transformChildAddsTextAsOneExactTransactionalIntent()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Transform");
+        WidgetNode transform = WidgetNodePrototypeFactory.create(
+                definition,
+                id("0a982138-fba7-4ed3-aec8-d1eb4f5b820a"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(transform),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                transform,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals("Empty", editor.getAsText(),
+                    "Transform.child remains unchanged until validation");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(transform.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            FlutterWidgetSlotCellValue staged =
+                    (FlutterWidgetSlotCellValue) editor.getValue();
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted Transform child edit consumes one lease");
+            return null;
+        });
+    }
+
+    @Test
     void stackChildrenAddsNewFrontLayerAtExactTerminalPaintOrderIndex()
             throws Exception {
         WidgetDefinition stackDefinition = definition("flutter.widgets.Stack");
@@ -1838,6 +1902,8 @@ class FlutterWidgetSlotPropertyEditorTest {
                 definition("flutter.widgets.Offstage");
         WidgetDefinition sizedOverflowBoxDefinition =
                 definition("flutter.widgets.SizedOverflowBox");
+        WidgetDefinition transformDefinition =
+                definition("flutter.widgets.Transform");
         WidgetNode row = new WidgetNode(
                 id("7bdabf33-2e62-4548-b884-8a39c24be5e2"),
                 rowDefinition.typeId(),
@@ -1865,6 +1931,9 @@ class FlutterWidgetSlotPropertyEditorTest {
         WidgetNode sizedOverflowBox = WidgetNodePrototypeFactory.create(
                 sizedOverflowBoxDefinition,
                 id("0f0a7585-70b4-4bb3-b169-3c5061a01184"));
+        WidgetNode transform = WidgetNodePrototypeFactory.create(
+                transformDefinition,
+                id("d59b268e-6113-471a-bb3a-8a28280347e8"));
         WidgetNode column = new WidgetNode(
                 id("6869194a-729d-4a84-aa0d-2b853c0c77d2"),
                 columnDefinition.typeId(),
@@ -1872,7 +1941,7 @@ class FlutterWidgetSlotPropertyEditorTest {
                 Map.of(CHILDREN, new WidgetSlot.ListSlot(
                         List.of(
                                 row, stack, baseline, intrinsicHeight, intrinsicWidth,
-                                offstage, sizedOverflowBox))),
+                                offstage, sizedOverflowBox, transform))),
                 Extensions.empty());
         FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
                 document(column), CATALOG, List.of(type("flutter.widgets.Spacer")));
@@ -1924,6 +1993,13 @@ class FlutterWidgetSlotPropertyEditorTest {
                         sizedOverflowBoxDefinition.slot(CHILD).orElseThrow(),
                         context);
         sizedOverflowBoxEditor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        FlutterWidgetSlotPropertyEditor transformEditor =
+                new FlutterWidgetSlotPropertyEditor(
+                        transform,
+                        transformDefinition,
+                        transformDefinition.slot(CHILD).orElseThrow(),
+                        context);
+        transformEditor.attachEnv(PropertyEnv.create(descriptor("Child")));
 
         onEdt(() -> {
             JComboBox<?> rowAddType = component(
@@ -1954,6 +2030,10 @@ class FlutterWidgetSlotPropertyEditorTest {
                     sizedOverflowBoxEditor.getCustomEditor(),
                     FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
                     JComboBox.class);
+            JComboBox<?> transformAddType = component(
+                    transformEditor.getCustomEditor(),
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
             assertEquals(List.of("Spacer"), labels(rowAddType));
             assertEquals(List.of(), labels(stackAddType));
             assertEquals(List.of(), labels(baselineAddType));
@@ -1961,6 +2041,7 @@ class FlutterWidgetSlotPropertyEditorTest {
             assertEquals(List.of(), labels(intrinsicWidthAddType));
             assertEquals(List.of(), labels(offstageAddType));
             assertEquals(List.of(), labels(sizedOverflowBoxAddType));
+            assertEquals(List.of(), labels(transformAddType));
             return null;
         });
     }

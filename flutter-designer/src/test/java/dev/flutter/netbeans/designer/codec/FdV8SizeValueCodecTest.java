@@ -28,15 +28,15 @@ class FdV8SizeValueCodecTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void canonicalV8RoundTripsNormalizedFiniteNonNegativeSize()
+    void canonicalCurrentSchemaRoundTripsNormalizedFiniteNonNegativeSize()
             throws Exception {
         PropertyValue.SizeValue expected = new PropertyValue.SizeValue(
                 new BigDecimal("120.50"), BigDecimal.ZERO);
         OriginalFdBytes first = codec.encode(document(expected));
         String json = new String(first.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 8"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v8.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 9"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v9.schema.json\""), json);
         assertTrue(json.contains("\"kind\": \"size\""), json);
         assertTrue(json.contains("\"width\": 120.5"), json);
         assertTrue(json.contains("\"height\": 0"), json);
@@ -45,7 +45,7 @@ class FdV8SizeValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(first));
-        assertEquals(8, decoded.sourceSchemaVersion());
+        assertEquals(9, decoded.sourceSchemaVersion());
         assertTrue(!decoded.migrated());
         assertEquals(expected, size(decoded.document()));
         assertArrayEquals(first.copyBytes(),
@@ -61,8 +61,8 @@ class FdV8SizeValueCodecTest {
                 .copyBytes(), StandardCharsets.UTF_8);
 
         assertInvalid(current
-                .replace("\"schemaVersion\": 8", "\"schemaVersion\": 7")
-                .replace("../fd-v8.schema.json", "../fd-v7.schema.json"),
+                .replace("\"schemaVersion\": 9", "\"schemaVersion\": 7")
+                .replace("../fd-v9.schema.json", "../fd-v7.schema.json"),
                 "/root/properties/size/kind");
         assertInvalid(current.replace("\"width\": 100", "\"width\": -1"),
                 "/root/properties/size");
@@ -112,7 +112,7 @@ class FdV8SizeValueCodecTest {
                 Extensions.empty());
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v8.schema.json"),
+                Optional.of("../fd-v9.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "sized_overflow_page.dart", "SizedOverflowPage",

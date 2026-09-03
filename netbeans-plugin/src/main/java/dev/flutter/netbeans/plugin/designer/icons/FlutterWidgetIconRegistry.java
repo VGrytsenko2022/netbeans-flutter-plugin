@@ -51,6 +51,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Offstage", ICON_ROOT + "offstage.svg"),
             Map.entry("flutter.widgets.SizedOverflowBox",
                     ICON_ROOT + "sizedoverflowbox.svg"),
+            Map.entry("flutter.widgets.Transform", ICON_ROOT + "transform.svg"),
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),

@@ -7,6 +7,38 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.Transform`](https://api.flutter.dev/flutter/widgets/Transform/Transform.html)
+  vertical slice is the fourteenth post-core Palette addition, at Layout order
+  200 immediately after SizedOverflowBox. Its complete pinned Flutter 3.44.8
+  `Transform.new` non-`key` contract exposes required `Matrix4 transform`,
+  optional signed finite `Offset origin`, optional physical/directional
+  `AlignmentGeometry alignment`, optional `transformHitTests`, optional
+  `FilterQuality.none/low/medium/high` and one optional single any-widget
+  `child`. New instances persist only an identity matrix; omission preserves
+  Flutter's null origin/alignment/filter quality and `transformHitTests: true`
+  defaults. Generated Dart and native and exact-Web Canvas construct the real
+  paint-time Transform without changing the child's layout size. Origin and
+  alignment compose exactly as Flutter defines them, filtering remains opt-in,
+  and hit testing follows the matrix only when `transformHitTests` is true.
+  Designer selection and drop geometry follow the same effective transform
+  without changing Flutter layout, with a bounded 36x36 non-layout-affecting
+  target only for a real zero-sized node. Non-finite, projective-horizon and
+  non-invertible surface geometry fails closed, while finite rotated/skewed DnD
+  checks exact local containment instead of accepting AABB corner triangles.
+  Exact property and slot editing, Palette/tree/Canvas DnD, same-tree movement,
+  deterministic generation, Save/reopen and further editing, Undo/Redo and
+  reviewed light/dark SVG icons share one closed contract. The named
+  `Transform.rotate`, `.translate`, `.scale` and `.flip` convenience
+  constructors remain outside this slice; their resulting matrices are still
+  expressible through `Transform.new`. The catalog now contains 34 widgets, 29
+  reviewed const constructors and 674 writable rows, including 657 across the
+  33 non-`Scaffold` definitions. Thirty-four sources across 31 insertable
+  any-widget and two trait-bound destinations form 1,122 DnD candidates: 969
+  accepted and 153 rejected. Layout contains 26 items, and the practical
+  92-widget backlog is 34/92 complete with 58 remaining. The new closed atomic
+  `Offset` value advances `.fd` to schema v9, Catalog API to 8 and Canvas model
+  to v14; NBFC framing/control/wire remain v1.
+- The accepted const
   [`flutter.widgets.SizedOverflowBox`](https://api.flutter.dev/flutter/widgets/SizedOverflowBox/SizedOverflowBox.html)
   vertical slice is the thirteenth post-core Palette addition, at Layout order
   190 immediately after Offstage. Its complete pinned Flutter 3.44.8 non-`key`
@@ -22,14 +54,14 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   bounded 36x36, non-layout-affecting Designer selection/drop target. Exact
   property and slot editing, Palette/tree/Canvas DnD, same-tree movement,
   deterministic generation, Save/reopen and further editing, Undo/Redo and
-  reviewed light/dark SVG icons share one closed contract. The catalog now
-  contains 33 widgets, 28 reviewed const constructors and 669 writable rows,
+  reviewed light/dark SVG icons share one closed contract. At that milestone the catalog contained
+  33 widgets, 28 reviewed const constructors and 669 writable rows,
   including 652 across the 32 non-`Scaffold` definitions. Thirty-three sources
   across 30 insertable any-widget and two trait-bound destinations form 1,056
   DnD candidates: 908 accepted and 148 rejected. Layout contains 25 items, and
   the practical 92-widget backlog is 33/92 complete with 59 remaining. The new
-  closed atomic `Size` value advances `.fd` to schema v8, Catalog API to 7 and
-  Canvas model to v13; NBFC framing/control/wire remain v1.
+  closed atomic `Size` value advanced `.fd` to schema v8, Catalog API to 7 and
+  Canvas model to v13; NBFC framing/control/wire remained v1.
 - The accepted const
   [`flutter.widgets.Offstage`](https://api.flutter.dev/flutter/widgets/Offstage/Offstage.html)
   vertical slice is the twelfth post-core Palette addition, at Layout order

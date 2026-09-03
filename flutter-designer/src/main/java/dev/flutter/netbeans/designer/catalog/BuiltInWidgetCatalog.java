@@ -54,6 +54,7 @@ public final class BuiltInWidgetCatalog {
             intrinsicWidth(),
             offstage(),
             sizedOverflowBox(),
+            transform(),
             listView(),
             image(),
             elevatedButton(),
@@ -1059,6 +1060,46 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition transform() {
+        return widget(
+                "flutter.widgets.Transform",
+                "Transform",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 200, "Transform"),
+                List.of(
+                        namedProperty(
+                                "transform",
+                                0,
+                                true,
+                                List.of(new PropertyValueConstraint.Matrix4Values()),
+                                identityMatrix()),
+                        namedProperty(
+                                "origin",
+                                1,
+                                false,
+                                List.of(new PropertyValueConstraint.OffsetValues())),
+                        namedProperty(
+                                "alignment",
+                                2,
+                                false,
+                                List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                        namedProperty(
+                                "transformHitTests",
+                                3,
+                                false,
+                                any(PropertyValueKind.BOOLEAN)),
+                        namedProperty(
+                                "filterQuality",
+                                4,
+                                false,
+                                enumValues(
+                                        "FilterQuality", "none", "low", "medium", "high"))),
+                List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition listView() {
         List<PropertyDefinition> properties = List.of(
                 namedProperty("scrollDirection", 0, false,
@@ -1572,6 +1613,14 @@ public final class BuiltInWidgetCatalog {
 
     private static List<PropertyValueConstraint> any(PropertyValueKind kind) {
         return List.of(new PropertyValueConstraint.AnyValue(kind));
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        return new PropertyValue.Matrix4Value(List.of(
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE));
     }
 
     private static List<PropertyValueConstraint> colorOrTheme() {

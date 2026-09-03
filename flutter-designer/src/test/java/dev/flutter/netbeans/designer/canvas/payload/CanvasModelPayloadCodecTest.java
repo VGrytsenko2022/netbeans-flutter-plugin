@@ -103,6 +103,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
+                "flutter.widgets.Transform",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -125,7 +126,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":13"));
+        assertTrue(json.contains("\"protocolVersion\":14"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -202,7 +203,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsConstrainedBoxRequiredBoundsAndOptionalChildInProtocolV13()
+    void projectsConstrainedBoxRequiredBoundsAndOptionalChildInProtocolV14()
             throws Exception {
         PropertyValue.BoxConstraintsValue constraints =
                 new PropertyValue.BoxConstraintsValue(
@@ -223,7 +224,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), constrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.ConstrainedBox\""), json);
         assertTrue(json.contains(
@@ -235,7 +236,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsUnconstrainedBoxTypedArgumentsAndOptionalChildInProtocolV13()
+    void projectsUnconstrainedBoxTypedArgumentsAndOptionalChildInProtocolV14()
             throws Exception {
         WidgetNode unconstrained = new WidgetNode(
                 id("882f9b5e-b65f-424f-95a4-b76dd6d4d66e"),
@@ -261,7 +262,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), unconstrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.UnconstrainedBox\""), json);
         assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
@@ -278,7 +279,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsLimitedBoxFiniteDoubleArgumentsAndOptionalChildInProtocolV13()
+    void projectsLimitedBoxFiniteDoubleArgumentsAndOptionalChildInProtocolV14()
             throws Exception {
         WidgetNode limited = new WidgetNode(
                 id("6602f016-01cb-44f0-b1ac-bf965968170c"),
@@ -297,7 +298,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), limited))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.LimitedBox\""), json);
         assertTrue(json.contains(
@@ -309,7 +310,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsOverflowBoxTypedArgumentsAndOptionalChildInProtocolV13()
+    void projectsOverflowBoxTypedArgumentsAndOptionalChildInProtocolV14()
             throws Exception {
         WidgetNode overflow = new WidgetNode(
                 id("3c6cb681-ff4b-47bb-860e-a73f409b56df"),
@@ -343,7 +344,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), overflow))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.OverflowBox\""), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","
@@ -364,7 +365,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsFlexibleOnProtocolV13() throws Exception {
+    void projectsFlexibleOnProtocolV14() throws Exception {
         WidgetNode flexible = new WidgetNode(
                 id("e201552d-d13d-4507-8aa1-35ea3ccad664"),
                 type("flutter.widgets.Flexible"),
@@ -386,7 +387,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Flexible\""), json);
         assertTrue(json.contains(
@@ -398,7 +399,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsSpacerOnProtocolV13() throws Exception {
+    void projectsSpacerOnProtocolV14() throws Exception {
         WidgetNode spacer = new WidgetNode(
                 id("39d10c48-9652-45d3-965a-a61002dd4a0c"),
                 type("flutter.widgets.Spacer"),
@@ -416,7 +417,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Spacer\""), json);
         assertTrue(json.contains(
@@ -424,7 +425,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsBaselineOnProtocolV13() throws Exception {
+    void projectsBaselineOnProtocolV14() throws Exception {
         WidgetNode baseline = new WidgetNode(
                 id("82bf740b-1a96-4d8f-b0d3-345f4169776c"),
                 type("flutter.widgets.Baseline"),
@@ -442,7 +443,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), baseline))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Baseline\""), json);
         assertTrue(json.contains(
@@ -454,7 +455,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsIntrinsicHeightOnProtocolV13() throws Exception {
+    void projectsIntrinsicHeightOnProtocolV14() throws Exception {
         WidgetNode intrinsicHeight = new WidgetNode(
                 id("aa623160-3214-4724-8550-64719ea659aa"),
                 type("flutter.widgets.IntrinsicHeight"),
@@ -467,7 +468,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicHeight))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicHeight\""), json);
         assertTrue(json.contains("\"properties\":{}"), json);
@@ -476,7 +477,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsIntrinsicWidthPropertiesAndChildOnProtocolV13()
+    void projectsIntrinsicWidthPropertiesAndChildOnProtocolV14()
             throws Exception {
         WidgetNode intrinsicWidth = new WidgetNode(
                 id("e589812d-a08a-4476-9443-0a70af6c708f"),
@@ -495,7 +496,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicWidth))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicWidth\""), json);
         assertTrue(json.contains(
@@ -507,7 +508,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsExplicitOffstageBooleanAndChildWithoutChangingProtocolV13()
+    void projectsExplicitOffstageBooleanAndChildWithoutChangingProtocolV14()
             throws Exception {
         WidgetNode offstage = new WidgetNode(
                 id("c70084d4-2ccf-423e-b5ce-8108bbf22f3c"),
@@ -522,7 +523,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), offstage))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.Offstage\""), json);
         assertTrue(json.contains(
                 "\"offstage\":{\"kind\":\"boolean\",\"value\":false}"), json);
@@ -531,7 +532,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsTypedSizedOverflowBoxSurfaceOnProtocolV13() throws Exception {
+    void projectsTypedSizedOverflowBoxSurfaceOnProtocolV14() throws Exception {
         WidgetNode box = new WidgetNode(
                 id("544dad42-0ae5-42a1-8d36-1035b0215c68"),
                 type("flutter.widgets.SizedOverflowBox"),
@@ -551,7 +552,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), box))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.SizedOverflowBox\""), json);
         assertTrue(json.contains(
@@ -563,6 +564,57 @@ class CanvasModelPayloadCodecTest {
                 + "\"vertical\":-1}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"3d020e1c-a143-43f9-9cb7-54005dd2ff9b\""), json);
+    }
+
+    @Test
+    void projectsTypedTransformNewSurfaceOnProtocolV14() throws Exception {
+        WidgetNode transform = new WidgetNode(
+                id("ce5a8755-4984-4d25-9a3b-0f3dfa286d72"),
+                type("flutter.widgets.Transform"),
+                Map.of(
+                        new PropertyName("transform"),
+                        new PropertyValue.Matrix4Value(List.of(
+                                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                                new BigDecimal("12.5"), new BigDecimal("-8.25"),
+                                BigDecimal.ZERO, BigDecimal.ONE)),
+                        new PropertyName("origin"),
+                        new PropertyValue.OffsetValue(
+                                new BigDecimal("-4.5"), new BigDecimal("2.25")),
+                        new PropertyName("alignment"),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
+                                BigDecimal.ONE, BigDecimal.ONE.negate()),
+                        new PropertyName("transformHitTests"),
+                        new PropertyValue.BooleanValue(false),
+                        new PropertyName("filterQuality"),
+                        new PropertyValue.EnumValue("FilterQuality", "high")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "78f43c7c-af2c-4c5e-a944-0cfb5bf1a20f",
+                        "Transformed child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), transform))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.Transform\""), json);
+        assertTrue(json.contains(
+                "\"transform\":{\"kind\":\"matrix4\",\"storage\":["
+                + "1,0,0,0,0,1,0,0,0,0,1,0,12.5,-8.25,0,1]}"), json);
+        assertTrue(json.contains(
+                "\"origin\":{\"kind\":\"offset\",\"dx\":-4.5,\"dy\":2.25}"), json);
+        assertTrue(json.contains(
+                "\"alignment\":{\"kind\":\"alignmentGeometry\","
+                + "\"basis\":\"directional\",\"horizontal\":1,\"vertical\":-1}"), json);
+        assertTrue(json.contains(
+                "\"transformHitTests\":{\"kind\":\"boolean\",\"value\":false}"), json);
+        assertTrue(json.contains(
+                "\"filterQuality\":{\"kind\":\"enum\","
+                + "\"type\":\"FilterQuality\",\"value\":\"high\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"78f43c7c-af2c-4c5e-a944-0cfb5bf1a20f\""), json);
     }
 
     @Test
@@ -597,7 +649,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsThemeBoundComplexTextValuesInProtocolV13() throws Exception {
+    void projectsThemeBoundComplexTextValuesInProtocolV14() throws Exception {
         WidgetNode text = new WidgetNode(
                 id("5ab6c203-3d32-489c-9d7a-7c14f29637cb"),
                 type("flutter.widgets.Text"),
@@ -637,7 +689,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -661,7 +713,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV13Order()
+    void projectsResolvedThemeOverridesAndComponentsInCanonicalProtocolV14Order()
             throws Exception {
         CanvasThemeTextStyleOverride body = new CanvasThemeTextStyleOverride(
                 Optional.of(new CanvasThemeColorValue.ColorRole("onSurface")),
@@ -762,7 +814,7 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
-    void projectsStructuredContainerValuesInProtocolV13() throws Exception {
+    void projectsStructuredContainerValuesInProtocolV14() throws Exception {
         PropertyValue.AlignmentGeometryValue alignment =
                 new PropertyValue.AlignmentGeometryValue(
                         PropertyValue.AlignmentGeometryValue.HorizontalBasis.DIRECTIONAL,
@@ -815,7 +867,7 @@ class CanvasModelPayloadCodecTest {
                 request(new DesignerDocument(DOCUMENT_ID, source(), container))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
         assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
@@ -902,7 +954,7 @@ class CanvasModelPayloadCodecTest {
                         PROFILE, document, bundle)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":13"), json);
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
         assertTrue(json.contains("\"image\":{\"image\":{"), json);
         assertTrue(json.contains("\"kind\":\"asset\""), json);
         assertTrue(json.contains("\"assetName\":\"assets/background.png\""), json);

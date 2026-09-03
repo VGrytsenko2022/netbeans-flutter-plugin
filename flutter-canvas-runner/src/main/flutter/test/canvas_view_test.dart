@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -232,6 +233,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Transform'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
       canvasStackChildrenAppendDropSlot,
     ]);
@@ -324,7 +328,7 @@ void main() {
     );
   });
 
-  test('closes the 33-source by 32-destination compatibility matrix', () {
+  test('closes the 34-source by 33-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -337,6 +341,7 @@ void main() {
       'flutter.widgets.IntrinsicWidth',
       'flutter.widgets.Offstage',
       'flutter.widgets.SizedOverflowBox',
+      'flutter.widgets.Transform',
       'flutter.widgets.Column',
       'flutter.widgets.Row',
       'flutter.widgets.Wrap',
@@ -368,8 +373,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(33));
-    expect(destinations, hasLength(32));
+    expect(sourceTypes, hasLength(34));
+    expect(destinations, hasLength(33));
 
     var accepted = 0;
     var rejected = 0;
@@ -395,9 +400,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 908);
-    expect(rejected, 148);
-    expect(accepted + rejected, 1056);
+    expect(accepted, 969);
+    expect(rejected, 153);
+    expect(accepted + rejected, 1122);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -6538,6 +6543,954 @@ void main() {
   );
 
   testWidgets(
+    'renders real Transform.new properties outside instrumentation without changing layout',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      const childId = 'd571f630-fb8d-4c0f-99e7-9cd7eb85337f';
+      const storage = <Object?>[
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0.75,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        12,
+        -4,
+        0,
+        1,
+      ];
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredTransform(
+                properties: const {
+                  'transform': {'kind': 'matrix4', 'storage': storage},
+                  'origin': {'kind': 'offset', 'dx': -5.5, 'dy': 7.25},
+                  'alignment': {
+                    'kind': 'alignmentGeometry',
+                    'basis': 'directional',
+                    'horizontal': -1.0,
+                    'vertical': 1.0,
+                  },
+                  'transformHitTests': {'kind': 'boolean', 'value': false},
+                  'filterQuality': {
+                    'kind': 'enum',
+                    'type': 'FilterQuality',
+                    'value': 'low',
+                  },
+                },
+                child: _viewSizedBoxNode(childId, width: 80, height: 40),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: transformId,
+            onSelected: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final transformFinder = find.byKey(
+        const ValueKey('canvas-transform-$transformId'),
+      );
+      final transform = tester.widget<Transform>(transformFinder);
+      final render = tester.renderObject<RenderTransform>(transformFinder);
+      expect(transform.transform.storage, storage);
+      expect(transform.origin, const Offset(-5.5, 7.25));
+      expect(transform.alignment, AlignmentDirectional.bottomStart);
+      expect(transform.transformHitTests, isFalse);
+      expect(transform.filterQuality, FilterQuality.low);
+      expect(render.origin, const Offset(-5.5, 7.25));
+      expect(render.alignment, AlignmentDirectional.bottomStart);
+      expect(render.textDirection, TextDirection.ltr);
+      expect(render.transformHitTests, isFalse);
+      expect(render.filterQuality, FilterQuality.low);
+      expect(render.size, const Size(80, 40));
+      expect(
+        tester.getSize(find.byKey(const ValueKey('canvas-widget-$childId'))),
+        const Size(80, 40),
+      );
+      expect(
+        find.descendant(
+          of: transformFinder,
+          matching: find.byKey(const ValueKey('canvas-widget-$transformId')),
+        ),
+        findsOneWidget,
+        reason: 'the real Transform must own Designer hit testing and geometry',
+      );
+      expect(
+        find.descendant(
+          of: transformFinder,
+          matching: find.byKey(
+            const ValueKey('canvas-selection-outline-$transformId'),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'uses transformed selection and drop geometry and exact transformHitTests behavior',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      CanvasDropResolver? resolver;
+
+      Future<RenderTransform> pump({required bool transformHitTests}) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredTransform(
+                  properties: {
+                    'transform': const {
+                      'kind': 'matrix4',
+                      'storage': <Object?>[
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                        20,
+                        0,
+                        0,
+                        1,
+                      ],
+                    },
+                    'transformHitTests': {
+                      'kind': 'boolean',
+                      'value': transformHitTests,
+                    },
+                  },
+                  child: null,
+                  tightSize: const Size(80, 40),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: transformId,
+              onSelected: (_) {},
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderTransform>(
+          find.byKey(const ValueKey('canvas-transform-$transformId')),
+        );
+      }
+
+      final transformedHitTests = await pump(transformHitTests: true);
+      final transformFinder = find.byKey(
+        const ValueKey('canvas-transform-$transformId'),
+      );
+      final outlineFinder = find.byKey(
+        const ValueKey('canvas-selection-outline-$transformId'),
+      );
+      final layoutRect = tester.getRect(transformFinder);
+      final outlineRect = tester.getRect(outlineFinder);
+      final visualScale = layoutRect.width / 80;
+      expect(transformedHitTests.size, const Size(80, 40));
+      expect(outlineRect.size, layoutRect.size);
+      expect(
+        outlineRect.left - layoutRect.left,
+        closeTo(20 * visualScale, 0.01),
+        reason:
+            'the node key and selection outline must follow RenderTransform',
+      );
+      expect(outlineRect.top, closeTo(layoutRect.top, 0.01));
+      expect(
+        transformedHitTests.hitTest(
+          BoxHitTestResult(),
+          position: const Offset(5, 20),
+        ),
+        isFalse,
+        reason: 'the inverse translation places this point outside the child',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$transformId'),
+        ),
+        findsNothing,
+        reason: 'a real non-zero layout must not receive an IDE-only target',
+      );
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = outlineRect.center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, transformId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+
+      final untransformedHitTests = await pump(transformHitTests: false);
+      expect(
+        untransformedHitTests.hitTest(
+          BoxHitTestResult(),
+          position: const Offset(5, 20),
+        ),
+        isTrue,
+        reason:
+            'transformHitTests false must test the child before translation',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps only an empty zero-layout Transform target and Flutter defaults',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredTransform(
+                properties: const {
+                  'transform': {
+                    'kind': 'matrix4',
+                    'storage': <Object?>[
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                    ],
+                  },
+                },
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final transformFinder = find.byKey(
+        const ValueKey('canvas-transform-$transformId'),
+      );
+      final transform = tester.widget<Transform>(transformFinder);
+      final render = tester.renderObject<RenderTransform>(transformFinder);
+      final nodeFinder = find.byKey(
+        const ValueKey('canvas-widget-$transformId'),
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$transformId'),
+      );
+      expect(transform.origin, isNull);
+      expect(transform.alignment, isNull);
+      expect(transform.transformHitTests, isTrue);
+      expect(transform.filterQuality, isNull);
+      expect(render.size, Size.zero);
+      expect(tester.getSize(nodeFinder), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, transformId);
+      expect(tester.getSize(nodeFinder), Size.zero);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, transformId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'fails closed for non-finite singular and perspective Transform geometry',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      const childId = 'd571f630-fb8d-4c0f-99e7-9cd7eb85337f';
+      const zero = <Object?>[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      const perspectiveAtInfinity = <Object?>[
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+      ];
+      final cases = <(String, List<Object?>, Map<String, Object?>?)>[
+        ('all-zero singular empty Transform', zero, null),
+        (
+          'perspective empty Transform at infinity',
+          perspectiveAtInfinity,
+          null,
+        ),
+        (
+          'perspective Transform with a laid-out child at infinity',
+          perspectiveAtInfinity,
+          _viewSizedBoxNode(childId, width: 80, height: 40),
+        ),
+      ];
+      CanvasDropResolver? resolver;
+
+      for (final (description, storage, child) in cases) {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredTransform(
+                  properties: {
+                    'transform': {'kind': 'matrix4', 'storage': storage},
+                  },
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        final transform = tester.widget<Transform>(
+          find.byKey(const ValueKey('canvas-transform-$transformId')),
+        );
+        final render = tester.renderObject<RenderTransform>(
+          find.byKey(const ValueKey('canvas-transform-$transformId')),
+        );
+        expect(transform.transform.storage, storage, reason: description);
+        expect(
+          render.size,
+          child == null ? Size.zero : const Size(80, 40),
+          reason: description,
+        );
+        expect(
+          find.byKey(
+            const ValueKey('canvas-zero-size-widget-target-$transformId'),
+          ),
+          findsNothing,
+          reason: '$description has no finite painted geometry to target',
+        );
+
+        final drop = resolver!(500000, 500000);
+        expect(
+          drop?.parentWidgetId,
+          isNot(transformId),
+          reason: '$description must not invent a Transform drop zone',
+        );
+        expect(
+          drop?.parentWidgetId,
+          isNot(childId),
+          reason: '$description must not invent a transformed child drop zone',
+        );
+        expect(tester.takeException(), isNull, reason: description);
+      }
+    },
+  );
+
+  testWidgets(
+    'rejects a projective horizon but keeps same-sign perspective geometry',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      CanvasDropResolver? resolver;
+
+      Future<Rect> pump(List<Object?> storage) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredTransform(
+                  properties: {
+                    'transform': {'kind': 'matrix4', 'storage': storage},
+                  },
+                  child: null,
+                  tightSize: const Size(80, 40),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        final finder = find.byKey(
+          const ValueKey('canvas-transform-$transformId'),
+        );
+        expect(tester.getSize(finder), const Size(80, 40));
+        return tester.getRect(finder);
+      }
+
+      CanvasDropTarget? resolveAt(Rect rendered) {
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final point = rendered.center;
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      final horizonRect = await pump(const <Object?>[
+        1,
+        0,
+        0,
+        -0.025,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+      ]);
+      expect(horizonRect.isFinite, isTrue);
+      expect(
+        resolveAt(horizonRect)?.parentWidgetId,
+        isNot(transformId),
+        reason:
+            'w changes sign across the box and its true bounds are unbounded',
+      );
+
+      final boundedRect = await pump(const <Object?>[
+        1,
+        0,
+        0,
+        0.0025,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+      ]);
+      expect(boundedRect.isFinite, isTrue);
+      final boundedDrop = resolveAt(boundedRect);
+      expect(boundedDrop?.parentWidgetId, transformId);
+      expect(boundedDrop?.slotName, 'child');
+      expect(boundedDrop?.insertionIndex, 0);
+      expect(boundedDrop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'uses exact local containment and rejects a degenerate Transform inverse',
+    (tester) async {
+      const transformId = '6408cfe9-e227-43de-916c-bb9d66224de9';
+      CanvasDropResolver? resolver;
+
+      Future<RenderBox> pump(
+        List<Object?> storage, {
+        Map<String, Object?>? alignment,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredTransform(
+                  properties: {
+                    'transform': {'kind': 'matrix4', 'storage': storage},
+                    'alignment': ?alignment,
+                  },
+                  child: null,
+                  tightSize: const Size(80, 40),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CanvasDocumentView(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: (_) {},
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderBox>(
+          find.byKey(const ValueKey('canvas-widget-$transformId')),
+        );
+      }
+
+      CanvasDropTarget? resolveAt(Offset point) {
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      final rotated = await pump(
+        const <Object?>[
+          0.7071067811865476,
+          0.7071067811865476,
+          0,
+          0,
+          -0.7071067811865476,
+          0.7071067811865476,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+        ],
+        alignment: const {
+          'kind': 'alignmentGeometry',
+          'basis': 'physical',
+          'horizontal': 0.0,
+          'vertical': 0.0,
+        },
+      );
+      final rotatedBounds = MatrixUtils.transformRect(
+        rotated.getTransformTo(null),
+        Offset.zero & rotated.size,
+      );
+      final outsidePaintedQuad = rotatedBounds.topLeft + const Offset(1, 1);
+      expect(rotatedBounds.isFinite, isTrue);
+      expect(rotatedBounds.contains(outsidePaintedQuad), isTrue);
+      expect(
+        (Offset.zero & rotated.size).contains(
+          rotated.globalToLocal(outsidePaintedQuad),
+        ),
+        isFalse,
+        reason: 'the AABB corner lies outside the rotated local rectangle',
+      );
+      expect(
+        resolveAt(outsidePaintedQuad)?.parentWidgetId,
+        isNot(transformId),
+        reason: 'an AABB corner triangle is not a painted Transform hit',
+      );
+      expect(
+        resolveAt(rotatedBounds.center)?.parentWidgetId,
+        transformId,
+        reason: 'the center remains inside the rotated local rectangle',
+      );
+
+      final degenerate = await pump(const <Object?>[
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+      ]);
+      final collapsedBounds = MatrixUtils.transformRect(
+        degenerate.getTransformTo(null),
+        Offset.zero & degenerate.size,
+      );
+      expect(collapsedBounds.isFinite, isTrue);
+      expect(collapsedBounds.isEmpty, isTrue);
+      expect(
+        find.byKey(
+          const ValueKey('canvas-zero-size-widget-target-$transformId'),
+        ),
+        findsNothing,
+        reason: 'the real Transform layout is 80x40, not zero-sized',
+      );
+      expect(
+        resolveAt(collapsedBounds.center)?.parentWidgetId,
+        isNot(transformId),
+        reason: 'globalToLocal Offset.zero must not mask a degenerate inverse',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'resolves a 90-degree Row terminal zone and move marker in local axes',
+    (tester) async {
+      const rowId = '66b26d19-5b49-4f32-9ee2-0f1aefcda249';
+      const firstId = '2f02ed09-67b6-47f3-a7b6-d285d79e1d4f';
+      const secondId = 'd3a5e444-f78f-4d4e-931a-65141cf849e4';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredTransform(
+                properties: const {
+                  'transform': {
+                    'kind': 'matrix4',
+                    'storage': <Object?>[
+                      0,
+                      1,
+                      0,
+                      0,
+                      -1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                    ],
+                  },
+                  'alignment': {
+                    'kind': 'alignmentGeometry',
+                    'basis': 'physical',
+                    'horizontal': 0.0,
+                    'vertical': 0.0,
+                  },
+                },
+                child: <String, Object?>{
+                  'id': rowId,
+                  'type': 'flutter.widgets.Row',
+                  'properties': <String, Object?>{},
+                  'slots': <String, Object?>{
+                    'children': <String, Object?>{
+                      'kind': 'list',
+                      'children': <Object?>[
+                        _viewSizedBoxNode(firstId, width: 50, height: 40),
+                        _viewSizedBoxNode(secondId, width: 50, height: 40),
+                      ],
+                    },
+                  },
+                },
+                tightSize: const Size(160, 80),
+              ),
+            ),
+          ),
+        ),
+      );
+      CanvasDropResolver? resolver;
+      CanvasMovePreviewResolver? moveResolver;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => resolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final row = tester.renderObject<RenderBox>(
+        find.byKey(const ValueKey('canvas-widget-$rowId')),
+      );
+      final last = tester.renderObject<RenderBox>(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      final lastLocalRect = MatrixUtils.transformRect(
+        last.getTransformTo(row),
+        Offset.zero & last.size,
+      );
+      final localTerminal = Rect.fromLTRB(
+        (lastLocalRect.right - 36).clamp(0.0, row.size.width),
+        0,
+        row.size.width,
+        row.size.height,
+      );
+      expect(localTerminal.left, greaterThan(0));
+
+      CanvasDropTarget? resolveLocal(Offset local) {
+        final point = row.localToGlobal(local);
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      final terminal = resolveLocal(
+        Offset(row.size.width - 1, row.size.height / 2),
+      );
+      expect(terminal?.parentWidgetId, rowId);
+      expect(terminal?.slotName, 'children');
+      expect(terminal?.insertionIndex, 2);
+      expect(
+        resolveLocal(const Offset(1, 1))?.parentWidgetId,
+        isNot(rowId),
+        reason:
+            'the old global-right AABB strip maps to the local Row start edge',
+      );
+
+      final zone = terminal!.zone!;
+      final globalZone = Rect.fromLTRB(
+        surface.left + surface.width * zone.leftMicros / 1000000,
+        surface.top + surface.height * zone.topMicros / 1000000,
+        surface.left + surface.width * zone.rightMicros / 1000000,
+        surface.top + surface.height * zone.bottomMicros / 1000000,
+      );
+      final expectedZone = MatrixUtils.transformRect(
+        row.getTransformTo(null),
+        localTerminal,
+      );
+      expect(globalZone.left, closeTo(expectedZone.left, 0.01));
+      expect(globalZone.top, closeTo(expectedZone.top, 0.01));
+      expect(globalZone.right, closeTo(expectedZone.right, 0.01));
+      expect(globalZone.bottom, closeTo(expectedZone.bottom, 0.01));
+
+      final move = moveResolver!(firstId, rowId, 'children', 1);
+      expect(move?.parentWidgetId, rowId);
+      expect(move?.slotName, 'children');
+      expect(move?.insertionIndex, 1);
+      final moveZone = move!.zone!;
+      final moveWidth =
+          surface.width *
+          (moveZone.rightMicros - moveZone.leftMicros) /
+          1000000;
+      final moveHeight =
+          surface.height *
+          (moveZone.bottomMicros - moveZone.topMicros) /
+          1000000;
+      expect(
+        moveWidth,
+        greaterThan(moveHeight),
+        reason:
+            'the local vertical Row insertion marker rotates to a horizontal AABB',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'resolves rotated AppBar leading and actions zones in AppBar local axes',
+    (tester) async {
+      final appBarModel =
+          jsonDecode(utf8.decode(fixture.appBarModelBytesForViewTest()))
+              as Map<String, Object?>;
+      final nestedScaffold = appBarModel['root']! as Map<String, Object?>;
+      final nestedSlots = nestedScaffold['slots']! as Map<String, Object?>;
+      final appBar =
+          (nestedSlots['appBar']! as Map<String, Object?>)['child']!
+              as Map<String, Object?>;
+      appBar['properties'] = <String, Object?>{};
+      final appBarSlots = appBar['slots']! as Map<String, Object?>;
+      for (final slotName in const [
+        'leading',
+        'title',
+        'flexibleSpace',
+        'bottom',
+      ]) {
+        (appBarSlots[slotName]! as Map<String, Object?>)['child'] = null;
+      }
+      (appBarSlots['actions']! as Map<String, Object?>)['children'] =
+          <Object?>[];
+
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredTransform(
+                properties: const {
+                  'transform': {
+                    'kind': 'matrix4',
+                    'storage': <Object?>[
+                      0,
+                      1,
+                      0,
+                      0,
+                      -1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                    ],
+                  },
+                  'alignment': {
+                    'kind': 'alignmentGeometry',
+                    'basis': 'physical',
+                    'horizontal': 0.0,
+                    'vertical': 0.0,
+                  },
+                },
+                child: nestedScaffold,
+                tightSize: const Size(300, 240),
+              ),
+            ),
+          ),
+        ),
+      );
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanvasDocumentView(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final appBarBox = tester.renderObject<RenderBox>(
+        find.byKey(
+          const ValueKey('canvas-widget-${fixture.appBarWidgetIdForViewTest}'),
+        ),
+      );
+      final fallbackBottom = math.min(36.0, appBarBox.size.height / 3);
+      final toolbarHeight = appBarBox.size.height - fallbackBottom;
+
+      CanvasDropTarget? resolveLocal(Offset local) {
+        final point = appBarBox.localToGlobal(local);
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+      }
+
+      final actions = resolveLocal(
+        Offset(appBarBox.size.width - 1, toolbarHeight / 2),
+      );
+      expect(actions?.parentWidgetId, fixture.appBarWidgetIdForViewTest);
+      expect(actions?.slotName, 'actions');
+      expect(actions?.insertionIndex, 0);
+
+      final leading = resolveLocal(Offset(1, toolbarHeight / 2));
+      expect(leading?.parentWidgetId, fixture.appBarWidgetIdForViewTest);
+      expect(
+        leading?.slotName,
+        'leading',
+        reason:
+            'the global-top position must not be mistaken for global-axis actions',
+      );
+
+      final actionsZone = actions!.zone!;
+      final actionsWidth =
+          surface.width *
+          (actionsZone.rightMicros - actionsZone.leftMicros) /
+          1000000;
+      final actionsHeight =
+          surface.height *
+          (actionsZone.bottomMicros - actionsZone.topMicros) /
+          1000000;
+      expect(
+        actionsHeight,
+        greaterThan(actionsWidth),
+        reason:
+            'the rectangular feedback is the AABB of the rotated local trailing zone',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real Opacity at exact alpha endpoints while preserving hit testing and outer Designer control',
     (tester) async {
       const opacityId = '47f754c8-9fcb-480c-9578-87cda83bd4d5';
@@ -9225,6 +10178,47 @@ Map<String, Object?> _modelWithCenteredSizedOverflowBox({
           },
         },
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredTransform({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  Size? tightSize,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  Map<String, Object?> centeredChild = <String, Object?>{
+    'id': '6408cfe9-e227-43de-916c-bb9d66224de9',
+    'type': 'flutter.widgets.Transform',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  if (tightSize case final size?) {
+    centeredChild = <String, Object?>{
+      'id': '0eefaa90-d45f-4a2c-b87f-ab46971d2d44',
+      'type': 'flutter.widgets.SizedBox',
+      'properties': <String, Object?>{
+        'width': {'kind': 'double', 'value': size.width},
+        'height': {'kind': 'double', 'value': size.height},
+      },
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+      },
+    };
+  }
+  body['child'] = <String, Object?>{
+    'id': 'c17d0f6c-6dbe-4af5-bdd5-1468b690a0d2',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
     },
   };
   return model;

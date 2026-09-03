@@ -511,6 +511,74 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsTransformWithIdentityMatrixAndOmittedFrameworkDefaults() {
+        WidgetDefinition definition = definition("flutter.widgets.Transform");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.Transform"), prototype.type());
+        assertEquals(Map.of(
+                        new PropertyName("transform"), identityMatrix()),
+                prototype.properties());
+        for (String omitted : List.of(
+                "origin", "alignment", "transformHitTests", "filterQuality")) {
+            assertFalse(prototype.properties().containsKey(new PropertyName(omitted)),
+                    omitted);
+        }
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+
+        PropertyValue.OffsetValue origin = new PropertyValue.OffsetValue(
+                new BigDecimal("-12.5"), new BigDecimal("8.25"));
+        PropertyValue.AlignmentGeometryValue alignment =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                        BigDecimal.ONE, BigDecimal.ONE.negate());
+        WidgetNode explicit = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("transform"), identityMatrix(),
+                        new PropertyName("origin"), origin,
+                        new PropertyName("alignment"), alignment,
+                        new PropertyName("transformHitTests"),
+                        new PropertyValue.BooleanValue(false),
+                        new PropertyName("filterQuality"),
+                        new PropertyValue.EnumValue("FilterQuality", "high")));
+        assertEquals(origin, explicit.properties().get(new PropertyName("origin")));
+        assertEquals(alignment, explicit.properties().get(new PropertyName("alignment")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("transform"),
+                                new PropertyValue.StringValue("Matrix4.identity()"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(
+                                new PropertyName("transform"), identityMatrix(),
+                                new PropertyName("origin"),
+                                new PropertyValue.OffsetValue(
+                                        new BigDecimal("1E+10000"), BigDecimal.ZERO))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(
+                                new PropertyName("transform"), identityMatrix(),
+                                new PropertyName("filterQuality"),
+                                new PropertyValue.EnumValue(
+                                        "FilterQuality", "ultra"))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 
@@ -544,6 +612,14 @@ class WidgetNodePrototypeFactoryTest {
                                 new PropertyValue.StringValue("Photo")),
                 prototype.properties());
         assertTrue(prototype.slots().isEmpty());
+    }
+
+    private static PropertyValue.Matrix4Value identityMatrix() {
+        return new PropertyValue.Matrix4Value(List.of(
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE));
     }
 
     @Test

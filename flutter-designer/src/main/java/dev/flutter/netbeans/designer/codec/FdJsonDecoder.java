@@ -607,13 +607,14 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:4",
                     "urn:netbeans-flutter-designer:schema:fd:5",
                     "urn:netbeans-flutter-designer:schema:fd:6",
-                    "urn:netbeans-flutter-designer:schema:fd:7" ->
-                    "urn:netbeans-flutter-designer:schema:fd:8";
+                    "urn:netbeans-flutter-designer:schema:fd:7",
+                    "urn:netbeans-flutter-designer:schema:fd:8" ->
+                    "urn:netbeans-flutter-designer:schema:fd:9";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
-                    "../fd-v7.schema.json" ->
-                    "../fd-v8.schema.json";
+                    "../fd-v7.schema.json", "../fd-v8.schema.json" ->
+                    "../fd-v9.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1141,6 +1142,12 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Size values require schema version 8.");
         }
+        if (sourceVersion < 9 && kind.equals("offset")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "Offset values require schema version 9.");
+        }
         return switch (kind) {
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
@@ -1352,6 +1359,14 @@ final class FdJsonDecoder {
                         parser, fields, base,
                         Set.of("kind", "basis", "horizontal", "vertical"));
                 yield readAlignment(fields, base);
+            }
+            case "offset" -> {
+                enforceAllowedFields(
+                        parser, fields, base, Set.of("kind", "dx", "dy"));
+                BigDecimal dx = jsonDartDouble(fields, "dx", base);
+                BigDecimal dy = jsonDartDouble(fields, "dy", base);
+                yield modelValue(base,
+                        () -> new PropertyValue.OffsetValue(dx, dy));
             }
             case "size" -> {
                 enforceAllowedFields(

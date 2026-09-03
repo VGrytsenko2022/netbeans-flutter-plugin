@@ -349,6 +349,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(box));
     }
 
+    @Test
+    void transformIsAnOrdinaryInsertableWidgetWithRestrictedAnyWidgetChild() {
+        WidgetDefinition transform = definition("flutter.widgets.Transform");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(transform).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), transform));
+        assertTrue(WidgetPlacementRules.accepts(
+                transform, slot(transform, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    transform,
+                    slot(transform, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.Transform.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(transform));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(transform));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(transform));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

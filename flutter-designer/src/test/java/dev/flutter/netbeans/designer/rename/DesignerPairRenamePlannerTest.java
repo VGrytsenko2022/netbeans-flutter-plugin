@@ -183,8 +183,8 @@ class DesignerPairRenamePlannerTest {
         OriginalFdBytes current = starterFd();
         String currentJson = new String(current.copyBytes(), StandardCharsets.UTF_8);
         String futureJson = currentJson.replaceFirst(
-                "\\\"schemaVersion\\\"\\s*:\\s*8",
-                "\"schemaVersion\": 9");
+                "\\\"schemaVersion\\\"\\s*:\\s*9",
+                "\"schemaVersion\": 10");
         assertNotEquals(currentJson, futureJson);
         OriginalFdBytes future = OriginalFdBytes.copyOf(
                 futureJson.getBytes(StandardCharsets.UTF_8),

@@ -78,6 +78,11 @@ class DesignerCommandSessionTest {
     private static final PropertyName STEP_HEIGHT = property("stepHeight");
     private static final PropertyName OFFSTAGE = property("offstage");
     private static final PropertyName SIZE = property("size");
+    private static final PropertyName TRANSFORM = property("transform");
+    private static final PropertyName ORIGIN = property("origin");
+    private static final PropertyName TRANSFORM_HIT_TESTS =
+            property("transformHitTests");
+    private static final PropertyName FILTER_QUALITY = property("filterQuality");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -811,7 +816,7 @@ class DesignerCommandSessionTest {
 
         DesignerCommandSession saved = redoReset.undo().session().markSaved();
         String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
         assertTrue(fd.contains("\"kind\": \"size\""), fd);
         assertTrue(fd.contains("\"width\": 120.5"), fd);
         assertTrue(fd.contains("\"height\": 0"), fd);
@@ -858,6 +863,149 @@ class DesignerCommandSessionTest {
                 "alignment: const AlignmentDirectional(1.0, -1.0)"), editedDart);
         assertTrue(editedDart.contains(
                 "child: const Text('Overflow child')"), editedDart);
+    }
+
+    @Test
+    void transformOffsetEditResetUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Transform")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().get(TRANSFORM)
+                instanceof PropertyValue.Matrix4Value);
+        assertFalse(prototype.properties().containsKey(ORIGIN));
+        assertFalse(prototype.properties().containsKey(ALIGNMENT));
+        assertFalse(prototype.properties().containsKey(TRANSFORM_HIT_TESTS));
+        assertFalse(prototype.properties().containsKey(FILTER_QUALITY));
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Transformed child")));
+        PropertyValue.OffsetValue origin = new PropertyValue.OffsetValue(
+                new BigDecimal("-4.5"), new BigDecimal("2.25"));
+        DesignerCommandSession withOrigin = applied(childAdded, new SetProperty(
+                WRAPPER_ID, ORIGIN, origin));
+        PropertyValue.AlignmentGeometryValue alignment =
+                new PropertyValue.AlignmentGeometryValue(
+                        PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL,
+                        new BigDecimal("0.5"), new BigDecimal("-0.25"));
+        DesignerCommandSession withAlignment = applied(
+                withOrigin, new SetProperty(WRAPPER_ID, ALIGNMENT, alignment));
+        DesignerCommandSession withHitTests = applied(
+                withAlignment,
+                new SetProperty(WRAPPER_ID, TRANSFORM_HIT_TESTS,
+                        new PropertyValue.BooleanValue(false)));
+        DesignerCommandSession configured = applied(
+                withHitTests,
+                new SetProperty(WRAPPER_ID, FILTER_QUALITY,
+                        new PropertyValue.EnumValue("FilterQuality", "high")));
+
+        WidgetNode transform = find(
+                configured.current().document().root(), WRAPPER_ID);
+        assertEquals(origin, transform.properties().get(ORIGIN));
+        assertEquals(alignment, transform.properties().get(ALIGNMENT));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                transform.properties().get(TRANSFORM_HIT_TESTS));
+        assertEquals(new PropertyValue.EnumValue("FilterQuality", "high"),
+                transform.properties().get(FILTER_QUALITY));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) transform.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                configured.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("Transform("), dart);
+        assertTrue(dart.contains("transform: Matrix4.fromList"), dart);
+        assertTrue(dart.contains("origin: const Offset(-4.5, 2.25)"), dart);
+        assertTrue(dart.contains("alignment: const Alignment(0.5, -0.25)"), dart);
+        assertTrue(dart.contains("transformHitTests: false"), dart);
+        assertTrue(dart.contains("filterQuality: FilterQuality.high"), dart);
+        assertTrue(dart.contains("child: const Text('Transformed child')"), dart);
+        assertTrue(dart.indexOf("transform: Matrix4.fromList")
+                < dart.indexOf("origin: const Offset"), dart);
+        assertTrue(dart.indexOf("origin: const Offset")
+                < dart.indexOf("alignment: const Alignment"), dart);
+        assertTrue(dart.indexOf("alignment: const Alignment")
+                < dart.indexOf("transformHitTests: false"), dart);
+        assertTrue(dart.indexOf("transformHitTests: false")
+                < dart.indexOf("filterQuality: FilterQuality.high"), dart);
+        assertTrue(dart.indexOf("filterQuality: FilterQuality.high")
+                < dart.indexOf("child: const Text('Transformed child')"), dart);
+
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID, ORIGIN, new PropertyValue.StringValue("-4.5,2.25")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID, ORIGIN, new PropertyValue.OffsetValue(
+                        new BigDecimal("1E+10000"), BigDecimal.ZERO)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(configured, new SetProperty(
+                WRAPPER_ID, FILTER_QUALITY,
+                new PropertyValue.EnumValue("FilterQuality", "ultra")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(configured, new ResetProperty(WRAPPER_ID, TRANSFORM),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+
+        DesignerCommandSession reset = applied(
+                configured, new ResetProperty(WRAPPER_ID, ORIGIN));
+        assertFalse(find(reset.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(ORIGIN));
+        String resetDart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertFalse(resetDart.contains("origin:"), resetDart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertArrayEquals(configured.current().fdBytes(),
+                undoReset.current().fdBytes());
+        assertArrayEquals(configured.current().dartCandidateBytes(),
+                undoReset.current().dartCandidateBytes());
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.undo().session().markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
+        assertTrue(fd.contains("\"kind\": \"offset\""), fd);
+        assertTrue(fd.contains("\"dx\": -4.5"), fd);
+        assertTrue(fd.contains("\"dy\": 2.25"), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+        assertEquals(origin, find(
+                reopened.current().document().root(), WRAPPER_ID)
+                .properties().get(ORIGIN));
+
+        PropertyValue.OffsetValue editedOrigin = new PropertyValue.OffsetValue(
+                BigDecimal.ZERO, BigDecimal.valueOf(-8));
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(WRAPPER_ID, ORIGIN, editedOrigin));
+        assertEquals(editedOrigin, find(
+                editedAfterReopen.current().document().root(), WRAPPER_ID)
+                .properties().get(ORIGIN));
+        String editedDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("origin: const Offset(0.0, -8.0)"),
+                editedDart);
     }
 
     @Test
@@ -1253,7 +1401,7 @@ class DesignerCommandSessionTest {
                 "child: const Text('Inside constrained box')"), dart);
         String fd = new String(constrained.current().fdBytes(),
                 StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
         assertTrue(fd.contains("\"minWidth\": null"), fd);
         assertTrue(fd.contains("\"maxWidth\": null"), fd);
 
@@ -1355,7 +1503,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside unconstrained box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.UnconstrainedBox\""), fd);
         assertTrue(fd.contains("\"type\": \"Axis\""), fd);
         assertTrue(fd.contains("\"value\": \"vertical\""), fd);
@@ -1437,7 +1585,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside limited box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.LimitedBox\""), fd);
         assertTrue(fd.contains("\"maxHeight\""), fd);
         assertTrue(fd.contains("\"value\": 180"), fd);
@@ -1567,7 +1715,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside overflow box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 8"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBox\""), fd);
         assertTrue(fd.contains("\"basis\": \"directional\""), fd);
         assertTrue(fd.contains("\"maxWidth\""), fd);

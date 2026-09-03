@@ -462,7 +462,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       if (surface == null || currentGeometry == null) {
         return;
       }
-      final surfaceRect = _globalRect(surface);
+      final surfaceRect = _finiteGlobalRect(surface);
+      if (surfaceRect == null) {
+        return;
+      }
       final viewportRect = Rect.fromLTWH(
         currentGeometry.left,
         currentGeometry.top,
@@ -479,7 +482,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         if (box == null || (!alwaysUsesSurfaceOverlay && !box.size.isEmpty)) {
           continue;
         }
-        final rendered = _globalRect(box).shift(-surfaceRect.topLeft);
+        final globalRect = _finiteGlobalRect(box);
+        if (globalRect == null) {
+          continue;
+        }
+        final rendered = globalRect.shift(-surfaceRect.topLeft);
         final target = _boundedDesignerHitRect(
           rendered,
           viewportRect,
@@ -526,6 +533,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.IntrinsicWidth' ||
         node.type == 'flutter.widgets.Offstage' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
+        node.type == 'flutter.widgets.Transform' ||
         node.type == 'flutter.widgets.ConstrainedBox' ||
         node.type == 'flutter.widgets.UnconstrainedBox' ||
         node.type == 'flutter.widgets.LimitedBox' ||
@@ -822,7 +830,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (surface == null || surface.size.isEmpty) {
       return null;
     }
-    final surfaceRect = _globalRect(surface);
+    final surfaceRect = _finiteGlobalRect(surface);
+    if (surfaceRect == null) {
+      return null;
+    }
     final point = Offset(
       surfaceRect.left + surfaceRect.width * xMicros / _microsPerSurface,
       surfaceRect.top + surfaceRect.height * yMicros / _microsPerSurface,
@@ -888,12 +899,18 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (slotKind == null) {
       return null;
     }
-    final surfaceRect = _globalRect(surface);
-    final parentRect = _boundedDesignerHitRect(
-      _globalRect(parentBox),
-      surfaceRect,
-    );
-    if (parentRect.isEmpty) {
+    final surfaceRect = _finiteGlobalRect(surface);
+    final renderedParentRect = _finiteGlobalRect(parentBox);
+    if (surfaceRect == null ||
+        renderedParentRect == null ||
+        !_hasFiniteGlobalInverse(parentBox)) {
+      return null;
+    }
+    final zeroSizedParent = parentBox.size.isEmpty;
+    final parentRect = zeroSizedParent
+        ? _boundedDesignerHitRect(renderedParentRect, surfaceRect)
+        : Offset.zero & parentBox.size;
+    if (parentRect.isEmpty && !zeroSizedParent) {
       return null;
     }
 
@@ -910,11 +927,41 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       if (retainedChildren != 0) {
         return null;
       }
-      zone =
-          parentNode.type == 'flutter.material.Scaffold' &&
-              slotName == 'floatingActionButton'
-          ? _bottomRightCompactZone(parentRect)
-          : parentRect;
+      zone = switch (reviewedSlot?.zonePlacement) {
+        CanvasDropZonePlacement.fullNode || null => parentRect,
+        CanvasDropZonePlacement.terminalList => _terminalZone(
+          parentNode,
+          parentBox,
+          parentRect,
+          slotName,
+        ),
+        CanvasDropZonePlacement.existingChild => Rect.zero,
+        CanvasDropZonePlacement.bottomRightCompact => _bottomRightCompactZone(
+          parentRect,
+        ),
+        CanvasDropZonePlacement.appBarLeading => _appBarLeadingZone(
+          parentNode,
+          parentBox,
+          parentRect,
+        ),
+        CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(
+          parentNode,
+          parentBox,
+          parentRect,
+        ),
+        CanvasDropZonePlacement.appBarActions => _terminalZone(
+          parentNode,
+          parentBox,
+          _appBarToolbarZone(parentNode, parentBox, parentRect),
+          slotName,
+        ),
+        CanvasDropZonePlacement.appBarFlexibleSpace => parentRect,
+        CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(
+          parentNode,
+          parentBox,
+          parentRect,
+        ),
+      };
     } else if (slotKind == 'list') {
       final children = <CanvasNode>[
         for (final child in modelSlot?.children ?? const <CanvasNode>[])
@@ -923,29 +970,59 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       if (insertionIndex < 0 || insertionIndex > children.length) {
         return null;
       }
-      zone = _listMoveInsertionZone(
-        parentNode,
-        parentRect,
-        children,
-        insertionIndex,
-        slotName,
-      );
+      if (zeroSizedParent && children.isNotEmpty) {
+        return null;
+      }
+      final listParentRect =
+          parentNode.type == 'flutter.material.AppBar' && slotName == 'actions'
+          ? _appBarToolbarZone(parentNode, parentBox, parentRect)
+          : parentRect;
+      zone =
+          parentNode.type == 'flutter.material.AppBar' &&
+              slotName == 'actions' &&
+              children.isEmpty
+          ? _terminalZone(
+              parentNode,
+              parentBox,
+              listParentRect,
+              slotName,
+              effectiveChildren: children,
+            )
+          : _listMoveInsertionZone(
+              parentNode,
+              parentBox,
+              listParentRect,
+              children,
+              insertionIndex,
+              slotName,
+            );
     } else {
       return null;
     }
     if (zone.isEmpty) {
       return null;
     }
+    final globalZone = zeroSizedParent
+        ? zone
+        : _finiteGlobalRect(parentBox, localRect: zone);
+    if (globalZone == null) {
+      return null;
+    }
+    final boundedGlobalZone = _boundedDesignerHitRect(globalZone, surfaceRect);
+    if (boundedGlobalZone.isEmpty) {
+      return null;
+    }
     return CanvasDropTarget(
       parentWidgetId: parentWidgetId,
       slotName: slotName,
       insertionIndex: insertionIndex,
-      zone: _normalizeZone(surfaceRect, zone),
+      zone: _normalizeZone(surfaceRect, boundedGlobalZone),
     );
   }
 
   Rect _listMoveInsertionZone(
     CanvasNode parentNode,
+    RenderBox parentBox,
     Rect parentRect,
     List<CanvasNode> children,
     int insertionIndex,
@@ -975,7 +1052,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (reference == null) {
       return Rect.zero;
     }
-    final referenceRect = _globalRect(reference).intersect(parentRect);
+    final renderedReferenceRect = _finiteRectInAncestor(reference, parentBox);
+    if (renderedReferenceRect == null) {
+      return Rect.zero;
+    }
+    final referenceRect = renderedReferenceRect.intersect(parentRect);
     if (referenceRect.isEmpty) {
       return Rect.zero;
     }
@@ -1067,8 +1148,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           if (box == null) {
             continue;
           }
-          final zone = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
-          if (!zone.isEmpty && zone.contains(point)) {
+          final zone = _resolvedGlobalDropZone(
+            box,
+            Offset.zero & box.size,
+            point,
+            surfaceRect,
+          );
+          if (zone != null) {
             result.add(
               _DropCandidate(
                 node,
@@ -1095,34 +1181,51 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         final insertionIndex = dropSlot.insertionIndexFor(currentChildCount);
         final box = _renderBox(_nodeKeys[node.id]);
         if (insertionIndex != null && box != null) {
-          final rect = _boundedDesignerHitRect(_globalRect(box), surfaceRect);
-          final zone = switch (dropSlot.zonePlacement) {
-            CanvasDropZonePlacement.fullNode => rect,
+          if (dropSlot.zonePlacement == CanvasDropZonePlacement.existingChild) {
+            continue;
+          }
+          final localParent = Offset.zero & box.size;
+          final localZone = switch (dropSlot.zonePlacement) {
+            CanvasDropZonePlacement.fullNode => localParent,
             CanvasDropZonePlacement.terminalList => _terminalZone(
               node,
-              rect,
+              box,
+              localParent,
               dropSlot.slotName,
             ),
             CanvasDropZonePlacement.existingChild => Rect.zero,
             CanvasDropZonePlacement.bottomRightCompact =>
-              _bottomRightCompactZone(rect),
+              _bottomRightCompactZone(localParent),
             CanvasDropZonePlacement.appBarLeading => _appBarLeadingZone(
               node,
-              rect,
+              box,
+              localParent,
             ),
-            CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(node, rect),
+            CanvasDropZonePlacement.appBarTitle => _appBarTitleZone(
+              node,
+              box,
+              localParent,
+            ),
             CanvasDropZonePlacement.appBarActions => _terminalZone(
               node,
-              _appBarToolbarZone(node, rect),
+              box,
+              _appBarToolbarZone(node, box, localParent),
               dropSlot.slotName,
             ),
-            CanvasDropZonePlacement.appBarFlexibleSpace => rect,
+            CanvasDropZonePlacement.appBarFlexibleSpace => localParent,
             CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(
               node,
-              rect,
+              box,
+              localParent,
             ),
           };
-          if (!zone.isEmpty && zone.contains(point)) {
+          final zone = _resolvedGlobalDropZone(
+            box,
+            localZone,
+            point,
+            surfaceRect,
+          );
+          if (zone != null) {
             result.add(
               _DropCandidate(
                 node,
@@ -1156,7 +1259,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     Rect surface, {
     double minimumExtent = _minimumTerminalBand,
   }) {
-    if (surface.isEmpty) {
+    if (!rendered.isFinite || !surface.isFinite || surface.isEmpty) {
       return Rect.zero;
     }
     final visible = rendered.intersect(surface);
@@ -1198,11 +1301,20 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     );
   }
 
-  Rect _terminalZone(CanvasNode node, Rect parent, String slotName) {
+  Rect _terminalZone(
+    CanvasNode node,
+    RenderBox parentBox,
+    Rect parent,
+    String slotName, {
+    List<CanvasNode>? effectiveChildren,
+  }) {
     if (parent.width <= 0 || parent.height <= 0) {
       return Rect.zero;
     }
-    final children = node.slot(slotName)?.children ?? const <CanvasNode>[];
+    final children =
+        effectiveChildren ??
+        node.slot(slotName)?.children ??
+        const <CanvasNode>[];
     if (children.isEmpty) {
       // With no siblings there is only one legal ordering result: index 0.
       // Expose the complete visible container instead of making users find a
@@ -1229,7 +1341,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (last == null) {
       return Rect.zero;
     }
-    final lastRect = _globalRect(last);
+    final lastRect = _finiteRectInAncestor(last, parentBox);
+    if (lastRect == null) {
+      return Rect.zero;
+    }
     if (node.type == 'flutter.widgets.Column' ||
         (node.type == 'flutter.widgets.ListView' &&
             !_isHorizontalListView(node))) {
@@ -1297,12 +1412,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     return rightToLeft != reversed;
   }
 
-  Rect _appBarToolbarZone(CanvasNode node, Rect parent) {
+  Rect _appBarToolbarZone(CanvasNode node, RenderBox parentBox, Rect parent) {
     final bottom = node.slot('bottom')?.child;
     final bottomBox = bottom == null ? null : _renderBox(_nodeKeys[bottom.id]);
-    final renderedBottomHeight = bottomBox == null
-        ? 0.0
-        : _globalRect(bottomBox).intersect(parent).height;
+    final bottomRect = bottomBox == null
+        ? null
+        : _finiteRectInAncestor(bottomBox, parentBox);
+    final renderedBottomHeight = bottomRect?.intersect(parent).height ?? 0.0;
     final fallbackBottom = node.slot('bottom')?.children.isEmpty ?? true
         ? math.min(_minimumTerminalBand, parent.height / 3)
         : 0.0;
@@ -1315,8 +1431,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     );
   }
 
-  Rect _appBarBottomZone(CanvasNode node, Rect parent) {
-    final toolbar = _appBarToolbarZone(node, parent);
+  Rect _appBarBottomZone(CanvasNode node, RenderBox parentBox, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parentBox, parent);
     return Rect.fromLTRB(
       parent.left,
       toolbar.bottom,
@@ -1325,8 +1441,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     );
   }
 
-  Rect _appBarLeadingZone(CanvasNode node, Rect parent) {
-    final toolbar = _appBarToolbarZone(node, parent);
+  Rect _appBarLeadingZone(CanvasNode node, RenderBox parentBox, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parentBox, parent);
     final width = math.min(
       toolbar.width,
       math.max(
@@ -1349,9 +1465,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           );
   }
 
-  Rect _appBarTitleZone(CanvasNode node, Rect parent) {
-    final toolbar = _appBarToolbarZone(node, parent);
-    final leading = _appBarLeadingZone(node, parent);
+  Rect _appBarTitleZone(CanvasNode node, RenderBox parentBox, Rect parent) {
+    final toolbar = _appBarToolbarZone(node, parentBox, parent);
+    final leading = _appBarLeadingZone(node, parentBox, parent);
     final trailingWidth = math.min(
       toolbar.width / 3,
       math.max(_minimumTerminalBand, toolbar.width / 4),
@@ -1378,10 +1494,87 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         : null;
   }
 
-  static Rect _globalRect(RenderBox box) => MatrixUtils.transformRect(
-    box.getTransformTo(null),
-    Offset.zero & box.size,
-  );
+  Rect? _resolvedGlobalDropZone(
+    RenderBox box,
+    Rect localZone,
+    Offset globalPoint,
+    Rect surfaceRect,
+  ) {
+    final renderedBox = _finiteGlobalRect(box);
+    if (renderedBox == null || !_hasFiniteGlobalInverse(box)) {
+      return null;
+    }
+    if (box.size.isEmpty) {
+      final synthetic = _boundedDesignerHitRect(renderedBox, surfaceRect);
+      return !synthetic.isEmpty && synthetic.contains(globalPoint)
+          ? synthetic
+          : null;
+    }
+    if (!localZone.isFinite || localZone.isEmpty) {
+      return null;
+    }
+    final localPoint = _finiteLocalPoint(box, globalPoint);
+    if (localPoint == null || !localZone.contains(localPoint)) {
+      return null;
+    }
+    final renderedZone = _finiteGlobalRect(box, localRect: localZone);
+    if (renderedZone == null) {
+      return null;
+    }
+    final bounded = _boundedDesignerHitRect(renderedZone, surfaceRect);
+    return bounded.isEmpty ? null : bounded;
+  }
+
+  static Rect? _finiteGlobalRect(RenderBox box, {Rect? localRect}) =>
+      _finiteTransformedRect(
+        box.getTransformTo(null),
+        localRect ?? (Offset.zero & box.size),
+      );
+
+  static Rect? _finiteRectInAncestor(RenderBox box, RenderBox ancestor) =>
+      _finiteTransformedRect(
+        box.getTransformTo(ancestor),
+        Offset.zero & box.size,
+      );
+
+  static Rect? _finiteTransformedRect(Matrix4 transform, Rect localRect) {
+    if (!localRect.isFinite) {
+      return null;
+    }
+    final storage = transform.storage;
+    double homogeneousWeight(double x, double y) =>
+        storage[3] * x + storage[7] * y + storage[15];
+    final weights = <double>[
+      homogeneousWeight(localRect.left, localRect.top),
+      homogeneousWeight(localRect.right, localRect.top),
+      homogeneousWeight(localRect.left, localRect.bottom),
+      homogeneousWeight(localRect.right, localRect.bottom),
+    ];
+    final positiveWeight = weights.first > 0;
+    if (weights.any(
+      (weight) =>
+          !weight.isFinite || weight == 0 || (weight > 0) != positiveWeight,
+    )) {
+      return null;
+    }
+    final rect = MatrixUtils.transformRect(transform, localRect);
+    // RenderTransform permits singular and projective matrices whose painted
+    // bounds contain NaN or infinity, or cross a projective horizon between
+    // finite corners. Such geometry has no truthful finite IDE hit region, so
+    // omit its synthetic target/drop zone instead of inventing one that could
+    // steal interaction from a visible ancestor.
+    return rect.isFinite ? rect : null;
+  }
+
+  static bool _hasFiniteGlobalInverse(RenderBox box) {
+    final inverse = Matrix4.tryInvert(box.getTransformTo(null));
+    return inverse != null && !inverse.storage.any((value) => !value.isFinite);
+  }
+
+  static Offset? _finiteLocalPoint(RenderBox box, Offset point) {
+    final local = box.globalToLocal(point);
+    return local.dx.isFinite && local.dy.isFinite ? local : null;
+  }
 
   static String? _enumValue(CanvasNode node, String propertyName) {
     final value = node.properties[propertyName]?.value;
@@ -1871,6 +2064,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.IntrinsicWidth' => _intrinsicWidth(),
       'flutter.widgets.Offstage' => _offstage(),
       'flutter.widgets.SizedOverflowBox' => _sizedOverflowBox(),
+      'flutter.widgets.Transform' =>
+        _single('child') ?? const SizedBox.shrink(),
       'flutter.widgets.Center' => _center(),
       'flutter.widgets.ConstrainedBox' => _constrainedBox(),
       'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
@@ -1975,6 +2170,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
     return switch (node.type) {
+      'flutter.widgets.Transform' => _transform(instrumented),
       'flutter.widgets.Expanded' => Expanded(
         flex: _integer('flex') ?? 1,
         child: instrumented,
@@ -2959,6 +3155,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return value is CanvasMatrix4Value ? Matrix4.fromList(value.storage) : null;
   }
 
+  Offset? _offset(String name) {
+    final value = node.properties[name]?.value;
+    return value is CanvasOffsetValue ? Offset(value.dx, value.dy) : null;
+  }
+
   BoxDecoration? _boxDecoration(BuildContext context, String name) {
     final value = node.properties[name]?.value;
     if (value is! CanvasBoxDecorationValue) {
@@ -3452,6 +3653,21 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       size: Size(requestedSize.width, requestedSize.height),
       alignment: _alignmentGeometry('alignment') ?? Alignment.center,
       child: _single('child'),
+    );
+  }
+
+  Widget _transform(Widget child) {
+    final filterQuality = _enum('filterQuality');
+    return Transform(
+      key: ValueKey('canvas-transform-${node.id}'),
+      transform: _matrix4('transform')!,
+      origin: _offset('origin'),
+      alignment: _alignmentGeometry('alignment'),
+      transformHitTests: _boolean('transformHitTests') ?? true,
+      filterQuality: filterQuality == null
+          ? null
+          : _filterQuality(filterQuality),
+      child: child,
     );
   }
 

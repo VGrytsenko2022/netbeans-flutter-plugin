@@ -97,7 +97,7 @@ final class FlutterPropertyEditorComponents {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
-                    SIZE, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
+                    SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
                     BOX_DECORATION -> true;
             default -> false;
         };
@@ -127,6 +127,8 @@ final class FlutterPropertyEditorComponents {
                 FlutterContainerPropertyEditorComponents.customEditor(
                         editor, binding, environment);
             case SIZE -> FlutterSizePropertyEditorComponents.customEditor(
+                    editor, binding, environment);
+            case OFFSET -> FlutterOffsetPropertyEditorComponents.customEditor(
                     editor, binding, environment);
             case IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.customEditor(
                     editor, binding, environment);

@@ -51,6 +51,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.Offstage",
             "flutter.widgets.SizedOverflowBox",
+            "flutter.widgets.Transform",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -85,6 +86,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IntrinsicWidth",
             "flutter.widgets.Offstage",
             "flutter.widgets.SizedOverflowBox",
+            "flutter.widgets.Transform",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -99,7 +101,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtyThreeSourcesAndThirtyTwoInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyFourSourcesAndThirtyThreeInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -122,9 +124,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(33, sources.size());
-        assertEquals(32, destinations.size());
-        assertEquals(30, destinations.stream()
+        assertEquals(34, sources.size());
+        assertEquals(33, destinations.size());
+        assertEquals(31, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -132,9 +134,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1056, candidates);
-        assertEquals(908, accepted);
-        assertEquals(148, candidates - accepted);
+        assertEquals(1122, candidates);
+        assertEquals(969, accepted);
+        assertEquals(153, candidates - accepted);
     }
 
     @Test
@@ -888,6 +890,74 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void transformHasStaticEditableCapabilitiesAndExactV14Projection() {
+        WidgetDefinition definition = definition("flutter.widgets.Transform");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("transform"),
+                        new PropertyName("origin"),
+                        new PropertyName("alignment"),
+                        new PropertyName("transformHitTests"),
+                        new PropertyName("filterQuality")),
+                projection.properties().keySet());
+
+        var matrix = projection.propertyContracts().get(
+                new PropertyName("transform"));
+        assertTrue(matrix.required());
+        assertEquals(Set.of(PropertyValueKind.MATRIX4), matrix.acceptedKinds());
+        assertEquals(Optional.of(
+                        "matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"),
+                matrix.creationDefaultFingerprint());
+        assertTrue(matrix.numericBounds().isEmpty());
+        assertEquals("matrix4", matrix.constraintFingerprints()
+                .get(PropertyValueKind.MATRIX4));
+
+        var origin = projection.propertyContracts().get(new PropertyName("origin"));
+        assertFalse(origin.required());
+        assertEquals(Set.of(PropertyValueKind.OFFSET), origin.acceptedKinds());
+        assertTrue(origin.creationDefaultFingerprint().isEmpty());
+        assertTrue(origin.numericBounds().isEmpty());
+        assertEquals("offset:finiteSigned", origin.constraintFingerprints()
+                .get(PropertyValueKind.OFFSET));
+
+        var alignment = projection.propertyContracts().get(
+                new PropertyName("alignment"));
+        assertEquals("alignmentGeometry", alignment.constraintFingerprints()
+                .get(PropertyValueKind.ALIGNMENT_GEOMETRY));
+
+        var hitTests = projection.propertyContracts().get(
+                new PropertyName("transformHitTests"));
+        assertFalse(hitTests.required());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), hitTests.acceptedKinds());
+        assertTrue(hitTests.creationDefaultFingerprint().isEmpty());
+        assertEquals("any", hitTests.constraintFingerprints()
+                .get(PropertyValueKind.BOOLEAN));
+
+        var quality = projection.propertyContracts().get(
+                new PropertyName("filterQuality"));
+        assertFalse(quality.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), quality.acceptedKinds());
+        assertTrue(quality.creationDefaultFingerprint().isEmpty());
+        assertTrue(quality.constraintFingerprints().get(PropertyValueKind.ENUM)
+                .endsWith(":FilterQuality:high,low,medium,none"));
+
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1494,6 +1564,19 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "alignmentGeometry:alignmentGeometry\n"
                 + "P|size|size|1|size:100,100|-|"
                 + "size:size:finiteNonNegative\n"
+                + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Transform\n"
+                + "P|alignment|alignmentGeometry|0|-|-|"
+                + "alignmentGeometry:alignmentGeometry\n"
+                + "P|filterQuality|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "FilterQuality:high,low,medium,none\n"
+                + "P|origin|offset|0|-|-|offset:offset:finiteSigned\n"
+                + "P|transform|matrix4|1|"
+                + "matrix4:1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1|-|"
+                + "matrix4:matrix4\n"
+                + "P|transformHitTests|boolean|0|-|-|boolean:any\n"
                 + "S|child|single|0|0|1|any\n"));
     }
 

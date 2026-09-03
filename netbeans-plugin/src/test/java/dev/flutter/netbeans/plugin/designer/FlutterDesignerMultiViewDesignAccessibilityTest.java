@@ -775,6 +775,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.IntrinsicWidth",
                     "flutter.widgets.Offstage",
                     "flutter.widgets.SizedOverflowBox",
+                    "flutter.widgets.Transform",
                     "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
@@ -1866,12 +1867,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             FdDecodeResult.UnsupportedNewer future = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(("{\"format\":\"netbeans-flutter-designer\","
-                            + "\"schemaVersion\":9}")
+                            + "\"schemaVersion\":10}")
                             .getBytes(StandardCharsets.UTF_8)));
             publish(design, new FlutterDesignerDocumentState.UnsupportedNewer(future));
             assertEquals("Flutter Designer model opened read-only.",
                     status.getAccessibleContext().getAccessibleDescription());
-            assertEquals("Schema version 9 is newer than supported version 8.",
+            assertEquals("Schema version 10 is newer than supported version 9.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

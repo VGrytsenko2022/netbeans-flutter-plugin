@@ -372,12 +372,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   5, Canvas model v11 and version-1 framing/control contracts remain unchanged.
 - The accepted const `flutter.widgets.Image` leaf exposes its required typed
   asset-only `ImageProvider` plus 21 reviewed callback, accessibility, sizing,
-  paint and quality leaves. Palette/tree/Canvas Add chooses the deterministic
-  first sorted declared asset before allocating a stable ID and fails closed
-  when the inventory is empty or unavailable. Four center-slice coordinates are
-  all-or-none, form a strict non-empty rectangle and reject `BoxFit.cover` or
-  `BoxFit.none`; Canvas and generated Dart share the same provider and decode
-  bounds.
+  paint and quality leaves. Palette/Canvas drag now preflights the current
+  declared-image inventory before authorizing the source. An empty or
+  unavailable inventory blocks the drag and presents its exact reason, so a
+  refreshing or verifying inventory can be awaited and a resolver failure can
+  be corrected before retrying. Only when the project truly has no usable image
+  asset does the guidance direct the user to add a PNG/JPEG/GIF/WebP file and
+  declare it in the `assets:` list of the existing `flutter:` block in
+  `pubspec.yaml`. The mutation planner
+  independently resolves the inventory again at commit, so a change during the
+  drag still fails closed without a command or stable-ID allocation. Accepted
+  Add chooses the deterministic first sorted declared asset. Four center-slice
+  coordinates are all-or-none, form a strict non-empty rectangle and reject
+  `BoxFit.cover` or `BoxFit.none`; Canvas and generated Dart share the same
+  provider and decode bounds.
 - The accepted const `flutter.widgets.Expanded` slice exposes optional
   non-negative `flex` and one required `child`. Its Palette affordance never
   creates a terminal placeholder: it atomically wraps an existing direct

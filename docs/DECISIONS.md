@@ -1640,8 +1640,17 @@ size, color/opacity, blend, fit/alignment/repeat, center-slice, direction,
 playback, antialias and quality leaves. Network/file/memory/custom providers and
 arbitrary callback expressions remain excluded. Palette, tree, Canvas and slot
 Replace New Widget resolve the deterministic first sorted declared asset before
-stable-ID allocation. Empty or unavailable inventory returns a concrete
-fail-closed reason, no command and no ID.
+stable-ID allocation. Palette drag-source authorization now preflights the
+current inventory before publishing the Image source to Canvas. Empty or
+unavailable inventory blocks the drag and exposes its exact reason. Refreshing
+or verifying state directs the user to wait and retry; a resolver failure directs
+the user to resolve the reported failure and retry. Only a genuinely empty
+usable inventory directs the user to add a PNG/JPEG/GIF/WebP file and declare it
+in the `assets:` list of the existing `flutter:` block in `pubspec.yaml`. This
+early check is a UX admission only: the mutation planner resolves the latest
+inventory again at commit, so
+removal or invalidation during an in-flight drag remains fail-closed. Every
+failed check produces no command, document mutation or stable ID.
 
 The four non-negative center-slice coordinates are all-or-none, require strict
 left < right and top < bottom, and cannot accompany `BoxFit.cover` or

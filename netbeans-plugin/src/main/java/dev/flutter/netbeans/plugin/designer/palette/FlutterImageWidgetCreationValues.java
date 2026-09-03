@@ -10,6 +10,7 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /** Resolves the required Image.image creation value without allocating an id. */
@@ -39,6 +40,23 @@ public final class FlutterImageWidgetCreationValues {
                 definition,
                 Objects.requireNonNull(idSupplier.get(), "supplied stable id"),
                 available.creationValues());
+    }
+
+    /**
+     * Returns the exact user-facing reason why this definition cannot be
+     * created from the current project image inventory.
+     *
+     * <p>Callers may use this before advertising a Palette drag target. The
+     * final mutation planner must still resolve the values again so an asset
+     * inventory change during the drag cannot admit stale creation data.</p>
+     */
+    public static Optional<String> creationUnavailableReason(
+            WidgetDefinition definition,
+            FlutterImageAssetChoices choices) {
+        Result resolved = resolve(definition, choices);
+        return resolved instanceof Unavailable unavailable
+                ? Optional.of(unavailable.reason())
+                : Optional.empty();
     }
 
     static Result resolve(

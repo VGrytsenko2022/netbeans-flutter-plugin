@@ -439,9 +439,27 @@ creates a terminal placeholder. Its child editor is replacement-only.
 
 `Image` is a const leaf with 22 reviewed properties. Its required asset-only
 provider is selected from the deterministic first sorted declared project asset
-before a stable ID is allocated; an empty or unavailable inventory rejects Add
-without changing the document. The four center-slice coordinates are
-all-or-none, strictly ordered and incompatible with `BoxFit.cover`/`none`.
+before a stable ID is allocated. Palette/Canvas preflights that inventory before
+authorizing an Image drag. If the inventory is empty, refreshing, verifying or
+unavailable because resolution failed, the drag is blocked and the Designer
+shows the exact reason; resolve the reported state, wait for any in-progress
+refresh or verification and retry. If the reason is that the project has no
+usable declared image, add a PNG/JPEG/GIF/WebP file such as
+`assets/example.png` and declare it in the existing `flutter:` block:
+
+```yaml
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/example.png
+```
+
+Platform launcher resources such as `android/.../ic_launcher.png`, Apple
+`Assets.xcassets` entries and `web/icons/...` are not Flutter runtime assets for
+this widget. The planner rechecks the latest inventory at commit for race safety,
+so an asset change during a drag produces no command, document change or new ID.
+The four center-slice coordinates are all-or-none, strictly ordered and
+incompatible with `BoxFit.cover`/`none`.
 
 `TextField` is a const Material leaf named **Text Field** in the Palette. Its 54
 optional rows are grouped as Input (14), Layout (9), Behavior (11), Cursor and

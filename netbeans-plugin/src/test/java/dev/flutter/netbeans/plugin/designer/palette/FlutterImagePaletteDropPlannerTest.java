@@ -38,6 +38,13 @@ class FlutterImagePaletteDropPlannerTest {
             "b05ba7b5-2584-4be4-a278-c45237a3a802");
 
     @Test
+    void emptyImageInventoryDoesNotBlockNonImageCreation() {
+        assertTrue(FlutterImageWidgetCreationValues.creationUnavailableReason(
+                CATALOG.find(COLUMN).orElseThrow(),
+                FlutterImageAssetChoices.empty()).isEmpty());
+    }
+
+    @Test
     void selectsFirstSortedDeclaredAssetAndPassesRequiredCreationValue() {
         FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
                 List.of(
@@ -47,6 +54,9 @@ class FlutterImagePaletteDropPlannerTest {
                                 Optional.empty(), "assets/a.png", "A")),
                 Optional.empty());
         AtomicInteger allocations = new AtomicInteger();
+
+        assertTrue(FlutterImageWidgetCreationValues.creationUnavailableReason(
+                CATALOG.find(IMAGE).orElseThrow(), choices).isEmpty());
 
         FlutterDesignerPaletteDropPlanner.Result result =
                 new FlutterDesignerPaletteDropPlanner().plan(
@@ -80,6 +90,13 @@ class FlutterImagePaletteDropPlannerTest {
         FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
                 List.of(),
                 Optional.of("Resolve declared image choices: pubspec has no safe assets."));
+
+        Optional<String> preflightReason =
+                FlutterImageWidgetCreationValues.creationUnavailableReason(
+                        CATALOG.find(IMAGE).orElseThrow(), choices);
+        assertTrue(preflightReason.isPresent());
+        assertTrue(preflightReason.orElseThrow().contains("required property 'image'"));
+        assertTrue(preflightReason.orElseThrow().contains("pubspec has no safe assets"));
 
         FlutterDesignerPaletteDropPlanner.Result result =
                 new FlutterDesignerPaletteDropPlanner().plan(

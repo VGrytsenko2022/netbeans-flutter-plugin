@@ -141,8 +141,16 @@ public final class FlutterDesignerMultiViewDesign
     static final String DELETE_WIDGET_ACTION_KEY = "delete";
     private static final WidgetTypeId TEXT_WIDGET_TYPE =
             new WidgetTypeId("flutter.widgets.Text");
+    private static final WidgetTypeId IMAGE_WIDGET_TYPE =
+            new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName TEXT_DATA_PROPERTY =
             new PropertyName("data");
+    private static final String IMAGE_ASSET_CREATION_REMEDIATION =
+            "Resolve the reported asset inventory state. If this project has no "
+            + "usable image asset, add a PNG/JPEG/GIF/WebP file such as "
+            + "assets/example.png, declare it in the 'assets:' list of the "
+            + "existing 'flutter:' block in pubspec.yaml, wait for the Designer "
+            + "asset inventory to refresh, then drag Image again.";
     private static final int SWING_FOCUS_REPAIR_DELAY_MILLIS = 50;
     static final int MAX_SWING_FOCUS_REPAIR_ATTEMPTS = 8;
     private final Lookup context;
@@ -160,6 +168,7 @@ public final class FlutterDesignerMultiViewDesign
     private final JLabel detailLabel;
     private final JLabel canvasStatusLabel;
     private final JLabel canvasInteractionStatusLabel;
+    private final JLabel paletteDropFeedbackLabel;
     private final JPanel canvasPanel;
     private final JButton canvasRetryButton;
     private final JButton canvasDetailsButton;
@@ -418,7 +427,13 @@ public final class FlutterDesignerMultiViewDesign
         canvasInteractionStatusLabel = centeredLabel("");
         canvasInteractionStatusLabel.setVisible(false);
         canvasInteractionStatusLabel.getAccessibleContext().setAccessibleName(
-                "Native Canvas input synchronization status");
+                "Native Canvas interaction status");
+        paletteDropFeedbackLabel = centeredLabel("");
+        paletteDropFeedbackLabel.setVisible(false);
+        paletteDropFeedbackLabel.getAccessibleContext().setAccessibleName(
+                "Flutter Palette drop feedback");
+        paletteDropFeedbackLabel.getAccessibleContext().setAccessibleDescription(
+                "Flutter Palette drop feedback is idle.");
         canvasRetryButton = new JButton();
         Mnemonics.setLocalizedText(canvasRetryButton, "&Retry");
         canvasRetryButton.setVisible(false);
@@ -445,6 +460,7 @@ public final class FlutterDesignerMultiViewDesign
         JPanel canvasStatusRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         canvasStatusRow.add(canvasStatusLabel);
         canvasStatusRow.add(canvasInteractionStatusLabel);
+        canvasStatusRow.add(paletteDropFeedbackLabel);
         canvasStatusRow.add(canvasProgress);
         canvasStatusRow.add(canvasRetryButton);
         canvasStatusRow.add(canvasDetailsButton);
@@ -937,7 +953,7 @@ public final class FlutterDesignerMultiViewDesign
                     projectAssetResolutionController.close();
                     projectAssetResolutionController = null;
                 }
-                currentImageAssetChoices = FlutterImageAssetChoices.empty();
+                setCurrentImageAssetChoices(FlutterImageAssetChoices.empty());
                 projectAssetSetupFailure = failureReason(failure);
             }
         }
@@ -1003,7 +1019,7 @@ public final class FlutterDesignerMultiViewDesign
         projectAssetSetupFailure = null;
         synchronizedProjectAssetInventory = null;
         synchronizingProjectAssetInventory = null;
-        currentImageAssetChoices = FlutterImageAssetChoices.empty();
+        setCurrentImageAssetChoices(FlutterImageAssetChoices.empty());
         if (mutationController != null && mutationListening) {
             mutationViewEpoch++;
             mutationListening = false;
@@ -3014,12 +3030,11 @@ public final class FlutterDesignerMultiViewDesign
         if (canvasImageProjectionController != null) {
             canvasImageProjectionController.invalidate();
         }
-        currentImageAssetChoices = new FlutterImageAssetChoices(
+        refreshCanvasAfterProjectAssetChange(new FlutterImageAssetChoices(
                 List.of(),
                 Optional.of(
                         "Refreshing the owning Flutter project's declared image "
-                        + "asset inventory."));
-        refreshCanvasAfterProjectAssetChange();
+                        + "asset inventory.")));
     }
 
     private void projectAssetResolutionChanged() {
@@ -3041,9 +3056,8 @@ public final class FlutterDesignerMultiViewDesign
         if (!resolved.available()) {
             synchronizedProjectAssetInventory = null;
             synchronizingProjectAssetInventory = null;
-            currentImageAssetChoices = unavailableImageChoices(
-                    resolved.detail());
-            refreshCanvasAfterProjectAssetChange();
+            refreshCanvasAfterProjectAssetChange(unavailableImageChoices(
+                    resolved.detail()));
             return;
         }
         FlutterDesignerProjectAssetWatcher watcherForAssets =
@@ -3057,8 +3071,8 @@ public final class FlutterDesignerMultiViewDesign
         FlutterAssetInventory inventory =
                 resolved.inventory().orElseThrow();
         if (inventory == synchronizedProjectAssetInventory) {
-            currentImageAssetChoices = canvasImageProjector.choices(inventory);
-            refreshCanvasAfterProjectAssetChange();
+            refreshCanvasAfterProjectAssetChange(
+                    canvasImageProjector.choices(inventory));
             return;
         }
         if (inventory == synchronizingProjectAssetInventory) {
@@ -3117,18 +3131,16 @@ public final class FlutterDesignerMultiViewDesign
             if (canvasImageProjectionController != null) {
                 canvasImageProjectionController.invalidate();
             }
-            currentImageAssetChoices = new FlutterImageAssetChoices(
+            refreshCanvasAfterProjectAssetChange(new FlutterImageAssetChoices(
                     List.of(),
                     Optional.of(
                             "Verifying declared Flutter image assets after "
-                            + "synchronizing external package listeners."));
-            refreshCanvasAfterProjectAssetChange();
+                            + "synchronizing external package listeners.")));
             return;
         }
         synchronizedProjectAssetInventory = expectedInventory;
-        currentImageAssetChoices = canvasImageProjector.choices(
-                expectedInventory);
-        refreshCanvasAfterProjectAssetChange();
+        refreshCanvasAfterProjectAssetChange(canvasImageProjector.choices(
+                expectedInventory));
     }
 
     private void failClosedProjectAssetPipeline(String detail) {
@@ -3148,12 +3160,11 @@ public final class FlutterDesignerMultiViewDesign
             projectAssetResolutionController.close();
             projectAssetResolutionController = null;
         }
-        currentImageAssetChoices = unavailableImageChoices(safeDetail);
         clearPresentedCanvasIdentity();
         if (canvasOwner != null) {
             canvasOwner.withdraw();
         }
-        refreshCanvasAfterProjectAssetChange();
+        refreshCanvasAfterProjectAssetChange(unavailableImageChoices(safeDetail));
     }
 
     private void canvasImageProjectionChanged() {
@@ -3163,7 +3174,21 @@ public final class FlutterDesignerMultiViewDesign
         refreshCanvasAfterProjectAssetChange();
     }
 
+    void refreshCanvasAfterProjectAssetChange(
+            FlutterImageAssetChoices imageAssetChoices) {
+        setCurrentImageAssetChoices(imageAssetChoices);
+        refreshCanvasAfterProjectAssetChange();
+    }
+
+    private void setCurrentImageAssetChoices(
+            FlutterImageAssetChoices imageAssetChoices) {
+        currentImageAssetChoices = Objects.requireNonNull(
+                imageAssetChoices, "imageAssetChoices");
+        clearPaletteDropFeedback();
+    }
+
     private void refreshCanvasAfterProjectAssetChange() {
+        clearPaletteDropFeedback();
         DesignerDocument document = currentCanvasDocument;
         if (document == null) {
             return;
@@ -4327,12 +4352,31 @@ public final class FlutterDesignerMultiViewDesign
                     "Palette drag source must be authorized on the event-dispatch thread.");
         }
         FlutterDesignerCanvasSession session = canvasOwner;
+        boolean authorityEnabled = isPaletteCatalogInsertDragEnabled();
+        Optional<String> creationUnavailableReason = authorityEnabled
+                ? paletteCreationUnavailableReason(definition)
+                : Optional.empty();
+        if (authorityEnabled) {
+            creationUnavailableReason.ifPresentOrElse(reason -> {
+                PaletteDropFeedback feedback = imagePaletteDragUnavailableFeedback(
+                        modelName, reason);
+                renderPaletteDropFeedback(feedback.summary(), feedback.detail());
+            }, this::clearPaletteDropFeedback);
+        }
         return session != null
                 && authorizeCanvasPaletteDragSource(
-                        isPaletteCatalogInsertDragEnabled(),
+                        authorityEnabled,
+                        creationUnavailableReason,
                         token,
                         definition,
                         session::authorizePaletteDragSource);
+    }
+
+    Optional<String> paletteCreationUnavailableReason(
+            WidgetDefinition definition) {
+        return FlutterImageWidgetCreationValues.creationUnavailableReason(
+                Objects.requireNonNull(definition, "definition"),
+                currentImageAssetChoices);
     }
 
     static boolean authorizeCanvasPaletteDragSource(
@@ -4340,11 +4384,52 @@ public final class FlutterDesignerMultiViewDesign
             String token,
             WidgetDefinition definition,
             BiPredicate<String, WidgetTypeId> authorizer) {
+        return authorizeCanvasPaletteDragSource(
+                authorityEnabled,
+                Optional.empty(),
+                token,
+                definition,
+                authorizer);
+    }
+
+    static boolean authorizeCanvasPaletteDragSource(
+            boolean authorityEnabled,
+            Optional<String> creationUnavailableReason,
+            String token,
+            WidgetDefinition definition,
+            BiPredicate<String, WidgetTypeId> authorizer) {
+        Objects.requireNonNull(
+                creationUnavailableReason, "creationUnavailableReason");
         Objects.requireNonNull(token, "token");
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(authorizer, "authorizer");
         return authorityEnabled
+                && creationUnavailableReason.isEmpty()
                 && authorizer.test(token, definition.typeId());
+    }
+
+    static PaletteDropFeedback imagePaletteDragUnavailableFeedback(
+            String modelName,
+            String reason) {
+        Objects.requireNonNull(modelName, "modelName");
+        Objects.requireNonNull(reason, "reason");
+        return new PaletteDropFeedback(
+                "Cannot add Image: no usable image asset is currently available; "
+                + "hover for exact reason.",
+                "Operation: add Flutter Image. Target: " + modelName
+                + " widget tree. " + reason + ' '
+                + IMAGE_ASSET_CREATION_REMEDIATION);
+    }
+
+    record PaletteDropFeedback(String summary, String detail) {
+        PaletteDropFeedback {
+            if (summary == null || summary.isBlank()) {
+                throw new IllegalArgumentException("summary cannot be blank");
+            }
+            if (detail == null || detail.isBlank()) {
+                throw new IllegalArgumentException("detail cannot be blank");
+            }
+        }
     }
 
     private boolean isPaletteCatalogInsertDragAuthorityEnabled() {
@@ -4650,12 +4735,28 @@ public final class FlutterDesignerMultiViewDesign
         canvasInteractionStatusLabel.setVisible(true);
     }
 
+    void renderPaletteDropFeedback(String summary, String detail) {
+        paletteDropFeedbackLabel.setText(summary);
+        paletteDropFeedbackLabel.setToolTipText(detail);
+        paletteDropFeedbackLabel.getAccessibleContext()
+                .setAccessibleDescription(summary + " " + detail);
+        paletteDropFeedbackLabel.setVisible(true);
+    }
+
+    void clearPaletteDropFeedback() {
+        paletteDropFeedbackLabel.setText("");
+        paletteDropFeedbackLabel.setToolTipText(null);
+        paletteDropFeedbackLabel.getAccessibleContext().setAccessibleDescription(
+                "Flutter Palette drop feedback is idle.");
+        paletteDropFeedbackLabel.setVisible(false);
+    }
+
     private void clearCanvasInteractionStatus() {
         canvasInteractionStatusLabel.setText("");
         canvasInteractionStatusLabel.setToolTipText(null);
         canvasInteractionStatusLabel.getAccessibleContext()
                 .setAccessibleDescription(
-                        "Native Canvas input synchronization is idle.");
+                        "Native Canvas interaction feedback is idle.");
         canvasInteractionStatusLabel.setVisible(false);
     }
 
@@ -4886,6 +4987,11 @@ public final class FlutterDesignerMultiViewDesign
         CanvasRunnerRuntimeEvent.PaletteDrop drop = admission.drop();
         WidgetTypeId widgetType = admission.widgetType();
         if (!isPaletteCatalogInsertDragEnabled()) {
+            renderAdmittedPaletteDropRejection(
+                    widgetType,
+                    drop,
+                    "the active Designer revision or Canvas presentation changed "
+                    + "after the drop gesture.");
             return;
         }
 
@@ -4896,6 +5002,10 @@ public final class FlutterDesignerMultiViewDesign
                 || candidate.token().isEmpty()
                 || candidate.document().isEmpty()
                 || candidate.catalog().isEmpty()) {
+            renderAdmittedPaletteDropRejection(
+                    widgetType,
+                    drop,
+                    "the writable Designer mutation snapshot is no longer available.");
             return;
         }
         DesignerDocument document = candidate.document().orElseThrow();
@@ -4903,11 +5013,23 @@ public final class FlutterDesignerMultiViewDesign
         if (document != currentCanvasDocument
                 || catalog != currentCanvasCatalog
                 || document != presentedCanvasDocument
-                || catalog != presentedCanvasCatalog
-                || catalog.find(widgetType)
-                        .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
-                                definition, WidgetCapability.DND))
-                        .isEmpty()) {
+                || catalog != presentedCanvasCatalog) {
+            renderAdmittedPaletteDropRejection(
+                    widgetType,
+                    drop,
+                    "the admitted drop no longer matches the exact document and "
+                    + "catalog presented by Canvas.");
+            return;
+        }
+        if (catalog.find(widgetType)
+                .filter(definition -> BuiltInWidgetCapabilityCatalog.supports(
+                        definition, WidgetCapability.DND))
+                .isEmpty()) {
+            renderAdmittedPaletteDropRejection(
+                    widgetType,
+                    drop,
+                    "the requested widget type is no longer a Canvas DnD-capable "
+                    + "Palette definition.");
             return;
         }
 
@@ -4937,16 +5059,26 @@ public final class FlutterDesignerMultiViewDesign
             return;
         }
         if (planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected) {
-            renderNativeCanvasStatus(new FlutterDesignerNativeCanvasStatus(
-                    FlutterDesignerNativeCanvasStatus.Stage.RUNNING,
-                    "Flutter Palette drop was not applied.",
-                    "Target: widget " + drop.parentWidgetId() + '.'
+            String widgetDisplayName = catalog.find(widgetType).orElseThrow()
+                    .palette().displayName();
+            String target = modelName + " — add " + widgetDisplayName
+                    + " to widget " + drop.parentWidgetId() + '.'
                     + drop.slotName().value() + " at index "
-                    + drop.insertionIndex() + ". Reason: " + rejected.reason(),
-                    lastCanvasStatus != null && lastCanvasStatus.rendered()));
+                    + drop.insertionIndex();
+            publishPaletteDropRejection(
+                    widgetType,
+                    widgetDisplayName,
+                    target,
+                    rejected,
+                    this::renderPaletteDropFeedback,
+                    FlutterDesignerMultiViewDesign::showMutationResult);
             return;
         }
         if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
+            renderAdmittedPaletteDropRejection(
+                    widgetType,
+                    drop,
+                    "the Palette planner returned no supported mutation result.");
             return;
         }
 
@@ -4961,6 +5093,60 @@ public final class FlutterDesignerMultiViewDesign
                 accepted.command(),
                 "Add Flutter " + widgetDisplayName + " widget",
                 target);
+    }
+
+    private void renderAdmittedPaletteDropRejection(
+            WidgetTypeId widgetType,
+            CanvasRunnerRuntimeEvent.PaletteDrop drop,
+            String reason) {
+        String target = modelName + " — Palette widget type " + widgetType.value()
+                + " at widget " + drop.parentWidgetId() + '.'
+                + drop.slotName().value() + " at index " + drop.insertionIndex();
+        renderPaletteDropFeedback(
+                "Flutter Palette drop was not applied.",
+                "Operation: apply Flutter Palette drop. Target: " + target
+                + ". Reason: " + reason);
+    }
+
+    static void publishPaletteDropRejection(
+            WidgetTypeId widgetType,
+            String widgetDisplayName,
+            String target,
+            FlutterDesignerPaletteDropPlanner.Rejected rejected,
+            BiConsumer<String, String> feedbackRenderer,
+            Consumer<FlutterDesignerMutationController.MutationResult>
+                    mutationResultPresenter) {
+        Objects.requireNonNull(widgetType, "widgetType");
+        Objects.requireNonNull(widgetDisplayName, "widgetDisplayName");
+        Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(rejected, "rejected");
+        Objects.requireNonNull(feedbackRenderer, "feedbackRenderer");
+        Objects.requireNonNull(mutationResultPresenter, "mutationResultPresenter");
+        boolean imageAssetUnavailable = IMAGE_WIDGET_TYPE.equals(widgetType)
+                && rejected.code()
+                == FlutterDesignerPaletteDropPlanner.RejectionCode
+                        .REQUIRED_CREATION_VALUE_UNAVAILABLE;
+        String remediation = imageAssetUnavailable
+                ? " " + IMAGE_ASSET_CREATION_REMEDIATION
+                : "";
+        feedbackRenderer.accept(
+                imageAssetUnavailable
+                        ? "Cannot add Image: no usable image asset is currently "
+                                + "available; "
+                                + "hover for exact reason."
+                        : "Flutter Palette drop was not applied.",
+                (imageAssetUnavailable
+                        ? "Operation: add Flutter " + widgetDisplayName + " widget. "
+                        : "Operation: apply Flutter Palette drop. ")
+                + "Target: "
+                + target + ". Reason: " + rejected.reason() + remediation);
+        if (imageAssetUnavailable) {
+            mutationResultPresenter.accept(
+                    FlutterDesignerMutationController.MutationResult.rejected(
+                            "Add Flutter Image widget",
+                            target,
+                            rejected.reason() + remediation));
+        }
     }
 
     private void invalidatePaletteDragAuthority() {

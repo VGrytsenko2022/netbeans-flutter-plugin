@@ -811,6 +811,68 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsSingleChildScrollViewWithOmittedDefaultsAndAllTypedOverrides() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.SingleChildScrollView");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.ofEntries(
+                        Map.entry(new PropertyName("scrollDirection"),
+                                new PropertyValue.EnumValue("Axis", "horizontal")),
+                        Map.entry(new PropertyName("reverse"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(new PropertyName("padding"),
+                                new PropertyValue.EdgeInsetsValue(
+                                        BigDecimal.ONE, BigDecimal.valueOf(2),
+                                        BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                        Map.entry(new PropertyName("primary"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("physics"),
+                                new PropertyValue.StringValue("bouncing")),
+                        Map.entry(new PropertyName("dragStartBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "DragStartBehavior", "down")),
+                        Map.entry(new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "antiAlias")),
+                        Map.entry(new PropertyName("hitTestBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "HitTestBehavior", "translucent")),
+                        Map.entry(new PropertyName("restorationId"),
+                                new PropertyValue.StringValue("details-scroll")),
+                        Map.entry(new PropertyName("keyboardDismissBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "ScrollViewKeyboardDismissBehavior", "onDrag"))));
+        assertEquals(10, configured.properties().size());
+        assertEquals(new PropertyValue.StringValue("bouncing"),
+                configured.properties().get(new PropertyName("physics")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("physics"),
+                                new PropertyValue.StringValue("custom"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("restorationId"),
+                                new PropertyValue.StringValue(""))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

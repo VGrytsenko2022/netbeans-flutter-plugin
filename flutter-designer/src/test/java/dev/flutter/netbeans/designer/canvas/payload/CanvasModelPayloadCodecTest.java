@@ -109,6 +109,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
+                "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"),

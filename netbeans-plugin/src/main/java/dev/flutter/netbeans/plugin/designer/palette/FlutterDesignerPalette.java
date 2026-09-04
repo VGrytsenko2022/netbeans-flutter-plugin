@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -286,6 +287,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId())) {
                 setDisplayName(message("Widget.GridViewCount.Name"));
                 setShortDescription(message("Widget.GridViewCount.Description"));
+            } else if (SingleChildScrollViewWidgetPropertySchema
+                    .SINGLE_CHILD_SCROLL_VIEW_TYPE.equals(definition.typeId())) {
+                setDisplayName(message("Widget.SingleChildScrollView.Name"));
+                setShortDescription(message("Widget.SingleChildScrollView.Description"));
             } else if ("flutter.widgets.ConstrainedBox".equals(
                     definition.typeId().value())) {
                 setShortDescription(message("Widget.ConstrainedBox.Description"));

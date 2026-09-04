@@ -181,6 +181,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.OverflowBar", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.GridView", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -516,6 +517,8 @@ public final class BuiltInWidgetCapabilityCatalog {
                     Map.of("children", listSlotSchema(false, 0, 10_000)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.GridView", gridViewCountProjection()),
+            Map.entry("flutter.widgets.SingleChildScrollView",
+                    singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
@@ -812,6 +815,31 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "hitTestBehavior", RENDERING_LIBRARY,
                         "HitTestBehavior", "deferToChild", "opaque", "translucent")),
                 Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection singleChildScrollViewProjection() {
+        return projection(Map.ofEntries(
+                enumProperty("scrollDirection", "Axis", "horizontal", "vertical"),
+                property("reverse", PropertyValueKind.BOOLEAN),
+                edgeInsetsProperty("padding", true),
+                property("primary", PropertyValueKind.BOOLEAN),
+                stringPatternProperty(
+                        "physics",
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)"),
+                enumPropertyForLibrary(
+                        "dragStartBehavior", GESTURES_LIBRARY,
+                        "DragStartBehavior", "down", "start"),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge",
+                        "antiAlias", "antiAliasWithSaveLayer"),
+                enumPropertyForLibrary(
+                        "hitTestBehavior", RENDERING_LIBRARY,
+                        "HitTestBehavior", "deferToChild", "opaque", "translucent"),
+                stringLengthProperty("restorationId", 1, 256),
+                enumProperty(
+                        "keyboardDismissBehavior",
+                        "ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                Map.of("child", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection containerProjection() {

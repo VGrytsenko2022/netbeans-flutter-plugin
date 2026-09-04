@@ -6,6 +6,31 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted const
+  [`SingleChildScrollView`](https://api.flutter.dev/flutter/widgets/SingleChildScrollView/SingleChildScrollView.html)
+  vertical slice is the nineteenth post-core Palette addition, at Scrolling
+  order 30 immediately after `GridView.count`. Its complete reviewed Flutter
+  3.44.8 non-`key`, non-controller contract exposes 10 typed properties:
+  scrolling axis, reversal, padding, primary-controller policy, one reviewed
+  physics preset, drag-start behavior, clipping, hit testing, restoration ID
+  and keyboard dismissal, plus one optional any-widget `child`. New nodes omit
+  every property and begin with an empty child slot, preserving Flutter's exact
+  constructor defaults. Controller-owned state and arbitrary physics graphs
+  remain outside the slice. Generated Dart and native/exact-Web Canvas
+  construct the real `SingleChildScrollView`; because Flutter deliberately
+  shrink-wraps this widget in both axes, no ListView/GridView bounded-viewport
+  guard is generated. Canvas alone retains a non-layout-affecting 36x36 target
+  for an empty or zero-size scroll view. Property and slot editing,
+  Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
+  Save/reopen and further editing, Undo/Redo and four reviewed light/dark 16/32
+  px SVGs share one closed contract. The catalog now contains 39 widgets, 33
+  reviewed const constructors and 714 writable rows, including 697 across the
+  38 non-`Scaffold` definitions. Thirty-nine sources across 36 insertable
+  any-widget and two trait-bound destinations form 1,482 DnD candidates: 1,304
+  accepted and 178 rejected. Layout remains at 29 items, Scrolling contains 3,
+  and the practical 92-widget backlog is 39/92 complete with 53 remaining.
+  `.fd` stays at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remain v1.
 - The accepted non-const
   [`GridView.count`](https://api.flutter.dev/flutter/widgets/GridView/GridView.count.html)
   vertical slice is the eighteenth post-core Palette addition, at Scrolling

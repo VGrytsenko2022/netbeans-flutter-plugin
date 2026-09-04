@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
@@ -74,7 +75,9 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
-            GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value());
+            GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+            SingleChildScrollViewWidgetPropertySchema
+                    .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -82,8 +85,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(38, CATALOG.definitions().size());
-        assertEquals(32, CATALOG.definitions().stream()
+        assertEquals(39, CATALOG.definitions().size());
+        assertEquals(33, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -105,7 +108,8 @@ class FlutterDesignerPaletteTest {
                 "RotatedBox", "ListBody", "OverflowBar"),
                 itemLabels(categories[1]));
         assertEquals(29, itemLabels(categories[1]).size());
-        assertEquals(List.of("ListView", "GridView.count"), itemLabels(categories[2]));
+        assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
+                itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
@@ -134,7 +138,8 @@ class FlutterDesignerPaletteTest {
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
                 "RotatedBox", "ListBody", "OverflowBar"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("ListView", "GridView.count"), itemLabels(categories[2]));
+        assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
+                itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
@@ -842,6 +847,34 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void singleChildScrollViewPaletteSelectionExplainsPreservedDefaultsAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = SingleChildScrollViewWidgetPropertySchema
+                .SINGLE_CHILD_SCROLL_VIEW_TYPE.value();
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals("flutter.scrolling", definition.palette().categoryId());
+        assertEquals(250, definition.palette().categoryOrder());
+        assertEquals(30, definition.palette().itemOrder());
+        assertEquals("SingleChildScrollView", node.getDisplayName());
+        assertEquals(
+                "Create one optional child inside a vertically or horizontally scrolling "
+                + "viewport. Palette creation preserves Flutter’s vertical, forward, "
+                + "platform-physics, opaque hit-test, hard-edge clipping, inherited "
+                + "keyboard-dismissal, and ambient primary-controller defaults; runtime "
+                + "controller state remains outside this Designer slice.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Image";
@@ -1172,7 +1205,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void thirtyEightCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyNineCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1191,7 +1224,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(38, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(39, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

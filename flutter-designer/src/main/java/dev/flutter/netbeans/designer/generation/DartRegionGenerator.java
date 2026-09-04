@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
@@ -387,6 +388,12 @@ public final class DartRegionGenerator {
                     && GridViewCountWidgetPropertySchema.isSynthesized(property.name())) {
                 continue;
             }
+            if (node.type().equals(SingleChildScrollViewWidgetPropertySchema
+                    .SINGLE_CHILD_SCROLL_VIEW_TYPE)
+                    && SingleChildScrollViewWidgetPropertySchema
+                            .isSynthesized(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
@@ -450,6 +457,11 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)) {
             appendStaticScrollViewSynthesizedArguments(
+                    node, definition, path, context, arguments);
+        }
+        if (node.type().equals(SingleChildScrollViewWidgetPropertySchema
+                .SINGLE_CHILD_SCROLL_VIEW_TYPE)) {
+            appendStaticScrollViewPhysics(
                     node, definition, path, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);

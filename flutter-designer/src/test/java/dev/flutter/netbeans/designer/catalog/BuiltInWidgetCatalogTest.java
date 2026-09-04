@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtyEightTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyNineTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -65,6 +65,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
+                "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Spacer",
@@ -77,8 +78,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(38, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(32, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(39, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(33, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -92,10 +93,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(704, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(714, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(687, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(697, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -135,6 +136,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.RotatedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.SingleChildScrollView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedOverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Spacer", WIDGETS_IMPORT),
@@ -165,6 +167,8 @@ class BuiltInWidgetCatalogTest {
                 definition("flutter.widgets.ListView").importUris());
         assertEquals(List.of(GESTURES_IMPORT, RENDERING_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.widgets.GridView").importUris());
+        assertEquals(List.of(GESTURES_IMPORT, RENDERING_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.widgets.SingleChildScrollView").importUris());
         assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.widgets.OverflowBox").importUris(),
                 "OverflowBoxFit is owned by rendering.dart in Flutter 3.44.8");
@@ -264,6 +268,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
+                "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"), typeIds(palette));

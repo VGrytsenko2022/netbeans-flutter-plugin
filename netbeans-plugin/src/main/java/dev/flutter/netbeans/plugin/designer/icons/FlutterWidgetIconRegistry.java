@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.icons;
 
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +60,10 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                     ICON_ROOT + "gridviewcount.svg"),
+            Map.entry(
+                    SingleChildScrollViewWidgetPropertySchema
+                            .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+                    ICON_ROOT + "singlechildscrollview.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
             Map.entry("flutter.widgets.Image", ICON_ROOT + "image.svg"),

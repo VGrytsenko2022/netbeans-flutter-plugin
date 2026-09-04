@@ -20,6 +20,7 @@ import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
@@ -2359,6 +2360,247 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     WidgetSlot.ListSlot.class,
                     savedGrid.slots().get(CHILDREN)).children().stream()
                     .map(WidgetNode::id).toList());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteSingleChildScrollViewReopensForFurtherEditAndUndoableChildSlot()
+            throws Exception {
+        StableId scrollId = StableId.parse(
+                "72727272-7272-4272-8272-727272727272");
+        StableId childId = StableId.parse(
+                "73737373-7373-4373-8373-737373737373");
+        WidgetTypeId scrollType = SingleChildScrollViewWidgetPropertySchema
+                .SINGLE_CHILD_SCROLL_VIEW_TYPE;
+        WidgetTypeId textType = new WidgetTypeId("flutter.widgets.Text");
+        PropertyValue.BooleanValue reversed =
+                new PropertyValue.BooleanValue(true);
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_single_child_scroll_view_append",
+                columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("SingleChildScrollView("));
+                        assertTrue(request.content().contains("child: null"));
+                        assertFalse(request.content().contains("reverse:"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            scrollType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> scrollId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal SingleChildScrollView insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append SingleChildScrollView to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            WidgetNode scroll = findModelWidget(
+                    applied.document().orElseThrow().root(), scrollId);
+            assertEquals(scrollType, scroll.type());
+            assertTrue(scroll.properties().isEmpty());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    scroll.slots().get(CHILD)).child().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_single_child_scroll_view_reopened",
+                durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedScroll = findModelWidget(
+                    reopened.document().orElseThrow().root(), scrollId);
+            assertTrue(reopenedScroll.properties().isEmpty());
+            var definition = reopened.catalog().orElseThrow()
+                    .find(scrollType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedScroll,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> reverse =
+                    cellProperty(propertiesNode, "reverse");
+            assertTrue(reverse.canWrite(),
+                    "reopened SingleChildScrollView must retain its boolean editor");
+            assertEquals(FlutterPropertyCellValue.unset(), reverse.getValue());
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("SingleChildScrollView("));
+                        assertTrue(request.content().contains("reverse: true"));
+                        if (call == 1) {
+                            assertTrue(request.content().contains("child: null"));
+                        } else {
+                            assertTrue(request.content().contains("child: const Text("));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult propertyEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(scrollId, REVERSE, reversed),
+                            "SingleChildScrollView.reverse")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    propertyEdited.outcome(), propertyEdited::reason);
+            FlutterDesignerMutationController.Snapshot propertySnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            assertEquals(reversed, findModelWidget(
+                    propertySnapshot.document().orElseThrow().root(), scrollId)
+                    .properties().get(REVERSE));
+
+            FlutterDesignerPaletteDropPlanner.Result childPlan =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            propertySnapshot.document().orElseThrow(),
+                            propertySnapshot.catalog().orElseThrow(),
+                            textType,
+                            scrollId,
+                            CHILD,
+                            0,
+                            () -> childId);
+            FlutterDesignerPaletteDropPlanner.Accepted childAccepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, childPlan);
+            FlutterDesignerMutationController.MutationResult childAdded =
+                    fixture.mutations().submit(
+                            propertySnapshot.token().orElseThrow(),
+                            childAccepted.command(),
+                            "SingleChildScrollView.child — add Text")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    childAdded.outcome(), childAdded::reason);
+            FlutterDesignerMutationController.Snapshot childSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertySnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    findModelWidget(
+                            childSnapshot.document().orElseThrow().root(), scrollId)
+                            .slots().get(CHILD)).child().orElseThrow().id());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot childUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            WidgetNode withoutChild = findModelWidget(
+                    childUndone.document().orElseThrow().root(), scrollId);
+            assertEquals(reversed, withoutChild.properties().get(REVERSE));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    withoutChild.slots().get(CHILD)).child().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            assertFalse(findModelWidget(
+                    propertyUndone.document().orElseThrow().root(), scrollId)
+                    .properties().containsKey(REVERSE));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            assertEquals(reversed, findModelWidget(
+                    propertyRedone.document().orElseThrow().root(), scrollId)
+                    .properties().get(REVERSE));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot childRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, scrollId));
+            WidgetNode finalScroll = findModelWidget(
+                    childRedone.document().orElseThrow().root(), scrollId);
+            assertEquals(reversed, finalScroll.properties().get(REVERSE));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    finalScroll.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(2, editAnalyses.get(),
+                    "Undo/Redo must replay the two exact analyzed SingleChildScrollView pairs");
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedScroll = findModelWidget(saved.root(), scrollId);
+            assertEquals(reversed, savedScroll.properties().get(REVERSE));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    savedScroll.slots().get(CHILD)).child().orElseThrow().id());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

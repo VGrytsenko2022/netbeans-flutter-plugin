@@ -235,9 +235,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-38 reviewed Canvas widgets. Palette insertion evaluates 1,406 exact
-source/destination cells across 38 draggable sources and 37 insertable reviewed
-slots; 1,233 are accepted and 173 cells are rejected. Expanded and Flexible are
+39 reviewed Canvas widgets. Palette insertion evaluates 1,482 exact
+source/destination cells across 39 draggable sources and 38 insertable reviewed
+slots; 1,304 are accepted and 178 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -643,7 +643,25 @@ index-zero insertion target. A populated grid exposes a 36-pixel terminal band
 beside the logical last tile; move preview uses a 12-pixel row-major marker at
 the referenced tile. Partial groups advance on the cross axis, complete groups
 advance on the main axis, with `reverse` and ambient LTR/RTL resolved from the
-real render tree. The aggregate catalog now has 38 widgets; 38 sources across
-37 insertable destinations form 1,406 cells, with 1,233 accepted and 173
-rejected. Canvas model protocol remains v14; NBFC framing, control and wire
-remain v1.
+real render tree. At the `GridView.count` milestone, the aggregate catalog had
+38 widgets; 38 sources across 37 insertable destinations formed 1,406 cells,
+with 1,233 accepted and 173 rejected. Canvas model protocol remained v14; NBFC
+framing, control and wire remained v1.
+
+[`flutter.widgets.SingleChildScrollView`](https://api.flutter.dev/flutter/widgets/SingleChildScrollView/SingleChildScrollView.html)
+is decoded as the exact const default-constructor projection for Flutter 3.44.8
+without a protocol-version change. Its 10 optional leaves cover scroll axis,
+reversal, non-negative physical or directional padding, nullable primary
+policy, six closed physics presets, drag-start behavior, clipping, hit testing,
+restoration ID and keyboard dismissal. One optional any-widget `child` is the
+only slot. Controller-owned state, arbitrary physics graphs, `key` and raw Dart
+are absent from the closed model.
+
+Native and exact-Web views construct the real `SingleChildScrollView`. Flutter
+owns axis/reverse/directionality behavior and deliberately shrink-wraps the
+widget in both axes, so the ListView/GridView bounded-viewport guard is not
+applied. Canvas retains only a non-layout-affecting 36x36 selection/drop target
+when the real empty or zero-size widget has no usable bounds. The aggregate
+catalog now has 39 widgets; 39 sources across 38 insertable destinations form
+1,482 cells, with 1,304 accepted and 178 rejected. Canvas model protocol remains
+v14; NBFC framing, control and wire remain v1.

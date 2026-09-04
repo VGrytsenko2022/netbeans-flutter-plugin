@@ -4468,6 +4468,54 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.SingleChildScrollView': _WidgetSpec(
+    {
+      'scrollDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'reverse': _PropertySpec({'boolean'}),
+      'padding': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
+      'primary': _PropertySpec({'boolean'}),
+      'physics': _PropertySpec(
+        {'string'},
+        stringPattern:
+            r'(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)',
+      ),
+      'dragStartBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _gesturesLibraryUri,
+        enumType: 'DragStartBehavior',
+        enumValues: {'down', 'start'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+      'hitTestBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'HitTestBehavior',
+        enumValues: {'deferToChild', 'opaque', 'translucent'},
+      ),
+      'restorationId': _PropertySpec(
+        {'string'},
+        minimumStringLength: 1,
+        maximumStringLength: 256,
+        explicitStringLength: true,
+      ),
+      'keyboardDismissBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'ScrollViewKeyboardDismissBehavior',
+        enumValues: {'manual', 'onDrag'},
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.SizedBox': _WidgetSpec(
     {
       'width': _PropertySpec({
@@ -5478,6 +5526,18 @@ P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextB
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
 S|children|list|0|0|10000|any
+W|flutter.widgets.SingleChildScrollView
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
+P|hitTestBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:HitTestBehavior:deferToChild,opaque,translucent
+P|keyboardDismissBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ScrollViewKeyboardDismissBehavior:manual,onDrag
+P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|physics|string|0|-|-|string:pattern:KD86YWx3YXlzU2Nyb2xsYWJsZXxib3VuY2luZ3xjbGFtcGluZ3xuZXZlclNjcm9sbGFibGV8cGFnZXxyYW5nZU1haW50YWluaW5nKQ
+P|primary|boolean|0|-|-|boolean:any
+P|restorationId|string|0|-|-|string:length:1:256
+P|reverse|boolean|0|-|-|boolean:any
+P|scrollDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+S|child|single|0|0|1|any
 W|flutter.widgets.SizedBox
 P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1

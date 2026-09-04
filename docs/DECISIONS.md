@@ -23,9 +23,10 @@ ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, ADR-060 adds
 ADR-045's requirement that Image creation be blocked until a real declared
 asset exists. ADR-063 records the completed `RotatedBox` milestone, ADR-064
 records `ListBody`, ADR-065 adds `OverflowBar`, and ADR-066 establishes the
-current `GridView.count` surface: 704 typed rows across thirty-eight widgets,
-thirty-two const-constructor definitions and 1,406 Palette/DnD candidates,
-including 1,233 accepted and 173 rejected cells. The 687-field
+historical `GridView.count` surface. ADR-067 establishes the current
+`SingleChildScrollView` surface: 714 typed rows across thirty-nine widgets,
+thirty-three const-constructor definitions and 1,482 Palette/DnD candidates,
+including 1,304 accepted and 178 rejected cells. The 697-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -35,7 +36,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-066 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-067 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -280,7 +281,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-066 make 687 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-067 make 697 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -300,7 +301,8 @@ child slot, Transform's required matrix, optional origin/alignment/hit-test/
 filter values and optional child slot, RotatedBox's required signed portable
 `quarterTurns` plus optional child slot, and ListBody's optional axis/reversal
 rows plus ordered children slot, OverflowBar's six layout rows plus ordered
-children slot, and GridView.count's 21 grouped rows plus ordered children slot.
+children slot, GridView.count's 21 grouped rows plus ordered children slot,
+and SingleChildScrollView's 10 grouped rows plus optional child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -339,8 +341,9 @@ thirty-five-source, 1,190-candidate matrix (1,032 accepted and 158 rejected), an
 ADR-064 established the historical thirty-six-source, 1,260-candidate matrix
 (1,097 accepted and 163 rejected), and ADR-065 established the historical
 thirty-seven-source, 1,332-candidate matrix (1,164 accepted and 168 rejected).
-ADR-066 establishes the current thirty-eight-source, 1,406-candidate matrix
-(1,233 accepted and 173 rejected).
+ADR-066 established the historical thirty-eight-source, 1,406-candidate matrix
+(1,233 accepted and 173 rejected), and ADR-067 establishes the current
+thirty-nine-source, 1,482-candidate matrix (1,304 accepted and 178 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -350,7 +353,7 @@ protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -365,12 +368,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-eight-widget model for Mobile, Tablet,
+Canvas now renders the validated thirty-nine-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty-eight Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,406-cell candidate matrix across thirty-five insertable any-widget
-and two trait-bound destination slots; 1,233 cells are accepted and 173 rejected.
+those thirty-nine Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,482-cell candidate matrix across thirty-six insertable any-widget
+and two trait-bound destination slots; 1,304 cells are accepted and 178 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
@@ -2699,3 +2702,57 @@ Scrolling contains two.
 The practical Material/Base Designer backlog is now 38/92 complete, with 54
 remaining. This planning target is not a normative complete list of Flutter
 widgets. NBFC framing plus Canvas control/wire remain version 1.
+
+## ADR-067 — SingleChildScrollView adds the single-box scrolling container
+
+Accepted. `SingleChildScrollView` is published in the **Scrolling** Palette
+category at order 30 immediately after `GridView.count`. Its catalog identity
+and Dart class are both `flutter.widgets.SingleChildScrollView`; the reviewed
+default constructor is const.
+
+The complete Flutter 3.44.8 surface after excluding `key` and controller-owned
+state contains 10 optional properties in constructor order around one optional
+single `child` slot: `scrollDirection`, `reverse`, non-negative `padding`,
+nullable `primary`, one closed `physics` preset, `child`,
+`dragStartBehavior`, `clipBehavior`, `hitTestBehavior`, `restorationId` and
+`keyboardDismissBehavior`. The reviewed enums and six physics presets reuse the
+same closed domains as ListView and GridView.count. A detached prototype stores
+no properties and an empty child slot, preserving Flutter's vertical, forward,
+unpadded, inferred primary/physics, start-drag, hard-edge clip, opaque hit-test,
+null restoration and inherited keyboard-dismiss defaults. Arbitrary
+`ScrollPhysics` graphs, `ScrollController`, `key` and raw Dart remain outside
+the slice.
+
+Generated Dart and native/exact-Web Canvas construct the real
+`SingleChildScrollView`. Unlike ListView and GridView, Flutter deliberately
+shrink-wraps this widget in both axes and its render object has no bounded-axis
+viewport assertion. The Designer therefore does not apply the generated
+LayoutBuilder/SizedBox viewport guard. Canvas retains only a
+non-layout-affecting 36x36 selection/drop target when the real empty or
+zero-size widget would otherwise have no usable hit area; that target is never
+persisted or emitted into application Dart.
+
+NetBeans projects the rows into Scrolling, Layout, Semantics and Restoration
+groups with the shared closed physics chooser. The optional child uses the
+ordinary atomic single-slot contract for Palette/tree/Canvas insertion,
+replacement, clear, same-tree movement, Save/reopen and Undo/Redo. Expanded,
+Flexible and Spacer remain invalid direct children because their parent-data
+contract requires a direct Row or Column parent. Four dedicated reviewed 16/32
+px light/dark SVGs identify the widget in Palette and Explorer.
+
+SingleChildScrollView adds 10 writable rows, one ordinary source and one
+insertable any-widget destination to ADR-066. The resulting surface contains
+714 writable rows, with 697 outside Scaffold, across 39 widgets and 33
+const-constructor definitions. Thirty-nine sources across 36 any-widget plus
+two trait-bound destinations form 1,482 candidates. The new destination accepts
+35 old sources and rejects Expanded, Flexible and Spacer; the new source enters
+all 35 old any-widget destinations and neither trait-bound destination; its
+self-cell is accepted. This adds 71 accepted and five rejected cells, producing
+1,304 accepted and 178 rejected overall. Layout remains at 29 Palette items and
+Scrolling contains three.
+
+The practical Material/Base Designer backlog is now 39/92 complete, with 53
+remaining. This planning target is not a normative complete list of Flutter
+widgets. Existing value and slot encodings keep `.fd` schema v9, Catalog API 8
+and Canvas model v14 unchanged; NBFC framing plus Canvas control/wire remain
+version 1.

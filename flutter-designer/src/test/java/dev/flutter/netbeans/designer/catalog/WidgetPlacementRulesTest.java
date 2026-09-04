@@ -519,6 +519,41 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(gridView));
     }
 
+    @Test
+    void singleChildScrollViewIsAnOrdinaryInsertableWidgetWithRestrictedChild() {
+        WidgetDefinition scrollView = definition(
+                "flutter.widgets.SingleChildScrollView");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(scrollView).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), scrollView));
+        assertTrue(WidgetPlacementRules.accepts(
+                scrollView, slot(scrollView, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    scrollView,
+                    slot(scrollView, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.SingleChildScrollView.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(scrollView));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(scrollView));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(scrollView));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

@@ -549,6 +549,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.OverflowBar' ||
         node.type == 'flutter.widgets.ListView' ||
         node.type == 'flutter.widgets.GridView' ||
+        node.type == 'flutter.widgets.SingleChildScrollView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
@@ -2221,6 +2222,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.OverflowBar' => _overflowBar(),
       'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.GridView' => _gridView(),
+      'flutter.widgets.SingleChildScrollView' => _singleChildScrollView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
@@ -3381,6 +3383,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       },
     );
   }
+
+  Widget _singleChildScrollView() => SingleChildScrollView(
+    scrollDirection: _enum('scrollDirection') == 'horizontal'
+        ? Axis.horizontal
+        : Axis.vertical,
+    reverse: _boolean('reverse') ?? false,
+    padding: _edgeInsetsGeometry('padding'),
+    primary: _boolean('primary'),
+    physics: _scrollPhysics(),
+    dragStartBehavior: _dragStartBehavior(),
+    clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+    hitTestBehavior: _scrollHitTestBehavior(),
+    restorationId: _string('restorationId'),
+    keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
+    child: _single('child'),
+  );
 
   ScrollPhysics? _scrollPhysics() => switch (_string('physics')) {
     'alwaysScrollable' => const AlwaysScrollableScrollPhysics(),

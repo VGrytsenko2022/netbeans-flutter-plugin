@@ -4341,6 +4341,174 @@ void main() {
     expect(block, isNot(contains('cacheExtent|')));
   });
 
+  test('decodes all 10 SingleChildScrollView leaves and optional child', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      'cd068a37-bb45-49a3-a622-6ba944878d58',
+      'flutter.widgets.SingleChildScrollView',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+        'reverse': {'kind': 'boolean', 'value': true},
+        'padding': {
+          'kind': 'edgeInsetsDirectional',
+          'start': 1.0,
+          'top': 2.0,
+          'end': 3.0,
+          'bottom': 4.0,
+        },
+        'primary': {'kind': 'boolean', 'value': false},
+        'physics': {'kind': 'string', 'value': 'rangeMaintaining'},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+        'hitTestBehavior': {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'translucent',
+        },
+        'restorationId': {'kind': 'string', 'value': 'single-scroll'},
+        'keyboardDismissBehavior': {
+          'kind': 'enum',
+          'type': 'ScrollViewKeyboardDismissBehavior',
+          'value': 'onDrag',
+        },
+      },
+      slots: {
+        'child': _single(
+          _node(
+            'f1009a48-969b-4cee-bcf7-8fe208ae8c9f',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Scrollable child'},
+            },
+          ),
+        ),
+      },
+    );
+
+    final scrollView = _decode(json).root;
+    expect(scrollView.type, 'flutter.widgets.SingleChildScrollView');
+    expect(scrollView.properties, hasLength(10));
+    expect(scrollView.properties['physics']!.value, 'rangeMaintaining');
+    expect(
+      (scrollView.properties['hitTestBehavior']!.value as CanvasEnumValue)
+          .value,
+      'translucent',
+    );
+    expect(scrollView.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test('accepts omitted SingleChildScrollView values and an empty child', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      'cd068a37-bb45-49a3-a622-6ba944878d58',
+      'flutter.widgets.SingleChildScrollView',
+      slots: {'child': _single(null)},
+    );
+
+    final scrollView = _decode(json).root;
+    expect(scrollView.properties, isEmpty);
+    expect(scrollView.slot('child')!.child, isNull);
+  });
+
+  test(
+    'rejects values outside the SingleChildScrollView closed projection',
+    () {
+      Map<String, Object?> invalid(String name, Map<String, Object?> value) {
+        final json = _modelJson();
+        json['root'] = _node(
+          'cd068a37-bb45-49a3-a622-6ba944878d58',
+          'flutter.widgets.SingleChildScrollView',
+          properties: {name: value},
+          slots: {'child': _single(null)},
+        );
+        return json;
+      }
+
+      for (final json in <Map<String, Object?>>[
+        invalid('physics', {'kind': 'string', 'value': 'custom'}),
+        invalid('padding', {
+          'kind': 'edgeInsets',
+          'left': -1.0,
+          'top': 0.0,
+          'right': 0.0,
+          'bottom': 0.0,
+        }),
+        invalid('restorationId', {'kind': 'string', 'value': ''}),
+        invalid('scrollDirection', {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'diagonal',
+        }),
+        invalid('dragStartBehavior', {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'invalid',
+        }),
+        invalid('hitTestBehavior', {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'ignore',
+        }),
+        invalid('unknown', {'kind': 'boolean', 'value': true}),
+      ]) {
+        expect(() => _decode(json), throwsFormatException);
+      }
+
+      final wrongSlot = _modelJson();
+      wrongSlot['root'] = _node(
+        'cd068a37-bb45-49a3-a622-6ba944878d58',
+        'flutter.widgets.SingleChildScrollView',
+        slots: {'child': _list([])},
+      );
+      expect(() => _decode(wrongSlot), throwsFormatException);
+    },
+  );
+
+  test('SingleChildScrollView reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.SingleChildScrollView\n');
+    final end = contract.indexOf('W|flutter.widgets.SizedBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.SingleChildScrollView\n'
+      'P|clipBehavior|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|dragStartBehavior|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:'
+      'DragStartBehavior:down,start\n'
+      'P|hitTestBehavior|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:'
+      'HitTestBehavior:deferToChild,opaque,translucent\n'
+      'P|keyboardDismissBehavior|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'ScrollViewKeyboardDismissBehavior:manual,onDrag\n'
+      'P|padding|edgeInsets,edgeInsetsDirectional|0|-|'
+      'edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|'
+      'edgeInsets:edgeInsets:1:0:1:*:1;'
+      'edgeInsetsDirectional:edgeInsets:1:0:1:*:1\n'
+      'P|physics|string|0|-|-|string:pattern:'
+      'KD86YWx3YXlzU2Nyb2xsYWJsZXxib3VuY2luZ3xjbGFtcGluZ3xuZXZlclNjcm9sbGFibGV8cGFnZXxyYW5nZU1haW50YWluaW5nKQ\n'
+      'P|primary|boolean|0|-|-|boolean:any\n'
+      'P|restorationId|string|0|-|-|string:length:1:256\n'
+      'P|reverse|boolean|0|-|-|boolean:any\n'
+      'P|scrollDirection|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Axis:horizontal,vertical\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes all 54 reviewed TextField constructor leaves exactly', () {
     final json = _modelJson();
     json['root'] = _node(

@@ -325,6 +325,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.FractionallySizedBox' ||
       'flutter.widgets.Opacity' ||
       'flutter.widgets.Padding' ||
+      'flutter.widgets.SingleChildScrollView' ||
       'flutter.widgets.SizedBox' ||
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],
       _ => const [],

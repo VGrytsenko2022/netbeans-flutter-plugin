@@ -86,6 +86,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.ListBody");
     private static final WidgetTypeId OVERFLOW_BAR =
             type("flutter.widgets.OverflowBar");
+    private static final WidgetTypeId SINGLE_CHILD_SCROLL_VIEW =
+            type("flutter.widgets.SingleChildScrollView");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -1172,6 +1174,86 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void singleChildScrollViewTokenCommitsOmittedDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(SINGLE_CHILD_SCROLL_VIEW);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(SINGLE_CHILD_SCROLL_VIEW, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(SINGLE_CHILD_SCROLL_VIEW, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves all SingleChildScrollView Flutter defaults"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the SingleChildScrollView palette authority once"));
+    }
+
+    @Test
+    void textTokenCommitsIntoEmptySingleChildScrollViewChild() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(SINGLE_CHILD_SCROLL_VIEW));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.destination().parentId()),
+                () -> assertEquals(CHILD, command.destination().slotName()),
+                () -> assertEquals(0, command.destination().index()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(TEXT, command.widget().type()));
+    }
+
+    @Test
     void textTokenAppendsToOverflowBarInExactSourceOrder() {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -1320,7 +1402,11 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty OverflowBar",
                         document(prototype(OVERFLOW_BAR)),
-                        CHILDREN));
+                        CHILDREN),
+                new AcceptedCase(
+                        "empty SingleChildScrollView",
+                        document(prototype(SINGLE_CHILD_SCROLL_VIEW)),
+                        CHILD));
 
         assertAll(accepted.stream().map(testCase -> () -> {
             Fixture fixture = fixture(TEXT);

@@ -60,6 +60,7 @@ public final class BuiltInWidgetCatalog {
             overflowBar(),
             listView(),
             gridViewCount(),
+            singleChildScrollView(),
             image(),
             elevatedButton(),
             textField()));
@@ -1283,6 +1284,49 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.scrolling", 250, 20, "GridView.count"),
                 properties,
                 List.of(listSlot("children", 15, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition singleChildScrollView() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("padding", 2, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("primary", 3, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("physics", 4, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("dragStartBehavior", 6, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("clipBehavior", 7, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 8, false,
+                        renderingEnumValues(
+                                "HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                namedProperty("restorationId", 9, false,
+                        stringLength(1, 256)),
+                namedProperty("keyboardDismissBehavior", 10, false,
+                        enumValues("ScrollViewKeyboardDismissBehavior", "manual", "onDrag")));
+        if (properties.size()
+                != SingleChildScrollViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "SingleChildScrollView catalog/property schema count mismatch");
+        }
+        return widget(
+                SingleChildScrollViewWidgetPropertySchema
+                        .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+                "SingleChildScrollView",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT),
+                Set.of(),
+                palette("flutter.scrolling", 250, 30, "SingleChildScrollView"),
+                properties,
+                List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition image() {

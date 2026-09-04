@@ -12,6 +12,7 @@ import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
@@ -478,6 +479,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.equals(
                 widget.type())) {
             addGridViewCountPropertySets(sheet, hasSlotTab);
+        } else if (SingleChildScrollViewWidgetPropertySchema
+                .SINGLE_CHILD_SCROLL_VIEW_TYPE.equals(widget.type())) {
+            addSingleChildScrollViewPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -835,6 +839,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (SingleChildScrollViewWidgetPropertySchema
+                .SINGLE_CHILD_SCROLL_VIEW_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child inside the scrolling viewport. The child may exceed "
+                    + "the viewport only along the selected scroll axis; padding surrounds "
+                    + "the child inside the scrollable extent. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
         }
         if (LIST_BODY_TYPE.equals(widget.type())
                 && CHILDREN_SLOT.equals(slot.name())) {
@@ -1930,6 +1945,40 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             java.util.List<String> presets = schema.target()
                     == GridViewCountWidgetPropertySchema.Target.PHYSICS_PRESET
                             ? GridViewCountWidgetPropertySchema.PHYSICS_PRESETS
+                            : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    false,
+                    presets));
+        }
+    }
+
+    private void addSingleChildScrollViewPropertySets(
+            Sheet sheet,
+            boolean hasSlotTab) {
+        EnumMap<SingleChildScrollViewWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(SingleChildScrollViewWidgetPropertySchema.Group.class);
+        for (SingleChildScrollViewWidgetPropertySchema.Group group
+                : SingleChildScrollViewWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            SingleChildScrollViewWidgetPropertySchema.Definition schema =
+                    SingleChildScrollViewWidgetPropertySchema.find(property.name())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Built-in SingleChildScrollView property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == SingleChildScrollViewWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? SingleChildScrollViewWidgetPropertySchema.PHYSICS_PRESETS
                             : java.util.List.of();
             groups.get(schema.group()).put(projectProperty(
                     property,

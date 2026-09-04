@@ -518,7 +518,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v14 projection for the thirty-eight exact built-ins carrying
+  canonical protocol-v14 projection for the thirty-nine exact built-ins carrying
   the Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control JSON, model JSON, negotiated image bytes and reserved
@@ -1080,11 +1080,11 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop and the broader unreviewed Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 704 reviewed fields of
+  read/write Properties are enabled only for the 714 reviewed fields of
   `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
   `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
   `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`,
-  `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `Wrap`, `Text`, `Icon`, `Image`, `Container`
+  `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Text`, `Icon`, `Image`, `Container`
   and `Opacity`; 17 are
   Scaffold leaves, 286 are ElevatedButton leaves, 120 are grouped AppBar
   leaves, 59 are typed Text leaves, 13 are
@@ -1095,9 +1095,10 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   TextField 54 and
   ListView 17, Wrap nine, FittedBox three, ConstrainedBox one, UnconstrainedBox
   four, LimitedBox two, OverflowBox six, IntrinsicWidth two, Offstage one,
-  SizedOverflowBox two, Transform five, RotatedBox one, ListBody two and
-  OverflowBar six and GridView.count 21. Thirty-two definitions use reviewed
-  const constructors, and 687 rows belong to the thirty-seven non-`Scaffold`
+  SizedOverflowBox two, Transform five, RotatedBox one, ListBody two,
+  OverflowBar six, GridView.count 21 and SingleChildScrollView 10.
+  Thirty-three definitions use reviewed
+  const constructors, and 697 rows belong to the thirty-eight non-`Scaffold`
   definitions.
 
   ListView is the non-const static `ListView(children: ...)` contract. Its five
@@ -1372,8 +1373,25 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   other named constructors, `scrollBehavior`, `key` and deprecated raw
   `cacheExtent` remain outside the slice. Existing value and wire types keep
   `.fd` v9, Catalog API 8, Canvas model v14 and NBFC framing/control/wire v1
-  unchanged. The practical backlog is 38/92 complete with 54 remaining; Layout
-  remains at 29 items and Scrolling contains two.
+  unchanged. At the `GridView.count` milestone, the practical backlog was 38/92
+  complete with 54 remaining; Layout had 29 items and Scrolling had two.
+
+  [`SingleChildScrollView`](https://api.flutter.dev/flutter/widgets/SingleChildScrollView/SingleChildScrollView.html)
+  is the nineteenth post-core slice, at Scrolling order 30 immediately after
+  `GridView.count`. Its complete pinned Flutter 3.44.8 const surface exposes 10
+  optional properties plus one optional any-widget `child`: scroll direction,
+  reverse, non-negative padding, nullable primary policy, one reviewed physics
+  preset, drag-start behavior, clipping, hit testing, restoration ID and
+  keyboard dismissal. Detached prototypes omit every property and begin empty.
+  Controller-owned state, arbitrary physics graphs, `key` and raw Dart remain
+  outside the slice. Generated Dart and native/exact-Web Canvas construct the
+  real widget. SingleChildScrollView deliberately shrink-wraps both axes, so it
+  does not receive the ListView/GridView bounded-viewport guard; Canvas alone
+  retains a non-layout-affecting 36x36 target for an empty or zero-size node.
+  Existing value and wire types keep `.fd` v9, Catalog API 8, Canvas model v14
+  and NBFC framing/control/wire v1 unchanged. The practical backlog is 39/92
+  complete with 53 remaining; Layout remains at 29 items and Scrolling contains
+  three.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1381,16 +1399,16 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. All thirty-eight current definitions publish typed read/write catalog
+property sheet. All thirty-nine current definitions publish typed read/write catalog
 properties. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the thirty-eight
+context-sensitive standard NetBeans Palette containing exactly the thirty-nine
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative thirty-eight-source, 1,406-candidate insertion matrix with
-1,233 accepted and 173 rejected cells. Palette, Explorer/Nodes,
+host-authoritative thirty-nine-source, 1,482-candidate insertion matrix with
+1,304 accepted and 178 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (704 fields)
+### Writable Properties API contract (714 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 unreviewed constructor graphs. Scaffold contributes exactly 17 independently
@@ -1936,7 +1954,7 @@ constructor `count` stored separately. Creation stores cross-axis count 2; all
 optional values remain omitted. Its emitted widget symbol is the non-const
 `GridView.count` constructor from `package:flutter/widgets.dart`.
 
-These 704 fields use catalog constraints for editor selection, value admission,
+These 714 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
 font fallbacks use a dedicated multiline one-family-per-line editor; optional
 booleans render and edit every explicit value as an accessible checked/unchecked
@@ -2198,7 +2216,7 @@ DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
 token to the exact current canonical type and traits for hover filtering;
 negotiating or decoding either capability does not by itself enable Palette
 mutation. `host.render` describes one canonical bounded protocol-v14 model
-frame. The runner decodes only the thirty-eight reviewed Canvas-capable built-in
+frame. The runner decodes only the thirty-nine reviewed Canvas-capable built-in
 widget contracts and never loads project code. `CATALOG_JSON` remains reserved
 for a future versioned catalog contract. When `asset.imageBytes.v1` is
 negotiated, the model's sorted resource descriptors are followed by exact NBFC
@@ -2232,12 +2250,12 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the thirty-eight exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
+the thirty-nine exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
 `ElevatedButton`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `Text`,
-`Icon`, `Image`, `ListView`, `GridView.count`, `Wrap`, `Container` and `Opacity`.
-Thirty-five any-widget slots expose the reusable slot contract: `Scaffold.body`,
+`Icon`, `Image`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container` and `Opacity`.
+Thirty-six any-widget slots expose the reusable slot contract: `Scaffold.body`,
 `Scaffold.floatingActionButton`,
 `Column.children`, `Row.children`, `ListView.children`, `GridView.count.children`, `ListBody.children`, `OverflowBar.children`, `Wrap.children`, `Padding.child`,
 `Center.child`, `Align.child`, `FittedBox.child`, `ConstrainedBox.child`,
@@ -2245,16 +2263,16 @@ Thirty-five any-widget slots expose the reusable slot contract: `Scaffold.body`,
 `FractionallySizedBox.child`, `SizedBox.child`, `AspectRatio.child`,
 `ElevatedButton.child`, `Container.child`, `Opacity.child`, `Baseline.child`,
 `IntrinsicHeight.child`, `IntrinsicWidth.child`, `Offstage.child`,
-`SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `Stack.children`,
+`SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `SingleChildScrollView.child`, `Stack.children`,
 `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
 `AppBar.flexibleSpace`. The two trait-bound slots, `Scaffold.appBar` and
 `AppBar.bottom`, admit only AppBar through its canonical
 `PreferredSizeWidget` trait. Expanded and Flexible each admit only direct
 `Row.children` and `Column.children` wrapping; Spacer enters those two list
-slots by ordinary insertion, and the other thirty-five sources enter all
-thirty-five any-widget destinations. The wrappers' occupied required child
+slots by ordinary insertion, and the other thirty-six sources enter all
+thirty-six any-widget destinations. The wrappers' occupied required child
 slots are replacement-only and excluded from the insertable matrix. This yields
-1,406 candidate cells: exactly 1,233 admitted and 173 rejected. An empty Row,
+1,482 candidate cells: exactly 1,304 admitted and 178 rejected. An empty Row,
 Column, ListView, GridView.count, ListBody or OverflowBar has no ordering
 ambiguity, so its complete bounded visible design-time rectangle resolves
 insertion index zero; after the first child, only the terminal append zone is
@@ -2267,7 +2285,7 @@ also uses its full rectangle for terminal append because run formation has no
 stable linear edge, while AppBar actions use their dedicated logical actions
 zone. Empty zero-size FittedBox, ConstrainedBox, UnconstrainedBox, LimitedBox and
 OverflowBox nodes, plus an empty or collapsed Baseline, IntrinsicHeight,
-IntrinsicWidth or Offstage,
+IntrinsicWidth, Offstage or SingleChildScrollView,
 expose only their
 bounded Designer single-child targets; the helper geometry does not affect
 Flutter layout.
@@ -2369,8 +2387,8 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current thirty-eight-definition,
-1,406-candidate matrix with 1,233 accepted and 173 rejected cells described above,
+`Center.child[0]`. It is superseded by the current thirty-nine-definition,
+1,482-candidate matrix with 1,304 accepted and 178 rejected cells described above,
 whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
@@ -2526,28 +2544,28 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v14 projection intentionally contains exactly the thirty-eight
+The current protocol-v14 projection intentionally contains exactly the thirty-nine
 Canvas-capable definitions: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `Wrap`, `Container` and `Opacity`. It proves native hosting, bounded model
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container` and `Opacity`. It proves native hosting, bounded model
 publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the thirty-eight widget types and 704
+Host-side property mutation is admitted only for the thirty-nine widget types and 714
 properties listed above, including the 17-leaf Scaffold, 286-leaf
 ElevatedButton, 120-leaf AppBar, 59-leaf Text, 13-property Icon and 13-property
 Container projections plus Opacity's two, Align's three,
 FractionallySizedBox's three, Stack's four, Expanded's one, Flexible's two,
 Spacer's one, Baseline's two, IntrinsicWidth's two, Offstage's one,
 SizedOverflowBox's two, Transform's five, RotatedBox's one, ListBody's two,
-OverflowBar's six, GridView.count's 21, Image's 22,
+OverflowBar's six, GridView.count's 21, SingleChildScrollView's 10, Image's 22,
 TextField's 54, ListView's 17, Wrap's nine, FittedBox's three, ConstrainedBox's
 required constraints property, UnconstrainedBox's four optional rows,
 LimitedBox's two optional limits and OverflowBox's six optional rows; the runner still receives
 no persistence authority.
 
-This thirty-eight-widget slice is complete across create, open, edit, save, reopen,
+This thirty-nine-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
 same-tree move and exact-slot management. Unreviewed widget definitions remain
 fail-closed until each receives an equally complete independently reviewed
@@ -2564,7 +2582,7 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current thirty-eight-widget slice complete] Embed the isolated Flutter runner,
+4. [Current thirty-nine-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with the same revision-scoped typed asset resources and no
@@ -2573,9 +2591,9 @@ Implementation proceeds through explicit gates:
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact thirty-eight-item Palette
+   with the Explorer/Nodes widget tree, publish the exact thirty-nine-item Palette
    and expose selected-node Properties. Enable catalog-driven Set/Reset/Patch
-   for the 704 reviewed fields, including all 17 Scaffold leaves, all 286
+   for the 714 reviewed fields, including all 17 Scaffold leaves, all 286
    ElevatedButton leaves,
    all 120 reviewed AppBar leaves,
    all 59 reviewed Text leaves, both
@@ -2592,7 +2610,8 @@ Implementation proceeds through explicit gates:
    slot, ListBody's optional axis and reversal rows plus ordered children slot,
    OverflowBar's six optional layout rows plus ordered children slot,
    GridView.count's 21 scrolling/grid/cache/semantics/restoration rows plus
-   ordered children slot,
+   ordered children slot, SingleChildScrollView's 10 scrolling/layout/
+   semantics/restoration rows plus optional child slot,
    Image's 22,
    TextField's 54, ListView's 17 and
    Wrap's nine rows, FittedBox's three rows, ConstrainedBox's required
@@ -2605,8 +2624,8 @@ Implementation proceeds through explicit gates:
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the thirty-eight-source,
-   1,406-candidate compatibility matrix with 1,233 accepted and 173 rejected cells.
+   `Center.child[0]`; the current contract is the thirty-nine-source,
+   1,482-candidate compatibility matrix with 1,304 accepted and 178 rejected cells.
    Its live
    assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
@@ -2737,7 +2756,7 @@ width and height rows, an optional child, real stepped intrinsic-width
 2. Structured property-editor/model contracts for contributed widgets and the
    remaining unreviewed Flutter graphs/callback shapes, plus localized
    presentation. Strict callback identifiers are implemented for Scaffold and
-   ElevatedButton. The catalog-driven provider for the current thirty-eight-widget
+   ElevatedButton. The catalog-driven provider for the current thirty-nine-widget
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
    state composites, AppBar composites, Text composites, a closed Paint subset,
    shadows, font features, font variations, IconData, semantic theme roles and
@@ -2764,7 +2783,8 @@ width and height rows, an optional child, real stepped intrinsic-width
    child, ListBody's optional main axis and reversal plus ordered children, and
    OverflowBar's spacing/alignment/overflow/direction rows plus ordered children,
    and GridView.count's grouped scrolling/grid/cache/semantics/restoration rows
-   plus ordered children;
+   plus ordered children, and SingleChildScrollView's grouped scrolling/layout/
+   semantics/restoration rows plus optional child;
    built-in
    domain metadata is fixed by ADR-010 and ADR-027.
 3. Callback stub creation without modifying user-owned code on later saves.

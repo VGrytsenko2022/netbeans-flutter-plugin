@@ -1218,13 +1218,36 @@ accepted architecture is documented in
   NetBeans Properties, Palette/tree/Canvas DnD, same-tree movement/reordering,
   deterministic named-constructor generation, Save/reopen and further editing,
   Undo/Redo, native and exact-Web Canvas, four reviewed SVGs and focused
-  contracts. The current surface is 38 widgets, 32 const definitions and 704
-  rows (687 outside Scaffold). Thirty-eight sources across 35 insertable
-  any-widget plus two trait destinations form 1,406 candidates: 1,233 accepted
-  and 173 rejected. Layout remains at 29 items, Scrolling contains 2, and the
-  practical 92-widget backlog is 38/92 complete with 54 remaining. `.fd` stays
-  at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
-  framing/control/wire remains v1.
+  contracts. At this milestone, the surface had 38 widgets, 32 const definitions
+  and 704 rows (687 outside Scaffold). Thirty-eight sources across 35 insertable
+  any-widget plus two trait destinations formed 1,406 candidates: 1,233 accepted
+  and 173 rejected. Layout had 29 items, Scrolling had 2, and the practical
+  92-widget backlog was 38/92 complete with 54 remaining. `.fd` stayed at schema
+  v9, Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire
+  remained v1.
+- [x] Complete const
+  [`SingleChildScrollView`](https://api.flutter.dev/flutter/widgets/SingleChildScrollView/SingleChildScrollView.html)
+  as the nineteenth post-core Palette vertical slice at Scrolling order 30,
+  immediately after `GridView.count`. Expose the complete reviewed Flutter
+  3.44.8 non-`key`, non-controller constructor as 10 typed rows: scroll
+  direction, reverse, non-negative padding, nullable primary policy, a closed
+  physics preset, drag-start behavior, clip behavior, hit-test behavior,
+  restoration ID and keyboard dismissal. Keep one optional any-widget `child`
+  slot at its constructor position. Detached prototypes omit all properties and
+  begin empty. Exclude controller-owned state and arbitrary physics graphs.
+  Complete grouped NetBeans Properties, Palette/tree/Canvas DnD, same-tree
+  movement, deterministic generation, Save/reopen and further editing,
+  Undo/Redo, native and exact-Web Canvas, four reviewed SVGs and focused
+  contracts. Preserve the real widget's deliberate two-axis shrink-wrapping:
+  do not apply the ListView/GridView generated bounded-viewport guard, and use
+  only a non-layout-affecting Canvas target for an empty or zero-size node. The
+  current surface is 39 widgets, 33 const definitions and 714 rows (697 outside
+  Scaffold). Thirty-nine sources across 36 insertable any-widget plus two trait
+  destinations form 1,482 candidates: 1,304 accepted and 178 rejected. Layout
+  remains at 29 items, Scrolling contains 3, and the practical 92-widget
+  backlog is 39/92 complete with 53 remaining. `.fd` stays at schema v9,
+  Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire remains
+  v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1242,8 +1265,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after GridView.count has yet been assigned
-  an explicit order. The current typed Properties slice spans all thirty-eight
+  vertical slices. No specific widget after SingleChildScrollView has yet been assigned
+  an explicit order. The current typed Properties slice spans all thirty-nine
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

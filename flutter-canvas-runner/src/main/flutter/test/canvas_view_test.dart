@@ -116,6 +116,40 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.SizedBox'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.SingleChildScrollView'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.SingleChildScrollView',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.SingleChildScrollView',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-single-scroll-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.AspectRatio'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -6782,6 +6816,333 @@ void main() {
     },
   );
 
+  testWidgets('renders every reviewed SingleChildScrollView argument', (
+    tester,
+  ) async {
+    const scrollId = 'cd068a37-bb45-49a3-a622-6ba944878d58';
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithSingleChildScrollView(
+              properties: const {
+                'scrollDirection': {
+                  'kind': 'enum',
+                  'type': 'Axis',
+                  'value': 'horizontal',
+                },
+                'reverse': {'kind': 'boolean', 'value': true},
+                'padding': {
+                  'kind': 'edgeInsetsDirectional',
+                  'start': 1.0,
+                  'top': 2.0,
+                  'end': 3.0,
+                  'bottom': 4.0,
+                },
+                'primary': {'kind': 'boolean', 'value': false},
+                'physics': {'kind': 'string', 'value': 'bouncing'},
+                'dragStartBehavior': {
+                  'kind': 'enum',
+                  'type': 'DragStartBehavior',
+                  'value': 'down',
+                },
+                'clipBehavior': {
+                  'kind': 'enum',
+                  'type': 'Clip',
+                  'value': 'antiAlias',
+                },
+                'hitTestBehavior': {
+                  'kind': 'enum',
+                  'type': 'HitTestBehavior',
+                  'value': 'translucent',
+                },
+                'restorationId': {'kind': 'string', 'value': 'single-scroll'},
+                'keyboardDismissBehavior': {
+                  'kind': 'enum',
+                  'type': 'ScrollViewKeyboardDismissBehavior',
+                  'value': 'onDrag',
+                },
+              },
+              child: _viewSizedBoxNode(
+                'f1009a48-969b-4cee-bcf7-8fe208ae8c9f',
+                width: 500,
+                height: 40,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+    await tester.pump();
+
+    final node = find.byKey(const ValueKey('canvas-widget-$scrollId'));
+    final finder = find.descendant(
+      of: node,
+      matching: find.byType(SingleChildScrollView),
+    );
+    final scrollView = tester.widget<SingleChildScrollView>(finder);
+    expect(scrollView.scrollDirection, Axis.horizontal);
+    expect(scrollView.reverse, isTrue);
+    expect(
+      scrollView.padding,
+      const EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4),
+    );
+    expect(scrollView.primary, isFalse);
+    expect(scrollView.physics, isA<BouncingScrollPhysics>());
+    expect(scrollView.dragStartBehavior, DragStartBehavior.down);
+    expect(scrollView.clipBehavior, Clip.antiAlias);
+    expect(scrollView.hitTestBehavior, HitTestBehavior.translucent);
+    expect(scrollView.restorationId, 'single-scroll');
+    expect(
+      scrollView.keyboardDismissBehavior,
+      ScrollViewKeyboardDismissBehavior.onDrag,
+    );
+    expect(scrollView.child, isNotNull);
+    expect(
+      find.descendant(of: node, matching: find.byType(LayoutBuilder)),
+      findsNothing,
+      reason: 'SingleChildScrollView keeps its native shrink-wrap semantics',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('maps every reviewed SingleChildScrollView physics preset', (
+    tester,
+  ) async {
+    const scrollId = 'cd068a37-bb45-49a3-a622-6ba944878d58';
+    final cases = <String, Type>{
+      'alwaysScrollable': AlwaysScrollableScrollPhysics,
+      'bouncing': BouncingScrollPhysics,
+      'clamping': ClampingScrollPhysics,
+      'neverScrollable': NeverScrollableScrollPhysics,
+      'page': PageScrollPhysics,
+      'rangeMaintaining': RangeMaintainingScrollPhysics,
+    };
+    for (final entry in cases.entries) {
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: CanvasModel.decode(
+            Uint8List.fromList(
+              utf8.encode(
+                jsonEncode(
+                  _modelWithSingleChildScrollView(
+                    properties: {
+                      'primary': {'kind': 'boolean', 'value': false},
+                      'physics': {'kind': 'string', 'value': entry.key},
+                    },
+                    child: _viewTextNode(
+                      'f1009a48-969b-4cee-bcf7-8fe208ae8c9f',
+                      entry.key,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      final scrollView = tester.widget<SingleChildScrollView>(
+        find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$scrollId')),
+          matching: find.byType(SingleChildScrollView),
+        ),
+      );
+      expect(scrollView.physics.runtimeType, entry.value, reason: entry.key);
+      expect(tester.takeException(), isNull, reason: entry.key);
+    }
+  });
+
+  testWidgets(
+    'resolves SingleChildScrollView axis, reverse, and directionality',
+    (tester) async {
+      const scrollId = 'cd068a37-bb45-49a3-a622-6ba944878d58';
+      final cases =
+          <({String locale, Axis axis, bool reverse, AxisDirection expected})>[
+            (
+              locale: 'en-US',
+              axis: Axis.vertical,
+              reverse: false,
+              expected: AxisDirection.down,
+            ),
+            (
+              locale: 'en-US',
+              axis: Axis.vertical,
+              reverse: true,
+              expected: AxisDirection.up,
+            ),
+            (
+              locale: 'en-US',
+              axis: Axis.horizontal,
+              reverse: false,
+              expected: AxisDirection.right,
+            ),
+            (
+              locale: 'ar-SA',
+              axis: Axis.horizontal,
+              reverse: false,
+              expected: AxisDirection.left,
+            ),
+            (
+              locale: 'ar-SA',
+              axis: Axis.horizontal,
+              reverse: true,
+              expected: AxisDirection.right,
+            ),
+          ];
+
+      for (final entry in cases) {
+        final json = _modelWithSingleChildScrollView(
+          properties: {
+            if (entry.axis == Axis.horizontal)
+              'scrollDirection': {
+                'kind': 'enum',
+                'type': 'Axis',
+                'value': 'horizontal',
+              },
+            'reverse': {'kind': 'boolean', 'value': entry.reverse},
+            'primary': {'kind': 'boolean', 'value': false},
+          },
+          child: _viewSizedBoxNode(
+            'f1009a48-969b-4cee-bcf7-8fe208ae8c9f',
+            width: 500,
+            height: 500,
+          ),
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] = entry.locale;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final node = find.byKey(const ValueKey('canvas-widget-$scrollId'));
+        final scrollable = tester.widget<Scrollable>(
+          find.descendant(of: node, matching: find.byType(Scrollable)),
+        );
+        expect(
+          scrollable.axisDirection,
+          entry.expected,
+          reason: entry.toString(),
+        );
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
+
+  testWidgets(
+    'keeps an empty SingleChildScrollView selectable and supports child reparent',
+    (tester) async {
+      const scrollId = 'cd068a37-bb45-49a3-a622-6ba944878d58';
+      const sourceId = '0f91484c-46d1-439c-a8cf-786009b58842';
+      CanvasDropResolver? dropResolver;
+      CanvasMovePreviewResolver? moveResolver;
+      String? selectedWidgetId;
+      void captureMoveResolver(CanvasMovePreviewResolver? value) {
+        moveResolver = value;
+      }
+
+      final empty = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithSingleChildScrollView(
+                properties: const {},
+                child: null,
+                unbounded: true,
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      var currentModel = empty;
+      StateSetter? rebuild;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CanvasModelApp(
+              model: currentModel,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => dropResolver = value,
+              onMovePreviewResolverChanged: captureMoveResolver,
+            );
+          },
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$scrollId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$scrollId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(36, 36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, scrollId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      int micros(double value, double origin, double extent) =>
+          ((value - origin) / extent * 1000000).round();
+      final drop = dropResolver!(
+        micros(point.dx, surface.left, surface.width),
+        micros(point.dy, surface.top, surface.height),
+      );
+      expect(drop?.parentWidgetId, scrollId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+
+      final move = moveResolver!(sourceId, scrollId, 'child', 0);
+      expect(move?.parentWidgetId, scrollId);
+      expect(move?.slotName, 'child');
+      expect(move?.insertionIndex, 0);
+      expect(move?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+
+      final occupied = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithSingleChildScrollView(
+                properties: const {},
+                child: _viewTextNode(
+                  'f1009a48-969b-4cee-bcf7-8fe208ae8c9f',
+                  'Occupied',
+                ),
+                unbounded: true,
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      rebuild!(() {
+        currentModel = occupied;
+        selectedWidgetId = null;
+      });
+      await tester.pump();
+      expect(moveResolver!(sourceId, scrollId, 'child', 0), isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
   ) async {
@@ -12545,6 +12906,64 @@ Map<String, Object?> _modelWithGridView({
     'properties': <String, Object?>{},
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithSingleChildScrollView({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool unbounded = false,
+  Map<String, Object?>? sibling,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final scrollView = <String, Object?>{
+    'id': 'cd068a37-bb45-49a3-a622-6ba944878d58',
+    'type': 'flutter.widgets.SingleChildScrollView',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final content = unbounded
+      ? <String, Object?>{
+          'id': 'ecf85138-268e-4a7c-9bc9-b4dc9b1f9e9a',
+          'type': 'flutter.widgets.Column',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[scrollView, ?sibling],
+            },
+          },
+        }
+      : <String, Object?>{
+          'id': '2f519172-2bf0-4632-856a-e235156fac75',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': scrollView},
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': 'a948cfaf-a248-43f1-be76-dd3d4e351756',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': content},
     },
   };
   return model;

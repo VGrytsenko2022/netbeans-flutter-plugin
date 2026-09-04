@@ -1477,6 +1477,121 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void singleChildScrollViewChildPropertiesUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        PropertyName physics = property("physics");
+        PropertyName padding = property("padding");
+        PropertyName restorationId = property("restorationId");
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Anchor")));
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.SingleChildScrollView"))
+                        .orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession current = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), prototype));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(SECOND_ID, "Scrollable details")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, REVERSE,
+                new PropertyValue.BooleanValue(true)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, physics,
+                new PropertyValue.StringValue("bouncing")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, padding,
+                new PropertyValue.EdgeInsetsValue(
+                        BigDecimal.ONE, BigDecimal.valueOf(2),
+                        BigDecimal.valueOf(3), BigDecimal.valueOf(4))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, restorationId,
+                new PropertyValue.StringValue("details-scroll")));
+
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID,
+                        physics,
+                        new PropertyValue.StringValue("custom")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                current, new ResetProperty(WRAPPER_ID, REVERSE));
+        WidgetNode finalScrollView = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(SECOND_ID,
+                ((WidgetSlot.SingleSlot) finalScrollView.slots().get(CHILD))
+                        .child().orElseThrow().id());
+        assertFalse(finalScrollView.properties().containsKey(REVERSE));
+        assertEquals(new PropertyValue.StringValue("bouncing"),
+                finalScrollView.properties().get(physics));
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const SingleChildScrollView("), dart);
+        assertFalse(dart.contains("LayoutBuilder("), dart);
+        assertFalse(dart.contains("reverse:"), dart);
+        assertTrue(dart.contains(
+                "physics: const BouncingScrollPhysics()"), dart);
+        assertTrue(dart.contains(
+                "padding: const EdgeInsets.fromLTRB(1.0, 2.0, 3.0, 4.0)"), dart);
+        assertTrue(dart.contains("restorationId: 'details-scroll'"), dart);
+        assertTrue(dart.contains("const Text('Scrollable details')"), dart);
+        assertTrue(dart.indexOf("physics:")
+                < dart.indexOf("child:", dart.indexOf("SingleChildScrollView(")), dart);
+        assertTrue(dart.indexOf("child:", dart.indexOf("SingleChildScrollView("))
+                < dart.indexOf("restorationId:"), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.BooleanValue(true),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(REVERSE));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains(
+                "\"type\": \"flutter.widgets.SingleChildScrollView\""), fd);
+        assertTrue(fd.contains("\"physics\""), fd);
+        assertTrue(fd.contains("\"value\": \"bouncing\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID,
+                        restorationId,
+                        new PropertyValue.StringValue("details-scroll-updated")));
+        assertEquals(new PropertyValue.StringValue("details-scroll-updated"),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(restorationId));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("restorationId: 'details-scroll-updated'"));
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

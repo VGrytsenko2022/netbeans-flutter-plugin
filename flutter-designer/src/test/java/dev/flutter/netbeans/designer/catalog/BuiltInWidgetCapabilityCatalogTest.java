@@ -57,6 +57,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
+            "flutter.widgets.SingleChildScrollView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -96,6 +97,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
+            "flutter.widgets.SingleChildScrollView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -109,7 +111,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtyEightSourcesAndThirtySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyNineSourcesAndThirtyEightInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -132,9 +134,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(38, sources.size());
-        assertEquals(37, destinations.size());
-        assertEquals(35, destinations.stream()
+        assertEquals(39, sources.size());
+        assertEquals(38, destinations.size());
+        assertEquals(36, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -142,9 +144,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1406, candidates);
-        assertEquals(1233, accepted);
-        assertEquals(173, candidates - accepted);
+        assertEquals(1482, candidates);
+        assertEquals(1304, accepted);
+        assertEquals(178, candidates - accepted);
     }
 
     @Test
@@ -216,6 +218,38 @@ class BuiltInWidgetCapabilityCatalogTest {
                 new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
                         SlotCardinality.LIST, false, 0, 10_000),
                 projection.slotContracts().get(new SlotName("children")));
+    }
+
+    @Test
+    void singleChildScrollViewHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.SingleChildScrollView");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(10, projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+        assertTrue(projection.propertyContracts().get(new PropertyName("physics"))
+                .constraintFingerprints().get(PropertyValueKind.STRING)
+                .startsWith("pattern:"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("dragStartBehavior"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("hitTestBehavior"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
     }
 
     @Test

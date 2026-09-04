@@ -3141,6 +3141,86 @@ class WidgetTreeValidatorTest {
                 "flutter.widgets.GridView.children"), placement.message());
     }
 
+    @Test
+    void acceptsSingleChildScrollViewFullDeclarativeSurface() {
+        WidgetNode scrollView = node(
+                "valid-single-scroll",
+                "flutter.widgets.SingleChildScrollView",
+                Map.ofEntries(
+                        Map.entry(name("scrollDirection"),
+                                new PropertyValue.EnumValue("Axis", "horizontal")),
+                        Map.entry(name("reverse"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(name("padding"),
+                                new PropertyValue.EdgeInsetsValue(
+                                        BigDecimal.ONE, BigDecimal.valueOf(2),
+                                        BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                        Map.entry(name("primary"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(name("physics"),
+                                new PropertyValue.StringValue("bouncing")),
+                        Map.entry(name("dragStartBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "DragStartBehavior", "down")),
+                        Map.entry(name("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "antiAlias")),
+                        Map.entry(name("hitTestBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "HitTestBehavior", "translucent")),
+                        Map.entry(name("restorationId"),
+                                new PropertyValue.StringValue("details-scroll")),
+                        Map.entry(name("keyboardDismissBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "ScrollViewKeyboardDismissBehavior", "onDrag"))),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(text("single-scroll-child"))));
+
+        ValidationResult result = validator().validate(
+                document(scrollView), BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.valid(), () -> result.issues().toString());
+    }
+
+    @Test
+    void rejectsInvalidSingleChildScrollViewPropertiesAndRestrictedChild() {
+        WidgetNode invalidPhysics = node(
+                "invalid-single-scroll-physics",
+                "flutter.widgets.SingleChildScrollView",
+                Map.of(name("physics"),
+                        new PropertyValue.StringValue("custom")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue physics = onlyIssue(
+                validator().validate(
+                        document(invalidPhysics), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/physics", physics.path());
+
+        WidgetNode invalidRestoration = node(
+                "invalid-single-scroll-restoration",
+                "flutter.widgets.SingleChildScrollView",
+                Map.of(name("restorationId"),
+                        new PropertyValue.StringValue("")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue restoration = onlyIssue(
+                validator().validate(
+                        document(invalidRestoration), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/restorationId", restoration.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-single-scroll-child",
+                "flutter.widgets.SingleChildScrollView",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("single-scroll-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(restrictedChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.SingleChildScrollView.child"), placement.message());
+    }
+
     private static WidgetTreeValidator validator() {
         return new WidgetTreeValidator();
     }

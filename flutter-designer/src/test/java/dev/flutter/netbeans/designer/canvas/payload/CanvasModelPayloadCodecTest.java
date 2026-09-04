@@ -115,7 +115,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
-                "flutter.widgets.Placeholder"),
+                "flutter.widgets.Placeholder",
+                "flutter.widgets.Directionality"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -267,6 +268,51 @@ class CanvasModelPayloadCodecTest {
         IllegalArgumentException failure = assertThrows(
                 IllegalArgumentException.class, () -> request(invalid));
         assertTrue(failure.getMessage().contains("designer.property.constraint"),
+                failure::getMessage);
+    }
+
+    @Test
+    void projectsDirectionalityRequiredEnumAndChildWithoutProtocolChange()
+            throws Exception {
+        WidgetNode directionality = new WidgetNode(
+                id("de590ed8-e30e-4fbd-8b20-c5acbdd820a1"),
+                type("flutter.widgets.Directionality"),
+                Map.of(new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "274e325d-afd5-428a-9e0a-427e13e8990b",
+                        "RTL child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), directionality))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.Directionality\""), json);
+        assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
+                + "\"type\":\"TextDirection\",\"value\":\"rtl\"}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"274e325d-afd5-428a-9e0a-427e13e8990b\""),
+                json);
+    }
+
+    @Test
+    void rejectsDirectionalityWithoutRequiredDirectionBeforePayloadEncoding() {
+        WidgetNode directionality = new WidgetNode(
+                id("c4137bbd-4448-4adc-b8a4-99f468423098"),
+                type("flutter.widgets.Directionality"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "ae1d9358-7041-4143-9dd0-77e40931e72e",
+                        "Missing direction"))));
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> request(new DesignerDocument(
+                        DOCUMENT_ID, source(), directionality)));
+
+        assertTrue(failure.getMessage().contains("designer.property.missing"),
                 failure::getMessage);
     }
 

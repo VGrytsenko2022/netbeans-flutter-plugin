@@ -3428,6 +3428,79 @@ class WidgetTreeValidatorTest {
                 "flutter.widgets.SafeArea.child"), placement.message());
     }
 
+    @Test
+    void acceptsDirectionalityWithEitherExactDirectionAndRequiredChild() {
+        for (String direction : List.of("ltr", "rtl")) {
+            WidgetNode directionality = node(
+                    "valid-directionality-" + direction,
+                    "flutter.widgets.Directionality",
+                    Map.of(name("textDirection"),
+                            new PropertyValue.EnumValue(
+                                    "TextDirection", direction)),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                            text("directionality-child-" + direction))));
+
+            ValidationResult result = validator().validate(
+                    document(directionality), BuiltInWidgetCatalog.getDefault());
+
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+    }
+
+    @Test
+    void rejectsDirectionalityMissingWrongDirectionMissingOrRestrictedChild() {
+        WidgetNode missingDirection = node(
+                "invalid-directionality-missing-direction",
+                "flutter.widgets.Directionality",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        text("missing-direction-child"))));
+        ValidationIssue missingProperty = onlyIssue(
+                validator().validate(document(missingDirection),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/textDirection", missingProperty.path());
+
+        WidgetNode wrongDirection = node(
+                "invalid-directionality-wrong-direction",
+                "flutter.widgets.Directionality",
+                Map.of(name("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "up")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        text("wrong-direction-child"))));
+        ValidationIssue wrongConstraint = onlyIssue(
+                validator().validate(document(wrongDirection),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/textDirection", wrongConstraint.path());
+
+        WidgetNode missingChild = node(
+                "invalid-directionality-empty",
+                "flutter.widgets.Directionality",
+                Map.of(name("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue missingSlot = onlyIssue(
+                validator().validate(document(missingChild),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_NULL);
+        assertEquals("/root/slots/child/child", missingSlot.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-directionality-child",
+                "flutter.widgets.Directionality",
+                Map.of(name("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("directionality-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(document(restrictedChild),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.Directionality.child"), placement.message());
+    }
+
     private static WidgetTreeValidator validator() {
         return new WidgetTreeValidator();
     }

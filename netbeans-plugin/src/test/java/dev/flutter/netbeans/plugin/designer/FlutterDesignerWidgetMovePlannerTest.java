@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -81,6 +82,8 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId OVERFLOW_BAR =
             type("flutter.widgets.OverflowBar");
     private static final WidgetTypeId SAFE_AREA = type("flutter.widgets.SafeArea");
+    private static final WidgetTypeId DIRECTIONALITY =
+            DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -309,6 +312,44 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
                 safeArea.slots().get(CHILD)).child().orElseThrow());
         assertAcceptedCommandApplies(document, BUILT_INS, safeArea, result);
+    }
+
+    @Test
+    void completedDirectionalityMovesWithRequiredChildDirectionAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "directional child");
+        WidgetNode directionality = new WidgetNode(
+                A_ID,
+                DIRECTIONALITY,
+                Map.of(
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(directionality, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                directionality.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(directionality.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertEquals(
+                        new PropertyValue.EnumValue("TextDirection", "rtl"),
+                        directionality.properties().get(
+                                new PropertyName("textDirection"))),
+                () -> assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                        directionality.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, directionality, result);
     }
 
     @Test

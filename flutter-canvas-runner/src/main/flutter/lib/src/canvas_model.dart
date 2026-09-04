@@ -3736,6 +3736,19 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Directionality': _WidgetSpec(
+    {
+      'textDirection': _PropertySpec(
+        {'enum'},
+        required: true,
+        creationDefaultFingerprint: 'enum:TextDirection:ltr',
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'ltr', 'rtl'},
+      ),
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.Expanded': _WidgetSpec(
     {
       'flex': _PropertySpec({
@@ -5422,6 +5435,10 @@ P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.Directionality
+P|textDirection|enum|1|enum:TextDirection:ltr|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+S|child|single|1|1|1|any
+C|flutter.widgets.Directionality|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.Expanded
 P|flex|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
 S|child|single|1|1|1|any

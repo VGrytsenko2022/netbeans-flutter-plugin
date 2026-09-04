@@ -65,6 +65,7 @@ public final class BuiltInWidgetCatalog {
             image(),
             coloredBox(),
             placeholder(),
+            directionality(),
             elevatedButton(),
             textField()));
 
@@ -1472,6 +1473,30 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.basic", 300, 50, "Placeholder"),
                 properties,
                 List.of(singleSlot("child", 4, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition directionality() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "textDirection",
+                0,
+                true,
+                enumValues("TextDirection", "rtl", "ltr"),
+                new PropertyValue.EnumValue("TextDirection", "ltr")));
+        if (properties.size()
+                != DirectionalityWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "Directionality catalog/property schema count mismatch");
+        }
+        return widget(
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                "Directionality",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 60, "Directionality"),
+                properties,
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

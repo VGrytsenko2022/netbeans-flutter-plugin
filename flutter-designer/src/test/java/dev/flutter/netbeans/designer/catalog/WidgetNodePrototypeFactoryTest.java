@@ -213,6 +213,40 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsDetachedDirectionalityWrapperWithReviewedLtrValue() {
+        WidgetDefinition definition = definition("flutter.widgets.Directionality");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(Map.of(
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                prototype.properties());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD,
+                WidgetPlacementRules.creationMode(definition));
+        assertFalse(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+
+        WidgetNode rtl = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")));
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "rtl"),
+                rtl.properties().get(new PropertyName("textDirection")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue(
+                                        "TextDirection", "up"))));
+    }
+
+    @Test
     void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Align"), ID);

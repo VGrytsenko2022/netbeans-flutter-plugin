@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -805,6 +806,11 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("color"),
                         new PropertyValue.ColorValue(0xFF2196F3L)));
+        requiredValues.put(
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                Map.of(
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -848,7 +854,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
-                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value());
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -882,7 +889,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(726, writableCount,
+        assertEquals(727, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -892,8 +899,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
-                + "Image, ColoredBox, and Placeholder leaves");
-        assertEquals(709, nonScaffoldWritableCount,
+                + "Image, ColoredBox, Placeholder, and Directionality leaves");
+        assertEquals(710, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2369,6 +2376,71 @@ class FlutterWidgetPropertiesNodeTest {
                         "Required child inset")),
                 () -> assertTrue(childProperty.getShortDescription().contains(
                         "physical EdgeInsets")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "Occupancy: 1/1")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "cannot be added empty, removed, or cleared")));
+    }
+
+    @Test
+    void directionalityProjectsRequiredDirectionAndRequiredOccupiedChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
+        StableId id = StableId.parse("ed973f31-6386-467a-b33c-504a5ba447d0");
+        WidgetNode child = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.Text"),
+                StableId.parse("244b71a2-750a-4f66-8916-2a22e133cc01"));
+        PropertyName textDirection = new PropertyName("textDirection");
+        PropertyValue.EnumValue ltr =
+                new PropertyValue.EnumValue("TextDirection", "ltr");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(textDirection, ltr),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + DirectionalityWidgetPropertySchema.Group.values().length,
+                sets.length);
+        Node.PropertySet direction = propertySet(
+                node, DirectionalityWidgetPropertySchema.Group.DIRECTION.setName());
+        assertAll(
+                () -> assertEquals("Direction", direction.getDisplayName()),
+                () -> assertEquals("Text flow direction inherited by this subtree.",
+                        direction.getShortDescription()),
+                () -> assertEquals("General", direction.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals(List.of("textDirection"),
+                        names(direction.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> property = cellProperty(
+                property(node, "textDirection"));
+        assertAll(
+                () -> assertEquals("Text direction", property.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.explicit(ltr),
+                        property.getValue()),
+                () -> assertEquals(List.of("rtl", "ltr"),
+                        List.of(property.getPropertyEditor().getTags())),
+                () -> assertFalse(property.supportsDefaultValue()),
+                () -> assertTrue(property.getShortDescription().contains(
+                        "Required subtree direction")));
+        PropertyValue.EnumValue rtl =
+                new PropertyValue.EnumValue("TextDirection", "rtl");
+        property.setValue(FlutterPropertyCellValue.explicit(rtl));
+        assertEquals(List.of(new SetProperty(id, textDirection, rtl)), commands);
+
+        Node.Property<?> childProperty = property(node, "child");
+        assertAll(
+                () -> assertEquals("Text", childProperty.getValue()),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "inherits this wrapper's explicit")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "left-to-right or right-to-left")),
                 () -> assertTrue(childProperty.getShortDescription().contains(
                         "Occupancy: 1/1")),
                 () -> assertTrue(childProperty.getShortDescription().contains(
@@ -4333,7 +4405,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fortyOneCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyThreeCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -4378,7 +4450,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
-                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value());
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4406,7 +4479,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(42, iconPaths.size(),
+        assertEquals(43, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

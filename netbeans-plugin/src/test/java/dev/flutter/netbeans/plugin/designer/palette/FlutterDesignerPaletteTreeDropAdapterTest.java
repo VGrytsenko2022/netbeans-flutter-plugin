@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -93,6 +94,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
     private static final WidgetTypeId PLACEHOLDER = type("flutter.widgets.Placeholder");
+    private static final WidgetTypeId DIRECTIONALITY =
+            DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -2047,6 +2050,53 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                         () -> NEW_ID)).command();
         assertEquals(FIRST_ID, singleCommand.widgetId());
         assertEquals(SAFE_AREA, singleCommand.wrapper().type());
+    }
+
+    @Test
+    void directionalityTreeDropAtomicallyWrapsTheExactExistingChildWithLtrDefault() {
+        WidgetNode target = text(FIRST_ID, "directional child");
+        DesignerDocument document = document(column(List.of(target)));
+        Fixture fixture = fixture(DIRECTIONALITY);
+        StringSelection transferable = new StringSelection(fixture.token());
+
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        FIRST_ID));
+        assertAll(
+                () -> assertEquals(DIRECTIONALITY, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertEquals(Optional.of(FIRST_ID), prepared.wrapTargetId()));
+
+        WrapWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(FIRST_ID, command.widgetId()),
+                () -> assertEquals(NEW_ID, command.wrapper().id()),
+                () -> assertEquals(DIRECTIONALITY, command.wrapper().type()),
+                () -> assertEquals(
+                        Map.of(
+                                new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue("TextDirection", "ltr")),
+                        command.wrapper().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots()),
+                () -> assertEquals(CHILD, command.wrapperSlot()),
+                () -> assertTrue(fixture.lifecycle().resolve(transferable).isEmpty()));
     }
 
     @Test

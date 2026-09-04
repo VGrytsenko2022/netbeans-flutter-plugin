@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortyTwoTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyThreeTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -47,6 +47,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Column",
                 "flutter.widgets.ConstrainedBox",
                 "flutter.widgets.Container",
+                "flutter.widgets.Directionality",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.FittedBox",
                 "flutter.widgets.Flexible",
@@ -81,8 +82,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(42, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(36, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(43, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(37, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -96,10 +97,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(726, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(727, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(709, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(710, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -121,6 +122,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ConstrainedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Directionality", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Flexible", WIDGETS_IMPORT),
@@ -280,12 +282,13 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
-                "flutter.widgets.Placeholder"), typeIds(palette));
+                "flutter.widgets.Placeholder",
+                "flutter.widgets.Directionality"), typeIds(palette));
         assertEquals(30, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
-        assertEquals(5, palette.stream()
+        assertEquals(6, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());
@@ -343,6 +346,9 @@ class BuiltInWidgetCatalogTest {
                         .creationDefault().orElseThrow());
         assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
                 property(catalog, "flutter.widgets.GridView", "crossAxisCount")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
+                property(catalog, "flutter.widgets.Directionality", "textDirection")
                         .creationDefault().orElseThrow());
         for (PropertyDefinition property : definition("flutter.widgets.GridView").properties()) {
             if (!property.name().value().equals("crossAxisCount")) {

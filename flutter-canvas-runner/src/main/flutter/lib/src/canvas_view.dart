@@ -533,6 +533,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.IntrinsicHeight' ||
         node.type == 'flutter.widgets.IntrinsicWidth' ||
         node.type == 'flutter.widgets.Offstage' ||
+        node.type == canvasDirectionalityWidgetType ||
         node.type == 'flutter.widgets.Placeholder' ||
         node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
@@ -2277,6 +2278,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
       'flutter.widgets.SafeArea' => _safeArea(),
+      'flutter.widgets.Directionality' => _directionality(),
       'flutter.widgets.Spacer' => Spacer(flex: _integer('flex') ?? 1),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
@@ -3497,6 +3499,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     bottom: _boolean('bottom') ?? true,
     minimum: _physicalEdgeInsets('minimum') ?? EdgeInsets.zero,
     maintainBottomViewPadding: _boolean('maintainBottomViewPadding') ?? false,
+    child: _single('child')!,
+  );
+
+  Widget _directionality() => Directionality(
+    textDirection: _textDirection()!,
     child: _single('child')!,
   );
 

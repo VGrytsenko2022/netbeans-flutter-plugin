@@ -1048,6 +1048,41 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void directionalityFamilyUsesExactReviewedBidirectionalFlowGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "directionality.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=2, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "path[d=M3.5 5h8.5m-2-2 2 2-2 2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1.5]",
+                "path[d=M12.5 11h-9m2-2-2 2 2 2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1.5]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=4, stroke-width=2, width=26, x=3, y=3]",
+                "path[d=M7 10h17m-4-4 4 4-4 4, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=3]",
+                "path[d=M25 22H7m4-4-4 4 4 4, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=3]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "path[fill=none, stroke=#42A5F5]",
+                "path[fill=none, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "path[fill=none, stroke=#90CAF9]",
+                "path[fill=none, stroke=#4DD0E1]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "wrap.svg";
@@ -1421,6 +1456,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Image", ICON_ROOT + "image.svg");
         expected.put("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg");
         expected.put("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg");
+        expected.put("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.Wrap", ICON_ROOT + "wrap.svg");

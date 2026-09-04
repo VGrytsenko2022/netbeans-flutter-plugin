@@ -185,7 +185,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -533,6 +534,14 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.ColoredBox", coloredBoxProjection()),
             Map.entry("flutter.widgets.Placeholder", placeholderProjection()),
+            Map.entry("flutter.widgets.Directionality", projection(Map.ofEntries(
+                    requiredDefaultConstrainedProperty(
+                            "textDirection",
+                            "enum:TextDirection:ltr",
+                            PropertyValueKind.ENUM,
+                            "enum:" + base64(WIDGETS_LIBRARY)
+                            + ":TextDirection:ltr,rtl")),
+                    Map.of("child", singleSlotSchema(true, 1)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));

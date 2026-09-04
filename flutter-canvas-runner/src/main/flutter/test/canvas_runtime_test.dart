@@ -4155,7 +4155,7 @@ void main() {
   );
 
   testWidgets(
-    'authoritatively admits SafeArea replacement targets and rejects unsafe children',
+    'authoritatively admits required-child wrapper targets and rejects unsafe children',
     (tester) async {
       final input = StreamController<List<int>>();
       final output = <List<int>>[];
@@ -4196,6 +4196,7 @@ void main() {
         required bool accepted,
         required int generation,
         required String reason,
+        String wrapperWidgetType = canvasSafeAreaWidgetType,
       }) async {
         runtime.setDropResolver(
           (_, _, [_]) => CanvasDropTarget(
@@ -4209,7 +4210,7 @@ void main() {
             runtime,
             input,
             request(generation),
-            widgetType: canvasSafeAreaWidgetType,
+            widgetType: wrapperWidgetType,
           ),
           accepted,
           reason: reason,
@@ -4263,6 +4264,42 @@ void main() {
         accepted: false,
         generation: 5,
         reason: 'empty and PreferredSize-only slots fail closed',
+      );
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 0,
+        accepted: true,
+        generation: 6,
+        wrapperWidgetType: canvasDirectionalityWidgetType,
+        reason: 'Directionality may wrap an ordinary list child',
+      );
+      await expectTarget(
+        parentWidgetId: expandedId,
+        slotName: 'child',
+        insertionIndex: 0,
+        accepted: true,
+        generation: 7,
+        wrapperWidgetType: canvasDirectionalityWidgetType,
+        reason: 'Directionality may replace an occupied required child slot',
+      );
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 1,
+        accepted: false,
+        generation: 8,
+        wrapperWidgetType: canvasDirectionalityWidgetType,
+        reason: 'Directionality cannot become the parent of Expanded',
+      );
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 2,
+        accepted: false,
+        generation: 9,
+        wrapperWidgetType: canvasDirectionalityWidgetType,
+        reason: 'Directionality wraps existing children only',
       );
 
       await input.close();

@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly forty-two
+The current capability-gated Palette and native Canvas admit exactly forty-three
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox` and `Placeholder`.
-Thirty-six definitions use reviewed const constructors. Their `General`
-Properties expose exactly 726 typed writable rows: 709 across the forty-one
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder` and `Directionality`.
+Thirty-seven definitions use reviewed const constructors. Their `General`
+Properties expose exactly 727 typed writable rows: 710 across the forty-two
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -452,8 +452,22 @@ reviewed Material `ColorScheme` role. A theme role makes generated Dart
 non-const. The optional `child` is available in Slots and through ordinary
 Palette/tree/Canvas insertion. Generated Dart and both Canvas routes construct
 the real Flutter widget; Designer selection/drop affordances are not saved.
-The practical backlog is now 42/92 complete with 50 remaining; Layout contains
-30 items, Scrolling 3, Basic 5 and Material 4.
+At that milestone the practical backlog was 42/92 complete with 50 remaining;
+Layout contained 30 items, Scrolling 3, Basic 5 and Material 4.
+
+[`Directionality`](https://api.flutter.dev/flutter/widgets/Directionality/Directionality.html)
+is the twenty-third post-core Palette slice, at Basic order 60 after
+`Placeholder`. It has one required **Text direction** row and one required
+`child` slot. The Flutter constructor has no direction default, so Designer
+creation atomically wraps an existing root or non-root widget and explicitly
+stores `TextDirection.ltr`; choose `rtl` in the enum editor when needed. The
+occupied child is replacement-only in Slots. Expanded, Flexible and Spacer
+cannot be wrapped because they must remain direct Row/Column children.
+Generated Dart and both Canvas routes construct the real inherited widget, so
+directional descendants resolve through the selected value while Designer
+selection/drop overlays stay outside it. The practical backlog is now 43/92
+complete with 49 remaining; Layout contains 30 items, Scrolling 3, Basic 6 and
+Material 4.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -510,14 +524,15 @@ only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
 value, and version 9 adds the atomic finite signed `Offset` wire value.
-Forty-two sources across thirty-eight insertable any-widget and two trait-bound
-slots produce 1,680 compatibility candidates: 1,490 accepted and 190
+Forty-three sources across thirty-eight insertable any-widget and two trait-bound
+slots produce 1,720 compatibility candidates: 1,528 accepted and 192
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
-replacement-only and excluded from the destination matrix. SafeArea uses the
+replacement-only and excluded from the destination matrix. SafeArea and
+Directionality use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
-placement rule; its required slot is also excluded, and it cannot wrap
+placement rule; their required slots are also excluded, and neither can wrap
 Expanded, Flexible or Spacer. Placeholder contributes the new optional
 insertable `child` destination. NBFC framing
 and Canvas control/wire remain v1.

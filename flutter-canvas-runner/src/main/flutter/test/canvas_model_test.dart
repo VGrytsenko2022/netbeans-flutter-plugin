@@ -5588,6 +5588,174 @@ void main() {
     );
   });
 
+  test(
+    'decodes the exact Directionality LTR and RTL required-child contract',
+    () {
+      Map<String, Object?> model({
+        required String direction,
+        Map<String, Object?>? child,
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '1dd83790-acde-4aa4-8d58-4ab79f08042d',
+          'flutter.widgets.Directionality',
+          properties: {
+            'textDirection': {
+              'kind': 'enum',
+              'type': 'TextDirection',
+              'value': direction,
+            },
+          },
+          slots: {'child': _single(child)},
+        );
+        return json;
+      }
+
+      final child = _node(
+        'd2156ed9-c715-4bb4-a245-70326cafba93',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Directional child'},
+        },
+      );
+      for (final direction in const ['ltr', 'rtl']) {
+        final node = _decode(model(direction: direction, child: child)).root;
+        expect(node.type, 'flutter.widgets.Directionality');
+        final value =
+            node.properties['textDirection']!.value as CanvasEnumValue;
+        expect(value.type, 'TextDirection');
+        expect(value.value, direction);
+        expect(node.slot('child')!.children, hasLength(1));
+        expect(node.slot('child')!.child!.type, 'flutter.widgets.Text');
+      }
+    },
+  );
+
+  test('rejects incomplete or unsupported Directionality branches', () {
+    final text = _node(
+      'd2156ed9-c715-4bb4-a245-70326cafba93',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Directional child'},
+      },
+    );
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'ltr',
+        },
+      },
+      Map<String, Object?>? child,
+      Map<String, Object?>? slots,
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '1dd83790-acde-4aa4-8d58-4ab79f08042d',
+        'flutter.widgets.Directionality',
+        properties: properties,
+        slots: slots ?? {'child': _single(child)},
+      );
+      return json;
+    }
+
+    for (final invalid in <Map<String, Object?>>[
+      model(properties: const {}, child: text),
+      model(child: null),
+      model(
+        properties: const {
+          'textDirection': {'kind': 'string', 'value': 'ltr'},
+        },
+        child: text,
+      ),
+      model(
+        properties: const {
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'Axis',
+            'value': 'horizontal',
+          },
+        },
+        child: text,
+      ),
+      model(
+        properties: const {
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': 'automatic',
+          },
+        },
+        child: text,
+      ),
+      model(
+        properties: const {
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': 'ltr',
+          },
+          'futureProperty': {'kind': 'boolean', 'value': true},
+        },
+        child: text,
+      ),
+      model(
+        slots: {
+          'child': {
+            'kind': 'list',
+            'children': [text],
+          },
+        },
+      ),
+      model(slots: {'child': _single(text), 'futureSlot': _single(null)}),
+    ]) {
+      expect(() => _decode(invalid), throwsFormatException);
+    }
+
+    final expanded = _node(
+      '47184ff3-7c45-49e5-9039-3079417a7c67',
+      'flutter.widgets.Expanded',
+      slots: {'child': _single(text)},
+    );
+    for (final unsafe in <Map<String, Object?>>[
+      expanded,
+      _node(
+        '47184ff3-7c45-49e5-9039-3079417a7c68',
+        'flutter.widgets.Flexible',
+        slots: {'child': _single(text)},
+      ),
+      _node('47184ff3-7c45-49e5-9039-3079417a7c69', 'flutter.widgets.Spacer'),
+    ]) {
+      expect(
+        () => _decode(model(child: unsafe)),
+        throwsFormatException,
+        reason: 'Directionality must not break a flex ParentData path',
+      );
+    }
+  });
+
+  test(
+    'Directionality reviewed schema and wrapper creation contract are exact',
+    () {
+      final contract = canvasRuntimeWidgetSchemaContractForTesting();
+      final start = contract.indexOf('W|flutter.widgets.Directionality\n');
+      final end = contract.indexOf('W|flutter.widgets.Expanded\n', start);
+      expect(start, greaterThanOrEqualTo(0));
+      expect(end, greaterThan(start));
+      expect(
+        contract.substring(start, end),
+        'W|flutter.widgets.Directionality\n'
+        'P|textDirection|enum|1|enum:TextDirection:ltr|-|'
+        'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+        'TextDirection:ltr,rtl\n'
+        'S|child|single|1|1|1|any\n'
+        'C|flutter.widgets.Directionality|paletteCreate|'
+        'wrapExistingChild|child\n',
+      );
+    },
+  );
+
   test('decodes the exact SafeArea properties and required child contract', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,
@@ -6297,7 +6465,7 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf('W|flutter.widgets.Expanded\n', start);
+    final end = contract.indexOf('W|flutter.widgets.Directionality\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

@@ -219,6 +219,8 @@ const canvasSpacerWidgetType = 'flutter.widgets.Spacer';
 
 const canvasSafeAreaWidgetType = 'flutter.widgets.SafeArea';
 
+const canvasDirectionalityWidgetType = 'flutter.widgets.Directionality';
+
 bool isCanvasFlexParentDataWidgetType(String widgetType) =>
     widgetType == canvasExpandedWidgetType ||
     widgetType == canvasFlexibleWidgetType;

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -494,6 +495,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.equals(
                 widget.type())) {
             addSafeAreaPropertySets(sheet, hasSlotTab);
+        } else if (DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.equals(
+                widget.type())) {
+            addDirectionalityPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -673,6 +677,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "and Maintain bottom view padding can preserve MediaQuery viewPadding "
                     + "while the on-screen keyboard is visible. Occupancy: " + count + "/"
                     + maximum + "; minimum: " + slot.minChildren()
+                    + ". This required child cannot be added empty, removed, or cleared; "
+                    + "open the custom editor to replace it with a new or existing widget.";
+        }
+        if (DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child that inherits this wrapper's explicit left-to-right or "
+                    + "right-to-left Text direction. Descendant directional alignment, "
+                    + "padding, and text flow resolve from this value. Occupancy: " + count
+                    + "/" + maximum + "; minimum: " + slot.minChildren()
                     + ". This required child cannot be added empty, removed, or cleared; "
                     + "open the custom editor to replace it with a new or existing widget.";
         }
@@ -2084,6 +2097,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     SafeAreaWidgetPropertySchema.find(property.name()).orElseThrow(
                             () -> new IllegalStateException(
                                     "Built-in SafeArea property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()));
+        }
+    }
+
+    private void addDirectionalityPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<DirectionalityWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(DirectionalityWidgetPropertySchema.Group.class);
+        for (DirectionalityWidgetPropertySchema.Group group
+                : DirectionalityWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            DirectionalityWidgetPropertySchema.Definition schema =
+                    DirectionalityWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in Directionality property is missing its "
                                     + "presentation schema: "
                                     + property.name().value()));
             groups.get(schema.group()).put(projectProperty(

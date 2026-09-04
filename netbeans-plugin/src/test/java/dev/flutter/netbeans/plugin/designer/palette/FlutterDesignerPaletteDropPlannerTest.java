@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -94,6 +95,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
     private static final WidgetTypeId PLACEHOLDER = type("flutter.widgets.Placeholder");
+    private static final WidgetTypeId DIRECTIONALITY =
+            DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
@@ -1118,6 +1121,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .filter(type -> !COLORED_BOX.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !PLACEHOLDER.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
                 .toList();
         MatrixTargetCase scrollTarget = target(
                 "SingleChildScrollView.child", SINGLE_CHILD_SCROLL_VIEW, CHILD);
@@ -1234,6 +1238,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !PLACEHOLDER.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
                 .toList();
         MatrixTargetCase coloredBoxTarget = target(
                 "ColoredBox.child", COLORED_BOX, CHILD);
@@ -1373,7 +1378,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(42, BUILT_INS.definitions().size()),
+                () -> assertEquals(43, BUILT_INS.definitions().size()),
                 () -> assertEquals(39, optionalTargets.size()),
                 () -> assertEquals(37, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -1440,6 +1445,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         List<WidgetTypeId> ordinarySources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
                 .toList();
         MatrixTargetCase placeholderTarget = target(
                 "Placeholder.child", PLACEHOLDER, CHILD);
@@ -1499,11 +1505,78 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(1680,
                         1599 + previousTargets.size()
-                                + BUILT_INS.definitions().size()),
+                                + BUILT_INS.definitions().size() - 1),
                 () -> assertEquals(1490,
                         1414 + sourceAccepted.get() + targetAccepted.get() + 1),
                 () -> assertEquals(190,
                         185 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void directionalityCompletesExact1720CellModelAsRequiredWrapperAcrossAllOptionalTargets() {
+        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> occupiedTarget(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(optionalTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, DIRECTIONALITY, ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "Directionality -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Wrapped success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                        result,
+                        "Directionality -> " + target.name());
+                WrapWidget command = success.command();
+                assertEquals(FIRST_ID, command.widgetId());
+                assertEquals(DIRECTIONALITY, command.wrapper().type());
+                assertEquals(
+                        Map.of(
+                                new PropertyName("textDirection"),
+                                new PropertyValue.EnumValue("TextDirection", "ltr")),
+                        command.wrapper().properties());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots());
+                assertEquals(CHILD, command.wrapperSlot());
+                assertEquals(0, command.wrapperIndex());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(43, BUILT_INS.definitions().size()),
+                () -> assertEquals(40, optionalTargets.size()),
+                () -> assertEquals(38, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(1720,
+                        BUILT_INS.definitions().size() * optionalTargets.size()),
+                () -> assertEquals(1528, 1490 + accepted.get()),
+                () -> assertEquals(192, 190 + rejected.get()));
     }
 
     @Test
@@ -1545,6 +1618,39 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
+    void directionalityNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
+        AtomicInteger allocations = new AtomicInteger();
+        FlutterDesignerPaletteDropPlanner.Rejected empty = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS,
+                        DIRECTIONALITY, ROOT_ID, CHILDREN, 0, () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        }));
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                empty.code());
+        assertEquals(0, allocations.get());
+
+        FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(
+                        document(text(ROOT_ID, "root target")), BUILT_INS,
+                        DIRECTIONALITY, ROOT_ID, () -> NEW_ID));
+        assertEquals(ROOT_ID, wrapped.command().widgetId());
+        assertEquals(NEW_ID, wrapped.command().wrapper().id());
+        assertEquals(DIRECTIONALITY, wrapped.command().wrapper().type());
+        assertEquals(
+                Map.of(
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                wrapped.command().wrapper().properties());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                wrapped.command().wrapper().slots());
+        assertEquals(CHILD, wrapped.command().wrapperSlot());
+    }
+
+    @Test
     void safeAreaRejectsWrappingFlexParentDataTargetsBeforeIdAllocation() {
         List<WidgetNode> targets = List.of(
                 expanded(FIRST_ID, text(indexedId(20), "expanded child")),
@@ -1556,6 +1662,30 @@ class FlutterDesignerPaletteDropPlannerTest {
                     FlutterDesignerPaletteDropPlanner.Rejected.class,
                     planner.plan(document(parent(COLUMN, List.of(target))), BUILT_INS,
                             SAFE_AREA, ROOT_ID, CHILDREN, 0, () -> {
+                                allocations.incrementAndGet();
+                                return NEW_ID;
+                            }));
+            assertEquals(
+                    FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REJECTED,
+                    failure.code());
+            assertTrue(failure.reason().contains("must be a direct child"),
+                    failure.reason());
+            assertEquals(0, allocations.get());
+        }));
+    }
+
+    @Test
+    void directionalityRejectsWrappingFlexParentDataTargetsBeforeIdAllocation() {
+        List<WidgetNode> targets = List.of(
+                expanded(FIRST_ID, text(indexedId(24), "expanded child")),
+                flexible(FIRST_ID, text(indexedId(25), "flexible child")),
+                WidgetNodePrototypeFactory.create(definition(SPACER), FIRST_ID));
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of(target))), BUILT_INS,
+                            DIRECTIONALITY, ROOT_ID, CHILDREN, 0, () -> {
                                 allocations.incrementAndGet();
                                 return NEW_ID;
                             }));

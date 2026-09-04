@@ -63,7 +63,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
             "flutter.widgets.ColoredBox",
-            "flutter.widgets.Placeholder");
+            "flutter.widgets.Placeholder",
+            "flutter.widgets.Directionality");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -106,7 +107,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
             "flutter.widgets.ColoredBox",
-            "flutter.widgets.Placeholder");
+            "flutter.widgets.Placeholder",
+            "flutter.widgets.Directionality");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -117,7 +119,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortyTwoSourcesAndFortyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyThreeSourcesAndFortyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -140,7 +142,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(42, sources.size());
+        assertEquals(43, sources.size());
         assertEquals(40, destinations.size());
         assertEquals(38, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -150,9 +152,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1680, candidates);
-        assertEquals(1490, accepted);
-        assertEquals(190, candidates - accepted);
+        assertEquals(1720, candidates);
+        assertEquals(1528, accepted);
+        assertEquals(192, candidates - accepted);
     }
 
     @Test
@@ -331,6 +333,47 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "wrapExistingChild|child\n"), contract);
         assertFalse(contract.contains(
                 "W|flutter.widgets.SafeArea\nP|minimum|edgeInsetsDirectional"), contract);
+    }
+
+    @Test
+    void directionalityHasRequiredEnumChildAndAtomicWrapperFingerprint() {
+        WidgetDefinition definition = definition("flutter.widgets.Directionality");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(1, projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var direction = projection.propertyContracts()
+                .get(new PropertyName("textDirection"));
+        assertTrue(direction.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), direction.acceptedKinds());
+        assertEquals(Optional.of("enum:TextDirection:ltr"),
+                direction.creationDefaultFingerprint());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "TextDirection:ltr,rtl",
+                direction.constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, true, 1, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Directionality\n"
+                + "P|textDirection|enum|1|enum:TextDirection:ltr|-|"
+                + "enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "TextDirection:ltr,rtl\n"
+                + "S|child|single|1|1|1|any\n"
+                + "C|flutter.widgets.Directionality|paletteCreate|"
+                + "wrapExistingChild|child\n"), contract);
     }
 
     @Test

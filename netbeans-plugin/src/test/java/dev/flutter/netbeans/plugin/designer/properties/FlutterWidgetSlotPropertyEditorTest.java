@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -2071,6 +2072,71 @@ class FlutterWidgetSlotPropertyEditorTest {
                         "illegal removal",
                         new FlutterWidgetSlotMutation.Remove(
                                 safeArea.id(), CHILD, current.id()))));
+    }
+
+    @Test
+    void directionalityRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition directionalityDefinition = definition(
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
+        WidgetNode current = text(
+                id("27f3ea3e-d0cc-4587-b7f1-590fc995043d"), "current");
+        WidgetNode replacement = text(
+                id("e0ed8ce2-310a-4322-9924-79200ccdc94c"), "replacement");
+        WidgetNode directionality = new WidgetNode(
+                id("8c9ed6c9-5d36-42f0-b25c-6525e75d0d84"),
+                directionalityDefinition.typeId(),
+                Map.of(new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "ltr")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("72c934dc-2c15-4e88-a40f-152955db64d3"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN,
+                        new WidgetSlot.ListSlot(List.of(directionality, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"),
+                        DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE));
+
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                directionality,
+                directionalityDefinition,
+                directionalityDefinition.slot(CHILD).orElseThrow(),
+                context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "Directionality.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                directionality.id(), CHILD, current.id()))));
     }
 
     @Test

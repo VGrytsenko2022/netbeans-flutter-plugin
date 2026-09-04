@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -20,6 +21,7 @@ import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
@@ -151,6 +153,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("maintainBottomViewPadding");
     private static final PropertyName FALLBACK_WIDTH =
             new PropertyName("fallbackWidth");
+    private static final PropertyName TEXT_DIRECTION =
+            new PropertyName("textDirection");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -3432,6 +3436,214 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(candidateFd)).document();
             WidgetNode savedSafeArea = findModelWidget(saved.root(), safeAreaId);
             assertEquals(finalSafeArea, savedSafeArea);
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteDirectionalityWrapSaveReopenEditUndoRedoAndSaveRemainExact()
+            throws Exception {
+        StableId directionalityId = StableId.parse(
+                "78787878-7878-4878-8878-787878787878");
+        WidgetTypeId directionalityType =
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
+        PropertyValue.EnumValue ltr =
+                new PropertyValue.EnumValue("TextDirection", "ltr");
+        PropertyValue.EnumValue rtl =
+                new PropertyValue.EnumValue("TextDirection", "rtl");
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_directionality_wrap", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const Directionality("));
+                        assertTrue(request.content().contains(
+                                "textDirection: TextDirection.ltr"));
+                        assertTrue(request.content().contains(
+                                "child: const Text("));
+                        assertFalse(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            directionalityType,
+                            FIRST_ID,
+                            () -> directionalityId);
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected Directionality around existing Text");
+
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            wrapped.command(),
+                            "home_page.fd — wrap Text with Directionality")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot wrappedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(directionalityId, SECOND_ID));
+            WidgetNode directionality = findModelWidget(
+                    wrappedSnapshot.document().orElseThrow().root(),
+                    directionalityId);
+            assertAll(
+                    () -> assertEquals(Map.of(TEXT_DIRECTION, ltr),
+                            directionality.properties()),
+                    () -> assertEquals(FIRST_ID, assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            directionality.slots().get(CHILD))
+                            .child().orElseThrow().id()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_directionality_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedDirectionality = findModelWidget(
+                    reopened.document().orElseThrow().root(), directionalityId);
+            assertAll(
+                    () -> assertEquals(Map.of(TEXT_DIRECTION, ltr),
+                            reopenedDirectionality.properties()),
+                    () -> assertEquals(FIRST_ID, assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            reopenedDirectionality.slots().get(CHILD))
+                            .child().orElseThrow().id()));
+
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(directionalityType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedDirectionality,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> textDirection =
+                    cellProperty(propertiesNode, "textDirection");
+            assertAll(
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.explicit(ltr),
+                            textDirection.getValue()),
+                    () -> assertArrayEquals(
+                            new String[] {"rtl", "ltr"},
+                            textDirection.getPropertyEditor().getTags()),
+                    () -> assertEquals("Text", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const Directionality("));
+                        assertTrue(request.content().contains(
+                                "textDirection: TextDirection.rtl"));
+                        assertFalse(request.content().contains(
+                                "textDirection: TextDirection.ltr"));
+                        assertTrue(request.content().contains(
+                                "child: const Text("));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    directionalityId, TEXT_DIRECTION, rtl),
+                            "Directionality.textDirection")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot editedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(directionalityId, SECOND_ID));
+            assertEquals(rtl, findModelWidget(
+                    editedSnapshot.document().orElseThrow().root(),
+                    directionalityId).properties().get(TEXT_DIRECTION));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            editedSnapshot.token().orElseThrow(),
+                            List.of(directionalityId, SECOND_ID));
+            assertEquals(ltr, findModelWidget(
+                    undone.document().orElseThrow().root(), directionalityId)
+                    .properties().get(TEXT_DIRECTION));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(directionalityId, SECOND_ID));
+            WidgetNode finalDirectionality = findModelWidget(
+                    redone.document().orElseThrow().root(), directionalityId);
+            assertAll(
+                    () -> assertEquals(rtl,
+                            finalDirectionality.properties().get(TEXT_DIRECTION)),
+                    () -> assertEquals(FIRST_ID, assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            finalDirectionality.slots().get(CHILD))
+                            .child().orElseThrow().id()),
+                    () -> assertEquals(1, analyses.get(),
+                            "Undo/Redo replays the exact analyzed pair"));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(finalDirectionality,
+                    findModelWidget(saved.root(), directionalityId));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

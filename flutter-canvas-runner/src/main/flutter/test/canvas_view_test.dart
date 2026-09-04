@@ -354,7 +354,17 @@ void main() {
     expect(canvasDropSlotsForWidgetType(canvasSpacerWidgetType), isEmpty);
     expect(canvasDropSlotsForWidgetType(canvasSafeAreaWidgetType), isEmpty);
     expect(
+      canvasDropSlotsForWidgetType(canvasDirectionalityWidgetType),
+      isEmpty,
+    );
+    expect(
       isCanvasReviewedRequiredChildWrapperWidgetType(canvasSafeAreaWidgetType),
+      isTrue,
+    );
+    expect(
+      isCanvasReviewedRequiredChildWrapperWidgetType(
+        canvasDirectionalityWidgetType,
+      ),
       isTrue,
     );
     expect(
@@ -499,6 +509,57 @@ void main() {
       );
     }
 
+    final directionalitySource = CanvasPaletteDragSource(
+      token: 'directionality-source',
+      widgetType: canvasDirectionalityWidgetType,
+      traits: const {},
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Center',
+        slotName: 'child',
+        currentChildCount: 1,
+        insertionIndex: 0,
+        source: directionalitySource,
+      ),
+      isTrue,
+      reason: 'Directionality atomically wraps an existing ordinary child',
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Row',
+        slotName: 'children',
+        currentChildCount: 2,
+        insertionIndex: 1,
+        source: directionalitySource,
+      ),
+      isTrue,
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.Row',
+        slotName: 'children',
+        currentChildCount: 2,
+        insertionIndex: 2,
+        source: directionalitySource,
+      ),
+      isFalse,
+      reason: 'required-child wrappers never terminal-append',
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasWrapperAcceptsExistingChild(
+          wrapperWidgetType: canvasDirectionalityWidgetType,
+          childWidgetType: flexType,
+        ),
+        isFalse,
+      );
+    }
+
     final spacerSource = CanvasPaletteDragSource(
       token: 'spacer-source',
       widgetType: canvasSpacerWidgetType,
@@ -546,7 +607,7 @@ void main() {
     );
   });
 
-  test('closes the 42-source by 40-destination compatibility matrix', () {
+  test('closes the 43-source by 40-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -560,6 +621,7 @@ void main() {
       'flutter.widgets.Offstage',
       'flutter.widgets.RotatedBox',
       'flutter.widgets.SafeArea',
+      'flutter.widgets.Directionality',
       'flutter.widgets.SizedOverflowBox',
       'flutter.widgets.Transform',
       'flutter.widgets.Column',
@@ -599,7 +661,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(42));
+    expect(sourceTypes, hasLength(43));
     expect(destinations, hasLength(40));
 
     var accepted = 0;
@@ -626,9 +688,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1490);
-    expect(rejected, 190);
-    expect(accepted + rejected, 1680);
+    expect(accepted, 1528);
+    expect(rejected, 192);
+    expect(accepted + rejected, 1720);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -4712,23 +4774,18 @@ void main() {
   });
 
   testWidgets(
-    'offers SafeArea wrapper zones for occupied reviewed non-root slots only',
+    'offers required-child wrapper zones for occupied reviewed non-root slots only',
     (tester) async {
       const centerId = '4e7b1056-bc85-48b4-bbc1-aa27b8671508';
       const rowId = 'af1561d7-ee2e-4c02-9fb9-7af2eac80bd2';
       const expandedId = 'f2128b64-9006-47ce-b08b-ff4878274c43';
       const targetId = '56826883-284c-40d5-99ee-63bf85feca79';
       CanvasDropResolver? resolver;
-      final source = CanvasPaletteDragSource(
-        token: 'safe-area-source',
-        widgetType: canvasSafeAreaWidgetType,
-        traits: const {},
-      );
-
       Future<CanvasDropTarget?> pumpAndResolve(
         Map<String, Object?> root,
-        String renderedTargetId,
-      ) async {
+        String renderedTargetId, {
+        String wrapperWidgetType = canvasSafeAreaWidgetType,
+      }) async {
         final json = _modelJsonForView();
         json['root'] = root;
         resolver = null;
@@ -4750,22 +4807,35 @@ void main() {
         return resolver!(
           ((point.dx - surface.left) / surface.width * 1000000).round(),
           ((point.dy - surface.top) / surface.height * 1000000).round(),
-          source,
+          CanvasPaletteDragSource(
+            token: '$wrapperWidgetType-source',
+            widgetType: wrapperWidgetType,
+            traits: const {},
+          ),
         );
       }
 
       final target = _viewSizedBoxNode(targetId, width: 80, height: 40);
-      final single = await pumpAndResolve(<String, Object?>{
+      final singleRoot = <String, Object?>{
         'id': centerId,
         'type': 'flutter.widgets.Center',
         'properties': <String, Object?>{},
         'slots': <String, Object?>{
           'child': <String, Object?>{'kind': 'single', 'child': target},
         },
-      }, targetId);
+      };
+      final single = await pumpAndResolve(singleRoot, targetId);
       expect(single?.parentWidgetId, centerId);
       expect(single?.slotName, 'child');
       expect(single?.insertionIndex, 0);
+      final directionalSingle = await pumpAndResolve(
+        singleRoot,
+        targetId,
+        wrapperWidgetType: canvasDirectionalityWidgetType,
+      );
+      expect(directionalSingle?.parentWidgetId, centerId);
+      expect(directionalSingle?.slotName, 'child');
+      expect(directionalSingle?.insertionIndex, 0);
 
       final list = await pumpAndResolve(<String, Object?>{
         'id': rowId,
@@ -10266,6 +10336,142 @@ void main() {
   );
 
   testWidgets(
+    'renders real Directionality LTR and RTL on native and exact-Web profiles',
+    (tester) async {
+      const directionalityId = '1dd83790-acde-4aa4-8d58-4ab79f08042d';
+      const childId = 'd2156ed9-c715-4bb4-a245-70326cafba93';
+      for (final entry in const [
+        (
+          platform: 'windows',
+          wireDirection: 'ltr',
+          expected: TextDirection.ltr,
+        ),
+        (platform: 'web', wireDirection: 'rtl', expected: TextDirection.rtl),
+      ]) {
+        final json = _modelWithDirectionality(
+          direction: entry.wireDirection,
+          child: _viewSizedBoxNode(childId, width: 80, height: 40),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final rendered = find.byKey(
+          const ValueKey('canvas-widget-$directionalityId'),
+        );
+        final directionalityFinder = find.descendant(
+          of: rendered,
+          matching: find.byType(Directionality),
+        );
+        expect(directionalityFinder, findsOneWidget, reason: entry.platform);
+        final directionality = tester.widget<Directionality>(
+          directionalityFinder,
+        );
+        expect(
+          directionality.textDirection,
+          entry.expected,
+          reason: entry.platform,
+        );
+        final childFinder = find.byKey(
+          const ValueKey('canvas-widget-$childId'),
+        );
+        expect(childFinder, findsOneWidget, reason: entry.platform);
+        expect(
+          Directionality.of(tester.element(childFinder)),
+          entry.expected,
+          reason: 'the real wrapper must own descendant directionality',
+        );
+        expect(tester.getSize(rendered), const Size(80, 40));
+        expect(tester.takeException(), isNull, reason: entry.platform);
+      }
+    },
+  );
+
+  testWidgets(
+    'selects zero-layout Directionality and previews only legal same-tree moves',
+    (tester) async {
+      const directionalityId = '1dd83790-acde-4aa4-8d58-4ab79f08042d';
+      const childId = 'd2156ed9-c715-4bb4-a245-70326cafba93';
+      const targetId = '80f095f4-f05a-45a7-8a89-917723a211f3';
+      CanvasMovePreviewResolver? moveResolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithDirectionality(
+                direction: 'rtl',
+                child: _viewSizedBoxNode(childId, width: 0, height: 0),
+                sibling: <String, Object?>{
+                  'id': targetId,
+                  'type': 'flutter.widgets.Center',
+                  'properties': <String, Object?>{},
+                  'slots': <String, Object?>{
+                    'child': <String, Object?>{'kind': 'single', 'child': null},
+                  },
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (id) => selectedWidgetId = id,
+          onMovePreviewResolverChanged: (value) => moveResolver = value,
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$directionalityId'),
+      );
+      final target = find.byKey(
+        const ValueKey(
+          'canvas-zero-size-widget-target-group-$directionalityId',
+        ),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      expect(
+        find.descendant(of: rendered, matching: find.byType(SizedBox)),
+        findsOneWidget,
+        reason: 'only the persisted zero-size child belongs in real layout',
+      );
+
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, directionalityId);
+      expect(tester.getSize(rendered), Size.zero);
+
+      final move = moveResolver!(directionalityId, targetId, 'child', 0);
+      expect(move?.parentWidgetId, targetId);
+      expect(move?.slotName, 'child');
+      expect(move?.insertionIndex, 0);
+      expect(move?.zone?.isEmpty, isFalse);
+      expect(
+        moveResolver!(childId, directionalityId, 'child', 0),
+        isNotNull,
+        reason:
+            'moving the retained child to its current required slot is stable',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real SafeArea with exact defaults and physical minimum on native and Web profiles',
     (tester) async {
       const safeAreaId = 'df5babd2-16cf-44c4-b497-24375532ec68';
@@ -14024,6 +14230,59 @@ Map<String, Object?> _modelWithSafeArea({
           },
         },
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithDirectionality({
+  required String direction,
+  required Map<String, Object?> child,
+  Map<String, Object?>? sibling,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final directionality = <String, Object?>{
+    'id': '1dd83790-acde-4aa4-8d58-4ab79f08042d',
+    'type': canvasDirectionalityWidgetType,
+    'properties': <String, Object?>{
+      'textDirection': {
+        'kind': 'enum',
+        'type': 'TextDirection',
+        'value': direction,
+      },
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final content = sibling == null
+      ? directionality
+      : <String, Object?>{
+          'id': '3651af07-e8b8-4426-95b2-7476239f5ae4',
+          'type': 'flutter.widgets.Column',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[directionality, sibling],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': content},
     },
   };
   return model;

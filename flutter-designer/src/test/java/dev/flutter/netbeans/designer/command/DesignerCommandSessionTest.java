@@ -1905,6 +1905,102 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void directionalityAtomicWrapDirectionUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        PropertyName textDirection = property("textDirection");
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Directional content")));
+        WidgetDefinition definition = CATALOG.find(
+                type("flutter.widgets.Directionality")).orElseThrow();
+        WidgetNode detached = WidgetNodePrototypeFactory.create(
+                definition, WRAPPER_ID);
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
+                detached.properties().get(textDirection));
+        assertTrue(((WidgetSlot.SingleSlot) detached.slots().get(CHILD))
+                .child().isEmpty());
+
+        assertRejectedUnchanged(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), detached),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        DesignerCommandSession wrapped = applied(initial, new WrapWidget(
+                FIRST_ID, detached, CHILD, 0));
+        WidgetNode ltr = find(wrapped.current().document().root(), WRAPPER_ID);
+        assertEquals(FIRST_ID,
+                ((WidgetSlot.SingleSlot) ltr.slots().get(CHILD))
+                        .child().orElseThrow().id());
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
+                ltr.properties().get(textDirection));
+        String ltrDart = new String(
+                wrapped.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(ltrDart.contains("const Directionality("), ltrDart);
+        assertTrue(ltrDart.contains(
+                "textDirection: TextDirection.ltr"), ltrDart);
+        assertTrue(ltrDart.contains(
+                "child: const Text('Directional content')"), ltrDart);
+
+        DesignerCommandSession rtl = applied(wrapped, new SetProperty(
+                WRAPPER_ID,
+                textDirection,
+                new PropertyValue.EnumValue("TextDirection", "rtl")));
+        assertRejected(rtl, new SetProperty(
+                        WRAPPER_ID,
+                        textDirection,
+                        new PropertyValue.EnumValue("TextDirection", "up")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        String rtlDart = new String(
+                rtl.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(rtlDart.contains(
+                "textDirection: TextDirection.rtl"), rtlDart);
+
+        assertRejected(rtl, new ResetProperty(WRAPPER_ID, textDirection),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+        DesignerCommandSession undoDirection = rtl.undo().session();
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
+                find(undoDirection.current().document().root(), WRAPPER_ID)
+                        .properties().get(textDirection));
+        DesignerCommandSession redoDirection = undoDirection.redo().session();
+        assertArrayEquals(rtl.current().fdBytes(), redoDirection.current().fdBytes());
+        assertArrayEquals(rtl.current().dartCandidateBytes(),
+                redoDirection.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoDirection.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains(
+                "\"type\": \"flutter.widgets.Directionality\""), fd);
+        assertTrue(fd.contains("\"type\": \"TextDirection\""), fd);
+        assertTrue(fd.contains("\"value\": \"rtl\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID,
+                        textDirection,
+                        new PropertyValue.EnumValue("TextDirection", "ltr")));
+        assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(textDirection));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("textDirection: TextDirection.ltr"));
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

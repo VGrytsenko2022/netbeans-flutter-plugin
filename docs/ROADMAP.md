@@ -1412,6 +1412,26 @@ accepted architecture is documented in
   Accessibility 1; the practical backlog is 47/92 complete with 45 remaining.
   `.fd` schema v10, Catalog API 10, Canvas model v15 and NBFC
   framing/control/wire v1 remain unchanged.
+- [x] Complete const
+  [`ClipOval`](https://api.flutter.dev/flutter/widgets/ClipOval/ClipOval.html)
+  as the next fixed practical-inventory slice, in Basic at item order 90 after
+  `ClipRect`. Expose the safe Flutter 3.44.8 non-`key` constructor surface:
+  optional closed `clipBehavior` and one optional single any-widget `child`
+  slot. Preserve the framework's `Clip.antiAlias` default by omission and
+  admit the other three exact `Clip` values. Complete typed Properties,
+  Palette/tree/Canvas DnD and movement, deterministic const Dart generation,
+  Save/reopen and further editing, Undo/Redo, real native/exact-Web oval
+  clipping, accessibility, empty-target handling and four reviewed SVGs. Keep
+  Designer selection and DnD affordances outside the paint clip. Explicitly
+  exclude non-null `CustomClipper<Rect>` because the SDK provides no concrete
+  public delegate and the Designer does not admit arbitrary Dart expressions.
+  The resulting surface is 48 widgets, 42 const definitions and 737 rows (720
+  outside Scaffold). Forty-eight sources across 43 insertable any-widget plus
+  two trait destinations form 2,160 candidates: 1,943 accepted and 217
+  rejected. Layout contains 31 items, Scrolling 3, Basic 9, Material 4 and
+  Accessibility 1; the practical backlog is 48/92 complete with 44 remaining.
+  `.fd` schema v10, Catalog API 10, Canvas model v15 and NBFC
+  framing/control/wire v1 remain unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1430,7 +1450,7 @@ accepted architecture is documented in
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
   vertical slices. The next missing item in the fixed priority order is
-  `ClipOval`. The current typed Properties slice spans all forty-seven
+  `ClipRRect`. The current typed Properties slice spans all forty-eight
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

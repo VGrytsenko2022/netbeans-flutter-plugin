@@ -4174,6 +4174,10 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ClipOval': _WidgetSpec(
+    {'clipBehavior': _clipBehaviorProperty},
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.ClipRect': _WidgetSpec(
     {'clipBehavior': _clipBehaviorProperty},
     {'child': _optionalSingleSlot},
@@ -5473,6 +5477,9 @@ S|child|single|0|0|1|any
 W|flutter.widgets.Center
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+S|child|single|0|0|1|any
+W|flutter.widgets.ClipOval
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 S|child|single|0|0|1|any
 W|flutter.widgets.ClipRect
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none

@@ -537,6 +537,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Offstage' ||
         node.type == canvasDirectionalityWidgetType ||
         node.type == 'flutter.widgets.Placeholder' ||
+        node.type == 'flutter.widgets.ClipOval' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
@@ -2339,6 +2340,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.LimitedBox' => _limitedBox(),
       'flutter.widgets.OverflowBox' => _overflowBox(),
       'flutter.widgets.Placeholder' => _placeholder(context),
+      'flutter.widgets.ClipOval' => _clipOval(),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
@@ -4184,6 +4186,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _clipRect() => ClipRect(
     clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+    child: _single('child'),
+  );
+
+  Widget _clipOval() => ClipOval(
+    clipBehavior: _clipBehavior() ?? Clip.antiAlias,
     child: _single('child'),
   );
 

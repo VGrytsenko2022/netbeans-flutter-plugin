@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -865,6 +866,7 @@ class FlutterWidgetPropertiesNodeTest {
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
+                ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -900,7 +902,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(736, writableCount,
+        assertEquals(737, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -911,8 +913,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
-                + "ExcludeSemantics, IndexedStack, and ClipRect leaves");
-        assertEquals(719, nonScaffoldWritableCount,
+                + "ExcludeSemantics, IndexedStack, ClipRect, and ClipOval leaves");
+        assertEquals(720, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2681,6 +2683,78 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Empty", child.getValue()),
                 () -> assertTrue(child.getShortDescription().contains(
                         "rectangular bounds")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "null CustomClipper")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void clipOvalProjectsOptionalClipBehaviorAndOptionalChild() throws Exception {
+        WidgetDefinition definition = definition(
+                ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value());
+        StableId id = StableId.parse("74e2f52f-3dd9-46fe-a0ae-7f0ebf85bb95");
+        PropertyName clipBehaviorName = new PropertyName("clipBehavior");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(clipBehaviorName,
+                        new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + ClipOvalWidgetPropertySchema.Group.values().length,
+                sets.length);
+        Node.PropertySet clipping = propertySet(
+                node, ClipOvalWidgetPropertySchema.Group.CLIPPING.setName());
+        assertAll(
+                () -> assertEquals("Clipping", clipping.getDisplayName()),
+                () -> assertEquals("Oval paint clipping behavior.",
+                        clipping.getShortDescription()),
+                () -> assertEquals("General", clipping.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals(List.of("clipBehavior"),
+                        names(clipping.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
+                property(node, "clipBehavior"));
+        assertAll(
+                () -> assertEquals("Clip behavior", clipBehavior.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.EnumValue("Clip", "hardEdge")),
+                        clipBehavior.getValue()),
+                () -> assertEquals(List.of(
+                        FlutterWidgetPropertiesNode.NOT_SET,
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                        List.of(clipBehavior.getPropertyEditor().getTags())),
+                () -> assertTrue(clipBehavior.supportsDefaultValue()),
+                () -> assertFalse(clipBehavior.isDefaultValue()),
+                () -> assertTrue(clipBehavior.getShortDescription().contains(
+                        "outside the child-bounds oval")),
+                () -> assertTrue(clipBehavior.getShortDescription().contains(
+                        "anti-alias default")),
+                () -> assertTrue(clipBehavior.getShortDescription().contains(
+                        "CustomClipper")));
+
+        clipBehavior.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.EnumValue("Clip", "none")));
+        clipBehavior.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, clipBehaviorName,
+                        new PropertyValue.EnumValue("Clip", "none")),
+                new ResetProperty(id, clipBehaviorName)), commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "oval inscribed")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "null CustomClipper")),
                 () -> assertTrue(child.getShortDescription().contains(
@@ -4781,6 +4855,7 @@ class FlutterWidgetPropertiesNodeTest {
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
+                ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
@@ -4810,7 +4885,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(47, iconPaths.size(),
+        assertEquals(48, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -340,6 +340,40 @@ void main() {
         reason: '$flexType requires a direct Row or Column children slot',
       );
     }
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.ClipOval'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.ClipOval',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.ClipOval',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-clip-oval-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+        reason: '$flexType requires a direct Row or Column children slot',
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
       canvasStackChildrenAppendDropSlot,
     ]);
@@ -655,7 +689,7 @@ void main() {
     );
   });
 
-  test('closes the 47-source by 44-destination compatibility matrix', () {
+  test('closes the 48-source by 45-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -678,6 +712,7 @@ void main() {
       'flutter.widgets.Padding',
       'flutter.widgets.Center',
       'flutter.widgets.ClipRect',
+      'flutter.widgets.ClipOval',
       'flutter.widgets.ConstrainedBox',
       'flutter.widgets.UnconstrainedBox',
       'flutter.widgets.LimitedBox',
@@ -713,8 +748,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(47));
-    expect(destinations, hasLength(44));
+    expect(sourceTypes, hasLength(48));
+    expect(destinations, hasLength(45));
 
     var accepted = 0;
     var rejected = 0;
@@ -740,9 +775,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1856);
-    expect(rejected, 212);
-    expect(accepted + rejected, 2068);
+    expect(accepted, 1943);
+    expect(rejected, 217);
+    expect(accepted + rejected, 2160);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -2919,6 +2954,249 @@ void main() {
       expect(drop?.slotName, 'child');
       expect(drop?.insertionIndex, 0);
       expect(drop?.zone?.isEmpty, isFalse);
+    },
+  );
+
+  testWidgets(
+    'renders real ClipOval defaults and exact paint, hit, semantics, and clip behavior on native and exact-Web profiles',
+    (tester) async {
+      const clipOvalId = '91684e03-f63a-4cde-b899-7a50c888f9e7';
+      const childId = '9f5350ee-598c-4664-9cdd-11e344d0f4e0';
+      final semantics = tester.ensureSemantics();
+
+      Finder clipOvalFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$clipOvalId')),
+            matching: find.byType(ClipOval),
+          )
+          .first;
+
+      Future<({ClipOval widget, RenderClipOval render})> pump({
+        required Map<String, Object?> properties,
+        required Map<String, Object?> child,
+        String targetPlatform = 'windows',
+      }) async {
+        final json = _modelWithCenteredClipOval(
+          properties: properties,
+          child: child,
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            targetPlatform;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: clipOvalId,
+            onSelected: (_) {},
+            dropHoverTarget: const CanvasDropTarget(
+              parentWidgetId: clipOvalId,
+              slotName: 'child',
+              insertionIndex: 0,
+              zone: CanvasDropZone(
+                leftMicros: 400000,
+                topMicros: 400000,
+                rightMicros: 600000,
+                bottomMicros: 600000,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final finder = clipOvalFinder();
+        return (
+          widget: tester.widget<ClipOval>(finder),
+          render: tester.renderObject<RenderClipOval>(finder),
+        );
+      }
+
+      final visibleChild = _viewSizedBoxNode(childId, width: 80, height: 60);
+      final omitted = await pump(properties: const {}, child: visibleChild);
+      expect(omitted.widget.clipper, isNull);
+      expect(omitted.widget.clipBehavior, Clip.antiAlias);
+      expect(omitted.render.clipper, isNull);
+      expect(omitted.render.clipBehavior, Clip.antiAlias);
+      expect(omitted.render.size, const Size(80, 60));
+      expect(
+        omitted.render.describeApproximatePaintClip(omitted.render.child!),
+        Offset.zero & omitted.render.size,
+      );
+      final expectedOval = Path()..addOval(Offset.zero & omitted.render.size);
+      expect(
+        omitted.render,
+        paints..clipPath(
+          pathMatcher: coversSameAreaAs(
+            expectedOval,
+            areaToCompare: const Rect.fromLTRB(-1, -1, 81, 61),
+          ),
+        ),
+      );
+      expect(
+        omitted.render.hitTest(
+          BoxHitTestResult(),
+          position: omitted.render.size.center(Offset.zero),
+        ),
+        isTrue,
+      );
+      expect(
+        omitted.render.hitTest(
+          BoxHitTestResult(),
+          position: const Offset(1, 1),
+        ),
+        isFalse,
+        reason: 'the real RenderClipOval owns elliptical hit testing',
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+        findsOneWidget,
+      );
+
+      final webOmitted = await pump(
+        properties: const {},
+        child: visibleChild,
+        targetPlatform: 'web',
+      );
+      expect(webOmitted.widget.clipBehavior, Clip.antiAlias);
+      expect(webOmitted.render.clipBehavior, Clip.antiAlias);
+      expect(webOmitted.render.size, const Size(80, 60));
+
+      final selectionOutline = find.byKey(
+        const ValueKey('canvas-selection-outline-$clipOvalId'),
+      );
+      final dropOverlay = find.byKey(
+        const ValueKey('canvas-widget-insert-drop-zone'),
+      );
+      expect(selectionOutline, findsOneWidget);
+      expect(dropOverlay, findsOneWidget);
+      expect(
+        find.ancestor(of: clipOvalFinder(), matching: selectionOutline),
+        findsOneWidget,
+        reason: 'the Designer selection wrapper must remain outside ClipOval',
+      );
+      expect(
+        find.ancestor(of: selectionOutline, matching: find.byType(ClipOval)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(of: dropOverlay, matching: find.byType(ClipOval)),
+        findsNothing,
+        reason: 'the surface DnD overlay must not be clipped by ClipOval',
+      );
+
+      const clips = <String, Clip>{
+        'none': Clip.none,
+        'hardEdge': Clip.hardEdge,
+        'antiAlias': Clip.antiAlias,
+        'antiAliasWithSaveLayer': Clip.antiAliasWithSaveLayer,
+      };
+      for (final entry in clips.entries) {
+        final result = await pump(
+          properties: {
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': entry.key,
+            },
+          },
+          child: visibleChild,
+        );
+        expect(result.widget.clipper, isNull, reason: entry.key);
+        expect(result.widget.clipBehavior, entry.value, reason: entry.key);
+        expect(result.render.clipper, isNull, reason: entry.key);
+        expect(result.render.clipBehavior, entry.value, reason: entry.key);
+        expect(
+          result.render.describeApproximatePaintClip(result.render.child!),
+          entry.value == Clip.none ? isNull : Offset.zero & result.render.size,
+          reason: entry.key,
+        );
+        if (entry.value == Clip.none) {
+          expect(result.render, isNot(paints..clipPath()), reason: entry.key);
+        } else {
+          final oval = Path()..addOval(Offset.zero & result.render.size);
+          expect(
+            result.render,
+            paints..clipPath(
+              pathMatcher: coversSameAreaAs(
+                oval,
+                areaToCompare: const Rect.fromLTRB(-1, -1, 81, 61),
+              ),
+            ),
+            reason: entry.key,
+          );
+        }
+        expect(
+          result.render.hitTest(
+            BoxHitTestResult(),
+            position: const Offset(1, 1),
+          ),
+          isFalse,
+          reason: '${entry.key} retains ClipOval hit testing',
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+          findsOneWidget,
+          reason: entry.key,
+        );
+      }
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'keeps an empty zero-size ClipOval selectable and exposes child DnD',
+    (tester) async {
+      const clipOvalId = '91684e03-f63a-4cde-b899-7a50c888f9e7';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredClipOval(
+                properties: const {},
+                child: null,
+                bounded: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$clipOvalId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$clipOvalId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, clipOvalId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, clipOvalId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -14522,6 +14800,47 @@ Map<String, Object?> _modelWithCenteredFittedBox({
       : fittedBox;
   body['child'] = <String, Object?>{
     'id': 'c01d308e-653d-467f-a113-e77ab22c1775',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': centeredChild},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredClipOval({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final clipOval = <String, Object?>{
+    'id': '91684e03-f63a-4cde-b899-7a50c888f9e7',
+    'type': 'flutter.widgets.ClipOval',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final centeredChild = bounded
+      ? <String, Object?>{
+          'id': '61fc12b1-ad5c-43c9-af3f-a073f827ebc0',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 80},
+            'height': {'kind': 'integer', 'value': 60},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': clipOval},
+          },
+        }
+      : clipOval;
+  body['child'] = <String, Object?>{
+    'id': 'ecb36777-0ce6-499e-bc30-0c83c10e6198',
     'type': 'flutter.widgets.Center',
     'properties': <String, Object?>{},
     'slots': <String, Object?>{

@@ -72,6 +72,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.ExcludeSemantics"));
         assertTrue(typeIds(result).contains("flutter.widgets.IndexedStack"));
         assertTrue(typeIds(result).contains("flutter.widgets.ClipRect"));
+        assertTrue(typeIds(result).contains("flutter.widgets.ClipOval"));
     }
 
     @Test
@@ -159,7 +160,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(47, result.catalog().definitions().size());
+        assertEquals(48, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -192,7 +193,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(47, result.catalog().definitions().size());
+        assertEquals(48, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

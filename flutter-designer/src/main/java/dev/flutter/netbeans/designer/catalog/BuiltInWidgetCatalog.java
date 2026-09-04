@@ -69,6 +69,7 @@ public final class BuiltInWidgetCatalog {
             directionality(),
             decoratedBox(),
             clipRect(),
+            clipOval(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1276,6 +1277,29 @@ public final class BuiltInWidgetCatalog {
                 List.of(WIDGETS_IMPORT),
                 Set.of(),
                 palette("flutter.basic", 300, 80, "ClipRect"),
+                properties,
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition clipOval() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "clipBehavior",
+                0,
+                false,
+                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer")));
+        if (properties.size() != ClipOvalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ClipOval catalog/property schema count mismatch");
+        }
+        return widget(
+                ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
+                "ClipOval",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 90, "ClipOval"),
                 properties,
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }

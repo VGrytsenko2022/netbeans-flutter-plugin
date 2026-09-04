@@ -191,6 +191,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
             Map.entry("flutter.widgets.DecoratedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRect", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ClipOval", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -583,6 +584,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "foreground")),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ClipRect", projection(Map.ofEntries(
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ClipOval", projection(Map.ofEntries(
                     enumProperty(
                             "clipBehavior", "Clip", "none", "hardEdge",
                             "antiAlias", "antiAliasWithSaveLayer")),

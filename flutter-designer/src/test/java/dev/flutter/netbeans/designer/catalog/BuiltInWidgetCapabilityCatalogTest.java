@@ -68,6 +68,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
             "flutter.widgets.ClipRect",
+            "flutter.widgets.ClipOval",
             "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
@@ -116,6 +117,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
             "flutter.widgets.ClipRect",
+            "flutter.widgets.ClipOval",
             "flutter.widgets.ExcludeSemantics");
 
     @Test
@@ -127,7 +129,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortySevenSourcesAndFortyFourInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyEightSourcesAndFortyFiveInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -150,9 +152,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(47, sources.size());
-        assertEquals(44, destinations.size());
-        assertEquals(42, destinations.stream()
+        assertEquals(48, sources.size());
+        assertEquals(45, destinations.size());
+        assertEquals(43, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -160,9 +162,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(2068, candidates);
-        assertEquals(1856, accepted);
-        assertEquals(212, candidates - accepted);
+        assertEquals(2160, candidates);
+        assertEquals(1943, accepted);
+        assertEquals(217, candidates - accepted);
     }
 
     @Test
@@ -485,6 +487,46 @@ class BuiltInWidgetCapabilityCatalogTest {
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         assertTrue(contract.contains(
                 "W|flutter.widgets.ClipRect\n"
+                + "P|clipBehavior|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "S|child|single|0|0|1|any\n"), contract);
+        assertFalse(projection.properties().containsKey(new PropertyName("clipper")));
+    }
+
+    @Test
+    void clipOvalHasExactClosedClipBehaviorAndOptionalChildProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.ClipOval");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ClipOvalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var clipBehavior = projection.propertyContracts()
+                .get(new PropertyName("clipBehavior"));
+        assertFalse(clipBehavior.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), clipBehavior.acceptedKinds());
+        assertTrue(clipBehavior.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none",
+                clipBehavior.constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.ClipOval\n"
                 + "P|clipBehavior|enum|0|-|-|enum:enum:"
                 + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
                 + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"

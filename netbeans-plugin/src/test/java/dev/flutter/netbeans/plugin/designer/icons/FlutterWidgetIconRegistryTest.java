@@ -1434,6 +1434,59 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void clipOvalFamilyUsesExactReviewedInscribedOvalGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "clipoval.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "defs[]",
+                "clipPath[id=clipoval-16]",
+                "ellipse[cx=8, cy=8, rx=5, ry=4.5]",
+                "ellipse[cx=8, cy=8, rx=5, ry=4.5, stroke-width=1.2]",
+                "g[clip-path=url(#clipoval-16)]",
+                "circle[cx=11, cy=5, r=5, stroke-width=1]",
+                "path[d=M1 13 8 6l7 7, stroke-linejoin=round, stroke-width=1]",
+                "path[d=M1.5 5V1.5H5M11 1.5h3.5V5M14.5 11v3.5H11M5 14.5H1.5V11, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=1.2]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "defs[]",
+                "clipPath[id=clipoval-32]",
+                "ellipse[cx=16, cy=16, rx=10, ry=9]",
+                "ellipse[cx=16, cy=16, rx=10, ry=9, stroke-width=2]",
+                "g[clip-path=url(#clipoval-32)]",
+                "circle[cx=22, cy=10, r=10, stroke-width=2]",
+                "path[d=M2 26 16 12l14 14, stroke-linejoin=round, stroke-width=2]",
+                "path[d=M3 10V3h7M22 3h7v7M29 22v7h-7M10 29H3v-7, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=2.4]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "defs[]",
+                "clipPath[]",
+                "ellipse[]",
+                "ellipse[fill=#EAF5FC, stroke=#40566D]",
+                "g[]",
+                "circle[fill=#80DEEA, stroke=#00838F]",
+                "path[fill=#42A5F5, stroke=#1565C0]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "defs[]",
+                "clipPath[]",
+                "ellipse[]",
+                "ellipse[fill=#243442, stroke=#C5D3DF]",
+                "g[]",
+                "circle[fill=#4DD0E1, stroke=#B2EBF2]",
+                "path[fill=#1976D2, stroke=#90CAF9]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void overflowBoxFamilyUsesExactReviewedConstraintOverrideGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "overflowbox.svg";
@@ -1627,6 +1680,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg");
         expected.put("flutter.widgets.DecoratedBox", ICON_ROOT + "decoratedbox.svg");
         expected.put("flutter.widgets.ClipRect", ICON_ROOT + "cliprect.svg");
+        expected.put("flutter.widgets.ClipOval", ICON_ROOT + "clipoval.svg");
         expected.put("flutter.widgets.ExcludeSemantics",
                 ICON_ROOT + "excludesemantics.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");

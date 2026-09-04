@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortySevenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyEightTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -43,6 +43,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.Center",
+                "flutter.widgets.ClipOval",
                 "flutter.widgets.ClipRect",
                 "flutter.widgets.ColoredBox",
                 "flutter.widgets.Column",
@@ -86,8 +87,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(47, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(41, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(48, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(42, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -101,10 +102,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(736, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(737, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(719, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(720, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -122,6 +123,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Baseline", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ClipOval", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
@@ -299,6 +301,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Directionality",
                 "flutter.widgets.DecoratedBox",
                 "flutter.widgets.ClipRect",
+                "flutter.widgets.ClipOval",
                 "flutter.widgets.ExcludeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
@@ -312,7 +315,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(8, palette.stream()
+        assertEquals(9, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());
@@ -473,6 +476,9 @@ class BuiltInWidgetCatalogTest {
         assertTrue(property(catalog, "flutter.widgets.ClipRect", "clipBehavior")
                 .creationDefault().isEmpty(),
                 "ClipRect omission must preserve Clip.hardEdge");
+        assertTrue(property(catalog, "flutter.widgets.ClipOval", "clipBehavior")
+                .creationDefault().isEmpty(),
+                "ClipOval omission must preserve Clip.antiAlias");
         assertTrue(property(catalog, "flutter.widgets.Spacer", "flex")
                 .creationDefault().isEmpty());
         assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(24)),

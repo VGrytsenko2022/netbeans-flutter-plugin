@@ -819,6 +819,144 @@ void main() {
     );
   });
 
+  test('decodes the exact ClipOval clip and optional-child contract', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '91684e03-f63a-4cde-b899-7a50c888f9e7',
+        'flutter.widgets.ClipOval',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      '9f5350ee-598c-4664-9cdd-11e344d0f4e0',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Oval-clipped child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'clipBehavior': {
+            'kind': 'enum',
+            'type': 'Clip',
+            'value': 'antiAliasWithSaveLayer',
+          },
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.ClipOval');
+    expect(decoded.properties.keys, const ['clipBehavior']);
+    expect(
+      (decoded.properties['clipBehavior']!.value as CanvasEnumValue).value,
+      'antiAliasWithSaveLayer',
+    );
+    expect(decoded.slot('child')!.child!.id, child['id']);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+    final explicitEmpty = _decode(model(slots: {'child': _single(null)})).root;
+    expect(explicitEmpty.slot('child')!.child, isNull);
+  });
+
+  test('rejects every unsupported ClipOval property and slot branch', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '91684e03-f63a-4cde-b899-7a50c888f9e7',
+        'flutter.widgets.ClipOval',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'clipBehavior': {
+          'kind': 'enum',
+          'type': 'FilterQuality',
+          'value': 'none',
+        },
+      },
+      const {
+        'clipBehavior': {'kind': 'string', 'value': 'antiAlias'},
+      },
+      const {
+        'clipper': {'kind': 'string', 'value': 'custom'},
+      },
+      const {
+        'futureProperty': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(model(slots: {'futureSlot': _single(null)})),
+      throwsFormatException,
+    );
+    final expanded = _node(
+      'c7ee4f80-b95d-4870-864f-a6d2da74c79e',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            'ee3d36a6-2b38-485f-8d0a-9af46d05592f',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Flex-only child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(model(slots: {'child': _single(expanded)})),
+      throwsFormatException,
+      reason: 'a ParentData child cannot be reparented under ClipOval',
+    );
+  });
+
+  test('ClipOval reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ClipOval\n');
+    final end = contract.indexOf('W|flutter.widgets.ClipRect\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ClipOval\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes the exact ClipRect clip and optional-child contract', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},

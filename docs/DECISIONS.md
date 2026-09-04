@@ -28,11 +28,12 @@ historical `GridView.count` surface. ADR-067 establishes the historical
 surface, ADR-069 records the historical `SafeArea` surface, ADR-070 records the
 historical `Placeholder` surface, ADR-071 records the historical
 `Directionality` surface, ADR-072 records the historical `DecoratedBox`
-surface, ADR-073 establishes the historical `ExcludeSemantics` surface, and
-ADR-074 establishes the historical `IndexedStack` surface, and ADR-075
-establishes the current `ClipRect` surface: 736 typed rows across forty-seven
-widgets, forty-one const-constructor definitions and 2,068 Palette/DnD
-candidates, including 1,856 accepted and 212 rejected cells. The 719-field
+surface, ADR-073 establishes the historical `ExcludeSemantics` surface,
+ADR-074 establishes the historical `IndexedStack` surface, ADR-075 establishes
+the historical `ClipRect` surface, and ADR-076 establishes the current
+`ClipOval` surface: 737 typed rows across forty-eight widgets, forty-two
+const-constructor definitions and 2,160 Palette/DnD candidates, including
+1,943 accepted and 217 rejected cells. The 720-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -42,7 +43,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-075 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-076 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -369,8 +370,10 @@ the historical forty-four-source, 1,804-candidate matrix (1,607 accepted and
 197 rejected), ADR-073 established the historical forty-five-source,
 1,890-candidate matrix (1,688 accepted and 202 rejected), ADR-074 established
 the historical forty-six-source, 1,978-candidate matrix (1,771 accepted and 207
-rejected), and ADR-075 establishes the current forty-seven-source,
-2,068-candidate matrix (1,856 accepted and 212 rejected).
+rejected), ADR-075 established the historical forty-seven-source,
+2,068-candidate matrix (1,856 accepted and 212 rejected), and ADR-076
+establishes the current forty-eight-source, 2,160-candidate matrix (1,943
+accepted and 217 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -381,7 +384,7 @@ protocol-v15 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ExcludeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -395,12 +398,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-seven-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-eight-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty-seven Create-capable definitions, and the DnD-capable set uses the
-reviewed 2,068-cell candidate matrix across forty-two insertable any-widget and two
-trait-bound destination slots; 1,856 cells are accepted and 212 rejected.
+those forty-eight Create-capable definitions, and the DnD-capable set uses the
+reviewed 2,160-cell candidate matrix across forty-three insertable any-widget and two
+trait-bound destination slots; 1,943 cells are accepted and 217 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3157,7 +3160,51 @@ trait-bound destinations form 2,068 candidates: 1,856 accepted and 212
 rejected. Layout contains 31 Palette items, Scrolling three, Basic eight,
 Material four and Accessibility one.
 
-The practical Designer backlog is now 47/92 complete, with 45 remaining; the
-next missing item in the fixed priority order is `ClipOval`. Existing value and
+At the ADR-075 milestone the practical Designer backlog was 47/92 complete,
+with 45 remaining; the next missing item in the fixed priority order was
+`ClipOval`. Existing value and
 transport shapes keep `.fd` schema v10, contributor Catalog API 10, Canvas model
 v15, and NBFC framing plus Canvas control/wire v1 unchanged.
+
+## ADR-076 — ClipOval is a complete typed oval-clipping slice
+
+Accepted. The fixed practical inventory now admits canonical
+`flutter.widgets.ClipOval` in Basic at item order 90 after `ClipRect`. The
+definition maps to the const `ClipOval` constructor from
+`package:flutter/widgets.dart`, exposes the optional closed `clipBehavior`
+property and one optional single any-widget `child` slot, and excludes only the
+common `key` plus the unsafe non-null custom-clipper branch. A new Palette node
+stores no property and no child, preserving Flutter's `Clip.antiAlias` default
+by constructor omission. The property editor admits exactly `Clip.none`,
+`Clip.hardEdge`, `Clip.antiAlias` and `Clip.antiAliasWithSaveLayer`.
+
+The SDK exposes `CustomClipper<Rect>` as an abstract user extension point and no
+public concrete delegate suitable for a bounded catalog value. The Designer
+therefore does not publish a null-only `clipper` row and does not accept an
+opaque Dart expression. Supporting that branch requires a separately reviewed
+typed declaration/reference contract.
+
+Generated Dart and native/exact-Web Canvas construct the real `ClipOval` with
+the exact effective clip behavior and optional child. Without a custom clipper,
+Flutter inscribes the oval in the child's layout bounds. Paint, hit testing and
+application semantics follow Flutter's widget; Designer selection outlines,
+empty-node targets and drag affordances remain transient overlays outside the
+clip. The complete slice covers typed Properties, Slots,
+Palette/tree/Canvas creation and movement, deterministic const generation,
+Save/reopen and further editing, chronological Undo/Redo, accessibility and
+four reviewed 16/32 px light/dark SVGs.
+
+`ClipOval` adds one writable row, one source and one insertable any-widget
+destination. At the new destination the 47 previous sources add 44 accepted
+cells and three ParentData rejections; the new source adds 43 accepted
+any-widget cells and two rejected trait-bound cells. The resulting surface has
+737 writable rows, 720 outside Scaffold, across 48 widgets and 42 reviewed
+const-constructor definitions. Forty-eight sources across 43 any-widget and two
+trait-bound destinations form 2,160 candidates: 1,943 accepted and 217
+rejected. Layout contains 31 Palette items, Scrolling three, Basic nine,
+Material four and Accessibility one.
+
+The practical Designer backlog is now 48/92 complete, with 44 remaining; the
+next missing item in the fixed priority order is `ClipRRect`. Existing value
+and transport shapes keep `.fd` schema v10, contributor Catalog API 10, Canvas
+model v15, and NBFC framing plus Canvas control/wire v1 unchanged.

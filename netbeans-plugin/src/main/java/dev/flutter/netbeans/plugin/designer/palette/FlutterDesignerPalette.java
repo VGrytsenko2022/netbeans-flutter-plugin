@@ -273,6 +273,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ClipRect.Name"));
                 setShortDescription(message("Widget.ClipRect.Description"));
+            } else if ("flutter.widgets.ClipOval".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.ClipOval.Name"));
+                setShortDescription(message("Widget.ClipOval.Description"));
             } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();

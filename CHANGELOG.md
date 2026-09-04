@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`ClipOval`](https://api.flutter.dev/flutter/widgets/ClipOval/ClipOval.html)
+  vertical slice fills the next gap in the fixed practical 92-widget inventory,
+  at Basic order 90 after `ClipRect`. The closed Flutter 3.44.8 Designer
+  contract exposes optional `clipBehavior`, preserving Flutter's
+  `Clip.antiAlias` default when omitted, plus one optional any-widget `child`.
+  Flutter provides no public concrete `CustomClipper<Rect>` implementation, so
+  a non-null `clipper` remains explicitly outside the typed Designer contract
+  instead of admitting an opaque Dart expression or presenting a misleading
+  null-only editor. Generated Dart and native/exact-Web Canvas construct the
+  real `ClipOval`; with no custom clipper, the oval is inscribed in the child's
+  layout bounds. Clip behavior, empty and populated selection/drop geometry,
+  typed Properties, Palette/tree/Canvas DnD and movement, exact-slot editing,
+  Save/reopen and further editing, Undo/Redo, accessibility and four reviewed
+  light/dark 16/32 px SVGs share the same closed contract. The catalog now
+  contains 48 widgets, 42 reviewed const constructors and 737 writable rows,
+  including 720 across the 47 non-`Scaffold` definitions. Forty-eight sources
+  across 43 insertable any-widget and two trait-bound destinations form 2,160
+  candidates: 1,943 accepted and 217 rejected. Layout contains 31 items,
+  Scrolling 3, Basic 9, Material 4 and Accessibility 1; the practical backlog
+  is 48/92 complete with 44 remaining. Existing encodings keep `.fd` schema at
+  v10, contributor Catalog API at 10 and Canvas model at v15; NBFC framing and
+  Canvas control/wire remain v1.
+- The accepted const
   [`ClipRect`](https://api.flutter.dev/flutter/widgets/ClipRect/ClipRect.html)
   vertical slice fills the next gap in the fixed practical 92-widget inventory,
   at Basic order 80 after `DecoratedBox`. The closed Flutter 3.44.8 Designer
@@ -25,8 +48,8 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   including 719 across the 46 non-`Scaffold` definitions. Forty-seven sources
   across 42 insertable any-widget and two trait-bound destinations form 2,068
   candidates: 1,856 accepted and 212 rejected. Layout contains 31 items,
-  Scrolling 3, Basic 8, Material 4 and Accessibility 1; the practical backlog
-  is 47/92 complete with 45 remaining. Existing encodings keep `.fd` schema at
+  Scrolling 3, Basic 8, Material 4 and Accessibility 1; at that milestone the
+  practical backlog was 47/92 complete with 45 remaining. Existing encodings keep `.fd` schema at
   v10, contributor Catalog API at 10 and Canvas model at v15; NBFC framing and
   Canvas control/wire remain v1.
 - The accepted const

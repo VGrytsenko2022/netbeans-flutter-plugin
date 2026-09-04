@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -514,6 +515,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.equals(
                 widget.type())) {
             addClipRectPropertySets(sheet, hasSlotTab);
+        } else if (ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.equals(
+                widget.type())) {
+            addClipOvalPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -945,6 +949,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             return "Optional child clipped to this widget's rectangular bounds. "
                     + "Clip behavior controls edge quality; a null CustomClipper keeps "
                     + "the exact child-bounds rectangle. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child clipped to the oval inscribed in this widget's bounds. "
+                    + "Clip behavior controls edge quality; a null CustomClipper keeps "
+                    + "the exact inscribed oval. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2315,6 +2328,34 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.displayName(),
                     schema.description()
                             + " Omission preserves Flutter's hard-edge default. "
+                            + "A non-null CustomClipper is intentionally outside the "
+                            + "closed Designer model."));
+        }
+    }
+
+    private void addClipOvalPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ClipOvalWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ClipOvalWidgetPropertySchema.Group.class);
+        for (ClipOvalWidgetPropertySchema.Group group
+                : ClipOvalWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ClipOvalWidgetPropertySchema.Definition schema =
+                    ClipOvalWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ClipOval property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()
+                            + " Omission preserves Flutter's anti-alias default. "
                             + "A non-null CustomClipper is intentionally outside the "
                             + "closed Designer model."));
         }

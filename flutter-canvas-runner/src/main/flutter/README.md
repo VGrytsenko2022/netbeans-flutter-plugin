@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -236,9 +236,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-47 reviewed Canvas widgets. Palette insertion evaluates 2,068 exact
-source/destination cells across 47 draggable sources and 44 insertable reviewed
-slots; 1,856 are accepted and 212 cells are rejected. Expanded and Flexible are
+48 reviewed Canvas widgets. Palette insertion evaluates 2,160 exact
+source/destination cells across 48 draggable sources and 45 insertable reviewed
+slots; 1,943 are accepted and 217 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -846,9 +846,18 @@ user-defined delegate outside the bounded model. Native and exact-Web routes
 apply the real layout, paint, hit-test and semantics behavior. Selection and
 empty-target feedback remain transient Designer overlays outside the clip.
 
-The aggregate catalog now has 47 widgets and 41 reviewed const definitions,
-with 736 writable rows (719 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, eight Basic, four Material and one Accessibility item; the
-backlog is 47/92 complete with 45 remaining. The 47 sources across 44
-insertable destinations form 2,068 cells, with 1,856 accepted and 212 rejected.
+`ClipOval` is decoded as the real const Flutter 3.44.8 widget. Its optional
+`clipBehavior` accepts only the four exact `Clip` values and defaults to
+`Clip.antiAlias` when omitted; its optional single child participates in normal
+catalog insertion. A non-null custom clipper is rejected because it requires a
+user-defined delegate outside the bounded model. Native and exact-Web routes
+apply the real oval layout, paint, hit-test and semantics behavior, with the
+default oval inscribed in the child's layout bounds. Selection and empty-target
+feedback remain transient Designer overlays outside the clip.
+
+The aggregate catalog now has 48 widgets and 42 reviewed const definitions,
+with 737 writable rows (720 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, nine Basic, four Material and one Accessibility item; the
+backlog is 48/92 complete with 44 remaining. The 48 sources across 45
+insertable destinations form 2,160 cells, with 1,943 accepted and 217 rejected.
 Existing schema, Catalog, Canvas and NBFC protocol versions remain unchanged.

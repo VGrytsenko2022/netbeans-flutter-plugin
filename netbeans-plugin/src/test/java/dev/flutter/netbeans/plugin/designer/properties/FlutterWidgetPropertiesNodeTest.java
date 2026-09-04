@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
@@ -811,6 +812,9 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("textDirection"),
                         new PropertyValue.EnumValue("TextDirection", "ltr")));
+        requiredValues.put(
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                Map.of(new PropertyName("decoration"), emptyDecoration()));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -855,7 +859,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
-                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value());
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -889,7 +894,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(727, writableCount,
+        assertEquals(729, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -899,8 +904,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
-                + "Image, ColoredBox, Placeholder, and Directionality leaves");
-        assertEquals(710, nonScaffoldWritableCount,
+                + "Image, ColoredBox, Placeholder, Directionality, and DecoratedBox leaves");
+        assertEquals(712, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2445,6 +2450,85 @@ class FlutterWidgetPropertiesNodeTest {
                         "Occupancy: 1/1")),
                 () -> assertTrue(childProperty.getShortDescription().contains(
                         "cannot be added empty, removed, or cleared")));
+    }
+
+    @Test
+    void decoratedBoxProjectsRequiredTypedDecorationPositionAndOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value());
+        StableId id = StableId.parse("2f67ac57-6010-42e5-8626-666a73b44aa2");
+        PropertyName decorationName = new PropertyName("decoration");
+        PropertyName positionName = new PropertyName("position");
+        PropertyValue.BoxDecorationValue empty = emptyDecoration();
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(decorationName, empty),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + DecoratedBoxWidgetPropertySchema.Group.values().length,
+                sets.length);
+        Node.PropertySet decorationSet = propertySet(
+                node, DecoratedBoxWidgetPropertySchema.Group.DECORATION.setName());
+        assertAll(
+                () -> assertEquals("Decoration", decorationSet.getDisplayName()),
+                () -> assertEquals(
+                        "Reviewed BoxDecoration and whether it paints behind or in front of the child.",
+                        decorationSet.getShortDescription()),
+                () -> assertEquals("General", decorationSet.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals(List.of("decoration", "position"),
+                        names(decorationSet.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> decoration = cellProperty(
+                property(node, "decoration"));
+        Node.Property<FlutterPropertyCellValue> position = cellProperty(
+                property(node, "position"));
+        assertAll(
+                () -> assertEquals("Decoration", decoration.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.explicit(empty),
+                        decoration.getValue()),
+                () -> assertFalse(decoration.supportsDefaultValue()),
+                () -> assertTrue(decoration.getShortDescription().contains(
+                        "Required reviewed BoxDecoration")),
+                () -> assertEquals("Position", position.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), position.getValue()),
+                () -> assertEquals(List.of(
+                        FlutterWidgetPropertiesNode.NOT_SET,
+                        "background", "foreground"),
+                        List.of(position.getPropertyEditor().getTags())),
+                () -> assertTrue(position.supportsDefaultValue()),
+                () -> assertTrue(position.getShortDescription().contains(
+                        "behind or in front")));
+
+        PropertyValue.BoxDecorationValue colored =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(new dev.flutter.netbeans.designer.model.ColorSource.Literal(
+                                0xFF42A5F5L)),
+                        Optional.empty(), Optional.empty(), List.of(),
+                        Optional.empty(), Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        decoration.setValue(FlutterPropertyCellValue.explicit(colored));
+        position.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.EnumValue("DecorationPosition", "foreground")));
+        assertEquals(List.of(
+                new SetProperty(id, decorationName, colored),
+                new SetProperty(id, positionName,
+                        new PropertyValue.EnumValue(
+                                "DecorationPosition", "foreground"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains("Optional")),
+                () -> assertTrue(child.getShortDescription().contains("Occupancy: 0/1")));
     }
 
     @Test
@@ -4405,7 +4489,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fortyThreeCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyFourCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -4451,7 +4535,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
-                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value());
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4479,7 +4564,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(43, iconPaths.size(),
+        assertEquals(44, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

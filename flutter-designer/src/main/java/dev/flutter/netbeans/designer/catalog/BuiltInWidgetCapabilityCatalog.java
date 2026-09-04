@@ -186,7 +186,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.DecoratedBox", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -542,6 +543,19 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "enum:" + base64(WIDGETS_LIBRARY)
                             + ":TextDirection:ltr,rtl")),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.DecoratedBox", projection(Map.ofEntries(
+                    requiredDefaultConstrainedProperty(
+                            "decoration",
+                            "boxDecoration:empty",
+                            PropertyValueKind.BOX_DECORATION,
+                            boxDecorationFingerprint(REVIEWED_COLOR_THEME_TOKENS)),
+                    enumPropertyForLibrary(
+                            "position",
+                            RENDERING_LIBRARY,
+                            "DecorationPosition",
+                            "background",
+                            "foreground")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
@@ -2192,6 +2206,22 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + boxConstraintBoundFingerprint(constraints.maxWidth()) + ','
                     + boxConstraintBoundFingerprint(constraints.minHeight()) + ','
                     + boxConstraintBoundFingerprint(constraints.maxHeight());
+        }
+        if (value instanceof PropertyValue.BoxDecorationValue decoration) {
+            if (decoration.color().isEmpty()
+                    && decoration.image().isEmpty()
+                    && decoration.border().isEmpty()
+                    && decoration.borderRadius().isEmpty()
+                    && decoration.boxShadow().isEmpty()
+                    && decoration.gradient().isEmpty()
+                    && decoration.backgroundBlendMode().isEmpty()
+                    && decoration.shape()
+                            == PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE) {
+                return "boxDecoration:empty";
+            }
+            throw new ExceptionInInitializerError(
+                    "Canvas creation default supports only an exact empty "
+                    + "rectangular BoxDecoration");
         }
         if (value instanceof PropertyValue.IconDataValue icon) {
             return "iconData:"

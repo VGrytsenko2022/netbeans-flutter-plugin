@@ -256,6 +256,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.Directionality.Name"));
                 setShortDescription(message("Widget.Directionality.Description"));
+            } else if ("flutter.widgets.DecoratedBox".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.DecoratedBox.Name"));
+                setShortDescription(message("Widget.DecoratedBox.Description"));
             } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();

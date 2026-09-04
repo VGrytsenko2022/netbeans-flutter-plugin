@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortyThreeTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyFourTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -47,6 +47,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Column",
                 "flutter.widgets.ConstrainedBox",
                 "flutter.widgets.Container",
+                "flutter.widgets.DecoratedBox",
                 "flutter.widgets.Directionality",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.FittedBox",
@@ -82,8 +83,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(43, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(37, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(44, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(38, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -97,10 +98,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(727, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(729, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(710, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(712, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -122,6 +123,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ConstrainedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.DecoratedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Directionality", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
@@ -180,6 +182,9 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.widgets.OverflowBox").importUris(),
                 "OverflowBoxFit is owned by rendering.dart in Flutter 3.44.8");
+        assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.widgets.DecoratedBox").importUris(),
+                "DecorationPosition is owned by rendering.dart in Flutter 3.44.8");
     }
 
     @Test
@@ -204,6 +209,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
                 new DartSymbolReference(WIDGETS_IMPORT, "CrossAxisAlignment"),
+                new DartSymbolReference(RENDERING_IMPORT, "DecorationPosition"),
                 new DartSymbolReference(GESTURES_IMPORT, "DragStartBehavior"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FilterQuality"),
                 new DartSymbolReference(RENDERING_IMPORT, "FlexFit"),
@@ -283,12 +289,13 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 "flutter.widgets.Placeholder",
-                "flutter.widgets.Directionality"), typeIds(palette));
+                "flutter.widgets.Directionality",
+                "flutter.widgets.DecoratedBox"), typeIds(palette));
         assertEquals(30, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
-        assertEquals(6, palette.stream()
+        assertEquals(7, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());
@@ -350,6 +357,21 @@ class BuiltInWidgetCatalogTest {
         assertEquals(new PropertyValue.EnumValue("TextDirection", "ltr"),
                 property(catalog, "flutter.widgets.Directionality", "textDirection")
                         .creationDefault().orElseThrow());
+        PropertyValue.BoxDecorationValue emptyDecoration = assertInstanceOf(
+                PropertyValue.BoxDecorationValue.class,
+                property(catalog, "flutter.widgets.DecoratedBox", "decoration")
+                        .creationDefault().orElseThrow());
+        assertTrue(emptyDecoration.color().isEmpty());
+        assertTrue(emptyDecoration.image().isEmpty());
+        assertTrue(emptyDecoration.border().isEmpty());
+        assertTrue(emptyDecoration.borderRadius().isEmpty());
+        assertTrue(emptyDecoration.boxShadow().isEmpty());
+        assertTrue(emptyDecoration.gradient().isEmpty());
+        assertTrue(emptyDecoration.backgroundBlendMode().isEmpty());
+        assertEquals(PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE,
+                emptyDecoration.shape());
+        assertTrue(property(catalog, "flutter.widgets.DecoratedBox", "position")
+                .creationDefault().isEmpty());
         for (PropertyDefinition property : definition("flutter.widgets.GridView").properties()) {
             if (!property.name().value().equals("crossAxisCount")) {
                 assertTrue(property.creationDefault().isEmpty(),

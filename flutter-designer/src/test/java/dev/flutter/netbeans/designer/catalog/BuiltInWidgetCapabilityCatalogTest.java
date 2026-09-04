@@ -64,7 +64,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Image",
             "flutter.widgets.ColoredBox",
             "flutter.widgets.Placeholder",
-            "flutter.widgets.Directionality");
+            "flutter.widgets.Directionality",
+            "flutter.widgets.DecoratedBox");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -108,7 +109,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Image",
             "flutter.widgets.ColoredBox",
             "flutter.widgets.Placeholder",
-            "flutter.widgets.Directionality");
+            "flutter.widgets.Directionality",
+            "flutter.widgets.DecoratedBox");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -119,7 +121,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortyThreeSourcesAndFortyInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyFourSourcesAndFortyOneInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -142,9 +144,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(43, sources.size());
-        assertEquals(40, destinations.size());
-        assertEquals(38, destinations.stream()
+        assertEquals(44, sources.size());
+        assertEquals(41, destinations.size());
+        assertEquals(39, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -152,9 +154,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1720, candidates);
-        assertEquals(1528, accepted);
-        assertEquals(192, candidates - accepted);
+        assertEquals(1804, candidates);
+        assertEquals(1607, accepted);
+        assertEquals(197, candidates - accepted);
     }
 
     @Test
@@ -374,6 +376,74 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "S|child|single|1|1|1|any\n"
                 + "C|flutter.widgets.Directionality|paletteCreate|"
                 + "wrapExistingChild|child\n"), contract);
+    }
+
+    @Test
+    void decoratedBoxHasExactRequiredDecorationPositionAndOptionalChildProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.DecoratedBox");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(DecoratedBoxWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var decoration = projection.propertyContracts()
+                .get(new PropertyName("decoration"));
+        assertTrue(decoration.required());
+        assertEquals(Set.of(PropertyValueKind.BOX_DECORATION),
+                decoration.acceptedKinds());
+        assertEquals(Optional.of("boxDecoration:empty"),
+                decoration.creationDefaultFingerprint());
+        String decorationConstraint = decoration.constraintFingerprints()
+                .get(PropertyValueKind.BOX_DECORATION);
+        assertTrue(decorationConstraint.startsWith(
+                "boxDecoration:v2:imageProvider:v1:asset,exactAsset:"),
+                decorationConstraint);
+        assertTrue(decorationConstraint.contains(
+                ":theme=material.colorScheme.error,"), decorationConstraint);
+        assertTrue(decorationConstraint.contains(
+                "material.colorScheme.surfaceTint"), decorationConstraint);
+
+        var position = projection.propertyContracts()
+                .get(new PropertyName("position"));
+        assertFalse(position.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), position.acceptedKinds());
+        assertTrue(position.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "DecorationPosition:background,foreground",
+                position.constraintFingerprints().get(PropertyValueKind.ENUM));
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.widgets.DecoratedBox\n");
+        int end = contract.indexOf("W|", start + 2);
+        if (end < 0) {
+            end = contract.length();
+        }
+        String decoratedBoxContract = contract.substring(start, end);
+        assertTrue(decoratedBoxContract.contains(
+                "P|decoration|boxDecoration|1|boxDecoration:empty|-|"
+                + "boxDecoration:boxDecoration:v2:"), decoratedBoxContract);
+        assertTrue(decoratedBoxContract.contains(
+                "P|position|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"
+                + "DecorationPosition:background,foreground\n"),
+                decoratedBoxContract);
+        assertTrue(decoratedBoxContract.endsWith(
+                "S|child|single|0|0|1|any\n"), decoratedBoxContract);
+        assertFalse(decoratedBoxContract.contains("\nC|"), decoratedBoxContract);
     }
 
     @Test

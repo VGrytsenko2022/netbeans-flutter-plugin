@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -498,6 +499,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.equals(
                 widget.type())) {
             addDirectionalityPropertySets(sheet, hasSlotTab);
+        } else if (DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.equals(
+                widget.type())) {
+            addDecoratedBoxPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -901,6 +905,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             return "Optional child painted beneath Placeholder's outline and diagonals. "
                     + "Fallback width and height apply only when the corresponding incoming "
                     + "axis is unbounded. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child composited with the required BoxDecoration. "
+                    + "Position paints that decoration behind or in front of the child. "
+                    + "Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2123,6 +2136,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     DirectionalityWidgetPropertySchema.find(property.name()).orElseThrow(
                             () -> new IllegalStateException(
                                     "Built-in Directionality property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()));
+        }
+    }
+
+    private void addDecoratedBoxPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<DecoratedBoxWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(DecoratedBoxWidgetPropertySchema.Group.class);
+        for (DecoratedBoxWidgetPropertySchema.Group group
+                : DecoratedBoxWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            DecoratedBoxWidgetPropertySchema.Definition schema =
+                    DecoratedBoxWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in DecoratedBox property is missing its "
                                     + "presentation schema: "
                                     + property.name().value()));
             groups.get(schema.group()).put(projectProperty(

@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
@@ -97,6 +98,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId PLACEHOLDER = type("flutter.widgets.Placeholder");
     private static final WidgetTypeId DIRECTIONALITY =
             DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
+    private static final WidgetTypeId DECORATED_BOX =
+            DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
@@ -113,6 +116,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final PropertyName ICON_VALUE = new PropertyName("icon");
     private static final PropertyName IMAGE_VALUE = new PropertyName("image");
     private static final PropertyName COLOR_VALUE = new PropertyName("color");
+    private static final PropertyName DECORATION_VALUE =
+            new PropertyName("decoration");
     private static final PropertyName ENABLED = new PropertyName("enabled");
     private static final PropertyName ASPECT_RATIO_VALUE =
             new PropertyName("aspectRatio");
@@ -1066,6 +1071,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .filter(definition -> !SINGLE_CHILD_SCROLL_VIEW.equals(definition.typeId()))
                 .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -1122,6 +1128,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !PLACEHOLDER.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !DECORATED_BOX.equals(type))
                 .toList();
         MatrixTargetCase scrollTarget = target(
                 "SingleChildScrollView.child", SINGLE_CHILD_SCROLL_VIEW, CHILD);
@@ -1182,6 +1189,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
                 .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -1239,6 +1247,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !PLACEHOLDER.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !DECORATED_BOX.equals(type))
                 .toList();
         MatrixTargetCase coloredBoxTarget = target(
                 "ColoredBox.child", COLORED_BOX, CHILD);
@@ -1328,6 +1337,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     void safeAreaCompletesExact1599CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
         List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> occupiedTarget(
@@ -1378,7 +1388,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, BUILT_INS.definitions().size()),
+                () -> assertEquals(43, BUILT_INS.definitions().size() - 1),
                 () -> assertEquals(39, optionalTargets.size()),
                 () -> assertEquals(37, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -1391,6 +1401,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     void placeholderCompletesExact1680CellModelWithOmittedDefaultsAndOptionalChild() {
         List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -1446,6 +1457,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !DECORATED_BOX.equals(type))
                 .toList();
         MatrixTargetCase placeholderTarget = target(
                 "Placeholder.child", PLACEHOLDER, CHILD);
@@ -1505,7 +1517,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(1680,
                         1599 + previousTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + BUILT_INS.definitions().size() - 2),
                 () -> assertEquals(1490,
                         1414 + sourceAccepted.get() + targetAccepted.get() + 1),
                 () -> assertEquals(190,
@@ -1515,6 +1527,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     @Test
     void directionalityCompletesExact1720CellModelAsRequiredWrapperAcrossAllOptionalTargets() {
         List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> occupiedTarget(
@@ -1569,14 +1582,140 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, BUILT_INS.definitions().size()),
+                () -> assertEquals(43, BUILT_INS.definitions().size() - 1),
                 () -> assertEquals(40, optionalTargets.size()),
                 () -> assertEquals(38, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
                 () -> assertEquals(1720,
-                        BUILT_INS.definitions().size() * optionalTargets.size()),
+                        (BUILT_INS.definitions().size() - 1) * optionalTargets.size()),
                 () -> assertEquals(1528, 1490 + accepted.get()),
                 () -> assertEquals(192, 190 + rejected.get()));
+    }
+
+    @Test
+    void decoratedBoxCompletesExact1804CellModelWithRequiredDecorationAndOptionalChild() {
+        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+                .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(previousTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, DECORATED_BOX, ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "DecoratedBox -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "DecoratedBox -> " + target.name());
+                assertEquals(DECORATED_BOX, success.command().widget().type());
+                assertEquals(
+                        Map.of(DECORATION_VALUE, emptyBoxDecoration()),
+                        success.command().widget().properties());
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> ordinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .toList();
+        MatrixTargetCase decoratedBoxTarget = target(
+                "DecoratedBox.child", DECORATED_BOX, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(ordinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    decoratedBoxTarget.document(), BUILT_INS, source, ROOT_ID,
+                    decoratedBoxTarget.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> DecoratedBox.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> DecoratedBox.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedDecoratedBox = occupiedTarget(
+                "DecoratedBox.child", DECORATED_BOX, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedDecoratedBox.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(44, BUILT_INS.definitions().size()),
+                () -> assertEquals(40, previousTargets.size()),
+                () -> assertEquals(38, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(42, ordinarySources.size()),
+                () -> assertEquals(41, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(1804,
+                        1720 + previousTargets.size()
+                                + BUILT_INS.definitions().size()),
+                () -> assertEquals(1607,
+                        1528 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(197,
+                        192 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -2610,6 +2749,18 @@ class FlutterDesignerPaletteDropPlannerTest {
             storage.add(index % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO);
         }
         return new PropertyValue.Matrix4Value(storage);
+    }
+
+    private static PropertyValue.BoxDecorationValue emptyBoxDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     private static WidgetDefinition replaceSlots(

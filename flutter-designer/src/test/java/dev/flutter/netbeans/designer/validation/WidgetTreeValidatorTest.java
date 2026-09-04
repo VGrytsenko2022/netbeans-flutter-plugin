@@ -2698,6 +2698,13 @@ class WidgetTreeValidatorTest {
                 PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
+    private static PropertyValue.BoxDecorationValue emptyBoxDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+    }
+
     @Test
     void distinguishesOmittedRequiredSlotFromPresentExplicitNull() {
         Map<PropertyName, PropertyValue> properties = Map.of(
@@ -3499,6 +3506,97 @@ class WidgetTreeValidatorTest {
                 WidgetTreeValidator.WIDGET_PLACEMENT);
         assertTrue(placement.message().contains(
                 "flutter.widgets.Directionality.child"), placement.message());
+    }
+
+    @Test
+    void acceptsDecoratedBoxEmptyOrReviewedDecorationPositionAndOptionalChild() {
+        WidgetNode empty = node(
+                "valid-decorated-box-empty",
+                "flutter.widgets.DecoratedBox",
+                Map.of(name("decoration"), emptyBoxDecoration()),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode foreground = node(
+                "valid-decorated-box-foreground",
+                "flutter.widgets.DecoratedBox",
+                Map.of(
+                        name("decoration"), boxDecoration(
+                                new ColorSource.Theme(new ThemeToken(
+                                        "material.colorScheme.primary"))),
+                        name("position"), new PropertyValue.EnumValue(
+                                "DecorationPosition", "foreground")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        text("decorated-box-child"))));
+
+        for (WidgetNode candidate : List.of(empty, foreground)) {
+            ValidationResult result = validator().validate(
+                    document(candidate), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+    }
+
+    @Test
+    void rejectsDecoratedBoxMissingOrWrongValuesAndRestrictedChild() {
+        WidgetNode missingDecoration = node(
+                "invalid-decorated-box-missing",
+                "flutter.widgets.DecoratedBox",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue missing = onlyIssue(
+                validator().validate(document(missingDecoration),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/decoration", missing.path());
+
+        WidgetNode wrongDecoration = node(
+                "invalid-decorated-box-kind",
+                "flutter.widgets.DecoratedBox",
+                Map.of(name("decoration"), new PropertyValue.BooleanValue(true)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue wrongKind = onlyIssue(
+                validator().validate(document(wrongDecoration),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/decoration", wrongKind.path());
+
+        WidgetNode wrongPosition = node(
+                "invalid-decorated-box-position",
+                "flutter.widgets.DecoratedBox",
+                Map.of(
+                        name("decoration"), emptyBoxDecoration(),
+                        name("position"), new PropertyValue.EnumValue(
+                                "DecorationPosition", "middle")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue position = onlyIssue(
+                validator().validate(document(wrongPosition),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/position", position.path());
+
+        WidgetNode unreviewedTheme = node(
+                "invalid-decorated-box-theme",
+                "flutter.widgets.DecoratedBox",
+                Map.of(name("decoration"), boxDecoration(
+                        new ColorSource.Theme(new ThemeToken(
+                                "material.colorScheme.notReviewed")))),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue theme = onlyIssue(
+                validator().validate(document(unreviewedTheme),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/decoration", theme.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-decorated-box-child",
+                "flutter.widgets.DecoratedBox",
+                Map.of(name("decoration"), emptyBoxDecoration()),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("decorated-box-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(document(restrictedChild),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.DecoratedBox.child"), placement.message());
     }
 
     private static WidgetTreeValidator validator() {

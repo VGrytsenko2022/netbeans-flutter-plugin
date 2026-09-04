@@ -68,6 +68,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.ColoredBox"));
         assertTrue(typeIds(result).contains("flutter.widgets.Placeholder"));
         assertTrue(typeIds(result).contains("flutter.widgets.Directionality"));
+        assertTrue(typeIds(result).contains("flutter.widgets.DecoratedBox"));
     }
 
     @Test
@@ -155,7 +156,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(43, result.catalog().definitions().size());
+        assertEquals(44, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -188,7 +189,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(43, result.catalog().definitions().size());
+        assertEquals(44, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

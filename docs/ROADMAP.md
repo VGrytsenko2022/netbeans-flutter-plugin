@@ -1320,13 +1320,33 @@ accepted architecture is documented in
   required-slot management, generic wrapper DnD, same-tree movement,
   deterministic const Dart generation, Save/reopen and further editing,
   Undo/Redo, real native/exact-Web inherited direction, accessibility and four
-  reviewed SVGs. The current surface is 43 widgets, 37 const definitions and
+  reviewed SVGs. At that milestone the surface was 43 widgets, 37 const definitions and
   727 rows (710 outside Scaffold). Forty-three sources across 38 insertable
   any-widget plus two trait destinations form 1,720 candidates: 1,528 accepted
   and 192 rejected. Layout contains 30 items, Scrolling 3, Basic 6 and Material
-  4; the practical backlog is 43/92 complete with 49 remaining. Existing
+  4; the practical backlog was 43/92 complete with 49 remaining. Existing
   encodings keep `.fd` schema v9, Catalog API 9, Canvas model v14 and NBFC
   framing/control/wire v1 unchanged.
+- [x] Complete const
+  [`DecoratedBox`](https://api.flutter.dev/flutter/widgets/DecoratedBox/DecoratedBox.html)
+  as the twenty-fourth post-core Palette vertical slice at Basic order 70,
+  after `Directionality`. Expose the complete Flutter 3.44.8 non-`key`
+  constructor: required typed `Decoration decoration`, optional closed
+  `DecorationPosition position` with exact `background` default, and one
+  optional any-widget `child`. Reuse the complete Designer-owned
+  `BoxDecoration` algebra and editor; custom `Decoration` subclasses and raw
+  Dart remain excluded. Detached creation persists an exact empty rectangular
+  `BoxDecoration()` so the required property is valid. Complete typed
+  Properties, Palette/tree/Canvas DnD, exact-slot management, same-tree
+  movement, deterministic const Dart generation, Save/reopen and further
+  editing, Undo/Redo, real native/exact-Web background and foreground paint,
+  accessibility and four reviewed SVGs. The current surface is 44 widgets, 38
+  const definitions and 729 rows (712 outside Scaffold). Forty-four sources
+  across 39 insertable any-widget plus two trait destinations form 1,804
+  candidates: 1,607 accepted and 197 rejected. Layout contains 30 items,
+  Scrolling 3, Basic 7 and Material 4; the practical backlog is 44/92 complete
+  with 48 remaining. Existing encodings keep `.fd` schema v9, Catalog API 9,
+  Canvas model v14 and NBFC framing/control/wire v1 unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1344,8 +1364,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Directionality has yet been assigned
-  an explicit order. The current typed Properties slice spans all forty-three
+  vertical slices. No specific widget after DecoratedBox has yet been assigned
+  an explicit order. The current typed Properties slice spans all forty-four
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

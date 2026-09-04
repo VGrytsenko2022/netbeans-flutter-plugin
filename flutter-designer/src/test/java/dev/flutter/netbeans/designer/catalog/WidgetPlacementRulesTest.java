@@ -623,6 +623,41 @@ class WidgetPlacementRulesTest {
     }
 
     @Test
+    void decoratedBoxIsAnOrdinaryInsertableWidgetWithOptionalRestrictedChild() {
+        WidgetDefinition decoratedBox = definition("flutter.widgets.DecoratedBox");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(decoratedBox).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), decoratedBox));
+        assertTrue(WidgetPlacementRules.accepts(
+                decoratedBox, slot(decoratedBox, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    decoratedBox,
+                    slot(decoratedBox, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.DecoratedBox.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(decoratedBox));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(
+                decoratedBox));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(decoratedBox));
+    }
+
+    @Test
     void safeAreaUsesGenericRequiredAnyWidgetAtomicWrapperCreation() {
         WidgetDefinition safeArea = definition("flutter.widgets.SafeArea");
         WidgetDefinition stack = definition("flutter.widgets.Stack");

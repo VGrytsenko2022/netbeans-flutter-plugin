@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -96,6 +97,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId PLACEHOLDER = type("flutter.widgets.Placeholder");
     private static final WidgetTypeId DIRECTIONALITY =
             DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
+    private static final WidgetTypeId DECORATED_BOX =
+            DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -105,6 +108,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             new PropertyName("aspectRatio");
     private static final PropertyName OPACITY_VALUE = new PropertyName("opacity");
     private static final PropertyName COLOR_VALUE = new PropertyName("color");
+    private static final PropertyName DECORATION_VALUE =
+            new PropertyName("decoration");
     private static final PropertyName CONSTRAINTS = new PropertyName("constraints");
     private static final PropertyName SIZE = new PropertyName("size");
     private static final PropertyName TRANSFORM_VALUE = new PropertyName("transform");
@@ -1388,6 +1393,88 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void decoratedBoxTokenCommitsRequiredDecorationAndEmptyOptionalChild() {
+        Fixture fixture = fixture(DECORATED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(DECORATED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(DECORATED_BOX, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(DECORATION_VALUE, emptyBoxDecoration()),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the DecoratedBox palette authority once"));
+    }
+
+    @Test
+    void textTokenCommitsIntoEmptyDecoratedBoxChild() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(DECORATED_BOX));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0),
+                        command.destination()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty()));
+    }
+
+    @Test
     void textTokenCommitsIntoEmptySingleChildScrollViewChild() {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -2263,6 +2350,18 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             storage.add(index % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO);
         }
         return new PropertyValue.Matrix4Value(storage);
+    }
+
+    private static PropertyValue.BoxDecorationValue emptyBoxDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     private static WidgetNode text(StableId id, String data) {

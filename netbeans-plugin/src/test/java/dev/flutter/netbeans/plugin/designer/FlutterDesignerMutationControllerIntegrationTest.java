@@ -21,6 +21,7 @@ import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
@@ -155,6 +156,10 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("fallbackWidth");
     private static final PropertyName TEXT_DIRECTION =
             new PropertyName("textDirection");
+    private static final PropertyName DECORATION =
+            new PropertyName("decoration");
+    private static final PropertyName DECORATION_POSITION =
+            new PropertyName("position");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -3644,6 +3649,236 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(candidateFd)).document();
             assertEquals(finalDirectionality,
                     findModelWidget(saved.root(), directionalityId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteDecoratedBoxSaveReopenEditUndoRedoAndSaveRemainExact()
+            throws Exception {
+        StableId decoratedBoxId = StableId.parse(
+                "79797979-7979-4979-8979-797979797979");
+        WidgetTypeId decoratedBoxType =
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
+        PropertyValue.EnumValue foreground =
+                new PropertyValue.EnumValue(
+                        "DecorationPosition", "foreground");
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_decorated_box_append", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const DecoratedBox("));
+                        assertTrue(request.content().contains(
+                                "decoration: const BoxDecoration("));
+                        assertFalse(request.content().contains("position:"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            decoratedBoxType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> decoratedBoxId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal DecoratedBox insertion");
+
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append DecoratedBox to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, decoratedBoxId));
+            WidgetNode decoratedBox = findModelWidget(
+                    added.document().orElseThrow().root(), decoratedBoxId);
+            PropertyValue.BoxDecorationValue emptyDecoration = assertInstanceOf(
+                    PropertyValue.BoxDecorationValue.class,
+                    decoratedBox.properties().get(DECORATION));
+            assertAll(
+                    () -> assertEquals(1, decoratedBox.properties().size()),
+                    () -> assertTrue(emptyDecoration.color().isEmpty()),
+                    () -> assertTrue(emptyDecoration.image().isEmpty()),
+                    () -> assertTrue(emptyDecoration.border().isEmpty()),
+                    () -> assertTrue(emptyDecoration.borderRadius().isEmpty()),
+                    () -> assertTrue(emptyDecoration.boxShadow().isEmpty()),
+                    () -> assertTrue(emptyDecoration.gradient().isEmpty()),
+                    () -> assertTrue(
+                            emptyDecoration.backgroundBlendMode().isEmpty()),
+                    () -> assertEquals(
+                            PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE,
+                            emptyDecoration.shape()),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            decoratedBox.slots().get(CHILD)).child().isEmpty()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_decorated_box_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedDecoratedBox = findModelWidget(
+                    reopened.document().orElseThrow().root(), decoratedBoxId);
+            PropertyValue.BoxDecorationValue emptyDecoration = assertInstanceOf(
+                    PropertyValue.BoxDecorationValue.class,
+                    reopenedDecoratedBox.properties().get(DECORATION));
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(decoratedBoxType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedDecoratedBox,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> decoration =
+                    cellProperty(propertiesNode, "decoration");
+            Node.Property<FlutterPropertyCellValue> position =
+                    cellProperty(propertiesNode, "position");
+            assertAll(
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.explicit(emptyDecoration),
+                            decoration.getValue()),
+                    () -> assertFalse(decoration.supportsDefaultValue(),
+                            "required decoration cannot be reset"),
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.unset(),
+                            position.getValue()),
+                    () -> assertTrue(position.supportsDefaultValue()),
+                    () -> assertArrayEquals(
+                            new String[] {
+                                FlutterWidgetPropertiesNode.NOT_SET,
+                                "background", "foreground"
+                            },
+                            position.getPropertyEditor().getTags()),
+                    () -> assertEquals("Empty", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const DecoratedBox("));
+                        assertTrue(request.content().contains(
+                                "decoration: const BoxDecoration("));
+                        assertTrue(request.content().contains(
+                                ".DecorationPosition.foreground"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    decoratedBoxId,
+                                    DECORATION_POSITION,
+                                    foreground),
+                            "DecoratedBox.position")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot editedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, decoratedBoxId));
+            assertEquals(foreground, findModelWidget(
+                    editedSnapshot.document().orElseThrow().root(),
+                    decoratedBoxId).properties().get(DECORATION_POSITION));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            editedSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, decoratedBoxId));
+            assertFalse(findModelWidget(
+                    undone.document().orElseThrow().root(),
+                    decoratedBoxId).properties().containsKey(
+                            DECORATION_POSITION));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, decoratedBoxId));
+            WidgetNode finalDecoratedBox = findModelWidget(
+                    redone.document().orElseThrow().root(), decoratedBoxId);
+            assertAll(
+                    () -> assertEquals(foreground,
+                            finalDecoratedBox.properties().get(
+                                    DECORATION_POSITION)),
+                    () -> assertEquals(emptyDecoration,
+                            finalDecoratedBox.properties().get(DECORATION)),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            finalDecoratedBox.slots().get(CHILD))
+                            .child().isEmpty()),
+                    () -> assertEquals(1, analyses.get(),
+                            "Undo/Redo replays the exact analyzed pair"));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(finalDecoratedBox,
+                    findModelWidget(saved.root(), decoratedBoxId));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

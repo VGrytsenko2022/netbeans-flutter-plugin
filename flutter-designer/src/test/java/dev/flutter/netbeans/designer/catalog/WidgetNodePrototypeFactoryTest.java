@@ -247,6 +247,57 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsDecoratedBoxWithExactEmptyDecorationAndOptionalChild() {
+        WidgetDefinition definition = definition("flutter.widgets.DecoratedBox");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        PropertyValue.BoxDecorationValue decoration = assertInstanceOf(
+                PropertyValue.BoxDecorationValue.class,
+                prototype.properties().get(new PropertyName("decoration")));
+        assertTrue(decoration.color().isEmpty());
+        assertTrue(decoration.image().isEmpty());
+        assertTrue(decoration.border().isEmpty());
+        assertTrue(decoration.borderRadius().isEmpty());
+        assertTrue(decoration.boxShadow().isEmpty());
+        assertTrue(decoration.gradient().isEmpty());
+        assertTrue(decoration.backgroundBlendMode().isEmpty());
+        assertEquals(PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE,
+                decoration.shape());
+        assertFalse(prototype.properties().containsKey(new PropertyName("position")));
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+
+        WidgetNode foreground = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("position"),
+                        new PropertyValue.EnumValue(
+                                "DecorationPosition", "foreground")));
+        assertEquals(new PropertyValue.EnumValue(
+                        "DecorationPosition", "foreground"),
+                foreground.properties().get(new PropertyName("position")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("position"),
+                                new PropertyValue.EnumValue(
+                                        "DecorationPosition", "middle"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("decoration"),
+                                new PropertyValue.BooleanValue(true))));
+    }
+
+    @Test
     void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Align"), ID);

@@ -518,6 +518,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Container' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
+        node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
@@ -2299,6 +2300,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Placeholder' => _placeholder(context),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
+      'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.FittedBox' => _fittedBox(),
       'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
       'flutter.widgets.Opacity' => _opacity(),
@@ -4195,6 +4197,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     transform: _matrix4('transform'),
     transformAlignment: _alignmentGeometry('transformAlignment'),
     clipBehavior: _clipBehavior() ?? Clip.none,
+    child: _single('child'),
+  );
+
+  Widget _decoratedBox(BuildContext context) => DecoratedBox(
+    decoration: _boxDecoration(context, 'decoration')!,
+    position: _enum('position') == 'foreground'
+        ? DecorationPosition.foreground
+        : DecorationPosition.background,
     child: _single('child'),
   );
 

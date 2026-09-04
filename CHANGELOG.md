@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`DecoratedBox`](https://api.flutter.dev/flutter/widgets/DecoratedBox/DecoratedBox.html)
+  vertical slice is the twenty-fourth post-core Palette addition, at Basic
+  order 70 after `Directionality`. Its complete Flutter 3.44.8 non-`key`
+  constructor exposes required `Decoration decoration`, optional
+  `DecorationPosition position` with the exact `background` default, and one
+  optional any-widget `child`. Designer creation persists an empty rectangular
+  `BoxDecoration()` so the required argument is always valid; Designer's
+  reviewed `BoxDecoration` branch covers literal and Material-theme colors, assets,
+  borders, physical or directional radii, ordered shadows, gradients, blend
+  mode and box shape without admitting arbitrary Dart expressions or custom
+  `Decoration` subclasses. Generated Dart and native/exact-Web Canvas construct
+  the real widget; typed grouped Properties, Palette/tree/Canvas DnD, exact-slot
+  management, same-tree movement, Save/reopen and further editing, Undo/Redo,
+  accessibility and four reviewed light/dark 16/32 px SVGs share the same
+  closed contract. The catalog now contains 44 widgets, 38 reviewed const
+  constructors and 729 writable rows, including 712 across the 43
+  non-`Scaffold` definitions. Forty-four sources across 39 insertable
+  any-widget and two trait-bound destinations form 1,804 candidates: 1,607
+  accepted and 197 rejected. Layout contains 30 items, Scrolling 3, Basic 7
+  and Material 4; the practical backlog is 44/92 complete with 48 remaining.
+  Existing encodings keep `.fd` schema v9, Catalog API 9, Canvas model v14
+  and NBFC framing/control/wire v1 unchanged.
+- The accepted const
   [`Directionality`](https://api.flutter.dev/flutter/widgets/Directionality/Directionality.html)
   vertical slice is the twenty-third post-core Palette addition, at Basic
   order 60 after `Placeholder`. Its complete Flutter 3.44.8 non-`key`
@@ -18,12 +41,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   inherited widget; typed Properties, Palette/tree/Canvas wrapping,
   exact-slot management, same-tree movement, Save/reopen and further editing,
   Undo/Redo, accessibility and four reviewed light/dark 16/32 px SVGs share
-  the same closed contract. The catalog now contains 43 widgets, 37 reviewed
+  the same closed contract. At that milestone the catalog contained 43 widgets, 37 reviewed
   const constructors and 727 writable rows, including 710 across the 42
   non-`Scaffold` definitions. Forty-three sources across 38 insertable
   any-widget and two trait-bound destinations form 1,720 candidates: 1,528
   accepted and 192 rejected. Layout contains 30 items, Scrolling 3, Basic 6
-  and Material 4; the practical backlog is 43/92 complete with 49 remaining.
+  and Material 4; the practical backlog was 43/92 complete with 49 remaining.
   Existing encodings keep `.fd` schema v9, Catalog API 9, Canvas model v14
   and NBFC framing/control/wire v1 unchanged.
 - The accepted const

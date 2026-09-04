@@ -4161,6 +4161,23 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.DecoratedBox': _WidgetSpec(
+    {
+      'decoration': _PropertySpec(
+        {'boxDecoration'},
+        required: true,
+        creationDefaultFingerprint: 'boxDecoration:empty',
+        themeTokens: canvasColorSchemeThemeTokens,
+      ),
+      'position': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'DecorationPosition',
+        enumValues: {'background', 'foreground'},
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.ConstrainedBox': _WidgetSpec(
     {
       'constraints': _PropertySpec(
@@ -5435,6 +5452,10 @@ P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.DecoratedBox
+P|decoration|boxDecoration|1|boxDecoration:empty|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|position|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:DecorationPosition:background,foreground
+S|child|single|0|0|1|any
 W|flutter.widgets.Directionality
 P|textDirection|enum|1|enum:TextDirection:ltr|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 S|child|single|1|1|1|any
@@ -6006,15 +6027,13 @@ void _validatePropertyRelationships(
       '$path/properties/clipBehavior',
     );
     for (final name in const ['decoration', 'foregroundDecoration']) {
-      final decoration = properties[name]?.value;
-      if (decoration is! CanvasBoxDecorationValue) {
-        continue;
-      }
-      final resolution = decoration.image?.image.resolution;
-      if (resolution is CanvasResolvedImageValue) {
-        budget.imageResourceIds.add(resolution.resourceId);
-      }
+      _recordBoxDecorationImageResource(properties[name]?.value, budget);
     }
+    return;
+  }
+
+  if (type == 'flutter.widgets.DecoratedBox') {
+    _recordBoxDecorationImageResource(properties['decoration']?.value, budget);
     return;
   }
 
@@ -6210,6 +6229,16 @@ void _validatePropertyRelationships(
     '$firstPath',
   );
   budget.semanticsIdentifierPaths[semanticsIdentifier] = propertyPath;
+}
+
+void _recordBoxDecorationImageResource(Object? value, _NodeBudget budget) {
+  if (value is! CanvasBoxDecorationValue) {
+    return;
+  }
+  final resolution = value.image?.image.resolution;
+  if (resolution is CanvasResolvedImageValue) {
+    budget.imageResourceIds.add(resolution.resourceId);
+  }
 }
 
 void _validateElevatedButtonRelationships(

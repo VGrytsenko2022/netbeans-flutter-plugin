@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
@@ -84,6 +85,8 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId SAFE_AREA = type("flutter.widgets.SafeArea");
     private static final WidgetTypeId DIRECTIONALITY =
             DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
+    private static final WidgetTypeId DECORATED_BOX =
+            DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -350,6 +353,51 @@ class FlutterDesignerWidgetMovePlannerTest {
                 () -> assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
                         directionality.slots().get(CHILD)).child().orElseThrow()));
         assertAcceptedCommandApplies(document, BUILT_INS, directionality, result);
+    }
+
+    @Test
+    void completedDecoratedBoxMovesWithDecorationPositionChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "decorated child");
+        WidgetNode palettePrototype = WidgetNodePrototypeFactory.create(
+                definition(DECORATED_BOX), A_ID);
+        LinkedHashMap<PropertyName, PropertyValue> properties =
+                new LinkedHashMap<>(palettePrototype.properties());
+        properties.put(
+                new PropertyName("position"),
+                new PropertyValue.EnumValue("DecorationPosition", "foreground"));
+        WidgetNode decoratedBox = new WidgetNode(
+                palettePrototype.id(),
+                palettePrototype.type(),
+                properties,
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(decoratedBox, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                decoratedBox.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(decoratedBox.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertTrue(decoratedBox.properties().containsKey(
+                        new PropertyName("decoration"))),
+                () -> assertEquals(
+                        new PropertyValue.EnumValue(
+                                "DecorationPosition", "foreground"),
+                        decoratedBox.properties().get(new PropertyName("position"))),
+                () -> assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                        decoratedBox.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, decoratedBox, result);
     }
 
     @Test
@@ -1010,6 +1058,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyPlaceholder.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyDecoratedBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into DecoratedBox");
+        WidgetNode emptyDecoratedBox = WidgetNodePrototypeFactory.create(
+                definition(DECORATED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyDecoratedBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyDecoratedBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyDecoratedBox.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

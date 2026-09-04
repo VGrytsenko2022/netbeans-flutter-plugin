@@ -118,6 +118,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Container'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.DecoratedBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(
       canvasDropSlotsForWidgetType('flutter.widgets.ConstrainedBox'),
       const [canvasEmptyChildDropSlot],
@@ -607,7 +610,7 @@ void main() {
     );
   });
 
-  test('closes the 43-source by 40-destination compatibility matrix', () {
+  test('closes the 44-source by 41-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -636,6 +639,7 @@ void main() {
       'flutter.widgets.Placeholder',
       'flutter.widgets.ColoredBox',
       'flutter.widgets.Container',
+      'flutter.widgets.DecoratedBox',
       'flutter.widgets.Expanded',
       'flutter.widgets.Flexible',
       'flutter.widgets.Spacer',
@@ -661,8 +665,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(43));
-    expect(destinations, hasLength(40));
+    expect(sourceTypes, hasLength(44));
+    expect(destinations, hasLength(41));
 
     var accepted = 0;
     var rejected = 0;
@@ -688,9 +692,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1528);
-    expect(rejected, 192);
-    expect(accepted + rejected, 1720);
+    expect(accepted, 1607);
+    expect(rejected, 197);
+    expect(accepted + rejected, 1804);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -10604,6 +10608,163 @@ void main() {
   );
 
   testWidgets(
+    'renders real DecoratedBox position and BoxDecoration on native and exact-Web profiles',
+    (tester) async {
+      const decoratedBoxId = '607a1c0f-5fd3-438c-ae36-0a054ce05949';
+      const childId = '2042d2d2-013a-4366-9483-71dcc7d1a711';
+      final semantics = tester.ensureSemantics();
+      final cases = <({String platform, bool foreground, bool themed})>[
+        (platform: 'windows', foreground: false, themed: false),
+        (platform: 'web', foreground: true, themed: true),
+      ];
+
+      for (final entry in cases) {
+        final json = _modelWithDecoratedBox(
+          properties: {
+            'decoration': _viewBoxDecoration(
+              color: entry.themed
+                  ? _viewThemeColor('material.colorScheme.primaryContainer')
+                  : _viewLiteralColor('0xFF123456'),
+              borderRadius: _viewPhysicalRadius(),
+              boxShadow: [_viewBoxShadow()],
+            ),
+            if (entry.foreground)
+              'position': {
+                'kind': 'enum',
+                'type': 'DecorationPosition',
+                'value': 'foreground',
+              },
+          },
+          child: _viewSizedBoxNode(childId, width: 80, height: 40),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final rendered = find.byKey(
+          const ValueKey('canvas-widget-$decoratedBoxId'),
+        );
+        final decoratedBoxFinder = find.descendant(
+          of: rendered,
+          matching: find.byType(DecoratedBox),
+        );
+        expect(decoratedBoxFinder, findsOneWidget, reason: entry.platform);
+        final decoratedBox = tester.widget<DecoratedBox>(decoratedBoxFinder);
+        expect(
+          decoratedBox.position,
+          entry.foreground
+              ? DecorationPosition.foreground
+              : DecorationPosition.background,
+          reason: entry.platform,
+        );
+        final decoration = decoratedBox.decoration as BoxDecoration;
+        final expectedColor = entry.themed
+            ? Theme.of(
+                tester.element(decoratedBoxFinder),
+              ).colorScheme.primaryContainer
+            : const Color(0xff123456);
+        expect(decoration.color, expectedColor, reason: entry.platform);
+        expect(decoration.borderRadius, isNotNull, reason: entry.platform);
+        expect(decoration.boxShadow, hasLength(1), reason: entry.platform);
+        expect(decoratedBox.child, isNotNull, reason: entry.platform);
+        expect(tester.getSize(rendered), const Size(80, 40));
+        expect(
+          find.descendant(
+            of: decoratedBoxFinder,
+            matching: find.byKey(const ValueKey('canvas-widget-$childId')),
+          ),
+          findsOneWidget,
+          reason: entry.platform,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp('DecoratedBox ${RegExp.escape(decoratedBoxId)}'),
+          ),
+          findsOneWidget,
+          reason: 'Designer accessibility identity on ${entry.platform}',
+        );
+        expect(tester.takeException(), isNull, reason: entry.platform);
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'keeps empty DecoratedBox at zero layout with a transient selectable child target',
+    (tester) async {
+      const decoratedBoxId = '607a1c0f-5fd3-438c-ae36-0a054ce05949';
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithDecoratedBox(
+                properties: {'decoration': _viewBoxDecoration()},
+                child: null,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$decoratedBoxId'),
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$decoratedBoxId'),
+      );
+      final decoratedBoxFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(DecoratedBox),
+      );
+      expect(decoratedBoxFinder, findsOneWidget);
+      expect(tester.widget<DecoratedBox>(decoratedBoxFinder).child, isNull);
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, decoratedBoxId);
+      expect(tester.getSize(rendered), Size.zero);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, decoratedBoxId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders every Container argument through real Flutter objects and keeps its outline outside transform',
     (tester) async {
       const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
@@ -14283,6 +14444,35 @@ Map<String, Object?> _modelWithDirectionality({
     'properties': <String, Object?>{},
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': content},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithDecoratedBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '607a1c0f-5fd3-438c-ae36-0a054ce05949',
+          'type': 'flutter.widgets.DecoratedBox',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
     },
   };
   return model;

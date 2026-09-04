@@ -5916,6 +5916,158 @@ void main() {
     );
   });
 
+  test(
+    'decodes required DecoratedBox decoration, position, optional child, and image resource',
+    () {
+      const resourceId =
+          'd8d66d4a8f164f97eb04596859253f033379068bed9f0153118c36957351f352';
+      final empty = _decode(
+        _decoratedBoxModel(decoration: _canvasBoxDecoration()),
+      ).root;
+      expect(empty.type, 'flutter.widgets.DecoratedBox');
+      expect(empty.properties.keys, const ['decoration']);
+      final emptyDecoration =
+          empty.properties['decoration']!.value as CanvasBoxDecorationValue;
+      expect(emptyDecoration.color, isNull);
+      expect(emptyDecoration.image, isNull);
+      expect(emptyDecoration.border, isNull);
+      expect(emptyDecoration.borderRadius, isNull);
+      expect(emptyDecoration.boxShadow, isEmpty);
+      expect(emptyDecoration.gradient, isNull);
+      expect(emptyDecoration.backgroundBlendMode, isNull);
+      expect(emptyDecoration.shape, 'rectangle');
+      expect(empty.slot('child')!.child, isNull);
+
+      final child = _node(
+        '2042d2d2-013a-4366-9483-71dcc7d1a711',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Decorated child'},
+        },
+      );
+      final configured = _decode(
+        _decoratedBoxModel(
+          decoration: _canvasBoxDecoration(
+            color: _canvasThemeColor('material.colorScheme.primaryContainer'),
+            image: _canvasDecorationImage(
+              image: _canvasImageProvider(
+                resolution: {
+                  'kind': 'resolved',
+                  'resourceId': resourceId,
+                  'resolvedScale': 1,
+                },
+              ),
+            ),
+            borderRadius: _canvasDirectionalRadius(),
+            boxShadow: [_canvasBoxShadow()],
+          ),
+          position: 'foreground',
+          child: child,
+        ),
+      );
+      final node = configured.root;
+      final position = node.properties['position']!.value as CanvasEnumValue;
+      expect(position.type, 'DecorationPosition');
+      expect(position.value, 'foreground');
+      expect(node.slot('child')!.child!.type, 'flutter.widgets.Text');
+      expect(configured.imageResourceIds, {resourceId});
+    },
+  );
+
+  test('rejects incomplete or unreviewed DecoratedBox branches', () {
+    final text = _node(
+      '2042d2d2-013a-4366-9483-71dcc7d1a711',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Child'},
+      },
+    );
+    for (final invalid in <Map<String, Object?>>[
+      _decoratedBoxModel(properties: const {}),
+      _decoratedBoxModel(
+        decoration: const {'kind': 'color', 'argb': '0xFF112233'},
+      ),
+      _decoratedBoxModel(
+        decoration: _canvasBoxDecoration(),
+        position: 'middle',
+      ),
+      _decoratedBoxModel(
+        decoration: _canvasBoxDecoration(),
+        position: 'foreground',
+        positionType: 'BoxDecorationPosition',
+      ),
+      _decoratedBoxModel(
+        decoration: _canvasBoxDecoration(
+          borderRadius: _canvasPhysicalRadius(),
+          shape: 'circle',
+        ),
+      ),
+      _decoratedBoxModel(
+        decoration: _canvasBoxDecoration(),
+        properties: {
+          'decoration': _canvasBoxDecoration(),
+          'futureProperty': {'kind': 'boolean', 'value': true},
+        },
+      ),
+    ]) {
+      expect(
+        () => _decode(invalid),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+
+    final wrongSlot = _decoratedBoxModel(decoration: _canvasBoxDecoration());
+    (wrongSlot['root']! as Map<String, Object?>)['slots'] = {
+      'child': {
+        'kind': 'list',
+        'children': [text],
+      },
+    };
+    expect(() => _decode(wrongSlot), throwsFormatException);
+
+    final expanded = _node(
+      '47184ff3-7c45-49e5-9039-3079417a7c67',
+      'flutter.widgets.Expanded',
+      slots: {'child': _single(text)},
+    );
+    expect(
+      () => _decode(
+        _decoratedBoxModel(decoration: _canvasBoxDecoration(), child: expanded),
+      ),
+      throwsFormatException,
+      reason: 'DecoratedBox cannot become the RenderFlex parent of Expanded',
+    );
+  });
+
+  test('DecoratedBox reviewed schema is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.DecoratedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Directionality\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final slice = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(slice), hasLength(2));
+    expect(RegExp(r'^S\|', multiLine: true).allMatches(slice), hasLength(1));
+    expect(
+      slice,
+      startsWith(
+        'W|flutter.widgets.DecoratedBox\n'
+        'P|decoration|boxDecoration|1|boxDecoration:empty|-|'
+        'boxDecoration:boxDecoration:v2:',
+      ),
+    );
+    expect(
+      slice,
+      contains(
+        'P|position|enum|0|-|-|enum:enum:'
+        'cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:'
+        'DecorationPosition:background,foreground\n',
+      ),
+    );
+    expect(slice, endsWith('S|child|single|0|0|1|any\n'));
+  });
+
   test('decodes the complete strict Container contract and nested unions', () {
     final child = _node(
       'e1c67a19-d25c-4675-92c4-cab1772bf571',
@@ -6465,7 +6617,7 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf('W|flutter.widgets.Directionality\n', start);
+    final end = contract.indexOf('W|flutter.widgets.DecoratedBox\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);
@@ -8553,6 +8705,30 @@ Map<String, Object?> _containerModel({
     '97c8e20f-d895-42d0-a968-dc8cc0306327',
     'flutter.widgets.Container',
     properties: properties,
+    slots: {'child': _single(child)},
+  );
+  return model;
+}
+
+Map<String, Object?> _decoratedBoxModel({
+  Map<String, Object?>? decoration,
+  String? position,
+  String positionType = 'DecorationPosition',
+  Map<String, Object?>? child,
+  Map<String, Object?>? properties,
+}) {
+  final model = _modelJson();
+  final values =
+      properties ??
+      <String, Object?>{
+        'decoration': ?decoration,
+        if (position != null)
+          'position': {'kind': 'enum', 'type': positionType, 'value': position},
+      };
+  model['root'] = _node(
+    '607a1c0f-5fd3-438c-ae36-0a054ce05949',
+    'flutter.widgets.DecoratedBox',
+    properties: values,
     slots: {'child': _single(child)},
   );
   return model;

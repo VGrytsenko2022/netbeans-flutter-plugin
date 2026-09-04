@@ -116,7 +116,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 "flutter.widgets.Placeholder",
-                "flutter.widgets.Directionality"),
+                "flutter.widgets.Directionality",
+                "flutter.widgets.DecoratedBox"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -311,6 +312,67 @@ class CanvasModelPayloadCodecTest {
                 IllegalArgumentException.class,
                 () -> request(new DesignerDocument(
                         DOCUMENT_ID, source(), directionality)));
+
+        assertTrue(failure.getMessage().contains("designer.property.missing"),
+                failure::getMessage);
+    }
+
+    @Test
+    void projectsDecoratedBoxTypedDecorationPositionAndOptionalChildWithoutProtocolChange()
+            throws Exception {
+        PropertyValue.BoxDecorationValue decoration =
+                new PropertyValue.BoxDecorationValue(
+                        Optional.of(new ColorSource.Literal(0xFF102030L)),
+                        Optional.empty(),
+                        Optional.empty(),
+                        List.of(),
+                        Optional.empty(),
+                        Optional.empty(),
+                        PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
+        WidgetNode decoratedBox = new WidgetNode(
+                id("914da39f-6ac7-4210-a6e0-9b86c8da306a"),
+                type("flutter.widgets.DecoratedBox"),
+                Map.of(
+                        new PropertyName("decoration"), decoration,
+                        new PropertyName("position"), new PropertyValue.EnumValue(
+                                "DecorationPosition", "foreground")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "789cf2e4-c77d-45a3-b015-8d1080516b78",
+                        "Decorated child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), decoratedBox))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.DecoratedBox\""), json);
+        assertTrue(json.contains(
+                "\"decoration\":{\"kind\":\"boxDecoration\""), json);
+        assertTrue(json.contains(
+                "\"color\":{\"kind\":\"literal\",\"argb\":\"0xFF102030\"}"),
+                json);
+        assertTrue(json.contains("\"shape\":\"rectangle\""), json);
+        assertTrue(json.contains("\"position\":{\"kind\":\"enum\","
+                + "\"type\":\"DecorationPosition\",\"value\":\"foreground\"}"),
+                json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"789cf2e4-c77d-45a3-b015-8d1080516b78\""),
+                json);
+    }
+
+    @Test
+    void rejectsDecoratedBoxWithoutRequiredDecorationBeforePayloadEncoding() {
+        WidgetNode decoratedBox = new WidgetNode(
+                id("62cc1ed5-786b-47e8-9b40-c88e87e21db1"),
+                type("flutter.widgets.DecoratedBox"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> request(new DesignerDocument(
+                        DOCUMENT_ID, source(), decoratedBox)));
 
         assertTrue(failure.getMessage().contains("designer.property.missing"),
                 failure::getMessage);

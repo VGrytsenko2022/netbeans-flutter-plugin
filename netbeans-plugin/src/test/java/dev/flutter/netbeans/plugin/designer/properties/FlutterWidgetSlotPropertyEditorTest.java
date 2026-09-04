@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -944,6 +945,71 @@ class FlutterWidgetSlotPropertyEditorTest {
             child.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted Placeholder child dialog may consume its revision lease once");
+            return null;
+        });
+    }
+
+    @Test
+    void decoratedBoxOptionalChildUsesTheGenericTransactionalAddFlow()
+            throws Exception {
+        WidgetDefinition decoratedBoxDefinition = CATALOG
+                .find(DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE)
+                .orElseThrow();
+        WidgetNode decoratedBox = WidgetNodePrototypeFactory.create(
+                decoratedBoxDefinition,
+                id("81818181-8181-4181-8181-818181818181"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(decoratedBox),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                decoratedBox,
+                decoratedBoxDefinition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            assertEquals(List.of("No change", "Add new widget"), labels(action));
+            selectLabel(action, "Add new widget");
+            assertEquals(List.of("Text"), labels(addType));
+            selectLabel(addType, "Text");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(decoratedBox.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted DecoratedBox child dialog consumes one revision lease");
             return null;
         });
     }

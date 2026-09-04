@@ -54,6 +54,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -1998,6 +1999,124 @@ class DesignerCommandSessionTest {
                         editedAfterReopen.current().dartCandidateBytes(),
                         StandardCharsets.UTF_8)
                 .contains("textDirection: TextDirection.ltr"));
+    }
+
+    @Test
+    void decoratedBoxRequiredDecorationChildPositionUndoRedoSaveReopenAreExact()
+            throws Exception {
+        PropertyName position = property("position");
+        DesignerCommandSession initial = session(fixture());
+        WidgetDefinition definition = CATALOG.find(
+                type("flutter.widgets.DecoratedBox")).orElseThrow();
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition, WRAPPER_ID);
+        PropertyValue.BoxDecorationValue empty = assertInstanceOf(
+                PropertyValue.BoxDecorationValue.class,
+                prototype.properties().get(DECORATION));
+        assertTrue(empty.color().isEmpty());
+        assertTrue(empty.image().isEmpty());
+        assertTrue(empty.border().isEmpty());
+        assertTrue(empty.borderRadius().isEmpty());
+        assertTrue(empty.boxShadow().isEmpty());
+        assertTrue(empty.gradient().isEmpty());
+        assertTrue(empty.backgroundBlendMode().isEmpty());
+        assertEquals(PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE,
+                empty.shape());
+        assertFalse(prototype.properties().containsKey(position));
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        String prototypeDart = new String(
+                added.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(prototypeDart.contains("const DecoratedBox("), prototypeDart);
+        assertTrue(prototypeDart.contains(
+                "decoration: const BoxDecoration("), prototypeDart);
+        assertFalse(prototypeDart.contains("position:"), prototypeDart);
+
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Decorated child")));
+        DesignerCommandSession decorated = applied(childAdded, new SetProperty(
+                WRAPPER_ID, DECORATION, simpleDecoration()));
+        DesignerCommandSession foreground = applied(decorated, new SetProperty(
+                WRAPPER_ID, position, new PropertyValue.EnumValue(
+                        "DecorationPosition", "foreground")));
+
+        assertRejected(foreground, new SetProperty(
+                        WRAPPER_ID, position, new PropertyValue.EnumValue(
+                                "DecorationPosition", "middle")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(foreground, new ResetProperty(WRAPPER_ID, DECORATION),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+
+        String foregroundDart = new String(
+                foreground.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(foregroundDart.contains("const DecoratedBox("), foregroundDart);
+        assertTrue(foregroundDart.contains(
+                "decoration: const BoxDecoration("), foregroundDart);
+        assertTrue(foregroundDart.contains(
+                "color: const Color(0xFF405060)"), foregroundDart);
+        assertTrue(foregroundDart.contains(
+                ".DecorationPosition.foreground"), foregroundDart);
+        assertTrue(foregroundDart.contains(
+                "child: const Text('Decorated child')"), foregroundDart);
+
+        DesignerCommandSession reset = applied(
+                foreground, new ResetProperty(WRAPPER_ID, position));
+        assertFalse(find(reset.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(position));
+        assertFalse(new String(
+                        reset.current().dartCandidateBytes(), StandardCharsets.UTF_8)
+                .contains("position:"));
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.EnumValue(
+                        "DecorationPosition", "foreground"),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(position));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains(
+                "\"type\": \"flutter.widgets.DecoratedBox\""), fd);
+        assertTrue(fd.contains("\"kind\": \"boxDecoration\""), fd);
+        assertTrue(fd.contains("\"argb\": \"0xFF405060\""), fd);
+        assertFalse(fd.contains("\"position\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID, position, new PropertyValue.EnumValue(
+                                "DecorationPosition", "background")));
+        assertEquals(new PropertyValue.EnumValue(
+                        "DecorationPosition", "background"),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(position));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains(".DecorationPosition.background"));
     }
 
     @Test

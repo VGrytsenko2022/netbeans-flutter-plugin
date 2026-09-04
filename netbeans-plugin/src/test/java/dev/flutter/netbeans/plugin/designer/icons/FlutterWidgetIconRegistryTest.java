@@ -1083,6 +1083,37 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void decoratedBoxFamilyUsesExactReviewedDecorationGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "decoratedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=2, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "path[d=M3.5 11.5l8-8, stroke-linecap=round, stroke-width=1.5]",
+                "circle[cx=5, cy=5, r=1.5, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=4, stroke-width=2, width=26, x=3, y=3]",
+                "path[d=M7 23L23 7, stroke-linecap=round, stroke-width=3]",
+                "circle[cx=10, cy=10, r=3, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#FFF3E0, stroke=#40566D]",
+                "path[fill=none, stroke=#FB8C00]",
+                "circle[fill=#42A5F5, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#3B3024, stroke=#C5D3DF]",
+                "path[fill=none, stroke=#FFB74D]",
+                "circle[fill=#90CAF9, stroke=#4DD0E1]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "wrap.svg";
@@ -1457,6 +1488,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg");
         expected.put("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg");
         expected.put("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg");
+        expected.put("flutter.widgets.DecoratedBox", ICON_ROOT + "decoratedbox.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.Wrap", ICON_ROOT + "wrap.svg");

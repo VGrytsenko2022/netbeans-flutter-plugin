@@ -51,6 +51,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.ColoredBox",
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
+            "flutter.widgets.DecoratedBox",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -89,8 +90,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(43, CATALOG.definitions().size());
-        assertEquals(37, CATALOG.definitions().stream()
+        assertEquals(44, CATALOG.definitions().size());
+        assertEquals(38, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -115,7 +116,8 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
         assertEquals(List.of(
-                "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality"),
+                "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
+                "DecoratedBox"),
                 itemLabels(categories[3]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
@@ -147,7 +149,8 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
         assertEquals(List.of(
-                "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality"),
+                "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
+                "DecoratedBox"),
                 itemLabels(categories[3]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
@@ -1030,6 +1033,35 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void decoratedBoxPaletteSelectionExplainsTypedDecorationPositionAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.DecoratedBox";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.basic",
+                        300,
+                        70,
+                        "DecoratedBox"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("DecoratedBox", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("BoxDecoration"));
+        assertTrue(node.getShortDescription().contains("behind or in front"));
+        assertTrue(node.getShortDescription().contains("optional child"));
+        assertTrue(node.getShortDescription().contains("typed decoration editor"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void textFieldPaletteSelectionExplainsRuntimeOnlyEditingState()
             throws ReflectiveOperationException {
         String typeId = "flutter.material.TextField";
@@ -1329,7 +1361,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void fortyThreeCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyFourCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1348,7 +1380,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(43, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(44, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

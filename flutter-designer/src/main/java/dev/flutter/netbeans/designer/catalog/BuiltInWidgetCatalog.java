@@ -66,6 +66,7 @@ public final class BuiltInWidgetCatalog {
             coloredBox(),
             placeholder(),
             directionality(),
+            decoratedBox(),
             elevatedButton(),
             textField()));
 
@@ -1499,6 +1500,40 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition decoratedBox() {
+        List<String> reviewedColorThemeTokens = MaterialThemeTokenCatalog.colorRoles()
+                .keySet().stream().sorted().toList();
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "decoration",
+                        0,
+                        true,
+                        List.of(new PropertyValueConstraint.BoxDecorationValues(
+                                reviewedColorThemeTokens)),
+                        emptyBoxDecoration()),
+                namedProperty(
+                        "position",
+                        1,
+                        false,
+                        renderingEnumValues(
+                                "DecorationPosition", "background", "foreground")));
+        if (properties.size()
+                != DecoratedBoxWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "DecoratedBox catalog/property schema count mismatch");
+        }
+        return widget(
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                "DecoratedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, RENDERING_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 70, "DecoratedBox"),
+                properties,
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition textField() {
         List<PropertyDefinition> properties = new ArrayList<>();
         int order = 0;
@@ -1935,6 +1970,18 @@ public final class BuiltInWidgetCatalog {
                 BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE));
+    }
+
+    private static PropertyValue.BoxDecorationValue emptyBoxDecoration() {
+        return new PropertyValue.BoxDecorationValue(
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                Optional.empty(),
+                Optional.empty(),
+                PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE);
     }
 
     private static List<PropertyValueConstraint> colorOrTheme() {

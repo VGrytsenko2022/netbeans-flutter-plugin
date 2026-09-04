@@ -49,6 +49,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId ASPECT_RATIO =
             type("flutter.widgets.AspectRatio");
     private static final WidgetTypeId OPACITY = type("flutter.widgets.Opacity");
+    private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
     private static final WidgetTypeId ALIGN = type("flutter.widgets.Align");
     private static final WidgetTypeId FRACTIONALLY_SIZED_BOX =
             type("flutter.widgets.FractionallySizedBox");
@@ -885,6 +886,31 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(
                 new WidgetPlacement(emptyOverflowBox.id(), CHILD, 0),
+                command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyColoredBoxChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into ColoredBox");
+        WidgetNode emptyColoredBox = WidgetNodePrototypeFactory.create(
+                definition(COLORED_BOX), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, emptyColoredBox)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(emptyColoredBox.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(
+                new WidgetPlacement(emptyColoredBox.id(), CHILD, 0),
                 command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }

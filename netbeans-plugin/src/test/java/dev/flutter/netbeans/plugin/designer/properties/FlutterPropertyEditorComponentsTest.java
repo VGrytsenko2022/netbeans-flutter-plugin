@@ -2439,12 +2439,14 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(99, booleanProperties.size(),
+        assertEquals(100, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.SingleChildScrollView.reverse"));
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.SingleChildScrollView.primary"));
+        assertTrue(booleanProperties.contains(
+                "flutter.widgets.ColoredBox.isAntiAlias"));
 
         onEdt(() -> {
             for (String qualifiedName : booleanProperties) {

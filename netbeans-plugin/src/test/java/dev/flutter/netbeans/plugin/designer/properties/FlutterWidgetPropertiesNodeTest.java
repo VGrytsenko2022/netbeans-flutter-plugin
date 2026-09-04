@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -796,6 +797,11 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("crossAxisCount"),
                         new PropertyValue.IntegerValue(BigInteger.valueOf(2))));
+        requiredValues.put(
+                "flutter.widgets.ColoredBox",
+                Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF2196F3L)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -836,7 +842,8 @@ class FlutterWidgetPropertiesNodeTest {
                         .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
-                "flutter.widgets.Image");
+                "flutter.widgets.Image",
+                "flutter.widgets.ColoredBox");
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -870,7 +877,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(714, writableCount,
+        assertEquals(716, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -880,8 +887,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, ListView, GridView.count, SingleChildScrollView, "
-                + "and Image leaves");
-        assertEquals(697, nonScaffoldWritableCount,
+                + "Image, and ColoredBox leaves");
+        assertEquals(699, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2070,6 +2077,97 @@ class FlutterWidgetPropertiesNodeTest {
                         .contains("selection outline and hit target visible")),
                 () -> assertTrue(child.getShortDescription()
                         .contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void coloredBoxProjectsRequiredThemeAwareColorOptionalCheckboxAndControllableChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ColoredBox");
+        StableId id = StableId.parse("448bd3fd-c269-4d72-8f72-761e196392cb");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(
+                        new PropertyName("color"),
+                                new PropertyValue.ColorValue(0xFF2196F3L),
+                        new PropertyName("isAntiAlias"),
+                                new PropertyValue.BooleanValue(true)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + ColoredBoxWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(ColoredBoxWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                Arrays.stream(sets)
+                        .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
+                                set.getName()))
+                        .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
+                                set.getName()))
+                        .mapToInt(set -> set.getProperties().length).sum());
+        Node.PropertySet properties = propertySet(
+                node,
+                ColoredBoxWidgetPropertySchema.Group.APPEARANCE.setName());
+        assertEquals(List.of("color", "isAntiAlias"),
+                names(properties.getProperties()));
+        assertEquals(
+                ColoredBoxWidgetPropertySchema.Group.APPEARANCE.displayName(),
+                properties.getDisplayName());
+        assertEquals(
+                ColoredBoxWidgetPropertySchema.Group.APPEARANCE.description(),
+                properties.getShortDescription());
+        assertEquals("General", properties.getValue(
+                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+
+        Node.Property<FlutterPropertyCellValue> color = cellProperty(
+                property(node, "color"));
+        assertAll(
+                () -> assertEquals("Color", color.getDisplayName()),
+                () -> assertTrue(color.getShortDescription().contains("literal ARGB")),
+                () -> assertTrue(color.getShortDescription().contains("Material theme token")),
+                () -> assertTrue(color.getShortDescription().contains("0xFF2196F3")),
+                () -> assertFalse(color.supportsDefaultValue()));
+        PropertyEditor colorEditor = color.getPropertyEditor();
+        colorEditor.setAsText("0xFF336699");
+        color.setValue(cell(colorEditor));
+        assertThrows(IllegalArgumentException.class,
+                () -> color.setValue(FlutterPropertyCellValue.unset()));
+
+        Node.Property<FlutterPropertyCellValue> antiAlias = cellProperty(
+                property(node, "isAntiAlias"));
+        assertAll(
+                () -> assertEquals("Anti-alias", antiAlias.getDisplayName()),
+                () -> assertTrue(antiAlias.getShortDescription().contains(
+                        "enabled default")),
+                () -> assertTrue(antiAlias.getShortDescription().contains(
+                        "checkbox editor")),
+                () -> assertTrue(antiAlias.supportsDefaultValue()));
+        PropertyEditor antiAliasEditor = antiAlias.getPropertyEditor();
+        antiAliasEditor.setAsText("false");
+        antiAlias.setValue(cell(antiAliasEditor));
+        antiAlias.restoreDefaultValue();
+
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF336699L)),
+                new SetProperty(id, new PropertyName("isAntiAlias"),
+                        new PropertyValue.BooleanValue(false)),
+                new ResetProperty(id, new PropertyName("isAntiAlias"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "required solid background color")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "non-persisted Designer selection and drop target")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
     }
 
     @Test
@@ -4030,7 +4128,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyNineCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -4072,7 +4170,8 @@ class FlutterWidgetPropertiesNodeTest {
                         .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
-                "flutter.widgets.Image");
+                "flutter.widgets.Image",
+                "flutter.widgets.ColoredBox");
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4100,7 +4199,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(39, iconPaths.size(),
+        assertEquals(40, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

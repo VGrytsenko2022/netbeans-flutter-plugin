@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtyNineTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -43,6 +43,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.Center",
+                "flutter.widgets.ColoredBox",
                 "flutter.widgets.Column",
                 "flutter.widgets.ConstrainedBox",
                 "flutter.widgets.Container",
@@ -78,8 +79,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(39, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(33, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(40, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(34, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -93,10 +94,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(714, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(716, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(697, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(699, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -114,6 +115,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.AspectRatio", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Baseline", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Center", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ConstrainedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
@@ -271,10 +273,15 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
-                "flutter.widgets.Image"), typeIds(palette));
+                "flutter.widgets.Image",
+                "flutter.widgets.ColoredBox"), typeIds(palette));
         assertEquals(29, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
+                .count());
+        assertEquals(4, palette.stream()
+                .filter(definition -> definition.palette().categoryId()
+                        .equals("flutter.basic"))
                 .count());
     }
 
@@ -305,6 +312,9 @@ class BuiltInWidgetCatalogTest {
                         .creationDefault().orElseThrow());
         assertEquals(new PropertyValue.DoubleValue(BigDecimal.ONE),
                 property(catalog, "flutter.widgets.Opacity", "opacity")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.ColorValue(0xFF2196F3L),
+                property(catalog, "flutter.widgets.ColoredBox", "color")
                         .creationDefault().orElseThrow());
         assertEquals(new PropertyValue.BoxConstraintsValue(
                         BigDecimal.ZERO, java.util.Optional.empty(),

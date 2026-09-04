@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical thirty-nine-widget Canvas
+responsive render profiles and the bounded canonical forty-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,17 +40,17 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for all thirty-nine canonical widgets: `Scaffold`,
+bounded typed read/write slice for all forty canonical widgets: `Scaffold`,
 `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon` and `Image`. Thirty-three
-definitions use reviewed const constructors. The exact catalog currently contains 714 writable property
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image` and `ColoredBox`. Thirty-four
+definitions use reviewed const constructors. The exact catalog currently contains 716 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-1,482-cell candidate matrix: thirty-nine exact capability-reviewed sources target
-thirty-six insertable any-widget and two `PreferredSizeWidget` destinations,
-with exactly 1,304 accepted and 178 rejected cells, subject to
+1,560-cell candidate matrix: forty exact capability-reviewed sources target
+thirty-seven insertable any-widget and two `PreferredSizeWidget` destinations,
+with exactly 1,377 accepted and 183 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -102,7 +102,7 @@ and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon` and `Image` from the reviewed
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image` and `ColoredBox` from the reviewed
 built-in catalog and excludes project paths, Dart source, callback identifiers,
 extensions and persistence authority. The frame-kind whitelist is control JSON,
 model JSON, negotiated NBFC kind 4 `IMAGE_BYTES`, and reserved catalog JSON.
@@ -120,7 +120,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical thirty-nine-widget model, renders it
+tests. The isolated runner decodes the canonical forty-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -150,6 +150,7 @@ reset to omission.
 | `Padding` | `padding` | [Padding](https://api.flutter.dev/flutter/widgets/Padding/Padding.html) |
 | `Center` | `widthFactor`, `heightFactor` | [Center](https://api.flutter.dev/flutter/widgets/Center/Center.html) |
 | `SizedBox` | `width`, `height` | [SizedBox](https://api.flutter.dev/flutter/widgets/SizedBox/SizedBox.html) |
+| `ColoredBox` | required literal/reviewed-theme `color`, optional `isAntiAlias`; optional single `child` slot | [ColoredBox](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html) |
 | `Text` | 59 typed leaves in the seven sets below | [Text](https://api.flutter.dev/flutter/widgets/Text/Text.html), [TextStyle](https://api.flutter.dev/flutter/painting/TextStyle/TextStyle.html), [StrutStyle](https://api.flutter.dev/flutter/painting/StrutStyle/StrutStyle.html) |
 | `Icon` | `icon`, `size`, `fill`, `weight`, `grade`, `opticalSize`, `color`, `shadows`, `semanticLabel`, `textDirection`, `applyTextScaling`, `blendMode`, `fontWeight` | [Icon](https://api.flutter.dev/flutter/widgets/Icon/Icon.html), [IconData](https://api.flutter.dev/flutter/widgets/IconData-class.html) |
 | `AppBar` | 120 typed leaves in the nine sets below; `leading`, `title`, `actions`, `flexibleSpace`, `bottom` slots | [AppBar](https://api.flutter.dev/flutter/material/AppBar/AppBar.html), [AppBarTheme](https://api.flutter.dev/flutter/material/AppBarTheme-class.html) |
@@ -235,9 +236,10 @@ Stack four, Expanded one, Image 22, TextField 54, ListView 17, Wrap nine,
 FittedBox three, ConstrainedBox one, UnconstrainedBox four, LimitedBox two,
 OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero,
 IntrinsicWidth two, Offstage one, SizedOverflowBox two, Transform five,
-RotatedBox one, ListBody two, OverflowBar six, GridView.count 21 and
-SingleChildScrollView 10, bringing the non-`Scaffold` total to 697; `Scaffold`
-adds 17 reviewed scalar rows, so the current exact total is 714 writable rows across thirty-nine
+RotatedBox one, ListBody two, OverflowBar six, GridView.count 21,
+SingleChildScrollView 10 and ColoredBox two, bringing the non-`Scaffold` total
+to 699; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is
+716 writable rows across forty
 canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
@@ -632,6 +634,24 @@ Scrolling contains three. Existing value and wire types keep `.fd` v9, Catalog
 API 8 and Canvas model v14 unchanged; NBFC framing plus Canvas control/wire
 remain version 1.
 
+The const
+[`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+is the twentieth post-core vertical slice, at Basic order 40 after `Image`. Its
+required `color` starts as literal `Color(0xFF2196F3)`; optional `isAntiAlias`
+remains omitted to preserve Flutter's `true` default, and its optional any-widget
+`child` starts empty. The color domain admits exact ARGB or a reviewed Material
+`ColorScheme` token. Literal output remains const; a token emits
+`Theme.of(context).colorScheme...` and removes const from that constructor.
+Properties, exact-single-slot editing, Palette/tree/Canvas DnD, same-tree
+movement, Save/reopen and further editing, Undo/Redo, and four reviewed
+light/dark 16/32 px SVG icons complete the slice. Generated Dart and Canvas
+construct the real widget. Canvas alone provides a non-layout-affecting 36x36
+target for an empty zero-size node, and never persists it. The practical backlog
+is now 40/92 complete with 52 remaining; Layout remains at 29 items, Scrolling
+at three and Basic contains four. Existing value and wire types keep `.fd` v9,
+Catalog API 8 and Canvas model v14 unchanged; NBFC framing plus Canvas
+control/wire remain version 1.
+
 `Container` exposes its complete reviewed non-widget constructor surface; its
 optional single `child` remains a slot at constructor position 12 and is not
 counted as a property row.
@@ -993,24 +1013,24 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the thirty-nine-source insertion matrix
+disconnected. That stage is superseded by the forty-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled Apache NetBeans IDE 31 runtime, strict
 NBM verifier and isolated install lifecycle now pass. The accepted ADR-021
-Windows native read-only `FlutterView`, thirty-nine-widget projection, responsive
-profiles, stable-ID tree selection, exact thirty-nine-item context Palette and
+Windows native read-only `FlutterView`, forty-widget projection, responsive
+profiles, stable-ID tree selection, exact forty-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-714 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+716 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
 `AppBar`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the thirty-nine exact capability-reviewed source
-definitions and thirty-eight insertable catalog-authorized slots, for 1,482
-candidate cells: 1,304 admitted and 178 rejected. Expanded and Flexible each
+Palette DnD is enabled for the forty exact capability-reviewed source
+definitions and thirty-nine insertable catalog-authorized slots, for 1,560
+candidate cells: 1,377 admitted and 183 rejected. Expanded and Flexible each
 admit only direct `Row.children` or `Column.children` wrapping, while Spacer is
 inserted only into those two slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix.

@@ -164,17 +164,17 @@ atomic Offset semantic domain makes contributor Catalog API 8 the exact current
 boundary; API 1 through API 7 contributors fail
 closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, thirty-nine-item context Palette, selected-node
+Canvas/tree selection edge, forty-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 714 catalog-backed fields across
+Properties are writable for exactly 716 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
 `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`,
-`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Thirty-three of the thirty-nine definitions use reviewed const
-constructors; the thirty-eight non-`Scaffold` definitions account for 697 rows.
+`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Container`, `Opacity`, `Text`, `Icon`
+and `Image`. Thirty-four of the forty definitions use reviewed const
+constructors; the thirty-nine non-`Scaffold` definitions account for 699 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -636,9 +636,25 @@ practical backlog is 39/92 complete with 53 remaining. Existing value and wire
 shapes keep `.fd` v9, Catalog API 8, Canvas model v14 and NBFC/control/wire v1
 unchanged.
 
-The current contract admits thirty-nine exact capability-gated Palette sources
-across thirty-six insertable any-widget and two `PreferredSizeWidget`
-destination slots: 1,482 candidates, of which 1,304 are accepted and 178 rejected.
+[`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+is the twentieth post-core built-in, at Basic order 40 after `Image`. Its const
+default constructor adds required literal-or-reviewed-theme `color`, optional
+`isAntiAlias` with omitted default `true`, and one optional any-widget child;
+only `key` is excluded. Detached creation stores `Color(0xFF2196F3)`, omits
+anti-aliasing and leaves the child empty. Literal generation preserves const;
+a reviewed `ColorScheme` token emits `Theme.of(context).colorScheme...` and
+removes const from the surrounding widget. Generated Dart and Canvas construct
+the real `ColoredBox`. Canvas alone retains a non-layout-affecting 36x36 target
+for an empty zero-size box; it is not persisted. The current surface has 40
+widgets, 34 reviewed const definitions, 716 writable rows (699 outside
+Scaffold), 29 Layout items, three Scrolling items and four Basic items; the
+practical backlog is 40/92 complete with 52 remaining. Existing value and wire
+shapes keep `.fd` v9, Catalog API 8, Canvas model v14 and NBFC/control/wire v1
+unchanged.
+
+The current contract admits forty exact capability-gated Palette sources
+across thirty-seven insertable any-widget and two `PreferredSizeWidget`
+destination slots: 1,560 candidates, of which 1,377 are accepted and 183 rejected.
 Expanded and Flexible enter only direct `Row.children` and `Column.children`
 wrapper targets; Spacer enters those two list slots by ordinary insertion. The
 wrappers' required child slots are replacement-only and excluded
@@ -815,7 +831,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current thirty-nine-definition
+historical source restriction is superseded by the current forty-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -858,7 +874,7 @@ project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 when available, or stores the reserved unresolved provider when the inventory is
 empty or unavailable; only destination and authority failures reject DnD. DnD
-outside the thirty-nine-source, 1,482-candidate matrix (1,304 accepted, 178 rejected)
+outside the forty-source, 1,560-candidate matrix (1,377 accepted, 183 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -875,7 +891,7 @@ the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`,
-`Container`, `Opacity`, `Text`, `Icon` and `Image`.
+`SingleChildScrollView`, `ColoredBox`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
@@ -1084,9 +1100,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact thirty-nine widgets carrying
-the Create capability. All thirty-nine built-ins, including `Scaffold`, admit the
-reviewed 714-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact forty widgets carrying
+the Create capability. All forty built-ins, including `Scaffold`, admit the
+reviewed 716-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

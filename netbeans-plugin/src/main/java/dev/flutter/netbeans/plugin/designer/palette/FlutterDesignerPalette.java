@@ -333,6 +333,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.OverflowBar.Name"));
                 setShortDescription(message("Widget.OverflowBar.Description"));
+            } else if ("flutter.widgets.ColoredBox".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.ColoredBox.Name"));
+                setShortDescription(message("Widget.ColoredBox.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

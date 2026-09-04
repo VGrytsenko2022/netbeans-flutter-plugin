@@ -26,6 +26,7 @@ import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -3219,6 +3220,70 @@ class WidgetTreeValidatorTest {
                 WidgetTreeValidator.WIDGET_PLACEMENT);
         assertTrue(placement.message().contains(
                 "flutter.widgets.SingleChildScrollView.child"), placement.message());
+    }
+
+    @Test
+    void acceptsColoredBoxLiteralThemeAndOptionalChildSurfaces() {
+        WidgetNode literal = node(
+                "valid-colored-box-literal",
+                "flutter.widgets.ColoredBox",
+                Map.of(
+                        name("color"), new PropertyValue.ColorValue(0xFF102030L),
+                        name("isAntiAlias"), new PropertyValue.BooleanValue(false)),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(text("colored-box-child"))));
+        WidgetNode themed = node(
+                "valid-colored-box-theme",
+                "flutter.widgets.ColoredBox",
+                Map.of(name("color"), new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.primary"))),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+
+        ValidationResult literalResult = validator().validate(
+                document(literal), BuiltInWidgetCatalog.getDefault());
+        ValidationResult themedResult = validator().validate(
+                document(themed), BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(literalResult.valid(), () -> literalResult.issues().toString());
+        assertTrue(themedResult.valid(), () -> themedResult.issues().toString());
+    }
+
+    @Test
+    void rejectsColoredBoxMissingOrWrongColorAndRestrictedChild() {
+        WidgetNode missingColor = node(
+                "invalid-colored-box-missing",
+                "flutter.widgets.ColoredBox",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(missingColor), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/color", missing.path());
+
+        WidgetNode wrongColor = node(
+                "invalid-colored-box-kind",
+                "flutter.widgets.ColoredBox",
+                Map.of(name("color"), new PropertyValue.BooleanValue(true)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue wrongKind = onlyIssue(
+                validator().validate(
+                        document(wrongColor), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/color", wrongKind.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-colored-box-child",
+                "flutter.widgets.ColoredBox",
+                Map.of(name("color"), new PropertyValue.ColorValue(0xFF2196F3L)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("colored-box-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(restrictedChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.ColoredBox.child"), placement.message());
     }
 
     private static WidgetTreeValidator validator() {

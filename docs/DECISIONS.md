@@ -23,10 +23,11 @@ ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, ADR-060 adds
 ADR-045's requirement that Image creation be blocked until a real declared
 asset exists. ADR-063 records the completed `RotatedBox` milestone, ADR-064
 records `ListBody`, ADR-065 adds `OverflowBar`, and ADR-066 establishes the
-historical `GridView.count` surface. ADR-067 establishes the current
-`SingleChildScrollView` surface: 714 typed rows across thirty-nine widgets,
-thirty-three const-constructor definitions and 1,482 Palette/DnD candidates,
-including 1,304 accepted and 178 rejected cells. The 697-field
+historical `GridView.count` surface. ADR-067 establishes the historical
+`SingleChildScrollView` surface, and ADR-068 establishes the current
+`ColoredBox` surface: 716 typed rows across forty widgets, thirty-four
+const-constructor definitions and 1,560 Palette/DnD candidates, including 1,377
+accepted and 183 rejected cells. The 699-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -36,7 +37,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-067 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-068 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -281,7 +282,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-067 make 697 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-068 make 699 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -302,7 +303,9 @@ filter values and optional child slot, RotatedBox's required signed portable
 `quarterTurns` plus optional child slot, and ListBody's optional axis/reversal
 rows plus ordered children slot, OverflowBar's six layout rows plus ordered
 children slot, GridView.count's 21 grouped rows plus ordered children slot,
-and SingleChildScrollView's 10 grouped rows plus optional child slot.
+SingleChildScrollView's 10 grouped rows plus optional child slot, and
+ColoredBox's required theme-aware color, optional anti-aliasing and optional
+child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -342,8 +345,10 @@ ADR-064 established the historical thirty-six-source, 1,260-candidate matrix
 (1,097 accepted and 163 rejected), and ADR-065 established the historical
 thirty-seven-source, 1,332-candidate matrix (1,164 accepted and 168 rejected).
 ADR-066 established the historical thirty-eight-source, 1,406-candidate matrix
-(1,233 accepted and 173 rejected), and ADR-067 establishes the current
-thirty-nine-source, 1,482-candidate matrix (1,304 accepted and 178 rejected).
+(1,233 accepted and 173 rejected), ADR-067 established the historical
+thirty-nine-source, 1,482-candidate matrix (1,304 accepted and 178 rejected),
+and ADR-068 establishes the current forty-source, 1,560-candidate matrix (1,377
+accepted and 183 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -354,7 +359,7 @@ protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -368,12 +373,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-nine-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty-nine Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,482-cell candidate matrix across thirty-six insertable any-widget
-and two trait-bound destination slots; 1,304 cells are accepted and 178 rejected.
+those forty Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,560-cell candidate matrix across thirty-seven insertable any-widget
+and two trait-bound destination slots; 1,377 cells are accepted and 183 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
@@ -2752,6 +2757,52 @@ self-cell is accepted. This adds 71 accepted and five rejected cells, producing
 Scrolling contains three.
 
 The practical Material/Base Designer backlog is now 39/92 complete, with 53
+remaining. This planning target is not a normative complete list of Flutter
+widgets. Existing value and slot encodings keep `.fd` schema v9, Catalog API 8
+and Canvas model v14 unchanged; NBFC framing plus Canvas control/wire remain
+version 1.
+
+## ADR-068 — ColoredBox adds a theme-aware painted single-child container
+
+Accepted. [`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+is published in the **Basic** Palette category at order 40 after `Image`. Its
+catalog identity and Dart class are both `flutter.widgets.ColoredBox`; the
+reviewed default constructor is const.
+
+The complete Flutter 3.44.8 surface after excluding the common `key` argument
+contains required `color`, optional `isAntiAlias` whose omitted Flutter default
+is `true`, and one optional single `child` slot. Detached creation stores the
+required literal `Color(0xFF2196F3)`, leaves `isAntiAlias` omitted and begins
+with an empty child. The color domain is deliberately closed to an exact ARGB
+literal or a reviewed Material `ColorScheme` theme token; arbitrary Dart color
+expressions are not admitted. Literal output keeps the constructor const. A
+theme token emits `Theme.of(context).colorScheme...`, so generation removes
+const from that `ColoredBox` without weakening const output for literal values.
+
+NetBeans projects the two arguments into one Appearance property set. The
+required color cannot be restored to omission. Explicit anti-alias values use
+the shared accessible checkbox editor, while **Restore Default** returns it to
+the separate `<not set>` state. The optional child uses the ordinary atomic
+single-slot contract for Palette/tree/Canvas insertion, replacement, clear,
+same-tree movement, Save/reopen and further editing, and Undo/Redo. Generated
+Dart and native/exact-Web Canvas construct the real `ColoredBox`. An empty box
+has no intrinsic size, so Canvas retains a non-layout-affecting 36x36 selection
+and drop target when its real bounds collapse to zero; that Designer overlay is
+never stored in `.fd` or emitted into application Dart. Four dedicated reviewed
+16/32 px light/dark SVGs identify the widget in Palette and Explorer.
+
+ColoredBox adds two writable rows, one ordinary source and one insertable
+any-widget destination to ADR-067. The resulting surface contains 716 writable
+rows, with 699 outside Scaffold, across 40 widgets and 34 const-constructor
+definitions. Forty sources across 37 any-widget plus two trait-bound
+destinations form 1,560 candidates. The new destination accepts 36 old sources
+and rejects Expanded, Flexible and Spacer; the new source enters all 36 old
+any-widget destinations and neither trait-bound destination; its self-cell is
+accepted. This adds 73 accepted and five rejected cells, producing 1,377
+accepted and 183 rejected overall. Layout remains at 29 Palette items,
+Scrolling at three and Basic contains four.
+
+The practical Material/Base Designer backlog is now 40/92 complete, with 52
 remaining. This planning target is not a normative complete list of Flutter
 widgets. Existing value and slot encodings keep `.fd` schema v9, Catalog API 8
 and Canvas model v14 unchanged; NBFC framing plus Canvas control/wire remain

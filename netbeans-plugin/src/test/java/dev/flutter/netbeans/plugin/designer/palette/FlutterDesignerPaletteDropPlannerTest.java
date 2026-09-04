@@ -91,6 +91,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             type("flutter.widgets.SingleChildScrollView");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
+    private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
@@ -106,6 +107,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final PropertyName PADDING_VALUE = new PropertyName("padding");
     private static final PropertyName ICON_VALUE = new PropertyName("icon");
     private static final PropertyName IMAGE_VALUE = new PropertyName("image");
+    private static final PropertyName COLOR_VALUE = new PropertyName("color");
     private static final PropertyName ENABLED = new PropertyName("enabled");
     private static final PropertyName ASPECT_RATIO_VALUE =
             new PropertyName("aspectRatio");
@@ -1057,6 +1059,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     void singleChildScrollViewCompletesExact1482CellModelWithOptionalChild() {
         List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
                 .filter(definition -> !SINGLE_CHILD_SCROLL_VIEW.equals(definition.typeId()))
+                .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -1109,6 +1112,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
         List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
+                .filter(type -> !COLORED_BOX.equals(type))
                 .toList();
         MatrixTargetCase scrollTarget = target(
                 "SingleChildScrollView.child", SINGLE_CHILD_SCROLL_VIEW, CHILD);
@@ -1162,6 +1166,119 @@ class FlutterDesignerPaletteDropPlannerTest {
                         1233 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(178,
                         173 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void coloredBoxCompletesExact1560CellModelWithRequiredCreationColorAndOptionalChild() {
+        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+                .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(previousTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, COLORED_BOX, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "ColoredBox -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "ColoredBox -> " + target.name());
+                assertEquals(COLORED_BOX, success.command().widget().type());
+                assertEquals(
+                        new PropertyValue.ColorValue(0xFF2196F3L),
+                        success.command().widget().properties().get(COLOR_VALUE));
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .toList();
+        MatrixTargetCase coloredBoxTarget = target(
+                "ColoredBox.child", COLORED_BOX, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(allSources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    coloredBoxTarget.document(), BUILT_INS, source, ROOT_ID,
+                    coloredBoxTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> ColoredBox.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> ColoredBox.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(38, previousTargets.size()),
+                () -> assertEquals(36, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(40, allSources.size()),
+                () -> assertEquals(37, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(1560,
+                        1482 + previousTargets.size() + allSources.size()),
+                () -> assertEquals(1377,
+                        1304 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(183,
+                        178 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -1312,6 +1429,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("AspectRatio.child", ASPECT_RATIO, CHILD),
                 new SingleTargetCase("Container.child", CONTAINER, CHILD),
                 new SingleTargetCase("Opacity.child", OPACITY, CHILD),
+                new SingleTargetCase("ColoredBox.child", COLORED_BOX, CHILD),
                 new SingleTargetCase("Align.child", ALIGN, CHILD),
                 new SingleTargetCase(
                         "FractionallySizedBox.child", FRACTIONALLY_SIZED_BOX, CHILD),

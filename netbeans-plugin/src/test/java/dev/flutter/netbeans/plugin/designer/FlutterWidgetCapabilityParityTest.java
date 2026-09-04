@@ -25,12 +25,12 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(39, javaTypes.size(),
+        assertEquals(40, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
-                + "and SingleChildScrollView");
+                + "SingleChildScrollView, and ColoredBox");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -59,6 +59,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.GridView"));
         assertTrue(javaTypes.contains("flutter.widgets.SingleChildScrollView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
+        assertTrue(javaTypes.contains("flutter.widgets.ColoredBox"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(javaTypes, widgetTypes(block(
@@ -121,6 +122,8 @@ class FlutterWidgetCapabilityParityTest {
                 "GridView.count.children must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.SingleChildScrollView"),
                 "SingleChildScrollView.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.ColoredBox"),
+                "ColoredBox.child must remain a Java-admitted DnD target");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
                 "Expanded.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Flexible"),

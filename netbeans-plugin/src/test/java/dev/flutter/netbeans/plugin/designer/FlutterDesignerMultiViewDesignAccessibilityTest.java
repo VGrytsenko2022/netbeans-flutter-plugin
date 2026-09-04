@@ -788,7 +788,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                             .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
-                    "flutter.widgets.Image"),
+                    "flutter.widgets.Image",
+                    "flutter.widgets.ColoredBox"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(
                                     category.getChildren().getNodes(true)))

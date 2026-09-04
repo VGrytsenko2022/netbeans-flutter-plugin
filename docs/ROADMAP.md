@@ -1248,6 +1248,26 @@ accepted architecture is documented in
   backlog is 39/92 complete with 53 remaining. `.fd` stays at schema v9,
   Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire remains
   v1.
+- [x] Complete const
+  [`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+  as the twentieth post-core Palette vertical slice at Basic order 40, after
+  `Image`. Expose the complete reviewed Flutter 3.44.8 non-`key` constructor as
+  required theme-aware `color`, optional `isAntiAlias` with omitted default
+  `true`, and one optional any-widget `child`. Create detached nodes with literal
+  `Color(0xFF2196F3)`, anti-aliasing omitted and the child empty. Admit exact
+  ARGB or reviewed Material `ColorScheme` tokens; preserve const for literals
+  and emit non-const `Theme.of(context).colorScheme...` for tokens. Complete
+  grouped NetBeans Properties, Palette/tree/Canvas DnD, same-tree movement,
+  deterministic generation, Save/reopen and further editing, Undo/Redo, native
+  and exact-Web Canvas, four reviewed SVGs and focused contracts. Keep only a
+  non-layout-affecting 36x36 Canvas target for an empty zero-size node and never
+  persist it. The current surface is 40 widgets, 34 const definitions and 716
+  rows (699 outside Scaffold). Forty sources across 37 insertable any-widget
+  plus two trait destinations form 1,560 candidates: 1,377 accepted and 183
+  rejected. Layout remains at 29 items, Scrolling at 3, Basic contains 4, and the
+  practical 92-widget backlog is 40/92 complete with 52 remaining. `.fd` stays
+  at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1265,8 +1285,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after SingleChildScrollView has yet been assigned
-  an explicit order. The current typed Properties slice spans all thirty-nine
+  vertical slices. No specific widget after ColoredBox has yet been assigned an
+  explicit order. The current typed Properties slice spans all forty
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

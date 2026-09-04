@@ -518,6 +518,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Container' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
+        node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Align' &&
@@ -2243,6 +2244,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
       'flutter.widgets.LimitedBox' => _limitedBox(),
       'flutter.widgets.OverflowBox' => _overflowBox(),
+      'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.FittedBox' => _fittedBox(),
       'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
@@ -4036,6 +4038,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _opacity() => Opacity(
     opacity: _number('opacity')!,
     alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+    child: _single('child'),
+  );
+
+  Widget _coloredBox(BuildContext context) => ColoredBox(
+    color: _resolvedColor(context, 'color')!,
+    isAntiAlias: _boolean('isAntiAlias') ?? true,
     child: _single('child'),
   );
 

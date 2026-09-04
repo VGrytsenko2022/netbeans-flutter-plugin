@@ -207,7 +207,7 @@ never apply a top-level suggested screen rectangle to that child, while a
 standalone runner retains the normal suggested-rectangle behavior.
 
 An empty Row, Column, ListView, GridView, ListBody, OverflowBar, Wrap, FittedBox, ConstrainedBox,
-UnconstrainedBox, LimitedBox, OverflowBox or RotatedBox keeps its real Flutter layout (including
+UnconstrainedBox, LimitedBox, OverflowBox, RotatedBox or ColoredBox keeps its real Flutter layout (including
 zero-size outcomes) but receives a non-layout-affecting 36-pixel-minimum
 selection outline and hit rectangle. Its whole bounded rectangle is insertion
 index zero; a populated Row, Column, ListView, GridView, ListBody or OverflowBar exposes only its terminal append
@@ -235,9 +235,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-39 reviewed Canvas widgets. Palette insertion evaluates 1,482 exact
-source/destination cells across 39 draggable sources and 38 insertable reviewed
-slots; 1,304 are accepted and 178 cells are rejected. Expanded and Flexible are
+40 reviewed Canvas widgets. Palette insertion evaluates 1,560 exact
+source/destination cells across 40 draggable sources and 39 insertable reviewed
+slots; 1,377 are accepted and 183 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -665,3 +665,20 @@ when the real empty or zero-size widget has no usable bounds. The aggregate
 catalog now has 39 widgets; 39 sources across 38 insertable destinations form
 1,482 cells, with 1,304 accepted and 178 rejected. Canvas model protocol remains
 v14; NBFC framing, control and wire remain v1.
+
+[`flutter.widgets.ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+is decoded as the exact const default-constructor projection for Flutter 3.44.8
+without a protocol-version change. Its required `color` accepts an exact ARGB
+literal or one reviewed Material `ColorScheme` theme token; detached creation
+uses `Color(0xFF2196F3)`. Optional `isAntiAlias` remains absent to preserve its
+Flutter default `true`, and one optional any-widget `child` is the only slot.
+`key` and arbitrary color expressions are absent from the closed model.
+
+Native and exact-Web views construct the real `ColoredBox`. Literal generation
+remains const; a theme token resolves through `Theme.of(context).colorScheme...`
+and produces a non-const widget. An empty ColoredBox has no intrinsic size, so
+Canvas retains only a non-layout-affecting 36x36 selection/drop target when its
+real bounds collapse to zero; that overlay never enters the model or generated
+Dart. The aggregate catalog now has 40 widgets; 40 sources across 39 insertable
+destinations form 1,560 cells, with 1,377 accepted and 183 rejected. Canvas model
+protocol remains v14; NBFC framing, control and wire remain v1.

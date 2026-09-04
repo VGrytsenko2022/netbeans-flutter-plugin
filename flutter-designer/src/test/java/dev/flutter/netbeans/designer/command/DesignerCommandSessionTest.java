@@ -99,6 +99,7 @@ class DesignerCommandSessionTest {
     private static final PropertyName TEXT_DIRECTION = property("textDirection");
     private static final PropertyName FIT = property("fit");
     private static final PropertyName COLOR = property("color");
+    private static final PropertyName IS_ANTI_ALIAS = property("isAntiAlias");
     private static final PropertyName DECORATION = property("decoration");
     private static final PropertyName CLIP_BEHAVIOR = property("clipBehavior");
     private static final PropertyName CONSTRAINTS = property("constraints");
@@ -1589,6 +1590,91 @@ class DesignerCommandSessionTest {
                         editedAfterReopen.current().dartCandidateBytes(),
                         StandardCharsets.UTF_8)
                 .contains("restorationId: 'details-scroll-updated'"));
+    }
+
+    @Test
+    void coloredBoxRequiredColorChildUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.ColoredBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.ColorValue(0xFF2196F3L),
+                prototype.properties().get(COLOR));
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession current = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Colored child")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, COLOR, new PropertyValue.ColorValue(0xFF102030L)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, IS_ANTI_ALIAS,
+                new PropertyValue.BooleanValue(false)));
+
+        assertRejected(current, new ResetProperty(WRAPPER_ID, COLOR),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+        DesignerCommandSession reset = applied(
+                current, new ResetProperty(WRAPPER_ID, IS_ANTI_ALIAS));
+        WidgetNode finalColoredBox = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.ColorValue(0xFF102030L),
+                finalColoredBox.properties().get(COLOR));
+        assertFalse(finalColoredBox.properties().containsKey(IS_ANTI_ALIAS));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalColoredBox.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const ColoredBox("), dart);
+        assertTrue(dart.contains("color: const Color(0xFF102030)"), dart);
+        assertFalse(dart.contains("isAntiAlias:"), dart);
+        assertTrue(dart.contains("child: const Text('Colored child')"), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.BooleanValue(false),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(IS_ANTI_ALIAS));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.ColoredBox\""), fd);
+        assertTrue(fd.contains("\"argb\": \"0xFF102030\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID, COLOR,
+                        new PropertyValue.ColorValue(0xFF405060L)));
+        assertEquals(new PropertyValue.ColorValue(0xFF405060L),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(COLOR));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("color: const Color(0xFF405060)"));
     }
 
     @Test

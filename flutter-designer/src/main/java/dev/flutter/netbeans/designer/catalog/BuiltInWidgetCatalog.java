@@ -62,6 +62,7 @@ public final class BuiltInWidgetCatalog {
             gridViewCount(),
             singleChildScrollView(),
             image(),
+            coloredBox(),
             elevatedButton(),
             textField()));
 
@@ -1382,6 +1383,36 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("filterQuality", 21, false, enumValues(
                                 "FilterQuality", "none", "low", "medium", "high"))),
                 List.of());
+    }
+
+    private static WidgetDefinition coloredBox() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "color",
+                        0,
+                        true,
+                        colorOrTheme(),
+                        new PropertyValue.ColorValue(0xFF2196F3L)),
+                namedProperty(
+                        "isAntiAlias",
+                        1,
+                        false,
+                        any(PropertyValueKind.BOOLEAN)));
+        if (properties.size()
+                != ColoredBoxWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ColoredBox catalog/property schema count mismatch");
+        }
+        return widget(
+                ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.value(),
+                "ColoredBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 40, "ColoredBox"),
+                properties,
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

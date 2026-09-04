@@ -182,7 +182,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.GridView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.Image", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -520,6 +521,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SingleChildScrollView",
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
+            Map.entry("flutter.widgets.ColoredBox", coloredBoxProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
@@ -839,6 +841,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                 enumProperty(
                         "keyboardDismissBehavior",
                         "ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection coloredBoxProjection() {
+        return projection(Map.ofEntries(
+                requiredDefaultColorOrThemeProperty(
+                        "color", "color:0xFF2196F3"),
+                property("isAntiAlias", PropertyValueKind.BOOLEAN)),
                 Map.of("child", singleSlotSchema(false, 0)));
     }
 
@@ -1745,6 +1755,22 @@ public final class BuiltInWidgetCapabilityCatalog {
                                 .collect(Collectors.joining(",")))));
     }
 
+    private static Map.Entry<String, CanvasPropertyContract>
+            requiredDefaultColorOrThemeProperty(
+                    String name,
+                    String creationDefaultFingerprint) {
+        return Map.entry(name, new CanvasPropertyContract(
+                Set.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                true,
+                Optional.of(creationDefaultFingerprint),
+                Map.of(),
+                Map.of(
+                        PropertyValueKind.COLOR, "any",
+                        PropertyValueKind.THEME_TOKEN,
+                        "tokens:" + REVIEWED_COLOR_THEME_TOKENS.stream().sorted()
+                                .collect(Collectors.joining(",")))));
+    }
+
     private static Map.Entry<String, CanvasPropertyContract> paintProperty(
             String name) {
         return Map.entry(name, constrainedSchema(
@@ -2079,6 +2105,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         if (value instanceof PropertyValue.EnumValue enumValue) {
             return "enum:" + enumValue.type() + ':' + enumValue.value();
+        }
+        if (value instanceof PropertyValue.ColorValue color) {
+            return "color:" + color.wireArgb();
         }
         if (value instanceof PropertyValue.EdgeInsetsValue insets) {
             return "edgeInsets:" + decimalText(insets.left()) + ','

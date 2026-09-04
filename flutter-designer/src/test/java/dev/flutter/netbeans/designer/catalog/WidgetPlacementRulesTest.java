@@ -554,6 +554,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(scrollView));
     }
 
+    @Test
+    void coloredBoxIsAnOrdinaryInsertableWidgetWithRestrictedChild() {
+        WidgetDefinition coloredBox = definition("flutter.widgets.ColoredBox");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(coloredBox).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), coloredBox));
+        assertTrue(WidgetPlacementRules.accepts(
+                coloredBox, slot(coloredBox, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    coloredBox,
+                    slot(coloredBox, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.ColoredBox.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(coloredBox));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(coloredBox));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(coloredBox));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

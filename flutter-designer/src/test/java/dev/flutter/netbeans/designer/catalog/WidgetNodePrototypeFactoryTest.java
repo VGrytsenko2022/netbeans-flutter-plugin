@@ -95,6 +95,44 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsColoredBoxWithReviewedRequiredColorAndTypedOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.ColoredBox");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF2196F3L)),
+                prototype.properties());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF102030L),
+                        new PropertyName("isAntiAlias"),
+                        new PropertyValue.BooleanValue(false)));
+        assertEquals(new PropertyValue.ColorValue(0xFF102030L),
+                configured.properties().get(new PropertyName("color")));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                configured.properties().get(new PropertyName("isAntiAlias")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("color"),
+                                new PropertyValue.BooleanValue(true))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Align"), ID);

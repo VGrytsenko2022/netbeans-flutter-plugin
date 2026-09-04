@@ -89,6 +89,29 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Center'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.ColoredBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.ColoredBox',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.ColoredBox',
+        slotName: 'child',
+        currentChildCount: 1,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isFalse,
+    );
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Container'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -374,7 +397,7 @@ void main() {
     );
   });
 
-  test('closes the 38-source by 37-destination compatibility matrix', () {
+  test('closes the 39-source by 38-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -398,6 +421,7 @@ void main() {
       'flutter.widgets.UnconstrainedBox',
       'flutter.widgets.LimitedBox',
       'flutter.widgets.OverflowBox',
+      'flutter.widgets.ColoredBox',
       'flutter.widgets.Container',
       'flutter.widgets.Expanded',
       'flutter.widgets.Flexible',
@@ -423,8 +447,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(38));
-    expect(destinations, hasLength(37));
+    expect(sourceTypes, hasLength(39));
+    expect(destinations, hasLength(38));
 
     var accepted = 0;
     var rejected = 0;
@@ -450,9 +474,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1233);
-    expect(rejected, 173);
-    expect(accepted + rejected, 1406);
+    expect(accepted, 1304);
+    expect(rejected, 178);
+    expect(accepted + rejected, 1482);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -9525,6 +9549,195 @@ void main() {
   );
 
   testWidgets(
+    'renders real ColoredBox with exact literal or theme color on native and Web profiles',
+    (tester) async {
+      const coloredBoxId = 'ec949ebe-9c66-48b7-8901-c691d7356e07';
+      const childId = '01d263fe-dc50-4ba9-823d-fd5271db0590';
+      final cases = <({String platform, bool literal, bool antiAlias})>[
+        (platform: 'windows', literal: true, antiAlias: false),
+        (platform: 'web', literal: false, antiAlias: true),
+      ];
+
+      for (final entry in cases) {
+        final properties = <String, Object?>{
+          'color': entry.literal
+              ? <String, Object?>{'kind': 'color', 'argb': '0xFF2196F3'}
+              : <String, Object?>{
+                  'kind': 'themeToken',
+                  'token': 'material.colorScheme.primaryContainer',
+                },
+          if (!entry.antiAlias)
+            'isAntiAlias': {'kind': 'boolean', 'value': false},
+        };
+        final json = _modelWithColoredBox(
+          properties: properties,
+          child: _viewSizedBoxNode(childId, width: 80, height: 40),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final coloredBoxFinder = find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$coloredBoxId')),
+          matching: find.byType(ColoredBox),
+        );
+        expect(coloredBoxFinder, findsOneWidget, reason: entry.platform);
+        final coloredBox = tester.widget<ColoredBox>(coloredBoxFinder);
+        final expectedColor = entry.literal
+            ? const Color(0xff2196f3)
+            : Theme.of(
+                tester.element(coloredBoxFinder),
+              ).colorScheme.primaryContainer;
+        expect(coloredBox.color, expectedColor, reason: entry.platform);
+        expect(coloredBox.isAntiAlias, entry.antiAlias, reason: entry.platform);
+        expect(coloredBox.child, isNotNull, reason: entry.platform);
+        expect(
+          tester.getSize(
+            find.byKey(const ValueKey('canvas-widget-$coloredBoxId')),
+          ),
+          const Size(80, 40),
+          reason: entry.platform,
+        );
+        expect(
+          find.descendant(
+            of: coloredBoxFinder,
+            matching: find.byKey(const ValueKey('canvas-widget-$childId')),
+          ),
+          findsOneWidget,
+          reason: entry.platform,
+        );
+        expect(tester.takeException(), isNull, reason: entry.platform);
+      }
+    },
+  );
+
+  testWidgets(
+    'keeps empty ColoredBox at zero layout with a 36px child target and move parity',
+    (tester) async {
+      const coloredBoxId = 'ec949ebe-9c66-48b7-8901-c691d7356e07';
+      const sourceId = '0f91484c-46d1-439c-a8cf-786009b58842';
+      CanvasDropResolver? dropResolver;
+      CanvasMovePreviewResolver? moveResolver;
+      String? selectedWidgetId;
+      var currentModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithColoredBox(
+                properties: const {
+                  'color': {'kind': 'color', 'argb': '0x00000000'},
+                },
+                child: null,
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      StateSetter? rebuild;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CanvasModelApp(
+              model: currentModel,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => dropResolver = value,
+              onMovePreviewResolverChanged: (value) => moveResolver = value,
+            );
+          },
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$coloredBoxId'),
+      );
+      final coloredBoxFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(ColoredBox),
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$coloredBoxId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(tester.getSize(coloredBoxFinder), Size.zero);
+      expect(tester.widget<ColoredBox>(coloredBoxFinder).child, isNull);
+      expect(tester.widget<ColoredBox>(coloredBoxFinder).isAntiAlias, isTrue);
+      expect(
+        find.descendant(of: rendered, matching: find.byType(SizedBox)),
+        findsNothing,
+        reason: 'the 36px Designer target must not affect real widget layout',
+      );
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, coloredBoxId);
+      expect(tester.getSize(rendered), Size.zero);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      int micros(double value, double origin, double extent) =>
+          ((value - origin) / extent * 1000000).round();
+      final drop = dropResolver!(
+        micros(point.dx, surface.left, surface.width),
+        micros(point.dy, surface.top, surface.height),
+      );
+      expect(drop?.parentWidgetId, coloredBoxId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+
+      final move = moveResolver!(sourceId, coloredBoxId, 'child', 0);
+      expect(move?.parentWidgetId, coloredBoxId);
+      expect(move?.slotName, 'child');
+      expect(move?.insertionIndex, 0);
+      expect(move?.zone?.isEmpty, isFalse);
+
+      final occupied = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithColoredBox(
+                properties: const {
+                  'color': {
+                    'kind': 'themeToken',
+                    'token': 'material.colorScheme.primary',
+                  },
+                },
+                child: _viewTextNode(
+                  'd1017247-3711-4402-b039-3c72307ba7d7',
+                  'Occupied',
+                ),
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      rebuild!(() {
+        currentModel = occupied;
+        selectedWidgetId = null;
+      });
+      await tester.pump();
+      expect(moveResolver!(sourceId, coloredBoxId, 'child', 0), isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders every Container argument through real Flutter objects and keeps its outline outside transform',
     (tester) async {
       const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
@@ -13028,6 +13241,53 @@ Map<String, Object?> _modelWithCenteredOpacity({
           },
         },
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithColoredBox({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  Map<String, Object?>? sibling,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final coloredBox = <String, Object?>{
+    'id': 'ec949ebe-9c66-48b7-8901-c691d7356e07',
+    'type': 'flutter.widgets.ColoredBox',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final content = sibling == null
+      ? coloredBox
+      : <String, Object?>{
+          'id': 'ad48ab88-48b9-42fe-ad33-b2324bf78b8a',
+          'type': 'flutter.widgets.Column',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[coloredBox, sibling],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': content},
     },
   };
   return model;

@@ -5198,6 +5198,190 @@ void main() {
     );
   });
 
+  test(
+    'decodes the exact ColoredBox color, anti-alias, and optional child contract',
+    () {
+      Map<String, Object?> model({
+        required Map<String, Object?> properties,
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          'ec949ebe-9c66-48b7-8901-c691d7356e07',
+          'flutter.widgets.ColoredBox',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final child = _node(
+        '01d263fe-dc50-4ba9-823d-fd5271db0590',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Blue child'},
+        },
+      );
+      final literal = _decode(
+        model(
+          properties: const {
+            'color': {'kind': 'color', 'argb': '0xFF2196F3'},
+            'isAntiAlias': {'kind': 'boolean', 'value': false},
+          },
+          slots: {'child': _single(child)},
+        ),
+      ).root;
+      expect(literal.type, 'flutter.widgets.ColoredBox');
+      expect(literal.properties.keys, const ['color', 'isAntiAlias']);
+      expect(literal.properties['color']!.value, 0xff2196f3);
+      expect(literal.properties['isAntiAlias']!.value, isFalse);
+      expect(literal.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+      final themed = _decode(
+        model(
+          properties: const {
+            'color': {
+              'kind': 'themeToken',
+              'token': 'material.colorScheme.primaryContainer',
+            },
+          },
+          slots: {'child': _single(null)},
+        ),
+      ).root;
+      expect(
+        (themed.properties['color']!.value as CanvasThemeToken).wireId,
+        'material.colorScheme.primaryContainer',
+      );
+      expect(themed.properties.containsKey('isAntiAlias'), isFalse);
+      expect(themed.slot('child')!.child, isNull);
+
+      final withoutSlot = _decode(
+        model(
+          properties: const {
+            'color': {'kind': 'color', 'argb': '0x00000000'},
+          },
+        ),
+      ).root;
+      expect(withoutSlot.properties['color']!.value, 0);
+      expect(withoutSlot.slot('child'), isNull);
+    },
+  );
+
+  test('rejects every unsupported ColoredBox property and slot branch', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'ec949ebe-9c66-48b7-8901-c691d7356e07',
+        'flutter.widgets.ColoredBox',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {},
+      const {
+        'color': {'kind': 'color', 'argb': '0xff2196f3'},
+      },
+      const {
+        'color': {
+          'kind': 'themeToken',
+          'token': 'material.colorScheme.notReviewed',
+        },
+      },
+      const {
+        'color': {'kind': 'string', 'value': 'blue'},
+      },
+      const {
+        'color': {'kind': 'color', 'argb': '0xFF2196F3'},
+        'isAntiAlias': {'kind': 'integer', 'value': 1},
+      },
+      const {
+        'color': {'kind': 'color', 'argb': '0xFF2196F3'},
+        'futureProperty': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+
+    const color = {
+      'color': {'kind': 'color', 'argb': '0xFF2196F3'},
+    };
+    expect(
+      () => _decode(
+        model(
+          properties: color,
+          slots: {
+            'child': {'kind': 'list', 'children': <Object?>[]},
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(
+        model(properties: color, slots: {'futureSlot': _single(null)}),
+      ),
+      throwsFormatException,
+    );
+    final expanded = _node(
+      '48640f23-0589-4bcc-a769-79cd23d05065',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            '211f6d05-a9f3-4ced-81a0-2f5e36b64e0e',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Flex-only child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(
+        model(properties: color, slots: {'child': _single(expanded)}),
+      ),
+      throwsFormatException,
+      reason: 'a ParentData child cannot be reparented under ColoredBox',
+    );
+  });
+
+  test('ColoredBox reviewed schema is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ColoredBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Column\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final slice = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(slice), hasLength(2));
+    expect(RegExp(r'^S\|', multiLine: true).allMatches(slice), hasLength(1));
+    expect(
+      slice,
+      startsWith(
+        'W|flutter.widgets.ColoredBox\n'
+        'P|color|color,themeToken|1|color:0xFF2196F3|-|color:any;'
+        'themeToken:tokens:material.colorScheme.error,',
+      ),
+    );
+    expect(
+      slice,
+      endsWith(
+        'P|isAntiAlias|boolean|0|-|-|boolean:any\n'
+        'S|child|single|0|0|1|any\n',
+      ),
+    );
+  });
+
   test('decodes the complete strict Container contract and nested unions', () {
     final child = _node(
       'e1c67a19-d25c-4675-92c4-cab1772bf571',

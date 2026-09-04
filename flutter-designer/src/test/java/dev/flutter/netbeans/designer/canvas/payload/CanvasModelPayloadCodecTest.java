@@ -112,11 +112,42 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
-                "flutter.widgets.Image"),
+                "flutter.widgets.Image",
+                "flutter.widgets.ColoredBox"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
                         .toList());
+    }
+
+    @Test
+    void projectsColoredBoxColorPolicyAndOptionalChildWithoutProtocolChange()
+            throws Exception {
+        WidgetNode coloredBox = new WidgetNode(
+                id("09432278-340e-48b7-9604-766fc5cad4a5"),
+                type("flutter.widgets.ColoredBox"),
+                Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ThemeTokenValue(
+                                new ThemeToken("material.colorScheme.primary")),
+                        new PropertyName("isAntiAlias"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "780ed564-3d39-4a50-bb75-e22892d7ef45",
+                        "Colored child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), coloredBox))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.ColoredBox\""), json);
+        assertTrue(json.contains("\"color\":{\"kind\":\"themeToken\","
+                + "\"token\":\"material.colorScheme.primary\"}"), json);
+        assertTrue(json.contains(
+                "\"isAntiAlias\":{\"kind\":\"boolean\",\"value\":false}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"780ed564-3d39-4a50-bb75-e22892d7ef45\""), json);
     }
 
     @Test

@@ -19,6 +19,7 @@ import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -138,6 +139,9 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("overflowDirection");
     private static final PropertyName CROSS_AXIS_COUNT =
             new PropertyName("crossAxisCount");
+    private static final PropertyName COLOR = new PropertyName("color");
+    private static final PropertyName IS_ANTI_ALIAS =
+            new PropertyName("isAntiAlias");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -2601,6 +2605,282 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertEquals(childId, assertInstanceOf(
                     WidgetSlot.SingleSlot.class,
                     savedScroll.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteColoredBoxReopensWithEditableCheckboxAndUndoableChildSlot()
+            throws Exception {
+        StableId coloredBoxId = StableId.parse(
+                "74747474-7474-4474-8474-747474747474");
+        StableId childId = StableId.parse(
+                "75757575-7575-4575-8575-757575757575");
+        WidgetTypeId coloredBoxType =
+                ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE;
+        WidgetTypeId textType = new WidgetTypeId("flutter.widgets.Text");
+        PropertyValue.ColorValue creationBlue =
+                new PropertyValue.ColorValue(0xFF2196F3L);
+        PropertyValue.BooleanValue antiAliasDisabled =
+                new PropertyValue.BooleanValue(false);
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_colored_box_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("const ColoredBox("));
+                        assertTrue(request.content().contains(
+                                "color: const Color(0xFF2196F3)"));
+                        assertTrue(request.content().contains("child: null"));
+                        assertFalse(request.content().contains("isAntiAlias:"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            coloredBoxType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> coloredBoxId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal ColoredBox insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ColoredBox to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            WidgetNode coloredBox = findModelWidget(
+                    applied.document().orElseThrow().root(), coloredBoxId);
+            assertEquals(coloredBoxType, coloredBox.type());
+            assertEquals(Map.of(COLOR, creationBlue), coloredBox.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    coloredBox.slots().get(CHILD)).child().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_colored_box_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedColoredBox = findModelWidget(
+                    reopened.document().orElseThrow().root(), coloredBoxId);
+            assertEquals(Map.of(COLOR, creationBlue),
+                    reopenedColoredBox.properties());
+            var definition = reopened.catalog().orElseThrow()
+                    .find(coloredBoxType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedColoredBox,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> color =
+                    cellProperty(propertiesNode, "color");
+            assertTrue(color.canWrite(),
+                    "reopened ColoredBox must retain its required color editor");
+            assertEquals(FlutterPropertyCellValue.explicit(creationBlue),
+                    color.getValue());
+            Node.Property<FlutterPropertyCellValue> isAntiAlias =
+                    cellProperty(propertiesNode, "isAntiAlias");
+            assertTrue(isAntiAlias.canWrite(),
+                    "reopened ColoredBox must retain its boolean editor");
+            assertEquals(FlutterPropertyCellValue.unset(), isAntiAlias.getValue());
+            assertTrue(isAntiAlias.getPropertyEditor().isPaintable(),
+                    "reopened optional boolean must retain its checkbox renderer");
+            assertNull(isAntiAlias.getPropertyEditor().getTags(),
+                    "reopened optional boolean must not regress to a combo editor");
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("const ColoredBox("));
+                        assertTrue(request.content().contains(
+                                "color: const Color(0xFF2196F3)"));
+                        assertTrue(request.content().contains(
+                                "isAntiAlias: false"));
+                        if (call == 1) {
+                            assertTrue(request.content().contains("child: null"));
+                        } else {
+                            assertTrue(request.content().contains(
+                                    "child: const Text("));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult propertyEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    coloredBoxId,
+                                    IS_ANTI_ALIAS,
+                                    antiAliasDisabled),
+                            "ColoredBox.isAntiAlias")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    propertyEdited.outcome(), propertyEdited::reason);
+            FlutterDesignerMutationController.Snapshot propertySnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            WidgetNode propertyEditedColoredBox = findModelWidget(
+                    propertySnapshot.document().orElseThrow().root(),
+                    coloredBoxId);
+            assertEquals(creationBlue,
+                    propertyEditedColoredBox.properties().get(COLOR));
+            assertEquals(antiAliasDisabled,
+                    propertyEditedColoredBox.properties().get(IS_ANTI_ALIAS));
+
+            FlutterDesignerPaletteDropPlanner.Result childPlan =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            propertySnapshot.document().orElseThrow(),
+                            propertySnapshot.catalog().orElseThrow(),
+                            textType,
+                            coloredBoxId,
+                            CHILD,
+                            0,
+                            () -> childId);
+            FlutterDesignerPaletteDropPlanner.Accepted childAccepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, childPlan);
+            FlutterDesignerMutationController.MutationResult childAdded =
+                    fixture.mutations().submit(
+                            propertySnapshot.token().orElseThrow(),
+                            childAccepted.command(),
+                            "ColoredBox.child — add Text")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    childAdded.outcome(), childAdded::reason);
+            FlutterDesignerMutationController.Snapshot childSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertySnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    findModelWidget(
+                            childSnapshot.document().orElseThrow().root(),
+                            coloredBoxId)
+                            .slots().get(CHILD)).child().orElseThrow().id());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot childUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            WidgetNode withoutChild = findModelWidget(
+                    childUndone.document().orElseThrow().root(), coloredBoxId);
+            assertEquals(creationBlue, withoutChild.properties().get(COLOR));
+            assertEquals(antiAliasDisabled,
+                    withoutChild.properties().get(IS_ANTI_ALIAS));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    withoutChild.slots().get(CHILD)).child().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            WidgetNode withoutAntiAlias = findModelWidget(
+                    propertyUndone.document().orElseThrow().root(),
+                    coloredBoxId);
+            assertEquals(creationBlue, withoutAntiAlias.properties().get(COLOR));
+            assertFalse(withoutAntiAlias.properties().containsKey(IS_ANTI_ALIAS));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            assertEquals(antiAliasDisabled, findModelWidget(
+                    propertyRedone.document().orElseThrow().root(),
+                    coloredBoxId).properties().get(IS_ANTI_ALIAS));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot childRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, coloredBoxId));
+            WidgetNode finalColoredBox = findModelWidget(
+                    childRedone.document().orElseThrow().root(), coloredBoxId);
+            assertEquals(creationBlue, finalColoredBox.properties().get(COLOR));
+            assertEquals(antiAliasDisabled,
+                    finalColoredBox.properties().get(IS_ANTI_ALIAS));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    finalColoredBox.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(2, editAnalyses.get(),
+                    "Undo/Redo must replay the two exact analyzed ColoredBox pairs");
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedColoredBox = findModelWidget(
+                    saved.root(), coloredBoxId);
+            assertEquals(creationBlue,
+                    savedColoredBox.properties().get(COLOR));
+            assertEquals(antiAliasDisabled,
+                    savedColoredBox.properties().get(IS_ANTI_ALIAS));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    savedColoredBox.slots().get(CHILD)).child().orElseThrow().id());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

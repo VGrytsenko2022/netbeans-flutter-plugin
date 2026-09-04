@@ -65,7 +65,7 @@ class WidgetCatalogCompositionTest {
         assertEquals("Text", text.dartClassName());
         assertTrue(result.diagnostics().stream()
                 .anyMatch(value -> value.code() == CatalogDiagnosticCode.RESERVED_WIDGET_TYPE));
-        assertEquals(39, result.catalog().definitions().size());
+        assertEquals(40, result.catalog().definitions().size());
     }
 
     @Test

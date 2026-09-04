@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
+  vertical slice is the twentieth post-core Palette addition, at Basic order 40
+  after `Image`. Its complete reviewed Flutter 3.44.8 non-`key` constructor
+  exposes required `color`, optional `isAntiAlias` with omitted default `true`,
+  and one optional any-widget `child`. New nodes store the required creation
+  literal `Color(0xFF2196F3)`, omit anti-aliasing and begin with an empty child.
+  The shared color editor admits exact ARGB or a reviewed Material `ColorScheme`
+  token. Literal output remains const; `Theme.of(context).colorScheme...` output
+  makes the surrounding widget non-const. Generated Dart and native/exact-Web
+  Canvas construct the real `ColoredBox`; Canvas alone retains a
+  non-layout-affecting 36x36 target for an empty zero-size box, and never
+  persists that overlay. Property and slot editing, Palette/tree/Canvas DnD,
+  same-tree movement, deterministic generation, Save/reopen and further
+  editing, Undo/Redo and four reviewed light/dark 16/32 px SVGs share one closed
+  contract. The catalog now contains 40 widgets, 34 reviewed const constructors
+  and 716 writable rows, including 699 across the 39 non-`Scaffold`
+  definitions. Forty sources across 37 insertable any-widget and two
+  trait-bound destinations form 1,560 DnD candidates: 1,377 accepted and 183
+  rejected. Layout remains at 29 items, Scrolling at 3, Basic contains 4, and
+  the practical 92-widget backlog is 40/92 complete with 52 remaining. `.fd`
+  stays at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remain v1.
+- The accepted const
   [`SingleChildScrollView`](https://api.flutter.dev/flutter/widgets/SingleChildScrollView/SingleChildScrollView.html)
   vertical slice is the nineteenth post-core Palette addition, at Scrolling
   order 30 immediately after `GridView.count`. Its complete reviewed Flutter

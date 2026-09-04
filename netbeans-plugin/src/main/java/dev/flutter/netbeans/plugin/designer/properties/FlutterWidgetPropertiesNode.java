@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -482,6 +483,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (SingleChildScrollViewWidgetPropertySchema
                 .SINGLE_CHILD_SCROLL_VIEW_TYPE.equals(widget.type())) {
             addSingleChildScrollViewPropertySets(sheet, hasSlotTab);
+        } else if (ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.equals(
+                widget.type())) {
+            addColoredBoxPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -847,6 +851,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "the viewport only along the selected scroll axis; padding surrounds "
                     + "the child inside the scrollable extent. Occupancy: "
                     + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted over the required solid background color. "
+                    + "An empty or zero-size ColoredBox retains only a non-persisted Designer "
+                    + "selection and drop target; generated Flutter layout remains unchanged. "
+                    + "Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -1987,6 +2001,43 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.description(),
                     false,
                     presets));
+        }
+    }
+
+    private void addColoredBoxPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ColoredBoxWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ColoredBoxWidgetPropertySchema.Group.class);
+        for (ColoredBoxWidgetPropertySchema.Group group
+                : ColoredBoxWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ColoredBoxWidgetPropertySchema.Definition schema =
+                    ColoredBoxWidgetPropertySchema.find(property.name())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Built-in ColoredBox property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            String description = switch (property.name().value()) {
+                case "color" ->
+                    "Required solid background color painted behind the optional child. "
+                            + "Choose a literal ARGB color or a reviewed Material theme token; "
+                            + "palette creation starts with opaque blue 0xFF2196F3.";
+                case "isAntiAlias" ->
+                    "Whether Flutter anti-aliases the painted color edge. Omission preserves "
+                            + "ColoredBox's enabled default; an explicit value uses the "
+                            + "standard checkbox editor.";
+                default -> schema.description();
+            };
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    description));
         }
     }
 

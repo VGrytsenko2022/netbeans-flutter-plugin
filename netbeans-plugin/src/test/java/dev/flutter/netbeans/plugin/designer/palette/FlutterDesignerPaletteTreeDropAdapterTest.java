@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
 import dev.flutter.netbeans.designer.command.AddWidget;
+import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
@@ -89,6 +90,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId SINGLE_CHILD_SCROLL_VIEW =
             type("flutter.widgets.SingleChildScrollView");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
+    private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -97,6 +99,7 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final PropertyName ASPECT_RATIO_VALUE =
             new PropertyName("aspectRatio");
     private static final PropertyName OPACITY_VALUE = new PropertyName("opacity");
+    private static final PropertyName COLOR_VALUE = new PropertyName("color");
     private static final PropertyName CONSTRAINTS = new PropertyName("constraints");
     private static final PropertyName SIZE = new PropertyName("size");
     private static final PropertyName TRANSFORM_VALUE = new PropertyName("transform");
@@ -1215,6 +1218,88 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit consumes the SingleChildScrollView palette authority once"));
+    }
+
+    @Test
+    void coloredBoxTokenCommitsRequiredCreationColorAndEmptyOptionalChild() {
+        Fixture fixture = fixture(COLORED_BOX);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(COLORED_BOX, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(COLORED_BOX, command.widget().type()),
+                () -> assertEquals(
+                        Map.of(COLOR_VALUE, new PropertyValue.ColorValue(0xFF2196F3L)),
+                        command.widget().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ColoredBox palette authority once"));
+    }
+
+    @Test
+    void textTokenCommitsIntoEmptyColoredBoxChild() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(COLORED_BOX));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0),
+                        command.destination()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty()));
     }
 
     @Test

@@ -20,6 +20,7 @@ import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -42,6 +43,7 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -845,7 +847,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
-                "flutter.widgets.ColoredBox");
+                "flutter.widgets.ColoredBox",
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value());
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -879,7 +882,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(722, writableCount,
+        assertEquals(726, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -889,8 +892,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
-                + "Image, and ColoredBox leaves");
-        assertEquals(705, nonScaffoldWritableCount,
+                + "Image, ColoredBox, and Placeholder leaves");
+        assertEquals(709, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2168,6 +2171,121 @@ class FlutterWidgetPropertiesNodeTest {
                         "required solid background color")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "non-persisted Designer selection and drop target")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void placeholderProjectsExactGroupsOptionalThemeColorNumbersAndChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value());
+        StableId id = StableId.parse("1328b7ca-523e-419b-ad48-19100e4f01e4");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + PlaceholderWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(PlaceholderWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                Arrays.stream(sets)
+                        .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
+                                set.getName()))
+                        .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
+                                set.getName()))
+                        .mapToInt(set -> set.getProperties().length).sum());
+        for (PlaceholderWidgetPropertySchema.Group group
+                : PlaceholderWidgetPropertySchema.Group.values()) {
+            Node.PropertySet set = propertySet(node, group.setName());
+            assertEquals(group.displayName(), set.getDisplayName());
+            assertEquals(group.description(), set.getShortDescription());
+            assertEquals("General", set.getValue(
+                    FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        }
+        assertEquals(List.of("color", "strokeWidth"), names(propertySet(
+                node, PlaceholderWidgetPropertySchema.Group.APPEARANCE.setName())
+                        .getProperties()));
+        assertEquals(List.of("fallbackWidth", "fallbackHeight"), names(propertySet(
+                node, PlaceholderWidgetPropertySchema.Group.FALLBACK_SIZE.setName())
+                        .getProperties()));
+
+        Node.Property<FlutterPropertyCellValue> color = cellProperty(
+                property(node, "color"));
+        Node.Property<FlutterPropertyCellValue> strokeWidth = cellProperty(
+                property(node, "strokeWidth"));
+        Node.Property<FlutterPropertyCellValue> fallbackWidth = cellProperty(
+                property(node, "fallbackWidth"));
+        Node.Property<FlutterPropertyCellValue> fallbackHeight = cellProperty(
+                property(node, "fallbackHeight"));
+        for (Node.Property<FlutterPropertyCellValue> property : List.of(
+                color, strokeWidth, fallbackWidth, fallbackHeight)) {
+            assertEquals(FlutterPropertyCellValue.unset(), property.getValue());
+            assertTrue(property.supportsDefaultValue(), property.getName());
+            assertTrue(property.isDefaultValue(), property.getName());
+        }
+        assertAll(
+                () -> assertEquals("Color", color.getDisplayName()),
+                () -> assertTrue(color.getShortDescription().contains("literal ARGB")),
+                () -> assertTrue(color.getShortDescription().contains(
+                        "Material theme token")),
+                () -> assertTrue(color.getShortDescription().contains("0xFF455A64")),
+                () -> assertEquals("Stroke width", strokeWidth.getDisplayName()),
+                () -> assertTrue(strokeWidth.getShortDescription().contains(
+                        "Finite non-negative")),
+                () -> assertTrue(strokeWidth.getShortDescription().contains("hairline")),
+                () -> assertEquals("Fallback width", fallbackWidth.getDisplayName()),
+                () -> assertTrue(fallbackWidth.getShortDescription().contains(
+                        "incoming width is unbounded")),
+                () -> assertEquals("Fallback height", fallbackHeight.getDisplayName()),
+                () -> assertTrue(fallbackHeight.getShortDescription().contains(
+                        "incoming height is unbounded")));
+
+        PropertyValue.ThemeTokenValue primary = new PropertyValue.ThemeTokenValue(
+                new ThemeToken("material.colorScheme.primary"));
+        color.setValue(FlutterPropertyCellValue.explicit(primary));
+        strokeWidth.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.DoubleValue(new BigDecimal("2.5"))));
+        fallbackWidth.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.IntegerValue(BigInteger.valueOf(320))));
+        fallbackHeight.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.DoubleValue(new BigDecimal("480.5"))));
+        WidgetNode editedWidget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(new PropertyName("fallbackWidth"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(320))),
+                widget.slots(),
+                Extensions.empty());
+        FlutterWidgetPropertiesNode editedNode = new FlutterWidgetPropertiesNode(
+                Children.LEAF, editedWidget, definition, commands::add);
+        cellProperty(property(editedNode, "fallbackWidth")).restoreDefaultValue();
+
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("color"), primary),
+                new SetProperty(id, new PropertyName("strokeWidth"),
+                        new PropertyValue.DoubleValue(new BigDecimal("2.5"))),
+                new SetProperty(id, new PropertyName("fallbackWidth"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(320))),
+                new SetProperty(id, new PropertyName("fallbackHeight"),
+                        new PropertyValue.DoubleValue(new BigDecimal("480.5"))),
+                new ResetProperty(id, new PropertyName("fallbackWidth"))),
+                commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "outline and diagonals")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "corresponding incoming axis is unbounded")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
@@ -4259,7 +4377,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
-                "flutter.widgets.ColoredBox");
+                "flutter.widgets.ColoredBox",
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4287,7 +4406,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(41, iconPaths.size(),
+        assertEquals(42, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -184,7 +184,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.GridView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -531,6 +532,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.ColoredBox", coloredBoxProjection()),
+            Map.entry("flutter.widgets.Placeholder", placeholderProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
             Map.entry("flutter.widgets.Text", textProjection()));
@@ -858,6 +860,21 @@ public final class BuiltInWidgetCapabilityCatalog {
                 requiredDefaultColorOrThemeProperty(
                         "color", "color:0xFF2196F3"),
                 property("isAntiAlias", PropertyValueKind.BOOLEAN)),
+                Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection placeholderProjection() {
+        return projection(Map.ofEntries(
+                colorOrThemeProperty("color"),
+                numericProperty(
+                        "strokeWidth", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "fallbackWidth", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "fallbackHeight", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE)),
                 Map.of("child", singleSlotSchema(false, 0)));
     }
 

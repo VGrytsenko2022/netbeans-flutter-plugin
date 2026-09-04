@@ -27,6 +27,7 @@ import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -1675,6 +1676,121 @@ class DesignerCommandSessionTest {
                         editedAfterReopen.current().dartCandidateBytes(),
                         StandardCharsets.UTF_8)
                 .contains("color: const Color(0xFF405060)"));
+    }
+
+    @Test
+    void placeholderDefaultsPropertiesChildUndoRedoSaveReopenAndConstTransitionAreExact()
+            throws Exception {
+        PropertyName strokeWidth = property("strokeWidth");
+        PropertyName fallbackWidth = property("fallbackWidth");
+        PropertyName fallbackHeight = property("fallbackHeight");
+        DesignerCommandSession initial = session(fixture());
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.Placeholder")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession current = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Placeholder child")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, COLOR, new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.outline"))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, strokeWidth,
+                new PropertyValue.DoubleValue(new BigDecimal("0.5"))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, fallbackWidth,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(320))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, fallbackHeight,
+                new PropertyValue.DoubleValue(new BigDecimal("480.25"))));
+
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID, strokeWidth,
+                        new PropertyValue.DoubleValue(new BigDecimal("-0.001"))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                current, new ResetProperty(WRAPPER_ID, strokeWidth));
+        WidgetNode finalPlaceholder = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.outline")),
+                finalPlaceholder.properties().get(COLOR));
+        assertFalse(finalPlaceholder.properties().containsKey(strokeWidth));
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(320)),
+                finalPlaceholder.properties().get(fallbackWidth));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("480.25")),
+                finalPlaceholder.properties().get(fallbackHeight));
+        assertEquals(THIRD_ID,
+                ((WidgetSlot.SingleSlot) finalPlaceholder.slots().get(CHILD))
+                        .child().orElseThrow().id());
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("Placeholder("), dart);
+        assertFalse(dart.contains("const Placeholder("), dart);
+        assertTrue(dart.contains(
+                "color: Theme.of(context).colorScheme.outline"), dart);
+        assertFalse(dart.contains("strokeWidth:"), dart);
+        assertTrue(dart.contains("fallbackWidth: 320"), dart);
+        assertTrue(dart.contains("fallbackHeight: 480.25"), dart);
+        assertTrue(dart.contains(
+                "child: const Text('Placeholder child')"), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(strokeWidth));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(), redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.Placeholder\""), fd);
+        assertTrue(fd.contains("\"kind\": \"themeToken\""), fd);
+        assertTrue(fd.contains(
+                "\"token\": \"material.colorScheme.outline\""), fd);
+        assertTrue(fd.contains("\"fallbackWidth\""), fd);
+        assertTrue(fd.contains("\"fallbackHeight\""), fd);
+        assertFalse(fd.contains("\"strokeWidth\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID, COLOR,
+                        new PropertyValue.ColorValue(0xFF102030L)));
+        assertEquals(new PropertyValue.ColorValue(0xFF102030L),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(COLOR));
+        String literalDart = new String(
+                editedAfterReopen.current().dartCandidateBytes(),
+                StandardCharsets.UTF_8);
+        assertTrue(literalDart.contains("const Placeholder("), literalDart);
+        assertTrue(literalDart.contains(
+                "color: const Color(0xFF102030)"), literalDart);
+        assertFalse(literalDart.contains("Theme.of(context)"), literalDart);
     }
 
     @Test

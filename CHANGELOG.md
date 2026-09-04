@@ -7,6 +7,28 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`Placeholder`](https://api.flutter.dev/flutter/widgets/Placeholder/Placeholder.html)
+  vertical slice is the twenty-second post-core Palette addition, at Basic
+  order 50 after `ColoredBox`. Its complete Flutter 3.44.8 non-`key`
+  constructor exposes optional theme-aware `color`, finite non-negative
+  `strokeWidth`, `fallbackWidth` and `fallbackHeight`, plus one optional
+  any-widget `child`. Detached creation stores no explicit properties and
+  leaves the child empty, preserving Flutter's exact `Color(0xFF455A64)`,
+  `2.0`, `400.0` and `400.0` defaults. Literal colors preserve const; reviewed
+  Material `ColorScheme` tokens emit a context lookup and make the widget
+  non-const. Generated Dart and native/exact-Web Canvas construct the real
+  `Placeholder`; typed grouped Properties, Palette/tree/Canvas DnD, exact slot
+  management, same-tree movement, Save/reopen and further editing, Undo/Redo,
+  accessibility and four reviewed light/dark 16/32 px SVGs share the same
+  closed contract. The catalog now contains 42 widgets, 36 reviewed const
+  constructors and 726 writable rows, including 709 across the 41
+  non-`Scaffold` definitions. Forty-two sources across 38 insertable
+  any-widget and two trait-bound destinations form 1,680 candidates: 1,490
+  accepted and 190 rejected. Layout contains 30 items, Scrolling 3, Basic 5 and
+  Material 4; the practical backlog is 42/92 complete with 50 remaining.
+  Existing encodings keep `.fd` schema v9, Catalog API 9, Canvas model v14 and
+  NBFC framing/control/wire v1 unchanged.
+- The accepted const
   [`SafeArea`](https://api.flutter.dev/flutter/widgets/SafeArea/SafeArea.html)
   vertical slice is the twenty-first post-core Palette addition, at Layout
   order 240 after `OverflowBar`. Its complete reviewed Flutter 3.44.8

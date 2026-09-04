@@ -235,9 +235,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-41 reviewed Canvas widgets. Palette insertion evaluates 1,599 exact
-source/destination cells across 41 draggable sources and 39 insertable reviewed
-slots; 1,414 are accepted and 185 cells are rejected. Expanded and Flexible are
+42 reviewed Canvas widgets. Palette insertion evaluates 1,680 exact
+source/destination cells across 42 draggable sources and 40 insertable reviewed
+slots; 1,490 are accepted and 190 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -703,10 +703,38 @@ existing widget atomically, so Canvas never decodes a half-empty required child.
 The current target wire publishes only non-root children as wrapper targets and
 deliberately publishes no root target. Expanded, Flexible and Spacer are not
 targets because their ParentData must remain directly attached to Row or Column.
-The aggregate catalog now has 41 widgets and 35 reviewed const definitions, with
-722 writable rows (705 outside Scaffold). Palette contains 30 Layout, three
-Scrolling, four Basic and four Material items; the backlog is 41/92 complete
-with 51 remaining. The 41 sources across 39 insertable destinations form 1,599
+At the SafeArea milestone the aggregate catalog had 41 widgets and 35 reviewed const definitions, with
+722 writable rows (705 outside Scaffold). Palette contained 30 Layout, three
+Scrolling, four Basic and four Material items; the backlog was 41/92 complete
+with 51 remaining. The 41 sources across 39 insertable destinations formed 1,599
 cells, with 1,414 accepted and 185 rejected. `.fd` remains v9 and Canvas model
 protocol remains v14; the exported `EdgeInsetsValues.directionalAllowed`
 constraint advances Catalog API to v9. NBFC framing, control and wire remain v1.
+
+[`flutter.widgets.Placeholder`](https://api.flutter.dev/flutter/widgets/Placeholder/Placeholder.html)
+is decoded as the complete const default-constructor projection for Flutter
+3.44.8 without a protocol-version change. Optional `color` preserves
+`Color(0xFF455A64)` when omitted and accepts either an exact ARGB literal or one
+reviewed Material `ColorScheme` theme token. Optional `strokeWidth`,
+`fallbackWidth` and `fallbackHeight` preserve `2.0`, `400.0` and `400.0`
+respectively; each accepts only a finite, non-negative integer or double. One
+optional any-widget `child` is the only slot. `key`, non-finite or negative
+numbers and arbitrary Dart expressions are excluded from the closed model.
+
+Native and exact-Web views construct the real Flutter `Placeholder`. Its real
+fallback dimensions apply only on unbounded axes. Literal values retain const
+generation; resolving a theme color through `Theme.of(context).colorScheme`
+removes const only from that generated widget. The empty widget remains
+selectable and exposes its optional-child drop target; after population the
+child remains selectable and movable, while the occupied single slot rejects a
+second child. If an explicit zero fallback dimension collapses a real layout
+axis, Canvas supplies only a transient selection/drop target and does not alter
+the model or generated Dart.
+
+The aggregate catalog now has 42 widgets and 36 reviewed const definitions,
+with 726 writable rows (709 outside Scaffold). Palette contains 30 Layout,
+three Scrolling, five Basic and four Material items; the backlog is 42/92
+complete with 50 remaining. The 42 sources across 40 insertable destinations
+form 1,680 cells, with 1,490 accepted and 190 rejected. `.fd` remains v9,
+Canvas model protocol remains v14, Catalog API remains v9 and NBFC framing,
+control and wire remain v1.

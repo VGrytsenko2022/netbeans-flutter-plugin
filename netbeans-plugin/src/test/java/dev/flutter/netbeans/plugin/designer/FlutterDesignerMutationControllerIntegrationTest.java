@@ -21,6 +21,7 @@ import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -148,6 +149,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName SAFE_MINIMUM = new PropertyName("minimum");
     private static final PropertyName MAINTAIN_BOTTOM_VIEW_PADDING =
             new PropertyName("maintainBottomViewPadding");
+    private static final PropertyName FALLBACK_WIDTH =
+            new PropertyName("fallbackWidth");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -2887,6 +2890,268 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertEquals(childId, assertInstanceOf(
                     WidgetSlot.SingleSlot.class,
                     savedColoredBox.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void palettePlaceholderReopensForFurtherPropertyChildUndoRedoAndSave()
+            throws Exception {
+        StableId placeholderId = StableId.parse(
+                "78787878-7878-4878-8878-787878787878");
+        StableId childId = StableId.parse(
+                "79797979-7979-4979-8979-797979797979");
+        WidgetTypeId placeholderType =
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE;
+        WidgetTypeId textType = new WidgetTypeId("flutter.widgets.Text");
+        PropertyValue.IntegerValue fallbackWidth =
+                new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(320));
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_placeholder_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("const Placeholder("));
+                        assertTrue(request.content().contains("child: null"));
+                        assertFalse(request.content().contains("color:"));
+                        assertFalse(request.content().contains("strokeWidth:"));
+                        assertFalse(request.content().contains("fallbackWidth:"));
+                        assertFalse(request.content().contains("fallbackHeight:"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            placeholderType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> placeholderId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal Placeholder insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append Placeholder to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            WidgetNode placeholder = findModelWidget(
+                    applied.document().orElseThrow().root(), placeholderId);
+            assertEquals(placeholderType, placeholder.type());
+            assertTrue(placeholder.properties().isEmpty(),
+                    "creation must preserve all four Placeholder defaults by omission");
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    placeholder.slots().get(CHILD)).child().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_placeholder_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedPlaceholder = findModelWidget(
+                    reopened.document().orElseThrow().root(), placeholderId);
+            assertTrue(reopenedPlaceholder.properties().isEmpty());
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(placeholderType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedPlaceholder,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> color =
+                    cellProperty(propertiesNode, "color");
+            Node.Property<FlutterPropertyCellValue> fallback =
+                    cellProperty(propertiesNode, "fallbackWidth");
+            assertTrue(color.canWrite());
+            assertEquals(FlutterPropertyCellValue.unset(), color.getValue());
+            assertTrue(fallback.canWrite());
+            assertEquals(FlutterPropertyCellValue.unset(), fallback.getValue());
+            assertTrue(fallback.supportsDefaultValue());
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("const Placeholder("));
+                        assertTrue(request.content().contains("fallbackWidth: 320"));
+                        assertFalse(request.content().contains("color:"));
+                        assertFalse(request.content().contains("strokeWidth:"));
+                        assertFalse(request.content().contains("fallbackHeight:"));
+                        if (call == 1) {
+                            assertTrue(request.content().contains("child: null"));
+                        } else {
+                            assertTrue(request.content().contains(
+                                    "child: const Text("));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult propertyEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    placeholderId,
+                                    FALLBACK_WIDTH,
+                                    fallbackWidth),
+                            "Placeholder.fallbackWidth")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    propertyEdited.outcome(), propertyEdited::reason);
+            FlutterDesignerMutationController.Snapshot propertySnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            assertEquals(fallbackWidth, findModelWidget(
+                    propertySnapshot.document().orElseThrow().root(),
+                    placeholderId).properties().get(FALLBACK_WIDTH));
+
+            FlutterDesignerPaletteDropPlanner.Result childPlan =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            propertySnapshot.document().orElseThrow(),
+                            propertySnapshot.catalog().orElseThrow(),
+                            textType,
+                            placeholderId,
+                            CHILD,
+                            0,
+                            () -> childId);
+            FlutterDesignerPaletteDropPlanner.Accepted childAccepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, childPlan);
+            FlutterDesignerMutationController.MutationResult childAdded =
+                    fixture.mutations().submit(
+                            propertySnapshot.token().orElseThrow(),
+                            childAccepted.command(),
+                            "Placeholder.child — add Text")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    childAdded.outcome(), childAdded::reason);
+            FlutterDesignerMutationController.Snapshot childSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertySnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    findModelWidget(
+                            childSnapshot.document().orElseThrow().root(),
+                            placeholderId).slots().get(CHILD))
+                    .child().orElseThrow().id());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot childUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            WidgetNode withoutChild = findModelWidget(
+                    childUndone.document().orElseThrow().root(), placeholderId);
+            assertEquals(fallbackWidth,
+                    withoutChild.properties().get(FALLBACK_WIDTH));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    withoutChild.slots().get(CHILD)).child().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            assertTrue(findModelWidget(
+                    propertyUndone.document().orElseThrow().root(),
+                    placeholderId).properties().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            assertEquals(fallbackWidth, findModelWidget(
+                    propertyRedone.document().orElseThrow().root(),
+                    placeholderId).properties().get(FALLBACK_WIDTH));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot childRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, placeholderId));
+            WidgetNode finalPlaceholder = findModelWidget(
+                    childRedone.document().orElseThrow().root(), placeholderId);
+            assertEquals(fallbackWidth,
+                    finalPlaceholder.properties().get(FALLBACK_WIDTH));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    finalPlaceholder.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            assertEquals(2, editAnalyses.get(),
+                    "Undo/Redo must replay the two exact analyzed Placeholder pairs");
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedPlaceholder = findModelWidget(
+                    saved.root(), placeholderId);
+            assertEquals(fallbackWidth,
+                    savedPlaceholder.properties().get(FALLBACK_WIDTH));
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    savedPlaceholder.slots().get(CHILD))
+                    .child().orElseThrow().id());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

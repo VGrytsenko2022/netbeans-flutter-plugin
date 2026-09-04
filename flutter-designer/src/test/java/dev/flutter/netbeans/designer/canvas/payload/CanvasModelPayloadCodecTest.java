@@ -114,7 +114,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
-                "flutter.widgets.ColoredBox"),
+                "flutter.widgets.ColoredBox",
+                "flutter.widgets.Placeholder"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -149,6 +150,69 @@ class CanvasModelPayloadCodecTest {
                 "\"isAntiAlias\":{\"kind\":\"boolean\",\"value\":false}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"780ed564-3d39-4a50-bb75-e22892d7ef45\""), json);
+    }
+
+    @Test
+    void projectsPlaceholderOmissionExplicitKindsAndOptionalChildWithoutProtocolChange()
+            throws Exception {
+        WidgetNode omitted = new WidgetNode(
+                id("7843aa63-0bf8-4788-b18d-a470de935891"),
+                type("flutter.widgets.Placeholder"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode explicit = new WidgetNode(
+                id("c3138487-f329-4cc5-bda9-fba8a8b61b0e"),
+                type("flutter.widgets.Placeholder"),
+                Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ThemeTokenValue(
+                                new ThemeToken("material.colorScheme.outline")),
+                        new PropertyName("strokeWidth"),
+                        new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                        new PropertyName("fallbackWidth"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(320)),
+                        new PropertyName("fallbackHeight"),
+                        new PropertyValue.DoubleValue(new BigDecimal("480.25"))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "3925066f-4426-4726-a05e-f7fdc02f0bba",
+                        "Placeholder child"))));
+
+        CanvasModelPayloadCodec codec = new CanvasModelPayloadCodec();
+        String omittedJson = new String(codec.encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), omitted))),
+                StandardCharsets.UTF_8);
+        String explicitJson = new String(codec.encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), explicit))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(omittedJson.contains("\"protocolVersion\":14"), omittedJson);
+        assertTrue(omittedJson.contains(
+                "\"type\":\"flutter.widgets.Placeholder\""), omittedJson);
+        assertTrue(omittedJson.contains(
+                "\"properties\":{},\"slots\":{\"child\":{"
+                + "\"kind\":\"single\",\"child\":null}"), omittedJson);
+        assertFalse(omittedJson.contains("\"color\":"), omittedJson);
+        assertFalse(omittedJson.contains("\"strokeWidth\":"), omittedJson);
+        assertFalse(omittedJson.contains("\"fallbackWidth\":"), omittedJson);
+        assertFalse(omittedJson.contains("\"fallbackHeight\":"), omittedJson);
+
+        assertTrue(explicitJson.contains("\"protocolVersion\":14"), explicitJson);
+        assertTrue(explicitJson.contains(
+                "\"type\":\"flutter.widgets.Placeholder\""), explicitJson);
+        assertTrue(explicitJson.contains("\"color\":{\"kind\":\"themeToken\","
+                + "\"token\":\"material.colorScheme.outline\"}"), explicitJson);
+        assertTrue(explicitJson.contains(
+                "\"strokeWidth\":{\"kind\":\"double\",\"value\":0.5}"),
+                explicitJson);
+        assertTrue(explicitJson.contains(
+                "\"fallbackWidth\":{\"kind\":\"integer\",\"value\":320}"),
+                explicitJson);
+        assertTrue(explicitJson.contains(
+                "\"fallbackHeight\":{\"kind\":\"double\",\"value\":480.25}"),
+                explicitJson);
+        assertTrue(explicitJson.contains(
+                "\"child\":{\"id\":\"3925066f-4426-4726-a05e-f7fdc02f0bba\""),
+                explicitJson);
     }
 
     @Test

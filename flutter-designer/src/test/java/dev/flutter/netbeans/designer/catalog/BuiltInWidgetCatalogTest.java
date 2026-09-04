@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortyOneTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyTwoTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -64,6 +64,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
+                "flutter.widgets.Placeholder",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
                 "flutter.widgets.SafeArea",
@@ -80,8 +81,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(41, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(35, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(42, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(36, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -95,10 +96,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(722, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(726, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(705, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(709, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -137,6 +138,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.OverflowBar", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.OverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.Placeholder", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.RotatedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SafeArea", WIDGETS_IMPORT),
@@ -277,12 +279,13 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
-                "flutter.widgets.ColoredBox"), typeIds(palette));
+                "flutter.widgets.ColoredBox",
+                "flutter.widgets.Placeholder"), typeIds(palette));
         assertEquals(30, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
-        assertEquals(4, palette.stream()
+        assertEquals(5, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

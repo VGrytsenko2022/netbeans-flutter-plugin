@@ -49,6 +49,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
             "flutter.widgets.ColoredBox",
+            "flutter.widgets.Placeholder",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -87,8 +88,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(41, CATALOG.definitions().size());
-        assertEquals(35, CATALOG.definitions().stream()
+        assertEquals(42, CATALOG.definitions().size());
+        assertEquals(36, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -112,7 +113,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(30, itemLabels(categories[1]).size());
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
-        assertEquals(List.of("Text", "Icon", "Image", "ColoredBox"),
+        assertEquals(List.of("Text", "Icon", "Image", "ColoredBox", "Placeholder"),
                 itemLabels(categories[3]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
@@ -143,7 +144,7 @@ class FlutterDesignerPaletteTest {
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
-        assertEquals(List.of("Text", "Icon", "Image", "ColoredBox"),
+        assertEquals(List.of("Text", "Icon", "Image", "ColoredBox", "Placeholder"),
                 itemLabels(categories[3]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
@@ -969,6 +970,34 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void placeholderPaletteSelectionExplainsPaintFallbackDefaultsAndOptionalChild()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.Placeholder";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.basic",
+                        300,
+                        50,
+                        "Placeholder"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Placeholder", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("optional child"));
+        assertTrue(node.getShortDescription().contains("blue-grey"));
+        assertTrue(node.getShortDescription().contains("400 × 400"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void textFieldPaletteSelectionExplainsRuntimeOnlyEditingState()
             throws ReflectiveOperationException {
         String typeId = "flutter.material.TextField";
@@ -1287,7 +1316,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(41, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(42, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

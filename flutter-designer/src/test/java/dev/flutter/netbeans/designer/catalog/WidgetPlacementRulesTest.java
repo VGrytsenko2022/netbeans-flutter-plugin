@@ -589,6 +589,40 @@ class WidgetPlacementRulesTest {
     }
 
     @Test
+    void placeholderIsAnOrdinaryInsertableWidgetWithOptionalRestrictedChild() {
+        WidgetDefinition placeholder = definition("flutter.widgets.Placeholder");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(placeholder).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), placeholder));
+        assertTrue(WidgetPlacementRules.accepts(
+                placeholder, slot(placeholder, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    placeholder,
+                    slot(placeholder, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.Placeholder.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(placeholder));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(placeholder));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(placeholder));
+    }
+
+    @Test
     void safeAreaUsesGenericRequiredAnyWidgetAtomicWrapperCreation() {
         WidgetDefinition safeArea = definition("flutter.widgets.SafeArea");
         WidgetDefinition stack = definition("flutter.widgets.Stack");

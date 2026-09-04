@@ -64,6 +64,7 @@ public final class BuiltInWidgetCatalog {
             singleChildScrollView(),
             image(),
             coloredBox(),
+            placeholder(),
             elevatedButton(),
             textField()));
 
@@ -1448,6 +1449,29 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.basic", 300, 40, "ColoredBox"),
                 properties,
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition placeholder() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("color", 0, false, colorOrTheme()),
+                namedProperty("strokeWidth", 1, false, nonNegativeNumbers()),
+                namedProperty("fallbackWidth", 2, false, nonNegativeNumbers()),
+                namedProperty("fallbackHeight", 3, false, nonNegativeNumbers()));
+        if (properties.size()
+                != PlaceholderWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "Placeholder catalog/property schema count mismatch");
+        }
+        return widget(
+                PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
+                "Placeholder",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 50, "Placeholder"),
+                properties,
+                List.of(singleSlot("child", 4, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

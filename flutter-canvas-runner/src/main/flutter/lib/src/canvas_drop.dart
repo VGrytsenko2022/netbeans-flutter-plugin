@@ -341,6 +341,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.UnconstrainedBox' ||
       'flutter.widgets.LimitedBox' ||
       'flutter.widgets.OverflowBox' ||
+      'flutter.widgets.Placeholder' ||
       'flutter.widgets.ColoredBox' ||
       'flutter.widgets.Container' ||
       'flutter.widgets.FittedBox' ||

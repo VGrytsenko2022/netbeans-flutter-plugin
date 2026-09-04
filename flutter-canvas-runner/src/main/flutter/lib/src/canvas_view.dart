@@ -533,6 +533,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.IntrinsicHeight' ||
         node.type == 'flutter.widgets.IntrinsicWidth' ||
         node.type == 'flutter.widgets.Offstage' ||
+        node.type == 'flutter.widgets.Placeholder' ||
         node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
         node.type == 'flutter.widgets.Transform' ||
@@ -2293,6 +2294,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.UnconstrainedBox' => _unconstrainedBox(),
       'flutter.widgets.LimitedBox' => _limitedBox(),
       'flutter.widgets.OverflowBox' => _overflowBox(),
+      'flutter.widgets.Placeholder' => _placeholder(context),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.FittedBox' => _fittedBox(),
@@ -4113,6 +4115,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _opacity() => Opacity(
     opacity: _number('opacity')!,
     alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+    child: _single('child'),
+  );
+
+  Widget _placeholder(BuildContext context) => Placeholder(
+    color: _resolvedColor(context, 'color') ?? const Color(0xFF455A64),
+    strokeWidth: _number('strokeWidth') ?? 2.0,
+    fallbackWidth: _number('fallbackWidth') ?? 400.0,
+    fallbackHeight: _number('fallbackHeight') ?? 400.0,
     child: _single('child'),
   );
 

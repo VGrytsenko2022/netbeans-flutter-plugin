@@ -1282,7 +1282,7 @@ accepted architecture is documented in
   target. Reject wrapping Expanded, Flexible or Spacer because their ParentData
   must remain directly below Row/Column. Complete typed Properties,
   deterministic generation, native/exact-Web Canvas, Save/reopen and further
-  editing, Undo/Redo and four reviewed SVGs. The current surface is 41 widgets,
+  editing, Undo/Redo and four reviewed SVGs. At that milestone the surface was 41 widgets,
   35 const definitions and 722 rows (705 outside Scaffold). Forty-one sources
   across 37 insertable any-widget plus two trait destinations form 1,599
   candidates: 1,414 accepted and 185 rejected. Layout contains 30 items,
@@ -1290,6 +1290,24 @@ accepted architecture is documented in
   with 51 remaining. `.fd` stays at schema v9 and Canvas model at v14; adding
   the exported `EdgeInsetsValues.directionalAllowed` constraint advances
   Catalog API to 9. NBFC framing/control/wire remains v1.
+- [x] Complete const
+  [`Placeholder`](https://api.flutter.dev/flutter/widgets/Placeholder/Placeholder.html)
+  as the twenty-second post-core Palette vertical slice at Basic order 50,
+  after `ColoredBox`. Expose the complete Flutter 3.44.8 non-`key` constructor:
+  optional theme-aware `color`, finite non-negative `strokeWidth`,
+  `fallbackWidth` and `fallbackHeight`, plus one optional any-widget `child`.
+  Omit all four properties in a detached prototype to preserve Flutter's exact
+  `Color(0xFF455A64)`, `2.0`, `400.0` and `400.0` defaults. Complete typed
+  grouped Properties, ordinary Palette/tree/Canvas Create and DnD, same-tree
+  movement, exact-slot management, deterministic const-aware Dart generation,
+  Save/reopen and further editing, Undo/Redo, real native/exact-Web Canvas,
+  accessibility and four reviewed SVGs. The current surface is 42 widgets, 36
+  const definitions and 726 rows (709 outside Scaffold). Forty-two sources
+  across 38 insertable any-widget plus two trait destinations form 1,680
+  candidates: 1,490 accepted and 190 rejected. Layout contains 30 items,
+  Scrolling 3, Basic 5 and Material 4; the practical backlog is 42/92 complete
+  with 50 remaining. Existing encodings keep `.fd` schema v9, Catalog API 9,
+  Canvas model v14 and NBFC framing/control/wire v1 unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1307,8 +1325,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after SafeArea has yet been assigned an
-  explicit order. The current typed Properties slice spans all forty-one
+  vertical slices. No specific widget after Placeholder has yet been assigned
+  an explicit order. The current typed Properties slice spans all forty-two
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

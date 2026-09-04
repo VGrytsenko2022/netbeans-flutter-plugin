@@ -92,6 +92,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ColoredBox'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.Placeholder'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(
       canvasDropTargetAcceptsSource(
         parentWidgetType: 'flutter.widgets.ColoredBox',
@@ -543,7 +546,7 @@ void main() {
     );
   });
 
-  test('closes the 40-source by 38-destination compatibility matrix', () {
+  test('closes the 42-source by 40-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -568,6 +571,7 @@ void main() {
       'flutter.widgets.UnconstrainedBox',
       'flutter.widgets.LimitedBox',
       'flutter.widgets.OverflowBox',
+      'flutter.widgets.Placeholder',
       'flutter.widgets.ColoredBox',
       'flutter.widgets.Container',
       'flutter.widgets.Expanded',
@@ -581,6 +585,7 @@ void main() {
       'flutter.widgets.ListBody',
       'flutter.widgets.ListView',
       'flutter.widgets.GridView',
+      'flutter.widgets.SingleChildScrollView',
       'flutter.widgets.OverflowBar',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
@@ -594,8 +599,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(40));
-    expect(destinations, hasLength(38));
+    expect(sourceTypes, hasLength(42));
+    expect(destinations, hasLength(40));
 
     var accepted = 0;
     var rejected = 0;
@@ -609,7 +614,7 @@ void main() {
         if (canvasDropTargetAcceptsSource(
           parentWidgetType: destination.parentType,
           slotName: destination.slot.slotName,
-          currentChildCount: isCanvasFlexParentDataWidgetType(widgetType)
+          currentChildCount: isCanvasPaletteWrapperWidgetType(widgetType)
               ? 1
               : 0,
           insertionIndex: 0,
@@ -621,9 +626,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1304);
-    expect(rejected, 216);
-    expect(accepted + rejected, 1520);
+    expect(accepted, 1490);
+    expect(rejected, 190);
+    expect(accepted + rejected, 1680);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -9817,6 +9822,261 @@ void main() {
   );
 
   testWidgets(
+    'renders real Placeholder defaults and exact values on native and Web profiles',
+    (tester) async {
+      const placeholderId = 'b4d88c9a-9eca-4a53-92a6-71f1631ef235';
+      const childId = '5cdf8725-c754-4590-873e-c2e60e8c8872';
+      final cases =
+          <
+            ({
+              String platform,
+              Map<String, Object?> properties,
+              double strokeWidth,
+              double fallbackWidth,
+              double fallbackHeight,
+              Color? literalColor,
+            })
+          >[
+            (
+              platform: 'windows',
+              properties: const {},
+              strokeWidth: 2,
+              fallbackWidth: 400,
+              fallbackHeight: 400,
+              literalColor: const Color(0xFF455A64),
+            ),
+            (
+              platform: 'web',
+              properties: const {
+                'color': {
+                  'kind': 'themeToken',
+                  'token': 'material.colorScheme.secondaryContainer',
+                },
+                'strokeWidth': {'kind': 'double', 'value': 3.5},
+                'fallbackWidth': {'kind': 'integer', 'value': 160},
+                'fallbackHeight': {'kind': 'double', 'value': 90.5},
+              },
+              strokeWidth: 3.5,
+              fallbackWidth: 160,
+              fallbackHeight: 90.5,
+              literalColor: null,
+            ),
+          ];
+
+      for (final entry in cases) {
+        final json = _modelWithPlaceholder(
+          properties: entry.properties,
+          child: _viewSizedBoxNode(childId, width: 80, height: 40),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final placeholderFinder = find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$placeholderId')),
+          matching: find.byType(Placeholder),
+        );
+        expect(placeholderFinder, findsOneWidget, reason: entry.platform);
+        final placeholder = tester.widget<Placeholder>(placeholderFinder);
+        final expectedColor =
+            entry.literalColor ??
+            Theme.of(
+              tester.element(placeholderFinder),
+            ).colorScheme.secondaryContainer;
+        expect(placeholder.color, expectedColor, reason: entry.platform);
+        expect(
+          placeholder.strokeWidth,
+          entry.strokeWidth,
+          reason: entry.platform,
+        );
+        expect(
+          placeholder.fallbackWidth,
+          entry.fallbackWidth,
+          reason: entry.platform,
+        );
+        expect(
+          placeholder.fallbackHeight,
+          entry.fallbackHeight,
+          reason: entry.platform,
+        );
+        expect(placeholder.child, isNotNull, reason: entry.platform);
+        expect(
+          find.descendant(
+            of: placeholderFinder,
+            matching: find.byKey(const ValueKey('canvas-widget-$childId')),
+          ),
+          findsOneWidget,
+          reason: entry.platform,
+        );
+        expect(tester.takeException(), isNull, reason: entry.platform);
+      }
+    },
+  );
+
+  testWidgets(
+    'selects empty Placeholder, resolves its child drop, and blocks occupied replacement',
+    (tester) async {
+      const placeholderId = 'b4d88c9a-9eca-4a53-92a6-71f1631ef235';
+      const sourceId = 'f23a2095-d86c-4be0-96f0-08f34dd771a7';
+      CanvasDropResolver? dropResolver;
+      CanvasMovePreviewResolver? moveResolver;
+      String? selectedWidgetId;
+      var currentModel = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithPlaceholder(
+                properties: const {
+                  'color': {'kind': 'color', 'argb': '0xFF123456'},
+                  'strokeWidth': {'kind': 'integer', 'value': 1},
+                  'fallbackWidth': {'kind': 'integer', 'value': 120},
+                  'fallbackHeight': {'kind': 'integer', 'value': 80},
+                },
+                child: null,
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      StateSetter? rebuild;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CanvasModelApp(
+              model: currentModel,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => dropResolver = value,
+              onMovePreviewResolverChanged: (value) => moveResolver = value,
+            );
+          },
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$placeholderId'),
+      );
+      final placeholderFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(Placeholder),
+      );
+      expect(placeholderFinder, findsOneWidget);
+      expect(tester.widget<Placeholder>(placeholderFinder).child, isNull);
+      expect(tester.getSize(rendered).height, 80);
+
+      await tester.tapAt(tester.getRect(rendered).center);
+      await tester.pump();
+      expect(selectedWidgetId, placeholderId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(rendered).center;
+      int micros(double value, double origin, double extent) =>
+          ((value - origin) / extent * 1000000).round();
+      final drop = dropResolver!(
+        micros(point.dx, surface.left, surface.width),
+        micros(point.dy, surface.top, surface.height),
+      );
+      expect(drop?.parentWidgetId, placeholderId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+
+      final move = moveResolver!(sourceId, placeholderId, 'child', 0);
+      expect(move?.parentWidgetId, placeholderId);
+      expect(move?.slotName, 'child');
+      expect(move?.insertionIndex, 0);
+
+      final occupied = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithPlaceholder(
+                properties: const {},
+                child: _viewTextNode(
+                  '1e58d148-1c48-499f-9a93-c8ad21759f6d',
+                  'Occupied',
+                ),
+                sibling: _viewTextNode(sourceId, 'Move me'),
+              ),
+            ),
+          ),
+        ),
+      );
+      rebuild!(() {
+        currentModel = occupied;
+        selectedWidgetId = null;
+      });
+      await tester.pump();
+      expect(moveResolver!(sourceId, placeholderId, 'child', 0), isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps a zero-fallback Placeholder real and adds only a transient target',
+    (tester) async {
+      const placeholderId = 'b4d88c9a-9eca-4a53-92a6-71f1631ef235';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithPlaceholder(
+                properties: const {
+                  'fallbackHeight': {'kind': 'integer', 'value': 0},
+                },
+                child: null,
+                sibling: _viewTextNode(
+                  'f23a2095-d86c-4be0-96f0-08f34dd771a7',
+                  'Below',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$placeholderId'),
+      );
+      final placeholderFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(Placeholder),
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$placeholderId'),
+      );
+      expect(tester.getSize(rendered).height, 0);
+      expect(tester.getSize(placeholderFinder).height, 0);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target).height, 36);
+      expect(tester.getSize(target).width, greaterThanOrEqualTo(36));
+      expect(tester.getSize(target).width.isFinite, isTrue);
+      expect(tester.getSize(rendered).height, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders real ColoredBox with exact literal or theme color on native and Web profiles',
     (tester) async {
       const coloredBoxId = 'ec949ebe-9c66-48b7-8901-c691d7356e07';
@@ -13679,6 +13939,53 @@ Map<String, Object?> _modelWithColoredBox({
             'children': <String, Object?>{
               'kind': 'list',
               'children': <Map<String, Object?>>[coloredBox, sibling],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': content},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithPlaceholder({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  Map<String, Object?>? sibling,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final placeholder = <String, Object?>{
+    'id': 'b4d88c9a-9eca-4a53-92a6-71f1631ef235',
+    'type': 'flutter.widgets.Placeholder',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final content = sibling == null
+      ? placeholder
+      : <String, Object?>{
+          'id': 'b4372420-215c-44f2-9360-d71493949483',
+          'type': 'flutter.widgets.Column',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[placeholder, sibling],
             },
           },
         };

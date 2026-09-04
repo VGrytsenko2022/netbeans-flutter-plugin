@@ -62,7 +62,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
-            "flutter.widgets.ColoredBox");
+            "flutter.widgets.ColoredBox",
+            "flutter.widgets.Placeholder");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -104,7 +105,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
-            "flutter.widgets.ColoredBox");
+            "flutter.widgets.ColoredBox",
+            "flutter.widgets.Placeholder");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -115,7 +117,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortyOneSourcesAndThirtyNineInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyTwoSourcesAndFortyInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -138,9 +140,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(41, sources.size());
-        assertEquals(39, destinations.size());
-        assertEquals(37, destinations.stream()
+        assertEquals(42, sources.size());
+        assertEquals(40, destinations.size());
+        assertEquals(38, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -148,9 +150,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1599, candidates);
-        assertEquals(1414, accepted);
-        assertEquals(185, candidates - accepted);
+        assertEquals(1680, candidates);
+        assertEquals(1490, accepted);
+        assertEquals(190, candidates - accepted);
     }
 
     @Test
@@ -218,6 +220,62 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertTrue(contract.contains(
                 "P|isAntiAlias|boolean|0|-|-|boolean:any\n"
                 + "S|child|single|0|0|1|any\n"), contract);
+    }
+
+    @Test
+    void placeholderHasExactOptionalDefaultsNumericBoundsAndChildProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.Placeholder");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(PlaceholderWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var color = projection.propertyContracts().get(new PropertyName("color"));
+        assertFalse(color.required());
+        assertEquals(Set.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                color.acceptedKinds());
+        assertTrue(color.creationDefaultFingerprint().isEmpty());
+        assertEquals("any",
+                color.constraintFingerprints().get(PropertyValueKind.COLOR));
+        assertTrue(color.constraintFingerprints().get(PropertyValueKind.THEME_TOKEN)
+                .startsWith("tokens:material.colorScheme."));
+
+        for (String name : List.of(
+                "strokeWidth", "fallbackWidth", "fallbackHeight")) {
+            var numeric = projection.propertyContracts().get(new PropertyName(name));
+            assertFalse(numeric.required(), name);
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    numeric.acceptedKinds(), name);
+            assertTrue(numeric.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("0:1:9007199254740991:1",
+                    numeric.numericBounds().get(PropertyValueKind.INTEGER)
+                            .fingerprint(), name);
+            assertEquals("0:1:*:1",
+                    numeric.numericBounds().get(PropertyValueKind.DOUBLE)
+                            .fingerprint(), name);
+        }
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.Placeholder\n"
+                + "P|color|color,themeToken|0|-|-|"
+                + "color:any;themeToken:tokens:material.colorScheme."), contract);
+        assertTrue(contract.contains(
+                "P|strokeWidth|double,integer|0|-|"
+                + "double:0:1:*:1;integer:0:1:9007199254740991:1|"), contract);
+        assertTrue(contract.contains("S|child|single|0|0|1|any\n"), contract);
     }
 
     @Test

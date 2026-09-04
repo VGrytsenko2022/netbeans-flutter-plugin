@@ -2664,6 +2664,87 @@ void main() {
   );
 
   testWidgets(
+    'admits Placeholder as an exact source and empty child destination',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _emptyPlaceholderModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (
+        var attempt = 0;
+        attempt < 20 && runtime.presentedLayoutSequence == null;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      const placeholderId = 'b4d88c9a-9eca-4a53-92a6-71f1631ef235';
+      runtime.setDropResolver(
+        (_, _, [source]) => source?.widgetType == 'flutter.widgets.Placeholder'
+            ? const CanvasDropTarget(
+                parentWidgetId: placeholderId,
+                slotName: 'child',
+                insertionIndex: 0,
+              )
+            : null,
+      );
+      const token =
+          'nbfdnd:v1:858361c5-7293-4733-a3cc-307fd0be0ddf:'
+          '414db94b-b3c2-485f-b091-6211f92cd160';
+      final request = {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': 1,
+        'probeId': 1,
+      };
+      expect(
+        await _sourceAwareHover(
+          runtime,
+          input,
+          request,
+          widgetType: 'flutter.widgets.Placeholder',
+        ),
+        isTrue,
+      );
+      expect(await runtime.receiveNativePaletteDropPrepare(request), isTrue);
+      final commit = runtime.receiveNativePaletteDropCommit(request);
+      await tester.pump();
+      expect(await commit, isTrue);
+
+      final closing = input.close();
+      for (var attempt = 0; attempt < 20 && !runtime.closed; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await closing;
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final drops = (_decodeControlMessages(
+        output,
+      )).where((message) => message['type'] == 'runner.paletteDrop').toList();
+      expect(drops, hasLength(1));
+      expect(drops.single['body'], containsPair('token', token));
+      expect(
+        drops.single['body'],
+        containsPair('parentWidgetId', placeholderId),
+      );
+      expect(drops.single['body'], containsPair('slotName', 'child'));
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
+  testWidgets(
     'admits SizedOverflowBox as an exact source and empty child destination',
     (tester) async {
       final input = StreamController<List<int>>();
@@ -4349,6 +4430,28 @@ Uint8List _emptyOffstageModelBytes() {
     'type': 'flutter.widgets.Offstage',
     'properties': <String, Object?>{
       'offstage': {'kind': 'boolean', 'value': true},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _emptyPlaceholderModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(_emptyScaffoldModelBytes()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  ((root['slots']! as Map<String, Object?>)['body']!
+      as Map<String, Object?>)['child'] = <String, Object?>{
+    'id': 'b4d88c9a-9eca-4a53-92a6-71f1631ef235',
+    'type': 'flutter.widgets.Placeholder',
+    'properties': <String, Object?>{
+      'color': {'kind': 'color', 'argb': '0xFF455A64'},
+      'strokeWidth': {'kind': 'double', 'value': 2.0},
+      'fallbackWidth': {'kind': 'integer', 'value': 120},
+      'fallbackHeight': {'kind': 'double', 'value': 80.0},
     },
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': null},

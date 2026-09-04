@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
@@ -487,6 +488,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.equals(
                 widget.type())) {
             addColoredBoxPropertySets(sheet, hasSlotTab);
+        } else if (PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.equals(
+                widget.type())) {
+            addPlaceholderPropertySets(sheet, hasSlotTab);
         } else if (SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.equals(
                 widget.type())) {
             addSafeAreaPropertySets(sheet, hasSlotTab);
@@ -875,6 +879,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "An empty or zero-size ColoredBox retains only a non-persisted Designer "
                     + "selection and drop target; generated Flutter layout remains unchanged. "
                     + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted beneath Placeholder's outline and diagonals. "
+                    + "Fallback width and height apply only when the corresponding incoming "
+                    + "axis is unbounded. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2078,6 +2091,49 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addPlaceholderPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<PlaceholderWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(PlaceholderWidgetPropertySchema.Group.class);
+        for (PlaceholderWidgetPropertySchema.Group group
+                : PlaceholderWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            PlaceholderWidgetPropertySchema.Definition schema =
+                    PlaceholderWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in Placeholder property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            String description = switch (property.name().value()) {
+                case "color" ->
+                    "Color of the Placeholder outline and diagonals. Choose a literal ARGB "
+                            + "color or a reviewed Material theme token; omission preserves "
+                            + "Flutter's Color(0xFF455A64) default.";
+                case "strokeWidth" ->
+                    "Finite non-negative logical-pixel width of the outline and diagonals. "
+                            + "Zero requests a hairline; omission preserves Flutter's 2.0 "
+                            + "default.";
+                case "fallbackWidth" ->
+                    "Finite non-negative width used only when the incoming width is "
+                            + "unbounded; omission preserves Flutter's 400.0 default.";
+                case "fallbackHeight" ->
+                    "Finite non-negative height used only when the incoming height is "
+                            + "unbounded; omission preserves Flutter's 400.0 default.";
+                default -> schema.description();
+            };
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    description));
         }
     }
 

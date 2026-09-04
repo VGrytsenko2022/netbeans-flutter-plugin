@@ -133,6 +133,42 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsPlaceholderWithEveryFlutterDefaultOmittedAndTypedOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.Placeholder");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF102030L),
+                        new PropertyName("strokeWidth"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(3)),
+                        new PropertyName("fallbackWidth"),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(240.5)),
+                        new PropertyName("fallbackHeight"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(120))));
+        assertEquals(4, configured.properties().size());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("strokeWidth"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(-1)))));
+    }
+
+    @Test
     void createsDetachedSafeAreaWrapperWithOmittedDefaultsAndPhysicalInsetsOnly() {
         WidgetDefinition definition = definition("flutter.widgets.SafeArea");
 

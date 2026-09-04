@@ -5198,6 +5198,212 @@ void main() {
     );
   });
 
+  test('decodes exact Placeholder defaults, values, and optional child', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'b4d88c9a-9eca-4a53-92a6-71f1631ef235',
+        'flutter.widgets.Placeholder',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final omitted = _decode(model()).root;
+    expect(omitted.type, 'flutter.widgets.Placeholder');
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+
+    final child = _node(
+      '5cdf8725-c754-4590-873e-c2e60e8c8872',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Placeholder child'},
+      },
+    );
+    final explicit = _decode(
+      model(
+        properties: const {
+          'color': {'kind': 'color', 'argb': '0xFF123456'},
+          'strokeWidth': {'kind': 'double', 'value': 3.5},
+          'fallbackWidth': {'kind': 'integer', 'value': 240},
+          'fallbackHeight': {'kind': 'double', 'value': 120.25},
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+    expect(explicit.properties.keys, const [
+      'color',
+      'strokeWidth',
+      'fallbackWidth',
+      'fallbackHeight',
+    ]);
+    expect(explicit.properties['color']!.value, 0xff123456);
+    expect(explicit.properties['strokeWidth']!.value, 3.5);
+    expect(explicit.properties['fallbackWidth']!.value, 240);
+    expect(explicit.properties['fallbackHeight']!.value, 120.25);
+    expect(explicit.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final themed = _decode(
+      model(
+        properties: const {
+          'color': {
+            'kind': 'themeToken',
+            'token': 'material.colorScheme.secondaryContainer',
+          },
+          'strokeWidth': {'kind': 'integer', 'value': 0},
+          'fallbackWidth': {'kind': 'double', 'value': 0.0},
+          'fallbackHeight': {'kind': 'integer', 'value': 0},
+        },
+        slots: {'child': _single(null)},
+      ),
+    ).root;
+    expect(
+      (themed.properties['color']!.value as CanvasThemeToken).wireId,
+      'material.colorScheme.secondaryContainer',
+    );
+    expect(themed.slot('child')!.child, isNull);
+  });
+
+  test('rejects unsupported or non-finite Placeholder branches', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'b4d88c9a-9eca-4a53-92a6-71f1631ef235',
+        'flutter.widgets.Placeholder',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final invalid in <Map<String, Object?>>[
+      model(
+        properties: const {
+          'color': {'kind': 'string', 'value': 'blueGrey'},
+        },
+      ),
+      model(
+        properties: const {
+          'color': {
+            'kind': 'themeToken',
+            'token': 'material.colorScheme.notReviewed',
+          },
+        },
+      ),
+      model(
+        properties: const {
+          'strokeWidth': {'kind': 'double', 'value': -0.01},
+        },
+      ),
+      model(
+        properties: const {
+          'fallbackWidth': {'kind': 'integer', 'value': -1},
+        },
+      ),
+      model(
+        properties: const {
+          'fallbackHeight': {'kind': 'integer', 'value': 9007199254740992},
+        },
+      ),
+      model(
+        properties: const {
+          'futureProperty': {'kind': 'boolean', 'value': true},
+        },
+      ),
+      model(
+        slots: {
+          'child': {'kind': 'list', 'children': <Object?>[]},
+        },
+      ),
+      model(slots: {'futureSlot': _single(null)}),
+    ]) {
+      expect(
+        () => _decode(invalid),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+
+    final finite = jsonEncode(
+      model(
+        properties: const {
+          'fallbackHeight': {'kind': 'double', 'value': 1.0},
+        },
+      ),
+    );
+    expect(
+      () => CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(finite.replaceFirst('"value":1.0', '"value":1e400')),
+        ),
+      ),
+      throwsFormatException,
+    );
+
+    final expanded = _node(
+      '028eb9bb-9824-46e0-a787-34036c35d48a',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            '5cdf8725-c754-4590-873e-c2e60e8c8872',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Flex-only child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(model(slots: {'child': _single(expanded)})),
+      throwsFormatException,
+      reason: 'a ParentData child cannot be reparented under Placeholder',
+    );
+  });
+
+  test('Placeholder reviewed schema is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.Placeholder\n');
+    final end = contract.indexOf('W|flutter.widgets.RotatedBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final slice = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(slice), hasLength(4));
+    expect(RegExp(r'^S\|', multiLine: true).allMatches(slice), hasLength(1));
+    expect(
+      slice,
+      startsWith(
+        'W|flutter.widgets.Placeholder\n'
+        'P|color|color,themeToken|0|-|-|color:any;'
+        'themeToken:tokens:material.colorScheme.error,',
+      ),
+    );
+    expect(
+      slice,
+      endsWith(
+        'P|fallbackHeight|double,integer|0|-|double:0:1:*:1;'
+        'integer:0:1:9007199254740991:1|double:range:0:1:*:1;'
+        'integer:range:0:1:9007199254740991:1\n'
+        'P|fallbackWidth|double,integer|0|-|double:0:1:*:1;'
+        'integer:0:1:9007199254740991:1|double:range:0:1:*:1;'
+        'integer:range:0:1:9007199254740991:1\n'
+        'P|strokeWidth|double,integer|0|-|double:0:1:*:1;'
+        'integer:0:1:9007199254740991:1|double:range:0:1:*:1;'
+        'integer:range:0:1:9007199254740991:1\n'
+        'S|child|single|0|0|1|any\n',
+      ),
+    );
+  });
+
   test(
     'decodes the exact ColoredBox color, anti-alias, and optional child contract',
     () {

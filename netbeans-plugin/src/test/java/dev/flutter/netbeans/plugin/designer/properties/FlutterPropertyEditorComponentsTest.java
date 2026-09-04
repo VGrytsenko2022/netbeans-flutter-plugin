@@ -2551,6 +2551,46 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void placeholderEditorsUseThemeColorAndFiniteNonNegativeNumberDomains() {
+        FlutterTypedPropertyEditors.Binding color = binding(
+                property("flutter.widgets.Placeholder", "color"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.THEME_COLOR,
+                color.editorKind());
+        assertTrue(color.optional());
+        assertEquals(Set.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                color.definition().acceptedKinds());
+
+        for (String name : List.of(
+                "strokeWidth", "fallbackWidth", "fallbackHeight")) {
+            FlutterTypedPropertyEditors.Binding numeric = binding(
+                    property("flutter.widgets.Placeholder", name));
+            assertEquals(FlutterTypedPropertyEditors.EditorKind.NUMBER,
+                    numeric.editorKind(), name);
+            assertTrue(numeric.optional(), name);
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    numeric.definition().acceptedKinds(), name);
+
+            PropertyEditor editor = numeric.createEditor();
+            editor.setAsText("0");
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                    editor.getValue(), name);
+            editor.setAsText("2.5");
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.DoubleValue(new BigDecimal("2.5"))),
+                    editor.getValue(), name);
+            assertThrows(IllegalArgumentException.class,
+                    () -> editor.setAsText("-0.01"), name);
+            assertThrows(IllegalArgumentException.class,
+                    () -> editor.setAsText("NaN"), name);
+            assertThrows(IllegalArgumentException.class,
+                    () -> editor.setAsText("Infinity"), name);
+            editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT);
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(), name);
+        }
+    }
+
+    @Test
     void requiredSizeEditorKeepsAValidatedLocalDraftAndNeverOffersUnset()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(

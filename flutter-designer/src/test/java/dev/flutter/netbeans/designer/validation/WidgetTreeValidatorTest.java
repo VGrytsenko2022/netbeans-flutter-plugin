@@ -3287,6 +3287,82 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsPlaceholderOmittedDefaultsLiteralThemeAndOptionalChild() {
+        WidgetNode omitted = node(
+                "valid-placeholder-omitted",
+                "flutter.widgets.Placeholder",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode literal = node(
+                "valid-placeholder-literal",
+                "flutter.widgets.Placeholder",
+                Map.of(
+                        name("color"), new PropertyValue.ColorValue(0xFF102030L),
+                        name("strokeWidth"), new PropertyValue.IntegerValue(
+                                BigInteger.ZERO),
+                        name("fallbackWidth"), new PropertyValue.DoubleValue(
+                                BigDecimal.valueOf(240.5)),
+                        name("fallbackHeight"), new PropertyValue.IntegerValue(
+                                BigInteger.valueOf(120))),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(text("placeholder-child"))));
+        WidgetNode themed = node(
+                "valid-placeholder-theme",
+                "flutter.widgets.Placeholder",
+                Map.of(name("color"), new PropertyValue.ThemeTokenValue(
+                        new ThemeToken("material.colorScheme.outline"))),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+
+        for (WidgetNode candidate : List.of(omitted, literal, themed)) {
+            ValidationResult result = validator().validate(
+                    document(candidate), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+    }
+
+    @Test
+    void rejectsPlaceholderWrongOrNegativeValuesAndRestrictedChild() {
+        WidgetNode wrongColor = node(
+                "invalid-placeholder-color",
+                "flutter.widgets.Placeholder",
+                Map.of(name("color"), new PropertyValue.BooleanValue(true)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue wrongKind = onlyIssue(
+                validator().validate(
+                        document(wrongColor), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/color", wrongKind.path());
+
+        for (String name : List.of(
+                "strokeWidth", "fallbackWidth", "fallbackHeight")) {
+            WidgetNode negative = node(
+                    "invalid-placeholder-" + name,
+                    "flutter.widgets.Placeholder",
+                    Map.of(new PropertyName(name), new PropertyValue.IntegerValue(
+                            BigInteger.valueOf(-1))),
+                    Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+            ValidationIssue constraint = onlyIssue(
+                    validator().validate(
+                            document(negative), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + name, constraint.path());
+        }
+
+        WidgetNode restrictedChild = node(
+                "invalid-placeholder-child",
+                "flutter.widgets.Placeholder",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("placeholder-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(restrictedChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.Placeholder.child"), placement.message());
+    }
+
+    @Test
     void acceptsSafeAreaCompletePhysicalInsetsSurfaceIncludingSignedMinimum() {
         WidgetNode safeArea = node(
                 "valid-safe-area",

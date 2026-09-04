@@ -340,6 +340,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ColoredBox.Name"));
                 setShortDescription(message("Widget.ColoredBox.Description"));
+            } else if ("flutter.widgets.Placeholder".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.Placeholder.Name"));
+                setShortDescription(message("Widget.Placeholder.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

@@ -790,7 +790,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
                     "flutter.widgets.Image",
-                    "flutter.widgets.ColoredBox"),
+                    "flutter.widgets.ColoredBox",
+                    "flutter.widgets.Placeholder"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(
                                     category.getChildren().getNodes(true)))

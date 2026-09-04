@@ -69,6 +69,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
             Map.entry("flutter.widgets.Image", ICON_ROOT + "image.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
+            Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),
             Map.entry("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg"),
             Map.entry("flutter.widgets.Container", ICON_ROOT + "container.svg"),

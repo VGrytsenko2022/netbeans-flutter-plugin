@@ -38,6 +38,8 @@ public final class FlutterDesignerCanvasImageProjector {
     private static final WidgetTypeId IMAGE_WIDGET_TYPE =
             new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName IMAGE_PROPERTY = new PropertyName("image");
+    private static final String UNRESOLVED_IMAGE_ASSET_NAME =
+            PropertyValue.ImageProviderValue.unresolved().assetName();
     private static final Pattern SHA_256 = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern FILE_URI = Pattern.compile(
             "(?i)(?<![A-Za-z0-9_])file:/+[^\\s,;]+");
@@ -54,13 +56,20 @@ public final class FlutterDesignerCanvasImageProjector {
     public FlutterImageAssetChoices choices(FlutterAssetInventory inventory) {
         Objects.requireNonNull(inventory, "inventory");
         List<FlutterImageAssetChoices.Choice> choices = inventory.assets().stream()
+                .filter(asset -> !asset.id().logicalPath().equals(
+                        UNRESOLVED_IMAGE_ASSET_NAME))
                 .map(asset -> new FlutterImageAssetChoices.Choice(
                         Optional.ofNullable(asset.id().packageName()),
                         asset.id().logicalPath(),
                         asset.id().displayName()))
                 .toList();
+        boolean reservedIdentityExcluded = choices.isEmpty()
+                && inventory.assets().stream().anyMatch(asset ->
+                        asset.id().logicalPath().equals(
+                                UNRESOLVED_IMAGE_ASSET_NAME));
         Optional<String> unavailableReason = choices.isEmpty()
-                ? Optional.of(choiceUnavailableReason(inventory))
+                ? Optional.of(choiceUnavailableReason(
+                        inventory, reservedIdentityExcluded))
                 : Optional.empty();
         return new FlutterImageAssetChoices(choices, unavailableReason);
     }
@@ -95,12 +104,15 @@ public final class FlutterDesignerCanvasImageProjector {
                             + " unique logical assets exceed strict bundle limit "
                             + CanvasImageResourceBundle.MAX_ASSETS);
         }
-        List<CanvasImageResolutionIssue> issues = referenced.keySet().stream()
-                .map(assetId -> new CanvasImageResolutionIssue(
-                        assetId,
-                        code,
-                        "Resolve Canvas image " + boundedAssetExternalName(assetId)
-                                + ": " + boundedReason))
+        List<CanvasImageResolutionIssue> issues = referenced.entrySet().stream()
+                .map(entry -> entry.getValue().unresolved()
+                        ? unresolvedIssue(entry.getKey())
+                        : new CanvasImageResolutionIssue(
+                                entry.getKey(),
+                                code,
+                                "Resolve Canvas image "
+                                        + boundedAssetExternalName(entry.getKey())
+                                        + ": " + boundedReason))
                 .toList();
         return new CanvasImageResourceBundle(List.of(), List.of(), issues);
     }
@@ -137,6 +149,10 @@ public final class FlutterDesignerCanvasImageProjector {
         for (Map.Entry<CanvasImageAssetId, ProviderUse> entry
                 : referenced.entrySet()) {
             CanvasImageAssetId assetId = entry.getKey();
+            if (entry.getValue().unresolved()) {
+                issues.add(unresolvedIssue(assetId));
+                continue;
+            }
             Resolution resolution = resolve(
                     assetId,
                     entry.getValue(),
@@ -233,6 +249,10 @@ public final class FlutterDesignerCanvasImageProjector {
         CanvasImageAssetId id = new CanvasImageAssetId(
                 provider.packageName(), provider.assetName());
         ProviderUse current = referenced.getOrDefault(id, ProviderUse.NONE);
+        if (provider.isUnresolved()) {
+            referenced.put(id, current.withUnresolved());
+            return;
+        }
         referenced.put(id, switch (provider.providerKind()) {
             case ASSET -> current.withAsset();
             case EXACT_ASSET -> current.withExact();
@@ -660,7 +680,23 @@ public final class FlutterDesignerCanvasImageProjector {
         return new CanvasImageResolutionIssue(assetId, code, reason);
     }
 
-    private static String choiceUnavailableReason(FlutterAssetInventory inventory) {
+    private static CanvasImageResolutionIssue unresolvedIssue(
+            CanvasImageAssetId assetId) {
+        return new CanvasImageResolutionIssue(
+                assetId,
+                CanvasImageResolutionIssue.Code.UNDECLARED,
+                "Resolve Canvas Image placeholder: choose a declared Flutter image "
+                        + "asset in the Image image property.");
+    }
+
+    private static String choiceUnavailableReason(
+            FlutterAssetInventory inventory,
+            boolean reservedIdentityExcluded) {
+        if (reservedIdentityExcluded) {
+            return "Resolve declared Flutter image choices: the discovered image "
+                    + "asset uses a Designer-reserved placeholder identity; rename "
+                    + "that asset path.";
+        }
         if (inventory.diagnostics().isEmpty()) {
             return "Resolve declared Flutter image choices: the owning project declares "
                     + "no safe PNG, JPEG, GIF, or WebP assets.";
@@ -807,26 +843,31 @@ public final class FlutterDesignerCanvasImageProjector {
     private record ProviderUse(
             boolean asset,
             boolean exact,
+            boolean unresolved,
             List<CenterSliceUse> centerSlices) {
         private static final ProviderUse NONE = new ProviderUse(
-                false, false, List.of());
+                false, false, false, List.of());
 
         ProviderUse {
             centerSlices = List.copyOf(centerSlices);
         }
 
         ProviderUse withAsset() {
-            return new ProviderUse(true, exact, centerSlices);
+            return new ProviderUse(true, exact, unresolved, centerSlices);
         }
 
         ProviderUse withExact() {
-            return new ProviderUse(asset, true, centerSlices);
+            return new ProviderUse(asset, true, unresolved, centerSlices);
+        }
+
+        ProviderUse withUnresolved() {
+            return new ProviderUse(asset, exact, true, centerSlices);
         }
 
         ProviderUse withCenterSlice(CenterSliceUse centerSlice) {
             ArrayList<CenterSliceUse> uses = new ArrayList<>(centerSlices);
             uses.add(Objects.requireNonNull(centerSlice, "centerSlice"));
-            return new ProviderUse(asset, exact, uses);
+            return new ProviderUse(asset, exact, unresolved, uses);
         }
     }
 

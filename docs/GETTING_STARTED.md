@@ -111,13 +111,14 @@ or clear. `Spacer` is a childless insertion-only leaf available only in direct
 `FlexFit.loose`/`tight`; omission preserves `flex: 1` and loose fit.
 
 `Image` is a leaf with a required asset-only provider and 21 optional reviewed
-fields. Add chooses the deterministic first sorted declared asset before a stable
-ID is allocated. Palette/Canvas checks the current inventory before authorizing
-the drag. An empty, refreshing, verifying or failed inventory blocks the source,
-shows its exact reason and directs you to resolve the state, wait if work is in
-progress and retry. When the project actually has no usable declared image, add
-a PNG/JPEG/GIF/WebP file such as `assets/example.png`, then list it in the
-existing `flutter:` block in `pubspec.yaml`:
+fields. Add chooses the deterministic first sorted declared asset when one is
+available. If the inventory is empty, refreshing, verifying or unavailable, the
+Palette source remains draggable: dropping it into a compatible slot creates an
+editable placeholder and the `image` property reads `<choose asset>`. Canvas and
+generated Dart use a built-in placeholder, so the document stays renderable and
+valid across Save/reopen. To replace it, add a PNG/JPEG/GIF/WebP file such as
+`assets/example.png`, list it in the existing `flutter:` block in
+`pubspec.yaml`, then open **Image data** and select it:
 
 ```yaml
 flutter:
@@ -128,8 +129,8 @@ flutter:
 
 Android launcher PNGs, Apple `Assets.xcassets` entries and `web/icons/...` do
 not become Flutter runtime assets for `Image` merely by existing in the project.
-The planner checks the latest inventory again at commit, so an asset change
-during the drag means no command and no new ID. Its four center-slice coordinates
+The planner checks the latest inventory again at commit and either chooses its
+first current asset or keeps the placeholder. Its four center-slice coordinates
 must be supplied together, form a strict rectangle and cannot be combined with
 `BoxFit.cover` or `BoxFit.none`.
 
@@ -428,15 +429,12 @@ required replacement-only `child` slot. Neither wrapper can wrap Expanded,
 Flexible or Spacer, and neither required child slot is an insertable DnD
 destination. Spacer is an ordinary childless prototype only for direct
 Row/Column list insertion; other destinations fail closed.
-Image Add and Replace New Widget additionally require a current declared asset
-inventory before allocating a stable ID. Palette/Canvas source preflight reports
-the exact unavailable state: resolve a reported resolver problem, wait for
-`Refreshing` or `Verifying` to finish and retry. If it reports that no usable
-asset is declared, add a PNG/JPEG/GIF/WebP file to the Flutter project and list
-its path under the `assets:` list in the existing `flutter:` block; after the
-Designer refreshes the inventory, retry the drag. Commit still repeats the
-inventory check for race safety. TextField is an ordinary immediate leaf
-insertion and never captures runtime editable state.
+Image Add and Replace New Widget allocate a normal stable ID even without a
+current declared asset. In that case they store the reserved unresolved
+provider, show `<choose asset>` in Properties and render the built-in
+placeholder until a declared asset is selected. Commit still repeats inventory
+resolution for race safety. TextField is an ordinary immediate leaf insertion
+and never captures runtime editable state.
 
 Every application newly created by this plugin also receives the shared
 `.fd_templates/project.fdtheme` catalog and generated

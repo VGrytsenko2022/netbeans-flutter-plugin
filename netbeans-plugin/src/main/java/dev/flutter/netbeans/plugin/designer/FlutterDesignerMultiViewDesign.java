@@ -141,16 +141,8 @@ public final class FlutterDesignerMultiViewDesign
     static final String DELETE_WIDGET_ACTION_KEY = "delete";
     private static final WidgetTypeId TEXT_WIDGET_TYPE =
             new WidgetTypeId("flutter.widgets.Text");
-    private static final WidgetTypeId IMAGE_WIDGET_TYPE =
-            new WidgetTypeId("flutter.widgets.Image");
     private static final PropertyName TEXT_DATA_PROPERTY =
             new PropertyName("data");
-    private static final String IMAGE_ASSET_CREATION_REMEDIATION =
-            "Resolve the reported asset inventory state. If this project has no "
-            + "usable image asset, add a PNG/JPEG/GIF/WebP file such as "
-            + "assets/example.png, declare it in the 'assets:' list of the "
-            + "existing 'flutter:' block in pubspec.yaml, wait for the Designer "
-            + "asset inventory to refresh, then drag Image again.";
     private static final int SWING_FOCUS_REPAIR_DELAY_MILLIS = 50;
     static final int MAX_SWING_FOCUS_REPAIR_ATTEMPTS = 8;
     private final Lookup context;
@@ -4353,83 +4345,27 @@ public final class FlutterDesignerMultiViewDesign
         }
         FlutterDesignerCanvasSession session = canvasOwner;
         boolean authorityEnabled = isPaletteCatalogInsertDragEnabled();
-        Optional<String> creationUnavailableReason = authorityEnabled
-                ? paletteCreationUnavailableReason(definition)
-                : Optional.empty();
         if (authorityEnabled) {
-            creationUnavailableReason.ifPresentOrElse(reason -> {
-                PaletteDropFeedback feedback = imagePaletteDragUnavailableFeedback(
-                        modelName, reason);
-                renderPaletteDropFeedback(feedback.summary(), feedback.detail());
-            }, this::clearPaletteDropFeedback);
+            clearPaletteDropFeedback();
         }
         return session != null
                 && authorizeCanvasPaletteDragSource(
                         authorityEnabled,
-                        creationUnavailableReason,
                         token,
                         definition,
                         session::authorizePaletteDragSource);
     }
 
-    Optional<String> paletteCreationUnavailableReason(
-            WidgetDefinition definition) {
-        return FlutterImageWidgetCreationValues.creationUnavailableReason(
-                Objects.requireNonNull(definition, "definition"),
-                currentImageAssetChoices);
-    }
-
     static boolean authorizeCanvasPaletteDragSource(
             boolean authorityEnabled,
             String token,
             WidgetDefinition definition,
             BiPredicate<String, WidgetTypeId> authorizer) {
-        return authorizeCanvasPaletteDragSource(
-                authorityEnabled,
-                Optional.empty(),
-                token,
-                definition,
-                authorizer);
-    }
-
-    static boolean authorizeCanvasPaletteDragSource(
-            boolean authorityEnabled,
-            Optional<String> creationUnavailableReason,
-            String token,
-            WidgetDefinition definition,
-            BiPredicate<String, WidgetTypeId> authorizer) {
-        Objects.requireNonNull(
-                creationUnavailableReason, "creationUnavailableReason");
         Objects.requireNonNull(token, "token");
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(authorizer, "authorizer");
         return authorityEnabled
-                && creationUnavailableReason.isEmpty()
                 && authorizer.test(token, definition.typeId());
-    }
-
-    static PaletteDropFeedback imagePaletteDragUnavailableFeedback(
-            String modelName,
-            String reason) {
-        Objects.requireNonNull(modelName, "modelName");
-        Objects.requireNonNull(reason, "reason");
-        return new PaletteDropFeedback(
-                "Cannot add Image: no usable image asset is currently available; "
-                + "hover for exact reason.",
-                "Operation: add Flutter Image. Target: " + modelName
-                + " widget tree. " + reason + ' '
-                + IMAGE_ASSET_CREATION_REMEDIATION);
-    }
-
-    record PaletteDropFeedback(String summary, String detail) {
-        PaletteDropFeedback {
-            if (summary == null || summary.isBlank()) {
-                throw new IllegalArgumentException("summary cannot be blank");
-            }
-            if (detail == null || detail.isBlank()) {
-                throw new IllegalArgumentException("detail cannot be blank");
-            }
-        }
     }
 
     private boolean isPaletteCatalogInsertDragAuthorityEnabled() {
@@ -5066,12 +5002,9 @@ public final class FlutterDesignerMultiViewDesign
                     + drop.slotName().value() + " at index "
                     + drop.insertionIndex();
             publishPaletteDropRejection(
-                    widgetType,
-                    widgetDisplayName,
                     target,
                     rejected,
-                    this::renderPaletteDropFeedback,
-                    FlutterDesignerMultiViewDesign::showMutationResult);
+                    this::renderPaletteDropFeedback);
             return;
         }
         if (!(planned instanceof FlutterDesignerPaletteDropPlanner.Accepted accepted)) {
@@ -5109,44 +5042,16 @@ public final class FlutterDesignerMultiViewDesign
     }
 
     static void publishPaletteDropRejection(
-            WidgetTypeId widgetType,
-            String widgetDisplayName,
             String target,
             FlutterDesignerPaletteDropPlanner.Rejected rejected,
-            BiConsumer<String, String> feedbackRenderer,
-            Consumer<FlutterDesignerMutationController.MutationResult>
-                    mutationResultPresenter) {
-        Objects.requireNonNull(widgetType, "widgetType");
-        Objects.requireNonNull(widgetDisplayName, "widgetDisplayName");
+            BiConsumer<String, String> feedbackRenderer) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(rejected, "rejected");
         Objects.requireNonNull(feedbackRenderer, "feedbackRenderer");
-        Objects.requireNonNull(mutationResultPresenter, "mutationResultPresenter");
-        boolean imageAssetUnavailable = IMAGE_WIDGET_TYPE.equals(widgetType)
-                && rejected.code()
-                == FlutterDesignerPaletteDropPlanner.RejectionCode
-                        .REQUIRED_CREATION_VALUE_UNAVAILABLE;
-        String remediation = imageAssetUnavailable
-                ? " " + IMAGE_ASSET_CREATION_REMEDIATION
-                : "";
         feedbackRenderer.accept(
-                imageAssetUnavailable
-                        ? "Cannot add Image: no usable image asset is currently "
-                                + "available; "
-                                + "hover for exact reason."
-                        : "Flutter Palette drop was not applied.",
-                (imageAssetUnavailable
-                        ? "Operation: add Flutter " + widgetDisplayName + " widget. "
-                        : "Operation: apply Flutter Palette drop. ")
-                + "Target: "
-                + target + ". Reason: " + rejected.reason() + remediation);
-        if (imageAssetUnavailable) {
-            mutationResultPresenter.accept(
-                    FlutterDesignerMutationController.MutationResult.rejected(
-                            "Add Flutter Image widget",
-                            target,
-                            rejected.reason() + remediation));
-        }
+                "Flutter Palette drop was not applied.",
+                "Operation: apply Flutter Palette drop. Target: "
+                + target + ". Reason: " + rejected.reason());
     }
 
     private void invalidatePaletteDragAuthority() {

@@ -438,8 +438,12 @@ scale if and only if the exact provider is selected. Either provider may have
 at most one `ResizeImage`; at least one width/height is present, every present
 dimension is in `1..16384`, policy is `exact` or `fit`, and upscaling is an
 explicit boolean. Network, file, memory and custom providers remain deferred.
-The runner's private `MemoryImage` is a projection of host-resolved immutable
-bytes and is not a persisted provider alternative.
+One reserved unqualified ASSET identity represents a direct Image whose asset
+has not yet been chosen; package, exact scale and resize options are forbidden
+for it. It is not resolved as a project path. The runner's private `MemoryImage`
+normally projects host-resolved immutable bytes and also supplies the bounded
+unresolved placeholder; generated Dart uses the same reviewed placeholder bytes.
+Neither use makes `MemoryImage` a persisted provider alternative.
 
 `DecorationImageValue` pins all 13 Flutter 3.44.8 named arguments in SDK order:
 required image, optional typed `onError`, optional color filter, optional fit,
@@ -1616,8 +1620,11 @@ ordinary optional single slot.
 `isAntiAlias` and `filterQuality`. Its provider editor reuses the declared
 asset-only choices from Container decoration. The four center-slice leaves are
 all-or-none, strict left/right and top/bottom pairs and incompatible with
-`BoxFit.cover`/`none`. Add/Replace resolves the first sorted declared asset before
-stable-ID allocation; unavailable inventory emits no command.
+`BoxFit.cover`/`none`. Add/Replace resolves the first sorted declared asset when
+available. Otherwise it allocates the widget with a reserved unresolved
+provider, displays `<choose asset>` in Properties and uses the built-in Canvas
+and generated-Dart placeholder until a declared asset is selected. This state
+round-trips through Save/reopen without becoming a project asset path.
 
 `TextField` is the canonical const `flutter.material.TextField` leaf. Its 54
 optional named leaves have no creation defaults and are projected into these
@@ -2175,8 +2182,10 @@ Expanded and Flexible Palette creation use a separate atomic wrapper mode over
 an existing direct Row/Column child, never terminal Add or an empty placeholder;
 neither may wrap either wrapper type or Spacer. Spacer uses ordinary insertion
 but only for a direct Row/Column list destination. Image Add
-and Replace New Widget resolve the first sorted declared asset before stable-ID
-allocation and fail closed when inventory is unavailable. TextField remains an
+and Replace New Widget resolve the first sorted declared asset when available;
+otherwise they store the reserved unresolved provider and remain editable.
+Image drag admission is therefore governed by the same destination and mutation
+authority checks as other ordinary leaf sources. TextField remains an
 ordinary direct leaf source; its generated and Canvas constraint guards make
 unbounded flex placements safe without a placement exception.
 The slice does not support an arbitrary list index, a definition without the

@@ -121,6 +121,9 @@ public final class PropertyValueFormatter {
     }
 
     private static String imageProvider(PropertyValue.ImageProviderValue value) {
+        if (value.isUnresolved()) {
+            return "<choose asset>";
+        }
         String identity = value.packageName()
                 .map(name -> "package:" + name + ':' + value.assetName())
                 .orElseGet(() -> "app:" + value.assetName());

@@ -812,6 +812,8 @@ public sealed interface PropertyValue permits
             Optional<String> packageName,
             Optional<BigDecimal> exactScale,
             Optional<ResizeImageConfig> resize) implements PropertyValue {
+        private static final String UNRESOLVED_ASSET_NAME =
+                "__netbeans_flutter_designer__/unresolved-image.png";
         public static final int MAX_ASSET_NAME_LENGTH = 4096;
         public static final int MAX_PACKAGE_NAME_LENGTH = 64;
         public static final int MAX_RESIZE_DIMENSION = 16_384;
@@ -826,7 +828,16 @@ public sealed interface PropertyValue permits
                     value, "Dart package name", DART_PACKAGE_NAME));
             exactScale = normalizedOptional(exactScale, "exactScale");
             resize = copiedOptional(resize, "resize");
-            if (providerKind == ProviderKind.EXACT_ASSET) {
+            if (assetName.equals(UNRESOLVED_ASSET_NAME)) {
+                if (providerKind != ProviderKind.ASSET
+                        || packageName.isPresent()
+                        || exactScale.isPresent()
+                        || resize.isPresent()) {
+                    throw new IllegalArgumentException(
+                            "The reserved unresolved image provider must be an unqualified "
+                            + "AssetImage without scale or resize options");
+                }
+            } else if (providerKind == ProviderKind.EXACT_ASSET) {
                 if (exactScale.isEmpty()) {
                     throw new IllegalArgumentException(
                             "ExactAssetImage requires exactScale");
@@ -846,6 +857,23 @@ public sealed interface PropertyValue permits
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty());
+        }
+
+        /**
+         * Returns the reserved provider used while a direct Image has no
+         * project asset selected yet.
+         *
+         * <p>The logical name is a model sentinel, not a path that generators
+         * or preview projectors may resolve against the owning Flutter
+         * project.</p>
+         */
+        public static ImageProviderValue unresolved() {
+            return asset(UNRESOLVED_ASSET_NAME);
+        }
+
+        /** Returns whether this value is the reserved unresolved provider. */
+        public boolean isUnresolved() {
+            return assetName.equals(UNRESOLVED_ASSET_NAME);
         }
 
         public static ImageProviderValue exactAsset(

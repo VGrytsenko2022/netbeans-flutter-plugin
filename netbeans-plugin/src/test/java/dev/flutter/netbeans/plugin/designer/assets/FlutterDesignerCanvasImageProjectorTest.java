@@ -494,6 +494,48 @@ class FlutterDesignerCanvasImageProjectorTest {
     }
 
     @Test
+    void unresolvedProviderAlwaysProjectsAsAPathFreePlaceholderIssue()
+            throws Exception {
+        PropertyValue.ImageProviderValue provider =
+                PropertyValue.ImageProviderValue.unresolved();
+        Path project = newProject("unresolved", "unresolved_app", """
+                  assets:
+                    - %s
+                """.formatted(provider.assetName()));
+        write(project, provider.assetName(), png(8, 8));
+        writePackageConfig(project, List.of(
+                new PackageEntry("unresolved_app", "../")));
+        FlutterAssetInventory inventory = resolver.resolve(project);
+        assertTrue(inventory.find(
+                FlutterAssetId.app(provider.assetName())).isPresent());
+        DesignerDocument document = document(node(Map.of(
+                new PropertyName("image"), provider), Map.of()));
+
+        var projected = projector.project(document, inventory, 1.0);
+
+        assertTrue(projected.bundle().assets().isEmpty());
+        assertTrue(projected.bundle().resources().isEmpty());
+        assertEquals(1, projected.bundle().issues().size());
+        CanvasImageResolutionIssue projectedIssue =
+                projected.bundle().issues().getFirst();
+        assertEquals(CanvasImageResolutionIssue.Code.UNDECLARED,
+                projectedIssue.code());
+        assertTrue(projectedIssue.reason().contains("choose a declared Flutter image asset"));
+        assertFalse(projectedIssue.reason().contains(provider.assetName()));
+
+        var inventoryUnavailable = projector.unavailable(
+                document,
+                CanvasImageResolutionIssue.Code.UNREADABLE,
+                "the declared asset inventory could not be read");
+        CanvasImageResolutionIssue unavailableIssue =
+                inventoryUnavailable.issues().getFirst();
+        assertEquals(CanvasImageResolutionIssue.Code.UNDECLARED,
+                unavailableIssue.code());
+        assertEquals(projectedIssue.reason(), unavailableIssue.reason());
+        assertFalse(unavailableIssue.reason().contains(provider.assetName()));
+    }
+
+    @Test
     void choicesCoverAppAndPackageButDoNotPrefetchEither() throws Exception {
         Path project = newProject("choices", "choices_app", """
                   assets:
@@ -529,6 +571,36 @@ class FlutterDesignerCanvasImageProjectorTest {
         assertTrue(result.choices().choices().stream().noneMatch(choice ->
                 choice.displayName().contains(
                         temporaryDirectory.toAbsolutePath().toString())));
+    }
+
+    @Test
+    void choicesExcludeDesignerReservedPlaceholderIdentity() throws Exception {
+        String reserved = PropertyValue.ImageProviderValue.unresolved().assetName();
+        Path project = newProject("reserved-choices", "reserved_choices_app", """
+                  assets:
+                    - %s
+                """.formatted(reserved));
+        write(project, reserved, png(8, 8));
+        Path imagePackage = project.resolve("packages/image_pack");
+        Files.createDirectories(imagePackage);
+        Files.writeString(imagePackage.resolve("pubspec.yaml"), """
+                name: image_pack
+                flutter:
+                  assets:
+                    - %s
+                """.formatted(reserved));
+        write(imagePackage, reserved, png(8, 8));
+        writePackageConfig(project, List.of(
+                new PackageEntry("reserved_choices_app", "../"),
+                new PackageEntry("image_pack", "../packages/image_pack/")));
+
+        FlutterImageAssetChoices choices = projector.choices(
+                resolver.resolve(project));
+
+        assertTrue(choices.choices().isEmpty());
+        String reason = choices.unavailableReason().orElseThrow();
+        assertTrue(reason.contains("Designer-reserved placeholder identity"));
+        assertFalse(reason.contains(reserved));
     }
 
     @Test

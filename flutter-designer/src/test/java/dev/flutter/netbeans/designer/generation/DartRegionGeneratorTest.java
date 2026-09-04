@@ -1199,6 +1199,95 @@ class DartRegionGeneratorTest {
                 .anyMatch(value -> value.symbolName().equals("AlwaysStoppedAnimation")));
         assertTrue(result.generated().orElseThrow().symbolOccurrences().stream()
                 .anyMatch(value -> value.symbolName().equals("Rect")));
+        assertFalse(result.generated().orElseThrow().imports().payload()
+                .contains("dart:convert"));
+    }
+
+    @Test
+    void emitsSafeMemoryImageForReservedUnresolvedProvider() {
+        WidgetNode image = new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Image"),
+                Map.of(property("image"),
+                        PropertyValue.ImageProviderValue.unresolved()),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(image, WidgetClassKind.STATELESS),
+                BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals("""
+                import 'dart:convert' as _nbfd_b051080b56d2;
+                import 'package:flutter/widgets.dart';
+                """, generated.imports().payload());
+        String build = generated.build().payload();
+        assertTrue(build.contains("return Image("), build);
+        assertTrue(build.contains(
+                "image: MemoryImage(_nbfd_b051080b56d2.base64Decode("), build);
+        assertTrue(build.contains("), scale: 0.125)"), build);
+        assertFalse(build.contains("AssetImage("), build);
+        assertFalse(build.contains(
+                "__netbeans_flutter_designer__/unresolved-image.png"), build);
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("MemoryImage")
+                && occurrence.libraryUri().equals(WIDGETS_IMPORT)));
+        assertTrue(generated.symbolOccurrences().stream().anyMatch(occurrence ->
+                occurrence.symbolName().equals("base64Decode")
+                && occurrence.libraryUri().equals("dart:convert")));
+        assertTrue(generated.symbolOccurrences().stream().allMatch(occurrence ->
+                build.substring(occurrence.offset(), occurrence.endOffset())
+                        .equals(occurrence.symbolName())));
+    }
+
+    @Test
+    void unresolvedProvidersInTwoPropertiesHaveDistinctSymbolOccurrences() {
+        WidgetDefinition definition = new WidgetDefinition(
+                new WidgetTypeId("example.DualImage"),
+                "DualImage",
+                Optional.empty(),
+                true,
+                PROBE_IMPORT,
+                List.of(PROBE_IMPORT),
+                Set.of(),
+                palette("Dual Image"),
+                List.of(
+                        propertyDefinition(
+                                "firstImage",
+                                DartParameter.named(0, false),
+                                new PropertyValueConstraint.ImageProviderValues()),
+                        propertyDefinition(
+                                "secondImage",
+                                DartParameter.named(1, false),
+                                new PropertyValueConstraint.ImageProviderValues())),
+                List.of());
+        WidgetNode node = new WidgetNode(
+                StableId.random(),
+                definition.typeId(),
+                Map.of(
+                        property("firstImage"),
+                        PropertyValue.ImageProviderValue.unresolved(),
+                        property("secondImage"),
+                        PropertyValue.ImageProviderValue.unresolved()),
+                Map.of(),
+                Extensions.empty());
+
+        DartGenerationResult result = new DartRegionGenerator().generate(
+                document(node, WidgetClassKind.STATELESS),
+                WidgetCatalog.strict(List.of(definition)));
+
+        assertTrue(result.successful(), () -> result.diagnostics().toString());
+        GeneratedDartRegions generated = result.generated().orElseThrow();
+        assertEquals(2, generated.symbolOccurrences().stream()
+                .filter(occurrence -> occurrence.symbolName().equals("MemoryImage"))
+                .count());
+        assertEquals(generated.symbolOccurrences().size(),
+                generated.symbolOccurrences().stream()
+                        .map(GeneratedDartSymbolOccurrence::id)
+                        .distinct()
+                        .count());
     }
 
     @Test

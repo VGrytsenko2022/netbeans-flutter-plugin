@@ -63,8 +63,9 @@ ParentDataWidget would cease to be a direct Row/Column child. Their occupied
 required `child` slots are replacement-only and are not insertable matrix
 destinations. Spacer is the insertion-only source exception: it is appended as
 a childless leaf only to direct `Row.children` or `Column.children` and never
-wraps an existing child. Image creation
-requires a resolved declared asset before ID allocation. TextField remains an
+wraps an existing child. Image creation selects the first declared asset when
+available and otherwise stores an editable unresolved provider before ID
+allocation. TextField remains an
 ordinary leaf source because its generated and Canvas constraint guards handle
 unbounded flex layouts without a placement rule.
 
@@ -269,8 +270,9 @@ factors plus an optional child. `Stack` adds alignment, text direction, fit,
 clip behavior and ordered non-positioned children. `Expanded` adds optional flex
 and a required child; Palette creation atomically wraps an existing direct
 Row/Column child rather than creating a terminal placeholder. `Image` is a
-22-property leaf whose required provider is selected from declared assets before
-stable-ID allocation.
+22-property leaf whose required provider uses the first declared asset when
+available. With no usable inventory it stores a reserved unresolved value,
+renders a built-in placeholder and remains editable after Save/reopen.
 
 The const Material `TextField` leaf adds 54 optional rows grouped as Input (14),
 Layout (9), Behavior (11), Cursor and selection (11), Callbacks (8) and
@@ -568,8 +570,11 @@ not guessed from abstract alignments.
 package and exact positive scale only for the exact provider. Either may have at
 most one `ResizeImage` with at least one `width`/`height` in `1..16384`, policy
 `exact`/`fit` and `allowUpscaling`. File, memory, network and custom providers
-remain deferred; the Canvas runtime's internal `MemoryImage` is only a
-projection of host-verified bytes, not a model choice.
+remain deferred as user-selectable model choices. One reserved unqualified ASSET
+identity represents a direct Image awaiting selection and cannot carry package,
+scale or resize state. Canvas/generated Dart map it to reviewed built-in
+placeholder bytes rather than resolving it as an asset path; the Canvas
+runtime's internal `MemoryImage` otherwise projects host-verified bytes.
 
 The complete pinned Flutter 3.44.8 `DecorationImage` argument set is `image`,
 `onError`, `colorFilter`, `fit`, `alignment`, `centerSlice`, `repeat`,

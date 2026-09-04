@@ -238,8 +238,10 @@ positive portable integer `flex`, no slots, and insertion-only placement into
 direct Row/Column children. Neither wrapper may wrap Spacer. Image is a leaf with one
 required typed asset-only provider and 21 optional callback, accessibility,
 layout and paint rows. Palette/tree/
-Canvas creation resolves the deterministic first sorted declared asset before
-allocating a stable ID; missing or unavailable inventory admits no command.
+Canvas creation resolves the deterministic first sorted declared asset when one
+is available. Otherwise it allocates the stable ID with a reserved unresolved
+provider; Properties exposes `<choose asset>`, while Canvas and generated Dart
+use a built-in placeholder until a declared asset is selected.
 
 TextField is the canonical const `flutter.material.TextField` leaf. Its 54
 optional named rows are presented as Input (14), Layout (9), Behavior (11),
@@ -259,7 +261,10 @@ presence. No schema, Catalog API or protocol version changes.
 exact positive scale only for the exact provider, and at most one
 `ResizeImage`. Resize width/height are `1..16384` with at least one present;
 policy is `exact` or `fit`, and upscaling is explicit. Network, file, memory and
-custom providers remain outside the persisted model. `DecorationImageValue`
+custom providers remain outside the persisted model. One reserved unqualified
+ASSET identity represents a direct Image whose project asset has not been chosen;
+it cannot carry exact-scale/resize state and is projected/generated as a built-in
+placeholder rather than an asset path. `DecorationImageValue`
 pins all 13 Flutter 3.44.8 arguments: image, typed error callback, five-variant
 ColorFilter, fit, alignment, center slice, repeat, text-direction matching,
 scale, opacity, filter quality, inversion and anti-aliasing. Its center slice is
@@ -772,7 +777,8 @@ established generation, analysis, paired replacement, Save and chronological
 Undo/Redo pipeline. The runner receives no widget payload from the drag,
 project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
-before stable-ID allocation and fails closed when inventory is unavailable. DnD
+when available, or stores the reserved unresolved provider when the inventory is
+empty or unavailable; only destination and authority failures reject DnD. DnD
 outside the thirty-four-source, 1,122-candidate matrix (969 accepted, 153 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.

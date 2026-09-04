@@ -772,6 +772,66 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void reopenedUnresolvedImageEditorOffersOnlyRealAssetsAndCommitsSelection()
+            throws Exception {
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.empty(),
+                                "assets/a.png",
+                                "App: assets/a.png"),
+                        new FlutterImageAssetChoices.Choice(
+                                java.util.Optional.of("ui_kit"),
+                                "assets/panel.webp",
+                                "Package ui_kit: assets/panel.webp")),
+                java.util.Optional.empty());
+        PropertyEditor editor = binding(
+                property("flutter.widgets.Image", "image")).createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(
+                PropertyValue.ImageProviderValue.unresolved()));
+        FeatureDescriptor descriptor = descriptor(
+                "Image", "Required Image.image provider editor.");
+        descriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, choices);
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> asset = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".asset");
+            JComboBox<?> provider = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".provider");
+            JLabel status = findNamed(
+                    panel,
+                    JLabel.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".assetStatus");
+
+            assertEquals(2, asset.getItemCount(),
+                    "the reserved unresolved provider must not become an asset choice");
+            assertNull(asset.getSelectedItem());
+            assertFalse(provider.isEnabled());
+            assertTrue(status.getText().contains("Choose one of 2"));
+
+            asset.setSelectedIndex(1);
+            assertTrue(provider.isEnabled());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.ImageProviderValue committed = assertInstanceOf(
+                    PropertyValue.ImageProviderValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            assertFalse(committed.isUnresolved());
+            assertEquals("assets/panel.webp", committed.assetName());
+            assertEquals(java.util.Optional.of("ui_kit"), committed.packageName());
+            return null;
+        });
+    }
+
+    @Test
     void realNetBeansPropertyPanelInstallsBooleanCheckboxWithoutCombo()
             throws Exception {
         WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()

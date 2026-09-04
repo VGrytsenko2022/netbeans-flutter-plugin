@@ -72,6 +72,47 @@ class FdV6ImageValueCodecTest {
     }
 
     @Test
+    void roundTripsReservedUnresolvedDirectImageAcrossSaveAndReopen()
+            throws Exception {
+        PropertyName imageProperty = new PropertyName("image");
+        WidgetNode image = new WidgetNode(
+                StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                new WidgetTypeId("flutter.widgets.Image"),
+                Map.of(imageProperty, PropertyValue.ImageProviderValue.unresolved()),
+                Map.of(),
+                Extensions.empty());
+        ManagedRegion region = new ManagedRegion("A".repeat(64));
+        DesignerDocument document = new DesignerDocument(
+                Optional.of("../fd-v9.schema.json"),
+                StableId.parse("dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
+                new DartSourceDescriptor(
+                        "unresolved_image_page.dart",
+                        "UnresolvedImagePage",
+                        WidgetClassKind.STATELESS,
+                        Optional.of("test"),
+                        new ManagedRegions(region, region)),
+                Optional.empty(),
+                image,
+                Extensions.empty());
+
+        OriginalFdBytes encoded = codec.encode(document);
+        String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
+        assertTrue(json.contains(
+                "\"assetName\": \"__netbeans_flutter_designer__/unresolved-image.png\""),
+                json);
+
+        FdDecodeResult.Current reopened = assertInstanceOf(
+                FdDecodeResult.Current.class, codec.decode(encoded));
+        PropertyValue.ImageProviderValue provider = assertInstanceOf(
+                PropertyValue.ImageProviderValue.class,
+                reopened.document().root().properties().get(imageProperty));
+        assertTrue(provider.isUnresolved());
+        assertEquals(document, reopened.document());
+        assertArrayEquals(encoded.copyBytes(),
+                codec.encode(reopened.document()).copyBytes());
+    }
+
+    @Test
     void migratesV5BoxDecorationWithoutInventingAnImage() throws Exception {
         DesignerDocument document = imageFreeDocument();
         String current = new String(

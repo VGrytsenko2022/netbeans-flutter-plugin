@@ -529,6 +529,47 @@ class PropertyValueTest {
     }
 
     @Test
+    void modelsOneReservedUnresolvedImageProviderWithoutAssetOptions() {
+        PropertyValue.ImageProviderValue unresolved =
+                PropertyValue.ImageProviderValue.unresolved();
+
+        assertTrue(unresolved.isUnresolved());
+        assertEquals(PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                unresolved.providerKind());
+        assertEquals("__netbeans_flutter_designer__/unresolved-image.png",
+                unresolved.assetName());
+        assertTrue(unresolved.packageName().isEmpty());
+        assertTrue(unresolved.exactScale().isEmpty());
+        assertTrue(unresolved.resize().isEmpty());
+        assertFalse(PropertyValue.ImageProviderValue.asset("assets/photo.png")
+                .isUnresolved());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET,
+                        unresolved.assetName(), Optional.empty(),
+                        Optional.of(BigDecimal.ONE), Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        unresolved.assetName(), Optional.of("image_package"),
+                        Optional.empty(), Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        unresolved.assetName(), Optional.empty(),
+                        Optional.of(BigDecimal.ONE), Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.ImageProviderValue(
+                        PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        unresolved.assetName(), Optional.empty(), Optional.empty(),
+                        Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig(
+                                Optional.of(64), Optional.empty(),
+                                PropertyValue.ImageProviderValue.ResizePolicy.EXACT,
+                                false))));
+    }
+
+    @Test
     void modelsCompleteDecorationImageDefaultsFiltersAndDependentInvariants() {
         PropertyValue.ImageProviderValue provider =
                 PropertyValue.ImageProviderValue.asset("assets/logo.png");

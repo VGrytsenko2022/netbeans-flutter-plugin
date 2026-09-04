@@ -59,7 +59,12 @@ public final class DartRegionGenerator {
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final String RENDERING_IMPORT = "package:flutter/rendering.dart";
+    private static final String DART_CONVERT_IMPORT = "dart:convert";
     private static final String DART_UI_IMPORT = "dart:ui";
+    private static final String UNRESOLVED_IMAGE_BASE64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA"
+            + "AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/"
+            + "j6/OV/ZHzWzg8FM9BBAboAugY6KAAAyITDgZYboFoAAAAASUVORK5CYII=";
     private static final int INLINE_CONSTRUCTOR_LIMIT = 100;
     private static final Comparator<ConstructorArgument> ARGUMENT_ORDER = Comparator
             .comparing((ConstructorArgument value) -> value.parameter().style())
@@ -230,6 +235,7 @@ public final class DartRegionGenerator {
         boolean requiresServices = false;
         boolean requiresGestures = false;
         boolean requiresRendering = false;
+        boolean requiresDartConvert = false;
         boolean requiresDartUi = false;
         Deque<WidgetAtPath> pending = new ArrayDeque<>();
         pending.push(new WidgetAtPath(root, "/root"));
@@ -265,6 +271,8 @@ public final class DartRegionGenerator {
                     ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
                     && current.node().properties().containsKey(
                             new PropertyName("scrollCacheExtent"));
+            requiresDartConvert |= current.node().properties().values().stream()
+                    .anyMatch(DartRegionGenerator::requiresDartConvert);
             requiresDartUi |= usesEnumLibrary(
                     current.node(), definition, DART_UI_IMPORT);
 
@@ -289,8 +297,22 @@ public final class DartRegionGenerator {
 
         ImportPlanner planner = ImportPlanner.create(
                 usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
-                requiresServices, requiresGestures, requiresRendering, requiresDartUi);
+                requiresServices, requiresGestures, requiresRendering,
+                requiresDartConvert, requiresDartUi);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
+    }
+
+    private static boolean requiresDartConvert(PropertyValue value) {
+        if (value instanceof PropertyValue.ImageProviderValue provider) {
+            return provider.isUnresolved();
+        }
+        if (value instanceof PropertyValue.BoxDecorationValue decoration) {
+            return decoration.image()
+                    .map(PropertyValue.DecorationImageValue::image)
+                    .map(PropertyValue.ImageProviderValue::isUnresolved)
+                    .orElse(false);
+        }
+        return false;
     }
 
     private static boolean usesEnumLibrary(
@@ -3828,6 +3850,9 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
+        if (value.isUnresolved()) {
+            return renderUnresolvedImageProvider(path, widgetId, context);
+        }
         String dartClass = value.providerKind()
                 == PropertyValue.ImageProviderValue.ProviderKind.ASSET
                 ? "AssetImage" : "ExactAssetImage";
@@ -3907,6 +3932,48 @@ public final class DartRegionGenerator {
                 Optional.of(widgetId)));
         return scalar(
                 wrapper.toString(), true, path, widgetId, context, occurrences);
+    }
+
+    private RenderedValue renderUnresolvedImageProvider(
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        RenderedSymbol memoryImage = context.planner().renderedSymbol(
+                WIDGETS_IMPORT, "MemoryImage");
+        RenderedSymbol base64Decode = context.planner().renderedSymbol(
+                DART_CONVERT_IMPORT, "base64Decode");
+        String encoded = dartString(
+                UNRESOLVED_IMAGE_BASE64,
+                path,
+                widgetId,
+                context.maxRenderedUtf8Bytes());
+        String rendered = memoryImage.text() + '(' + base64Decode.text()
+                + '(' + encoded + "), scale: 0.125)";
+        int decodeOffset = memoryImage.text().length() + 1
+                + base64Decode.nameOffset();
+        return scalar(
+                rendered,
+                false,
+                path,
+                widgetId,
+                context,
+                List.of(
+                        occurrence(
+                                "widget:" + widgetId
+                                + ":unresolved-image-memory-provider:" + path,
+                                memoryImage.nameOffset(),
+                                memoryImage.name(),
+                                memoryImage.libraryUri(),
+                                path,
+                                Optional.of(widgetId)),
+                        occurrence(
+                                "widget:" + widgetId
+                                + ":unresolved-image-base64-decode:" + path,
+                                decodeOffset,
+                                base64Decode.name(),
+                                base64Decode.libraryUri(),
+                                path,
+                                Optional.of(widgetId))));
     }
 
     private RenderedValue renderDecorationImage(
@@ -5932,9 +5999,13 @@ public final class DartRegionGenerator {
                 boolean requiresServices,
                 boolean requiresGestures,
                 boolean requiresRendering,
+                boolean requiresDartConvert,
                 boolean requiresDartUi) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
+            if (requiresDartConvert) {
+                uris.add(DART_CONVERT_IMPORT);
+            }
             if (requiresServices) {
                 uris.add(SERVICES_IMPORT);
             }

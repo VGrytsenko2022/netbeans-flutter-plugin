@@ -22,7 +22,8 @@ ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, ADR-060 adds
 `SizedOverflowBox`, and ADR-061 establishes the current `Transform` surface:
 674 typed rows across thirty-four widgets, twenty-nine const-constructor
 definitions and 1,122 Palette/DnD candidates, including 969 accepted and 153
-rejected cells. The 657-field
+rejected cells. ADR-062 supersedes only ADR-045's requirement that Image
+creation be blocked until a real declared asset exists. The 657-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -1634,7 +1635,8 @@ No schema or protocol version changes.
 
 ## ADR-045 — Image creation requires a real declared asset
 
-Accepted. The const leaf `flutter.widgets.Image` exposes the required
+Accepted historically; its creation-admission requirement is superseded by
+ADR-062. The const leaf `flutter.widgets.Image` exposes the required
 asset-only `image` provider and 21 optional reviewed callback, accessibility,
 size, color/opacity, blend, fit/alignment/repeat, center-slice, direction,
 playback, antialias and quality leaves. Network/file/memory/custom providers and
@@ -2434,3 +2436,34 @@ remaining. This is a project planning target, not a normative complete list of
 Flutter widgets. The first-class Offset value advances `.fd` schema to v9 and
 the contributor Catalog API to 8; Canvas model advances to v14. NBFC framing
 plus Canvas control/wire remain version 1.
+
+## ADR-062 — Image creation uses an editable unresolved provider when assets are unavailable
+
+Accepted; this supersedes only the creation-admission rule in ADR-045. A valid
+Palette/tree/Canvas or **Replace New Widget** destination must not disappear
+merely because the current project has no declared image asset, or because its
+asset inventory is refreshing, verifying or temporarily unavailable. Image
+creation still initializes `image` from the deterministic first sorted declared
+asset when one is usable. Otherwise it allocates the normal stable ID and stores
+an explicit reserved unresolved `ImageProviderValue`.
+
+The unresolved value reuses the existing `ASSET` wire shape and a reserved safe
+logical identity, so `.fd` schema v9, Catalog API 8, Canvas model v14 and NBFC
+framing/control version 1 remain unchanged. It cannot carry a package, exact
+scale or `ResizeImage` options. The identity is never resolved from the project,
+shown as an asset choice or emitted as an `AssetImage` path. Properties formats
+it as `<choose asset>` and keeps the custom provider editor available after
+Save/reopen; a real declared asset must be selected before that editor can
+publish a replacement value.
+
+Canvas projects the state directly to its bounded unavailable-image placeholder
+without a filesystem lookup or leaking the reserved identity. Deterministic Dart
+preserves the complete `Image(...)` argument surface but supplies a valid
+embedded 8x8 PNG through `MemoryImage(base64Decode(...), scale: 0.125)` and adds
+`dart:convert` only while an unresolved provider exists. Therefore generated
+source remains analyzable and runnable without a nonexistent asset. The
+constructor becomes non-const only for that temporary provider; choosing a real
+asset restores the ordinary const `AssetImage`/`ExactAssetImage` path. Drop
+admission continues to fail closed for stale authority, incompatible or
+ambiguous destinations and other catalog violations, but not for image-inventory
+availability.

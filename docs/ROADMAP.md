@@ -818,7 +818,9 @@ accepted architecture is documented in
   292 accepted and 48 rejected.
 - [x] Complete the const `Image` leaf with one required asset-only provider and
   21 optional reviewed fields. Creation resolves a deterministic declared asset
-  before ID allocation, and centerSlice uses an all-or-none strict rectangle.
+  when available and otherwise persists an editable unresolved provider backed
+  by a safe built-in Canvas/generated-Dart placeholder; centerSlice uses an
+  all-or-none strict rectangle.
   This milestone reached 18 widgets, 15 const definitions, 563 rows (546 outside
   Scaffold) and 360 DnD candidates: 310 accepted and 50 rejected.
 - [x] Complete the const Material `TextField` leaf with 54 optional grouped rows,

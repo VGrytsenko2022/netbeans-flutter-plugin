@@ -10,7 +10,6 @@ import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /** Resolves the required Image.image creation value without allocating an id. */
@@ -42,23 +41,6 @@ public final class FlutterImageWidgetCreationValues {
                 available.creationValues());
     }
 
-    /**
-     * Returns the exact user-facing reason why this definition cannot be
-     * created from the current project image inventory.
-     *
-     * <p>Callers may use this before advertising a Palette drag target. The
-     * final mutation planner must still resolve the values again so an asset
-     * inventory change during the drag cannot admit stale creation data.</p>
-     */
-    public static Optional<String> creationUnavailableReason(
-            WidgetDefinition definition,
-            FlutterImageAssetChoices choices) {
-        Result resolved = resolve(definition, choices);
-        return resolved instanceof Unavailable unavailable
-                ? Optional.of(unavailable.reason())
-                : Optional.empty();
-    }
-
     static Result resolve(
             WidgetDefinition definition,
             FlutterImageAssetChoices choices) {
@@ -68,11 +50,11 @@ public final class FlutterImageWidgetCreationValues {
             return new Available(Map.of(), "No creation-time values are required.");
         }
         if (choices.choices().isEmpty()) {
-            String reason = choices.unavailableReason().orElse(
-                    "the current Flutter project has no declared PNG, JPEG, GIF, or WebP asset.");
-            return new Unavailable(
-                    "Cannot create Image: required property 'image' needs a declared "
-                    + "Flutter image asset. Reason: " + reason);
+            return new Available(
+                    Map.of(IMAGE_PROPERTY,
+                            PropertyValue.ImageProviderValue.unresolved()),
+                    "Create Image with an unresolved provider until a declared "
+                    + "Flutter image asset is selected.");
         }
         FlutterImageAssetChoices.Choice first = choices.choices().getFirst();
         PropertyValue.ImageProviderValue provider =

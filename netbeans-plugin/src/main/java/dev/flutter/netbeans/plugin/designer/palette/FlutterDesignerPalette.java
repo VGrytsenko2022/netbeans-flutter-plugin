@@ -266,8 +266,8 @@ public final class FlutterDesignerPalette {
                 setShortDescription(
                         "Display a declared Flutter image asset. Creation selects the "
                         + "deterministic first sorted asset and sets required Image.image; "
-                        + "Palette, tree, Canvas, and slot Add are unavailable when the "
-                        + "current project asset inventory has no safe declared image.");
+                        + "when no safe declared asset is available, creation uses an "
+                        + "editable placeholder that can be replaced in Image properties.");
             } else if ("flutter.material.TextField".equals(
                     definition.typeId().value())) {
                 setShortDescription(

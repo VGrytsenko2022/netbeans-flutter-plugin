@@ -132,20 +132,24 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         Objects.requireNonNull(value, "value");
         updating = true;
         try {
-            FlutterImageAssetChoices.Choice choice = assetChoices.find(
-                    value.packageName(), value.assetName())
-                    .orElseGet(() -> storedChoice(value));
-            boolean present = false;
-            for (int index = 0; index < asset.getItemCount(); index++) {
-                if (asset.getItemAt(index).equals(choice)) {
-                    present = true;
-                    break;
+            if (value.isUnresolved()) {
+                asset.setSelectedItem(null);
+            } else {
+                FlutterImageAssetChoices.Choice choice = assetChoices.find(
+                        value.packageName(), value.assetName())
+                        .orElseGet(() -> storedChoice(value));
+                boolean present = false;
+                for (int index = 0; index < asset.getItemCount(); index++) {
+                    if (asset.getItemAt(index).equals(choice)) {
+                        present = true;
+                        break;
+                    }
                 }
+                if (!present) {
+                    asset.addItem(choice);
+                }
+                asset.setSelectedItem(choice);
             }
-            if (!present) {
-                asset.addItem(choice);
-            }
-            asset.setSelectedItem(choice);
             provider.setSelectedItem(value.providerKind());
             exactScale.setText(value.exactScale()
                     .map(BigDecimal::toPlainString).orElse("1"));
@@ -165,6 +169,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         } finally {
             updating = false;
         }
+        updateInventoryStatus();
         updateEnabledState(isEnabled());
     }
 
@@ -187,6 +192,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         } finally {
             updating = false;
         }
+        updateInventoryStatus();
         updateEnabledState(isEnabled());
     }
 
@@ -224,13 +230,14 @@ final class FlutterImageProviderEditorComponent extends JPanel {
 
     void updateEnabledState(boolean enabled) {
         super.setEnabled(enabled);
-        asset.setEnabled(enabled);
-        provider.setEnabled(enabled);
-        exactScale.setEnabled(enabled
+        boolean hasAsset = asset.getSelectedItem() != null;
+        asset.setEnabled(enabled && asset.getItemCount() > 0);
+        provider.setEnabled(enabled && hasAsset);
+        exactScale.setEnabled(enabled && hasAsset
                 && provider.getSelectedItem()
                 == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
-        resizeEnabled.setEnabled(enabled);
-        boolean resize = enabled && resizeEnabled.isSelected();
+        resizeEnabled.setEnabled(enabled && hasAsset);
+        boolean resize = enabled && hasAsset && resizeEnabled.isSelected();
         resizeWidth.setEnabled(resize);
         resizeHeight.setEnabled(resize);
         resizePolicy.setEnabled(resize);
@@ -269,6 +276,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         if (updating) {
             return;
         }
+        updateInventoryStatus();
         updateEnabledState(isEnabled());
         changed.run();
     }
@@ -277,6 +285,9 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         String status = assetChoices.choices().isEmpty()
                 ? "Asset selection unavailable for " + target + ": "
                 + unavailableReason()
+                : asset.getSelectedItem() == null
+                ? "Choose one of " + assetChoices.choices().size()
+                + " declared image asset choice(s) for " + target + '.'
                 : assetChoices.choices().size()
                 + " declared image asset choice(s) are available for " + target + '.';
         inventoryStatus.setText(status);

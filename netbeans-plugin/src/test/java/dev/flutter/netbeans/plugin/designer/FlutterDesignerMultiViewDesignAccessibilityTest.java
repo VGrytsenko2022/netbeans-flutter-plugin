@@ -882,30 +882,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
-    void imagePaletteSourceRejectsUnavailableCreationBeforeCanvasAuthorization() {
-        WidgetDefinition image = BuiltInWidgetCatalog.getDefault()
-                .find(new WidgetTypeId("flutter.widgets.Image"))
-                .orElseThrow();
-        AtomicInteger calls = new AtomicInteger();
-
-        assertFalse(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
-                true,
-                Optional.of(
-                        "Cannot create Image: required property 'image' needs a "
-                        + "declared Flutter image asset."),
-                "opaque-image-token",
-                image,
-                (ignoredToken, ignoredType) -> {
-                    calls.incrementAndGet();
-                    return true;
-                }));
-        assertEquals(0, calls.get(),
-                "an Image with unresolved creation values must never be projected "
-                + "as an authorized Canvas drag source");
-    }
-
-    @Test
-    void imagePaletteSourceWithResolvedCreationValuesUsesExactCanvasAuthorizationType() {
+    void imagePaletteSourceUsesCanvasAuthorizationWithoutAssetPreflight() {
         WidgetDefinition image = BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId("flutter.widgets.Image"))
                 .orElseThrow();
@@ -915,7 +892,6 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
 
         assertTrue(FlutterDesignerMultiViewDesign.authorizeCanvasPaletteDragSource(
                 true,
-                Optional.empty(),
                 "opaque-image-token",
                 image,
                 (candidateToken, candidateType) -> {
@@ -930,29 +906,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
-    void unavailableImagePaletteSourceExplainsTheProjectAssetPrerequisite() {
-        FlutterDesignerMultiViewDesign.PaletteDropFeedback feedback =
-                FlutterDesignerMultiViewDesign.imagePaletteDragUnavailableFeedback(
-                        "new_screen.fd",
-                        "Cannot create Image: no declared Flutter image asset was found.");
-
-        assertEquals(
-                "Cannot add Image: no usable image asset is currently available; "
-                + "hover for exact reason.",
-                feedback.summary());
-        assertTrue(feedback.detail().contains("Operation: add Flutter Image"));
-        assertTrue(feedback.detail().contains("Target: new_screen.fd widget tree"));
-        assertTrue(feedback.detail().contains("no declared Flutter image asset"));
-        assertTrue(feedback.detail().contains("assets/example.png"));
-        assertTrue(feedback.detail().contains("'assets:' list"));
-        assertTrue(feedback.detail().contains("'flutter:' block"));
-        assertTrue(feedback.detail().contains("pubspec.yaml"));
-        assertTrue(feedback.detail().contains("drag Image again"));
-    }
-
-    @Test
-    void committedImageAssetRacePublishesFeedbackAndConcreteMutationRejection() {
-        WidgetTypeId image = new WidgetTypeId("flutter.widgets.Image");
+    void imagePlannerRejectionUsesGeneralInlinePaletteFeedback() {
         FlutterDesignerPaletteDropPlanner.Rejected rejected =
                 new FlutterDesignerPaletteDropPlanner.Rejected(
                         FlutterDesignerPaletteDropPlanner.RejectionCode
@@ -960,30 +914,20 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                         "The declared image inventory changed during the drag.");
         AtomicReference<String> summary = new AtomicReference<>();
         AtomicReference<String> detail = new AtomicReference<>();
-        AtomicReference<FlutterDesignerMutationController.MutationResult> presented =
-                new AtomicReference<>();
 
         FlutterDesignerMultiViewDesign.publishPaletteDropRejection(
-                image,
-                "Image",
                 "new_screen.fd — add Image to widget parent.children at index 1",
                 rejected,
                 (renderedSummary, renderedDetail) -> {
                     summary.set(renderedSummary);
                     detail.set(renderedDetail);
-                },
-                presented::set);
+                });
 
-        assertTrue(summary.get().contains("Cannot add Image"));
+        assertEquals("Flutter Palette drop was not applied.", summary.get());
+        assertTrue(detail.get().startsWith(
+                "Operation: apply Flutter Palette drop."));
         assertTrue(detail.get().contains("inventory changed during the drag"));
-        assertTrue(detail.get().contains("assets/example.png"));
-        assertNotNull(presented.get());
-        assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
-                presented.get().outcome());
-        assertEquals("Add Flutter Image widget", presented.get().operation());
-        assertTrue(presented.get().target().contains("new_screen.fd"));
-        assertTrue(presented.get().reason().contains("inventory changed"));
-        assertTrue(presented.get().reason().contains("drag Image again"));
+        assertFalse(detail.get().contains("assets/example.png"));
     }
 
     @Test
@@ -994,26 +938,20 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                         "The target slot is full.");
         AtomicReference<String> summary = new AtomicReference<>();
         AtomicReference<String> detail = new AtomicReference<>();
-        AtomicInteger presenterCalls = new AtomicInteger();
 
         FlutterDesignerMultiViewDesign.publishPaletteDropRejection(
-                new WidgetTypeId("flutter.widgets.Text"),
-                "Text",
                 "new_screen.fd — Palette drop on widget parent.child at index 0",
                 rejected,
                 (renderedSummary, renderedDetail) -> {
                     summary.set(renderedSummary);
                     detail.set(renderedDetail);
-                },
-                ignored -> presenterCalls.incrementAndGet());
+                });
 
         assertEquals("Flutter Palette drop was not applied.", summary.get());
         assertTrue(detail.get().startsWith(
                 "Operation: apply Flutter Palette drop."));
         assertTrue(detail.get().contains("The target slot is full."));
         assertFalse(detail.get().contains("assets/example.png"));
-        assertEquals(0, presenterCalls.get(),
-                "ordinary Palette planning rejections must remain inline");
     }
 
     @Test
@@ -1048,23 +986,23 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
         assertEquals("assets/a.png", image.assetName());
         assertEquals(1, availableAllocations.get());
 
-        AtomicInteger unavailableAllocations = new AtomicInteger();
+        AtomicInteger placeholderAllocations = new AtomicInteger();
         FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
                 List.of(),
                 Optional.of("the current pubspec declares no safe image asset."));
-        IllegalArgumentException rejected = assertThrows(
-                IllegalArgumentException.class,
-                () -> FlutterDesignerMultiViewDesign
-                        .createSlotReplacementPrototype(
-                                definition,
-                                unavailable,
-                                () -> {
-                                    unavailableAllocations.incrementAndGet();
-                                    return expectedId;
-                                }));
-        assertTrue(rejected.getMessage().contains("required property 'image'"));
-        assertTrue(rejected.getMessage().contains("pubspec"));
-        assertEquals(0, unavailableAllocations.get());
+        WidgetNode placeholder = FlutterDesignerMultiViewDesign
+                .createSlotReplacementPrototype(
+                        definition,
+                        unavailable,
+                        () -> {
+                            placeholderAllocations.incrementAndGet();
+                            return expectedId;
+                        });
+        PropertyValue.ImageProviderValue unresolved = assertInstanceOf(
+                PropertyValue.ImageProviderValue.class,
+                placeholder.properties().get(new PropertyName("image")));
+        assertTrue(unresolved.isUnresolved());
+        assertEquals(1, placeholderAllocations.get());
     }
 
     @Test
@@ -1279,7 +1217,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
-    void emptyToEmptyAssetInventoryTransitionClearsAndRecomputesPaletteFeedback()
+    void assetInventoryTransitionClearsExistingPaletteFeedback()
             throws Exception {
         onEdt(() -> {
             FlutterDesignerMultiViewDesign design =
@@ -1289,36 +1227,26 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     visual,
                     JLabel.class,
                     "Flutter Palette drop feedback");
-            WidgetDefinition image = BuiltInWidgetCatalog.getDefault()
-                    .find(new WidgetTypeId("flutter.widgets.Image"))
-                    .orElseThrow();
             FlutterImageAssetChoices refreshing = new FlutterImageAssetChoices(
                     List.of(), Optional.of("Refreshing image assets."));
             FlutterImageAssetChoices failed = new FlutterImageAssetChoices(
                     List.of(), Optional.of("Asset resolver failed."));
 
             design.refreshCanvasAfterProjectAssetChange(refreshing);
-            String firstReason = design.paletteCreationUnavailableReason(image)
-                    .orElseThrow();
-            FlutterDesignerMultiViewDesign.PaletteDropFeedback first =
-                    FlutterDesignerMultiViewDesign.imagePaletteDragUnavailableFeedback(
-                            "new_screen.fd", firstReason);
-            design.renderPaletteDropFeedback(first.summary(), first.detail());
+            design.renderPaletteDropFeedback(
+                    "Flutter Palette drop was not applied.",
+                    "Operation: apply Flutter Palette drop. Reason: temporary feedback.");
             assertTrue(paletteFeedback.isVisible());
             assertTrue(paletteFeedback.getToolTipText()
-                    .contains("Refreshing image assets."));
+                    .contains("temporary feedback"));
 
             design.refreshCanvasAfterProjectAssetChange(failed);
 
             assertFalse(paletteFeedback.isVisible(),
-                    "an empty-to-empty inventory transition must clear stale feedback "
+                    "an asset-inventory transition must clear stale feedback "
                     + "even when no Canvas document is loaded");
             assertEquals("", paletteFeedback.getText());
             assertNull(paletteFeedback.getToolTipText());
-            String currentReason = design.paletteCreationUnavailableReason(image)
-                    .orElseThrow();
-            assertTrue(currentReason.contains("Asset resolver failed."));
-            assertFalse(currentReason.contains("Refreshing image assets."));
         });
     }
 

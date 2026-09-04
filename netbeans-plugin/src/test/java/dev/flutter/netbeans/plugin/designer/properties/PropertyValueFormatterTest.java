@@ -127,6 +127,8 @@ class PropertyValueFormatterTest {
                 "exactAsset \"package:ui_kit:assets/panel.webp\" @ 2x "
                 + "resized 320×auto (fit)",
                 PropertyValueFormatter.format(imageProvider));
+        assertEquals("<choose asset>", PropertyValueFormatter.format(
+                PropertyValue.ImageProviderValue.unresolved()));
         assertEquals(
                 "BoxDecoration(rectangle, image exactAsset "
                 + "\"package:ui_kit:assets/panel.webp\" @ 2x "

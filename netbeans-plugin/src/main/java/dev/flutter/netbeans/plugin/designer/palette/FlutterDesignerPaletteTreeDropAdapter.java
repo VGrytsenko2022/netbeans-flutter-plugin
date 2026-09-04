@@ -118,17 +118,6 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 resolved.orElseThrow();
         Optional<WidgetDefinition> resolvedSource = catalog.find(drag.widgetType())
                 .filter(definition -> drag.widgetType().equals(definition.typeId()));
-        if (resolvedSource.isPresent()) {
-            FlutterImageWidgetCreationValues.Result creationValues =
-                    FlutterImageWidgetCreationValues.resolve(
-                            resolvedSource.orElseThrow(), imageAssetChoices);
-            if (creationValues
-                    instanceof FlutterImageWidgetCreationValues.Unavailable unavailable) {
-                return rejected(
-                        RejectionCode.REQUIRED_CREATION_VALUE_UNAVAILABLE,
-                        unavailable.reason() + " Tree target: widget '" + parentId + "'.");
-            }
-        }
         boolean wrapExistingChild = resolvedSource.stream().anyMatch(definition ->
                 WidgetPlacementRules.creationMode(definition)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD);

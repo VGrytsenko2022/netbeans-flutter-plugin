@@ -363,7 +363,10 @@ identifier, never callback source or raw Dart.
 
 The provider matrix is deliberately closed: `AssetImage` or `ExactAssetImage`,
 optionally wrapped once by bounded `ResizeImage`; `FileImage`, `MemoryImage`,
-`NetworkImage` and custom providers remain deferred. The IDE selects only
+`NetworkImage` and custom user-selectable providers remain deferred. A reserved
+unresolved ASSET identity is designer state, not a third provider choice; Canvas
+and generated Dart map only that state to reviewed built-in placeholder bytes.
+The IDE selects only
 declared app/package assets discovered from `pubspec.yaml` and
 `.dart_tool/package_config.json`, verifies PNG/JPEG/GIF/WebP bytes and their
 dimensions, rejects absolute/backslash/traversal/symlink-escape paths and applies
@@ -438,14 +441,14 @@ Palette creation atomically wraps an existing direct Row/Column child and never
 creates a terminal placeholder. Its child editor is replacement-only.
 
 `Image` is a const leaf with 22 reviewed properties. Its required asset-only
-provider is selected from the deterministic first sorted declared project asset
-before a stable ID is allocated. Palette/Canvas preflights that inventory before
-authorizing an Image drag. If the inventory is empty, refreshing, verifying or
-unavailable because resolution failed, the drag is blocked and the Designer
-shows the exact reason; resolve the reported state, wait for any in-progress
-refresh or verification and retry. If the reason is that the project has no
-usable declared image, add a PNG/JPEG/GIF/WebP file such as
-`assets/example.png` and declare it in the existing `flutter:` block:
+provider is initialized from the deterministic first sorted declared project
+asset when one is available. When the inventory is empty, refreshing, verifying
+or temporarily unavailable, Palette/tree/Canvas insertion still creates the
+`Image` in a compatible slot with an explicit editable placeholder. The
+Properties value is shown as `<choose asset>`; Canvas and generated Dart render
+a small built-in placeholder without referring to a nonexistent project file.
+After adding a PNG/JPEG/GIF/WebP file such as `assets/example.png`, declare it in
+the existing `flutter:` block and choose it in **Image data**:
 
 ```yaml
 flutter:
@@ -456,8 +459,11 @@ flutter:
 
 Platform launcher resources such as `android/.../ic_launcher.png`, Apple
 `Assets.xcassets` entries and `web/icons/...` are not Flutter runtime assets for
-this widget. The planner rechecks the latest inventory at commit for race safety,
-so an asset change during a drag produces no command, document change or new ID.
+this widget. The unresolved value is persisted as a reserved Designer sentinel,
+so Save/reopen keeps the widget valid and its image provider editable; it is
+never emitted as an `AssetImage` path. The planner rechecks the latest inventory
+at commit: it selects the first current asset or retains the placeholder if none
+is usable.
 The four center-slice coordinates are all-or-none, strictly ordered and
 incompatible with `BoxFit.cover`/`none`.
 

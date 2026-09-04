@@ -734,7 +734,9 @@ class FlutterDesignerPaletteTest {
         assertTrue(node.getShortDescription().contains(
                 "required Image.image"));
         assertTrue(node.getShortDescription().contains(
-                "unavailable"));
+                "editable placeholder"));
+        assertTrue(node.getShortDescription().contains(
+                "replaced in Image properties"));
         assertEquals(
                 FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
                 declaredIconPath(node));
